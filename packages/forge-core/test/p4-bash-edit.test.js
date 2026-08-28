@@ -103,10 +103,28 @@ describe('BashSafety — allowing safe commands', () => {
     assert.equal(r.verdict, SafetyVerdict.ALLOWED);
   });
 
-  it('should ALLOW unknown commands in non-strict mode', () => {
-    const safety = new BashSafety();
+  it('should ALLOW unknown commands only with explicit non-strict mode', () => {
+    const safety = new BashSafety({ strict: false });
     const r = safety.check('some-random-cmd');
     assert.equal(r.verdict, SafetyVerdict.ALLOWED, 'non-strict should allow unknown');
+  });
+
+  it('should require review for unknown commands by default', () => {
+    const safety = new BashSafety();
+    const r = safety.check('some-random-cmd');
+    assert.equal(r.verdict, SafetyVerdict.NEEDS_REVIEW);
+  });
+
+  it('should BLOCK a whitelisted prefix followed by a compound command', () => {
+    const safety = new BashSafety();
+    const r = safety.check('echo ok; printenv');
+    assert.equal(r.verdict, SafetyVerdict.BLOCKED);
+  });
+
+  it('should BLOCK command substitution even inside double quotes', () => {
+    const safety = new BashSafety();
+    const r = safety.check('echo "$(printenv)"');
+    assert.equal(r.verdict, SafetyVerdict.BLOCKED);
   });
 });
 
@@ -180,6 +198,15 @@ describe('BashSafety — isCommandSafe convenience', () => {
     const { isCommandSafe } = await import('../src/bash-safety/index.js');
     const r = isCommandSafe('npm test');
     assert.equal(r.verdict, 'ALLOWED');
+  });
+});
+
+describe('Forge worker execution policy', () => {
+  it('removes shell execution from autonomous workers by default', async () => {
+    const { CoderWorker } = await import('../src/worker/coder.js');
+    const { TesterWorker } = await import('../src/worker/tester.js');
+    assert.equal(new CoderWorker().getAvailableTools().includes('bash'), false);
+    assert.equal(new TesterWorker().getAvailableTools().includes('bash'), false);
   });
 });
 

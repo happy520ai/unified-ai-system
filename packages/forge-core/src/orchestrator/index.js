@@ -22,6 +22,7 @@ import { formatDuration, extractFilesFromPrompt } from './utils.js';
 import { BudgetTracker } from '../budget-tracker/index.js';
 import { CodeIntelligence } from '../code-intel/index.js';
 import { runWithTrace, getTraceContext } from '../tracing/index.js';
+import { SandboxExecutor } from '../sandbox-executor/index.js';
 
 const WORKER_MAP = {
   'coder': () => new CoderWorker(),
@@ -47,6 +48,7 @@ export class Orchestrator {
   #options;
   #plugins;     // PluginManager (optional)
   #tracing;     // TraceManager (optional)
+  #sandboxExecutor;
 
   /**
    * @param {import('../task-store/index.js').TaskStore} store
@@ -64,7 +66,26 @@ export class Orchestrator {
     this.#store = store;
     this.#projectRoot = projectRoot;
     this.#checkpoint = new CheckpointManager(store, projectRoot);
-    this.#verifier = new VerificationEngine(store, projectRoot);
+    const configuredSandbox = options.sandboxOptions ?? {};
+    const container = configuredSandbox.container
+      ? {
+          ...configuredSandbox.container,
+          workspaceRoots: configuredSandbox.container.workspaceRoots ?? [projectRoot],
+        }
+      : undefined;
+    this.#sandboxExecutor = options.sandboxExecutor ?? new SandboxExecutor({
+      ...configuredSandbox,
+      container,
+      level: configuredSandbox.level ?? 'full',
+      allowedPaths: configuredSandbox.allowedPaths ?? [projectRoot],
+      hostExecutionEnabled: false,
+    });
+    this.#verifier = new VerificationEngine({
+      store,
+      projectRoot,
+      tracingManager: options.tracingManager,
+      sandboxExecutor: this.#sandboxExecutor,
+    });
     this.#budget = new BudgetTracker(options.budget ?? {});
     this.#codeIntel = options.enableCodeIntel !== false ? new CodeIntelligence() : null;
     this.#plugins = options.pluginManager || null;
@@ -370,6 +391,7 @@ export class Orchestrator {
     await this.#plugins?.runHook('onTaskStart', { goalId, taskId: task.id, task });
 
     const worker = workerFactory();
+    worker.setSandboxExecutor?.(this.#sandboxExecutor);
     let allowedFiles = typeof task.allowed_files === 'string'
       ? JSON.parse(task.allowed_files) : (task.allowed_files || []);
 
@@ -425,36 +447,17 @@ export class Orchestrator {
         const allChecks = verifyResult.tiers.flatMap(t =>
           t.checks.map(c => ({ ...c, tier: t.tier }))
         );
-        const passed = allChecks.filter(c => c.status === 'PASS').length;
-        const total = allChecks.length;
-        const skipped = allChecks.filter(c => c.status === 'SKIP').length;
         const failed = allChecks.filter(c => c.status === 'FAIL');
-        // Tier 2 = Unit Tests. Test failures are HARD failures — never auto-accept.
-        const testFailures = failed.filter(c => c.tier === 2);
-        const nonTestFailures = failed.filter(c => c.tier !== 2);
 
         for (const c of failed) {
           console.log(`[forge:verify] Tier ${c.tier} / ${c.name} FAILED:`);
           console.log(`  ${(c.output || '').slice(0, 500)}`);
         }
 
-        if (testFailures.length > 0) {
-          // Test failures block delivery — no more "accepting with warnings".
-          result.success = false;
-          result.needsReview = true;
-          result.error = `Verification FAILED: ${testFailures.length} test check(s) failed (Tier 2). ` +
-            `Failing: ${testFailures.map(c => c.name).join(', ')}. Manual review required.`;
-          console.log(`[forge:orchestrator] Verification BLOCKED: ${testFailures.length} test failure(s) — marking task FAILED (no auto-accept)`);
-        } else if (passed > 0 || (passed === 0 && total === skipped)) {
-          // Only non-test checks failed (lint/format/style) — warn but accept.
-          console.log(`[forge:orchestrator] Verification partial: ${passed}/${total} passed, ${skipped} skipped — accepting with warnings (non-test only)`);
-          result.verificationWarning = `Partial pass: ${passed}/${total} checks passed; non-test failures: ${nonTestFailures.map(c => c.name).join(', ')}`;
-          result.needsReview = nonTestFailures.length > 0;
-        } else {
-          result.success = false;
-          result.needsReview = true;
-          result.error = `Verification failed: ${JSON.stringify(verifyResult.tiers.map(t => ({ tier: t.tier, status: t.status })))}`;
-        }
+        result.success = false;
+        result.needsReview = true;
+        result.error = `Verification failed closed: ${failed.map((check) => `Tier ${check.tier}/${check.name}`).join(', ')}`;
+        console.log(`[forge:orchestrator] Verification BLOCKED: ${failed.length} failed check(s); partial success cannot override a failed tier.`);
       }
     }
 

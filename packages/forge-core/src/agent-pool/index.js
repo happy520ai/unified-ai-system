@@ -80,7 +80,7 @@ export class AgentPoolManager {
    * @param {import('../plugins/index.js').PluginManager} [options.pluginManager] — plugin manager for hooks & middleware
    * @param {import('../tracing/index.js').TraceManager} [options.tracingManager] — distributed tracing manager
    */
-  constructor({ store, projectRoot, maxConcurrent, llmOptions, budget, enableCodeIntel, enableVerification, enableAutoVerify, maxGoals, config, pluginManager, tracingManager }) {
+  constructor({ store, projectRoot, maxConcurrent, llmOptions, budget, enableCodeIntel, enableVerification, enableAutoVerify, maxGoals, config, pluginManager, tracingManager, sandboxExecutor, sandboxOptions }) {
     this.#s.config = config || null;
     this.#s.plugins = pluginManager || null;
     this.#s.tracing = tracingManager || null;
@@ -97,6 +97,21 @@ export class AgentPoolManager {
       enableAutoVerify: enableAutoVerify ?? cfg?.pool?.enableAutoVerify ?? true,
       maxGoals: maxGoals ?? cfg?.pool?.maxGoals ?? 3,
     };
+
+    const configuredSandbox = sandboxOptions ?? cfg?.sandbox ?? {};
+    const container = configuredSandbox.container
+      ? {
+          ...configuredSandbox.container,
+          workspaceRoots: configuredSandbox.container.workspaceRoots ?? [projectRoot],
+        }
+      : undefined;
+    this.#s.sandboxExecutor = sandboxExecutor ?? new SandboxExecutor({
+      ...configuredSandbox,
+      container,
+      level: configuredSandbox.level ?? 'full',
+      allowedPaths: configuredSandbox.allowedPaths ?? [projectRoot],
+      hostExecutionEnabled: false,
+    });
 
     // Initialize core state collections
     this.#s.activeWorkers = new Map();
@@ -128,7 +143,12 @@ export class AgentPoolManager {
 
     // Initialize verification engine
     if (this.#s.options.enableVerification) {
-      this.#s.verifier = new VerificationEngine(store, projectRoot);
+      this.#s.verifier = new VerificationEngine({
+        store,
+        projectRoot,
+        tracingManager: this.#s.tracing,
+        sandboxExecutor: this.#s.sandboxExecutor,
+      });
     }
 
     // Initialize code intelligence
@@ -199,7 +219,6 @@ export class AgentPoolManager {
 
     // P7: Multi-agent review, sandbox, live stream, injection defense
     this.#s.multiAgentReview = new MultiAgentReview();
-    this.#s.sandboxExecutor = new SandboxExecutor();
     this.#s.liveStream = new LiveStream();
     this.#s.injectionDefense = new PromptInjectionDefense();
 

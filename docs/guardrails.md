@@ -7,7 +7,7 @@ extra credentials are required.
 
 - **Opt-in**: `AI_GATEWAY_GUARDRAILS_ENABLED=true` (mirrors the response cache)
 - **Fail-open**: any engine error never changes the chat response
-- **Configurable at runtime**: `GET/PUT /enterprise/guardrails` (admin)
+- **Tenant-scoped at runtime**: `GET/PUT /enterprise/guardrails` (admin), bound to the authenticated tenant
 
 ## Where guardrails run
 
@@ -43,20 +43,27 @@ Env (process-wide defaults, JSON):
 ```bash
 AI_GATEWAY_GUARDRAILS_ENABLED=true
 AI_GATEWAY_GUARDRAILS_CONFIG='{"rules":{"input.injection":"block"},"bannedTerms":["internal-codename"]}'
+AI_GATEWAY_GUARDRAILS_STORAGE_DIR='.data/enterprise/guardrails'
 ```
 
-Runtime override (persisted to `.data/enterprise/guardrails-config.json`,
-audited as `enterprise_guardrails_updated`):
+Runtime overrides are isolated by credential tenant and persisted beneath
+`.data/enterprise/guardrails/` by default. Tenant identifiers are
+domain-separated and SHA-256 hashed before becoming filenames, so raw tenant
+identifiers are not exposed through the filesystem. Updates are audited as
+`enterprise_guardrails_updated`:
 
 ```bash
 curl -X PUT http://127.0.0.1:3100/enterprise/guardrails \
   -H "authorization: Bearer $ADMIN_KEY" \
+  -H "x-pme-tenant-id: $TENANT_ID" \
   -H "content-type: application/json" \
   -d '{"enabled":true,"rules":{"input.injection":"block"},"bannedTerms":["internal-codename"]}'
 ```
 
-`GET /enterprise/guardrails` returns the effective config. Invalid rule
-names, actions, and terms are ignored (never crash the hot path).
+`GET /enterprise/guardrails` returns only the authenticated tenant's effective
+config. A conflicting `x-pme-tenant-id` is rejected rather than accepted as an
+administrative tenant override. Invalid rule names, actions, and terms are
+ignored (never crash the hot path).
 
 ## Metrics
 
@@ -76,3 +83,18 @@ short-circuit before the provider call.
 - Phone detection covers E.164 and common grouped forms only.
 - SSE output redaction is per-chunk; a pattern split across two chunks is
   recorded as a finding rather than rewritten.
+
+## Route Coverage
+
+The engine covers all chat surfaces with the same rules and tenant
+overrides:
+
+- `/v1/chat/completions` and `/v1/completions` (input, output, per-delta)
+- `/v1/messages` (Anthropic profile)
+- `/v1/responses` (Responses API — input on normalized messages, output on
+  `output_text`, per-delta redaction while streaming)
+- `/chat` and `/chat/stream` (internal lane)
+- `/v1beta/models/*:generateContent` (Gemini inbound lane)
+
+RAG context injected via `unified_ai.rag` is re-inspected before injection;
+a block-level finding aborts the injection (not the request).

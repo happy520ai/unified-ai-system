@@ -31,9 +31,6 @@ export const EXECUTION_STATUS = {
 // 有效的状态转换映射
 const VALID_TRANSITIONS = buildValidTransitions(EXECUTION_STATUS);
 
-// 内存中的执行状态（快速访问）
-const executionStates = new Map();
-
 /**
  * 创建执行生命周期管理器
  * @param {object} [options] - 配置选项
@@ -42,6 +39,18 @@ const executionStates = new Map();
  */
 export function createExecutionLifecycle(options = {}) {
   const lifecycleDir = options.lifecycleDir || DEFAULT_LIFECYCLE_DIR;
+  // State belongs to one lifecycle backend instance. A module-global map made
+  // independent executors and test/deployment roots overwrite each other.
+  const executionStates = new Map();
+
+  function getState(planId) {
+    const key = planId.trim();
+    const state = executionStates.get(key);
+    if (!state) {
+      throw new Error(`未找到计划 ${key} 的执行记录，请先调用 initialize()`);
+    }
+    return state;
+  }
 
   return {
     /**
@@ -94,7 +103,12 @@ export function createExecutionLifecycle(options = {}) {
       };
 
       executionStates.set(planId, state);
-      await persistState(lifecycleDir, planId, state);
+      try {
+        await persistState(lifecycleDir, planId, state);
+      } catch (error) {
+        executionStates.delete(planId);
+        throw error;
+      }
 
       return {
         success: true,
@@ -370,6 +384,8 @@ export function createExecutionLifecycle(options = {}) {
           startedAt: memState.startedAt,
           completedAt: memState.completedAt,
           transitions: memState.transitions,
+          tenantFingerprint: memState.metadata?.tenantFingerprint ?? null,
+          subjectFingerprint: memState.metadata?.subjectFingerprint ?? null,
         };
       }
 
@@ -388,6 +404,8 @@ export function createExecutionLifecycle(options = {}) {
           startedAt: diskState.startedAt,
           completedAt: diskState.completedAt,
           transitions: diskState.transitions,
+          tenantFingerprint: diskState.metadata?.tenantFingerprint ?? null,
+          subjectFingerprint: diskState.metadata?.subjectFingerprint ?? null,
         };
       }
 
@@ -421,20 +439,6 @@ export function createExecutionLifecycle(options = {}) {
     // 导出状态枚举供外部使用
     EXECUTION_STATUS,
   };
-}
-
-// ---- 内部辅助函数 ----
-
-/**
- * 获取执行状态（从内存）
- */
-function getState(planId) {
-  const key = planId.trim();
-  const state = executionStates.get(key);
-  if (!state) {
-    throw new Error(`未找到计划 ${key} 的执行记录，请先调用 initialize()`);
-  }
-  return state;
 }
 
 // 以下函数委托给 executionLifecycleHelpers.js，保留本地签名以避免改动调用点

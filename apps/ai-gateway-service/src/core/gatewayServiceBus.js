@@ -108,7 +108,7 @@ export class GatewayServiceBus {
       ),
       this._loadService(
         "taskQueue",
-        () => import("../workforce/taskQueueManager.js")
+        () => import("../workforce/workforceTaskQueueFactory.ts")
       ),
       this._loadService(
         "commandPalette",

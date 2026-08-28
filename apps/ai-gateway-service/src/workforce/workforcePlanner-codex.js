@@ -166,7 +166,7 @@ export function createSafeDesktopRunnerDesign() {
       "security review",
       "clean git workspace check",
       "worktree isolation design",
-      "task claim token",
+      "distributed task claim backend integration",
       "log redaction",
       "cancellable execution state",
       "per-task evidence",

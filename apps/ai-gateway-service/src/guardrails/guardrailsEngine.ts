@@ -12,11 +12,13 @@
 //  - fail-open: any engine error must never change the chat response
 // =============================================================================
 
+import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync, mkdirSync, renameSync, existsSync } from "node:fs";
 import { dirname, resolve as resolvePath } from "node:path";
 
 export const GUARDRAILS_ENABLED_ENV = "AI_GATEWAY_GUARDRAILS_ENABLED";
 export const GUARDRAILS_CONFIG_ENV = "AI_GATEWAY_GUARDRAILS_CONFIG";
+export const GUARDRAILS_STORAGE_DIR_ENV = "AI_GATEWAY_GUARDRAILS_STORAGE_DIR";
 
 export type GuardrailAction = "off" | "warn" | "redact" | "block";
 
@@ -248,7 +250,7 @@ class DefaultGuardrailsEngine implements GuardrailsEngine {
 
       // 长度上限按全部消息的累计字符数判定：只查末条会被"把超长内容
       // 拆进多条消息"绕过。
-      const totalAllMessageChars = messages.reduce(
+      const totalAllMessageChars = messages.reduce<number>(
         (sum, message) => sum + extractMessageText((message as { content?: unknown })?.content).length,
         0,
       );
@@ -384,8 +386,16 @@ function safeJsonEnv(name: string): unknown {
   }
 }
 
-function defaultOverridesPath(): string | null {
+function defaultOverridesPath(tenantId?: string): string | null {
   try {
+    if (tenantId) {
+      const tenantScopeKey = createHash("sha256")
+        .update(`guardrails-tenant:v1:${tenantId}`)
+        .digest("hex");
+      const storageRoot = process.env[GUARDRAILS_STORAGE_DIR_ENV]
+        ?? resolvePath(process.cwd(), ".data", "enterprise", "guardrails");
+      return resolvePath(storageRoot, `${tenantScopeKey}.json`);
+    }
     return resolvePath(process.cwd(), ".data", "enterprise", "guardrails-config.json");
   } catch {
     return null;
@@ -394,15 +404,40 @@ function defaultOverridesPath(): string | null {
 
 let engineForTests: GuardrailsEngine | null = null;
 let defaultEngine: GuardrailsEngine | null = null;
+const tenantEngines = new Map<string, GuardrailsEngine>();
 
-export function getGuardrailsEngine(): GuardrailsEngine {
+export function getGuardrailsEngine(tenantId?: string): GuardrailsEngine {
   if (engineForTests) return engineForTests;
+  const normalizedTenantId = typeof tenantId === "string" ? tenantId.trim() : "";
+  if (normalizedTenantId) {
+    const tenantScopeKey = createHash("sha256")
+      .update(`guardrails-tenant:v1:${normalizedTenantId}`)
+      .digest("hex");
+    let engine = tenantEngines.get(tenantScopeKey);
+    if (!engine) {
+      engine = new DefaultGuardrailsEngine({
+        overridesPath: defaultOverridesPath(normalizedTenantId),
+      });
+      tenantEngines.set(tenantScopeKey, engine);
+    }
+    return engine;
+  }
   defaultEngine ??= new DefaultGuardrailsEngine();
   return defaultEngine;
 }
 
 export function setGuardrailsEngineForTests(engine: GuardrailsEngine | null): void {
   engineForTests = engine;
+  if (!engine) {
+    defaultEngine = null;
+    tenantEngines.clear();
+  }
+}
+
+export function resetGuardrailsEnginesForTests(): void {
+  engineForTests = null;
+  defaultEngine = null;
+  tenantEngines.clear();
 }
 
 /** Test helper: build an engine with explicit config and no file I/O. */

@@ -9,7 +9,305 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- Nothing yet.
+- Added opt-in A2A v1.0 Agent Card identity signing with a stable Ed25519
+  private-key file, official JCS/JWS generation, a public JWKS endpoint,
+  HTTPS enforcement outside loopback, restricted-file validation, and a
+  fail-closed `AI_GATEWAY_A2A_AGENT_CARD_SIGNING_REQUIRED` deployment mode.
+  Rotation can now retain up to three restricted previous Ed25519 keys through
+  a bounded JSON path list, publish primary-first overlap JWKS, and generate one
+  independently verifiable signature per key. Malformed, unanchored, duplicate,
+  or over-capacity overlap configuration fails startup.
+- Added bounded A2A task storage with tenant/owner isolation, TTL, global and
+  per-owner capacity, task/history/artifact limits, scope-bound keyset
+  pagination, restart-safe same-host SQLite, multi-instance defaults, safe
+  readiness output, and a fail-closed durable-required mode. An explicit
+  PostgreSQL mode now adds cross-host lifecycle sharing with database-clock TTL,
+  transactional counters and task locks, stale-write rejection, corruption
+  digests, repeatable-read pages, verified remote TLS, and safe health output.
+  Cross-host mode now also requires a tenant/owner/task-scoped PostgreSQL
+  execution lease with digest-only tokens, heartbeat renewal, monotonic fences,
+  duplicate-executor rejection, pre-publication stale-result blocking, and
+  remote cancellation. PostgreSQL A2A terminal TaskStore commits now lock,
+  validate, and consume the active token digest/fence in one transaction;
+  cross-replica cancellation atomically stores `canceled` and deletes the fence,
+  terminal tasks cannot be reopened, and a new acquire checks terminal state
+  under the same lock order. Downstream provider/sink fence consumption remains
+  explicit.
+- Fixed the live A2A Workforce skill wiring: the controlled executor created by
+  the application is now passed to the HTTP/A2A gateway instead of being
+  dropped from the application boundary and reported as unavailable at runtime.
+- Added a PostgreSQL Workforce task-claim backend with database-clock leases,
+  atomic cross-pool ownership, monotonically increasing fencing tokens,
+  namespace/capacity bounds, digest-only bearer persistence, renewal/release/
+  revoke operations, verified-TLS configuration, safe health output, and a
+  fail-closed multi-instance execution requirement.
+- Added a central PostgreSQL Workforce queue/result backend with tenant/owner
+  scope, bounded retention/capacity/payloads, task-state corruption digests,
+  cross-replica expired-owner recovery, redacted health/metrics, and a
+  fail-closed multi-instance requirement. Terminal completion/failure now
+  validates the digest-only claim and monotonic fence, persists the result, and
+  deletes the lease in one transaction. External irreversible sinks still need
+  their own fence-aware commit boundary before exactly-once can be claimed.
+- Added a destructive PostgreSQL logical-recovery gate that deletes its source
+  database and volume, restores twelve covered gateway tables, builds an
+  asynchronous streaming standby with `pg_basebackup -R`, and proves replay of
+  a post-basebackup WAL marker. It interrupts an in-flight query by destroying
+  primary, then a healthy-armed controller requires three consecutive failures
+  plus confirmation before automatically promoting the one known standby and
+  switching a stable endpoint. Before destruction, a separate probe container
+  and the streaming standby are disconnected from the still-writable primary
+  by a real Docker-bridge partition. The full failure sequence must be rejected
+  because an independent Docker-state fence still reports the primary running;
+  after bridge healing, the probe must recover and the standby must replay a
+  marker written during the partition. The same sentinel Pool plus eight
+  clients must recover after switch/restart. This bounded single-bridge proof
+  now also retains the fenced old-primary volume, persists rewind prerequisites,
+  runs PostgreSQL 17 `pg_rewind -R`, and starts the old volume only as a
+  streaming standby. It must replay a post-promotion marker, preserve exact
+  inventory and client health, then reconnect and replay another marker after
+  the promoted primary restarts. It also creates a separately manifested
+  physical base backup plus continuous WAL archive, removes all bundled backup
+  WAL, and performs archive-only recovery to an inclusive LSN between an
+  included and excluded marker; exact inventory and all eight contracts are
+  required. This is not multi-candidate election/quorum, external HA control,
+  long-duration/off-host archive custody, time-based PITR, arbitrary multi-host
+  partition/rejoin control, complete split-brain safety, or production RTO/RPO
+  proof.
+- Added central PostgreSQL Workforce execution control: raw-identifier-free
+  tenant/plan/subject keys, atomic single-use approval consumption, versioned
+  digest-verified lifecycle transitions, bounded retention/capacity, remote
+  cancel visibility, verified TLS, safe readiness, and Prometheus metrics.
+  Multi-instance execution now fails closed unless claims, queue/results, and
+  approval/lifecycle control all use the same database.
+- Fixed controlled Workforce isolation adapters that were previously wired to
+  the wrong method/return contracts: worktree creation failures now block,
+  cleanup is verified and affects terminal status, the configured repo root is
+  actually checked, and lifecycle/evidence use an opaque tenant+owner scope.
+  The real pre/post security checkpoint now runs and fails closed; its local
+  audit uses hashed filenames plus atomic restricted writes, and per-role
+  evidence is bounded, redacted, atomic, and no longer silently skipped. Forge
+  adapters must attest and receive an isolated project root before execution.
+  Lifecycle snapshots now use hashed filenames, serialized atomic `0600`
+  writes in `0700` directories, bounded/redacted state, corruption detection,
+  and initialization rollback instead of logging persistence failures as if the
+  transition had succeeded.
+- Fixed the sandbox-merge lane using nonexistent security/evidence/redactor
+  methods and deleting its own green candidate branch during worktree cleanup.
+  Real pre/post checkpoints and evidence sessions now run, rollback/cleanup
+  failures are terminal, LLM abort signals reach the provider, and a verified
+  manual-merge candidate branch survives directory cleanup.
+- Hardened controlled-execution timeout/cancel draining: the gateway now waits
+  for cooperative role settlement before removing its worktree. Providers that
+  ignore abort past the bounded drain deadline produce an explicit unconfirmed-
+  quiescence failure and the worktree is retained instead of being deleted under
+  a still-running task. Legacy source-text timeout tests now assert the current
+  abort/settlement contract, backed by delayed-abort and ignored-abort behavior
+  tests.
+- Added a central PostgreSQL usage ledger with awaited write-ahead reservation
+  and terminal commits, per-attempt idempotency/conflict detection, tenant
+  queries and spend aggregation, retention/capacity bounds, verified TLS,
+  redacted health/metrics, and a fail-closed multi-instance real-provider gate.
+- Added a central PostgreSQL enterprise audit chain with transactional global
+  sequencing, per-entry hash/HMAC, signed state, external sequence/hash floors,
+  idempotent event IDs, tenant-scoped canonical reads, bounded append-only
+  capacity, chunked full verification, safe health/metrics, and a mandatory
+  multi-instance real-provider gate. External WORM retention remains an
+  independently verified deployment property.
+- Added admin-only provider statement reconciliation against the central usage
+  ledger: exact usage-attempt matching, tenant binding, USD micro-unit variance,
+  missing/duplicate/unresolved classifications, stable normalized-statement
+  digests, strict input/query bounds, audit summaries, and explicit non-invoice
+  and unauthenticated-source boundaries.
+- Corrected the Go open-loop benchmark's managed-capacity contract: methodology
+  v2 sizes the sustained in-flight cap from target RPS and allowed p95 latency,
+  adds safety headroom, rejects contradictory zero-error configurations, and
+  keeps overload proof in a larger independent burst.
+- Upgraded the open-loop methodology to v3 after fresh hosted runners still
+  alternated between single-digit-millisecond passes and multi-second startup
+  saturation. Managed runs now require a reported, bounded five-sample
+  steady-state warmup before the one-shot measured phase. Warmup failure blocks;
+  measured 100 RPS, zero-error, protocol, and 750 ms gates are unchanged and
+  are never retried.
+- Added OIDC SSO (authorization code + PKCE + JWKS RS256/ES256 ID-token
+  verification, one-time state, issues an API token on login) and SCIM 2.0
+  user provisioning (bearer-auth create/get/list/patch/deactivate) for
+  enterprise IdP integration.
+- Added operator-configurable weighted routing splits and shadow traffic
+  (`AI_GATEWAY_WEIGHTED_ROUTES_JSON`): requests split across providers by
+  weight; shadow calls fire after the primary response and enter the usage
+  ledger separately. Real-provider shadowing requires the additional explicit
+  `AI_GATEWAY_SHADOW_REAL_PROVIDER_ENABLED=true` gate.
+- Added same-host multi-instance defaults (`AI_GATEWAY_MULTI_INSTANCE=true`):
+  rate limiting and idempotency dedup default to shared SQLite stores with a
+  load-or-generate shared HMAC secret file.
+- Added Anthropic prompt-caching passthrough (message-level
+  `cache_control: ephemeral` breakpoints, ≤4 per request, re-attached on the
+  outbound wire) with `cache_read/creation_input_tokens` mapped into usage
+  for both JSON and streaming responses.
+- Added the Gemini `:batchGenerateContent` inbound endpoint (sequential
+  per-entry execution, per-entry error isolation, ≤16 entries).
+- Added an execution-gates e2e suite and closed the agentic/rag test gap
+  (helpers + source-selection benchmark coverage).
+- Removed both im-connector packages and the gateway-side context-codec
+  adapter dead links (the context-codec-core package stays — codex-context-gateway
+  consumes it), and unwired the taiji-beidou preview hooks from the `/chat`
+  hot paths (ledger D2 cleanup). The initially drafted removals of
+  workforce-contracts, position-library, workforce-scheduler,
+  employee-brain-adapter, and the workforce preview service were rolled back
+  and stay in-tree pending the owner's decision.
+  (Superseded: the whole D2 subtraction was rolled back with the restoration
+  below — the im-connector packages, the gateway context-codec adapter, and
+  the live taiji-beidou `/chat` preview hook are all in-tree.)
+- Fixed Chinese keyword retrieval/RAG: the local tokenizer now emits CJK
+  runs plus overlapping bigrams, so Chinese queries match Chinese documents
+  (whitespace-only tokenization previously made CJK prose unmatchable).
+- Fixed usage-ledger tenant attribution: gateway inputs now carry the
+  server-resolved enterprise identity (stamped at execute time and immune to
+  client spoofing), so /usage/summary and /usage/logs return real per-tenant
+  records instead of collapsing everything into the default tenant.
+- Fixed the native /chat and /chat/stream lane missing the guardrail
+  enforcement (input block/PII redaction and output redaction) that the
+  /v1 protocol lanes already applied.
+- Fixed agent-exec wall-clock timeouts: the abort signal now reaches
+  in-flight provider calls through execution.signal instead of only being
+  checked at iteration boundaries.
+- Fixed the public-clone verifier regression: the official OpenAI SDK
+  example now uses `logprobs` (still unsupported) as its structured-rejection
+  sample now that `n>1` is a supported feature.
+- Added real-worktree and approval gate verification: the workforce execution
+  gates (git worktree isolation and the SHA-256-bound execution approval
+  gate with single-use consumption) are now covered by end-to-end tests
+  against a real temporary git repository, and the execution readiness
+  preflight honestly reports both gates as implemented-and-default-off
+  (`WORKFORCE_EXECUTION_ENABLED` stays the master switch).
+- Added `input_audio` multimodal passthrough on `/v1/chat/completions`
+  (user messages, wav/mp3, base64-validated, ≤4 parts and ≤20MB base64 per
+  part) with verbatim forwarding to OpenAI-compatible providers; the Gemini
+  inbound lane maps `audio/wav` and `audio/mpeg` `inlineData` parts to
+  `input_audio`. `unified_ai.multimodalAudio` metadata reports the outcome.
+- Removed the forge-core package (92k lines, runtime-unwired since 0.5.0) and
+  web-agent entirely, along with the three-mode simulation layer and its
+  routes, telemetry, and permission mappings (subtraction ledger D3/D4).
+  Forge-core fixes shipped earlier in this cycle (real knowledge DELETE,
+  FileSnapshot API, revived incremental tests) were removed with the package;
+  their diffs are preserved in the session baseline notes.
+  (Superseded: fully restored on 2026-08-23 — see the Restoration Note below;
+  forge-core is a runtime gateway dependency, web-agent and its tests are
+  active, and `/three-mode/execute` is wired.)
+- Added inbound Gemini compatibility routes: Gemini-native clients can now
+  call `POST /v1beta/models/{model}:generateContent`,
+  `POST /v1beta/models/{model}:streamGenerateContent` (SSE), and
+  `GET /v1beta/models`. Requests reuse the OpenAI normalizer for validation
+  and model resolution, so guardrails, virtual-key budgets, and metrics
+  behave identically across protocol lanes; function calling and inline
+  image parts translate in both directions.
+- Added `n>1` multi-choice support on `/v1/chat/completions` and legacy
+  `/v1/completions` (JSON and streaming, choices indexed; prompt tokens
+  counted once, completion tokens summed). `n` is validated to 1–8.
+- Added `stream_options.include_usage` support on legacy `/v1/completions`
+  with a provider-usage-aware terminal usage chunk.
+- Added opt-in RAG injection for `/v1/chat/completions` via the
+  `unified_ai.rag` request extension (`{ enabled, topK?, sourceIds? }`):
+  the last user message retrieves tenant-scoped knowledge, and the cited
+  context is injected as a system message. Injected context re-passes the
+  guardrails engine; RAG-augmented requests bypass the response cache.
+- Added guardrails coverage for `/v1/responses` and the internal `/chat`
+  and `/chat/stream` routes (input inspection, output redaction, and
+  per-delta SSE redaction — same engine, same tenant overrides as
+  `/v1/chat/completions`).
+- Added A2A streaming: `message/stream` JSON-RPC results are forwarded as
+  SSE `data` events instead of a 501; version-less requests now default to
+  the gateway's advertised protocol version instead of failing.
+- Added a pluggable HTTP embedding provider (OpenAI-compatible
+  `/embeddings`, batch-async) activated by the reserved
+  `KNOWLEDGE_EMBEDDING_*` env contract; the credential-free deterministic
+  provider remains the default and the fallback. Knowledge retrieval is now
+  async-capable end to end.
+- Added a local-ledger billing provider implementing all six
+  `billingProviderAdapter` operations (customers, usage events, invoice
+  issue/void, payment sync) against a durable JSONL ledger, plus manual
+  payment recording. No payment provider is connected; invoices stay
+  clearly labeled as ledger statements, not legal invoices.
+- Added real workforce execution primitives: a single-use TTL-bound task
+  claim token service, an AbortController-backed cancellable execution
+  lifecycle, and a claim-token-gated workflow run handoff. The workforce
+  preflight now reports these as implemented; worktree isolation and real
+  human approval remain the gates before execution can be enabled.
+- Added a `file_key_path` credential vault resolver (CREDENTIAL_VAULT_DIR,
+  traversal-guarded, size-capped) plus an explicit
+  `materializeCredentialRef` for runtime-internal secret access; secrets
+  never appear in logs, audits, or resolution summaries.
+- Added real p50/p95/p99 latency quantiles (nearest-rank over recent
+  request-log records) to `/metrics`; the average-value placeholder remains
+  only as a fallback.
+
+### Changed
+
+- Marked the declared `bin` entrypoints (`packages/mcp-server/src/index.js`,
+  `packages/mcp-server/src/http-entry.js`, `packages/mcp-service/bin/install.js`)
+  executable in git. pnpm chmods declared bin files 0755 during install on
+  POSIX, which made the Linux CI worktree report exactly those files as
+  modified and fail the public-clone verifier's clean-candidate gate.
+- Made the local-client test suites platform-honest: the durable SQLite
+  store suites (feedback dedup, verification-authority epoch, onboarding
+  receipt authority, governed onboarding, and the durable gateway-application
+  compositions) now skip on Node runtimes without `node:sqlite` defensive
+  mode, and the Windows protected-authority/tasklist-discovery tests skip on
+  non-win32 platforms, so `pnpm test` is green on both the CI Linux runner
+  and Windows development hosts. The public-clone verifier's dirty-worktree
+  failure now lists the offending paths for direct diagnosis.
+- Updated pinned `actions/cache` to v6.1.0 and `actions/upload-artifact` to
+  v7.0.1 across CI, quality-trend, and Docker evidence workflows so GitHub's
+  Node 20 action-runtime deprecation no longer leaves a forced-runtime warning;
+  all references remain immutable commit SHAs.
+- Upgraded the short resource-regression gate to methodology v2: its
+  bounded client now requires a minimum sustained arrival pressure while the
+  separate open-loop gate remains responsible for zero-drop capacity, and
+  fixed-target metrics scrapes no longer drift when an earlier scrape is slow.
+- Moved the container's public enterprise-auth boolean default from an `ENV`
+  layer into an `exec`-based CMD default, preserving explicit overrides and PID
+  1 signal handling while eliminating Docker's secret-in-ENV false positive.
+- Hardened knowledge-file ingestion: PDF, DOCX, XLS, and XLSX parsing now runs
+  in bounded worker threads with hard time, heap, concurrency, queue, input,
+  extracted-text, PDF-page, sheet, row, column, and cell limits. Invalid base64
+  and oversized batches fail before parser invocation.
+- Enterprise audit hash-chain writes are awaited and fail the governed
+  operation when durable append fails; health degrades instead of silently
+  treating an asynchronous audit failure as success.
+- Fixed local audit lock reclamation across Node worker threads. Threads share
+  a process ID but not module memory, so the former 250 ms same-process orphan
+  shortcut could delete another thread's live lock and create two entries from
+  one tail. Lock cleanup now verifies its nonce, and any lock owned by a live
+  process remains fail-closed. A deterministic two-worker regression reproduces
+  the former `chain_linkage` corruption and now requires a valid 2-entry chain.
+- Placeholder executions are now honest: `LocalRunner` marks handler-less
+  tasks `skipped`, and `SubProcessRunner` fails fast with
+  `SCRIPT_PATH_MISSING` instead of reporting fake completions.
+- `DELETE /api/knowledge/:id` in the forge-core API server now deletes the
+  entry and returns 404 for unknown ids instead of a fake 200.
+
+### Added (vision revival, per owner selection)
+
+- Lit up the forge vision families (all except context engineering):
+  governed /forge endpoints (polish, quality, memory, orchestrate, runs,
+  status, consensus) bridging forge-core engines through the gateway
+  provider lane, plus /taiji/compile and /workforce/preview; a 
+  CLI command group; three-mode execution restored and live.
+- Performance (fake lane, single node, same benchmark tool): chat JSON
+  p50 15.7ms → **3.3ms (~4.8×)**, SSE TTFT 2.6ms → **1.6ms** — via
+  versioned provider-registry/model-list caching and removal of the artificial
+  20ms fake-provider latency. Audit hash-chain writes are now deliberately
+  awaited so a durable-audit failure cannot be reported as a successful
+  governed operation.
+
+## [Restoration Note]
+
+The subtraction entries listed above were fully restored on 2026-08-23 at
+the owner's direction (they carry the original design vision). This covers
+the forge-core / web-agent / three-mode / dead-chain removals (ledger D3/D4)
+and the im-connector packages, the gateway-side context-codec adapter, and
+the taiji-beidou `/chat` preview hooks (ledger D2). The restored tree is the
+source of truth; see docs/vision-revival-inventory.md for the revival menu.
 
 ## [0.5.0] - 2026-08-15
 

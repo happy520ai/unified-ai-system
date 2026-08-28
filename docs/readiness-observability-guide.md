@@ -134,6 +134,17 @@ Current checks include:
 ## 4) Incident response checklist
 
 1. Check `error.details.readinessFailures` in `/healthz` (or `/ready`) when status is 503.
+   Real-provider deployments report `usage-ledger-unavailable` when the
+   required durable usage ledger is degraded; provider execution remains
+   blocked until buffered evidence is committed and health recovers.
+   A configured A2A store reports `a2a-task-store-unavailable`; distributed
+   Workforce ownership reports `workforce-claim-store-unavailable`. Both
+   snapshots omit file paths, database URLs, namespaces, task contents, bearer
+   tokens, token digests, and fencing tokens. Treat either reason as a traffic
+   gate, not permission to fall back to process-local state.
+   A configured central enterprise audit reports
+   `audit-central-store-unavailable`; real-provider attempts remain blocked and
+   must not fall back to a replica-local audit chain.
 2. Compare `gateway_readiness_events_total` against reasons (`knowledge`, `workflow`, `service-dependency`, `inflight-saturation`, `gateway-error-circuit`).
 3. Confirm `healthzInFlightThreshold` and in-flight counts in `saturation`.
 4. Correlate with `/ready`, then `/health`, then dependency routes.

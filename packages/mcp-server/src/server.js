@@ -8,6 +8,14 @@ import * as z from "zod/v4";
 
 export const MCP_SERVER_NAME = "unified-ai-system";
 export const MCP_SERVER_VERSION = "0.5.0";
+export const MCP_MODERN_PROTOCOL_VERSION = "2026-07-28";
+export const MCP_LEGACY_PROTOCOL_VERSION = "2025-11-25";
+export const MCP_COMPAT_PROTOCOL_VERSION = "2025-06-18";
+export const MCP_SUPPORTED_PROTOCOL_VERSIONS = Object.freeze([
+  MCP_MODERN_PROTOCOL_VERSION,
+  MCP_LEGACY_PROTOCOL_VERSION,
+  MCP_COMPAT_PROTOCOL_VERSION,
+]);
 export const MCP_TOOL_NAMES = Object.freeze([
   "gateway_health",
   "gateway_readiness",
@@ -210,15 +218,20 @@ export function createUnifiedAiMcpServer(runtime, options = {}) {
           .enum(["auto", "zh-CN", "en"])
           .optional()
           .describe("Output language; auto follows the input language"),
+        target: z
+          .enum(["model", "agent"])
+          .optional()
+          .describe("Execution target; agent adds a plan-verify-report execution protocol"),
       }),
       annotations: READ_ONLY_ANNOTATIONS,
     },
-    async ({ input, profile, language }) => {
+    async ({ input, profile, language, target }) => {
       try {
         const response = await client.enhancePrompt({
           input,
           profile: profile ?? "auto",
           language: language ?? "auto",
+          ...(target ? { target } : {}),
         });
         return createToolResult("gateway_prompt_enhance", runtime, response);
       } catch (error) {
@@ -248,6 +261,10 @@ export function createUnifiedAiMcpServer(runtime, options = {}) {
           .enum(["auto", "zh-CN", "en"])
           .optional()
           .describe("Output language"),
+        target: z
+          .enum(["model", "agent"])
+          .optional()
+          .describe("Execution target; agent adds a plan-verify-report execution protocol"),
         providerId: z
           .string()
           .optional()
@@ -264,12 +281,13 @@ export function createUnifiedAiMcpServer(runtime, options = {}) {
         openWorldHint: true,
       },
     },
-    async ({ input, profile, language, providerId, modelId }) => {
+    async ({ input, profile, language, target, providerId, modelId }) => {
       try {
         const response = await client.enhancePromptLlm({
           input,
           profile: profile ?? "auto",
           language: language ?? "auto",
+          ...(target ? { target } : {}),
           ...(providerId ? { providerId } : {}),
           ...(modelId ? { modelId } : {}),
         });

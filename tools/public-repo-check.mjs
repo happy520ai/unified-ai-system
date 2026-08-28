@@ -105,23 +105,11 @@ function readJson(path) {
 
 const notes = [];
 
-function addNote(code, path, details = "") {
-  notes.push({ code, path, details });
-}
-
 // Public hygiene gates must validate what git publishes. A source checkout may
 // keep an intentionally uncommitted local launch override in .mcp.json (for
-// example pointing a host at its own interpreter); validate the committed
-// content in that case and surface the override as a non-blocking note.
+// example pointing a host at its own interpreter). Never inspect that working
+// copy: validate only the committed object.
 function readTrackedJson(path) {
-  const status = execFileSync("git", ["status", "--porcelain", "--", path], {
-    cwd: repoRoot,
-    encoding: "utf8",
-    windowsHide: true,
-  }).trim();
-  if (!status) {
-    return readJson(path);
-  }
   try {
     const headContent = execFileSync("git", ["show", `HEAD:${path}`], {
       cwd: repoRoot,
@@ -129,10 +117,9 @@ function readTrackedJson(path) {
       windowsHide: true,
     });
     const parsed = JSON.parse(headContent);
-    addNote("local_override_validated_from_git", path, "working copy differs from HEAD; validated the committed content");
     return parsed;
   } catch {
-    return readJson(path);
+    throw new Error(`Tracked JSON could not be read safely from HEAD: ${path}`);
   }
 }
 
@@ -171,14 +158,118 @@ const requiredFiles = [
   "pnpm-lock.yaml",
   "pnpm-workspace.yaml",
   "apps/ai-gateway-service/src/index.js",
+  "apps/ai-gateway-service/src/core/gatewayService.providerDispatch.test.ts",
+  "apps/ai-gateway-service/src/core/gatewayService.providerOperation.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientAdapterRegistry.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientAdapterRegistry.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientConfigTransaction.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientConfigTransaction.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientExecutionIdempotencyCoordinator.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientExecutionIdempotencyCoordinator.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientExecutionPreview.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientExecutionPreview.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientGovernedExecutionApi.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientGovernedExecutionApi.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientGovernedOnboardingApi.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientGovernedOnboardingApi.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientGovernedOnboardingRuntime.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientGovernedOnboardingRuntime.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientManagementService.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientManagementService.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientOnboardingConfig.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientOnboardingConfig.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientOnboardingRegistry.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientOnboardingRegistry.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientPopIdentityAuthority.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientPopIdentityAuthority.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientPopHttpAuth.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientPopHttpAuth.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSqlitePopReplayGuard.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSqlitePopReplayGuard.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientPopSnapshotRollbackProtection.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientPopSnapshotRollbackProtection.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientProtocolPrincipalConfig.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientProtocolPrincipalConfig.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSmartManagementScheduler.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSmartManagementScheduler.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSmartManagementSchedulerConfig.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSmartManagementSchedulerConfig.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientRoutePlanStore.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientRoutePlanStore.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientLoopbackAdapter.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientLoopbackAdapter.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientLoopbackAdapterConfig.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientLoopbackAdapterConfig.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientLoopbackVerificationProbe.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientExecutionReadiness.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientExecutionReadiness.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientExecutionOrchestrator.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientExecutionOrchestrator.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientExecutionReceiptReconciliation.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientExecutionReceiptReconciliation.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientExecutionReceiptJournalRegistry.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientExecutionReceiptJournalRegistry.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientExecutionReceiptRecoveryService.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientExecutionReceiptRecoveryService.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientExecutionFeedbackDispatcher.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientExecutionFeedbackDispatcher.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSqliteExecutionFeedbackOutbox.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSqliteExecutionFeedbackOutbox.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSqliteRoutePlanStore.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSqliteRoutePlanStore.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSqliteExecutionClaimStore.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSqliteExecutionClaimStore.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSqliteFeedbackDedupStore.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSqliteFeedbackDedupStore.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSqliteOnboardingReceiptAuthorityStore.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSqliteOnboardingReceiptAuthorityStore.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSqliteVerificationAuthorityEpochStore.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSqliteVerificationAuthorityEpochStore.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientVerificationService.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientVerificationService.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientVerificationOwnership.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientVerificationOwnership.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientVerifiedExecutionFence.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientVerifiedExecutionFence.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientWindowsProtectedAuthorityAnchor.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientWindowsProtectedAuthorityAnchor.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientWindowsAuthorityBrokerService.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientWindowsAuthorityBrokerService.test.ts",
+  "apps/ai-gateway-service/src/application/createGatewayApplication.js",
+  "apps/ai-gateway-service/src/application/createGatewayApplication.test.js",
+  "apps/ai-gateway-service/src/http/httpServer.js",
+  "apps/ai-gateway-service/src/http/httpServer.providerDispatch.test.ts",
+  "apps/ai-gateway-service/src/http/gatewayShutdown.ts",
+  "apps/ai-gateway-service/src/http/gatewayShutdown.test.ts",
+  "apps/ai-gateway-service/src/http/httpRequestExecution.ts",
+  "apps/ai-gateway-service/src/http/httpRequestExecution.test.ts",
+  "apps/ai-gateway-service/src/http/openAiChatCompletionResponseCache.test.ts",
+  "apps/ai-gateway-service/src/http/utils/responseUtils.js",
+  "apps/ai-gateway-service/src/http/utils/responseUtils.test.js",
   "apps/ai-gateway-service/src/http/a2aGateway.js",
   "apps/ai-gateway-service/src/http/a2aGateway.test.js",
   "apps/ai-gateway-service/src/http/a2aRoutes.js",
   "apps/ai-gateway-service/src/http/openAiResponsesRoutes.js",
   "apps/ai-gateway-service/src/http/openAiResponsesRoutes.test.js",
+  "apps/ai-gateway-service/src/http/localClientGovernedExecution.e2e.test.ts",
+  "apps/ai-gateway-service/src/http/localClientManagementRoutes.test.ts",
+  "apps/ai-gateway-service/src/routing/localClientProviderPolicy.ts",
+  "apps/ai-gateway-service/src/routing/localClientProviderPolicy.test.ts",
+  "apps/ai-gateway-service/src/routing/localClientProviderPolicyConfig.ts",
+  "apps/ai-gateway-service/src/routing/localClientProviderPolicyConfig.test.ts",
+  "apps/ai-gateway-service/src/routing/localClientProviderRuntimeRouter.ts",
+  "apps/ai-gateway-service/src/routing/localClientProviderRuntimeRouter.test.ts",
+  "apps/ai-gateway-service/src/routing/localClientProviderDispatchBinding.ts",
+  "apps/ai-gateway-service/src/routing/localClientProviderDispatchBinding.test.ts",
   "apps/agent-console/src/cli-core.js",
   "apps/agent-console/evidence/README.md",
   "apps/ai-gateway-service/evidence/README.md",
+  "packages/shared-contracts/src/contracts/localClient.ts",
+  "packages/shared-contracts/src/runtime.ts",
+  "packages/shared-sdk/package.json",
+  "packages/shared-sdk/src/index.js",
+  "packages/shared-sdk/src/index.test.js",
+  "packages/shared-sdk/src/index.ts",
   "packages/mcp-server/package.json",
   "packages/mcp-server/src/http-entry.js",
   "packages/mcp-server/src/http.js",
@@ -190,9 +281,15 @@ const requiredFiles = [
   ".mcp.json",
   ".github/workflows/indexnow.yml",
   "docs/assets/social-preview.png",
+  "docs/assets/social-preview-source.html",
+  "docs/assets/readme-hero.html",
+  "docs/assets/readme-hero.png",
+  "docs/assets/readme-capabilities.html",
+  "docs/assets/readme-capabilities.png",
   "docs/codex-mcp-docker-quickstart.html",
   "docs/codex-mcp-docker-quickstart.zh-CN.html",
   "docs/getting-started.md",
+  "docs/local-client-intelligence-gateway.md",
   "docs/index.html",
   "docs/index.zh-CN.html",
   "docs/indexnow.json",
@@ -218,6 +315,8 @@ const requiredFiles = [
   ".github/ISSUE_TEMPLATE/protocol-client-report.yml",
   "skills/unified-ai-gateway/SKILL.md",
   "tools/mcp-smoke.mjs",
+  "tools/local-client-control-plane-smoke.mjs",
+  "tools/release-metadata.mjs",
   "tools/submit-indexnow.mjs",
   "tools/verify-public-clone.mjs",
 ];
@@ -261,11 +360,13 @@ const requiredScripts = [
   "start",
   "check",
   "test",
+  "test:local-clients",
   "mcp",
   "mcp:http",
   "notify:indexnow",
   "verify:mcp",
   "smoke:mcp",
+  "smoke:local-clients",
   "check:public",
   "verify:public-clone",
 ];
@@ -438,6 +539,41 @@ if (readme.includes("BEGIN UNIFIED_AI_SYSTEM_CURRENT_STATE")) {
   addError("generated_ledger_in_public_readme", "README.md");
 }
 
+const marketingAssetContracts = [
+  [
+    "docs/assets/readme-hero.html",
+    ["first path needs <strong>zero credentials</strong>", "<b>12</b> governed MCP tools", "<b>23</b> attack cases defended"],
+  ],
+  [
+    "docs/assets/readme-capabilities.html",
+    ["One governed AI gateway stack", "23-attack live drill", "evidence, not certification"],
+  ],
+  [
+    "docs/assets/social-preview-source.html",
+    ["Hardened Public Preview", "<strong>12</strong> governed tools", "12 ready"],
+  ],
+];
+const forbiddenMarketingClaims = [
+  "LiteLLM/Portkey-class",
+  "every feature works with",
+  "Everything a commercial gateway ships",
+  ">9 ready<",
+  "<strong>9</strong> governed tools",
+];
+for (const [path, markers] of marketingAssetContracts) {
+  const content = readFileSync(resolve(repoRoot, path), "utf8");
+  for (const marker of markers) {
+    if (!content.includes(marker)) {
+      addError("marketing_asset_contract_stale", path, marker);
+    }
+  }
+  for (const claim of forbiddenMarketingClaims) {
+    if (content.includes(claim)) {
+      addError("marketing_asset_overclaim", path, claim);
+    }
+  }
+}
+
 const currentVersionMarker = String(rootPackage.version);
 const versionedPublicEntryPoints = [
   "README.md",
@@ -461,6 +597,89 @@ for (const path of versionedPublicEntryPoints) {
       path,
       `Expected current package version ${currentVersionMarker}`,
     );
+  }
+}
+
+const currentPnpmVersion = String(rootPackage.packageManager ?? "").match(
+  /^pnpm@(\d+\.\d+\.\d+)$/,
+)?.[1];
+const currentNodeMinimum = String(rootPackage.engines?.node ?? "").match(
+  /^>=(\d+\.\d+\.\d+)/,
+)?.[1];
+const sourceOnboardingEntryPoints = [
+  "README.md",
+  "README.zh-CN.md",
+  "CONTRIBUTING.md",
+  "docs/getting-started.md",
+  "docs/first-run-troubleshooting.md",
+  "docs/first-run-troubleshooting.zh-CN.md",
+  ".github/ISSUE_TEMPLATE/bug_report.yml",
+  ".github/ISSUE_TEMPLATE/usage-verification-report.yml",
+];
+
+if (!currentPnpmVersion) {
+  addError("package_manager_version_invalid", "package.json#packageManager");
+}
+if (!currentNodeMinimum) {
+  addError("node_engine_minimum_invalid", "package.json#engines.node");
+}
+for (const path of sourceOnboardingEntryPoints) {
+  const content = readFileSync(resolve(repoRoot, path), "utf8");
+  if (currentPnpmVersion && !content.includes(currentPnpmVersion)) {
+    addError(
+      "source_onboarding_pnpm_version_stale",
+      path,
+      `Expected pnpm ${currentPnpmVersion}`,
+    );
+  }
+  if (currentNodeMinimum && !content.includes(currentNodeMinimum)) {
+    addError(
+      "source_onboarding_node_version_stale",
+      path,
+      `Expected Node.js ${currentNodeMinimum}`,
+    );
+  }
+  for (const match of content.matchAll(/\bpnpm(?:@|\s+)(\d+\.\d+\.\d+)\b/g)) {
+    if (currentPnpmVersion && match[1] !== currentPnpmVersion) {
+      addError(
+        "source_onboarding_pnpm_version_mismatch",
+        path,
+        `Expected ${currentPnpmVersion}; found ${match[1]}`,
+      );
+    }
+  }
+}
+
+const releaseImageSurfaces = [
+  "README.md",
+  "README.zh-CN.md",
+  "llms-install.md",
+  "docs/getting-started.md",
+  "docs/first-run-troubleshooting.md",
+  "docs/first-run-troubleshooting.zh-CN.md",
+  "docs/cli.md",
+  "docs/examples/prompt-enhancement-curl.md",
+  "docs/mcp-generic-client.md",
+  "docs/prompt-enhancement.md",
+  "docs/community-promotion-pack.md",
+  "docs/growth-post-templates.md",
+  "docs/growth-launch-kit-2026-08.md",
+  "docs/terminal-first-ai-gateway.html",
+  ".github/ISSUE_TEMPLATE/usage-verification-report.yml",
+  ...tracked.filter((path) => /^tools\/star-growth-.*\.(?:mjs|ps1)$/.test(path)),
+];
+for (const path of new Set(releaseImageSurfaces)) {
+  const content = readFileSync(resolve(repoRoot, path), "utf8");
+  for (const match of content.matchAll(
+    /ghcr\.io\/happy520ai\/unified-ai-system\/(?:ai-gateway-service|mcp-server):(\d+\.\d+\.\d+)\b/g,
+  )) {
+    if (match[1] !== currentVersionMarker) {
+      addError(
+        "public_release_image_version_stale",
+        path,
+        `Expected ${currentVersionMarker}; found ${match[1]}`,
+      );
+    }
   }
 }
 
@@ -591,6 +810,12 @@ for (const [path, code, markers] of promptEnhancementPages) {
 for (const [marker, code] of requiredPromptLabMarkers) {
   if (!projectSite.includes(marker)) addError(code, "docs/index.html");
 }
+for (const [marker, code] of [
+  ["Hardened Public Preview", "public_home_maturity_boundary_missing"],
+  ["<strong>12</strong><span>governed MCP tools</span>", "public_home_tool_count_stale"],
+]) {
+  if (!projectSite.includes(marker)) addError(code, "docs/index.html");
+}
 
 const requiredSocialMetadata = [
   ['property="og:image"', "open_graph_image_missing"],
@@ -625,6 +850,8 @@ const requiredChineseSiteMarkers = [
   ['property="og:locale" content="zh_CN"', "chinese_home_locale_missing"],
   ['"inLanguage": "zh-CN"', "chinese_home_structured_language_missing"],
   ["docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:", "chinese_home_demo_missing"],
+  ["加固后的 Public Preview", "chinese_home_maturity_boundary_missing"],
+  ["<strong>12</strong><span>可治理的 MCP 工具</span>", "chinese_home_tool_count_stale"],
   ["生产就绪、L5 自主和 AGI", "chinese_home_evidence_boundary_missing"],
 ];
 
@@ -738,6 +965,7 @@ const requiredCodexGuideMarkers = [
   ['property="og:type" content="article"', "codex_docker_open_graph_type_missing"],
   ['"@type": "HowTo"', "codex_docker_structured_data_missing"],
   ["codex mcp add unified-ai-system -- docker run --rm -i", "codex_docker_add_command_missing"],
+  ["12 tools", "codex_docker_tool_count_stale"],
   ["codex mcp remove unified-ai-system", "codex_docker_remove_command_missing"],
   ["Not claimed", "codex_docker_evidence_boundary_missing"],
 ];
@@ -765,6 +993,7 @@ const requiredChineseCodexGuideMarkers = [
   ['"@type": "HowTo"', "chinese_codex_docker_structured_data_missing"],
   ['"inLanguage": "zh-CN"', "chinese_codex_docker_structured_language_missing"],
   ["codex mcp add unified-ai-system -- docker run --rm -i", "chinese_codex_docker_add_command_missing"],
+  ["12 个工具", "chinese_codex_docker_tool_count_stale"],
   ["codex mcp remove unified-ai-system", "chinese_codex_docker_remove_command_missing"],
   ["生产就绪、L5 自主或 AGI", "chinese_codex_docker_evidence_boundary_missing"],
 ];

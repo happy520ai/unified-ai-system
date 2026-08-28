@@ -10,7 +10,6 @@ let sharedRuntimeResourceMonitor;
 /**
  * Prometheus exporter utilities.
  * @param {Object} options - { prefix }
- * @returns {Object} { formatMetrics }
  */
 export function createPrometheusExporter(options = {}) {
   const prefix = options.prefix ?? "ai_gateway";
@@ -194,6 +193,69 @@ export function createPrometheusExporter(options = {}) {
     lines.push(`# TYPE ${prefix}_idempotency_stats_age_seconds gauge`);
     lines.push(`${prefix}_idempotency_stats_age_seconds{mode="${idempotencyMode}"} ${statsAgeSeconds}`);
 
+    const providerDispatch = snapshot.providerDispatch;
+    const providerDispatchMode = sanitizeMetricLabel(providerDispatch?.mode ?? "disabled");
+    const providerDispatchEnabled = providerDispatch?.enabled === true;
+    const providerDispatchAvailable = providerDispatchEnabled
+      ? (providerDispatch?.available === true ? 1 : 0)
+      : 1;
+    const providerDispatchStatsUpdatedAt = Number(providerDispatch?.statsUpdatedAt);
+    const providerDispatchStatsAgeSeconds = Number.isFinite(providerDispatchStatsUpdatedAt)
+      && providerDispatchStatsUpdatedAt > 0
+      ? Math.max(0, (Date.now() - providerDispatchStatsUpdatedAt) / 1000).toFixed(3)
+      : -1;
+    lines.push(`# HELP ${prefix}_provider_dispatch_gate_enabled Whether real-provider dispatch reservations are enabled`);
+    lines.push(`# TYPE ${prefix}_provider_dispatch_gate_enabled gauge`);
+    lines.push(`${prefix}_provider_dispatch_gate_enabled{mode="${providerDispatchMode}"} ${providerDispatchEnabled ? 1 : 0}`);
+    lines.push(`# HELP ${prefix}_provider_dispatch_key_required Whether real-provider requests require an idempotency key`);
+    lines.push(`# TYPE ${prefix}_provider_dispatch_key_required gauge`);
+    lines.push(`${prefix}_provider_dispatch_key_required{mode="${providerDispatchMode}"} ${providerDispatch?.required === true ? 1 : 0}`);
+    lines.push(`# HELP ${prefix}_provider_dispatch_store_available Whether the durable provider dispatch reservation store is reachable`);
+    lines.push(`# TYPE ${prefix}_provider_dispatch_store_available gauge`);
+    lines.push(`${prefix}_provider_dispatch_store_available{mode="${providerDispatchMode}"} ${providerDispatchAvailable}`);
+    lines.push(`# HELP ${prefix}_provider_dispatch_store_distributed Whether provider dispatch reservations coordinate across hosts`);
+    lines.push(`# TYPE ${prefix}_provider_dispatch_store_distributed gauge`);
+    lines.push(`${prefix}_provider_dispatch_store_distributed{mode="${providerDispatchMode}"} ${providerDispatch?.distributed === true ? 1 : 0}`);
+    lines.push(`# HELP ${prefix}_provider_dispatch_reservations Durable provider dispatch reservation records by state class`);
+    lines.push(`# TYPE ${prefix}_provider_dispatch_reservations gauge`);
+    lines.push(`${prefix}_provider_dispatch_reservations{mode="${providerDispatchMode}",state="total"} ${safeMetricNumber(providerDispatch?.entries)}`);
+    lines.push(`${prefix}_provider_dispatch_reservations{mode="${providerDispatchMode}",state="in_flight"} ${safeMetricNumber(providerDispatch?.inFlight)}`);
+    lines.push(`${prefix}_provider_dispatch_reservations{mode="${providerDispatchMode}",state="tombstone"} ${safeMetricNumber(providerDispatch?.tombstones)}`);
+    lines.push(`${prefix}_provider_dispatch_reservations{mode="${providerDispatchMode}",state="capacity"} ${safeMetricNumber(providerDispatch?.maxEntries)}`);
+    lines.push(`# HELP ${prefix}_provider_dispatch_stats_age_seconds Age of the last distributed provider dispatch statistics snapshot, or -1 when unavailable`);
+    lines.push(`# TYPE ${prefix}_provider_dispatch_stats_age_seconds gauge`);
+    lines.push(`${prefix}_provider_dispatch_stats_age_seconds{mode="${providerDispatchMode}"} ${providerDispatchStatsAgeSeconds}`);
+
+    const externalEffects = snapshot.externalEffects;
+    const externalEffectMode = sanitizeMetricLabel(externalEffects?.mode ?? "disabled");
+    const externalEffectEnabled = externalEffects?.enabled === true;
+    const externalEffectAvailable = externalEffectEnabled
+      ? (externalEffects?.available === true ? 1 : 0)
+      : 1;
+    const externalEffectStatsUpdatedAt = Number(externalEffects?.statsUpdatedAt);
+    const externalEffectStatsAgeSeconds = Number.isFinite(externalEffectStatsUpdatedAt)
+      && externalEffectStatsUpdatedAt > 0
+      ? Math.max(0, (Date.now() - externalEffectStatsUpdatedAt) / 1000).toFixed(3)
+      : -1;
+    lines.push(`# HELP ${prefix}_external_effect_gate_enabled Whether irreversible external-effect reservations are enabled`);
+    lines.push(`# TYPE ${prefix}_external_effect_gate_enabled gauge`);
+    lines.push(`${prefix}_external_effect_gate_enabled{mode="${externalEffectMode}"} ${externalEffectEnabled ? 1 : 0}`);
+    lines.push(`# HELP ${prefix}_external_effect_store_available Whether the durable external-effect store is reachable`);
+    lines.push(`# TYPE ${prefix}_external_effect_store_available gauge`);
+    lines.push(`${prefix}_external_effect_store_available{mode="${externalEffectMode}"} ${externalEffectAvailable}`);
+    lines.push(`# HELP ${prefix}_external_effect_store_distributed Whether external-effect reservations coordinate across hosts`);
+    lines.push(`# TYPE ${prefix}_external_effect_store_distributed gauge`);
+    lines.push(`${prefix}_external_effect_store_distributed{mode="${externalEffectMode}"} ${externalEffects?.distributed === true ? 1 : 0}`);
+    lines.push(`# HELP ${prefix}_external_effect_reservations Durable external-effect reservation records by state class`);
+    lines.push(`# TYPE ${prefix}_external_effect_reservations gauge`);
+    lines.push(`${prefix}_external_effect_reservations{mode="${externalEffectMode}",state="total"} ${safeMetricNumber(externalEffects?.entries)}`);
+    lines.push(`${prefix}_external_effect_reservations{mode="${externalEffectMode}",state="in_flight"} ${safeMetricNumber(externalEffects?.inFlight)}`);
+    lines.push(`${prefix}_external_effect_reservations{mode="${externalEffectMode}",state="tombstone"} ${safeMetricNumber(externalEffects?.tombstones)}`);
+    lines.push(`${prefix}_external_effect_reservations{mode="${externalEffectMode}",state="capacity"} ${safeMetricNumber(externalEffects?.maxEntries)}`);
+    lines.push(`# HELP ${prefix}_external_effect_stats_age_seconds Age of the last distributed external-effect statistics snapshot, or -1 when unavailable`);
+    lines.push(`# TYPE ${prefix}_external_effect_stats_age_seconds gauge`);
+    lines.push(`${prefix}_external_effect_stats_age_seconds{mode="${externalEffectMode}"} ${externalEffectStatsAgeSeconds}`);
+
     const webSocketLease = snapshot.webSocketLease;
     const webSocketLeaseEnabled = webSocketLease?.storeMode === "postgres" && webSocketLease?.distributed === true;
     const webSocketLeaseMode = webSocketLeaseEnabled ? "postgres" : "disabled";
@@ -218,6 +280,129 @@ export function createPrometheusExporter(options = {}) {
     for (const event of ["acquired", "denied", "lost", "released"]) {
       lines.push(`${prefix}_websocket_lease_events_total{event="${event}"} ${safeMetricNumber(webSocketLease?.[event])}`);
     }
+
+    const a2aTaskStore = snapshot.a2aTaskStore;
+    const a2aTaskStoreMode = sanitizeMetricLabel(a2aTaskStore?.mode ?? "disabled");
+    const a2aTaskStoreAvailable = a2aTaskStore ? (a2aTaskStore.available === true ? 1 : 0) : 1;
+    lines.push(`# HELP ${prefix}_a2a_task_store_available Whether the configured A2A task store is reachable`);
+    lines.push(`# TYPE ${prefix}_a2a_task_store_available gauge`);
+    lines.push(`${prefix}_a2a_task_store_available{mode="${a2aTaskStoreMode}"} ${a2aTaskStoreAvailable}`);
+    lines.push(`# HELP ${prefix}_a2a_task_store_durable Whether A2A task persistence survives a process restart`);
+    lines.push(`# TYPE ${prefix}_a2a_task_store_durable gauge`);
+    lines.push(`${prefix}_a2a_task_store_durable{mode="${a2aTaskStoreMode}"} ${a2aTaskStore?.durable === true ? 1 : 0}`);
+    lines.push(`# HELP ${prefix}_a2a_task_store_distributed Whether A2A task persistence is shared across hosts`);
+    lines.push(`# TYPE ${prefix}_a2a_task_store_distributed gauge`);
+    lines.push(`${prefix}_a2a_task_store_distributed{mode="${a2aTaskStoreMode}"} ${a2aTaskStore?.distributed === true ? 1 : 0}`);
+    lines.push(`# HELP ${prefix}_a2a_task_store_atomic_terminal_fence Whether terminal task state and execution-fence consumption share one transaction`);
+    lines.push(`# TYPE ${prefix}_a2a_task_store_atomic_terminal_fence gauge`);
+    lines.push(`${prefix}_a2a_task_store_atomic_terminal_fence{mode="${a2aTaskStoreMode}"} ${a2aTaskStore?.atomicTerminalFence === true ? 1 : 0}`);
+    const a2aExecutionLease = a2aTaskStore?.executionLease;
+    const a2aExecutionLeaseMode = sanitizeMetricLabel(a2aExecutionLease?.mode ?? "disabled");
+    lines.push(`# HELP ${prefix}_a2a_execution_lease_available Whether the configured A2A execution lease store is reachable`);
+    lines.push(`# TYPE ${prefix}_a2a_execution_lease_available gauge`);
+    lines.push(`${prefix}_a2a_execution_lease_available{mode="${a2aExecutionLeaseMode}"} ${a2aExecutionLease?.available === false ? 0 : 1}`);
+    lines.push(`# HELP ${prefix}_a2a_execution_lease_enabled Whether cross-host A2A execution fencing is enabled`);
+    lines.push(`# TYPE ${prefix}_a2a_execution_lease_enabled gauge`);
+    lines.push(`${prefix}_a2a_execution_lease_enabled{mode="${a2aExecutionLeaseMode}"} ${a2aExecutionLease?.enabled === true ? 1 : 0}`);
+    lines.push(`# HELP ${prefix}_a2a_execution_leases Active A2A execution leases`);
+    lines.push(`# TYPE ${prefix}_a2a_execution_leases gauge`);
+    lines.push(`${prefix}_a2a_execution_leases{mode="${a2aExecutionLeaseMode}"} ${safeMetricNumber(a2aExecutionLease?.activeLeases)}`);
+    lines.push(`# HELP ${prefix}_a2a_task_store_limit Configured bounded A2A task-store limits`);
+    lines.push(`# TYPE ${prefix}_a2a_task_store_limit gauge`);
+    lines.push(`${prefix}_a2a_task_store_limit{resource="entries"} ${safeMetricNumber(a2aTaskStore?.maxEntries)}`);
+    lines.push(`${prefix}_a2a_task_store_limit{resource="entries_per_owner"} ${safeMetricNumber(a2aTaskStore?.maxEntriesPerOwner)}`);
+    lines.push(`${prefix}_a2a_task_store_limit{resource="task_bytes"} ${safeMetricNumber(a2aTaskStore?.maxTaskBytes)}`);
+
+    const workforceClaimStore = snapshot.workforceClaimStore;
+    const workforceClaimMode = sanitizeMetricLabel(workforceClaimStore?.mode ?? "disabled");
+    const workforceClaimAvailable = workforceClaimStore
+      ? (workforceClaimStore.available === true ? 1 : 0)
+      : 1;
+    const workforceClaimStatsUpdatedAt = Number(workforceClaimStore?.statsUpdatedAt);
+    const workforceClaimStatsAgeSeconds = Number.isFinite(workforceClaimStatsUpdatedAt)
+      && workforceClaimStatsUpdatedAt > 0
+      ? Math.max(0, (Date.now() - workforceClaimStatsUpdatedAt) / 1000).toFixed(3)
+      : -1;
+    lines.push(`# HELP ${prefix}_workforce_claim_store_available Whether the configured Workforce claim store is reachable`);
+    lines.push(`# TYPE ${prefix}_workforce_claim_store_available gauge`);
+    lines.push(`${prefix}_workforce_claim_store_available{mode="${workforceClaimMode}"} ${workforceClaimAvailable}`);
+    lines.push(`# HELP ${prefix}_workforce_claim_store_distributed Whether Workforce ownership is coordinated across hosts`);
+    lines.push(`# TYPE ${prefix}_workforce_claim_store_distributed gauge`);
+    lines.push(`${prefix}_workforce_claim_store_distributed{mode="${workforceClaimMode}"} ${workforceClaimStore?.distributed === true ? 1 : 0}`);
+    lines.push(`# HELP ${prefix}_workforce_claims Active distributed or local Workforce task claims`);
+    lines.push(`# TYPE ${prefix}_workforce_claims gauge`);
+    lines.push(`${prefix}_workforce_claims{state="active"} ${safeMetricNumber(workforceClaimStore?.activeClaims)}`);
+    lines.push(`${prefix}_workforce_claims{state="capacity"} ${safeMetricNumber(workforceClaimStore?.maxClaims)}`);
+
+    const workforceTaskQueue = snapshot.workforceTaskQueue;
+    const workforceQueueMode = sanitizeMetricLabel(workforceTaskQueue?.mode ?? "disabled");
+    lines.push("# HELP " + prefix + "_workforce_task_queue_available Whether the Workforce task queue store is available.");
+    lines.push("# TYPE " + prefix + "_workforce_task_queue_available gauge");
+    lines.push(`${prefix}_workforce_task_queue_available{mode="${workforceQueueMode}"} ${workforceTaskQueue ? (workforceTaskQueue.available === true ? 1 : 0) : 1}`);
+    lines.push("# HELP " + prefix + "_workforce_task_queue_distributed Whether the Workforce task queue is cross-host distributed.");
+    lines.push("# TYPE " + prefix + "_workforce_task_queue_distributed gauge");
+    lines.push(`${prefix}_workforce_task_queue_distributed{mode="${workforceQueueMode}"} ${workforceTaskQueue?.distributed === true ? 1 : 0}`);
+    lines.push("# HELP " + prefix + "_workforce_task_queue_tasks Workforce task counts by lifecycle state.");
+    lines.push("# TYPE " + prefix + "_workforce_task_queue_tasks gauge");
+    lines.push(`${prefix}_workforce_task_queue_tasks{state="queued"} ${safeMetricNumber(workforceTaskQueue?.totalQueued)}`);
+    lines.push(`${prefix}_workforce_task_queue_tasks{state="active"} ${safeMetricNumber(workforceTaskQueue?.totalActive)}`);
+    lines.push(`${prefix}_workforce_task_queue_tasks{state="completed"} ${safeMetricNumber(workforceTaskQueue?.totalCompleted)}`);
+    lines.push(`${prefix}_workforce_task_queue_tasks{state="failed"} ${safeMetricNumber(workforceTaskQueue?.totalFailed)}`);
+    lines.push(`${prefix}_workforce_task_queue_tasks{state="cancelled"} ${safeMetricNumber(workforceTaskQueue?.totalCancelled)}`);
+    lines.push("# HELP " + prefix + "_workforce_task_queue_atomic_terminal_fence Whether terminal writes atomically validate the claim fence.");
+    lines.push("# TYPE " + prefix + "_workforce_task_queue_atomic_terminal_fence gauge");
+    lines.push(`${prefix}_workforce_task_queue_atomic_terminal_fence ${workforceTaskQueue?.atomicTerminalFence === true ? 1 : 0}`);
+
+    const workforceExecutionControl = snapshot.workforceExecutionControl;
+    const workforceControlMode = sanitizeMetricLabel(workforceExecutionControl?.mode ?? "disabled");
+    lines.push(`# HELP ${prefix}_workforce_execution_control_available Whether central Workforce approval and lifecycle state is reachable`);
+    lines.push(`# TYPE ${prefix}_workforce_execution_control_available gauge`);
+    lines.push(`${prefix}_workforce_execution_control_available{mode="${workforceControlMode}"} ${workforceExecutionControl ? (workforceExecutionControl.available === true ? 1 : 0) : 1}`);
+    lines.push(`# HELP ${prefix}_workforce_execution_control_distributed Whether Workforce approval and lifecycle state is cross-host distributed`);
+    lines.push(`# TYPE ${prefix}_workforce_execution_control_distributed gauge`);
+    lines.push(`${prefix}_workforce_execution_control_distributed{mode="${workforceControlMode}"} ${workforceExecutionControl?.distributed === true ? 1 : 0}`);
+    lines.push(`# HELP ${prefix}_workforce_execution_control_records Active approval and execution-control records`);
+    lines.push(`# TYPE ${prefix}_workforce_execution_control_records gauge`);
+    lines.push(`${prefix}_workforce_execution_control_records{kind="approval",state="active"} ${safeMetricNumber(workforceExecutionControl?.approval?.activeApprovals)}`);
+    lines.push(`${prefix}_workforce_execution_control_records{kind="approval",state="capacity"} ${safeMetricNumber(workforceExecutionControl?.approval?.maxApprovals)}`);
+    lines.push(`${prefix}_workforce_execution_control_records{kind="lifecycle",state="active"} ${safeMetricNumber(workforceExecutionControl?.lifecycle?.activeExecutions)}`);
+    lines.push(`${prefix}_workforce_execution_control_records{kind="lifecycle",state="capacity"} ${safeMetricNumber(workforceExecutionControl?.lifecycle?.maxExecutions)}`);
+    lines.push(`# HELP ${prefix}_workforce_claim_stats_age_seconds Age of the last distributed claim statistics snapshot, or -1 when unavailable`);
+    lines.push(`# TYPE ${prefix}_workforce_claim_stats_age_seconds gauge`);
+    lines.push(`${prefix}_workforce_claim_stats_age_seconds{mode="${workforceClaimMode}"} ${workforceClaimStatsAgeSeconds}`);
+
+    const usageLedger = snapshot.usageLedger;
+    const usageLedgerMode = sanitizeMetricLabel(
+      usageLedger?.storeMode ?? usageLedger?.persistence ?? "disabled",
+    );
+    const usageLedgerAvailable = usageLedger
+      ? (usageLedger.status === "ready" && usageLedger.available !== false ? 1 : 0)
+      : 1;
+    lines.push(`# HELP ${prefix}_usage_ledger_store_available Whether the configured usage ledger can commit billable evidence`);
+    lines.push(`# TYPE ${prefix}_usage_ledger_store_available gauge`);
+    lines.push(`${prefix}_usage_ledger_store_available{mode="${usageLedgerMode}"} ${usageLedgerAvailable}`);
+    lines.push(`# HELP ${prefix}_usage_ledger_rows Current and maximum central usage-ledger rows`);
+    lines.push(`# TYPE ${prefix}_usage_ledger_rows gauge`);
+    lines.push(`${prefix}_usage_ledger_rows{state="current"} ${safeMetricNumber(usageLedger?.rowCount)}`);
+    lines.push(`${prefix}_usage_ledger_rows{state="capacity"} ${safeMetricNumber(usageLedger?.maxRows)}`);
+    lines.push(`# HELP ${prefix}_usage_ledger_write_failures_total Usage-ledger write failures observed by this process`);
+    lines.push(`# TYPE ${prefix}_usage_ledger_write_failures_total counter`);
+    lines.push(`${prefix}_usage_ledger_write_failures_total ${safeMetricNumber(usageLedger?.totalWriteFailures)}`);
+
+    const centralAudit = snapshot.health?.enterprise?.audit?.central;
+    const centralAuditMode = sanitizeMetricLabel(centralAudit?.mode ?? "disabled");
+    const centralAuditAvailable = centralAudit
+      ? (centralAudit.status === "ready" && centralAudit.available !== false ? 1 : 0)
+      : 1;
+    lines.push(`# HELP ${prefix}_audit_central_store_available Whether the configured central enterprise audit store is reachable and verified`);
+    lines.push(`# TYPE ${prefix}_audit_central_store_available gauge`);
+    lines.push(`${prefix}_audit_central_store_available{mode="${centralAuditMode}"} ${centralAuditAvailable}`);
+    lines.push(`# HELP ${prefix}_audit_central_sequence Latest verified central enterprise audit sequence`);
+    lines.push(`# TYPE ${prefix}_audit_central_sequence gauge`);
+    lines.push(`${prefix}_audit_central_sequence ${safeMetricNumber(centralAudit?.sequence)}`);
+    lines.push(`# HELP ${prefix}_audit_external_retention_verified Whether external immutable retention is independently verified`);
+    lines.push(`# TYPE ${prefix}_audit_external_retention_verified gauge`);
+    lines.push(`${prefix}_audit_external_retention_verified ${centralAudit?.externalRetentionVerified === true ? 1 : 0}`);
 
     // Provider health score
     const sanitizeLabel = (v) => String(v).replace(/["\\}\n\r]/g, "_");

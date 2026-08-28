@@ -17,11 +17,14 @@
  * - 支持证据链查询（按 planId 获取所有 Agent 的证据）
  */
 
-import { mkdir, readFile, writeFile, readdir } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { mkdir, readFile, writeFile, readdir, rename, rm } from "node:fs/promises";
 import { dirname, resolve, join } from "node:path";
+import { createLogRedactor } from "./logRedactor.js";
 
 // 默认证据存储根目录
 const DEFAULT_EVIDENCE_DIR = resolve(process.cwd(), ".data", "workforce", "evidence");
+const MAX_EVIDENCE_BYTES = 1024 * 1024;
 
 /**
  * 创建任务证据捕获器
@@ -35,6 +38,7 @@ function sanitizeId(id) {
 
 export function createTaskEvidenceCapture(options = {}) {
   const evidenceDir = options.evidenceDir || DEFAULT_EVIDENCE_DIR;
+  const redactor = options.redactor || createLogRedactor();
 
   return {
     /**
@@ -128,8 +132,8 @@ export function createTaskEvidenceCapture(options = {}) {
             costEstimate: callInfo.costEstimate || null,
             timestamp: new Date().toISOString(),
             // 脱敏：不记录完整 prompt/response
-            promptPreview: truncate(String(callInfo.prompt || ""), 500),
-            responsePreview: truncate(String(callInfo.response || ""), 500),
+            promptPreview: truncate(redactor.redactString(String(callInfo.prompt || "")), 500),
+            responsePreview: truncate(redactor.redactString(String(callInfo.response || "")), 500),
           });
           return this;
         },
@@ -143,7 +147,7 @@ export function createTaskEvidenceCapture(options = {}) {
             success: toolResult?.success !== false,
             durationMs: Number(toolResult?.durationMs) || 0,
             timestamp: new Date().toISOString(),
-            outputPreview: truncate(String(toolResult?.output || ""), 300),
+            outputPreview: truncate(redactor.redactString(String(toolResult?.output || "")), 300),
           });
           return this;
         },
@@ -153,7 +157,7 @@ export function createTaskEvidenceCapture(options = {}) {
          */
         setOutput(output) {
           this.evidence.output = {
-            summary: truncate(String(output.summary || ""), 5000),
+            summary: truncate(redactor.redactString(String(output.summary || "")), 5000),
             filesChanged: Array.isArray(output.filesChanged) ? output.filesChanged.slice(0, 100) : [],
             commandsRun: Array.isArray(output.commandsRun) ? output.commandsRun.slice(0, 50) : [],
             deliverables: Array.isArray(output.deliverables) ? output.deliverables.slice(0, 20) : [],
@@ -189,8 +193,22 @@ export function createTaskEvidenceCapture(options = {}) {
 
           // 持久化证据
           const filePath = resolve(evidenceDir, sanitizeId(planId), `${sanitizeId(agentId)}.json`);
-          await mkdir(dirname(filePath), { recursive: true });
-          await writeFile(filePath, `${JSON.stringify(this.evidence, null, 2)}\n`, "utf8");
+          await mkdir(dirname(filePath), { recursive: true, mode: 0o700 });
+          const persistedEvidence = redactor.redactObject(this.evidence);
+          const serialized = `${JSON.stringify(persistedEvidence, null, 2)}\n`;
+          if (Buffer.byteLength(serialized, "utf8") > MAX_EVIDENCE_BYTES) {
+            throw Object.assign(new Error("Task evidence exceeds the bounded persistence limit."), {
+              code: "WORKFORCE_EVIDENCE_TOO_LARGE",
+            });
+          }
+          const temporaryPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
+          try {
+            await writeFile(temporaryPath, serialized, { encoding: "utf8", mode: 0o600 });
+            await rename(temporaryPath, filePath);
+            this.evidence = persistedEvidence;
+          } finally {
+            await rm(temporaryPath, { force: true }).catch(() => {});
+          }
 
           return {
             success: true,

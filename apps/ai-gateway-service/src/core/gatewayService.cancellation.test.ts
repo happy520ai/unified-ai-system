@@ -6,10 +6,10 @@ import {
 } from "@unified-ai-system/shared-utils";
 import { GatewayService } from "./gatewayService.js";
 
-function createCandidate(provider: any, rank: number) {
+function createCandidate(provider: any, rank: number, providerType = "fake") {
   return {
     provider,
-    providerType: "test",
+    providerType,
     target: { providerId: `provider-${rank}`, modelId: "model" },
     rank,
     providerPriority: rank,
@@ -17,10 +17,15 @@ function createCandidate(provider: any, rank: number) {
   };
 }
 
-function createService(primary: any, fallback: any, healthScorer: any) {
-  const candidates = [createCandidate(primary, 1), createCandidate(fallback, 2)];
+function createService(primary: any, fallback: any, healthScorer: any, options: any = {}) {
+  const providerType = options.providerType ?? "fake";
+  const candidates = [
+    createCandidate(primary, 1, providerType),
+    createCandidate(fallback, 2, providerType),
+  ];
   return new GatewayService({
     providerRegistry: {
+      listDescriptors: () => [],
       select: () => ({
         selected: candidates[0],
         candidates,
@@ -30,8 +35,15 @@ function createService(primary: any, fallback: any, healthScorer: any) {
         metadata: { mode: "test", policy: "test" },
       }),
     },
-    runtimeConfig: { fallbackEnabled: true },
+    runtimeConfig: options.runtimeConfig ?? {
+      providerMode: "fake",
+      realProviderEnabled: false,
+      enabledProviders: ["provider-1", "provider-2"],
+      fallbackEnabled: true,
+    },
     healthScorer,
+    requestLogger: options.requestLogger ?? null,
+    enterpriseAudit: options.enterpriseAudit ?? null,
   });
 }
 
@@ -61,5 +73,58 @@ describe("GatewayService execution cancellation", () => {
     expect(primary.generate).toHaveBeenCalledTimes(1);
     expect(fallback.generate).not.toHaveBeenCalled();
     expect(healthScorer.recordFailure).not.toHaveBeenCalled();
+  });
+
+  it("records an attempted real call with unknown cost when cancellation hides usage", async () => {
+    const controller = new AbortController();
+    const entries: any[] = [];
+    const primary = {
+      generate: vi.fn(async (providerRequest: any) => {
+        await abortableSleep(10_000, providerRequest.execution.signal);
+      }),
+    };
+    const service = createService(primary, { generate: vi.fn() }, null, {
+      providerType: "openai",
+      runtimeConfig: {
+        providerMode: "real",
+        realProviderEnabled: true,
+        enabledProviders: ["provider-1"],
+        fallbackEnabled: false,
+      },
+      requestLogger: { assertDurable: () => true, log: (entry: any) => entries.push(entry) },
+      enterpriseAudit: { recordAudit: async () => {} },
+    });
+    const pending = service.execute(
+      { messages: [{ role: "user", content: "cancel billed call" }] },
+      { signal: controller.signal },
+    );
+    const cancellation = createExecutionAbortError(
+      EXECUTION_ABORT_CODES.CLIENT_DISCONNECTED,
+      "client disconnected",
+    );
+
+    await vi.waitFor(() => expect(primary.generate).toHaveBeenCalledTimes(1));
+    controller.abort(cancellation);
+
+    await expect(pending).rejects.toBe(cancellation);
+    expect(entries).toHaveLength(2);
+    expect(entries[0]).toEqual(expect.objectContaining({
+      provider: "provider-1",
+      usageEventType: "attempt-started",
+      providerCallAttempted: true,
+      billable: true,
+      costSource: "pending-provider-attempt",
+      costEstimateAvailable: false,
+    }));
+    expect(entries[1]).toEqual(expect.objectContaining({
+      provider: "provider-1",
+      usageAttemptId: entries[0].usageAttemptId,
+      usageEventType: "attempt-failed",
+      providerCallAttempted: true,
+      billable: true,
+      estimatedCostUsd: 0,
+      costSource: "unavailable-after-attempt",
+      costEstimateAvailable: false,
+    }));
   });
 });

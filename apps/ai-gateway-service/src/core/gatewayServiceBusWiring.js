@@ -39,7 +39,11 @@ export function wireServiceBusEvents(bus, getService, caches, EVENTS) {
       if (!payload || !payload.taskId) return;
       const taskQueue = getService("taskQueue");
       if (taskQueue && typeof taskQueue.completeTask === "function") {
-        taskQueue.completeTask(payload.taskId, payload).catch((err) => { console.warn("[serviceBus] taskQueue.completeTask failed:", err?.message); });
+        const { taskClaimToken, claimToken, ...safePayload } = payload;
+        taskQueue.completeTask(payload.taskId, safePayload, {
+          claimToken: taskClaimToken ?? claimToken,
+          agentId: payload.agentId,
+        }).catch((err) => { console.warn("[serviceBus] taskQueue.completeTask failed:", err?.message); });
       }
     },
     { priority: 30, label: "serviceBus:chatComplete→taskQueue" }

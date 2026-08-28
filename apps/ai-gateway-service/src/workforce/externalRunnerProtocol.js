@@ -89,9 +89,14 @@ export function createLocalRunner(config = {}) {
           runRecord.result = result;
           runRecord.status = RUNNER_STATUS.COMPLETED;
         } else {
-          // 没有处理函数时，标记为完成（占位执行）
-          runRecord.result = { output: `本地执行完成: ${task.goal}`, executedLocally: true };
-          runRecord.status = RUNNER_STATUS.COMPLETED;
+          // 没有处理函数时，如实标记为跳过（未执行任何工作）
+          runRecord.status = RUNNER_STATUS.SKIPPED;
+          runRecord.result = {
+            output: null,
+            executed: false,
+            reason: "NO_TASK_HANDLER",
+            note: "未提供任务处理函数，未执行任何工作",
+          };
         }
       } catch (error) {
         runRecord.status = RUNNER_STATUS.FAILED;
@@ -309,14 +314,13 @@ export function createSubProcessRunner(config = {}) {
 
           runRecord.status = RUNNER_STATUS.RUNNING;
         } else {
-          // 没有脚本路径时，记录为占位执行
-          runRecord.status = RUNNER_STATUS.RUNNING;
-          runRecord.result = {
-            output: `子进程执行已启动（占位模式）: ${task.goal}`,
-            subprocessMode: true,
-            note: "未配置 scriptPath，请在生产环境中配置实际的任务执行脚本",
+          // 没有脚本路径时，如实判定为配置失败（生产 Runner 无法执行）
+          runRecord.status = RUNNER_STATUS.FAILED;
+          runRecord.error = {
+            message: "SubProcessRunner 未配置 scriptPath，无法执行任务",
+            code: "SCRIPT_PATH_MISSING",
           };
-          runRecord.status = RUNNER_STATUS.COMPLETED;
+          runRecord.result = null;
           runRecord.completedAt = new Date().toISOString();
         }
       } catch (error) {

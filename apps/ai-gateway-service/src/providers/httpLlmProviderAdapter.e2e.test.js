@@ -64,7 +64,7 @@ describe("http LLM provider adapter — success path (mock HTTP)", () => {
 
     expect(response.text).toBe("hello from mock");
     expect(response.executionStatus).toBe("success");
-    expect(response.usage).toEqual({ inputTokens: 10, outputTokens: 5, totalTokens: 15 });
+    expect(response.usage).toEqual({ inputTokens: 10, outputTokens: 5, totalTokens: 15, reasoningTokens: 0 });
 
     expect(adapter.health.totalRequests).toBe(1);
     expect(adapter.health.successfulRequests).toBe(1);

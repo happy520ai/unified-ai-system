@@ -1,12 +1,19 @@
 import { EventEmitter } from "node:events";
+import { createHash } from "node:crypto";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
 import { EXECUTION_ABORT_CODES } from "@unified-ai-system/shared-utils";
 import { bindGatewayExecution, createHttpRequestExecutionScope } from "./httpRequestExecution.ts";
 
 function createTransport() {
-  const request = new EventEmitter();
-  const response = Object.assign(new EventEmitter(), { writableFinished: false });
-  return { request: request as never, response: response as never };
+  const requestEmitter = new EventEmitter();
+  const responseEmitter = Object.assign(new EventEmitter(), { writableFinished: false });
+  return {
+    request: requestEmitter as EventEmitter & IncomingMessage,
+    response: responseEmitter as unknown as EventEmitter & ServerResponse,
+    requestEmitter,
+    responseEmitter,
+  };
 }
 
 describe("HTTP request execution scope", () => {
@@ -38,7 +45,7 @@ describe("HTTP request execution scope", () => {
     const onClientDisconnect = vi.fn();
     const scope = createHttpRequestExecutionScope({ ...transport, timeoutMs: 10_000, onClientDisconnect });
 
-    transport.request.emit("aborted");
+    transport.requestEmitter.emit("aborted");
 
     expect(scope.context.signal.reason).toMatchObject({
       code: EXECUTION_ABORT_CODES.CLIENT_DISCONNECTED,
@@ -54,8 +61,8 @@ describe("HTTP request execution scope", () => {
     try {
       const transport = createTransport();
       const scope = createHttpRequestExecutionScope({ ...transport, timeoutMs: 250 });
-      transport.response.writableFinished = true;
-      transport.response.emit("finish");
+      transport.responseEmitter.writableFinished = true;
+      transport.responseEmitter.emit("finish");
       vi.advanceTimersByTime(500);
       expect(scope.context.signal.aborted).toBe(false);
     } finally {
@@ -71,9 +78,114 @@ describe("HTTP request execution scope", () => {
     const bound = bindGatewayExecution({ execute, executeStream }, scope.context);
 
     expect(await bound.execute({})).toBe(scope.context);
-    const events = [];
+    const events: unknown[] = [];
     for await (const event of bound.executeStream({})) events.push(event);
     expect(events).toEqual([scope.context]);
+    scope.cleanup();
+  });
+
+  it("hashes the request idempotency key and assigns stable per-request invocation lanes", async () => {
+    const transport = createTransport();
+    transport.request.headers = {
+      "idempotency-key": "operator-attempt-1",
+      "x-request-id": "transport-request-1",
+      "x-trace-id": "transport-trace-1",
+    };
+    transport.request.url = "/v1/chat/completions?ignored=true";
+    const scope = createHttpRequestExecutionScope({ ...transport, timeoutMs: 10_000 });
+    expect(scope.context).toMatchObject({
+      providerDispatchKeyHash: createHash("sha256")
+        .update("operator-attempt-1")
+        .digest("hex"),
+      providerDispatchRoute: "/v1/chat/completions",
+      transportRequestId: "transport-request-1",
+      transportTraceId: "transport-trace-1",
+    });
+    expect(JSON.stringify(scope.context)).not.toContain("operator-attempt-1");
+
+    const execute = vi.fn(async (_input: unknown, execution?: unknown) => execution);
+    const executeProviderOperation = vi.fn(async (_input: unknown, execution?: unknown) => execution);
+    const bound = bindGatewayExecution({ execute, executeProviderOperation }, scope.context);
+    await expect(bound.execute({})).resolves.toMatchObject({ providerDispatchInvocation: 1 });
+    await expect(bound.execute({})).resolves.toMatchObject({ providerDispatchInvocation: 2 });
+    await expect(bound.executeProviderOperation({})).resolves.toMatchObject({
+      providerDispatchInvocation: 3,
+    });
+    scope.cleanup();
+  });
+
+  it("marks malformed idempotency headers without retaining their values", () => {
+    const transport = createTransport();
+    transport.request.headers = { "idempotency-key": "contains space" };
+    transport.request.url = "/chat";
+    const scope = createHttpRequestExecutionScope({ ...transport, timeoutMs: 10_000 });
+    expect(scope.context).toMatchObject({
+      providerDispatchKeyInvalid: true,
+      providerDispatchRoute: "/chat",
+    });
+    expect(scope.context).not.toHaveProperty("providerDispatchKeyHash");
+    scope.cleanup();
+  });
+
+  it("accepts a provider-only dispatch key without retaining its raw value", () => {
+    const transport = createTransport();
+    transport.request.headers = { "provider-dispatch-key": "provider-operation-1" };
+    transport.request.url = "/v1/images/generations";
+    const scope = createHttpRequestExecutionScope({ ...transport, timeoutMs: 10_000 });
+
+    expect(scope.context).toMatchObject({
+      providerDispatchKeyHash: createHash("sha256")
+        .update("provider-operation-1")
+        .digest("hex"),
+      providerDispatchRoute: "/v1/images/generations",
+    });
+    expect(JSON.stringify(scope.context)).not.toContain("provider-operation-1");
+    scope.cleanup();
+  });
+
+  it("rejects ambiguous standard and provider-only dispatch headers", () => {
+    const transport = createTransport();
+    transport.request.headers = {
+      "idempotency-key": "response-replay-key",
+      "provider-dispatch-key": "provider-only-key",
+    };
+    const scope = createHttpRequestExecutionScope({ ...transport, timeoutMs: 10_000 });
+
+    expect(scope.context).toMatchObject({ providerDispatchKeyInvalid: true });
+    expect(scope.context).not.toHaveProperty("providerDispatchKeyHash");
+    scope.cleanup();
+  });
+
+  it("stamps the server identity onto gateway inputs and strips client spoofing", async () => {
+    const transport = createTransport();
+    const scope = createHttpRequestExecutionScope({ ...transport, timeoutMs: 10_000 });
+    const identity = { tenantId: "tenant-a", role: "operator" };
+    const seen: unknown[] = [];
+    const execute = vi.fn(async (input: unknown) => {
+      seen.push(input);
+      return input;
+    });
+    const bound = bindGatewayExecution({ execute }, scope.context, () => identity);
+
+    const spoofed = { messages: [], enterpriseIdentity: { tenantId: "attacker" } };
+    await bound.execute(spoofed);
+    expect(seen[0]).toMatchObject({ enterpriseIdentity: { tenantId: "tenant-a" } });
+    expect((seen[0] as Record<string, unknown>).enterpriseIdentity).toBe(identity);
+
+    const anonymous = bindGatewayExecution({ execute }, scope.context);
+    await anonymous.execute({ messages: [], enterpriseIdentity: { tenantId: "attacker" } });
+    expect(seen[1]).not.toHaveProperty("enterpriseIdentity");
+
+    const frozenSpoof = Object.freeze({
+      messages: Object.freeze([]),
+      enterpriseIdentity: Object.freeze({ tenantId: "frozen-attacker" }),
+    });
+    await bound.execute(frozenSpoof);
+    expect(seen[2]).toMatchObject({ enterpriseIdentity: { tenantId: "tenant-a" } });
+    expect(seen[2]).not.toBe(frozenSpoof);
+    expect(frozenSpoof.enterpriseIdentity.tenantId).toBe("frozen-attacker");
+    await anonymous.execute(frozenSpoof);
+    expect(seen[3]).not.toHaveProperty("enterpriseIdentity");
     scope.cleanup();
   });
 });

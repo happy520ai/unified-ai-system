@@ -24,6 +24,27 @@ export class FileSnapshot {
   // ── Public API ────────────────────────────────────────────────────────
 
   /**
+   * Batch-capture a path→content mapping (convenience over update()).
+   *
+   * @param {Record<string, string>} files
+   */
+  capture(files) {
+    if (!files || typeof files !== 'object') return;
+    for (const [filePath, content] of Object.entries(files)) {
+      this.update(filePath, String(content ?? ''));
+    }
+  }
+
+  /**
+   * Whether a path is tracked in this snapshot.
+   * @param {string} filePath
+   * @returns {boolean}
+   */
+  has(filePath) {
+    return this.#files.has(filePath);
+  }
+
+  /**
    * Update or add a file to the snapshot.
    *
    * @param {string} filePath
@@ -50,10 +71,37 @@ export class FileSnapshot {
   /**
    * Diff this snapshot against a previous one.
    *
-   * @param {FileSnapshot} previousSnapshot
-   * @returns {{ added: string[], modified: string[], removed: string[], unchanged: string[] }}
+   * Accepts either a FileSnapshot instance (returns the full
+   * {added, modified, removed, unchanged} breakdown) or a plain
+   * path→content object (returns the flat list of added/modified paths).
+   *
+   * @param {FileSnapshot | Record<string, string>} previousSnapshot
+   * @returns {{ added: string[], modified: string[], removed: string[], unchanged: string[] } | string[]}
    */
   diff(previousSnapshot) {
+    // 便利形式：diff(path→content 对象) → 变更路径数组。
+    if (previousSnapshot !== null
+      && typeof previousSnapshot === 'object'
+      && !(previousSnapshot instanceof FileSnapshot)) {
+      const changed = [];
+      const keys = Object.keys(previousSnapshot);
+      const knownKeys = new Set([...this.#files.keys(), ...keys]);
+      for (const filePath of knownKeys) {
+        const prevContent = Object.prototype.hasOwnProperty.call(previousSnapshot, filePath)
+          ? previousSnapshot[filePath]
+          : undefined;
+        const current = this.#files.get(filePath);
+        if (!current) {
+          if (prevContent !== undefined) changed.push(filePath);
+          continue;
+        }
+        if (prevContent === undefined || this.#hashContent(prevContent) !== current.hash) {
+          changed.push(filePath);
+        }
+      }
+      return changed;
+    }
+
     const added = [];
     const modified = [];
     const removed = [];

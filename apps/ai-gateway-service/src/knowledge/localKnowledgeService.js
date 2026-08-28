@@ -68,8 +68,25 @@ export function createLocalKnowledgeService(options = {}) {
   // embedding + 本地向量库；关键词基线行为不变。
   const vectorEnabled = options.vectorEnabled
     ?? String(options.env?.KNOWLEDGE_INFRA_MODE ?? "").trim().toLowerCase() === "sqlite-vec";
+  if (options.embeddingProvider
+    && options.embeddingProvider.credentialFree !== true
+    && options.embeddingProvider.governedProviderOperation !== true) {
+    throw Object.assign(
+      new Error("External knowledge embeddings must enter the governed provider-operation lifecycle."),
+      { code: "KNOWLEDGE_EMBEDDING_GOVERNANCE_REQUIRED", category: "configuration" },
+    );
+  }
+  // The application path stays credential-free unless a caller injects an
+  // already-governed provider. Environment credentials alone must never create
+  // a direct external sink outside GatewayService billing/audit/dispatch.
   const embeddingProvider = options.embeddingProvider
     ?? (vectorEnabled ? createDeterministicEmbeddingProvider() : null);
+  const externalEmbeddingConfigured = Boolean(
+    String(options.env?.KNOWLEDGE_EMBEDDING_PROVIDER ?? "").trim(),
+  );
+  const externalEmbeddingBlocked = vectorEnabled
+    && externalEmbeddingConfigured
+    && !options.embeddingProvider;
   const vectorStore = options.vectorStore
     ?? (vectorEnabled ? createSqliteVecStore({
       dbPath: options.env?.KNOWLEDGE_SQLITE_VEC_PATH ?? ".data/knowledge/vectors.sqlite",
@@ -84,16 +101,21 @@ export function createLocalKnowledgeService(options = {}) {
   const embeddedDocumentKeys = new Set();
 
   // Best-effort vector upsert: embedding failures must never break loads.
-  function upsertVectorsFor(documentsToEmbed, tenantScopeKey) {
+  // 支持同步（确定性）与异步（HTTP 真实嵌入）两种 provider。
+  async function upsertVectorsFor(documentsToEmbed, tenantScopeKey) {
     if (!vectorEnabled || !vectorStoreReady || !embeddingProvider) return;
     try {
-      const payload = documentsToEmbed.map((document) => ({
+      const texts = documentsToEmbed.map(
+        (document) => `${document.title ?? ""}\n${document.text ?? ""}`,
+      );
+      const embeddings = await embedMany(embeddingProvider, texts);
+      const payload = documentsToEmbed.map((document, index) => ({
         id: `kv:${tenantScopeKey}:${toDocumentKey(document)}`,
         sourceId: document.sourceId,
         title: document.title,
         content: document.text,
         metadata: { tenantScopeKey, systemDocument: !isUserDocument(document) },
-        embedding: embeddingProvider.embedText(`${document.title ?? ""}\n${document.text ?? ""}`),
+        embedding: embeddings[index],
       }));
       if (payload.length > 0) {
         vectorStore.upsertDocuments(payload);
@@ -104,6 +126,17 @@ export function createLocalKnowledgeService(options = {}) {
     } catch {
       // 向量写回失败仅降级为关键词检索。
     }
+  }
+
+  async function embedMany(provider, texts) {
+    if (typeof provider?.embedTexts === "function") {
+      const vectors = await provider.embedTexts(texts);
+      if (!Array.isArray(vectors) || vectors.length !== texts.length) {
+        throw new Error("EMBEDDING_BATCH_SHAPE_INVALID");
+      }
+      return vectors;
+    }
+    return texts.map((text) => provider.embedText(text));
   }
 
   // Query result cache (LRU-like, max 100 entries, 5 minute TTL)
@@ -124,6 +157,17 @@ export function createLocalKnowledgeService(options = {}) {
         mode: vectorStoreReady ? "local-keyword+vector" : "local-keyword",
         storage: persistence.storageLabel,
         embedding: vectorStoreReady ? (embeddingProvider?.id ?? "not-configured") : "not-configured",
+        embeddingGovernance: {
+          externalConfigured: externalEmbeddingConfigured,
+          externalActive: Boolean(
+            options.embeddingProvider?.governedProviderOperation === true
+            && embeddingProvider?.credentialFree !== true,
+          ),
+          externalBlocked: externalEmbeddingBlocked,
+          reason: externalEmbeddingBlocked
+            ? "Environment credentials cannot bypass the governed provider-operation lifecycle."
+            : null,
+        },
         sourceCount: new Set(visibleDocuments.map((document) => document.sourceId)).size,
         documentCount: visibleDocuments.length,
         chunkCount: visibleDocuments.length,
@@ -207,7 +251,8 @@ export function createLocalKnowledgeService(options = {}) {
       );
       persistence.saveDocuments(persistedUserDocuments);
       invalidateTenantQueryCache(queryCache, tenantScope.key);
-      upsertVectorsFor(loadedDocuments, tenantScope.key);
+      // 异步嵌入 provider 下不阻塞装载；失败按 best-effort 语义静默降级。
+      Promise.resolve(upsertVectorsFor(loadedDocuments, tenantScope.key)).catch(() => {});
       const visibleDocuments = selectVisibleDocuments(documents, tenantScope.key);
       const visibleUserCount = visibleDocuments.filter(isUserDocument).length;
 
@@ -223,7 +268,7 @@ export function createLocalKnowledgeService(options = {}) {
       };
     },
 
-    retrieve(request = {}, context = {}) {
+    async retrieve(request = {}, context = {}) {
       const tenantScope = resolveKnowledgeTenantScope(context.tenantScopeIdentity);
       const rawQuery = typeof request.query === "string" ? request.query : "";
       const query = rawQuery.trim();
@@ -294,10 +339,10 @@ export function createLocalKnowledgeService(options = {}) {
           pendingByScope.set(ownerScope, bucket);
         }
         for (const [scope, pendingDocuments] of pendingByScope) {
-          upsertVectorsFor(pendingDocuments, scope);
+          await upsertVectorsFor(pendingDocuments, scope);
         }
 
-        const queryEmbedding = embeddingProvider.embedText(query);
+        const [queryEmbedding] = await embedMany(embeddingProvider, [query]);
         const rawResults = vectorStore.query(queryEmbedding, {
           topK: Math.max(topK * 3, topK),
           ...(sourceIds ? { sourceIds: [...sourceIds] } : {}),

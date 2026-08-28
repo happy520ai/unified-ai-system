@@ -3,9 +3,15 @@
  *
  * 桥接 forge-core ContextEngine 到 Agentic Loop,
  * 实现自动上下文压缩、对话历史管理、文件变更追踪。
+ * 历史压缩委托统一压缩引擎（packages/codex-context-gateway）。
  *
  * @module contextManager
  */
+import {
+  compactMessageHistory,
+  defineCompactionPolicy,
+  estimateContextTokens,
+} from "@unified-ai-system/codex-context-gateway";
 
 /**
  * 创建上下文管理器。
@@ -37,7 +43,7 @@ export function createContextManager(options = {}) {
   let summarizedHistory = "";
 
   /**
-   * 管理对话历史: 当消息过多时压缩旧消息。
+   * 管理对话历史: 当消息过多时压缩旧消息（委托统一压缩引擎）。
    *
    * @param {Object[]} messages - 当前消息数组
    * @returns {Object[]} 压缩后的消息数组
@@ -47,48 +53,20 @@ export function createContextManager(options = {}) {
       return messages;
     }
 
-    // Estimate total tokens in history
-    const totalTokens = estimateTokens(messages.map((m) => m.content || "").join("\n"));
+    const { messages: result, report } = compactMessageHistory(
+      messages,
+      defineCompactionPolicy({
+        summaryStyle: "turns",
+        keepRecentTurns: recentTurnsToKeep,
+        maxContextTokens,
+        tokenTriggerRatio: 0.7,
+        turnSummaryPrefix: "[Previous conversation summary]",
+      }),
+    );
 
-    // If within budget, return as-is
-    if (totalTokens < maxContextTokens * 0.7) {
-      return messages;
+    if (report.compacted && report.summaryText) {
+      summarizedHistory = report.summaryText;
     }
-
-    // Find conversation turns (user+assistant pairs)
-    const turns = extractTurns(messages);
-
-    if (turns.length <= recentTurnsToKeep) {
-      return messages;
-    }
-
-    // Summarize old turns
-    const oldTurns = turns.slice(0, turns.length - recentTurnsToKeep);
-    const recentTurns = turns.slice(turns.length - recentTurnsToKeep);
-
-    const oldSummary = summarizeTurns(oldTurns);
-    summarizedHistory = oldSummary;
-
-    // Rebuild messages: system + summary + recent turns
-    const systemMsg = messages.find((m) => m.role === "system");
-    const result = [];
-
-    if (systemMsg) {
-      result.push(systemMsg);
-    }
-
-    if (summarizedHistory) {
-      result.push({
-        role: "system",
-        content: `[Previous conversation summary]\n${summarizedHistory}`,
-      });
-    }
-
-    // Add recent turns
-    for (const turn of recentTurns) {
-      result.push(...turn.messages);
-    }
-
     return result;
   }
 
@@ -194,92 +172,8 @@ export function createContextManager(options = {}) {
 // ============================================================
 
 /**
- * 提取对话轮次 (user → assistant/tool 对)。
- */
-function extractTurns(messages) {
-  const turns = [];
-  let currentTurn = null;
-
-  for (const msg of messages) {
-    if (msg.role === "system") continue;
-
-    if (msg.role === "user") {
-      if (currentTurn) {
-        turns.push(currentTurn);
-      }
-      currentTurn = { messages: [msg], hasToolCalls: false };
-    } else if (currentTurn) {
-      currentTurn.messages.push(msg);
-      if (msg.role === "tool" || msg.tool_calls) {
-        currentTurn.hasToolCalls = true;
-      }
-    }
-  }
-
-  if (currentTurn) {
-    turns.push(currentTurn);
-  }
-
-  return turns;
-}
-
-/**
- * 将旧轮次生成摘要。
- */
-function summarizeTurns(turns) {
-  if (turns.length === 0) return "";
-
-  const summaries = [];
-
-  for (let i = 0; i < turns.length; i++) {
-    const turn = turns[i];
-    const userMsg = turn.messages.find((m) => m.role === "user");
-    const assistantMsgs = turn.messages.filter((m) => m.role === "assistant");
-    const toolMsgs = turn.messages.filter((m) => m.role === "tool");
-
-    const userContent = userMsg?.content || "[no user message]";
-    const assistantContent = assistantMsgs.map((m) => m.content || "").filter(Boolean).join(" ");
-    const toolCount = toolMsgs.length;
-
-    let summary = `Turn ${i + 1}: User asked "${truncate(userContent, 100)}"`;
-    if (toolCount > 0) {
-      summary += `, ${toolCount} tool(s) were called`;
-    }
-    if (assistantContent) {
-      summary += `. Assistant responded: "${truncate(assistantContent, 200)}"`;
-    }
-    summaries.push(summary);
-  }
-
-  return summaries.join("\n");
-}
-
-/**
- * 估算 token 数 (CJK 1.5 chars/token, ASCII 4 chars/token)。
+ * 估算 token 数 — 委托统一压缩引擎的估算器 (CJK 1.5 chars/token, ASCII 4 chars/token)。
  */
 function estimateTokens(text) {
-  if (!text) return 0;
-
-  let cjkChars = 0;
-  let asciiChars = 0;
-
-  for (const char of text) {
-    const code = char.codePointAt(0);
-    if (
-      (code >= 0x4e00 && code <= 0x9fff) ||
-      (code >= 0x3040 && code <= 0x309f) ||
-      (code >= 0x30a0 && code <= 0x30ff)
-    ) {
-      cjkChars++;
-    } else {
-      asciiChars++;
-    }
-  }
-
-  return Math.ceil(cjkChars / 1.5 + asciiChars / 4);
-}
-
-function truncate(str, maxLen) {
-  if (!str) return "";
-  return str.length > maxLen ? str.slice(0, maxLen) + "..." : str;
+  return estimateContextTokens(text);
 }

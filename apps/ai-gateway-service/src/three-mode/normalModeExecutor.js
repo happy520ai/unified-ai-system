@@ -1,4 +1,4 @@
-import { createNvidiaUnifiedClient } from "../providers/nvidia/nvidiaUnifiedClient.js";
+import { createGatewayBackedNvidiaClient } from "../providers/gatewayBackedNvidiaClient.ts";
 
 export async function executeNormalMode({ request, application, gate, auditTrace }) {
   const input = String(request?.input?.content ?? request?.input ?? "").trim();
@@ -7,12 +7,7 @@ export async function executeNormalMode({ request, application, gate, auditTrace
   const selectedRecord = gate.getSelectableRecord(selectedModelId);
   gate.assertProviderAllowed(selectedRecord, request);
 
-  const nvidiaClient = createNvidiaUnifiedClient({
-    env: application.runtimeEnv ?? process.env,
-    runtimeCredentialStore: application.runtimeCredentialStore,
-    modelLibraryStore: application.modelLibraryStore,
-    timeoutMs: Number(request?.executionPolicy?.timeoutMs ?? 60_000),
-  });
+  const nvidiaClient = createGatewayBackedNvidiaClient(application.gatewayService);
   const call = await nvidiaClient.chatCompletion({
     modelId: selectedRecord.modelId,
     messages: [{ role: "user", content: input }],

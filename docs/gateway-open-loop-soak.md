@@ -29,18 +29,24 @@ multi-language rewrite of gateway runtime code.
 pnpm benchmark:gateway:soak
 ```
 
-The default credential-free run:
+The default credential-free v3 run:
 
 - starts the real gateway HTTP process on a reserved loopback port;
 - forwards only a small operating-system and Node launch environment allowlist;
 - forces fake provider mode and disables real providers;
+- after readiness, requires five consecutive protocol-valid fake responses at
+  no more than 250 ms each within a bounded 20-second warmup; warmup attempts
+  are reported but excluded from the measured fixed-arrival phase;
 - schedules 500 requests over five seconds at a fixed 100 requests/second;
 - does not wait for one response before scheduling the next request;
 - records started arrivals, generator drops, outstanding concurrency,
   scheduler-lag percentiles, latency percentiles, throughput, timeouts, status
   codes, protocol validity, and fake-mode validity;
-- sends a synchronized 96-request streaming burst against a managed
-  `maxInFlight=16` boundary and requires both accepted streams and explicit
+- runs the sustained phase against a managed `maxInFlight=80` boundary. At 100
+  RPS this is greater than `ceil(rate * maxP95) + 5`, so the declared 750 ms
+  latency allowance cannot contradict the zero-error capacity gate;
+- sends a synchronized 256-request streaming burst against that boundary and
+  requires both accepted streams and explicit
   `503 service_overloaded` responses;
 - opens eight streaming requests, reads the first bytes, aborts each client
   connection, then proves health and normal chat recover;
@@ -63,6 +69,25 @@ Default regression thresholds:
 
 These thresholds are deliberately tolerant CI regression limits. They are not
 production capacity targets.
+
+For managed zero-error runs, argument validation rejects a service in-flight
+cap below `ceil(targetRps * maxP95Seconds) + 5`. The v1 defaults used a cap of
+16 while allowing 750 ms at 100 RPS (roughly 75 concurrent requests by
+Little's Law). That internally inconsistent profile could pass on a fast runner
+and emit sustained overload 503s on a slower runner even though latency stayed
+inside its stated threshold. v2 separated sustained-capacity headroom from the
+larger explicit overload burst instead of loosening the zero-error requirement.
+
+v3 addresses a separate readiness ambiguity: an HTTP health response can arrive
+while JIT, background initialization, or durable local state is still warming.
+The measured phase now starts only after the fixed bounded steady-state
+criterion above. Failure to stabilize is itself a blocking
+`managed_warmup_stable` result; the tool does not retry a failed measured phase.
+This does not relax the 100 RPS, zero-error, protocol-validity, or 750 ms gates.
+
+In CI the open-loop gate also runs immediately after dependency/toolchain setup
+and before browser setup, maintained tests, public-clone processes, or the other
+gateway benchmarks. The later SLO and resource-soak gates remain independent.
 
 ## Arrival-model semantics
 

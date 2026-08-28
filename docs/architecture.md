@@ -59,12 +59,15 @@ The OpenAI-compatible Chat Completions and text-only Responses profiles, plus
 the A2A v1.0 JSON-RPC profile, terminate in the same gateway service. They reuse
 the existing `chat:use` authorization boundary and provider policy instead of
 creating alternate execution paths. A2A Agent Card discovery is public, while
-task execution remains governed. The source profile stores A2A tasks in memory
-and pins execution to the local fake provider.
+task execution remains governed. A2A tasks always use a bounded, tenant/owner
+scoped store: local preview is memory-only, while an opt-in same-host SQLite
+profile survives restart. Stable Ed25519 Agent Card signing publishes a
+public-only JWKS when configured. Execution remains pinned to the local fake
+provider.
 
 The default MCP command is self-contained: it allocates a local port, starts a
 fake-provider gateway, serves the governed stdio tools, and tears the child
-process down when the host disconnects. The source build and pinned `0.4.9`
+process down when the host disconnects. The source build and pinned `0.5.0`
 release both expose twelve tools, including provider-free prompt enhancement. An
 ephemeral ten-minute least-privilege token authenticates the MCP process to its
 managed gateway and is never included in tool results. An explicit

@@ -12,9 +12,12 @@ import { validateJsSyntax, tryFixSyntax } from './base-syntax-utils.js';
  * Attempts auto-fix for syntax issues.
  * @param {string} projectRoot
  * @param {Array} filesModified
+ * @param {object} options
+ * @param {object|null} options.sandboxExecutor
+ * @param {AbortSignal} [options.signal]
  * @returns {{ valid: boolean, issues: Array, autoFixed: number }}
  */
-export async function selfReview(projectRoot, filesModified) {
+export async function selfReview(projectRoot, filesModified, options = {}) {
   const issues = [];
   let autoFixed = 0;
   const jsFiles = [], tsFiles = [];
@@ -39,11 +42,25 @@ export async function selfReview(projectRoot, filesModified) {
   if (tsFiles.length > 0) {
     try {
       await import('node:fs/promises').then(fs => fs.access(join(projectRoot, 'tsconfig.json')));
-      const { execSync } = await import('node:child_process');
-      try {
-        execSync('npx tsc --noEmit --skipLibCheck', { cwd: projectRoot, timeout: 30000, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
-      } catch (tscErr) {
-        const output = tscErr.stdout || tscErr.stderr || tscErr.message || '';
+      if (!options.sandboxExecutor) {
+        issues.push({
+          file: tsFiles[0],
+          error: 'SANDBOX_BACKEND_UNAVAILABLE: TypeScript project checks require an attested isolation backend.',
+          type: 'sandbox',
+        });
+      } else {
+        const tscResult = await options.sandboxExecutor.execute(
+          'npx --no-install tsc --noEmit --skipLibCheck',
+          {
+            cwd: projectRoot,
+            level: 'full',
+            workspaceMode: 'ro',
+            timeout: 30_000,
+            signal: options.signal,
+          },
+        );
+        if (tscResult.exitCode !== 0) {
+          const output = tscResult.stdout || tscResult.stderr || tscResult.killReason || '';
         for (const tsFile of tsFiles) {
           const fileErrors = output.split('\n').filter(line => line.includes(tsFile) && line.includes('error'));
           for (const errLine of fileErrors.slice(0, 5)) issues.push({ file: tsFile, error: errLine.trim(), type: 'type' });
@@ -51,6 +68,7 @@ export async function selfReview(projectRoot, filesModified) {
         if (!issues.some(i => i.type === 'type')) {
           const firstError = output.split('\n').find(l => l.includes('error')) || output.split('\n')[0] || 'TypeScript compilation failed';
           issues.push({ file: tsFiles[0], error: firstError.trim(), type: 'type' });
+        }
         }
       }
     } catch { /* tsconfig not found */ }

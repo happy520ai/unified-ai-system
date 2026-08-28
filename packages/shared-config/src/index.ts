@@ -74,7 +74,7 @@ export const DEFAULT_RUNTIME_CONFIG: UnifiedRuntimeConfig = {
         enabled: true,
         priority: 2,
         capabilities: ["chat", "summary", "vision"],
-        fixedLatencyMs: 20,
+        fixedLatencyMs: 0,
       },
       {
         providerId: "openai",

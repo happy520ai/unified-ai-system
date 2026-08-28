@@ -80,6 +80,16 @@ export class ContextEngine {
     this.#codebaseSearch = search;
   }
 
+  /**
+   * Attach an externally-built snapshot; the next useDelta=true buildContext
+   * diffs against it instead of starting from an empty baseline.
+   *
+   * @param {import('./file-snapshot.js').FileSnapshot} snapshot
+   */
+  setSnapshot(snapshot) {
+    this.#snapshot = snapshot ?? null;
+  }
+
   // ── Public API ────────────────────────────────────────────────────────
 
   /**

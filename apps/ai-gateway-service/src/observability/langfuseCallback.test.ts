@@ -8,11 +8,11 @@ vi.mock("../security/outboundUrlPolicy.ts", () => ({
 function createCapturingFetch(responses: Array<{ ok: boolean; status: number }> = []) {
   const calls: Array<{ url: string; init: RequestInit }> = [];
   let callIndex = 0;
-  const fetchImpl = vi.fn(async (url: string | URL, init?: RequestInit) => {
+  const fetchImpl = vi.fn<typeof fetch>(async (url, init) => {
     calls.push({ url: String(url), init: init ?? {} });
     const response = responses[Math.min(callIndex, responses.length - 1)] ?? { ok: true, status: 200 };
     callIndex += 1;
-    return response as Response;
+    return new Response(null, { status: response.status });
   });
   return { fetchImpl, calls };
 }
@@ -69,11 +69,11 @@ describe("langfuse callback ingestion", () => {
     await callback.close();
 
     expect(calls.length).toBe(1);
-    expect(calls[0].url).toBe("https://langfuse.example.com/api/public/ingestion");
-    const auth = String(calls[0].init.headers?.authorization ?? "");
+    expect(calls[0]!.url).toBe("https://langfuse.example.com/api/public/ingestion");
+    const auth = new Headers(calls[0]!.init.headers).get("authorization") ?? "";
     expect(auth).toBe(`Basic ${Buffer.from("pk-lf-test:sk-lf-test").toString("base64")}`);
 
-    const payload = JSON.parse(String(calls[0].init.body));
+    const payload = JSON.parse(String(calls[0]!.init.body));
     expect(payload.batch).toHaveLength(1);
     const event = payload.batch[0];
     expect(event.body.type).toBe("generation-create");
@@ -101,7 +101,7 @@ describe("langfuse callback ingestion", () => {
     });
     await callback.close();
 
-    const payload = JSON.parse(String(calls[0].init.body));
+    const payload = JSON.parse(String(calls[0]!.init.body));
     expect(payload.batch[0].body.input).toBeUndefined();
     expect(payload.batch[0].body.output).toBeUndefined();
   });
@@ -120,7 +120,7 @@ describe("langfuse callback ingestion", () => {
 
   it("retries once on network failure then gives up silently", async () => {
     const calls: unknown[] = [];
-    const fetchImpl = vi.fn(async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => {
       calls.push(1);
       throw new Error("network down");
     });

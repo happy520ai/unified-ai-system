@@ -64,6 +64,7 @@ async function discoverTests() {
         path,
         framework: classifyFramework(source),
         scope: source.includes("@test-scope local") ? "local" : "unit",
+        processIsolated: source.includes("@test-isolation process"),
       };
     }),
   );
@@ -77,15 +78,16 @@ function writeDiscoverySummary(tests) {
     `local=${count((test) => test.scope === "local")}`,
     `node=${count((test) => test.framework === "node")}`,
     `vitest=${count((test) => test.framework === "vitest")}`,
+    `process-isolated=${count((test) => test.processIsolated)}`,
   ];
   process.stdout.write(`gateway tests discovered: ${summary.join(" ")}\n`);
 }
 
-function runProcess(command, args, cwd) {
+function runProcess(command, args, cwd, envOverrides = {}) {
   return new Promise((resolvePromise, reject) => {
     const child = spawn(command, args, {
       cwd,
-      env: process.env,
+      env: { ...process.env, ...envOverrides },
       stdio: "inherit",
       windowsHide: true,
     });
@@ -109,14 +111,20 @@ function resolveVitestEntrypoint() {
 async function runNodeTests(tests) {
   if (tests.length === 0) return 0;
   process.stdout.write(`\nRunning ${tests.length} node:test files\n`);
-  return runProcess(process.execPath, ["--test", ...tests.map((test) => test.path)], serviceRoot);
+  return runProcess(process.execPath, ["--test", ...tests.map((test) => test.path)], serviceRoot, { NODE_ENV: "test" });
 }
 
-async function runVitestTests(tests) {
+async function runVitestTests(tests, { processIsolated = false } = {}) {
   if (tests.length === 0) return 0;
-  process.stdout.write(`\nRunning ${tests.length} Vitest files\n`);
+  process.stdout.write(`\nRunning ${tests.length} Vitest files${processIsolated ? " in an isolated test process" : ""}\n`);
   const paths = tests.map((test) => relative(repoRoot, test.path).split(sep).join("/"));
-  return runProcess(process.execPath, [resolveVitestEntrypoint(), "run", ...paths], repoRoot);
+  const isolationArgs = processIsolated ? ["--maxWorkers=1"] : [];
+  return runProcess(
+    process.execPath,
+    [resolveVitestEntrypoint(), "run", ...isolationArgs, ...paths],
+    repoRoot,
+    { NODE_ENV: "test" },
+  );
 }
 
 async function main() {
@@ -142,9 +150,18 @@ async function main() {
   if (selected.length === 0) throw new Error(`No tests selected for scope=${scope} framework=${framework}`);
 
   const nodeExit = await runNodeTests(selected.filter((test) => test.framework === "node"));
-  const vitestExit = await runVitestTests(selected.filter((test) => test.framework === "vitest"));
-  if (nodeExit !== 0 || vitestExit !== 0) {
-    throw new Error(`Test suite failed: node=${nodeExit} vitest=${vitestExit}`);
+  const vitestTests = selected.filter((test) => test.framework === "vitest");
+  // Resource-heavy parser tests must enter their dedicated process before the
+  // large Vitest pool. On constrained Windows runners, starting this fork only
+  // after ~1,400 tests can make the OS terminate it even though the file passes
+  // independently; process isolation should not inherit prior pool pressure.
+  const isolatedVitestExit = await runVitestTests(
+    vitestTests.filter((test) => test.processIsolated),
+    { processIsolated: true },
+  );
+  const vitestExit = await runVitestTests(vitestTests.filter((test) => !test.processIsolated));
+  if (nodeExit !== 0 || vitestExit !== 0 || isolatedVitestExit !== 0) {
+    throw new Error(`Test suite failed: node=${nodeExit} vitest=${vitestExit} isolatedVitest=${isolatedVitestExit}`);
   }
 }
 

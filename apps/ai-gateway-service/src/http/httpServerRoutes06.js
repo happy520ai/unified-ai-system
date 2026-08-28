@@ -1,6 +1,19 @@
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { resolveChatResultHttpStatus } from "./routes/chatRoutes.js";
 import { applyIdempotencyResponseHeaders } from "./idempotencyCoordinator.ts";
+import { getGuardrailsEngine } from "../guardrails/guardrailsEngine.ts";
+import {
+  closePrimedGatewayStream,
+  iteratePrimedGatewayStream,
+  primeGatewayStream,
+  readPrimedGatewayStreamError,
+} from "./gatewayStreamPreflight.ts";
+import { resolveProviderDispatchHttpStatus } from "./providerDispatchHttpStatus.ts";
+import {
+  applyManagedLocalClientProviderRoute,
+  authenticateManagedLocalClientProtocolRequest,
+  resolveManagedLocalClientProviderRoute,
+} from "./openAiCompatibilityRoutes.js";
 
 export async function dispatchHttpRoutes06(context) {
   const {
@@ -12,7 +25,7 @@ export async function dispatchHttpRoutes06(context) {
     createResponseCachePolicy, invalidateCache, lookupCache, readResponseCacheSummary,
     writeCacheRecord, listResponseCacheAuditTrail, routeAnswerPath, routeQualityCostAnswer,
     getEvidenceById, TASK_MATRIX, LATENCY_DRY_RUN_CASES, PHASE315A_TIMEOUT_TYPES,
-    PHASE315A_LATENCY_RISK_LEVELS, PHASE315A_COMPLETION_CONFIDENCE, executeThreeModeRequest, evaluateTaijiBeidouChatGatewayExecutePreviewHook,
+    PHASE315A_LATENCY_RISK_LEVELS, PHASE315A_COMPLETION_CONFIDENCE, evaluateTaijiBeidouChatGatewayExecutePreviewHook,
     evaluateTaijiBeidouChatPreviewHook, handleChatLocalActionRoute, routeChatActionProposal, buildModelUsabilityMatrix,
     createModelVerificationPlan, getPluginRegistry, readJson,
     writeJson, writeSseEvent, writeSseHeaders, writeServiceLog,
@@ -49,7 +62,7 @@ export async function dispatchHttpRoutes06(context) {
     }
 
     try {
-      const result = knowledgeService.retrieve(body, getRequestContext(request));
+      const result = await knowledgeService.retrieve(body, getRequestContext(request));
       writeServiceLog("knowledge_retrieve_completed", {
         method: request.method,
         path: url.pathname,
@@ -103,7 +116,7 @@ export async function dispatchHttpRoutes06(context) {
       }
 
       const retrieveRequest = createRagRetrieveRequest(body, prompt);
-      const retrieveResult = knowledgeService.retrieve(retrieveRequest, getRequestContext(request));
+      const retrieveResult = await knowledgeService.retrieve(retrieveRequest, getRequestContext(request));
       const citations = createRagCitations(retrieveResult.chunks);
       const ragMessages = createRagMessages(prompt, citations);
       const chatInput = normalizeRagChatBody(
@@ -127,6 +140,14 @@ export async function dispatchHttpRoutes06(context) {
       response.on("close", () => {
         clientClosed = true;
       });
+      const primedStream = await primeGatewayStream(gatewayService.executeStream(chatInput));
+      const preflightError = readPrimedGatewayStreamError(primedStream);
+      const preflightStatus = resolveProviderDispatchHttpStatus(preflightError?.code);
+      if (preflightError && preflightStatus !== null) {
+        await closePrimedGatewayStream(primedStream);
+        writeJson(response, preflightStatus, primedStream.first.value.envelope);
+        return;
+      }
       writeSseHeaders(response);
       writeSseEvent(response, "knowledge", {
         type: "knowledge",
@@ -138,7 +159,7 @@ export async function dispatchHttpRoutes06(context) {
       });
 
       let failed = false;
-      for await (const event of gatewayService.executeStream(chatInput)) {
+      for await (const event of iteratePrimedGatewayStream(primedStream)) {
         if (clientClosed) break;
         if (event.type === "error") {
           failed = true;
@@ -209,7 +230,7 @@ export async function dispatchHttpRoutes06(context) {
       }
 
       const retrieveRequest = createRagRetrieveRequest(body, prompt);
-      const retrieveResult = knowledgeService.retrieve(retrieveRequest, getRequestContext(request));
+      const retrieveResult = await knowledgeService.retrieve(retrieveRequest, getRequestContext(request));
       const citations = createRagCitations(retrieveResult.chunks);
       const ragMessages = createRagMessages(prompt, citations);
       const chatInput = normalizeRagChatBody(
@@ -302,6 +323,21 @@ export async function dispatchHttpRoutes06(context) {
       return;
     }
 
+    let managedLocalClientPrincipal = null;
+    if (url.pathname === "/chat" || url.pathname === "/chat/stream") {
+      try {
+        managedLocalClientPrincipal = await authenticateManagedLocalClientProtocolRequest({
+          application,
+          request,
+          url,
+          requestBody: body,
+        });
+      } catch (error) {
+        writeJson(response, 401, createRouteFailureEnvelope(error, { startedAt }));
+        return;
+      }
+    }
+
     if (url.pathname === "/chat") {
       const taijiBeidouChatHook = evaluateTaijiBeidouChatPreviewHook({ body, route: url.pathname });
       if (taijiBeidouChatHook.action === "respond") {
@@ -380,17 +416,67 @@ export async function dispatchHttpRoutes06(context) {
       }
     }
 
+    let managedLocalClientRoute = null;
+    if (managedLocalClientPrincipal) {
+      try {
+        managedLocalClientRoute = await resolveManagedLocalClientProviderRoute({
+          application,
+          principal: managedLocalClientPrincipal,
+          gatewayInput,
+        });
+        gatewayInput = applyManagedLocalClientProviderRoute(gatewayInput, managedLocalClientRoute);
+        response.setHeader("X-AI-Gateway-Local-Client-Routing", "policy-pinned");
+        response.setHeader("X-AI-Gateway-Local-Client-Policy-Revision", managedLocalClientRoute.policyRevision);
+        response.setHeader("X-AI-Gateway-Local-Client-Revision", String(managedLocalClientRoute.clientRevision));
+        response.setHeader("X-AI-Gateway-Local-Client-Decision-Digest", managedLocalClientRoute.decisionDigest);
+      } catch (error) {
+        writeJson(response, 409, createRouteFailureEnvelope(error, { startedAt }));
+        return;
+      }
+    }
+
     const promptEnhancement = gatewayInput?.metadata?.promptEnhancement ?? null;
+
+    // Guardrails(确定性本地扫描):原生 /chat 与 /chat/stream 必须与 /v1/* 协议
+    // lane 执行同一套租户隔离的输入策略——拦截秘密注入,脱敏 PII 后再进网关。
+    const guardrailsEngine = getGuardrailsEngine(request.enterpriseIdentity?.tenantId);
+    const guardrailInputVerdict = guardrailsEngine.inspectInput({ messages: gatewayInput?.messages });
+    if (guardrailInputVerdict.decision === "block") {
+      writeServiceLog("chat_guardrail_blocked", {
+        method: request.method,
+        path: url.pathname,
+        findings: guardrailInputVerdict.findings,
+        durationMs: Date.now() - startedAt,
+      });
+      writeJson(response, 400, createErrorEnvelope("guardrail_blocked", "Request blocked by chat guardrails.", {
+        startedAt,
+        category: "governance",
+      }));
+      return;
+    }
+    for (const replacement of guardrailInputVerdict.replacements) {
+      if (typeof gatewayInput?.messages?.[replacement.index]?.content === "string") {
+        gatewayInput.messages[replacement.index].content = replacement.content;
+      }
+    }
 
     if (url.pathname === "/chat/stream") {
       let clientClosed = false;
       response.on("close", () => {
         clientClosed = true;
       });
+      const primedStream = await primeGatewayStream(gatewayService.executeStream(gatewayInput));
+      const preflightError = readPrimedGatewayStreamError(primedStream);
+      const preflightStatus = resolveProviderDispatchHttpStatus(preflightError?.code);
+      if (preflightError && preflightStatus !== null) {
+        await closePrimedGatewayStream(primedStream);
+        writeJson(response, preflightStatus, primedStream.first.value.envelope);
+        return;
+      }
       writeSseHeaders(response);
 
       let failed = false;
-      for await (const event of gatewayService.executeStream(gatewayInput)) {
+      for await (const event of iteratePrimedGatewayStream(primedStream)) {
         if (clientClosed) break;
         if (event.type === "error") {
           failed = true;
@@ -418,7 +504,15 @@ export async function dispatchHttpRoutes06(context) {
       const idempotencyOutcome = await idempotencyCoordinator.execute({
         request,
         route: url.pathname,
-        payload: body,
+        payload: managedLocalClientRoute
+          ? {
+              schema: "managed-local-client-chat-idempotency-v1",
+              requestBody: body,
+              clientRevision: managedLocalClientRoute.clientRevision,
+              policyRevision: managedLocalClientRoute.policyRevision,
+              decisionDigest: managedLocalClientRoute.decisionDigest,
+            }
+          : body,
         operation: async () => {
           let executionResult = await gatewayService.execute(gatewayInput);
           if (promptEnhancement) {
@@ -469,6 +563,38 @@ export async function dispatchHttpRoutes06(context) {
       idempotencyStatus,
       durationMs: Date.now() - startedAt,
     });
+    // Guardrails 输出侧:与 /v1/* lane 相同的最终文本脱敏/拦截;fail-open。
+    const guardrailOutputText = result?.data?.outputText;
+    if (typeof guardrailOutputText === "string" && guardrailOutputText) {
+      const outputVerdict = guardrailsEngine.inspectOutputText(guardrailOutputText);
+      if (outputVerdict.decision === "block") {
+        writeServiceLog("chat_guardrail_output_blocked", {
+          method: request.method,
+          path: url.pathname,
+          findings: outputVerdict.findings,
+          durationMs: Date.now() - startedAt,
+        });
+        writeJson(response, 400, createErrorEnvelope("guardrail_blocked", "Response blocked by chat guardrails.", {
+          startedAt,
+          category: "governance",
+        }));
+        return;
+      }
+      if (outputVerdict.text !== guardrailOutputText) {
+        result = {
+          ...result,
+          data: {
+            ...(result.data ?? {}),
+            text: outputVerdict.text,
+            outputText: outputVerdict.text,
+            message: {
+              ...(result.data?.message ?? { role: "assistant", content: "" }),
+              content: outputVerdict.text,
+            },
+          },
+        };
+      }
+    }
     writeJson(response, responseStatus, result);
     return;
   }

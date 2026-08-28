@@ -12,6 +12,12 @@ import { createGitTools } from "../tools/gitTools.js";
 import { createLspTools } from "../tools/lspTool.js";
 import { createToolResultCache } from "./toolResultCache.js";
 import { createAgentManager } from "./toolAgentManager.js";
+import {
+  createToolPermissionContext,
+  hasUsablePermissionChecker,
+  shouldRegisterAgentTool,
+} from "../security/agentToolExecutionPolicy.ts";
+import { createExternalEffectToolBoundary } from "../external-effects/externalEffectToolBoundary.ts";
 
 // Agent 定义结构: agentType, whenToUse, tools (allowlist), disallowedTools (denylist), permissionMode, model
 
@@ -21,6 +27,11 @@ import { createAgentManager } from "./toolAgentManager.js";
  * @param {Object} [options.permissionChecker] - 权限检查器
  * @param {Object} [options.eventBus] - 事件总线
  * @param {number} [options.maxChainDepth] - 工具链最大深度 (default 5)
+ * @param {string} [options.workingDirectory] - 工具文件系统边界
+ * @param {boolean} [options.enableHighRiskTools] - 显式启用高风险工具
+ * @param {Object} [options.externalEffectGate] - Durable irreversible-effect gate
+ * @param {Object} [options.externalEffectFence] - Trusted execution fence
+ * @param {string} [options.externalEffectTenantId] - Server-derived tenant identity
  */
 export function createAgentToolRegistry(options = {}) {
   const {
@@ -28,6 +39,11 @@ export function createAgentToolRegistry(options = {}) {
     eventBus = null,
     maxChainDepth = 5,
   } = options;
+  const permissionCheckerConfigured = hasUsablePermissionChecker(permissionChecker);
+  const highRiskToolsEnabled = options.enableHighRiskTools === true && permissionCheckerConfigured;
+  const externalEffectGate = options.externalEffectGate;
+  const externalEffectFence = options.externalEffectFence;
+  const externalEffectTenantId = options.externalEffectTenantId;
 
   /** 已注册的工具映射 name -> tool */
   const tools = new Map();
@@ -53,12 +69,22 @@ export function createAgentToolRegistry(options = {}) {
   // 注册所有内置工具（传入 workingDirectory 确保文件操作正确解析路径）
   const builtInTools = createBuiltInTools(options.workingDirectory || process.cwd());
   for (const [name, tool] of Object.entries(builtInTools)) {
+    if (!shouldRegisterAgentTool({
+      toolName: name,
+      enableHighRiskTools: highRiskToolsEnabled,
+      permissionChecker,
+    })) continue;
     tools.set(name, tool);
   }
 
   // 注册 Git 工具集 (7 个: status/diff/log/branch/commit/push/create_pr)
   const gitToolOptions = { workingDirectory: options.workingDirectory || process.cwd() };
   for (const gitTool of createGitTools(gitToolOptions)) {
+    if (!shouldRegisterAgentTool({
+      toolName: gitTool.name,
+      enableHighRiskTools: highRiskToolsEnabled,
+      permissionChecker,
+    })) continue;
     tools.set(gitTool.name, gitTool);
   }
 
@@ -188,13 +214,53 @@ export function createAgentToolRegistry(options = {}) {
      * @returns {Object} 注册结果
      */
     registerTool(toolDef) {
-      if (!toolDef.name || !toolDef.execute) {
-        return { status: "error", error: "工具必须有 name 和 execute 属性" };
+      if (
+        typeof toolDef?.name !== "string"
+        || !toolDef.name.trim()
+        || toolDef.name !== toolDef.name.trim()
+        || toolDef.name.length > 128
+        || /[\u0000-\u001f\u007f]/u.test(toolDef.name)
+        || typeof toolDef.execute !== "function"
+      ) {
+        return { status: "error", code: "CUSTOM_TOOL_DEFINITION_INVALID", error: "工具必须有合法 name 和 execute 属性" };
       }
-      if (tools.has(toolDef.name) && toolDef.source === "built-in") {
-        return { status: "error", error: `内置工具 ${toolDef.name} 已存在，不能覆盖` };
+      const existing = tools.get(toolDef.name);
+      if (existing?.source === "built-in") {
+        return { status: "error", code: "TOOL_BUILTIN_OVERRIDE_BLOCKED", error: `内置工具 ${toolDef.name} 已存在，不能覆盖` };
       }
-      tools.set(toolDef.name, buildTool(toolDef));
+      if (existing) {
+        return { status: "error", code: "CUSTOM_TOOL_ALREADY_REGISTERED", error: `工具 ${toolDef.name} 已存在；请先显式注销` };
+      }
+      if (
+        !Array.isArray(toolDef.requiredPermissions)
+        || toolDef.requiredPermissions.length === 0
+        || toolDef.requiredPermissions.some((permission) => (
+          typeof permission !== "string"
+          || !permission.trim()
+          || permission !== permission.trim()
+          || permission.length > 128
+          || /[\u0000-\u001f\u007f]/u.test(permission)
+        ))
+      ) {
+        return { status: "error", code: "CUSTOM_TOOL_PERMISSION_REQUIRED", error: "动态工具必须声明至少一个权限" };
+      }
+      if (toolDef.isReadOnly === true && toolDef.readOnlyAttested !== true) {
+        return { status: "error", code: "CUSTOM_TOOL_READ_ONLY_ATTESTATION_REQUIRED", error: "动态只读工具必须显式声明可信只读证明" };
+      }
+      if (
+        toolDef.isReadOnly !== true
+        && (
+          typeof toolDef.externalEffectType !== "string"
+          || !toolDef.externalEffectType.trim()
+          || toolDef.externalEffectType !== toolDef.externalEffectType.trim()
+          || toolDef.externalEffectType.length > 128
+          || /[\u0000-\u001f\u007f]/u.test(toolDef.externalEffectType)
+          || toolDef.externalEffectRequiresFence !== true
+        )
+      ) {
+        return { status: "error", code: "CUSTOM_TOOL_EFFECT_CONTRACT_REQUIRED", error: "动态写工具必须声明 fence-required external effect contract" };
+      }
+      tools.set(toolDef.name, buildTool({ ...toolDef, source: "custom" }));
       return { status: "success", toolName: toolDef.name };
     },
 
@@ -273,11 +339,12 @@ export function createAgentToolRegistry(options = {}) {
       }
 
       // 创建执行上下文
-      const context = contextOverride || createToolUseContext({
+      const baseContext = contextOverride || createToolUseContext({
         registry: this,
         permissionChecker,
         eventBus,
       });
+      let context = { ...baseContext };
 
       // 检查工具链深度
       if (context._chainDepth > maxChainDepth) {
@@ -287,32 +354,43 @@ export function createAgentToolRegistry(options = {}) {
         };
       }
 
-      // Check cache for read-only tools
-      const cachedResult = resultCache.get(toolName, coercedParams);
-      if (cachedResult !== null) {
-        const cacheRecord = {
+      // 权限检查
+      if (tool.requiredPermissions.length > 0 && !permissionCheckerConfigured) {
+        const record = {
+          id: randomUUID(),
           toolName,
-          params: coercedParams,
-          status: "cache_hit",
-          durationMs: 0,
+          params: sanitizeParams(params),
+          status: "denied",
+          reason: "A permission checker is required before agent tools can execute.",
           timestamp: new Date().toISOString(),
         };
-        executionLog.push(cacheRecord);
+        executionLog.push(record);
         capExecutionLog();
-        return cachedResult;
+        return {
+          status: "denied",
+          code: "TOOL_PERMISSION_CHECKER_REQUIRED",
+          error: record.reason,
+        };
       }
-
-      // 权限检查
-      if (permissionChecker && tool.requiredPermissions.length > 0) {
+      if (tool.requiredPermissions.length > 0) {
         for (const perm of tool.requiredPermissions) {
-          const permResult = await permissionChecker.check(perm);
-          if (!permResult.allowed) {
+          let permResult;
+          try {
+            permResult = await permissionChecker.check(perm, createToolPermissionContext({
+              toolName,
+              params: coercedParams,
+              isReadOnly: tool.isReadOnly,
+            }));
+          } catch {
+            permResult = { allowed: false, reason: "Permission evaluation failed closed." };
+          }
+          if (!permResult || permResult.allowed !== true) {
             const record = {
               id: randomUUID(),
               toolName,
-              params,
+              params: sanitizeParams(params),
               status: "denied",
-              reason: permResult.reason || `缺少权限: ${perm}`,
+              reason: permResult?.reason || `缺少权限: ${perm}`,
               timestamp: new Date().toISOString(),
             };
             executionLog.push(record);
@@ -320,6 +398,42 @@ export function createAgentToolRegistry(options = {}) {
             return { status: "denied", error: record.reason, permission: perm };
           }
         }
+      }
+
+      const externalEffectBoundary = createExternalEffectToolBoundary({
+        tool,
+        toolName,
+        params: coercedParams,
+        context,
+        gate: externalEffectGate,
+        trustedFence: externalEffectFence,
+        tenantId: externalEffectTenantId,
+      });
+      if (externalEffectBoundary.denied) {
+        return recordExternalEffectDenial(
+          toolName,
+          params,
+          externalEffectBoundary.denied.code,
+          externalEffectBoundary.denied.error,
+        );
+      }
+      context = externalEffectBoundary.context;
+
+      // Permission-protected results are never shared through the registry
+      // cache because its key intentionally has no caller/session identity.
+      const cacheEligible = tool.isReadOnly === true && tool.requiredPermissions.length === 0;
+      const cachedResult = cacheEligible ? resultCache.get(toolName, coercedParams) : null;
+      if (cachedResult !== null) {
+        const cacheRecord = {
+          toolName,
+          params: sanitizeParams(coercedParams),
+          status: "cache_hit",
+          durationMs: 0,
+          timestamp: new Date().toISOString(),
+        };
+        executionLog.push(cacheRecord);
+        capExecutionLog();
+        return cachedResult;
       }
 
       // 执行工具
@@ -349,6 +463,19 @@ export function createAgentToolRegistry(options = {}) {
             if (timer.unref) timer.unref();
           }),
         ]);
+        if (
+          externalEffectBoundary.required
+          && result
+          && typeof result === "object"
+          && (result.success === true || result.status === "success")
+          && externalEffectBoundary.isCommitted() !== true
+        ) {
+          result = {
+            status: "error",
+            code: "TOOL_EXTERNAL_EFFECT_COMMIT_MISSING",
+            error: "The irreversible tool returned success without committing its external-effect fence.",
+          };
+        }
         const durationMs = Date.now() - startTime;
 
         // 截断超长结果（借鉴 Claude Code 的 maxResultSizeChars 模式）
@@ -364,7 +491,7 @@ export function createAgentToolRegistry(options = {}) {
         }
 
         // Cache the result for read-only tools
-        resultCache.set(toolName, coercedParams, result);
+        if (cacheEligible) resultCache.set(toolName, coercedParams, result);
 
         // 记录执行日志
         const record = {
@@ -428,6 +555,11 @@ export function createAgentToolRegistry(options = {}) {
         registeredAgents: agents.size,
         executionLogSize: executionLog.length,
         maxChainDepth,
+        permissionMode: permissionCheckerConfigured ? "configured" : "fail-closed",
+        highRiskToolsEnabled,
+        externalEffectGateConfigured: Boolean(
+          externalEffectGate && typeof externalEffectGate.reserve === "function",
+        ),
         cacheSize: resultCache.size,
         cacheMaxSize: resultCache.maxSize,
         cacheableTools: [...resultCache.cacheableTools],
@@ -451,6 +583,19 @@ export function createAgentToolRegistry(options = {}) {
   };
 
   return registry;
+
+  function recordExternalEffectDenial(toolName, params, code, reason) {
+    executionLog.push({
+      id: randomUUID(),
+      toolName,
+      params: sanitizeParams(params),
+      status: "denied",
+      reason,
+      timestamp: new Date().toISOString(),
+    });
+    capExecutionLog();
+    return { status: "denied", code, error: reason };
+  }
 }
 
 // ============================================================

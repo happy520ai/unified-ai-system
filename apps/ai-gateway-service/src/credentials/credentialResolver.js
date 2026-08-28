@@ -22,5 +22,8 @@ export function createCredentialResolver({ env = process.env, adapter = createCr
         },
       };
     },
+    materializeCredentialRef(credentialRef) {
+      return adapter.materializeCredentialRef(credentialRef);
+    },
   };
 }

@@ -42,9 +42,14 @@ chat applications:
 
 This is a focused OpenAI-compatible layer with text, function-tool, and
 multimodal route coverage, not an implementation of the entire OpenAI API.
-Unsupported Responses tools, background Responses, stored response retrieval,
-remote image URLs, files, and audio content are rejected with an explicit
-error rather than silently ignored.
+The Responses surface supports `store`, `previous_response_id` conversation
+chaining, `reasoning` effort passthrough with retained reasoning summaries,
+and function tools end to end (`tools`, `tool_choice`, `function_call` and
+`function_call_output` input items, and `function_call` output items), plus
+stored-response retrieval and deletion (`GET`/`DELETE /v1/responses/{id}`).
+Unsupported Responses built-in tools (for example `web_search`), background
+Responses, remote image URLs, files, and audio content are rejected with an
+explicit error rather than silently ignored.
 
 ## Start The Gateway
 
@@ -233,6 +238,24 @@ curl http://127.0.0.1:3100/v1/chat/completions \
 The extension also accepts `true` for automatic profile and language
 detection.
 
+## Long Conversation Compaction
+
+Chat requests with a very long history are compacted before the provider
+call, using the same unified context compaction engine that powers the
+agentic loop (`packages/codex-context-gateway`): system instructions and the
+recent turns stay verbatim, and older turns are replaced by one summary
+message. Compaction never blocks or fails a request, and the response carries
+a `context_compacted` warning with the before/after counts whenever it fires.
+
+| Setting | Default | Behavior |
+| --- | --- | --- |
+| `AI_GATEWAY_CHAT_COMPACTION_THRESHOLD_MESSAGES` | `60` | Compact when the history exceeds this many messages. `0` disables this trigger. |
+| `AI_GATEWAY_CHAT_COMPACTION_MAX_TOKENS` | `24000` | Compact when the estimated history exceeds this token budget. `0` disables this trigger. |
+| `AI_GATEWAY_CHAT_COMPACTION_KEEP_RECENT_TURNS` | `10` | Recent turns kept verbatim in full detail. |
+
+Ordinary conversations stay byte-identical; only over-threshold histories are
+rewritten.
+
 ## Supported Request Fields
 
 | Field | Behavior |
@@ -246,7 +269,7 @@ detection.
 | `top_p` | Number from 0 to 1. |
 | `max_tokens`, `max_completion_tokens` | Positive integer output limit. |
 | `stop` | A string or non-empty string array. |
-| `n` | Only `1` is supported. |
+| `n` | Integer from 1 to 8. `n>1` executes n generations and returns indexed `choices`; prompt tokens count once, completion tokens sum across choices. Multi-choice requests bypass the response cache. |
 | `tools` | Up to 128 OpenAI function declarations with validated names, descriptions, and JSON Schema parameters. |
 | `tool_choice` | Supports `none`, `auto`, `required`, and a named function that exists in `tools`. |
 | `parallel_tool_calls` | Optional boolean forwarded to the selected provider. |
@@ -254,6 +277,11 @@ detection.
 | `stream_options.include_usage` | Supported with `stream=true`; the final usage chunk is estimated and marked with `unified_ai.usage_estimated=true`. |
 | `unified_ai.provider_id` | Optional explicit gateway provider selection. |
 | `unified_ai.prompt_enhancement` | Optional local enhancement controls. |
+| `unified_ai.rag` | Optional opt-in knowledge injection: `true` or `{ enabled, topK?, sourceIds? }` (`topK` 1–10). The last user message retrieves tenant-scoped knowledge and the cited context is injected as a system message (`unified_ai.ragInjection` reports the outcome). Injected context re-passes guardrails; RAG-augmented requests bypass the response cache. |
+
+Legacy `/v1/completions` additionally supports `n` (1–8) and
+`stream_options.include_usage` (terminal usage chunk prefers
+provider-reported usage and falls back to estimates).
 
 Responses include standard Chat Completions fields plus a `unified_ai` object
 with the selected provider, selected model, execution mode, execution status,
@@ -273,16 +301,96 @@ when the provider selects a function.
 | `temperature`, `top_p`, `max_output_tokens` | Mapped to gateway generation options. |
 | `metadata` | Preserved in the response and gateway request metadata. |
 | `text.format` | Only `{ "type": "text" }` is supported. |
-| `store` | Omit it, use `false`, or use `null`; response retrieval is not implemented. |
+| `store` | Optional boolean, defaults to `true`. Stored responses enable `previous_response_id` chaining. |
+| `previous_response_id` | Continues a stored conversation: the gateway replays the stored context (instructions, prior turns, tool calls, and assistant outputs) before the new input. Unknown or expired ids return `404` with `code: "response_not_found"`. |
+| `reasoning` | Optional `{ "effort": "minimal" \| "low" \| "medium" \| "high" \| "xhigh", "summary": "auto" \| "concise" \| "detailed" }`. `effort` is passed to supporting providers as `reasoning_effort` and echoed back on the response. Provider reasoning content is captured, returned as a `reasoning` output item, retained in the session, and replayed as bounded context on chained turns so multi-turn agents stop re-deriving conclusions. Client-sent `reasoning` input items are accepted and dropped (counted in `unified_ai` metadata). |
+| `tools` | Function tools in the flat Responses shape (`{ type: "function", name, description, parameters, strict }`), mapped to the chat tool contract. Built-in tools such as `web_search` are rejected. |
+| `tool_choice` | `"none"`, `"auto"`, `"required"`, or `{ "type": "function", "name" }`. |
+| `parallel_tool_calls` | Optional boolean. |
+| `input` items | `message`, `function_call` (assistant tool call), `function_call_output` (tool result), and `reasoning` items are supported; other item types are rejected. |
 | `unified_ai` | Supports the same provider and local prompt-enhancement controls. |
 
-The response includes a completed assistant message, `output_text`, token
-usage, and `unified_ai` execution evidence. Conversation state, response
-retrieval/deletion, tools, background execution, remote images, files, and
-audio are not implemented in this profile.
+The response includes completed output items (`reasoning` when the provider
+returned reasoning content, `function_call` items when the provider selected
+a function, and the assistant `message`), `output_text`, token usage, and
+`unified_ai` execution evidence. Stored responses can be retrieved
+(`GET /v1/responses/{id}`) or deleted (`DELETE /v1/responses/{id}`, returns
+`{ "deleted": true }`); unknown or expired ids return `404
+response_not_found`. Response sessions are held in memory with a
+TTL (`AI_GATEWAY_RESPONSE_SESSION_TTL_MS`, default 30 minutes; `0` disables
+chaining) and a bounded table
+(`AI_GATEWAY_RESPONSE_SESSION_MAX_ENTRIES`, default 256, least-recently-used
+eviction). Sessions store normalized message text and captured reasoning
+summaries only — never credentials or raw provider payloads. Background
+execution, remote images, files, and audio are not implemented in this
+profile.
+
+Virtual-key budgets and rate limits are enforced uniformly across the chat
+completions, Responses, and Anthropic `/v1/messages` surfaces, and per-key
+usage is recorded on each call. A virtual-key holder can inspect their own
+key's live budget and rate state:
+
+```bash
+curl http://127.0.0.1:3100/usage/my-key -H "Authorization: Bearer uai-…"
+```
 
 See [Secure inline image input](openai-inline-image-input.md) for size limits,
 provider capability routing, privacy boundaries, and credential-free evidence.
+
+## Bounded Agent Execution
+
+`POST /agent-exec/run` is the non-interactive execution tier (the `codex exec`
+pattern): one request runs the gateway's agentic loop under hard bounds and
+returns structured JSON. It requires the `workflow:run` permission.
+
+```bash
+curl http://127.0.0.1:3100/agent-exec/run \
+  -H "Content-Type: application/json" \
+  -H "x-pme-auth-token: $TOKEN" \
+  -d '{
+    "goal": "Summarize the repository layout.",
+    "providerId": "local-fake-provider",
+    "maxIterations": 8,
+    "timeoutMs": 60000,
+    "toolMode": "readonly"
+  }'
+```
+
+Bounds and semantics: `maxIterations` is a fixed cap (1–25, default 8) with
+dynamic budgets disabled; `timeoutMs` (1,000–120,000, default 60,000) aborts
+the run and reports `status: "timeout"`; tool access is `readonly`
+(`file_read` only) by default, `none`, or an explicit `toolAllowlist`. The
+result reports status, final answer, iterations used, timing, tool usage, and
+the unified compaction policy. Fail-open compaction uses the same engine as
+the chat path.
+
+## Codex CLI Interop
+
+The open-source OpenAI Codex CLI can drive the gateway directly. Point a
+custom model provider at the Responses surface:
+
+```toml
+# $CODEX_HOME/config.toml
+model = "agnes-2.5-flash"
+model_provider = "unified-gateway"
+
+[model_providers.unified-gateway]
+name = "Unified AI Gateway"
+base_url = "http://127.0.0.1:3100/v1"
+env_key = "OPENAI_API_KEY"
+wire_api = "responses"
+```
+
+Set `OPENAI_API_KEY` to a gateway enterprise token; in fake-only preview mode
+any value works from loopback. Codex-style requests are supported end to end:
+flat function tools (mapped to the chat contract), built-in tool declarations
+(`web_search`, `namespace`, …) accepted and dropped with the drop recorded in
+`unified_ai` request metadata, `include: ["reasoning.encrypted_content"]`
+dropped in favor of session-side reasoning retention, `prompt_cache_*` hints
+dropped, and blank assistant history items skipped. Verified with Codex CLI
+0.149.0 `codex exec --json` against both the fake provider and a real
+function-calling model: the model issues `function_call` items, Codex runs
+the tool, and `function_call_output` continues the conversation.
 
 ## Verify Without Credentials
 
@@ -293,3 +401,12 @@ pnpm verify:public-clone
 The verifier starts an isolated gateway, exercises the protocol directly and
 through the official OpenAI JavaScript SDK `7.4.0`, confirms fake-provider
 execution, checks structured errors, and terminates the service process.
+
+### Audio Input
+
+User-message `input_audio` parts (`{ data: <base64>, format: "wav" | "mp3" }`)
+are accepted and forwarded verbatim to OpenAI-compatible providers. Limits:
+at most 4 audio parts per request and 20MB of base64 per part; audio is only
+allowed in user messages. `unified_ai.multimodalAudio` reports the accepted
+count. The Gemini inbound lane maps `audio/wav` and `audio/mpeg`
+`inlineData` parts to the same `input_audio` shape.

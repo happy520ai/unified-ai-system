@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { createHash } from "node:crypto";
 import {
   EXECUTION_ABORT_CODES,
   createExecutionAbortError,
@@ -9,6 +10,12 @@ export interface GatewayExecutionContext {
   signal: AbortSignal;
   timeoutMs: number;
   deadlineAt: number;
+  providerDispatchKeyHash?: string;
+  providerDispatchKeyInvalid?: boolean;
+  providerDispatchRoute?: string;
+  providerDispatchInvocation?: number;
+  transportRequestId?: string;
+  transportTraceId?: string;
 }
 
 interface RequestExecutionScopeOptions {
@@ -68,6 +75,8 @@ export function createHttpRequestExecutionScope(
     signal: controller.signal,
     timeoutMs,
     deadlineAt: now() + timeoutMs,
+    ...readTransportContext(options.request),
+    ...readProviderDispatchContext(options.request),
   });
 
   function cleanup() {
@@ -85,17 +94,85 @@ export function createHttpRequestExecutionScope(
 export function bindGatewayExecution<TService extends object>(
   gatewayService: TService,
   execution: GatewayExecutionContext,
+  identityProvider?: () => unknown,
 ): TService {
+  let providerDispatchInvocation = 0;
   return new Proxy(gatewayService, {
     get(target, property, receiver) {
-      if (property === "execute" || property === "executeStream") {
+      if (property === "execute" || property === "executeStream" || property === "executeProviderOperation") {
         const operation = Reflect.get(target, property, receiver);
-        return (input: unknown) => operation.call(target, input, execution);
+        if (typeof operation !== "function") return operation;
+        return (input: unknown) => {
+          const boundExecution = execution.providerDispatchKeyHash
+            || execution.providerDispatchKeyInvalid
+            ? Object.freeze({
+                ...execution,
+                providerDispatchInvocation: ++providerDispatchInvocation,
+              })
+            : execution;
+          return Reflect.apply(
+            operation,
+            target,
+            [withServerIdentity(input, identityProvider?.()), boundExecution],
+          );
+        };
       }
       const value = Reflect.get(target, property, receiver);
       return typeof value === "function" ? value.bind(target) : value;
     },
   });
+}
+
+function readProviderDispatchContext(request: IncomingMessage) {
+  const rawIdempotencyKey = request.headers?.["idempotency-key"];
+  const rawProviderDispatchKey = request.headers?.["provider-dispatch-key"];
+  const route = String(request.url ?? "/").split("?", 1)[0] || "/";
+  if (rawIdempotencyKey !== undefined && rawProviderDispatchKey !== undefined) {
+    return {
+      providerDispatchKeyInvalid: true,
+      providerDispatchRoute: route,
+    };
+  }
+  const rawKey = rawProviderDispatchKey ?? rawIdempotencyKey;
+  if (rawKey === undefined) return { providerDispatchRoute: route };
+  if (
+    typeof rawKey !== "string"
+    || rawKey.length < 1
+    || rawKey.length > 255
+    || !/^[\x21-\x7e]+$/u.test(rawKey)
+  ) {
+    return {
+      providerDispatchKeyInvalid: true,
+      providerDispatchRoute: route,
+    };
+  }
+  return {
+    providerDispatchKeyHash: createHash("sha256").update(rawKey, "utf8").digest("hex"),
+    providerDispatchRoute: route,
+  };
+}
+
+function readTransportContext(request: IncomingMessage) {
+  const requestId = request.headers?.["x-request-id"];
+  const traceId = request.headers?.["x-trace-id"];
+  return {
+    ...(typeof requestId === "string" && requestId ? { transportRequestId: requestId } : {}),
+    ...(typeof traceId === "string" && traceId ? { transportTraceId: traceId } : {}),
+  };
+}
+
+// The gateway usage ledger attributes records per tenant from the request's
+// enterprise identity. Route handlers build gateway inputs from client bodies,
+// so without this stamp every record collapses to the "default" tenant (and a
+// client could spoof attribution via a body field). The provider resolves the
+// identity lazily at execute time, after authorization has attached it.
+function withServerIdentity(input: unknown, identity: unknown): unknown {
+  if (input === null || typeof input !== "object" || Array.isArray(input)) return input;
+  const record = input as Record<string, unknown>;
+  const { enterpriseIdentity: _callerIdentity, ...serverOwnedInput } = record;
+  return identity && typeof identity === "object"
+    ? { ...serverOwnedInput, enterpriseIdentity: identity }
+    : serverOwnedInput;
 }
 
 function createClientDisconnectedError(phase: string): ExecutionAbortError {

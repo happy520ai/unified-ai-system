@@ -1,14 +1,16 @@
 # Growth Launch Kit — 2026-08 (v0.5 "Gateway" positioning)
 
-定位升级：从"prompt 增强器"到**自托管 LLM 网关平台**。所有文案围绕一个钩子：
-"LiteLLM/Portkey 级能力 + MCP 治理 + 零凭证试用"。
+定位升级：从"prompt 增强器"到**可验证、受治理、协议优先的自托管 AI
+网关与智能体控制面**。所有文案围绕一个钩子："零凭证首跑 + 明确 Provider
+边界 + MCP/A2A 治理"，并明确当前仍是 Public Preview。
 
 一句话（EN）: *Self-hosted AI gateway with virtual keys & token budgets, exact
 + semantic response cache, and reverse MCP governance (any OpenAPI spec →
-governed MCP tools) — try every feature with zero credentials.*
+governed MCP tools) — verify the first path with zero credentials.*
 
 一句话（中）：*自托管 AI 网关：虚拟 key + token 预算、精确/语义双层响应缓存、
-反向 MCP 治理（任意 OpenAPI 一键变 MCP 工具）——全部能力零凭证可试。*
+反向 MCP 治理（经验证的 OpenAPI operation 变成受治理 MCP 工具）——首次
+验证零凭证，真实 Provider 显式启用。*
 
 ## 1) Show HN
 
@@ -19,11 +21,12 @@ governed MCP tools) — try every feature with zero credentials.*
 ```text
 Hi HN, I've been building an open-source, self-hosted AI gateway (Node/TS, Apache-2.0).
 
-What makes it different from LiteLLM/Portkey-style gateways:
+The project takes a different angle from model-aggregation-first gateways:
 
 1. Fake-provider-first: the default runtime is a deterministic local provider.
-   Every feature — virtual keys, caching, metrics — is fully exercisable with
-   zero credentials, and real provider calls stay behind an explicit
+   The first prompt-enhancement and fake-chat path is reproducible with zero
+   credentials; virtual keys, caching, and metrics can be evaluated locally,
+   while real provider calls stay behind an explicit
    three-gate whitelist (https://github.com/happy520ai/unified-ai-system/blob/master/docs/real-provider-enablement.md).
 2. Virtual keys with periodic token budgets: issue uai- keys with daily/monthly
    windows, per-key RPM, soft-budget alerts, spend attribution, instant
@@ -42,8 +45,9 @@ Try in 60s, no clone, no key:
 
 Or point your existing OpenAI SDK at it and keep only the baseURL change.
 
-There's a repeatable 16-attack live security regression (cross-tenant cache
-reads, tenant forgery, budget bypass...) that must stay green:
+There's a repeatable live security regression (cross-tenant cache reads,
+tenant forgery, budget bypass...) that must stay green; use current CI rather
+than a copied count as the evidence source:
 tools/security-attack-regression.mjs.
 
 Repo: https://github.com/happy520ai/unified-ai-system
@@ -58,7 +62,7 @@ approach (we document what is NOT production-ready).
 ## 2) Reddit
 
 **r/LocalLLaMA**（标题）：
-`Self-hosted LLM gateway with virtual keys, semantic cache, and reverse MCP governance — everything works credential-free (Apache-2.0)`
+`Self-hosted LLM gateway with virtual keys, semantic cache, and reverse MCP governance — credential-free first run (Apache-2.0)`
 
 正文：复用 HN 正文，开头改为 "Sharing my open-source gateway — local-first by
 default (deterministic fake provider), so you can try budgets/caching/MCP
@@ -71,7 +75,7 @@ governance before wiring any provider key."
 无外部依赖；附 docker run demo。
 
 **r/LLMDevs**（换角度，标题）：
-`We open-sourced our LLM gateway's guardrails: budget-exhausted 429s, per-key spend attribution, and a 16-attack security regression`
+`We open-sourced our LLM gateway's guardrails: budget-exhausted 429s, per-key spend attribution, and a repeatable security regression`
 
 正文要点：虚拟 key 预算语义、/metrics TTFT、审计哈希链、安全演练脚本。
 
@@ -82,11 +86,12 @@ Reddit 规则提醒：三个 sub 分开发、间隔 ≥1 天、正文带 demo �
 ```text
 1/ We just open-sourced the gateway layer we wanted for AI products:
    virtual keys with token budgets, exact+semantic response cache, and
-   reverse MCP governance. Everything runs credential-free first. 🧵
+   reverse MCP governance. The first verified path is credential-free. 🧵
 
 2/ Fake-provider-first: the default runtime is deterministic and local, so
-   budgets, caching, and metrics are fully testable without a single API
-   key. Real providers sit behind an explicit three-gate whitelist.
+   the prompt-enhancement and fake-chat path is testable without an API key.
+   Budgets, caching, and metrics can be evaluated locally; real providers sit
+   behind an explicit three-gate whitelist.
 
 3/ Virtual keys: issue uai- keys with daily/monthly token budgets, per-key
    RPM, soft-budget alerts, spend attribution, instant revocation. Your
@@ -104,9 +109,9 @@ Reddit 规则提醒：三个 sub 分开发、间隔 ≥1 天、正文带 demo �
    per model, cache hit rates, key rejections — plus optional Langfuse
    export.
 
-7/ Security is a repeatable drill, not a claim: a 16-attack live regression
-   (cross-tenant cache reads, tenant forgery, budget bypass, revoked-key
-   replay...) must stay green on every change.
+7/ Security is a repeatable drill, not a certification: cross-tenant reads,
+   tenant forgery, budget bypass, revoked-key replay, and other bounded cases
+   must stay green in current CI.
 
 8/ Try it in 60 seconds, no clone, no key:
    docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.5.0 pnpm gateway demo
@@ -125,13 +130,13 @@ asciinema（两次同请求、第二次秒回 + cache_hit 日志）。
 （V2EX 用户吃"不吹牛"这套）。结尾：`欢迎拍砖，star 是更新的动力。`
 
 **即刻/掘金**：以"为什么我把 AI 网关做成 fake provider 优先"为题写设计
-随笔（诚实边界 + 安全回归 16 攻防当卖点），文末附仓库。
+随笔（诚实边界 + 可复现安全回归当卖点），文末附仓库。
 
 ## 5) 目录与 awesome 清单提交清单
 
 | 目标 | 动作 | 入口 |
 | --- | --- | --- |
-| MCP Registry | 已收录（v0.4.9）✅ | registry.modelcontextprotocol.io |
+| MCP Registry | 已收录（v0.5.0）✅ | registry.modelcontextprotocol.io |
 | Smithery | 提交 server（用 server.json + README） | smithery.ai/docs/quickstart |
 | Glama MCP 目录 | 提交 | glama.ai/mcp/servers |
 | PulseMCP | 提交 | pulsemcp.com |
@@ -150,12 +155,15 @@ reverse MCP governance (REST→MCP). Official MCP Registry listed; credential-
 free Docker demo in the README.
 ```
 
-## 6) v0.5.0 Release Notes 草稿（切版本时直接粘贴）
+## 6) v0.5.0 已发布说明快照
+
+以下数字属于 v0.5.0 发布时快照，不应替代当前源码或最新 CI 证据。
 
 ```markdown
 ## v0.5.0 — The Gateway Release
 
-Self-hosted AI gateway capabilities, all opt-in and credential-free to try:
+Self-hosted AI gateway capabilities with a credential-free first path; real
+provider execution remains explicitly opt-in:
 
 - **Virtual keys & budgets** — uai- keys with daily/monthly token budget
   windows, per-key RPM limits, soft-budget alerts, spend attribution, and

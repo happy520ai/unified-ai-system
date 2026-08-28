@@ -8,7 +8,10 @@
  *   const authed = um.getUserByApiKey(user.apiKey);
  */
 
-import { randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
+
+const ALLOWED_ROLES = new Set(['admin', 'developer', 'viewer']);
+const HASH_PREFIX = 'sha256:';
 
 export class UserManager {
   #db;
@@ -22,7 +25,11 @@ export class UserManager {
 
   /** Generate a forge-style API key: `fk-<uuid>` */
   #generateApiKey() {
-    return `fk-${randomUUID()}`;
+    return `fk-${randomBytes(32).toString('base64url')}`;
+  }
+
+  #hashApiKey(apiKey) {
+    return `${HASH_PREFIX}${createHash('sha256').update(String(apiKey)).digest('hex')}`;
   }
 
   // ── CRUD ───────────────────────────────────────────────────────────────
@@ -33,15 +40,19 @@ export class UserManager {
    * @returns {{ id: string, username: string, display_name: string|null, api_key: string, role: string, created_at: string, last_active: string|null }}
    */
   createUser({ username, displayName, role = 'developer' }) {
+    const normalizedUsername = String(username ?? '').trim();
+    if (!normalizedUsername) throw new Error('username is required');
+    if (!ALLOWED_ROLES.has(role)) throw new Error(`Unsupported Forge role: ${role}`);
     const id = `u-${randomUUID().slice(0, 12)}`;
     const apiKey = this.#generateApiKey();
+    const apiKeyHash = this.#hashApiKey(apiKey);
 
     this.#db.prepare(`
       INSERT INTO users (id, username, display_name, api_key, role)
       VALUES (?, ?, ?, ?, ?)
-    `).run(id, username, displayName ?? null, apiKey, role);
+    `).run(id, normalizedUsername, displayName ?? null, apiKeyHash, role);
 
-    return this.getUser(id);
+    return { ...this.getUser(id), apiKey };
   }
 
   /**
@@ -50,7 +61,7 @@ export class UserManager {
    * @returns {object|undefined}
    */
   getUser(id) {
-    return this.#db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+    return sanitizeUserRow(this.#db.prepare('SELECT * FROM users WHERE id = ?').get(id));
   }
 
   /**
@@ -59,7 +70,7 @@ export class UserManager {
    * @returns {object|undefined}
    */
   getUserByUsername(username) {
-    return this.#db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+    return sanitizeUserRow(this.#db.prepare('SELECT * FROM users WHERE username = ?').get(username));
   }
 
   /**
@@ -68,7 +79,17 @@ export class UserManager {
    * @returns {object|undefined}
    */
   getUserByApiKey(apiKey) {
-    return this.#db.prepare('SELECT * FROM users WHERE api_key = ?').get(apiKey);
+    const apiKeyHash = this.#hashApiKey(apiKey);
+    let user = this.#db.prepare('SELECT * FROM users WHERE api_key = ?').get(apiKeyHash);
+    if (!user) {
+      // One-time migration for legacy databases that stored the raw key.
+      user = this.#db.prepare('SELECT * FROM users WHERE api_key = ?').get(String(apiKey));
+      if (user) {
+        this.#db.prepare('UPDATE users SET api_key = ? WHERE id = ?').run(apiKeyHash, user.id);
+        user = { ...user, api_key: apiKeyHash };
+      }
+    }
+    return sanitizeUserRow(user);
   }
 
   /**
@@ -76,7 +97,7 @@ export class UserManager {
    * @returns {object[]}
    */
   listUsers() {
-    return this.#db.prepare('SELECT * FROM users ORDER BY created_at DESC').all();
+    return this.#db.prepare('SELECT * FROM users ORDER BY created_at DESC').all().map(sanitizeUserRow);
   }
 
   /**
@@ -106,7 +127,13 @@ export class UserManager {
    */
   rotateApiKey(userId) {
     const newKey = this.#generateApiKey();
-    this.#db.prepare('UPDATE users SET api_key = ? WHERE id = ?').run(newKey, userId);
+    this.#db.prepare('UPDATE users SET api_key = ? WHERE id = ?').run(this.#hashApiKey(newKey), userId);
     return newKey;
   }
+}
+
+function sanitizeUserRow(user) {
+  if (!user) return undefined;
+  const { api_key: _apiKeyHash, ...safe } = user;
+  return safe;
 }

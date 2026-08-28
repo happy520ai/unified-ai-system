@@ -63,6 +63,7 @@ describePostgres("real PostgreSQL idempotency integration", () => {
     const [first, second] = await Promise.all([firstPromise, duplicatePromise]);
 
     expect(first).toMatchObject({ status: "created", replayed: false, replayable: true });
+    if (!first.accepted) throw new Error("Expected the owner result to be accepted.");
     expect(second).toMatchObject({ status: "replayed", replayed: true, replayable: true, value: first.value });
     expect(calls).toBe(1);
     await owner.close();

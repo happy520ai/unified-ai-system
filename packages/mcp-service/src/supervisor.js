@@ -6,6 +6,10 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { setTimeout as delay } from "node:timers/promises";
+import {
+  createSupervisorChildEnvironment,
+  redactChildStderr,
+} from "./child-environment.js";
 
 const DEFAULT_RESTART_MIN_MS = 1_000;
 const DEFAULT_RESTART_MAX_MS = 60_000;
@@ -71,10 +75,6 @@ export function createSupervisor(options = {}) {
     };
   }
 
-  function appendTail(line) {
-    stderrTail = `${stderrTail}${line}`.slice(-stderrTailLimit);
-  }
-
   async function stopChild(childInstance) {
     if (!childInstance || childInstance.exitCode !== null) return;
     if (typeof childInstance.kill !== "function") return;
@@ -107,7 +107,7 @@ export function createSupervisor(options = {}) {
     if (stopping) return null;
     const spawnOptions = {
       cwd,
-      env: { ...process.env, ...env },
+      env: createSupervisorChildEnvironment(process.env, env),
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true,
     };
@@ -121,12 +121,17 @@ export function createSupervisor(options = {}) {
     lastStartAt = now();
     emitStatus();
 
+    let rawStderrBuffer = "";
     let stderrBuffer = "";
     spawned.stderr?.setEncoding("utf8");
     spawned.stderr?.on("data", (chunk) => {
-      stderrBuffer += chunk;
-      const lastLine = chunk.split(/\r?\n/).filter(Boolean).slice(-5).join("\n");
-      appendTail(chunk);
+      // Redact after reassembling adjacent chunks so a label/value split at a
+      // stream boundary cannot bypass the policy. Raw bytes stay bounded and
+      // are never logged or exposed through status.
+      rawStderrBuffer = `${rawStderrBuffer}${chunk}`.slice(-(stderrTailLimit * 2));
+      stderrBuffer = redactChildStderr(rawStderrBuffer).slice(-stderrTailLimit);
+      stderrTail = stderrBuffer;
+      const lastLine = stderrBuffer.split(/\r?\n/).filter(Boolean).slice(-5).join("\n");
       if (lastLine) {
         logger.warn("child stderr", { tail: lastLine });
       }

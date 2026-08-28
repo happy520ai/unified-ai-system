@@ -8,7 +8,7 @@
     ".": "./src/index.js"
   },
   "scripts": {
-    "test": "node --test ./src/*.test.js",
+    "test": "node --test \"src/**/*.test.js\" \"src/**/*.test.ts\"",
     "check": "node --check ./src/index.js",
     "build": "node --check ./src/index.js"
   }

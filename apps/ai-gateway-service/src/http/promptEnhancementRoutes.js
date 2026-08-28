@@ -1,8 +1,10 @@
 import { createErrorEnvelope, createOkEnvelope } from "@unified-ai-system/shared-utils";
+import { getProviderExecutionDecision } from "../providers/providerExecutionGate.ts";
 import { enhanceNaturalLanguagePrompt } from "../prompts/naturalLanguagePromptEnhancer.js";
 import { enhancePromptWithLLM } from "../prompts/llmPromptEnhancer.js";
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { readJson, writeJson } from "./utils/responseUtils.js";
+import { createGatewayBackedProviderAdapter } from "../providers/gatewayBackedProviderAdapter.ts";
 
 export async function dispatchPromptEnhancementRoutes(context) {
   const {
@@ -12,6 +14,7 @@ export async function dispatchPromptEnhancementRoutes(context) {
     url,
     writeServiceLog,
     application,
+    gatewayService: requestGatewayService,
   } = context;
 
   // ── POST /prompts/enhance (deterministic, no provider) ──
@@ -90,9 +93,22 @@ export async function dispatchPromptEnhancementRoutes(context) {
       if (providerRegistry && body.providerId) {
         try {
           const provider = providerRegistry.get(body.providerId);
-          providerAdapter = provider;
-          providerId = body.providerId;
-          modelId = body.modelId;
+          const decision = getProviderExecutionDecision({
+            providerId: body.providerId,
+            providerType: provider.descriptor?.metadata?.providerType,
+            runtimeConfig: gatewayService?.runtimeConfig,
+          });
+          if (decision.allowed) {
+            providerId = body.providerId;
+            modelId = body.modelId ?? provider.descriptor?.models?.[0]?.id;
+            providerAdapter = createGatewayBackedProviderAdapter({
+              gatewayService: requestGatewayService ?? gatewayService,
+              providerId,
+              modelId,
+              descriptor: provider.descriptor,
+              source: "prompt-enhancement-llm",
+            });
+          }
         } catch {
           // Provider not found — fall back to deterministic only
         }

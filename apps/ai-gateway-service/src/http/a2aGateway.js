@@ -5,17 +5,27 @@ import {
   Role,
   TaskState,
 } from "@a2a-js/sdk";
-import { ContentTypeNotSupportedError } from "@a2a-js/sdk/errors";
+import {
+  ContentTypeNotSupportedError,
+  TaskNotCancelableError,
+  TaskNotFoundError,
+} from "@a2a-js/sdk/errors";
 import {
   AgentEvent,
   DefaultRequestHandler,
-  InMemoryTaskStore,
   JsonRpcTransportHandler,
 } from "@a2a-js/sdk/server";
+import {
+  A2A_JWKS_PATH,
+  createA2AAgentCardSigningConfiguration,
+} from "./a2aAgentCardSigning.ts";
+import { createA2ATaskStore } from "./a2aTaskStore.ts";
+import { createA2AExecutionLeaseManager } from "./a2aExecutionLease.ts";
 import { applyPromptEnhancement } from "./utils/chatUtils.js";
 
 export const A2A_AGENT_CARD_PATH = "/.well-known/agent-card.json";
 export const A2A_JSONRPC_PATH = "/a2a/jsonrpc";
+export { A2A_JWKS_PATH };
 
 function textPart(text) {
   return {
@@ -65,16 +75,125 @@ function readTextMessage(message) {
   return text;
 }
 
+class ContextAwareA2ARequestHandler extends DefaultRequestHandler {
+  constructor(agentCard, taskStore, agentExecutor, ...rest) {
+    super(agentCard, taskStore, agentExecutor, ...rest);
+    this.contextAwareExecutor = agentExecutor;
+  }
+
+  async cancelTask(params, context) {
+    if (
+      typeof params?.id === "string"
+      && params.id.trim()
+      && this.contextAwareExecutor.supportsAtomicCancellation()
+    ) {
+      try {
+        const eventBus = this.eventBusManager?.getByTaskId?.(params?.id);
+        return await this.contextAwareExecutor.cancelTaskAtomically(
+          params?.id,
+          context,
+          eventBus,
+        );
+      } catch (error) {
+        if (error?.code === "A2A_TASK_STORE_NOT_FOUND") {
+          throw new TaskNotFoundError(`Task not found: ${params?.id}`);
+        }
+        if (error?.code === "A2A_TASK_STORE_TERMINAL_IMMUTABLE") {
+          throw new TaskNotCancelableError(`Task not cancelable: ${params?.id}`);
+        }
+        throw error;
+      }
+    }
+    this.contextAwareExecutor.prepareCancellationContext(params?.id, context);
+    try {
+      return await super.cancelTask(params, context);
+    } finally {
+      this.contextAwareExecutor.clearCancellationContext(params?.id);
+    }
+  }
+}
+
 class GatewayAgentExecutor {
-  constructor(gatewayService, workforceExecutor = null) {
+  /**
+   * @param {object} gatewayService
+   * @param {{execute: Function}|null} [workforceExecutor]
+   * @param {object|null} [executionLeaseManager]
+   * @param {object|null} [taskStoreControl]
+   */
+  constructor(
+    gatewayService,
+    workforceExecutor = null,
+    executionLeaseManager = null,
+    taskStoreControl = null,
+  ) {
     this.gatewayService = gatewayService;
     this.workforceExecutor = workforceExecutor;
+    this.executionLeaseManager = executionLeaseManager;
+    this.taskStoreControl = taskStoreControl?.store ? taskStoreControl : null;
+    this.taskStore = taskStoreControl?.store ?? taskStoreControl;
     this.cancelledTaskIds = new Set();
     this.taskContexts = new Map();
+    this.activeLeases = new Map();
+    this.cancellationContexts = new Map();
   }
 
   async execute(requestContext, eventBus) {
     const { contextId, taskId, userMessage } = requestContext;
+    const executionScope = readExecutionScope(requestContext.context);
+    let executionLease = null;
+    let leaseHeartbeat = null;
+    let terminalFenceBound = false;
+    if (this.executionLeaseManager?.status?.enabled === true) {
+      if (this.taskStoreControl?.status?.atomicTerminalFence === true) {
+        const taskStoreHealth = await this.taskStoreControl.checkHealth();
+        if (
+          taskStoreHealth.available !== true
+          || this.executionLeaseManager.status.atomicTerminalFence !== true
+        ) {
+          throw a2aExecutionLeaseError(
+            "A2A_ATOMIC_TERMINAL_FENCE_UNAVAILABLE",
+            "The atomic A2A terminal-fence boundary is unavailable.",
+          );
+        }
+      }
+      const acquired = await this.executionLeaseManager.acquire({
+        taskId,
+        scope: executionScope,
+      });
+      if (!acquired.success) {
+        throw a2aExecutionLeaseError(acquired.code, acquired.reason);
+      }
+      executionLease = acquired.lease;
+      this.activeLeases.set(taskId, { lease: executionLease, scope: executionScope });
+      leaseHeartbeat = startExecutionLeaseHeartbeat(
+        this.executionLeaseManager,
+        executionLease,
+      );
+      if (this.taskStoreControl?.status?.atomicTerminalFence === true) {
+        try {
+          this.taskStoreControl.bindExecutionLease({
+            taskId,
+            scope: executionScope,
+            lease: executionLease,
+            finalize: async (committed) => {
+              await leaseHeartbeat?.stop();
+              if (!committed) {
+                await this.executionLeaseManager.release(executionLease).catch(() => undefined);
+              }
+              this.activeLeases.delete(taskId);
+              this.taskContexts.delete(taskId);
+              this.cancelledTaskIds.delete(taskId);
+            },
+          });
+          terminalFenceBound = true;
+        } catch (error) {
+          await leaseHeartbeat.stop();
+          await this.executionLeaseManager.release(executionLease).catch(() => undefined);
+          this.activeLeases.delete(taskId);
+          throw error;
+        }
+      }
+    }
     this.taskContexts.set(taskId, contextId);
     try {
       eventBus.publish(AgentEvent.task({
@@ -87,6 +206,9 @@ class GatewayAgentExecutor {
           protocol: "A2A",
           protocolVersion: A2A_PROTOCOL_VERSION,
           realProviderCallsAllowed: false,
+          executionLease: this.executionLeaseManager?.status?.enabled === true
+            ? "postgres-fenced"
+            : "disabled",
         },
       }));
       eventBus.publish(AgentEvent.statusUpdate({
@@ -111,13 +233,27 @@ class GatewayAgentExecutor {
         if (!this.workforceExecutor) {
           throw new Error("Controlled workforce execution is unavailable.");
         }
+        await leaseHeartbeat?.assertActive();
         const workforceResult = await this.workforceExecutor.execute({
           goal: input,
           autonomyMode: "dry-run",
-          context: { source: "a2a-v1", taskId, contextId },
+          context: {
+            source: "a2a-v1",
+            taskId,
+            contextId,
+            ...(executionLease
+              ? {
+                  executionLease: {
+                    mode: executionLease.mode,
+                    fencingToken: executionLease.fencingToken,
+                  },
+                }
+              : {}),
+          },
         });
 
         if (this.cancelledTaskIds.has(taskId)) return;
+        await leaseHeartbeat?.assertActive();
 
         const workforceText = formatWorkforceResult(workforceResult);
         const completionMessage = agentMessage({ contextId, taskId, text: workforceText });
@@ -168,8 +304,10 @@ class GatewayAgentExecutor {
         });
       }
 
+      await leaseHeartbeat?.assertActive();
       const result = await this.gatewayService.execute(gatewayInput);
       if (this.cancelledTaskIds.has(taskId)) return;
+      await leaseHeartbeat?.assertActive();
       if (!result.success) {
         throw new Error(result.error?.message ?? result.message ?? "A2A gateway execution failed.");
       }
@@ -211,14 +349,103 @@ class GatewayAgentExecutor {
         metadata: {},
       }));
     } finally {
-      this.taskContexts.delete(taskId);
-      this.cancelledTaskIds.delete(taskId);
+      if (executionLease && terminalFenceBound) {
+        this.taskStoreControl.markExecutionFinished(taskId, executionScope);
+      } else {
+        await leaseHeartbeat?.stop();
+        if (executionLease) {
+          await this.executionLeaseManager.release(executionLease).catch(() => undefined);
+        }
+        this.activeLeases.delete(taskId);
+        this.taskContexts.delete(taskId);
+        this.cancelledTaskIds.delete(taskId);
+      }
+    }
+  }
+
+  supportsAtomicCancellation() {
+    return this.taskStoreControl?.status?.atomicTerminalFence === true;
+  }
+
+  async cancelTaskAtomically(taskId, context, eventBus) {
+    if (!this.supportsAtomicCancellation()) {
+      throw new Error("Atomic A2A cancellation is unavailable.");
+    }
+    const persistedTask = await this.taskStore.load(taskId, context);
+    if (!persistedTask) {
+      const error = new Error("The scoped A2A task was not found.");
+      error.code = "A2A_TASK_STORE_NOT_FOUND";
+      throw error;
+    }
+    const cancellationMessage = agentMessage({
+      contextId: persistedTask.contextId,
+      taskId,
+      text: "Task cancellation requested by the A2A client.",
+    });
+    const cancellationStatus = status(
+      TaskState.TASK_STATE_CANCELED,
+      cancellationMessage,
+    );
+    this.cancelledTaskIds.add(taskId);
+    const cancelledTask = await this.taskStoreControl.cancelTaskAtomically(
+      taskId,
+      context,
+      cancellationStatus,
+    );
+    if (!cancelledTask) {
+      const error = new Error("The scoped A2A task was not found.");
+      error.code = "A2A_TASK_STORE_NOT_FOUND";
+      throw error;
+    }
+    if (eventBus) {
+      eventBus.publish(AgentEvent.statusUpdate({
+        taskId,
+        contextId: cancelledTask.contextId,
+        status: cancelledTask.status,
+        metadata: {},
+      }));
+      eventBus.finished?.();
+    }
+    this.taskContexts.delete(taskId);
+    this.cancelledTaskIds.delete(taskId);
+    return cancelledTask;
+  }
+
+  prepareCancellationContext(taskId, context) {
+    if (typeof taskId === "string" && taskId) {
+      this.cancellationContexts.set(taskId, context);
+    }
+  }
+
+  clearCancellationContext(taskId) {
+    if (typeof taskId === "string" && taskId) {
+      this.cancellationContexts.delete(taskId);
     }
   }
 
   async cancelTask(taskId, eventBus) {
     this.cancelledTaskIds.add(taskId);
-    const contextId = this.taskContexts.get(taskId);
+    const callContext = this.cancellationContexts.get(taskId);
+    const localLease = this.activeLeases.get(taskId);
+    const scope = localLease?.scope ?? (callContext ? readExecutionScope(callContext) : null);
+    if (this.executionLeaseManager?.status?.enabled === true && scope) {
+      const revoked = await this.executionLeaseManager.revokeForTask({
+        taskId,
+        scope,
+        reason: "A2A client cancellation",
+      });
+      if (!revoked.success) {
+        throw a2aExecutionLeaseError(
+          "A2A_EXECUTION_LEASE_UNAVAILABLE",
+          "The A2A execution lease could not be revoked safely.",
+        );
+      }
+    }
+    let contextId = this.taskContexts.get(taskId);
+    if (!contextId && callContext && this.taskStore?.load) {
+      const persistedTask = await this.taskStore.load(taskId, callContext);
+      contextId = persistedTask?.contextId;
+    }
     if (!contextId) return;
     eventBus.publish(AgentEvent.statusUpdate({
       taskId,
@@ -256,6 +483,21 @@ function normalizePublicBaseUrl(env) {
 
 export function createA2AGateway({ gatewayService, workforceExecutor = null, env = process.env }) {
   const publicBaseUrl = normalizePublicBaseUrl(env);
+  const agentCardSigning = createA2AAgentCardSigningConfiguration({ env, publicBaseUrl });
+  const taskStoreHandle = createA2ATaskStore({
+    env,
+    integratedExecutionBoundary: true,
+  });
+  let executionLeaseManager;
+  try {
+    executionLeaseManager = createA2AExecutionLeaseManager({
+      env,
+      issueGuard: taskStoreHandle.issueGuard,
+    });
+  } catch (error) {
+    void taskStoreHandle.close();
+    throw error;
+  }
   const enterpriseAuthEnabled = env.PME_ENTERPRISE_AUTH_ENABLED === "true";
   const securitySchemes = enterpriseAuthEnabled
     ? {
@@ -290,7 +532,7 @@ export function createA2AGateway({ gatewayService, workforceExecutor = null, env
       organization: "Unified AI System",
       url: "https://github.com/happy520ai/unified-ai-system",
     },
-    version: "0.4.9",
+    version: "0.5.0",
     documentationUrl:
       "https://github.com/happy520ai/unified-ai-system/blob/master/docs/a2a-protocol.md",
     capabilities: {
@@ -340,17 +582,68 @@ export function createA2AGateway({ gatewayService, workforceExecutor = null, env
     ],
     signatures: [],
   };
-  const requestHandler = new DefaultRequestHandler(
-    agentCard,
-    new InMemoryTaskStore(),
-    new GatewayAgentExecutor(gatewayService, workforceExecutor),
+  const agentExecutor = new GatewayAgentExecutor(
+    gatewayService,
+    workforceExecutor,
+    executionLeaseManager,
+    taskStoreHandle,
   );
+  const requestHandler = new ContextAwareA2ARequestHandler(
+    agentCard,
+    taskStoreHandle.store,
+    agentExecutor,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    agentCardSigning.signer ?? undefined,
+  );
+  const unsignedAgentCardJson = AgentCard.toJSON(agentCard);
+  let signedAgentCardJsonPromise;
   return {
     agentCard,
-    agentCardJson: AgentCard.toJSON(agentCard),
+    // Retain the synchronous unsigned shape for source compatibility. HTTP
+    // discovery and the SDK request handler use getAgentCardJson()/the signer.
+    agentCardJson: unsignedAgentCardJson,
+    agentCardJwks: agentCardSigning.jwks,
+    agentCardSigning: Object.freeze({
+      configured: agentCardSigning.configured,
+      required: agentCardSigning.required,
+      keyId: agentCardSigning.keyId,
+      keyIds: agentCardSigning.keyIds,
+      previousKeyIds: agentCardSigning.previousKeyIds,
+      signatureCount: agentCardSigning.signatureCount,
+      jwksUrl: agentCardSigning.jwksUrl,
+    }),
+    taskStore: taskStoreHandle.store,
+    taskStoreStatus: taskStoreHandle.status,
+    getTaskStoreHealth() {
+      const taskStoreHealth = taskStoreHandle.getHealth();
+      const executionLease = executionLeaseManager.getHealth();
+      return combineA2AHealth(taskStoreHealth, executionLease);
+    },
+    async checkTaskStoreHealth() {
+      const [taskStoreHealth, executionLease] = await Promise.all([
+        taskStoreHandle.checkHealth(),
+        executionLeaseManager.checkHealth(),
+      ]);
+      return combineA2AHealth(taskStoreHealth, executionLease);
+    },
+    async getAgentCardJson() {
+      if (!agentCardSigning.signer) return unsignedAgentCardJson;
+      signedAgentCardJsonPromise ??= agentCardSigning.signer(agentCard)
+        .then((signedCard) => AgentCard.toJSON(signedCard));
+      return signedAgentCardJsonPromise;
+    },
     publicBaseUrl,
     requestHandler,
     transportHandler: new JsonRpcTransportHandler(requestHandler),
+    async close() {
+      await Promise.allSettled([
+        taskStoreHandle.close(),
+        executionLeaseManager.close(),
+      ]);
+    },
   };
 }
 
@@ -358,6 +651,85 @@ function hasServerPermission(requestContext, permission) {
   const permissions = requestContext?.context?.user?.permissions;
   return Array.isArray(permissions)
     && (permissions.includes("*") || permissions.includes(permission));
+}
+
+function combineA2AHealth(taskStoreHealth, executionLease) {
+  const leaseUnavailable = executionLease.required && executionLease.available !== true;
+  const atomicTerminalFenceUnavailable = taskStoreHealth.distributed === true
+    && (
+      taskStoreHealth.atomicTerminalFence !== true
+      || executionLease.atomicTerminalFence !== true
+    );
+  return {
+    ...taskStoreHealth,
+    available: taskStoreHealth.available === true
+      && !leaseUnavailable
+      && !atomicTerminalFenceUnavailable,
+    reason: leaseUnavailable
+      ? "execution_lease_unavailable"
+      : atomicTerminalFenceUnavailable
+        ? "atomic_terminal_fence_unavailable"
+        : taskStoreHealth.reason,
+    executionLease,
+  };
+}
+
+function readExecutionScope(context) {
+  return {
+    tenant: String(context?.tenant || "default"),
+    owner: String(context?.user?.userName || "unknown"),
+  };
+}
+
+function a2aExecutionLeaseError(code, message) {
+  const normalizedCode = String(code || "A2A_EXECUTION_LEASE_UNAVAILABLE");
+  return Object.assign(new Error(message), {
+    code: normalizedCode,
+    category: "concurrency",
+    retryable: normalizedCode !== "A2A_EXECUTION_TASK_TERMINAL",
+  });
+}
+
+function startExecutionLeaseHeartbeat(manager, lease) {
+  let stopped = false;
+  let lost = false;
+  let pending = Promise.resolve();
+  const renew = () => {
+    pending = pending.then(async () => {
+      if (stopped || lost) return;
+      try {
+        const result = await manager.renew(lease);
+        if (!result.success) lost = true;
+      } catch {
+        lost = true;
+      }
+    });
+  };
+  const timer = setInterval(renew, manager.status.heartbeatMs);
+  timer.unref?.();
+  return {
+    async assertActive() {
+      await pending;
+      if (lost) throw lostExecutionLease();
+      const result = await manager.validate(lease);
+      if (!result.success) {
+        lost = true;
+        throw lostExecutionLease();
+      }
+    },
+    async stop() {
+      stopped = true;
+      clearInterval(timer);
+      await pending;
+    },
+  };
+}
+
+function lostExecutionLease() {
+  return a2aExecutionLeaseError(
+    "A2A_EXECUTION_LEASE_LOST",
+    "The A2A execution lease was lost before the result could be committed.",
+  );
 }
 
 function formatWorkforceResult(result) {
@@ -399,11 +771,15 @@ function formatWorkforceResult(result) {
 }
 
 export const a2aGatewayInternals = {
+  ContextAwareA2ARequestHandler,
   GatewayAgentExecutor,
+  a2aExecutionLeaseError,
   agentMessage,
   hasServerPermission,
   normalizePublicBaseUrl,
+  readExecutionScope,
   readTextMessage,
   status,
+  startExecutionLeaseHeartbeat,
   textPart,
 };

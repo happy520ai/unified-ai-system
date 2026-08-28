@@ -18,6 +18,9 @@ const DEFAULT_WINDOW_MS = 60_000; // 1 minute
 const DEFAULT_MAX_REQUESTS = 60;
 const DEFAULT_SQLITE_PATH = ".data/rate-limits.sqlite";
 
+/** @typedef {{socket?: {remoteAddress?: string|null}}} RateLimitRequest */
+/** @typedef {{setHeader(name: string, value: string): void, writeHead(statusCode: number, headers?: Record<string, string>): void, end(body?: string): void}} RateLimitResponse */
+
 export const RATE_LIMIT_RESPONSE_HEADERS = Object.freeze({
   limit: "X-RateLimit-Limit",
   remaining: "X-RateLimit-Remaining",
@@ -31,14 +34,6 @@ export const RATE_LIMIT_RESPONSE_HEADERS = Object.freeze({
 
 /**
  * Create a rate limiter middleware.
- * @param {Object} options
- * @param {number} options.windowMs - Window duration in ms (default 60s)
- * @param {number} options.maxRequests - Max requests per window (default 60)
- * @param {string[]} options.whitelist - IPs exempt from limiting
- * @param {string} [options.storeMode] - "memory" (default) or "sqlite"
- * @param {string} [options.storePath] - SQLite DB path (default ".data/rate-limits.sqlite")
- * @param {string} [options.storeNamespace] - Isolates this limiter within a shared DB (default "default")
- * @returns {Function} middleware(req, res, next) or null if allowed
  */
 export function createRateLimiter(options = {}) {
   const windowMs = options.windowMs ?? DEFAULT_WINDOW_MS;
@@ -145,9 +140,9 @@ export function createRateLimiter(options = {}) {
   /**
    * Apply rate limit to an HTTP request.
    * Returns null if allowed, or writes 429 response and returns the response.
-   * @param {import("node:http").IncomingMessage} req
-   * @param {import("node:http").ServerResponse} res
-   * @returns {null|import("node:http").ServerResponse}
+   * @param {RateLimitRequest} req
+   * @param {RateLimitResponse} res
+   * @returns {null|RateLimitResponse|Promise<null|RateLimitResponse>}
    */
   function apply(req, res) {
     const identity = options.resolveSubject?.(req);

@@ -17,8 +17,8 @@ provider is called.
 ## Requirements
 
 - Git
-- Node.js 22 or newer
-- pnpm 9.15.4 or newer
+- Node.js 22.18.0 or newer
+- pnpm 11.19.0 (the version pinned by `packageManager`)
 
 On Windows, native dependencies may require Python and Visual Studio Build
 Tools when a prebuilt binary is unavailable. The container demo does not
@@ -30,7 +30,7 @@ require a local Node.js installation.
 git clone https://github.com/happy520ai/unified-ai-system.git
 cd unified-ai-system
 corepack enable
-corepack prepare pnpm@9.15.4 --activate
+corepack prepare pnpm@11.19.0 --activate
 pnpm install --frozen-lockfile
 ```
 

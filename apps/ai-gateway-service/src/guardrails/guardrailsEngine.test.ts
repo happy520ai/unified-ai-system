@@ -1,13 +1,20 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it, expect, beforeEach } from "vitest";
 import {
   createGuardrailsEngineForTests,
   setGuardrailsEngineForTests,
   getGuardrailsEngine,
   GUARDRAILS_ENABLED_ENV,
+  GUARDRAILS_STORAGE_DIR_ENV,
+  resetGuardrailsEnginesForTests,
+  type GuardrailsRuleConfig,
 } from "./guardrailsEngine.ts";
 
 beforeEach(() => {
   delete process.env[GUARDRAILS_ENABLED_ENV];
+  delete process.env[GUARDRAILS_STORAGE_DIR_ENV];
   setGuardrailsEngineForTests(null);
 });
 
@@ -39,11 +46,11 @@ describe("guardrails engine config", () => {
   it("rejects invalid rule names, actions, and banned terms", () => {
     const engine = createGuardrailsEngineForTests({
       enabled: true,
-      rules: { "not.a.rule": "block", "input.secrets": "explode" },
+      rules: { "not.a.rule": "block", "input.secrets": "explode" } as unknown as GuardrailsRuleConfig,
       bannedTerms: ["a", "x".repeat(200), "valid-term"],
     });
     const config = engine.readConfig();
-    expect(config.rules["not.a.rule"]).toBeUndefined();
+    expect((config.rules as Record<string, unknown>)["not.a.rule"]).toBeUndefined();
     expect(config.rules["input.secrets"]).toBe("block");
     expect(config.bannedTerms).toEqual(["valid-term"]);
   });
@@ -51,6 +58,31 @@ describe("guardrails engine config", () => {
   it("caps maxInputChars to a positive integer", () => {
     const engine = createGuardrailsEngineForTests({ enabled: true, maxInputChars: 12.7 });
     expect(engine.readConfig().maxInputChars).toBe(12);
+  });
+
+  it("isolates runtime overrides and persistence by authenticated tenant", async () => {
+    const root = await mkdtemp(join(tmpdir(), "guardrails-tenants-"));
+    process.env[GUARDRAILS_STORAGE_DIR_ENV] = root;
+    resetGuardrailsEnginesForTests();
+
+    try {
+      getGuardrailsEngine("tenant-a").applyOverrides({
+        enabled: true,
+        bannedTerms: ["tenant-a-only"],
+      });
+
+      expect(getGuardrailsEngine("tenant-a").readConfig().bannedTerms).toEqual(["tenant-a-only"]);
+      expect(getGuardrailsEngine("tenant-b").readConfig().bannedTerms).toEqual([]);
+      expect(getGuardrailsEngine("tenant-b").readConfig().enabled).toBe(false);
+
+      resetGuardrailsEnginesForTests();
+      expect(getGuardrailsEngine("tenant-a").readConfig().bannedTerms).toEqual(["tenant-a-only"]);
+      expect(getGuardrailsEngine("tenant-b").readConfig().bannedTerms).toEqual([]);
+    } finally {
+      resetGuardrailsEnginesForTests();
+      delete process.env[GUARDRAILS_STORAGE_DIR_ENV];
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });
 
@@ -148,7 +180,7 @@ describe("guardrails input inspection", () => {
 
   it("fails open on malformed messages", () => {
     const engine = createGuardrailsEngineForTests({ enabled: true });
-    const verdict = engine.inspectInput({ messages: null });
+    const verdict = engine.inspectInput({ messages: null } as any);
     expect(verdict.decision).toBe("allow");
   });
 });

@@ -44,6 +44,15 @@ describe("controlled workforce execution security boundary", () => {
     expect(executor.getInfo()).toEqual(expect.objectContaining({ executionEnabled: false, dryRun: true }));
   });
 
+  it("rejects an execution-enabled provider adapter that bypasses GatewayService governance", async () => {
+    expect(() => createControlledExecutor({
+      env: { WORKFORCE_EXECUTION_ENABLED: "true" },
+      executionDir: "test-workforce-provider-governance",
+      providerAdapter: { generate: vi.fn() },
+      tierGovernor: permissiveTierGovernor(),
+    })).toThrow(expect.objectContaining({ code: "WORKFORCE_PROVIDER_GOVERNANCE_REQUIRED" }));
+  });
+
   it("binds one approval to the exact subject, plan, scopes, and a single execution", async () => {
     const sandboxMerger = { execute: vi.fn(async () => ({ success: true, executionStatus: "completed" })) };
     const executor = createControlledExecutor({
@@ -57,6 +66,7 @@ describe("controlled workforce execution security boundary", () => {
       goal: "Build a bounded test artifact",
       autonomyMode: "sandbox-merge",
       userId: "alice",
+      tenantId: "tenant-a",
     };
     const descriptor = await executor.describeExecution(input);
 
@@ -70,6 +80,9 @@ describe("controlled workforce execution security boundary", () => {
 
     const changedPlan = await executor.execute({ ...input, goal: "Changed after approval" });
     expect(changedPlan.approval.decisionCode).toBe("APPROVAL_PLAN_MISMATCH");
+
+    const otherTenant = await executor.execute({ ...input, tenantId: "tenant-b" });
+    expect(otherTenant.approval.decisionCode).toBe("APPROVAL_NOT_FOUND");
 
     await expect(executor.execute(input)).resolves.toEqual(expect.objectContaining({ success: true }));
     expect(sandboxMerger.execute).toHaveBeenCalledTimes(1);
@@ -108,6 +121,8 @@ describe("public workforce entrypoints", () => {
       execute: vi.fn(async () => ({ success: true, executionStatus: "dry_run_preview" })),
       approveExecution: vi.fn(),
       revokeApproval: vi.fn(),
+      getStatus: vi.fn(async () => ({ success: true, status: "running" })),
+      cancel: vi.fn(async () => ({ success: true, cancelRequested: true })),
     };
     const writeJson = vi.fn();
     const routes = createWorkforceRoutes(
@@ -125,17 +140,41 @@ describe("public workforce entrypoints", () => {
         createErrorEnvelope: vi.fn(),
       },
     );
-    const route = routes.handlers.get("POST /workforce/execute");
+    const route = routes.handlers.get("POST /workforce/execute") as any;
 
     await route.handler(
-      { enterpriseIdentity: { userId: "alice" } },
+      { enterpriseIdentity: { userId: "alice", tenantId: "tenant-a" } },
       {},
-      { startedAt: new Date(), body: { goal: "preview", userId: "mallory" } },
+      { startedAt: new Date(), body: { goal: "preview", userId: "mallory", tenantId: "tenant-b" } },
     );
 
-    expect(workforceExecutor.execute).toHaveBeenCalledWith(expect.objectContaining({ userId: "alice" }));
+    expect(workforceExecutor.execute).toHaveBeenCalledWith(expect.objectContaining({
+      userId: "alice",
+      tenantId: "tenant-a",
+    }));
     expect(route.permission).toBe("workflow:run");
-    expect(routes.handlers.get("POST /workforce/execute/approve").permission).toBe("workflow:approve");
+    expect((routes.handlers.get("POST /workforce/execute/approve") as any).permission).toBe("workflow:approve");
+    const statusRoute = routes.handlers.get("POST /workforce/execute/status") as any;
+    const cancelRoute = routes.handlers.get("POST /workforce/execute/cancel") as any;
+    const request = { enterpriseIdentity: { userId: "alice", tenantId: "tenant-a" } };
+    await statusRoute.handler(request, {}, {
+      startedAt: new Date(),
+      body: { executionId: "wf-scope-test" },
+    });
+    await cancelRoute.handler(request, {}, {
+      startedAt: new Date(),
+      body: { executionId: "wf-scope-test", reason: "stop" },
+    });
+    expect(workforceExecutor.getStatus).toHaveBeenCalledWith("wf-scope-test", {
+      userId: "alice",
+      tenantId: "tenant-a",
+    });
+    expect(workforceExecutor.cancel).toHaveBeenCalledWith("wf-scope-test", "stop", {
+      userId: "alice",
+      tenantId: "tenant-a",
+    });
+    expect(statusRoute.permission).toBe("dashboard:read");
+    expect(cancelRoute.permission).toBe("workflow:run");
     expect(writeJson).toHaveBeenCalled();
   });
 

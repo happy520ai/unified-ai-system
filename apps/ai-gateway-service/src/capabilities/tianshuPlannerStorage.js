@@ -4,8 +4,10 @@
 // =============================================================================
 
 import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { safeOutboundFetch } from "../security/safeOutboundFetch.ts";
+import { resolveGatewayOutboundUrl } from "../security/gatewayOutboundUrlPolicy.ts";
 import {
   PLANS_DIR,
   DEFAULT_GATEWAY_TIMEOUT,
@@ -129,11 +131,11 @@ export async function callGateway(gatewayUrl, planningModel, messages, options =
 
     const response = await safeOutboundFetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: createGatewayOperationHeaders(options, "tianshu"),
       body,
       signal: controller.signal,
       timeout,
-    });
+    }, { resolveOutboundUrl: resolveGatewayOutboundUrl });
 
     if (!response.ok) {
       const errorBody = await response.text().catch(() => "");
@@ -161,6 +163,27 @@ export async function callGateway(gatewayUrl, planningModel, messages, options =
   } finally {
     clearTimeout(timer);
   }
+}
+
+function createGatewayOperationHeaders(options, prefix) {
+  if (options.idempotencyKey !== undefined && options.providerDispatchKey !== undefined) {
+    throw new Error("Use exactly one of idempotencyKey or providerDispatchKey.");
+  }
+  const token = options.gatewayAuthToken ?? process.env.PME_AUTH_TOKEN;
+  const dispatchHeaders = options.idempotencyKey !== undefined
+    ? { "Idempotency-Key": String(options.idempotencyKey) }
+    : {
+        "Provider-Dispatch-Key": String(
+          options.providerDispatchKey ?? `${prefix}-${randomUUID()}`,
+        ),
+      };
+  return {
+    "Content-Type": "application/json",
+    ...(typeof token === "string" && token.length > 0
+      ? { Authorization: `Bearer ${token}` }
+      : {}),
+    ...dispatchHeaders,
+  };
 }
 
 // ---------------------------------------------------------------------------

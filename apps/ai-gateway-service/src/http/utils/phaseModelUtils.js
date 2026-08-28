@@ -1,9 +1,10 @@
 import { extractRuntimeCredentialEndpoint, extractRuntimeCredentialSecret } from "../../providers/providerCredentialDetector.js";
-import { createNvidiaUnifiedClient } from "../../providers/nvidia/nvidiaUnifiedClient.js";
+import { createGatewayBackedNvidiaClient } from "../../providers/gatewayBackedNvidiaClient.ts";
 import { ENDPOINT_TYPES } from "../../model-library/modelCapabilityRules.js";
 import { findModel } from "../../model-library/unifiedModelRegistry.js";
+import { getProviderExecutionDecision } from "../../providers/providerExecutionGate.ts";
 
-export async function testPhase312AModel({ application, body }) {
+export async function testPhase312AModel({ application, body, gatewayService }) {
   const env = application.runtimeEnv ?? process.env;
   const realSmokeEnabled = env.PHASE312A_NVIDIA_REAL_SMOKE === "1";
   const providerId = String(body?.providerId ?? "nvidia").trim().toLowerCase();
@@ -32,6 +33,30 @@ export async function testPhase312AModel({ application, body }) {
     };
   }
 
+  const executionDecision = getProviderExecutionDecision({
+    providerId,
+    providerType: "nvidia",
+    runtimeConfig: application.gatewayService?.runtimeConfig,
+  });
+  if (!executionDecision.allowed) {
+    return {
+      success: false,
+      code: "real_provider_execution_blocked",
+      message: `Blocked before provider call: ${executionDecision.blockers.join(", ")}.`,
+      status: "blocked",
+      providerId,
+      modelId,
+      endpointType: model.endpointType,
+      realExternalCall: false,
+      meta: {
+        providerCalled: false,
+        invalidProviderCalled: false,
+        gates: executionDecision.gates,
+        blockers: executionDecision.blockers,
+      },
+    };
+  }
+
   if (!realSmokeEnabled) {
     return {
       success: false,
@@ -46,11 +71,7 @@ export async function testPhase312AModel({ application, body }) {
     };
   }
 
-  const nvidiaClient = createNvidiaUnifiedClient({
-    env,
-    runtimeCredentialStore: application.runtimeCredentialStore,
-    modelLibraryStore: application.modelLibraryStore,
-  });
+  const nvidiaClient = createGatewayBackedNvidiaClient(gatewayService ?? application.gatewayService);
   const result = await callModelSmoke({ client: nvidiaClient, model });
   application.modelLibraryStore.recordSmokeResult({
     providerId,
@@ -178,8 +199,9 @@ export function setRuntimeProviderCredential(application, body) {
     throw error;
   }
 
+  let provider;
   try {
-    application.providerRegistry.get(providerId);
+    provider = application.providerRegistry.get(providerId);
   } catch {
     const error = new Error(`Provider is not available in the current runtime: ${providerId}`);
     error.code = "provider_runtime_credential_provider_unavailable";
@@ -201,14 +223,20 @@ export function setRuntimeProviderCredential(application, body) {
     ? application.providerRegistry.addRuntimeModels(providerId, runtimeModels)
     : [];
 
-  if (typeof application.providerRegistry?.enableProvider === "function") {
+  const executionDecision = getProviderExecutionDecision({
+    providerId,
+    providerType: provider.descriptor?.metadata?.providerType,
+    runtimeConfig: application.gatewayService?.runtimeConfig,
+  });
+  if (executionDecision.allowed && typeof application.providerRegistry?.enableProvider === "function") {
     application.providerRegistry.enableProvider(providerId);
   }
 
   return {
     ...result,
     runtimeModelCount: registeredRuntimeModels.length,
-    runtimeProviderEnabled: true,
+    runtimeProviderEnabled: executionDecision.allowed,
+    runtimeProviderBlockers: executionDecision.blockers,
   };
 }
 

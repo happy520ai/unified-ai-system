@@ -3,7 +3,11 @@
 // 从 httpServer.js 抽取的 /knowledge/* 路由
 // =============================================================================
 
-import { getSupportedKnowledgeFileTypes, parseKnowledgeFile } from "../knowledge/documentParsers.js";
+import {
+  assertKnowledgeFileBatch,
+  getSupportedKnowledgeFileTypes,
+  parseKnowledgeFile,
+} from "../knowledge/documentParsers.js";
 import { validators } from "../validation/httpSchemas.js";
 
 /**
@@ -82,18 +86,14 @@ export function createKnowledgeRoutes(application, helpers) {
     }
     try {
       const files = Array.isArray(body?.files) ? body.files : [];
-      if (files.length === 0) {
-        const error = new Error("Knowledge file load requires at least one file.");
-        error.code = "KNOWLEDGE_FILE_LOAD_FILES_REQUIRED";
-        error.category = "validation";
-        throw error;
-      }
+      assertKnowledgeFileBatch(files);
       const documents = [];
       const skipped = [];
       for (const file of files) {
         try {
           documents.push(await parseKnowledgeFile(file));
         } catch (error) {
+          if (error?.retryable === true) throw error;
           skipped.push({ fileName: file?.fileName ?? file?.name ?? "unknown", code: error?.code ?? "KNOWLEDGE_FILE_PARSE_FAILED", message: error instanceof Error ? error.message : "File parse failed.", details: error?.details });
         }
       }
@@ -109,7 +109,8 @@ export function createKnowledgeRoutes(application, helpers) {
       writeJson(res, 200, createOkEnvelope({ ...result, skipped, supported: getSupportedKnowledgeFileTypes() }, { startedAt }));
     } catch (error) {
       writeServiceLog("knowledge_file_load_failed", { method: "POST", path: "/knowledge/load/file", code: error?.code, durationMs: Date.now() - startedAt });
-      writeJson(res, error?.category === "validation" ? 400 : 422, createErrorEnvelope(error?.code ?? "knowledge_file_load_failed", error instanceof Error ? error.message : "Knowledge file load failed.", { startedAt, category: error?.category ?? "knowledge", retryable: false, details: error?.details }));
+      const statusCode = error?.category === "validation" ? 400 : error?.category === "availability" ? 503 : 422;
+      writeJson(res, statusCode, createErrorEnvelope(error?.code ?? "knowledge_file_load_failed", error instanceof Error ? error.message : "Knowledge file load failed.", { startedAt, category: error?.category ?? "knowledge", retryable: error?.retryable === true, details: error?.details }));
     }
   }
 
@@ -128,7 +129,7 @@ export function createKnowledgeRoutes(application, helpers) {
     }
 
     try {
-      const result = knowledgeService.retrieve(validation.data, { tenantScopeIdentity: req.enterpriseIdentity });
+      const result = await knowledgeService.retrieve(validation.data, { tenantScopeIdentity: req.enterpriseIdentity });
       writeServiceLog("knowledge_retrieve_completed", { method: "POST", path: "/knowledge/retrieve", chunkCount: result.chunks.length, durationMs: Date.now() - startedAt });
       writeJson(res, 200, createOkEnvelope(result, { startedAt }));
     } catch (error) {

@@ -3,11 +3,43 @@
 // 从 httpServer.js 抽取的 /workforce/* 和 /workflow/* 路由
 // =============================================================================
 
+import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
+
+const ACTIVE_EXECUTION_ROUTES = new Set([
+  "POST /workforce/execute",
+  "POST /workforce/execute/approve",
+  "POST /workforce/execute/revoke",
+  "POST /workforce/execute/status",
+  "POST /workforce/execute/cancel",
+]);
+
+export async function dispatchWorkforceExecutionRoutes(context) {
+  const key = `${context.request.method} ${context.url.pathname}`;
+  if (!ACTIVE_EXECUTION_ROUTES.has(key)) return ROUTE_NOT_HANDLED;
+  const body = await context.readCapabilityJson({
+    request: context.request,
+    response: context.response,
+    startedAt: context.startedAt,
+    code: "workforce_execution_invalid_json",
+  });
+  if (!body) return undefined;
+  const routes = createWorkforceRoutes(context.application, {
+    ...context,
+    writeErrorResponse: context.writeCapabilityError,
+  });
+  const route = routes.handlers.get(key);
+  if (!route) return ROUTE_NOT_HANDLED;
+  await route.handler(context.request, context.response, {
+    startedAt: context.startedAt,
+    body,
+  });
+  return undefined;
+}
+
 /**
  * 创建 Workforce 路由 handler 集合
  * @param {Object} application
  * @param {Object} helpers
- * @returns {Object} { handlers: Map<string, Function> }
  */
 export function createWorkforceRoutes(application, helpers) {
   const { workforceExecutor, workforceService, workflowService } = application;
@@ -189,7 +221,8 @@ export function createWorkforceRoutes(application, helpers) {
     }
     try {
       const userId = requireExecutionUserId(req);
-      const result = await workforceExecutor.execute({ ...body, userId });
+      const tenantId = requireExecutionTenantId(req);
+      const result = await workforceExecutor.execute({ ...body, userId, tenantId });
       writeJson(res, result?.success ? 200 : 422, createOkEnvelope(result, { startedAt }));
     } catch (e) {
       writeErrorResponse({ response: res, error: e, startedAt, fallbackCode: "execute_failed" });
@@ -200,8 +233,9 @@ export function createWorkforceRoutes(application, helpers) {
     if (!body) return;
     try {
       const userId = requireExecutionUserId(req);
+      const tenantId = requireExecutionTenantId(req);
       const result = await workforceExecutor.approveExecution(
-        { ...body, userId },
+        { ...body, userId, tenantId },
         userId,
         body.approvedScopes,
       );
@@ -215,10 +249,35 @@ export function createWorkforceRoutes(application, helpers) {
     if (!body) return;
     try {
       const userId = requireExecutionUserId(req);
-      const result = await workforceExecutor.revokeApproval(body.planId, userId, body.reason);
+      const tenantId = requireExecutionTenantId(req);
+      const result = await workforceExecutor.revokeApproval(body.planId, userId, body.reason, tenantId);
       writeJson(res, result?.success ? 200 : 404, createOkEnvelope(result, { startedAt }));
     } catch (e) {
       writeErrorResponse({ response: res, error: e, startedAt, fallbackCode: "execute_approval_revoke_failed" });
+    }
+  }
+
+  async function handleWorkforceExecuteStatus(req, res, { startedAt, body }) {
+    if (!body) body = await readCapabilityJson({ request: req, response: res, startedAt, code: "execute_status_bad" });
+    if (!body) return;
+    try {
+      const identity = requireExecutionIdentity(req);
+      const result = await workforceExecutor.getStatus(body.executionId, identity);
+      writeJson(res, 200, createOkEnvelope(result, { startedAt }));
+    } catch (e) {
+      writeErrorResponse({ response: res, error: e, startedAt, fallbackCode: "execute_status_failed" });
+    }
+  }
+
+  async function handleWorkforceExecuteCancel(req, res, { startedAt, body }) {
+    if (!body) body = await readCapabilityJson({ request: req, response: res, startedAt, code: "execute_cancel_bad" });
+    if (!body) return;
+    try {
+      const identity = requireExecutionIdentity(req);
+      const result = await workforceExecutor.cancel(body.executionId, body.reason, identity);
+      writeJson(res, result?.success === false ? 409 : 200, createOkEnvelope(result, { startedAt }));
+    } catch (e) {
+      writeErrorResponse({ response: res, error: e, startedAt, fallbackCode: "execute_cancel_failed" });
     }
   }
 
@@ -264,6 +323,8 @@ export function createWorkforceRoutes(application, helpers) {
     ["POST /workforce/execute", { handler: handleWorkforceExecute, public: false, permission: "workflow:run" }],
     ["POST /workforce/execute/approve", { handler: handleWorkforceExecuteApprove, public: false, permission: "workflow:approve" }],
     ["POST /workforce/execute/revoke", { handler: handleWorkforceExecuteRevoke, public: false, permission: "workflow:approve" }],
+    ["POST /workforce/execute/status", { handler: handleWorkforceExecuteStatus, public: false, permission: "dashboard:read" }],
+    ["POST /workforce/execute/cancel", { handler: handleWorkforceExecuteCancel, public: false, permission: "workflow:run" }],
     ["POST /workforce/plans/save", { handler: handleWorkforcePlansSave, public: false, permission: "workflow:run" }],
     ["GET /workforce/plans", { handler: handleWorkforcePlans, public: false, permission: "dashboard:read" }],
   ]);
@@ -286,5 +347,17 @@ export function createWorkforceRoutes(application, helpers) {
       throw error;
     }
     return userId.trim();
+  }
+
+  function requireExecutionTenantId(request) {
+    const tenantId = request?.enterpriseIdentity?.tenantId;
+    return typeof tenantId === "string" && tenantId.trim() ? tenantId.trim() : "default";
+  }
+
+  function requireExecutionIdentity(request) {
+    return {
+      userId: requireExecutionUserId(request),
+      tenantId: requireExecutionTenantId(request),
+    };
   }
 }

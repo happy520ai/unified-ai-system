@@ -1,19 +1,51 @@
 # Natural-Language Prompt Enhancement
 
 Unified AI System can turn an ordinary natural-language request into a more
-explicit prompt before a model receives it. The local engine preserves the
-original request and adds execution requirements, output expectations, a
-clarification policy, and completion criteria.
+explicit prompt before a model receives it. The local engine (version
+`prompt-enhancer-v3`) preserves the original request and adds an interpreted
+intent, an inferred deliverable, task essentials, execution requirements with a
+suggested step order, output expectations, a clarification policy, and
+completion criteria.
 
 This is a deterministic heuristic transformation. It improves consistency and
 inspectability; it is not a guarantee that every model or task will perform
 better.
 
-When the request contains recognizable signals, the enhancer carries them into
-the structured sections as explicit requirements. That includes requested
-formats, hard constraints, audience, runtime or version conditions, evidence
-requirements, and success criteria. Missing signals can still produce up to
-three targeted clarification questions when they block a reliable result.
+## What The Engine Understands
+
+Given one plain sentence, the engine deterministically produces:
+
+- **Interpreted intent** — the request's core action, normalized to one of
+  create, modify, explain, evaluate, summarize, translate, plan, investigate,
+  operate, or general assistance.
+- **Task essentials** — technologies, artifacts (API, report, website, …),
+  quantities ("3 days", "5 pages"), time expressions, and file or URL
+  references detected in the request. They are carried into the prompt as
+  named terms the downstream model must use as written, without renaming or
+  redefining them.
+- **Inferred deliverable** — what "done" should look like for the detected
+  profile and intent, for example a runnable implementation with a minimal
+  verification method for coding requests.
+- **Suggested step order** — a per-profile decomposition (confirm boundaries →
+  locate context → minimal verifiable version → self-check → deliver) rendered
+  as numbered steps.
+- **Ambiguity probes** — vague references ("这个", "it"), unmeasured quality
+  bars ("好一点", "better"), and vague quantities ("一些", "a few") become
+  explicit conservative-interpretation instructions plus targeted clarifying
+  questions that are asked only if they block a correct result.
+- **Request signals** — requested formats, hard constraints, audience, runtime
+  or version conditions, evidence requirements, and success criteria compiled
+  into explicit requirements. Missing signals can still produce up to three
+  targeted clarification questions.
+- **Agent execution protocol** — when `target` is set to `agent`, the prompt
+  gains a plan-verify-report protocol: emit a short plan first, use the minimal
+  tool set, verify before claiming completion, and report result → evidence →
+  remaining risks.
+
+The response also carries a machine-readable `analysis` object (intent,
+entities, deliverable, steps, ambiguities) and a `quality` profile with a
+quality level and concrete recommendations, so callers can decide whether to
+ask the user before dispatching the request.
 
 ## Preview From The Terminal
 
@@ -35,9 +67,14 @@ curl --request POST http://127.0.0.1:3100/prompts/enhance \
   --data '{
     "input": "Help me plan a product launch",
     "profile": "auto",
-    "language": "auto"
+    "language": "auto",
+    "target": "model"
   }'
 ```
+
+`target` is optional and defaults to `model`. Set it to `agent` when the
+enhanced prompt will drive an autonomous agent; the engine then appends the
+agent execution protocol section.
 
 For a copy-paste walkthrough on macOS, Linux, Git Bash, and Windows
 PowerShell, see the [curl quickstart](examples/prompt-enhancement-curl.md).
@@ -150,7 +187,8 @@ It targets .NET 8 or newer and requires no NuGet package or provider key.
 
 Supported profiles are `auto`, `general`, `coding`, `analysis`, `writing`,
 `research`, and `planning`. Supported language settings are `auto`, `zh-CN`,
-and `en`. In `auto` mode, an explicit output-language request such as
+and `en`. Supported targets are `model` (default) and `agent`. In `auto`
+mode, an explicit output-language request such as
 `Please answer in Chinese` or `请用英文回答` takes precedence over character-based
 language detection. An explicit API or CLI `language` value remains authoritative.
 Input is limited to 20,000 characters.
@@ -172,10 +210,14 @@ explicit option:
   "promptEnhancement": {
     "enabled": true,
     "profile": "coding",
-    "language": "auto"
+    "language": "auto",
+    "target": "model"
   }
 }
 ```
+
+`target: "agent"` is available in chat as well when the enhanced message will
+be consumed by an agent runtime.
 
 The gateway enhances only the latest non-empty user message. Earlier user,
 assistant, system, and tool messages remain unchanged. JSON chat responses
@@ -216,9 +258,12 @@ const response = await gateway.chat(createGatewayChatRequest({
 
 ## Codex And MCP
 
-The source build and pinned `0.4.9` container expose
+The source build and published `0.5.0` container expose
 `gateway_prompt_enhance` as a read-only MCP tool. It returns a preview without
-checking provider health because it cannot call a provider.
+checking provider health because it cannot call a provider. The tool accepts
+`input`, `profile`, `language`, and `target` (`model` or `agent`);
+`gateway_prompt_enhance_llm` adds `providerId` and `modelId` and falls back to
+this deterministic engine when no provider is configured.
 
 ## Safety And Governance
 
@@ -228,5 +273,5 @@ checking provider health because it cannot call a provider.
   also returned separately by the preview API.
 - Enhancement cannot enable a real provider or bypass chat authorization.
 - `/prompts/enhance` uses the existing `chat:use` enterprise permission.
-- Invalid profiles, languages, empty input, and oversized input fail with a
-  validation error instead of silently falling back.
+- Invalid profiles, languages, targets, empty input, and oversized input fail
+  with a validation error instead of silently falling back.

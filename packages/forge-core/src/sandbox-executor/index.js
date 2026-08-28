@@ -2,15 +2,16 @@
  * @module sandbox-executor
  * @description Sandboxed command execution for the Forge code generation engine.
  *
- * Restricts file access, CPU, memory, and time for spawned child processes.
- * Works cross-platform (Windows, macOS, Linux) using OS-level mechanisms where
- * available, with graceful fallback to process-level restrictions.
+ * Security levels use an attested container backend and fail closed when that
+ * backend is unavailable. Host-process execution is an explicit development
+ * mode and is never used as a fallback for filesystem/full isolation.
  *
- * Sandbox levels (cumulative):
- *   - NONE        No restrictions.
- *   - PROCESS     Time + memory limits enforced via child_process.
- *   - FILESYSTEM  + path validation (cwd must be within allowed paths).
- *   - FULL        + network isolation hints (best-effort, platform-dependent).
+ * Sandbox levels:
+ *   - NONE        Explicit unrestricted host execution.
+ *   - PROCESS     Explicit host execution with minimal env/time/output bounds.
+ *   - FILESYSTEM  Attested container filesystem isolation.
+ *   - FULL        Filesystem isolation plus mandatory network isolation.
+ *   - WORKTREE    Git collision isolation plus the attested container backend.
  *
  * @example
  * import { SandboxExecutor, SandboxLevel } from './sandbox-executor/index.js';
@@ -21,10 +22,11 @@
  */
 
 import { spawn } from 'node:child_process';
+import { realpath } from 'node:fs/promises';
 import { delimiter, dirname, resolve } from 'node:path';
+import { ContainerSandboxBackend } from './container-backend.js';
 import {
   SandboxLevel,
-  getMaxLevelForPlatform,
   resolveAllowedPrefixes,
   isPathAllowed,
   isPathDenied,
@@ -37,6 +39,40 @@ import {
 } from './helpers.js';
 
 export { SandboxLevel } from './helpers.js';
+export { ContainerSandboxBackend } from './container-backend.js';
+
+const HOST_ENV_KEYS = Object.freeze([
+  'PATH', 'Path', 'SYSTEMROOT', 'SystemRoot', 'WINDIR', 'COMSPEC', 'PATHEXT',
+  'TEMP', 'TMP', 'LANG', 'LC_ALL',
+]);
+const SAFE_EXPLICIT_ENV_KEYS = new Set(['CI', 'NODE_ENV', 'FORGE_TASK_TYPE', 'PORT']);
+
+function createMinimalHostEnvironment(explicit = {}) {
+  const env = Object.create(null);
+  for (const key of HOST_ENV_KEYS) {
+    if (typeof process.env[key] === 'string' && process.env[key]) env[key] = process.env[key];
+  }
+  for (const [key, rawValue] of Object.entries(explicit)) {
+    if (!SAFE_EXPLICIT_ENV_KEYS.has(key)) continue;
+    env[key] = String(rawValue);
+  }
+  const pathKey = Object.keys(env).find((key) => key.toLowerCase() === 'path') ?? 'PATH';
+  env[pathKey] = [dirname(process.execPath), env[pathKey]].filter(Boolean).join(delimiter);
+  return env;
+}
+
+function failResult(executor, startTime, sandboxLevel, code, message) {
+  return executor({
+    exitCode: -1,
+    stdout: '',
+    stderr: `${code}: ${message}`,
+    duration: Date.now() - startTime,
+    killed: true,
+    killReason: code,
+    sandboxLevel,
+    peakMemoryMB: 0,
+  });
+}
 
 // ---------------------------------------------------------------------------
 // SandboxExecutor class
@@ -51,8 +87,7 @@ export { SandboxLevel } from './helpers.js';
  * 2. Constructor-level default (`opts.level`).
  * 3. Fallback: `SandboxLevel.PROCESS`.
  *
- * The effective level is capped to the platform's maximum supported level
- * (see {@link getMaxLevelForPlatform}).
+ * Requested isolation is never silently downgraded.
  *
  * @example
  * const sandbox = new SandboxExecutor({
@@ -86,6 +121,12 @@ export class SandboxExecutor {
   /** @type {string} Detected platform identifier. */
   #platform;
 
+  /** @type {ContainerSandboxBackend|Object|null} */
+  #backend;
+
+  /** @type {boolean} Whether explicit PROCESS host execution is enabled. */
+  #hostExecutionEnabled;
+
   /**
    * Execution history ring buffer.
    * @type {Array<{ duration: number, killed: boolean, killReason: string|null, peakMemoryMB: number }>}
@@ -100,7 +141,7 @@ export class SandboxExecutor {
    * 懒加载:首次 WORKTREE 执行时创建。
    * @type {Object|null}
    */
-  #gitWorktreeManager = null;
+  #gitWorktreeManagers = new Map();
 
   /**
    * Creates a new `SandboxExecutor`.
@@ -113,6 +154,9 @@ export class SandboxExecutor {
    * @param {string[]} [opts.deniedPaths=[]]        - Denied path prefixes.
    * @param {number}   [opts.maxOutputBytes=1048576] - Output capture limit per stream.
    * @param {string}   [opts.platform]              - Override platform detection.
+   * @param {Object}   [opts.backend]               - Injected attested backend.
+   * @param {Object}   [opts.container]             - Container backend options.
+   * @param {boolean}  [opts.hostExecutionEnabled=false] - Explicit PROCESS opt-in.
    */
   constructor(opts = {}) {
     this.#level = opts.level ?? SandboxLevel.PROCESS;
@@ -122,6 +166,8 @@ export class SandboxExecutor {
     this.#deniedPaths = resolveAllowedPrefixes(opts.deniedPaths ?? [], process.cwd());
     this.#maxOutputBytes = opts.maxOutputBytes ?? 1_048_576;
     this.#platform = opts.platform ?? process.platform;
+    this.#backend = opts.backend ?? (opts.container ? new ContainerSandboxBackend(opts.container) : null);
+    this.#hostExecutionEnabled = opts.hostExecutionEnabled === true;
     this.#history = [];
     this.#maxHistory = 500;
   }
@@ -137,95 +183,163 @@ export class SandboxExecutor {
    * @param {Object} [opts.env]          - Additional environment variables.
    * @param {number} [opts.timeout]      - Override time limit (ms).
    * @param {string} [opts.level]        - Override {@link SandboxLevel}.
-   * @param {string[]} [opts.allowedPaths] - Additional allowed paths for this call.
+   * @param {'ro'|'rw'} [opts.workspaceMode] - Container workspace mount mode.
+   * @param {AbortSignal} [opts.signal] - Cancellation signal.
    * @returns {Promise<import('./helpers.js').SandboxResult>} Execution outcome.
    */
   async execute(command, opts = {}) {
-    const effectiveLevel = resolveEffectiveLevel(opts.level, this.#level, this.#platform);
-    const timeoutMs = opts.timeout ?? this.#maxTimeMs;
     const startTime = Date.now();
+    let effectiveLevel = opts.level ?? this.#level;
+    const fail = (code, message) => failResult(
+      (raw) => this.#buildResult(raw),
+      startTime,
+      effectiveLevel,
+      code,
+      message,
+    );
+
+    try {
+      effectiveLevel = resolveEffectiveLevel(opts.level, this.#level, this.#platform);
+    } catch (error) {
+      return fail(error.code ?? 'SANDBOX_LEVEL_INVALID', error.message);
+    }
+
+    const timeoutMs = Number(opts.timeout ?? this.#maxTimeMs);
+    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+      return fail('SANDBOX_LIMIT_INVALID', 'timeout must be a positive finite number');
+    }
 
     // ── Pre-check ─────────────────────────────────────────────────────
-    const preCheck = preCheckCommand(command, this.#level);
+    const preCheck = preCheckCommand(command, effectiveLevel);
     if (!preCheck.safe) {
-      return this.#buildResult({
-        exitCode: -1,
-        stdout: '',
-        stderr: `Sandbox pre-check failed: ${preCheck.reason}`,
-        duration: Date.now() - startTime,
-        killed: true,
-        killReason: preCheck.reason,
-        sandboxLevel: effectiveLevel,
-        peakMemoryMB: 0,
-      });
+      return fail('SANDBOX_PRECHECK_REJECTED', preCheck.reason);
     }
 
     // ── Filesystem validation ─────────────────────────────────────────
-    if (effectiveLevel === SandboxLevel.FILESYSTEM || effectiveLevel === SandboxLevel.FULL) {
+    const requiresBackend = effectiveLevel === SandboxLevel.FILESYSTEM
+      || effectiveLevel === SandboxLevel.FULL
+      || effectiveLevel === SandboxLevel.WORKTREE;
+    if (requiresBackend) {
       const cwd = opts.cwd ?? process.cwd();
-      const allowedPrefixes = [
-        ...this.#allowedPaths,
-        ...resolveAllowedPrefixes(opts.allowedPaths ?? [], cwd),
-      ];
+      const allowedPrefixes = [...this.#allowedPaths];
 
-      if (allowedPrefixes.length > 0 && !isPathAllowed(cwd, allowedPrefixes)) {
-        return this.#buildResult({
-          exitCode: -1,
-          stdout: '',
-          stderr: `Sandbox: cwd "${cwd}" is outside allowed paths.`,
-          duration: Date.now() - startTime,
-          killed: true,
-          killReason: 'cwd outside allowed paths',
-          sandboxLevel: effectiveLevel,
-          peakMemoryMB: 0,
-        });
+      if (allowedPrefixes.length === 0) {
+        return fail('SANDBOX_WORKSPACE_UNCONFIGURED', 'security levels require constructor-level allowedPaths');
+      }
+      if (!isPathAllowed(cwd, allowedPrefixes)) {
+        return fail('SANDBOX_WORKSPACE_DENIED', `cwd "${cwd}" is outside allowed paths`);
       }
 
       if (this.#deniedPaths.length > 0 && isPathDenied(cwd, this.#deniedPaths)) {
-        return this.#buildResult({
-          exitCode: -1,
-          stdout: '',
-          stderr: `Sandbox: cwd "${cwd}" is inside a denied path.`,
-          duration: Date.now() - startTime,
-          killed: true,
-          killReason: 'cwd inside denied path',
-          sandboxLevel: effectiveLevel,
-          peakMemoryMB: 0,
-        });
+        return fail('SANDBOX_WORKSPACE_DENIED', `cwd "${cwd}" is inside a denied path`);
       }
     }
 
-    // ── Spawn child process ───────────────────────────────────────────
+    // ── Optional worktree collision boundary ─────────────────────────
     let worktreeCleanup = null;
     let effectiveCwd = opts.cwd ?? process.cwd();
 
     if (effectiveLevel === SandboxLevel.WORKTREE) {
       try {
         const { createGitWorktree } = await import("./git-worktree.js");
-        const wt = this.#gitWorktreeManager || createGitWorktree({
-          repoRoot: effectiveCwd,
-          worktreeRoot: ".forge-worktrees",
-        });
-        this.#gitWorktreeManager = wt;
+        const canonicalRepoRoot = await realpath(effectiveCwd);
+        let wt = this.#gitWorktreeManagers.get(canonicalRepoRoot);
+        if (!wt) {
+          wt = createGitWorktree({
+            repoRoot: canonicalRepoRoot,
+            worktreeRoot: ".forge-worktrees",
+          });
+          this.#gitWorktreeManagers.set(canonicalRepoRoot, wt);
+        }
 
         const taskId = opts.taskId || `sandbox-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         const record = await wt.create({ id: taskId, baseBranch: opts.baseBranch });
         effectiveCwd = record.path;
-        worktreeCleanup = async (deleteBranch) => {
-          await wt.remove(taskId, deleteBranch);
+        worktreeCleanup = async () => {
+          await wt.remove(taskId);
         };
       } catch (err) {
-        return this.#buildResult({
+        return fail('SANDBOX_WORKTREE_CREATE_FAILED', err.message);
+      }
+    }
+
+    // ── Security levels: attested backend only, never host fallback ───
+    if (requiresBackend) {
+      let rawResult;
+      let cleanupError = null;
+      let backendRunStarted = false;
+      try {
+        if (!this.#backend || typeof this.#backend.attest !== 'function' || typeof this.#backend.run !== 'function') {
+          throw Object.assign(new Error('an attested container backend is required'), {
+            code: 'SANDBOX_BACKEND_UNAVAILABLE',
+          });
+        }
+        const attestation = await this.#backend.attest();
+        const requiredCapabilities = [
+          'readOnlyRoot', 'nonRootUser', 'noNewPrivileges',
+          'capabilitiesDropped', 'processTreeKill', 'resourceLimits',
+        ];
+        if (requiredCapabilities.some((key) => attestation?.[key] !== true)) {
+          throw Object.assign(new Error('backend attestation is missing mandatory isolation capabilities'), {
+            code: 'SANDBOX_ATTESTATION_FAILED',
+          });
+        }
+        if ((effectiveLevel === SandboxLevel.FULL || effectiveLevel === SandboxLevel.WORKTREE)
+            && attestation.networkIsolation !== true) {
+          throw Object.assign(new Error('network isolation was requested but not attested'), {
+            code: 'SANDBOX_ATTESTATION_FAILED',
+          });
+        }
+
+        backendRunStarted = true;
+        rawResult = await this.#backend.run({
+          command,
+          workspace: effectiveCwd,
+          workspaceMode: opts.workspaceMode ?? (effectiveLevel === SandboxLevel.WORKTREE ? 'rw' : 'ro'),
+          networkAccess: effectiveLevel === SandboxLevel.FILESYSTEM && opts.networkAccess === true,
+          env: opts.env ?? {},
+          timeoutMs,
+          maxMemoryMB: opts.maxMemoryMB ?? this.#maxMemoryMB,
+          maxOutputBytes: this.#maxOutputBytes,
+          pidsLimit: opts.pidsLimit,
+          cpus: opts.cpus,
+          signal: opts.signal,
+        });
+        rawResult.sandboxLevel = effectiveLevel;
+        rawResult.isolation = rawResult.isolation ?? attestation;
+      } catch (error) {
+        rawResult = {
           exitCode: -1,
           stdout: '',
-          stderr: `Sandbox WORKTREE: failed to create worktree — ${err.message}`,
+          stderr: `${error.code ?? 'SANDBOX_BACKEND_ERROR'}: ${error.message}`,
           duration: Date.now() - startTime,
           killed: true,
-          killReason: 'worktree creation failed',
+          killReason: error.code ?? 'SANDBOX_BACKEND_ERROR',
           sandboxLevel: effectiveLevel,
           peakMemoryMB: 0,
-        });
+          backend: this.#backend?.type ?? 'unavailable',
+          cleanupUncertain: backendRunStarted,
+        };
       }
+
+      if (worktreeCleanup && !rawResult.cleanupUncertain) {
+        try { await worktreeCleanup(); } catch (error) { cleanupError = error; }
+      } else if (worktreeCleanup && rawResult.cleanupUncertain) {
+        rawResult.stderr = `${rawResult.stderr ? `${rawResult.stderr}\n` : ''}SANDBOX_WORKTREE_RETAINED: container quiescence was not proven; worktree cleanup was refused.`;
+      }
+      if (cleanupError) {
+        rawResult.exitCode = -1;
+        rawResult.killed = true;
+        rawResult.cleanupUncertain = true;
+        rawResult.killReason = 'worktree cleanup uncertain';
+        rawResult.stderr = `${rawResult.stderr ? `${rawResult.stderr}\n` : ''}SANDBOX_WORKTREE_CLEANUP_FAILED: ${cleanupError.message}`;
+      }
+      return this.#buildResult(rawResult);
+    }
+
+    // ── Explicit host modes ───────────────────────────────────────────
+    if (effectiveLevel === SandboxLevel.PROCESS && !this.#hostExecutionEnabled) {
+      return fail('SANDBOX_HOST_EXECUTION_DISABLED', 'PROCESS mode requires explicit hostExecutionEnabled=true');
     }
 
     return new Promise((resolvePromise) => {
@@ -234,11 +348,9 @@ export class SandboxExecutor {
         ? ['/c', command]
         : ['-c', command];
 
-      const childEnv = { ...process.env, ...(opts.env ?? {}) };
-      const pathKey = Object.keys(childEnv).find(key => key.toLowerCase() === 'path') ?? 'PATH';
-      childEnv[pathKey] = [dirname(process.execPath), childEnv[pathKey]]
-        .filter(Boolean)
-        .join(delimiter);
+      const childEnv = effectiveLevel === SandboxLevel.NONE
+        ? { ...process.env, ...(opts.env ?? {}) }
+        : createMinimalHostEnvironment(opts.env ?? {});
       const cwd = effectiveCwd;
 
       let child;
@@ -249,18 +361,10 @@ export class SandboxExecutor {
           stdio: ['ignore', 'pipe', 'pipe'],
           windowsHide: true,
           windowsVerbatimArguments: this.#platform === 'win32',
+          detached: this.#platform !== 'win32',
         });
       } catch (err) {
-        resolvePromise(this.#buildResult({
-          exitCode: -1,
-          stdout: '',
-          stderr: `Sandbox: failed to spawn process — ${err.message}`,
-          duration: Date.now() - startTime,
-          killed: true,
-          killReason: 'spawn error',
-          sandboxLevel: effectiveLevel,
-          peakMemoryMB: 0,
-        }));
+        resolvePromise(fail('SANDBOX_SPAWN_FAILED', err.message));
         return;
       }
 
@@ -290,79 +394,77 @@ export class SandboxExecutor {
 
       let killed = false;
       let killReason = null;
-      let peakMemoryMB = 0;
+      let settled = false;
+
+      const terminateTree = () => {
+        if (!child.pid) return;
+        if (this.#platform === 'win32') {
+          try {
+            spawn('taskkill.exe', ['/pid', String(child.pid), '/t', '/f'], {
+              env: createMinimalHostEnvironment(),
+              shell: false,
+              windowsHide: true,
+              stdio: 'ignore',
+            });
+          } catch { /* best effort in explicitly unsafe host mode */ }
+          try { child.kill('SIGKILL'); } catch { /* already exited */ }
+        } else {
+          try { process.kill(-child.pid, 'SIGKILL'); } catch {
+            try { child.kill('SIGKILL'); } catch { /* already exited */ }
+          }
+        }
+      };
 
       // ── Time limit ────────────────────────────────────────────────
       const timer = setTimeout(() => {
         killed = true;
         killReason = `timeout (${timeoutMs}ms)`;
-        try { child.kill('SIGKILL'); } catch { /* already exited */ }
+        terminateTree();
       }, timeoutMs);
 
       if (timer.unref) timer.unref();
 
-      // ── Memory polling (PROCESS level and above) ──────────────────
-      let memInterval = null;
-      if (effectiveLevel !== SandboxLevel.NONE) {
-        memInterval = setInterval(() => {
-          if (!child.pid || child.killed) return;
-          try {
-            // Heuristic: rely on OS-level OOM killer for child processes.
-            // Peak memory is recorded at completion instead.
-          } catch {
-            // Ignore polling errors — child may have already exited.
-          }
-        }, 500);
-        if (memInterval.unref) memInterval.unref();
+      const onAbort = () => {
+        killed = true;
+        killReason = 'aborted';
+        terminateTree();
+      };
+      if (opts.signal) {
+        if (opts.signal.aborted) onAbort();
+        else opts.signal.addEventListener('abort', onAbort, { once: true });
       }
 
       // ── Process exit ──────────────────────────────────────────────
-      child.on('close', async (code) => {
+      const finish = (code, processError = null) => {
+        if (settled) return;
+        settled = true;
         clearTimeout(timer);
-        if (memInterval) clearInterval(memInterval);
-
-        if (worktreeCleanup) {
-          try { await worktreeCleanup(false); } catch { /* 忽略清理失败 */ }
-        }
+        opts.signal?.removeEventListener?.('abort', onAbort);
 
         const duration = Date.now() - startTime;
         const stdout = Buffer.concat(stdoutChunks).toString('utf-8');
-        const stderr = Buffer.concat(stderrChunks).toString('utf-8');
+        const capturedStderr = Buffer.concat(stderrChunks).toString('utf-8');
+        const stderr = processError
+          ? `${capturedStderr}${capturedStderr ? '\n' : ''}Sandbox: process error — ${processError.message}`
+          : capturedStderr;
 
         const result = this.#buildResult({
-          exitCode: code ?? -1,
+          exitCode: processError ? -1 : (code ?? -1),
           stdout,
           stderr,
           duration,
-          killed,
-          killReason,
+          killed: killed || Boolean(processError),
+          killReason: processError ? 'process error' : killReason,
           sandboxLevel: effectiveLevel,
-          peakMemoryMB,
+          peakMemoryMB: 0,
+          backend: 'host',
         });
 
         resolvePromise(result);
-      });
+      };
 
-      child.on('error', async (err) => {
-        clearTimeout(timer);
-        if (memInterval) clearInterval(memInterval);
-
-        if (worktreeCleanup) {
-          try { await worktreeCleanup(false); } catch { /* 忽略清理失败 */ }
-        }
-
-        const duration = Date.now() - startTime;
-        resolvePromise(this.#buildResult({
-          exitCode: -1,
-          stdout: '',
-          stderr: `Sandbox: process error — ${err.message}`,
-          duration,
-          killed: true,
-          killReason: 'process error',
-          sandboxLevel: effectiveLevel,
-          peakMemoryMB: 0,
-        }));
-      });
+      child.on('close', (code) => finish(code));
+      child.on('error', (err) => finish(-1, err));
     });
   }
 
@@ -413,12 +515,15 @@ export class SandboxExecutor {
   }
 
   /**
-   * Get the maximum sandbox level supported by the current platform.
+   * Get the maximum configured level. This reports configuration only; every
+   * security-level execution still requires a fresh backend attestation.
    *
    * @returns {string} A {@link SandboxLevel} value.
    */
   getMaxSupportedLevel() {
-    return getMaxLevelForPlatform(this.#platform);
+    if (this.#backend) return SandboxLevel.FULL;
+    if (this.#hostExecutionEnabled) return SandboxLevel.PROCESS;
+    return SandboxLevel.NONE;
   }
 
   /**
@@ -434,6 +539,10 @@ export class SandboxExecutor {
       maxMemory: this.#maxMemoryMB,
       executions: this.#history.length,
       profiles: this.#allowedPaths.length,
+      backend: this.#backend?.type ?? null,
+      hostExecutionEnabled: this.#hostExecutionEnabled,
+      failClosed: true,
+      maxSupportedLevel: this.getMaxSupportedLevel(),
     };
   }
 

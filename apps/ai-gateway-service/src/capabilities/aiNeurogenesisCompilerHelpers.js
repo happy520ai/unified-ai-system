@@ -6,17 +6,21 @@
 // module stay under the 500-line anti-entropy limit.
 // =============================================================================
 
-import http from "node:http";
+import {
+  callLocalGatewayAI,
+  DEFAULT_INTERNAL_GATEWAY_TIMEOUT_MS,
+  DEFAULT_INTERNAL_GATEWAY_URL,
+} from "./localGatewayChatClient.ts";
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
 /** 网关 AI 端点地址 */
-export const GATEWAY_AI_ENDPOINT = "http://127.0.0.1:5191/chat/auto";
+export const GATEWAY_AI_ENDPOINT = `${DEFAULT_INTERNAL_GATEWAY_URL}/chat/auto`;
 
 /** AI 调用超时时间（毫秒） */
-export const AI_CALL_TIMEOUT_MS = 30_000;
+export const AI_CALL_TIMEOUT_MS = DEFAULT_INTERNAL_GATEWAY_TIMEOUT_MS;
 
 /** 编译器版本标识 */
 export const COMPILER_VERSION = "ai-neurogenesis-compiler-v2";
@@ -93,74 +97,8 @@ ${intakeText}
  * @param {string} [mode="standard"] - 运行模式
  * @returns {Promise<{success: boolean, content?: string, error?: string}>}
  */
-export function callGatewayAI(message, mode = "standard") {
-  return new Promise((resolve) => {
-    const requestBody = JSON.stringify({ message, mode });
-
-    const reqOptions = {
-      hostname: "127.0.0.1",
-      port: 5191,
-      path: "/chat/auto",
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Content-Length": Buffer.byteLength(requestBody),
-      },
-      timeout: AI_CALL_TIMEOUT_MS,
-    };
-
-    const req = http.request(reqOptions, (res) => {
-      let data = "";
-      res.on("data", (chunk) => {
-        data += chunk;
-      });
-      res.on("end", () => {
-        try {
-          const parsed = JSON.parse(data);
-          if (parsed.success !== false && (parsed.content || parsed.text || parsed.choices)) {
-            // 提取 AI 返回的文本内容
-            const content =
-              parsed.content ||
-              parsed.text ||
-              parsed.choices?.[0]?.message?.content ||
-              parsed.choices?.[0]?.text ||
-              "";
-            resolve({ success: true, content });
-          } else {
-            resolve({
-              success: false,
-              error: parsed.error || "AI 返回了空响应",
-            });
-          }
-        } catch (parseErr) {
-          resolve({
-            success: false,
-            error: `解析 AI 响应失败: ${parseErr.message}`,
-          });
-        }
-      });
-    });
-
-    // 超时处理
-    req.on("timeout", () => {
-      req.destroy();
-      resolve({
-        success: false,
-        error: `AI 调用超时（${AI_CALL_TIMEOUT_MS / 1000}秒）`,
-      });
-    });
-
-    // 错误处理
-    req.on("error", (err) => {
-      resolve({
-        success: false,
-        error: `AI 调用失败: ${err.message}`,
-      });
-    });
-
-    req.write(requestBody);
-    req.end();
-  });
+export function callGatewayAI(message, mode = "standard", options = {}) {
+  return callLocalGatewayAI(message, mode, options);
 }
 
 /**

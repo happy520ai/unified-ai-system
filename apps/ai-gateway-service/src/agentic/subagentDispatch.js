@@ -327,6 +327,7 @@ Use this when you have 2+ independent tasks that can run in parallel, such as:
       ),
       requiredPermissions: ["agent:dispatch"],
       isReadOnly: true,
+      readOnlyAttested: true,
 
       async execute(params) {
         const { tasks } = params;

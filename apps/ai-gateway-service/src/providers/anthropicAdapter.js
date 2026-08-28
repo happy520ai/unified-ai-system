@@ -123,18 +123,40 @@ export function mapToAnthropicRequest(request, modelId) {
     .filter(Boolean)
     .join("\n\n");
 
+  // prompt caching:message-level breakpoints re-attached to the final block
+  // of each flagged message (and to the system block when flagged).
+  const cacheControl = request.options?.anthropicCacheControl ?? null;
+  const breakpointIndexes = new Set(
+    Array.isArray(cacheControl?.messageIndexes) ? cacheControl.messageIndexes : [],
+  );
+
   // Map conversation messages to Anthropic format
-  const anthropicMessages = nonSystemMessages.map((m) => ({
-    role: m.role === "assistant" ? "assistant" : "user",
-    content: mapToAnthropicContent(m.content),
-  }));
+  const anthropicMessages = nonSystemMessages.map((m, index) => {
+    const content = mapToAnthropicContent(m.content);
+    if (!breakpointIndexes.has(index)) {
+      return { role: m.role === "assistant" ? "assistant" : "user", content };
+    }
+    const blocks = typeof content === "string"
+      ? [{ type: "text", text: content }]
+      : [...content];
+    if (blocks.length > 0) {
+      blocks[blocks.length - 1] = {
+        ...blocks[blocks.length - 1],
+        cache_control: { type: "ephemeral" },
+      };
+    }
+    return { role: m.role === "assistant" ? "assistant" : "user", content: blocks };
+  });
 
   const options = request.options ?? {};
+  const systemPayload = cacheControl?.systemBreakpoint === true && system
+    ? [{ type: "text", text: system, cache_control: { type: "ephemeral" } }]
+    : system;
 
   return {
     model: modelId,
     max_tokens: options.maxOutputTokens ?? options.max_tokens ?? DEFAULT_MAX_TOKENS,
-    ...(system ? { system } : {}),
+    ...(system ? { system: systemPayload } : {}),
     messages: anthropicMessages,
     ...(options.temperature != null ? { temperature: options.temperature } : {}),
     ...(options.topP != null ? { top_p: options.topP } : {}),
@@ -184,6 +206,9 @@ function mapFromAnthropicResponse(anthropicResponse, latencyMs, target) {
       inputTokens: usage.input_tokens ?? 0,
       outputTokens: usage.output_tokens ?? 0,
       totalTokens: (usage.input_tokens ?? 0) + (usage.output_tokens ?? 0),
+      // prompt caching 计量:缓存命中读与首次写入的 token 数。
+      cacheReadInputTokens: usage.cache_read_input_tokens ?? 0,
+      cacheCreationInputTokens: usage.cache_creation_input_tokens ?? 0,
     },
     latencyMs,
     executionStatus: "success",
@@ -251,6 +276,8 @@ async function* streamAnthropicApi({ baseUrl, apiKey, anthropicVersion, body, ti
   signal?.addEventListener("abort", onExternalAbort, { once: true });
 
   let inputTokens = 0;
+  let cacheReadInputTokens = 0;
+  let cacheCreationInputTokens = 0;
   let outputTokens = 0;
   let finishReason;
 
@@ -298,6 +325,8 @@ async function* streamAnthropicApi({ baseUrl, apiKey, anthropicVersion, body, ti
 
         if (event.type === "message_start") {
           inputTokens = Number(event.data?.message?.usage?.input_tokens ?? inputTokens);
+          cacheReadInputTokens = Number(event.data?.message?.usage?.cache_read_input_tokens ?? cacheReadInputTokens);
+          cacheCreationInputTokens = Number(event.data?.message?.usage?.cache_creation_input_tokens ?? cacheCreationInputTokens);
           continue;
         }
         if (event.type === "content_block_delta" && event.data?.delta?.type === "text_delta") {
@@ -311,6 +340,8 @@ async function* streamAnthropicApi({ baseUrl, apiKey, anthropicVersion, body, ti
           const stopReason = event.data?.delta?.stop_reason;
           if (stopReason) finishReason = mapStopReason(stopReason);
           outputTokens = Number(event.data?.usage?.output_tokens ?? outputTokens);
+          cacheReadInputTokens = Number(event.data?.usage?.cache_read_input_tokens ?? cacheReadInputTokens);
+          cacheCreationInputTokens = Number(event.data?.usage?.cache_creation_input_tokens ?? cacheCreationInputTokens);
           continue;
         }
         if (event.type === "message_stop") {
@@ -323,6 +354,8 @@ async function* streamAnthropicApi({ baseUrl, apiKey, anthropicVersion, body, ti
                 inputTokens,
                 outputTokens,
                 totalTokens: inputTokens + outputTokens,
+                cacheReadInputTokens,
+                cacheCreationInputTokens,
               },
             },
           };
@@ -348,7 +381,13 @@ async function* streamAnthropicApi({ baseUrl, apiKey, anthropicVersion, body, ti
       raw: {
         anthropic: true,
         ...(finishReason ? { finishReason } : {}),
-        usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens },
+        usage: {
+          inputTokens,
+          outputTokens,
+          totalTokens: inputTokens + outputTokens,
+          cacheReadInputTokens,
+          cacheCreationInputTokens,
+        },
       },
     };
   } catch (error) {

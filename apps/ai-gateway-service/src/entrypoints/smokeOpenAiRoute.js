@@ -1,4 +1,5 @@
 import { mkdir, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
@@ -129,6 +130,7 @@ async function runRouteCheck({ name, env, expected }) {
       method: "POST",
       headers: {
         "content-type": "application/json",
+        "idempotency-key": `gateway-smoke-${randomUUID()}`,
         ...(authToken
           ? {
             "x-pme-auth-token": authToken,
@@ -171,6 +173,7 @@ async function runRouteCheck({ name, env, expected }) {
     };
   } finally {
     await new Promise((resolve) => server.close(resolve));
+    await server.shutdownResources?.();
   }
 }
 

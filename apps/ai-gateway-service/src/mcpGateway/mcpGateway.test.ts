@@ -1,10 +1,16 @@
-import { describe, expect, it, vi } from "vitest";
+import { createHash } from "node:crypto";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createMcpGatewayService,
   type McpGovernedServerConfig,
 } from "./mcpGatewayService.ts";
 import { createHttpMcpUpstream } from "./mcpUpstreamClient.ts";
 import { createOpenApiRestBridge, operationToMcpTool, parseOpenApiOperations } from "./openApiRestBridge.ts";
+import { createExternalEffectGate } from "../external-effects/externalEffectGate.ts";
 
 vi.mock("../security/outboundUrlPolicy.ts", () => ({
   resolveSafeOutboundUrl: vi.fn(async (url: unknown) => ({ url: String(url), lookup: undefined })),
@@ -14,6 +20,18 @@ vi.mock("../http/connectionPool.js", () => ({
 }));
 
 const TENANT = { tenantId: "tenant-a", role: "operator" };
+const temporaryDirectories: string[] = [];
+type HttpGovernedConfig = Extract<McpGovernedServerConfig, { transport: "http" }>;
+
+afterEach(() => {
+  for (const directory of temporaryDirectories.splice(0)) {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+function digest(value: string) {
+  return createHash("sha256").update(value).digest("hex");
+}
 
 function createFakeClient(tools: Array<{ name: string }>, calls: Array<{ name: string; arguments?: Record<string, unknown> }> = []) {
   return {
@@ -28,8 +46,16 @@ function createFakeClient(tools: Array<{ name: string }>, calls: Array<{ name: s
   };
 }
 
-function httpConfig(overrides: Partial<McpGovernedServerConfig> = {}): McpGovernedServerConfig {
-  return { transport: "http", id: "weather", url: "https://mcp.example.com/mcp", ...overrides };
+function httpConfig(overrides: Partial<HttpGovernedConfig> = {}): HttpGovernedConfig {
+  return {
+    transport: "http",
+    id: "weather",
+    url: "https://mcp.example.com/mcp",
+    allowedTools: ["get_forecast"],
+    readOnlyTools: ["get_forecast"],
+    allowedTenants: ["tenant-a"],
+    ...overrides,
+  };
 }
 
 describe("mcp gateway registry", () => {
@@ -51,13 +77,23 @@ describe("mcp gateway registry", () => {
     const service = createMcpGatewayService({
       env: {
         MCP_UPSTREAM_SERVERS_JSON: JSON.stringify([
-          { id: "weather", transport: "http", url: "https://mcp.example.com/mcp" },
+          {
+            id: "weather",
+            transport: "http",
+            url: "https://mcp.example.com/mcp",
+            allowedTools: ["get_forecast"],
+            readOnlyTools: ["get_forecast"],
+          },
           { id: "local", transport: "stdio", command: "node", args: ["server.js"] },
         ]),
       },
     });
     expect(service.getReadiness().status).toBe("ready");
     expect(service.getReadiness().upstreamCount).toBe(2);
+    expect(service.getReadiness().upstreams[0]).toMatchObject({
+      toolPolicy: "explicit-allowlist",
+      readOnlyPolicy: "explicit-allowlist",
+    });
   });
 });
 
@@ -70,6 +106,7 @@ describe("mcp gateway governance", () => {
 
     const result = await service.listTools(TENANT);
     expect(result.tools.map((tool) => tool.namespacedName)).toEqual(["weather__get_forecast"]);
+    expect(result.tools[0]).toMatchObject({ readOnly: true, externalEffectRequired: false });
     expect(result.servers).toEqual([{ id: "weather" }]);
 
     // Second listing served from cache: upstream asked once.
@@ -82,6 +119,44 @@ describe("mcp gateway governance", () => {
     await expect(service.listTools({})).rejects.toMatchObject({ code: "MCP_TENANT_CONTEXT_REQUIRED" });
     await expect(service.callTool(null, { server: "weather", tool: "get_forecast" }))
       .rejects.toMatchObject({ code: "MCP_TENANT_CONTEXT_REQUIRED" });
+  });
+
+  it("rejects malformed call targets and non-object arguments", async () => {
+    const client = createFakeClient([{ name: "get_forecast" }]);
+    const service = createMcpGatewayService({
+      upstreams: [{ config: httpConfig(), client }],
+    });
+    await expect(service.callTool(TENANT, {
+      server: "weather",
+      tool: "bad\u0000tool",
+    })).rejects.toMatchObject({ code: "MCP_CALL_TARGET_INVALID", statusCode: 400 });
+    await expect(service.callTool(TENANT, {
+      server: "weather",
+      tool: "get_forecast",
+      arguments: [] as never,
+    })).rejects.toMatchObject({ code: "MCP_ARGUMENTS_INVALID", statusCode: 400 });
+    expect(client.callTool).not.toHaveBeenCalled();
+  });
+
+  it("denies tools by default and isolates upstreams by tenant and role", async () => {
+    const client = createFakeClient([{ name: "get_forecast" }]);
+    const service = createMcpGatewayService({
+      upstreams: [{
+        config: httpConfig({ allowedTools: undefined, allowedRoles: ["operator"] }),
+        client,
+      }],
+    });
+    expect((await service.listTools(TENANT)).tools).toEqual([]);
+    await expect(service.callTool(TENANT, { server: "weather", tool: "get_forecast" }))
+      .rejects.toMatchObject({ code: "MCP_TOOL_NOT_ALLOWED" });
+    await expect(service.callTool(
+      { tenantId: "tenant-b", role: "operator" },
+      { server: "weather", tool: "get_forecast" },
+    )).rejects.toMatchObject({ code: "MCP_UPSTREAM_NOT_ALLOWED" });
+    await expect(service.callTool(
+      { tenantId: "tenant-a", role: "viewer" },
+      { server: "weather", tool: "get_forecast" },
+    )).rejects.toMatchObject({ code: "MCP_UPSTREAM_NOT_ALLOWED" });
   });
 
   it("enforces the tool allowlist on calls and audits allowed calls", async () => {
@@ -102,11 +177,22 @@ describe("mcp gateway governance", () => {
       code: "mcp_tool_called",
       details: expect.objectContaining({ serverId: "weather", toolName: "get_forecast", tenantId: "tenant-a" }),
     }));
+    expect(JSON.stringify(audit.mock.calls)).not.toContain("Oslo");
 
     await expect(service.callTool(TENANT, { server: "weather", tool: "internal_admin" }))
       .rejects.toMatchObject({ code: "MCP_TOOL_NOT_ALLOWED" });
     await expect(service.callTool(TENANT, { server: "nope", tool: "get_forecast" }))
       .rejects.toMatchObject({ code: "MCP_UPSTREAM_UNKNOWN" });
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({
+      outcome: "denied",
+      code: "MCP_TOOL_NOT_ALLOWED",
+      statusCode: 403,
+    }));
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({
+      outcome: "denied",
+      code: "MCP_UPSTREAM_UNKNOWN",
+      statusCode: 400,
+    }));
   });
 
   it("caps argument and result sizes", async () => {
@@ -126,6 +212,102 @@ describe("mcp gateway governance", () => {
 
     await expect(service.callTool(TENANT, { server: "weather", tool: "get_forecast" }))
       .rejects.toMatchObject({ code: "MCP_RESULT_TOO_LARGE" });
+  });
+
+  it("fences every allowed tool not explicitly attested read-only", async () => {
+    const unguardedClient = createFakeClient([{ name: "create_alert" }]);
+    const mutationConfig = httpConfig({
+      allowedTools: ["create_alert"],
+      readOnlyTools: undefined,
+    });
+    const unguarded = createMcpGatewayService({
+      upstreams: [{ config: mutationConfig, client: unguardedClient }],
+    });
+    expect(unguarded.getReadiness()).toMatchObject({
+      upstreams: [{ mutationPolicy: "fail-closed-gate-unavailable" }],
+      externalEffectGate: { enabled: false, mode: "unavailable" },
+    });
+    await expect(unguarded.callTool(TENANT, {
+      server: "weather",
+      tool: "create_alert",
+      arguments: { severity: "high" },
+      externalEffect: { effectKeyHash: digest("mcp-call-1") },
+    })).rejects.toMatchObject({ code: "MCP_EXTERNAL_EFFECT_GATE_REQUIRED", statusCode: 503 });
+    expect(unguardedClient.callTool).not.toHaveBeenCalled();
+
+    const root = mkdtempSync(join(tmpdir(), "mcp-external-effect-"));
+    temporaryDirectories.push(root);
+    const gate = createExternalEffectGate({
+      enabled: true,
+      env: {
+        AI_GATEWAY_EXTERNAL_EFFECT_STORE_MODE: "sqlite",
+        AI_GATEWAY_EXTERNAL_EFFECT_SQLITE_PATH: join(root, "effects.sqlite"),
+        AI_GATEWAY_EXTERNAL_EFFECT_HMAC_SECRET: "mcp-external-effect-test-secret".padEnd(64, "x"),
+        AI_GATEWAY_EXTERNAL_EFFECT_TTL_MS: "60000",
+      },
+    });
+    const client = createFakeClient([{ name: "create_alert" }]);
+    const audit = vi.fn();
+    const service = createMcpGatewayService({
+      upstreams: [{ config: mutationConfig, client }],
+      externalEffectGate: gate,
+      recordAudit: audit,
+    });
+
+    try {
+      expect(service.getReadiness()).toMatchObject({
+        upstreams: [{ mutationPolicy: "durable-external-effect-gate" }],
+        externalEffectGate: { enabled: true, mode: "sqlite" },
+      });
+      const tools = await service.listTools(TENANT);
+      expect(tools.tools[0]).toMatchObject({ readOnly: false, externalEffectRequired: true });
+      await expect(service.callTool(TENANT, {
+        server: "weather",
+        tool: "create_alert",
+        arguments: { severity: "high" },
+      })).rejects.toMatchObject({ code: "EXTERNAL_EFFECT_KEY_REQUIRED", statusCode: 400 });
+      expect(audit).toHaveBeenCalledWith(expect.objectContaining({
+        outcome: "denied",
+        code: "EXTERNAL_EFFECT_KEY_REQUIRED",
+        statusCode: 400,
+      }));
+      await expect(service.callTool(TENANT, {
+        server: "weather",
+        tool: "create_alert",
+        arguments: { severity: "high" },
+        externalEffect: { effectKeyInvalid: true },
+      })).rejects.toMatchObject({ code: "EXTERNAL_EFFECT_KEY_INVALID", statusCode: 400 });
+      expect(client.callTool).not.toHaveBeenCalled();
+
+      const first = await service.callTool(TENANT, {
+        server: "weather",
+        tool: "create_alert",
+        arguments: { severity: "high" },
+        externalEffect: { effectKeyHash: digest("mcp-call-1") },
+      });
+      expect(first.externalEffect).toMatchObject({
+        required: true,
+        reservationFingerprint: expect.stringMatching(/^[a-f0-9]{16}$/u),
+      });
+      expect(client.callTool).toHaveBeenCalledOnce();
+
+      await expect(service.callTool(TENANT, {
+        server: "weather",
+        tool: "create_alert",
+        arguments: { severity: "high" },
+        externalEffect: { effectKeyHash: digest("mcp-call-1") },
+      })).rejects.toMatchObject({ code: "EXTERNAL_EFFECT_ALREADY_RESERVED", statusCode: 409 });
+      await expect(service.callTool(TENANT, {
+        server: "weather",
+        tool: "create_alert",
+        arguments: { severity: "critical" },
+        externalEffect: { effectKeyHash: digest("mcp-call-1") },
+      })).rejects.toMatchObject({ code: "EXTERNAL_EFFECT_KEY_REUSED", statusCode: 409 });
+      expect(client.callTool).toHaveBeenCalledOnce();
+      expect(JSON.stringify(audit.mock.calls)).not.toContain("critical");
+    } finally {
+      await gate.close();
+    }
   });
 });
 
@@ -229,6 +411,22 @@ describe("openapi rest bridge", () => {
     expect(calls[1].init.body).toBe(JSON.stringify({ name: "Rex" }));
   });
 
+  it("rejects oversized REST bridge responses instead of truncating them", async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      headers: {},
+      text: async () => "x".repeat(1_000_001),
+    }));
+    const bridge = createOpenApiRestBridge({
+      id: "pets",
+      baseUrl: "https://api.example.com",
+      spec: openApiSpec,
+    }, { fetchImpl: fetchImpl as never });
+    await expect(bridge.callTool("getPet", { petId: "42" }))
+      .rejects.toMatchObject({ code: "OPENAPI_RESPONSE_TOO_LARGE" });
+  });
+
   it("registers openapi upstreams through the governed registry", async () => {
     const fetchImpl = vi.fn(async () => ({ ok: true, status: 200, headers: {}, text: async () => '{"name":"Rex"}' }));
     const service = createMcpGatewayService({
@@ -237,12 +435,13 @@ describe("openapi rest bridge", () => {
           id: "pets",
           transport: "openapi",
           baseUrl: "https://api.example.com",
-          spec: openApiSpec,
-          allowedTools: ["getPet"],
+           spec: openApiSpec,
+           allowedTools: ["getPet"],
+           readOnlyTools: ["getPet"],
         }]),
       },
       upstreams: [{
-        config: { transport: "openapi" as never, id: "pets", baseUrl: "https://api.example.com", spec: openApiSpec, allowedTools: ["getPet"] },
+        config: { transport: "openapi" as never, id: "pets", baseUrl: "https://api.example.com", spec: openApiSpec, allowedTools: ["getPet"], readOnlyTools: ["getPet"], allowedTenants: ["tenant-a"] },
         client: createOpenApiRestBridge({ id: "pets", baseUrl: "https://api.example.com", spec: openApiSpec }, { fetchImpl: fetchImpl as never }),
       }],
     });
@@ -258,7 +457,7 @@ describe("openapi rest bridge", () => {
     // 直接走服务 ACL 与审计路径验证一次真实调用。
     const governed = createMcpGatewayService({
       upstreams: [{
-        config: { transport: "openapi" as never, id: "pets", baseUrl: "https://api.example.com", spec: openApiSpec, allowedTools: ["getPet"] },
+        config: { transport: "openapi" as never, id: "pets", baseUrl: "https://api.example.com", spec: openApiSpec, allowedTools: ["getPet"], readOnlyTools: ["getPet"], allowedTenants: ["tenant-a"] },
         client: createOpenApiRestBridge({ id: "pets", baseUrl: "https://api.example.com", spec: openApiSpec }, { fetchImpl: fetchImpl as never }),
       }],
       recordAudit: audit,

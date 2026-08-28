@@ -71,4 +71,34 @@ describe("ProviderHealthScorer", () => {
     // Fresh and mostly successful — score in healthy range
     assert.ok(score >= 50, `Expected score >= 50, got ${score}`);
   });
+
+  it("should expose a bounded observation snapshot for trusted routing facts", () => {
+    const scorer = createProviderHealthScorer();
+    assert.deepEqual(scorer.getSnapshot("unknown"), {
+      sampleCount: 0,
+      successRate: null,
+      p50LatencyMs: null,
+    });
+    scorer.recordSuccess("p1", 100);
+    scorer.recordFailure("p1", "timeout");
+    scorer.recordSuccess("p1", 300);
+    assert.deepEqual(scorer.getSnapshot("p1"), {
+      sampleCount: 3,
+      successRate: 2 / 3,
+      p50LatencyMs: 300,
+    });
+    assert.equal(Object.isFrozen(scorer.getSnapshot("p1")), true);
+  });
+
+  it("should rank only the latest shared 100-event window instead of retaining stale successes", () => {
+    const scorer = createProviderHealthScorer();
+    for (let i = 0; i < 100; i++) scorer.recordSuccess("p1", 100);
+    for (let i = 0; i < 100; i++) scorer.recordFailure("p1", "outage");
+    assert.deepEqual(scorer.getSnapshot("p1"), {
+      sampleCount: 100,
+      successRate: 0,
+      p50LatencyMs: null,
+    });
+    assert.ok(scorer.getScore("p1") <= 20);
+  });
 });

@@ -3,6 +3,14 @@ import { describe, expect, it } from "vitest";
 import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
 import { createOpenTelemetryRuntime } from "./openTelemetry.js";
 
+interface TestResponse extends EventEmitter {
+  headers: Record<string, string>;
+  statusCode: number;
+  headersSent: boolean;
+  writableEnded: boolean;
+  setHeader(name: string, value: unknown): void;
+}
+
 describe("OpenTelemetry runtime", () => {
   it("propagates strict W3C context and emits privacy-safe HTTP and GenAI spans", async () => {
     const exporter = new InMemorySpanExporter();
@@ -29,7 +37,7 @@ describe("OpenTelemetry runtime", () => {
       url: new URL("http://127.0.0.1:3100/v1/chat/completions"),
     });
     const service = runtime.instrumentGatewayService({
-      async execute(input) {
+      async execute(input: any) {
         expect(input.messages[0].content).toBe("private prompt must not be exported");
         return {
           success: true,
@@ -61,6 +69,7 @@ describe("OpenTelemetry runtime", () => {
     const httpSpan = spans.find((span) => span.kind === 1);
     const genAiSpan = spans.find((span) => span.attributes["gen_ai.operation.name"] === "chat");
     expect(spans).toHaveLength(2);
+    if (!httpSpan || !genAiSpan) throw new Error("Expected HTTP and GenAI spans.");
     expect(httpSpan.spanContext().traceId).toBe("4bf92f3577b34da6a3ce929d0e0e4736");
     expect(httpSpan.parentSpanContext?.spanId).toBe("00f067aa0ba902b7");
     expect(genAiSpan.parentSpanContext?.spanId).toBe(httpSpan.spanContext().spanId);
@@ -125,13 +134,13 @@ describe("OpenTelemetry runtime", () => {
   });
 });
 
-function createResponse() {
-  const response = new EventEmitter();
+function createResponse(): TestResponse {
+  const response = new EventEmitter() as TestResponse;
   response.headers = {};
   response.statusCode = 0;
   response.headersSent = false;
   response.writableEnded = false;
-  response.setHeader = (name, value) => {
+  response.setHeader = (name: string, value: unknown) => {
     response.headers[String(name).toLowerCase()] = String(value);
   };
   return response;

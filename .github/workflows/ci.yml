@@ -67,8 +67,10 @@ jobs:
 
       - name: Fetch PR base for language policy check
         if: github.event_name == 'pull_request'
+        env:
+          PR_BASE_REF: ${{ github.base_ref }}
         run: |
-          git fetch --no-tags --depth=1 origin +refs/heads/${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}
+          git fetch --no-tags --depth=1 origin "+refs/heads/${PR_BASE_REF}:refs/remotes/origin/${PR_BASE_REF}"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -85,15 +87,66 @@ jobs:
           node ./tools/language-policy-expiry-report.mjs --json --warn-within-days 30 2>&1 | tee .tmp/language-policy-expiry.json
 
       - name: Restore quality trend history cache
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .tmp/quality-trend.json
           key: quality-trend-${{ github.ref_name }}-${{ runner.os }}-v1
           restore-keys: |
             quality-trend-${{ github.ref_name }}-${{ runner.os }}-
 
+      # Keep fixed-arrival evidence ahead of CPU-heavy suites and runtime smokes.
+      # This changes isolation/order only; benchmark thresholds remain unchanged.
+      - name: Gateway open-loop soak and backpressure benchmark
+        run: |
+          set -o pipefail
+          pnpm benchmark:gateway:soak -- --json --output .tmp/gateway-soak-benchmark.json | tee .tmp/gateway-soak-benchmark.log
+
+      - name: Gateway SLO and fault-isolation benchmark
+        run: |
+          set -o pipefail
+          pnpm benchmark:gateway:slo -- --json --output .tmp/gateway-slo-benchmark.json | tee .tmp/gateway-slo-benchmark.log
+
+      - name: Gateway resource stability soak
+        run: |
+          set -o pipefail
+          pnpm benchmark:gateway:resource-soak -- --json --output .tmp/gateway-resource-soak.json | tee .tmp/gateway-resource-soak.log
+
+      - name: Configure browser for Prompt Lab smoke test
+        id: prompt-lab-browser
+        shell: bash
+        run: |
+          set -euo pipefail
+          for candidate in google-chrome-stable google-chrome chromium-browser chromium; do
+            if command -v "$candidate" >/dev/null 2>&1; then
+              browser_path="$(command -v "$candidate")"
+              echo "PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=$browser_path" >> "$GITHUB_ENV"
+              echo "download_required=false" >> "$GITHUB_OUTPUT"
+              echo "Using preinstalled browser: $browser_path"
+              exit 0
+            fi
+          done
+          echo "download_required=true" >> "$GITHUB_OUTPUT"
+          echo "No preinstalled Chromium browser found; bounded Playwright download required."
+
       - name: Install browser for Prompt Lab smoke test
-        run: pnpm --filter @unified-ai-system/web-agent exec playwright install --with-deps chromium
+        if: steps.prompt-lab-browser.outputs.download_required == 'true'
+        timeout-minutes: 8
+        shell: bash
+        env:
+          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: "120000"
+        run: |
+          set -euo pipefail
+          for attempt in 1 2; do
+            if timeout --signal=TERM 210s pnpm --filter @unified-ai-system/web-agent exec playwright install --with-deps chromium; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 2 ]; then
+              echo "Browser installation attempt $attempt failed; retrying."
+              sleep 10
+            fi
+          done
+          echo "Browser installation failed after bounded retries." >&2
+          exit 1
 
       - name: Workspace checks
         run: pnpm check
@@ -107,9 +160,23 @@ jobs:
         run: >-
           pnpm exec vitest run
           apps/ai-gateway-service/src/http/idempotencyCoordinator.postgres.integration.test.ts
+          apps/ai-gateway-service/src/providers/providerDispatchGate.postgres.integration.test.ts
+          apps/ai-gateway-service/src/external-effects/externalEffectGate.postgres.integration.test.ts
           apps/ai-gateway-service/src/http/rateLimiter.postgres.integration.test.ts
           apps/ai-gateway-service/src/http/postgresWebSocketConnectionLeaseManager.postgres.integration.test.ts
           apps/ai-gateway-service/src/http/postgresWebSocketExecutionLeaseManager.postgres.integration.test.ts
+          apps/ai-gateway-service/src/http/a2aTaskStore.postgres.integration.test.ts
+          apps/ai-gateway-service/src/workforce/postgresTaskClaimLease.postgres.integration.test.ts
+          apps/ai-gateway-service/src/workforce/postgresWorkforceTaskQueue.postgres.integration.test.ts
+          apps/ai-gateway-service/src/workforce/postgresWorkforceExecutionControl.postgres.integration.test.ts
+          apps/ai-gateway-service/src/logging/postgresUsageLedger.postgres.integration.test.ts
+          apps/ai-gateway-service/src/enterprise/postgresAuditStore.postgres.integration.test.ts
+
+      - name: PostgreSQL logical backup and restart recovery drill
+        run: |
+          set -o pipefail
+          pnpm drill:postgres-recovery -- --json --output .tmp/postgres-recovery-drill.json | tee .tmp/postgres-recovery-drill.log
+          node tools/verify-postgres-recovery-drill.mjs .tmp/postgres-recovery-drill.json
 
       - name: Public repository hygiene
         run: pnpm check:public
@@ -122,21 +189,6 @@ jobs:
         run: |
           set -o pipefail
           pnpm verify:public-clone 2>&1 | tee .tmp/public-clone-verify.log
-
-      - name: Gateway SLO and fault-isolation benchmark
-        run: |
-          set -o pipefail
-          pnpm benchmark:gateway:slo -- --json --output .tmp/gateway-slo-benchmark.json | tee .tmp/gateway-slo-benchmark.log
-
-      - name: Gateway open-loop soak and backpressure benchmark
-        run: |
-          set -o pipefail
-          pnpm benchmark:gateway:soak -- --json --output .tmp/gateway-soak-benchmark.json | tee .tmp/gateway-soak-benchmark.log
-
-      - name: Gateway resource stability soak
-        run: |
-          set -o pipefail
-          pnpm benchmark:gateway:resource-soak -- --json --output .tmp/gateway-resource-soak.json | tee .tmp/gateway-resource-soak.log
 
       - name: Run quality trend smoke health check
         run: |
@@ -446,8 +498,14 @@ jobs:
             cat .tmp/gateway-resource-soak.json >> "$GITHUB_STEP_SUMMARY"
           fi
 
+          if [ -f .tmp/postgres-recovery-drill.json ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## PostgreSQL logical recovery drill" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/postgres-recovery-drill.json >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload quality scorecard artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: quality-scorecard
@@ -478,6 +536,8 @@ jobs:
             .tmp/gateway-soak-benchmark.log
             .tmp/gateway-resource-soak.json
             .tmp/gateway-resource-soak.log
+            .tmp/postgres-recovery-drill.json
+            .tmp/postgres-recovery-drill.log
             .tmp/language-policy-check.json
             .tmp/language-policy-expiry.json
           retention-days: 30
@@ -502,4 +562,3 @@ jobs:
           dotnet restore docs/examples/prompt-enhancement.csproj
           dotnet build docs/examples/prompt-enhancement.csproj --no-restore --nologo
           dotnet run --project docs/examples/prompt-enhancement.csproj --no-build -- --help
-

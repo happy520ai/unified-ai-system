@@ -198,6 +198,7 @@ export function handleWebSocketUpgrade(req, socket, head, wsClients, wsMsgHandle
  */
 export async function handleAPI(ctx, path, req, res, user) {
   const { forge, userMgr, agentPool, knowledge, transfer, gateway, config, envelope, jsonFn, readBodyFn, broadcastFn, listKnowledgeFn } = ctx;
+  const authenticatedUserId = user?.userId ?? user?.id;
 
   // Goals
   if (path === '/api/goals' && req.method === 'GET') {
@@ -219,7 +220,7 @@ export async function handleAPI(ctx, path, req, res, user) {
 
     // Use pool-based execution if available, otherwise fall back to single-goal Orchestrator
     const executionFn = forge.submitGoal
-      ? () => forge.submitGoal(goal, { ...(options || {}), userId: user?.id })
+      ? () => forge.submitGoal(goal, { ...(options || {}), userId: authenticatedUserId })
       : () => forge.run(goal, options || {});
 
     executionFn().then(report => {
@@ -283,7 +284,7 @@ export async function handleAPI(ctx, path, req, res, user) {
   // Goal import
   if (path === '/api/goals/import' && req.method === 'POST') {
     const body = await readBodyFn(req);
-    const result = transfer.importGoal(body, { userId: user?.id });
+    const result = transfer.importGoal(body, { userId: authenticatedUserId });
     return jsonFn(res, 200, result);
   }
 
@@ -324,7 +325,9 @@ export async function handleAPI(ctx, path, req, res, user) {
   if (path === '/api/users' && req.method === 'POST') {
     const body = await readBodyFn(req);
     const created = userMgr?.createUser(body);
-    return jsonFn(res, 201, { user: created });
+    if (!created) return jsonFn(res, 503, { error: 'User manager unavailable' });
+    const { apiKey, ...safeUser } = created;
+    return jsonFn(res, 201, { user: safeUser, apiKey });
   }
 
   // Auth: get current user
@@ -349,7 +352,7 @@ export async function handleAPI(ctx, path, req, res, user) {
 
   if (path === '/api/knowledge' && req.method === 'POST') {
     const body = await readBodyFn(req);
-    const entry = knowledge?.add({ ...body, userId: user?.id });
+    const entry = knowledge?.add({ ...body, userId: authenticatedUserId });
     return jsonFn(res, 201, { entry });
   }
 
@@ -360,8 +363,11 @@ export async function handleAPI(ctx, path, req, res, user) {
   }
 
   if (knowledgeMatch && req.method === 'DELETE') {
-    // KnowledgeBase does not yet expose a delete method; returns success without mutation
-    return jsonFn(res, 200, { message: 'Deleted' });
+    const outcome = knowledge ? knowledge.delete(knowledgeMatch[1]) : null;
+    if (!outcome || !outcome.deleted) {
+      return jsonFn(res, 404, { error: 'Knowledge entry not found' });
+    }
+    return jsonFn(res, 200, { message: 'Deleted', id: knowledgeMatch[1] });
   }
 
   // Knowledge stats

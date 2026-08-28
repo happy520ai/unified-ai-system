@@ -123,6 +123,64 @@ describe("prometheusExporter", () => {
     expect(text).not.toContain("connectionString");
   });
 
+  it("renders provider dispatch reservation health without identifiers", () => {
+    const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
+    const text = exporter.formatMetrics({
+      providerDispatch: {
+        mode: "postgres",
+        enabled: true,
+        required: true,
+        durable: true,
+        distributed: true,
+        available: false,
+        entries: 9,
+        inFlight: 2,
+        tombstones: 7,
+        maxEntries: 100_000,
+        statsUpdatedAt: Date.now() - 3_000,
+        connectionString: "postgres://must-not-leak",
+        reservationFingerprint: "must-not-leak",
+      },
+    });
+
+    expect(text).toContain('ai_gateway_provider_dispatch_gate_enabled{mode="postgres"} 1');
+    expect(text).toContain('ai_gateway_provider_dispatch_key_required{mode="postgres"} 1');
+    expect(text).toContain('ai_gateway_provider_dispatch_store_available{mode="postgres"} 0');
+    expect(text).toContain('ai_gateway_provider_dispatch_store_distributed{mode="postgres"} 1');
+    expect(text).toContain('ai_gateway_provider_dispatch_reservations{mode="postgres",state="total"} 9');
+    expect(text).toContain('ai_gateway_provider_dispatch_reservations{mode="postgres",state="capacity"} 100000');
+    expect(text).toMatch(/ai_gateway_provider_dispatch_stats_age_seconds\{mode="postgres"\} 3\.\d{3}/);
+    expect(text).not.toContain("must-not-leak");
+  });
+
+  it("renders external-effect reservation health without operation identities", () => {
+    const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
+    const text = exporter.formatMetrics({
+      externalEffects: {
+        mode: "postgres",
+        enabled: true,
+        durable: true,
+        distributed: true,
+        available: false,
+        entries: 6,
+        inFlight: 1,
+        tombstones: 5,
+        maxEntries: 50_000,
+        statsUpdatedAt: Date.now() - 4_000,
+        effectKeyHash: "must-not-leak",
+        fenceFingerprint: "must-not-leak",
+      },
+    });
+
+    expect(text).toContain('ai_gateway_external_effect_gate_enabled{mode="postgres"} 1');
+    expect(text).toContain('ai_gateway_external_effect_store_available{mode="postgres"} 0');
+    expect(text).toContain('ai_gateway_external_effect_store_distributed{mode="postgres"} 1');
+    expect(text).toContain('ai_gateway_external_effect_reservations{mode="postgres",state="total"} 6');
+    expect(text).toContain('ai_gateway_external_effect_reservations{mode="postgres",state="capacity"} 50000');
+    expect(text).toMatch(/ai_gateway_external_effect_stats_age_seconds\{mode="postgres"\} 4\.\d{3}/);
+    expect(text).not.toContain("must-not-leak");
+  });
+
   it("renders bounded WebSocket lease metrics without deployment identifiers", () => {
     const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
     const text = exporter.formatMetrics({
@@ -149,6 +207,141 @@ describe("prometheusExporter", () => {
     expect(text).toContain("ai_gateway_websocket_lease_local_safety_seconds 1");
     expect(text).toContain('ai_gateway_websocket_lease_events_total{event="lost"} 2');
     expect(text).not.toContain("private-cluster-name");
+    expect(text).not.toContain("postgres://must-not-leak");
+  });
+
+  it("renders safe A2A task and Workforce claim-store metrics", () => {
+    const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
+    const text = exporter.formatMetrics({
+      a2aTaskStore: {
+        mode: "sqlite",
+        durable: true,
+        available: true,
+        atomicTerminalFence: true,
+        maxEntries: 10_000,
+        maxEntriesPerOwner: 2_000,
+        maxTaskBytes: 4_194_304,
+        sqlitePath: "E:/private/a2a.sqlite",
+        executionLease: {
+          mode: "postgres-fenced",
+          enabled: true,
+          available: true,
+          activeLeases: 2,
+        },
+      },
+      workforceClaimStore: {
+        mode: "postgres-fenced",
+        distributed: true,
+        available: false,
+        activeClaims: 3,
+        maxClaims: 2_000,
+        statsUpdatedAt: Date.now() - 1_000,
+        namespace: "private-deployment",
+        connectionString: "postgres://must-not-leak",
+      },
+      workforceTaskQueue: {
+        mode: "postgres-central-fenced",
+        distributed: true,
+        available: true,
+        atomicTerminalFence: true,
+        totalQueued: 4,
+        totalActive: 2,
+        totalCompleted: 8,
+        totalFailed: 1,
+        totalCancelled: 3,
+        namespace: "private-queue",
+        connectionString: "postgres://queue-must-not-leak",
+      },
+      workforceExecutionControl: {
+        mode: "postgres-central",
+        distributed: true,
+        available: true,
+        approval: { activeApprovals: 3, maxApprovals: 100 },
+        lifecycle: { activeExecutions: 2, maxExecutions: 50 },
+        namespace: "private-control",
+        connectionString: "postgres://control-must-not-leak",
+      },
+    });
+
+    expect(text).toContain('ai_gateway_a2a_task_store_available{mode="sqlite"} 1');
+    expect(text).toContain('ai_gateway_a2a_task_store_durable{mode="sqlite"} 1');
+    expect(text).toContain('ai_gateway_a2a_task_store_distributed{mode="sqlite"} 0');
+    expect(text).toContain('ai_gateway_a2a_task_store_atomic_terminal_fence{mode="sqlite"} 1');
+    expect(text).toContain('ai_gateway_a2a_execution_lease_enabled{mode="postgres-fenced"} 1');
+    expect(text).toContain('ai_gateway_a2a_execution_lease_available{mode="postgres-fenced"} 1');
+    expect(text).toContain('ai_gateway_a2a_execution_leases{mode="postgres-fenced"} 2');
+    expect(text).toContain('ai_gateway_a2a_task_store_limit{resource="entries"} 10000');
+    expect(text).toContain('ai_gateway_workforce_claim_store_available{mode="postgres-fenced"} 0');
+    expect(text).toContain('ai_gateway_workforce_claim_store_distributed{mode="postgres-fenced"} 1');
+    expect(text).toContain('ai_gateway_workforce_claims{state="active"} 3');
+    expect(text).toContain('ai_gateway_workforce_task_queue_available{mode="postgres-central-fenced"} 1');
+    expect(text).toContain('ai_gateway_workforce_task_queue_distributed{mode="postgres-central-fenced"} 1');
+    expect(text).toContain('ai_gateway_workforce_task_queue_tasks{state="active"} 2');
+    expect(text).toContain("ai_gateway_workforce_task_queue_atomic_terminal_fence 1");
+    expect(text).toContain('ai_gateway_workforce_execution_control_available{mode="postgres-central"} 1');
+    expect(text).toContain('ai_gateway_workforce_execution_control_distributed{mode="postgres-central"} 1');
+    expect(text).toContain('ai_gateway_workforce_execution_control_records{kind="approval",state="active"} 3');
+    expect(text).toContain('ai_gateway_workforce_execution_control_records{kind="lifecycle",state="active"} 2');
+    expect(text).toMatch(/ai_gateway_workforce_claim_stats_age_seconds\{mode="postgres-fenced"\} 1\.\d{3}/);
+    expect(text).not.toContain("E:/private/a2a.sqlite");
+    expect(text).not.toContain("private-deployment");
+    expect(text).not.toContain("private-queue");
+    expect(text).not.toContain("postgres://must-not-leak");
+    expect(text).not.toContain("postgres://queue-must-not-leak");
+    expect(text).not.toContain("private-control");
+    expect(text).not.toContain("postgres://control-must-not-leak");
+  });
+
+  it("renders central usage-ledger health without database identity", () => {
+    const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
+    const text = exporter.formatMetrics({
+      usageLedger: {
+        status: "degraded",
+        persistence: "postgres-central",
+        storeMode: "postgres",
+        available: false,
+        rowCount: 12,
+        maxRows: 1_000,
+        totalWriteFailures: 2,
+        namespace: "private-ledger",
+        connectionString: "postgres://must-not-leak",
+      },
+    });
+
+    expect(text).toContain('ai_gateway_usage_ledger_store_available{mode="postgres"} 0');
+    expect(text).toContain('ai_gateway_usage_ledger_rows{state="current"} 12');
+    expect(text).toContain('ai_gateway_usage_ledger_rows{state="capacity"} 1000');
+    expect(text).toContain("ai_gateway_usage_ledger_write_failures_total 2");
+    expect(text).not.toContain("private-ledger");
+    expect(text).not.toContain("postgres://must-not-leak");
+  });
+
+  it("renders central audit readiness without hashes, keys, or database identity", () => {
+    const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
+    const text = exporter.formatMetrics({
+      health: {
+        enterprise: {
+          audit: {
+            central: {
+              status: "degraded",
+              mode: "postgres-hmac-chain",
+              available: false,
+              sequence: 42,
+              hash: "must-not-be-a-label",
+              keyId: "private-key-id",
+              connectionString: "postgres://must-not-leak",
+              externalRetentionVerified: false,
+            },
+          },
+        },
+      },
+    });
+
+    expect(text).toContain('ai_gateway_audit_central_store_available{mode="postgres-hmac-chain"} 0');
+    expect(text).toContain("ai_gateway_audit_central_sequence 42");
+    expect(text).toContain("ai_gateway_audit_external_retention_verified 0");
+    expect(text).not.toContain("must-not-be-a-label");
+    expect(text).not.toContain("private-key-id");
     expect(text).not.toContain("postgres://must-not-leak");
   });
 

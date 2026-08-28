@@ -11,6 +11,14 @@
 
 import { resolveForgePermission } from './bridge.js';
 
+const STANDALONE_ROLE_PERMISSIONS = Object.freeze({
+  admin: Object.freeze(['*']),
+  operator: Object.freeze(['public:read', 'dashboard:read', 'provider:read', 'chat:use', 'knowledge:read', 'knowledge:write', 'workflow:run', 'audit:read']),
+  developer: Object.freeze(['public:read', 'dashboard:read', 'provider:read', 'knowledge:read', 'knowledge:write', 'workflow:run']),
+  viewer: Object.freeze(['public:read', 'dashboard:read', 'provider:read', 'knowledge:read']),
+  auditor: Object.freeze(['public:read', 'dashboard:read', 'audit:read']),
+});
+
 /**
  * Auth adapter that wraps the gateway's enterpriseGovernanceService.
  *
@@ -78,7 +86,16 @@ export class ForgeAuthAdapter {
           },
         };
       } catch (err) {
-        // Governance service threw — fall through to standalone
+        return {
+          authenticated: false,
+          identity: null,
+          authMethod: null,
+          error: {
+            statusCode: 503,
+            code: 'governance_auth_unavailable',
+            message: 'Gateway governance authentication is unavailable',
+          },
+        };
       }
     }
 
@@ -96,10 +113,12 @@ export class ForgeAuthAdapter {
           return {
             authenticated: true,
             identity: {
+              id: user.id,
               userId: user.id,
+              username: user.username,
               tenantId: 'forge-standalone',
               role: user.role || 'operator',
-              permissions: ['*'], // Forge standalone = full access
+              permissions: STANDALONE_ROLE_PERMISSIONS[user.role] ?? [],
               source: 'forge',
             },
             authMethod: 'forge-api-key',
@@ -172,7 +191,10 @@ export class ForgeAuthAdapter {
    * @returns {string} Permission string
    */
   resolvePermission(method, path) {
-    return resolveForgePermission(method, path);
+    const normalizedPath = String(path ?? '').startsWith('/api/')
+      ? `/forge/${String(path).slice('/api/'.length)}`
+      : path;
+    return resolveForgePermission(method, normalizedPath);
   }
 
   /**

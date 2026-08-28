@@ -57,7 +57,57 @@ const allowedPackageDirectFetchFiles = new Set([
 const requiredPackageMarkers = new Map([
   ["forge-core/src/llm-client-helpers.js", "isObviouslyUnsafeNetworkTarget"],
   ["forge-core/src/multimodal-client/helpers.js", "isObviouslyUnsafeNetworkTarget"],
+  ["im-connector-feishu/src/index.js", "externalEffectGuard.reserveAndCommit"],
+  ["im-connector-wecom/src/index.js", "externalEffectGuard.reserveAndCommit"],
 ]);
+const requiredExternalEffectMarkers = new Map([
+  ["alerting/alertEngine.js", "externalEffectGuard.reserveAndCommit"],
+  ["http/httpServerCapabilityRoutes.js", "reserveWebhookExternalEffect"],
+  ["http/httpServerRoutes03.js", "reserveWebhookExternalEffect"],
+]);
+const requiredMcpEffectMarkers = new Map([
+  ["agentic/agenticCodingLoop-helpers.js", "context.commitExternalEffect"],
+  ["application/createGatewayApplication.js", "externalEffectGate"],
+  ["http/httpServerRoutes03.js", "readExternalEffectKeyContext"],
+  ["mcpGateway/mcpExternalEffectPolicy.ts", "gate.reserve"],
+  ["mcpGateway/mcpGatewayService.ts", "reserveMcpExternalEffect"],
+  ["tools/mcpToolAdapter.js", "context.commitExternalEffect"],
+]);
+const requiredCustomToolMarkers = [
+  ["claude-code-patterns/toolRegistryEngine.js", "TOOL_BUILTIN_OVERRIDE_BLOCKED"],
+  ["claude-code-patterns/toolRegistryEngine.js", "CUSTOM_TOOL_EFFECT_CONTRACT_REQUIRED"],
+];
+const governedMcpDirectUseRules = [
+  {
+    pattern: /mcpBridge\.callTool\s*\(/,
+    allowed: new Set([
+      "agentic/agenticCodingLoop-helpers.js",
+      "tools/mcpToolAdapter.js",
+    ]),
+    label: "mcpBridge.callTool",
+  },
+  {
+    pattern: /upstream\.client\.callTool\s*\(/,
+    allowed: new Set(["mcpGateway/mcpGatewayService.ts"]),
+    label: "upstream.client.callTool",
+  },
+  {
+    pattern: /createMcpUpstreamFromConfig\s*\(/,
+    allowed: new Set([
+      "mcpGateway/mcpGatewayService.ts",
+      "mcpGateway/mcpUpstreamClient.ts",
+    ]),
+    label: "createMcpUpstreamFromConfig",
+  },
+  {
+    pattern: /createOpenApiRestBridge\s*\(/,
+    allowed: new Set([
+      "mcpGateway/mcpGatewayService.ts",
+      "mcpGateway/openApiRestBridge.ts",
+    ]),
+    label: "createOpenApiRestBridge",
+  },
+];
 
 // Aliased native fetch (e.g. fetchImpl = globalThis.fetch) previously escaped
 // the literal fetch( scan, so detect the bare reference too.
@@ -80,6 +130,11 @@ for (const absolute of walk(sourceDir)) {
   const source = fs.readFileSync(absolute, "utf8");
   if (usesDirectFetch(source) && !allowedDirectFetchFiles.has(relative)) {
     failures.push(`${relative}: direct fetch() or globalThis.fetch bypasses safeOutboundFetch`);
+  }
+  for (const rule of governedMcpDirectUseRules) {
+    if (rule.pattern.test(source) && !rule.allowed.has(relative)) {
+      failures.push(`${relative}: ${rule.label} bypasses the governed MCP external-effect boundary`);
+    }
   }
 }
 
@@ -109,6 +164,38 @@ for (const [relative, marker] of requiredPackageMarkers) {
   if (!source.includes(marker)) {
     failures.push(`${relative}: required guard ${marker} is missing`);
   }
+}
+
+for (const [relative, marker] of requiredExternalEffectMarkers) {
+  const source = fs.readFileSync(path.join(sourceDir, relative), "utf8");
+  if (!source.includes(marker)) {
+    failures.push(`${relative}: required irreversible-effect guard ${marker} is missing`);
+  }
+}
+
+for (const [relative, marker] of requiredMcpEffectMarkers) {
+  const source = fs.readFileSync(path.join(sourceDir, relative), "utf8");
+  if (!source.includes(marker)) {
+    failures.push(`${relative}: required MCP external-effect guard ${marker} is missing`);
+  }
+}
+
+for (const [relative, marker] of requiredCustomToolMarkers) {
+  const source = fs.readFileSync(path.join(sourceDir, relative), "utf8");
+  if (!source.includes(marker)) {
+    failures.push(`${relative}: required custom-tool authority guard ${marker} is missing`);
+  }
+}
+
+const ciWorkflow = fs.readFileSync(path.join(rootDir, ".github", "workflows", "ci.yml"), "utf8");
+if (!ciWorkflow.includes("externalEffectGate.postgres.integration.test.ts")) {
+  failures.push("ci.yml: real PostgreSQL external-effect integration coverage is missing");
+}
+if (!ciWorkflow.includes("pnpm drill:postgres-recovery")) {
+  failures.push("ci.yml: destructive PostgreSQL logical recovery coverage is missing");
+}
+if (!ciWorkflow.includes("verify-postgres-recovery-drill.mjs")) {
+  failures.push("ci.yml: structured PostgreSQL recovery evidence verification is missing");
 }
 
 if (failures.length > 0) {

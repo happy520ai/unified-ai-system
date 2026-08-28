@@ -34,4 +34,18 @@ describe("loadRuntimeConfig — safe defaults", () => {
     const openAiModel = config.aiGatewayService.providerModels.find((p) => p.providerId === "openai");
     assert.equal(openAiModel.enabled, false);
   });
+
+  it("uses the current official Xiaomi MiMo endpoint and model when explicitly enabled", () => {
+    const config = loadRuntimeConfig({
+      AI_GATEWAY_PROVIDER_MODE: "real",
+      AI_GATEWAY_REAL_PROVIDER_ENABLED: "true",
+      AI_GATEWAY_ENABLED_PROVIDERS: "mimo",
+      AI_GATEWAY_DEFAULT_PROVIDER: "mimo",
+      MIMO_API_KEY: "test-mimo-key",
+    });
+    const mimo = config.aiGatewayService.providerModels.find((provider) => provider.providerId === "mimo");
+    assert.equal(mimo.enabled, true);
+    assert.equal(mimo.modelId, "mimo-v2.5-pro");
+    assert.equal(mimo.endpoint, "https://api.xiaomimimo.com/v1");
+  });
 });

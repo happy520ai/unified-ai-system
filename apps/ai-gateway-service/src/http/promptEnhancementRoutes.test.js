@@ -2,6 +2,8 @@ import { Readable } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { dispatchPromptEnhancementRoutes } from "./promptEnhancementRoutes.js";
+import { createFakeProvider } from "../providers/fakeProvider.js";
+import { ProviderRegistry } from "../providers/providerRegistry.js";
 
 describe("prompt enhancement route", () => {
   it("returns a credential-free enhancement preview", async () => {
@@ -47,6 +49,155 @@ describe("prompt enhancement route", () => {
       url: new URL("http://127.0.0.1/health/check"),
     });
     expect(result).toBe(ROUTE_NOT_HANDLED);
+  });
+
+  it("falls back deterministically without calling a real adapter when runtime gates are closed", async () => {
+    const registry = new ProviderRegistry({ enabledProviders: ["openai"] });
+    const provider = createFakeProvider({
+      providerId: "openai",
+      modelId: "gpt-test",
+      providerType: "openai",
+      capabilities: ["chat"],
+      enabled: true,
+    });
+    const generate = vi.spyOn(provider, "generate");
+    registry.register(provider);
+    const response = createResponseRecorder();
+
+    await dispatchPromptEnhancementRoutes({
+      request: createJsonRequest({
+        input: "Plan a product launch",
+        providerId: "openai",
+        modelId: "gpt-test",
+      }),
+      response,
+      startedAt: Date.now(),
+      url: new URL("http://127.0.0.1/prompts/enhance"),
+      writeServiceLog: vi.fn(),
+      application: {
+        gatewayService: {
+          providerRegistry: registry,
+          runtimeConfig: {
+            providerMode: "fake",
+            realProviderEnabled: false,
+            enabledProviders: ["openai"],
+          },
+        },
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.data.metadata.providerCalled).toBe(false);
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it("routes an enabled LLM enhancement through the request-bound gateway", async () => {
+    const registry = new ProviderRegistry({ enabledProviders: ["openai"] });
+    const provider = createFakeProvider({
+      providerId: "openai",
+      modelId: "gpt-test",
+      providerType: "openai",
+      capabilities: ["chat"],
+      enabled: true,
+    });
+    const directGenerate = vi.spyOn(provider, "generate");
+    registry.register(provider);
+    const requestGatewayService = {
+      execute: vi.fn(async () => ({
+        success: true,
+        data: {
+          message: { role: "assistant", content: "A governed and carefully enhanced prompt." },
+          usage: { inputTokens: 10, outputTokens: 8, totalTokens: 18 },
+          metadata: { latencyMs: 2 },
+        },
+      })),
+    };
+    const response = createResponseRecorder();
+
+    await dispatchPromptEnhancementRoutes({
+      request: createJsonRequest({
+        input: "Plan a product launch",
+        providerId: "openai",
+        modelId: "gpt-test",
+      }),
+      response,
+      startedAt: Date.now(),
+      url: new URL("http://127.0.0.1/prompts/enhance-llm"),
+      writeServiceLog: vi.fn(),
+      gatewayService: requestGatewayService,
+      application: {
+        gatewayService: {
+          providerRegistry: registry,
+          runtimeConfig: {
+            providerMode: "real",
+            realProviderEnabled: true,
+            enabledProviders: ["openai"],
+          },
+        },
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.data.llmEnhanced).toBe(true);
+    expect(response.body.data.metadata.providerCalled).toBe(true);
+    expect(requestGatewayService.execute).toHaveBeenCalledWith(expect.objectContaining({
+      providerId: "openai",
+      modelId: "gpt-test",
+      metadata: expect.objectContaining({ source: "prompt-enhancement-llm" }),
+    }), expect.any(Object));
+    expect(directGenerate).not.toHaveBeenCalled();
+  });
+
+  it("does not claim a provider call when the governed dispatch gate blocks it", async () => {
+    const registry = new ProviderRegistry({ enabledProviders: ["openai"] });
+    const provider = createFakeProvider({
+      providerId: "openai",
+      modelId: "gpt-test",
+      providerType: "openai",
+      capabilities: ["chat"],
+      enabled: true,
+    });
+    const directGenerate = vi.spyOn(provider, "generate");
+    registry.register(provider);
+    const requestGatewayService = {
+      execute: vi.fn(async () => ({
+        success: false,
+        code: "PROVIDER_DISPATCH_KEY_REQUIRED",
+        error: {
+          code: "PROVIDER_DISPATCH_KEY_REQUIRED",
+          type: "validation",
+          message: "Idempotency-Key is required.",
+          retryable: false,
+          details: {},
+        },
+      })),
+    };
+    const response = createResponseRecorder();
+
+    await dispatchPromptEnhancementRoutes({
+      request: createJsonRequest({ input: "Plan safely", providerId: "openai", modelId: "gpt-test" }),
+      response,
+      startedAt: Date.now(),
+      url: new URL("http://127.0.0.1/prompts/enhance-llm"),
+      writeServiceLog: vi.fn(),
+      gatewayService: requestGatewayService,
+      application: {
+        gatewayService: {
+          providerRegistry: registry,
+          runtimeConfig: {
+            providerMode: "real",
+            realProviderEnabled: true,
+            enabledProviders: ["openai"],
+          },
+        },
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.data.llmEnhanced).toBe(false);
+    expect(response.body.data.metadata.providerCalled).toBe(false);
+    expect(response.body.data.metadata.providerCallOutcomeUnknown).toBe(false);
+    expect(directGenerate).not.toHaveBeenCalled();
   });
 });
 

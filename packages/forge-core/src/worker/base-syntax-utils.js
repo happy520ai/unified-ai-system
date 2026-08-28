@@ -6,8 +6,23 @@
  * and basic code formatting (eslint fallback).
  */
 
-import { readFile, writeFile, unlink } from 'node:fs/promises';
-import { join as pathJoin, dirname, resolve } from 'node:path';
+import { readFile, writeFile, open, unlink } from 'node:fs/promises';
+import { constants as fsConstants } from 'node:fs';
+import { join as pathJoin, dirname } from 'node:path';
+
+function quotePosixShellArg(value) {
+  return `'${String(value).replace(/'/g, `'"'"'`)}'`;
+}
+
+async function writeFileNoFollow(path, content) {
+  const flags = fsConstants.O_WRONLY
+    | fsConstants.O_CREAT
+    | fsConstants.O_TRUNC
+    | (fsConstants.O_NOFOLLOW ?? 0);
+  const handle = await open(path, flags, 0o600);
+  try { await handle.writeFile(content, 'utf8'); }
+  finally { await handle.close(); }
+}
 
 /**
  * Validate JavaScript syntax using `node --check` without executing the code.
@@ -113,24 +128,39 @@ export function tryFixSyntax(content) {
  * @param {string} fullPath — absolute file path
  * @param {string} relPath — relative path for logging
  * @param {{ info: function(string): void }} logger — logger with info method
+ * @param {object} options
+ * @param {string} options.projectRoot
+ * @param {object|null} options.sandboxExecutor
+ * @param {AbortSignal} [options.signal]
  */
-export async function autoLint(fullPath, relPath, logger) {
+export async function autoLint(fullPath, relPath, logger, options = {}) {
   if (!relPath.match(/\.m?js$/)) return;
 
-  const { execFileSync } = await import('node:child_process');
-  const projectRoot = resolve(fullPath, '..', '..');
-
-  // Try eslint --fix first
-  try {
-    execFileSync('npx', ['eslint', '--fix', fullPath], {
-      cwd: projectRoot,
-      timeout: 15000,
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-    logger.info(`eslint --fix succeeded for ${relPath}`);
-    return;
-  } catch { /* eslint not available or fixable errors remain */ }
+  // Project ESLint configuration and plugins are executable code. They may run
+  // only inside the attested container boundary; backend failure falls through
+  // to the non-executable formatter below.
+  if (options.sandboxExecutor && options.projectRoot) {
+    const containerPath = String(relPath).replaceAll('\\', '/');
+    if (!/[\0\r\n]/.test(containerPath)) {
+      const result = await options.sandboxExecutor.execute(
+        `npx --no-install eslint --fix -- ${quotePosixShellArg(containerPath)}`,
+        {
+          cwd: options.projectRoot,
+          level: 'full',
+          workspaceMode: 'rw',
+          timeout: 15_000,
+          signal: options.signal,
+        },
+      );
+      if (result.exitCode === 0) {
+        logger.info(`sandboxed eslint --fix succeeded for ${relPath}`);
+        return;
+      }
+      logger.info(`Sandboxed eslint unavailable/failed for ${relPath}: ${(result.stderr || result.killReason || '').slice(0, 240)}`);
+    }
+  } else {
+    logger.info(`Sandboxed eslint unavailable for ${relPath}; applying non-executable formatter only.`);
+  }
 
   // Fallback: basic formatting pass
   try {
@@ -144,7 +174,7 @@ export async function autoLint(fullPath, relPath, logger) {
     formatted = formatted.trimEnd() + '\n';
 
     if (formatted !== content) {
-      await writeFile(fullPath, formatted, 'utf-8');
+      await writeFileNoFollow(fullPath, formatted);
       logger.info(`Basic formatting applied to ${relPath}`);
     }
   } catch (err) {

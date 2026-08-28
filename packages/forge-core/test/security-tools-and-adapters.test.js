@@ -55,6 +55,86 @@ describe("imageAnalysisTool path traversal security", () => {
   });
 });
 
+describe("Forge UserManager credential storage", () => {
+  it("stores only API-key hashes and migrates legacy plaintext rows on use", async () => {
+    const { UserManager } = await import("../src/multi-user/index.js");
+    const db = createUserManagerDbFixture();
+    const manager = new UserManager(db);
+      const created = manager.createUser({ username: "alice", role: "developer" });
+      assert.match(created.apiKey, /^fk-/);
+      assert.equal("api_key" in created, false);
+      const stored = db.prepare("SELECT api_key FROM users WHERE id = ?").get(created.id);
+      assert.match(stored.api_key, /^sha256:[a-f0-9]{64}$/);
+      assert.notEqual(stored.api_key, created.apiKey);
+      assert.equal(manager.getUserByApiKey(created.apiKey).id, created.id);
+      assert.equal(manager.listUsers().some((user) => "api_key" in user), false);
+
+      const oldKey = created.apiKey;
+      const rotated = manager.rotateApiKey(created.id);
+      assert.equal(manager.getUserByApiKey(oldKey), undefined);
+      assert.equal(manager.getUserByApiKey(rotated).id, created.id);
+
+      const legacyKey = "fk-test-legacy-plaintext-key";
+      db.prepare(`
+        INSERT INTO users (id, username, display_name, api_key, role)
+        VALUES (?, ?, ?, ?, ?)
+      `).run("u-legacy", "legacy", null, legacyKey, "viewer");
+      assert.equal(manager.getUserByApiKey(legacyKey).id, "u-legacy");
+      const migrated = db.prepare("SELECT api_key FROM users WHERE id = ?").get("u-legacy");
+      assert.match(migrated.api_key, /^sha256:[a-f0-9]{64}$/);
+      assert.notEqual(migrated.api_key, legacyKey);
+  });
+});
+
+function createUserManagerDbFixture() {
+  const rows = [];
+  return {
+    prepare(sql) {
+      const normalized = String(sql).replace(/\s+/g, " ").trim().toLowerCase();
+      return {
+        run(...args) {
+          if (normalized.startsWith("insert into users")) {
+            const [id, username, displayName, apiKey, role] = args;
+            rows.push({
+              id,
+              username,
+              display_name: displayName,
+              api_key: apiKey,
+              role,
+              created_at: new Date().toISOString(),
+              last_active: null,
+            });
+            return { changes: 1 };
+          }
+          if (normalized.startsWith("update users set api_key")) {
+            const [apiKey, id] = args;
+            const row = rows.find((candidate) => candidate.id === id);
+            if (row) row.api_key = apiKey;
+            return { changes: row ? 1 : 0 };
+          }
+          if (normalized.startsWith("update users set last_active")) {
+            const [lastActive, id] = args;
+            const row = rows.find((candidate) => candidate.id === id);
+            if (row) row.last_active = lastActive;
+            return { changes: row ? 1 : 0 };
+          }
+          throw new Error(`Unsupported fixture SQL run: ${normalized}`);
+        },
+        get(value) {
+          if (normalized.includes("where id = ?")) return rows.find((row) => row.id === value);
+          if (normalized.includes("where username = ?")) return rows.find((row) => row.username === value);
+          if (normalized.includes("where api_key = ?")) return rows.find((row) => row.api_key === value);
+          throw new Error(`Unsupported fixture SQL get: ${normalized}`);
+        },
+        all() {
+          if (normalized.startsWith("select * from users")) return [...rows];
+          throw new Error(`Unsupported fixture SQL all: ${normalized}`);
+        },
+      };
+    },
+  };
+}
+
 // ────────────────────────────────────────────────────────────────
 // 2. fileEditTool — file_insert Path Traversal Security
 // ────────────────────────────────────────────────────────────────

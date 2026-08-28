@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { indexNowUserAgent } from "./release-metadata.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const configPath = resolve(repoRoot, "docs/indexnow.json");
@@ -29,7 +30,7 @@ if (!args.has("--submit")) {
   });
 } else {
   const keyResponse = await fetch(keyLocation, {
-    headers: { "user-agent": "unified-ai-system-indexnow/0.4.9" },
+    headers: { "user-agent": indexNowUserAgent },
   });
   const liveKey = (await keyResponse.text()).trim();
   if (!keyResponse.ok || liveKey !== key) {
@@ -42,7 +43,7 @@ if (!args.has("--submit")) {
     method: "POST",
     headers: {
       "content-type": "application/json; charset=utf-8",
-      "user-agent": "unified-ai-system-indexnow/0.4.9",
+      "user-agent": indexNowUserAgent,
     },
     body: JSON.stringify(payload),
   });

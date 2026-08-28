@@ -6,8 +6,7 @@ import { WebSocketHandler } from '../websocket/index.js';
 import { applySecurityHeaders, sanitizeError } from '../security/index.js';
 import { ForgeAuthAdapter } from '../integration/auth-adapter.js';
 import {
-  PUBLIC_GET, jsonResponse as _jsonResponse,
-  authenticate as _authenticate,
+  jsonResponse as _jsonResponse,
   buildApiContext as _buildApiContext,
 } from './helpers.js';
 import {
@@ -35,12 +34,13 @@ export class ForgeServer {
   #wsMsgHandler;  // WebSocketHandler for bidirectional messaging
   #snapshotTimer; // Periodic state snapshot timer
   #port;
+  #host;
   #maxBodySize;   // Maximum request body size in bytes
   #envelope;      // If true, wrap responses in standard envelopes (gateway mode)
   #governanceService; // Injected enterprise governance service (from gateway)
   #authAdapter;   // ForgeAuthAdapter instance
 
-  constructor({ forge, userMgr, agentPool, knowledge, transfer, gateway, port, config, maxBodySize, envelope, governanceService, authAdapter }) {
+  constructor({ forge, userMgr, agentPool, knowledge, transfer, gateway, port, host, config, maxBodySize, envelope, governanceService, authAdapter }) {
     this.#forge = forge;
     this.#userMgr = userMgr;
     this.#agentPool = agentPool;
@@ -52,6 +52,7 @@ export class ForgeServer {
     this.#wsMsgHandler = new WebSocketHandler();
     this.#snapshotTimer = null;
     this.#port = port ?? config?.server?.port ?? 4500;
+    this.#host = host ?? config?.server?.host ?? process.env.FORGE_SERVER_HOST ?? '127.0.0.1';
     this.#maxBodySize = maxBodySize ?? 1048576; // 1 MB default
     this.#envelope = envelope ?? false;
     this.#governanceService = governanceService || null;
@@ -99,16 +100,16 @@ export class ForgeServer {
       try {
         // API routes
         if (path.startsWith('/api/')) {
-          // Authenticate API requests
-          const user = _authenticate(req, this.#authAdapter, this.#userMgr);
-
-          const isPublicGet = req.method === 'GET' && PUBLIC_GET.some(p => path === p || path.startsWith(p + '/'));
-
-          if (!user && !isPublicGet && !path.startsWith('/api/auth')) {
-            return _jsonResponse(res, 401, { error: 'Authentication required' });
+          const permission = this.#authAdapter.resolvePermission(req.method, path);
+          const authorization = this.#authAdapter.authorize(req, permission);
+          if (!authorization.allowed) {
+            return _jsonResponse(res, authorization.error?.statusCode ?? 401, {
+              error: authorization.error?.code ?? 'Authentication required',
+              message: authorization.error?.message ?? 'Authentication required',
+            });
           }
 
-          await _handleAPI(apiCtx, path, req, res, user);
+          await _handleAPI(apiCtx, path, req, res, authorization.identity);
           return;
         }
 
@@ -122,6 +123,13 @@ export class ForgeServer {
 
     // WebSocket upgrade handling
     this.#httpServer.on('upgrade', (req, socket, head) => {
+      const authorization = this.#authAdapter.authorize(req, 'dashboard:read');
+      if (!authorization.allowed) {
+        const status = authorization.error?.statusCode === 403 ? 403 : 401;
+        socket.write(`HTTP/1.1 ${status} ${status === 403 ? 'Forbidden' : 'Unauthorized'}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
+        socket.destroy();
+        return;
+      }
       _handleWebSocketUpgrade(req, socket, head, this.#wsClients, this.#wsMsgHandler, this.#agentPool);
     });
 
@@ -201,9 +209,11 @@ export class ForgeServer {
       });
     }, snapshotMs);
 
-    this.#httpServer.listen(this.#port, () => {
-      console.log(`[forge] API Server running on http://localhost:${this.#port}`);
-      console.log(`[forge] Web Console: http://localhost:${this.#port}/`);
+    this.#httpServer.listen(this.#port, this.#host, () => {
+      const address = this.#httpServer.address();
+      const actualPort = typeof address === 'object' && address ? address.port : this.#port;
+      console.log(`[forge] API Server running on http://${this.#host}:${actualPort}`);
+      console.log(`[forge] Web Console: http://${this.#host}:${actualPort}/`);
     });
 
     return this.#httpServer;

@@ -205,6 +205,16 @@ export const FORGE_PERMISSIONS = {
   'GET /forge/tracing':          'dashboard:read',
   'GET /forge/security/audit':   'audit:read',
   'GET /forge/dashboard':        'public:read',
+  'GET /forge/users':            'user:admin',
+  'POST /forge/users':           'user:admin',
+  'GET /forge/auth/me':          'dashboard:read',
+  'GET /forge/knowledge':        'knowledge:read',
+  'POST /forge/knowledge':       'knowledge:write',
+  'GET /forge/knowledge/:id':    'knowledge:read',
+  'DELETE /forge/knowledge/:id': 'knowledge:write',
+  'GET /forge/knowledge/stats':  'knowledge:read',
+  'GET /forge/gateway/health':   'provider:read',
+  'GET /forge/gateway/providers':'provider:read',
 };
 
 /**
@@ -223,5 +233,5 @@ export function resolveForgePermission(method, path) {
     if (regex.test(key)) return perm;
   }
 
-  return 'dashboard:read'; // Default for unknown forge routes
+  return 'route:unknown'; // Unknown routes fail closed for non-admin identities.
 }

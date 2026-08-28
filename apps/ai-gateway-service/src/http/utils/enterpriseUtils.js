@@ -299,6 +299,7 @@ export function resolvePermission(method, pathname) {
     || normalizedPath === "/enterprise/virtual-keys/revoke"
     || normalizedPath === "/enterprise/guardrails"
     || normalizedPath === "/enterprise/spend-report"
+    || normalizedPath === "/enterprise/provider-statement-reconciliation"
   ) {
     return "user:admin";
   }
@@ -398,8 +399,34 @@ export function resolvePermission(method, pathname) {
     || (normalizedMethod === "GET" && /^\/models\/[^/]+$/.test(normalizedPath))
     || (normalizedMethod === "GET" && /^\/v1\/engines\/[^/]+$/.test(normalizedPath))
     || (normalizedMethod === "GET" && /^\/engines\/[^/]+$/.test(normalizedPath))
+    || (normalizedMethod === "GET" && normalizedPath === "/v1beta/models")
   ) {
     return "provider:read";
+  }
+
+  if (
+    normalizedPath === "/forge/polish"
+    || normalizedPath === "/forge/memory"
+  ) {
+    return "chat:use";
+  }
+
+  if (
+    normalizedPath === "/taiji/compile"
+    || normalizedPath === "/workforce/preview"
+    || normalizedPath === "/forge/quality"
+    || normalizedPath === "/forge/orchestrate"
+    || normalizedPath === "/forge/runs"
+  ) {
+    return "workflow:run";
+  }
+
+  if (
+    normalizedPath === "/forge/status"
+    || normalizedPath === "/forge/consensus"
+    || normalizedPath === "/forge/memory/stats"
+  ) {
+    return "dashboard:read";
   }
 
   if (normalizedPath.startsWith("/knowledge/") && normalizedMethod === "GET") {
@@ -441,6 +468,10 @@ export function resolvePermission(method, pathname) {
     return "workflow:approve";
   }
 
+  if (normalizedMethod === "POST" && normalizedPath === "/workforce/execute/status") {
+    return "dashboard:read";
+  }
+
   if (normalizedMethod === "POST" && normalizedPath === "/codex-handoff/next-task") {
     return "workflow:run";
   }
@@ -448,6 +479,7 @@ export function resolvePermission(method, pathname) {
   if (
     normalizedPath === "/workforce/plan" ||
     normalizedPath === "/workforce/execute" ||
+    normalizedPath === "/workforce/execute/cancel" ||
     normalizedPath === "/workforce/run-local" ||
     normalizedPath === "/real-capabilities/activate-five" ||
     normalizedPath === "/workforce/plans/save" ||
@@ -468,6 +500,7 @@ export function resolvePermission(method, pathname) {
     normalizedPath === "/audio/transcriptions" ||
     /^\/openai\/deployments\/[^/]+\/(chat\/completions|completions|responses)(\/?)$/.test(normalizedPath) ||
     /^\/v1\/engines\/[^/]+\/(chat\/completions|completions)(\/?)$/.test(normalizedPath) ||
+    /^\/v1\/responses\/resp_[A-Za-z0-9_-]{1,64}$/.test(normalizedPath) ||
     normalizedPath === "/chat/completions" ||
     normalizedPath === "/completions" ||
     normalizedPath === "/responses" ||
@@ -476,6 +509,7 @@ export function resolvePermission(method, pathname) {
     || normalizedPath === "/v1/completions"
     || normalizedPath === "/v1/responses"
     || normalizedPath === "/v1/messages"
+    || /^\/(?:v1beta|v1)\/models\/[^/:]+:(generateContent|streamGenerateContent|batchGenerateContent)$/.test(normalizedPath)
     || normalizedPath === "/a2a/jsonrpc"
     || normalizedPath === "/chat"
     || normalizedPath === "/chat/stream"
@@ -499,6 +533,8 @@ const EXACT_ROUTE_PERMISSIONS = Object.freeze({
   "POST /knowledge/delete": "knowledge:write",
   "POST /agent-runner/intent-approval-preview": "workflow:run",
   "POST /agent-runner/local-operation": "workflow:run",
+  "POST /agent-exec/run": "workflow:run",
+  "GET /usage/my-key": "chat:use",
   "POST /local-agent/intent-preview": "workflow:run",
   "POST /local-agent/operation-plan": "workflow:run",
   "POST /local-agent/patch-proposal": "workflow:run",
@@ -517,16 +553,40 @@ const EXACT_ROUTE_PERMISSIONS = Object.freeze({
   "POST /workforce/autonomy/token": "workflow:run",
   "POST /workforce/autonomy/token/revoke": "workflow:run",
   "POST /workforce/diagnostic/read": "audit:read",
+  "GET /local-clients/status": "dashboard:read",
+  "GET /local-clients/health": "dashboard:read",
+  "GET /local-clients/registry": "audit:read",
+  "GET /local-clients/intelligence": "dashboard:read",
+  "POST /local-clients/discover": "workflow:approve",
+  "POST /local-clients/discover/system": "workflow:approve",
+  "POST /local-clients/maintenance": "workflow:approve",
+  "POST /local-clients/smart-manage": "workflow:approve",
+  "POST /local-clients/register": "workflow:approve",
+  "POST /local-clients/disable": "workflow:approve",
+  "POST /local-clients/revoke": "workflow:approve",
+  "POST /local-clients/route": "workflow:run",
+  "POST /local-clients/provider-route": "workflow:run",
+  "POST /local-clients/verify": "workflow:approve",
+  "POST /local-clients/executions/preview": "workflow:run",
+  "POST /local-clients/executions/approve": "workflow:approve",
+  "POST /local-clients/executions/execute": "workflow:approve",
+  "POST /local-clients/execute": "workflow:approve",
+  "POST /local-clients/heartbeat": "local-client:telemetry",
+  "POST /local-clients/feedback": "local-client:telemetry",
 });
 
 export async function readCapabilityJson({ request, response, startedAt, code }) {
   try {
-    return await readJson(request);
+    const body = await readJson(request);
+    if (body === null || typeof body !== "object" || Array.isArray(body)) {
+      throw new Error("Capability request body must be a JSON object.");
+    }
+    return body;
   } catch {
     writeJson(
       response,
       400,
-      createErrorEnvelope(code, "Request body must be valid JSON.", {
+      createErrorEnvelope(code, "Request body must be a valid JSON object.", {
         startedAt,
         category: "validation",
       }),
@@ -552,9 +612,17 @@ export async function readEnterpriseJson({ request, response, startedAt, code })
 }
 
 export function writeEnterpriseError({ response, error, startedAt, fallbackCode }) {
+  const explicitStatusCode = Number(error?.statusCode);
+  const statusCode = Number.isInteger(explicitStatusCode) && explicitStatusCode >= 400 && explicitStatusCode <= 599
+    ? explicitStatusCode
+    : error?.category === "validation"
+      ? 400
+      : error?.category === "auth"
+        ? 403
+        : 422;
   writeJson(
     response,
-    error?.category === "validation" ? 400 : 422,
+    statusCode,
     createErrorEnvelope(error?.code ?? fallbackCode, error instanceof Error ? error.message : "Enterprise request failed.", {
       startedAt,
       category: error?.category ?? "enterprise",
@@ -565,13 +633,21 @@ export function writeEnterpriseError({ response, error, startedAt, fallbackCode 
 }
 
 export function writeCapabilityError({ response, error, startedAt, fallbackCode }) {
+  const explicitStatusCode = Number(error?.statusCode);
+  const statusCode = Number.isInteger(explicitStatusCode) && explicitStatusCode >= 400 && explicitStatusCode <= 599
+    ? explicitStatusCode
+    : error?.category === "validation"
+      ? 400
+      : error?.category === "auth"
+        ? 403
+        : 422;
   writeJson(
     response,
-    error?.category === "validation" ? 400 : 422,
+    statusCode,
     createErrorEnvelope(error?.code ?? fallbackCode, error instanceof Error ? error.message : "Capability request failed.", {
       startedAt,
       category: error?.category ?? "capability",
-      retryable: false,
+      retryable: error?.retryable === true,
       details: error?.details,
     }),
   );

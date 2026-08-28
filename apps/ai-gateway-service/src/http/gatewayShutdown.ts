@@ -52,7 +52,9 @@ export function createGatewayShutdownController(options: GatewayShutdownOptions)
       lifecycle,
     });
 
+    const shutdownState = { forced: false };
     const forceTimer = setTimeout(() => {
+      shutdownState.forced = true;
       options.logger.fatal({
         event: "service_shutdown_forced",
         reason,
@@ -66,9 +68,10 @@ export function createGatewayShutdownController(options: GatewayShutdownOptions)
     forceTimer.unref?.();
 
     const beginClose = () => {
+      if (shutdownState.forced) return;
       options.server.closeRealtimeConnections?.(1001, "Gateway shutting down");
       options.server.close((error) => {
-        void finishShutdown(error, forceTimer, reason, exitCode);
+        void finishShutdown(error, forceTimer, shutdownState, reason, exitCode);
       });
       options.server.closeIdleConnections?.();
     };
@@ -85,11 +88,13 @@ export function createGatewayShutdownController(options: GatewayShutdownOptions)
   async function finishShutdown(
     error: Error | undefined,
     forceTimer: NodeJS.Timeout,
+    shutdownState: { forced: boolean },
     reason: string,
     exitCode: number,
   ): Promise<void> {
-    clearTimeout(forceTimer);
     if (error) {
+      clearTimeout(forceTimer);
+      if (shutdownState.forced) return;
       options.logger.error({
         event: "service_shutdown_failed",
         err: error,
@@ -101,6 +106,8 @@ export function createGatewayShutdownController(options: GatewayShutdownOptions)
     try {
       await options.server.shutdownResources?.();
     } catch (resourceError) {
+      clearTimeout(forceTimer);
+      if (shutdownState.forced) return;
       options.logger.error({
         event: "service_shutdown_resource_failed",
         err: resourceError,
@@ -109,6 +116,8 @@ export function createGatewayShutdownController(options: GatewayShutdownOptions)
       options.exit(1);
       return;
     }
+    clearTimeout(forceTimer);
+    if (shutdownState.forced) return;
     options.destroyPools();
     options.logger.info({ event: "service_shutdown_completed", reason, exitCode });
     options.exit(exitCode);

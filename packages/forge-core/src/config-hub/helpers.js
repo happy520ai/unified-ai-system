@@ -161,6 +161,7 @@ export const CORE_SCHEMAS = {
   server: {
     properties: {
       port:             { type: 'number', default: 4500,   description: 'HTTP server port' },
+      host:             { type: 'string', default: '127.0.0.1', description: 'HTTP bind address' },
       corsOrigin:       { type: 'string', default: '*',    description: 'CORS origin header' },
       snapshotInterval: { type: 'number', default: 5000,   description: 'Snapshot interval (ms)' },
       version:          { type: 'string', default: '0.4.0', description: 'Server version' },

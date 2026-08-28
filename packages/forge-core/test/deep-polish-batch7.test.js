@@ -162,7 +162,7 @@ describe("shell_exec security hardening", () => {
     const shellStart = src.indexOf('name: "shell_exec"');
     assert.ok(shellStart > 0, "Should have shell_exec tool");
 
-    const section = src.slice(shellStart, shellStart + 3000);
+    const section = src.slice(shellStart, shellStart + 5000);
     assert.ok(
       section.includes("SECRET_PATTERNS") || section.includes("secret"),
       "shell_exec should filter secret environment variables"
@@ -170,6 +170,10 @@ describe("shell_exec security hardening", () => {
     assert.ok(
       section.includes("env: safeEnv") || section.includes("env:"),
       "shell_exec should pass sanitized env to execSync"
+    );
+    assert.ok(
+      section.includes("context.commitExternalEffect"),
+      "shell_exec should cross the external-effect commit boundary before execSync"
     );
   });
 
@@ -180,7 +184,7 @@ describe("shell_exec security hardening", () => {
     );
 
     const shellStart = src.indexOf('name: "shell_exec"');
-    const section = src.slice(shellStart, shellStart + 3000);
+    const section = src.slice(shellStart, shellStart + 5000);
 
     assert.ok(
       section.includes("Math.min") || section.includes("120000"),
@@ -195,7 +199,7 @@ describe("shell_exec security hardening", () => {
     );
 
     const shellStart = src.indexOf('name: "shell_exec"');
-    const section = src.slice(shellStart, shellStart + 3000);
+    const section = src.slice(shellStart, shellStart + 5000);
 
     assert.ok(
       section.includes("50_000") || section.includes("50000") || section.includes("truncated"),

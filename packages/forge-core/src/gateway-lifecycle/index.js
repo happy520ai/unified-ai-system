@@ -32,13 +32,19 @@ export class GatewayLifecycle {
   #providers = [];
   #selectedProvider = null;
   #selectedModel = null;
+  #authHeaders;
 
   /**
    * @param {object} [opts]
    * @param {string} [opts.gatewayUrl] — gateway base URL (default: http://127.0.0.1:3100)
+   * @param {string} [opts.gatewayAuthToken] — enterprise token (defaults to PME_AUTH_TOKEN)
    */
   constructor(opts = {}) {
     this.#gatewayUrl = (opts.gatewayUrl || process.env.FORGE_GATEWAY_URL || DEFAULT_GATEWAY_URL).replace(/\/$/, '');
+    const token = opts.gatewayAuthToken ?? process.env.PME_AUTH_TOKEN;
+    this.#authHeaders = typeof token === 'string' && token.length > 0
+      ? { authorization: `Bearer ${token}` }
+      : {};
   }
 
   /** @returns {string} The configured gateway URL. */
@@ -69,6 +75,7 @@ export class GatewayLifecycle {
     const start = Date.now();
     try {
       const res = await fetch(`${this.#gatewayUrl}/health/check`, {
+        headers: this.#authHeaders,
         signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
       });
       const latency = Date.now() - start;
@@ -97,6 +104,7 @@ export class GatewayLifecycle {
   async checkReadiness() {
     try {
       const res = await fetch(`${this.#gatewayUrl}/setup/readiness`, {
+        headers: this.#authHeaders,
         signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS * 2),
       });
       if (res.ok) {
@@ -151,6 +159,7 @@ export class GatewayLifecycle {
   async getProviders() {
     try {
       const res = await fetch(`${this.#gatewayUrl}/providers`, {
+        headers: this.#authHeaders,
         signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS * 2),
       });
       if (!res.ok) {
@@ -173,6 +182,7 @@ export class GatewayLifecycle {
   async getRuntimeConfig() {
     try {
       const res = await fetch(`${this.#gatewayUrl}/config/runtime`, {
+        headers: this.#authHeaders,
         signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
       });
       if (res.ok) {
@@ -200,7 +210,7 @@ export class GatewayLifecycle {
     try {
       const res = await fetch(`${this.#gatewayUrl}/providers/runtime-credential`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', ...this.#authHeaders },
         body: JSON.stringify({ providerId, apiKey }),
         signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS * 2),
       });
@@ -233,7 +243,7 @@ export class GatewayLifecycle {
     try {
       const res = await fetch(`${this.#gatewayUrl}/models/import/preview`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', ...this.#authHeaders },
         body: JSON.stringify({ apiKey, providerHint }),
         signal: AbortSignal.timeout(30000), // Model discovery can take longer
       });
@@ -274,7 +284,7 @@ export class GatewayLifecycle {
 
       const res = await fetch(`${this.#gatewayUrl}/models/import/confirm`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', ...this.#authHeaders },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS * 3),
       });

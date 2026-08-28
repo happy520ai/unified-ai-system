@@ -1,8 +1,10 @@
 import { describe, it, before, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, readFile, writeFile, mkdir } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { mkdtemp, rm, readFile, writeFile, utimes } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { Worker } from "node:worker_threads";
 
 let createAuditHashChain;
 
@@ -147,6 +149,47 @@ describe("AuditHashChain — basic operations", () => {
     assert.ok(entry.seq);
     assert.ok(entry.chainedAt);
   });
+
+  it("detects a live tail rollback before the next append", async () => {
+    const chainPath = join(tempDir, "audit-chain.jsonl");
+    await chain.append({ action: "first" });
+    await chain.append({ action: "second" });
+    const lines = (await readFile(chainPath, "utf8")).trim().split("\n");
+    await writeFile(chainPath, `${lines[0]}\n`, "utf8");
+
+    await assert.rejects(
+      () => chain.append({ action: "must-not-extend-rollback" }),
+      (error) => error?.code === "AUDIT_CHAIN_CORRUPT" && error?.reason === "tail_rollback",
+    );
+  });
+
+  it("periodically revalidates the full chain after bounded tail appends", async () => {
+    const chainPath = join(tempDir, "audit-chain.jsonl");
+    const periodic = createAuditHashChain({ chainPath, fullVerificationInterval: 10 });
+    await periodic.append({ action: "first" });
+    await periodic.append({ action: "second" });
+    const lines = (await readFile(chainPath, "utf8")).trim().split("\n");
+    const first = JSON.parse(lines[0]);
+    first.action = "tampered-middle";
+    lines[0] = JSON.stringify(first);
+    await writeFile(chainPath, `${lines.join("\n")}\n`, "utf8");
+
+    for (let index = 0; index < 8; index += 1) {
+      await periodic.append({ action: `bounded-tail-${index}` });
+    }
+    await assert.rejects(
+      () => periodic.append({ action: "periodic-full-check" }),
+      (error) => error?.code === "AUDIT_CHAIN_CORRUPT" && error?.reason === "hash_mismatch",
+    );
+  });
+
+  it("rejects an oversized audit record before writing it", async () => {
+    await assert.rejects(
+      () => chain.append({ action: "oversized", details: "x".repeat(300_000) }),
+      (error) => error?.code === "AUDIT_CHAIN_ENTRY_TOO_LARGE",
+    );
+    assert.strictEqual(chain.getEntryCount(), 0);
+  });
 });
 
 describe("AuditHashChain — concurrent appends", () => {
@@ -165,4 +208,239 @@ describe("AuditHashChain — concurrent appends", () => {
 
     await rm(tempDir, { recursive: true, force: true });
   });
+
+  it("serializes independent chain instances that share one file", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "audit-hash-instances-"));
+    const chainPath = join(tempDir, "audit-chain.jsonl");
+    const chains = Array.from({ length: 4 }, () => createAuditHashChain({
+      chainPath,
+      lockTimeoutMs: 15_000,
+    }));
+
+    await Promise.all(Array.from({ length: 40 }, (_, index) => (
+      chains[index % chains.length].append({ action: `instance-${index}` })
+    )));
+
+    const verifier = createAuditHashChain({ chainPath });
+    const result = await verifier.verify();
+    assert.deepStrictEqual(result, { valid: true, totalEntries: 40, brokenAt: null });
+
+    const lines = (await readFile(chainPath, "utf8")).trim().split("\n").map(JSON.parse);
+    assert.deepStrictEqual(lines.map((entry) => entry.seq), Array.from({ length: 40 }, (_, index) => index + 1));
+    assert.ok(chains.some((chain) => chain.getHealth().lockContentionCount > 0));
+
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
+  it("serializes appenders running in separate Node processes", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "audit-hash-processes-"));
+    const chainPath = join(tempDir, "audit-chain.jsonl");
+
+    await Promise.all([
+      runChildAppender(chainPath, "process-a", 12),
+      runChildAppender(chainPath, "process-b", 12),
+    ]);
+
+    const verifier = createAuditHashChain({ chainPath });
+    const result = await verifier.verify();
+    assert.deepStrictEqual(result, { valid: true, totalEntries: 24, brokenAt: null });
+
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
+  it("does not reclaim a live lock owned by another worker thread with the same pid", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "audit-hash-worker-lock-"));
+    const chainPath = join(tempDir, "audit-chain.jsonl");
+    const moduleUrl = new URL("./auditHashChain.js", import.meta.url).href;
+    let holder;
+    let contender;
+    try {
+      holder = createWorkerThreadAppender({
+        chainPath,
+        moduleUrl,
+        action: "holder",
+        holdVerificationMs: 1_000,
+      });
+      const holderLocked = await waitForWorkerMessage(holder, "lock-held");
+      contender = createWorkerThreadAppender({
+        chainPath,
+        moduleUrl,
+        action: "contender",
+        startDelayMs: 350,
+      });
+      const [holderDone, contenderDone] = await Promise.all([
+        waitForWorkerMessage(holder, "done"),
+        waitForWorkerMessage(contender, "done"),
+      ]);
+      assert.strictEqual(holderLocked.pid, contenderDone.pid);
+      assert.notStrictEqual(holderDone.threadId, contenderDone.threadId);
+
+      const verifier = createAuditHashChain({ chainPath });
+      assert.deepStrictEqual(await verifier.verify(), {
+        valid: true,
+        totalEntries: 2,
+        brokenAt: null,
+      });
+    } finally {
+      await Promise.all([
+        terminateWorker(holder),
+        terminateWorker(contender),
+      ]);
+      await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+    }
+  });
+
+  it("fails closed on an active lock and recovers only a stale lock", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "audit-hash-locks-"));
+    const chainPath = join(tempDir, "audit-chain.jsonl");
+    const lockPath = `${chainPath}.lock`;
+    await writeFile(lockPath, JSON.stringify({ nonce: "active-owner" }), "utf8");
+
+    const blocked = createAuditHashChain({
+      chainPath,
+      lockTimeoutMs: 100,
+      staleLockMs: 1_000,
+      lockRetryMinMs: 1,
+      lockRetryMaxMs: 5,
+    });
+    await assert.rejects(
+      () => blocked.append({ action: "must-not-write" }),
+      (error) => error?.code === "AUDIT_CHAIN_LOCK_TIMEOUT",
+    );
+    assert.strictEqual(blocked.getHealth().lockTimeoutCount, 1);
+
+    const old = new Date(Date.now() - 5_000);
+    await utimes(lockPath, old, old);
+    const recovered = createAuditHashChain({
+      chainPath,
+      lockTimeoutMs: 1_000,
+      staleLockMs: 1_000,
+      lockRetryMinMs: 1,
+      lockRetryMaxMs: 5,
+    });
+    await recovered.append({ action: "stale-lock-recovered" });
+    assert.strictEqual(recovered.getHealth().staleLockRecoveryCount, 1);
+    assert.deepStrictEqual(await recovered.verify(), { valid: true, totalEntries: 1, brokenAt: null });
+    assert.strictEqual(recovered.getHealth().externalCheckpointConfigured, false);
+
+    await rm(tempDir, { recursive: true, force: true });
+  });
 });
+
+function runChildAppender(chainPath, prefix, count) {
+  const moduleUrl = new URL("./auditHashChain.js", import.meta.url).href;
+  const source = `
+    const { createAuditHashChain } = await import(${JSON.stringify(moduleUrl)});
+    const chain = createAuditHashChain({ chainPath: process.argv[1] });
+    for (let index = 0; index < Number(process.argv[3]); index += 1) {
+      await chain.append({ action: process.argv[2] + "-" + index });
+    }
+  `;
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [
+      "--input-type=module",
+      "--eval",
+      source,
+      chainPath,
+      prefix,
+      String(count),
+    ], {
+      cwd: process.cwd(),
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    let stderr = "";
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.once("error", reject);
+    child.once("exit", (code, signal) => {
+      if (code === 0) resolve();
+      else reject(new Error(`Child audit appender failed (${code ?? signal}): ${stderr}`));
+    });
+  });
+}
+
+function createWorkerThreadAppender({
+  chainPath,
+  moduleUrl,
+  action,
+  holdVerificationMs = 0,
+  startDelayMs = 0,
+}) {
+  const source = `
+    const { parentPort, workerData, threadId } = require("node:worker_threads");
+    const { setTimeout: delay } = require("node:timers/promises");
+    (async () => {
+      const { createAuditHashChain } = await import(workerData.moduleUrl);
+      const checkpointStore = {
+        configured: false,
+        async verify() {
+          if (workerData.holdVerificationMs > 0) {
+            parentPort.postMessage({ type: "lock-held", pid: process.pid, threadId });
+            await delay(workerData.holdVerificationMs);
+          }
+        },
+        async verifyTail() {},
+        async commit() {},
+        getHealth() { return { configured: false, status: "disabled", mode: "none" }; },
+      };
+      if (workerData.startDelayMs > 0) await delay(workerData.startDelayMs);
+      const chain = createAuditHashChain({ chainPath: workerData.chainPath, checkpointStore });
+      await chain.append({ action: workerData.action });
+      parentPort.postMessage({ type: "done", pid: process.pid, threadId });
+    })().catch((error) => {
+      parentPort.postMessage({ type: "error", message: error?.stack ?? String(error) });
+    });
+  `;
+  return new Worker(source, {
+    eval: true,
+    workerData: {
+      chainPath,
+      moduleUrl,
+      action,
+      holdVerificationMs,
+      startDelayMs,
+    },
+  });
+}
+
+function waitForWorkerMessage(worker, type) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error(`Timed out waiting for worker message: ${type}`));
+    }, 5_000);
+    const onMessage = (message) => {
+      if (message?.type === "error") {
+        cleanup();
+        reject(new Error(message.message));
+      } else if (message?.type === type) {
+        cleanup();
+        resolve(message);
+      }
+    };
+    const onError = (error) => {
+      cleanup();
+      reject(error);
+    };
+    const onExit = (code) => {
+      if (code !== 0) {
+        cleanup();
+        reject(new Error(`Audit worker exited before ${type}: ${code}`));
+      }
+    };
+    function cleanup() {
+      clearTimeout(timeout);
+      worker.off("message", onMessage);
+      worker.off("error", onError);
+      worker.off("exit", onExit);
+    }
+    worker.on("message", onMessage);
+    worker.on("error", onError);
+    worker.on("exit", onExit);
+  });
+}
+
+async function terminateWorker(worker) {
+  if (!worker) return;
+  await worker.terminate().catch(() => undefined);
+}

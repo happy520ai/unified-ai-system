@@ -103,7 +103,15 @@ function createMocks() {
     store: { logEvent: () => {} },
   };
 
-  return { forge, agentPool, userMgr: null, knowledge: null, transfer: null, gateway: null };
+  const authAdapter = {
+    authorize: () => ({
+      allowed: true,
+      identity: { userId: 'test-operator', role: 'developer', permissions: ['dashboard:read'] },
+      permission: 'dashboard:read',
+    }),
+    resolvePermission: () => 'dashboard:read',
+  };
+  return { forge, agentPool, userMgr: null, knowledge: null, transfer: null, gateway: null, authAdapter };
 }
 
 // ---------------------------------------------------------------------------
@@ -132,7 +140,7 @@ describe('ForgeServer WebSocket Interactions', () => {
     });
     const p = http.address().port;
 
-    const socket = net.createConnection({ port: p });
+    const socket = net.createConnection({ port: p, host: '127.0.0.1' });
     const reader = createFrameReader();
     let handshakeDone = false;
 
@@ -195,7 +203,7 @@ describe('ForgeServer WebSocket Interactions', () => {
     });
     const p = http.address().port;
 
-    const socket = net.createConnection({ port: p });
+    const socket = net.createConnection({ port: p, host: '127.0.0.1' });
     const reader = createFrameReader();
     let handshakeDone = false;
 
@@ -260,7 +268,7 @@ describe('ForgeServer WebSocket Interactions', () => {
     });
     const p = http.address().port;
 
-    const socket = net.createConnection({ port: p });
+    const socket = net.createConnection({ port: p, host: '127.0.0.1' });
     const reader = createFrameReader();
     let handshakeDone = false;
 
@@ -326,7 +334,7 @@ describe('ForgeServer WebSocket Interactions', () => {
     });
     const p = http.address().port;
 
-    const socket = net.createConnection({ port: p });
+    const socket = net.createConnection({ port: p, host: '127.0.0.1' });
     let connected = false;
 
     await new Promise((resolve, reject) => {

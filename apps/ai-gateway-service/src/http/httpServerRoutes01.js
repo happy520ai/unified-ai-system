@@ -1,5 +1,6 @@
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { getGuardrailsEngine } from "../guardrails/guardrailsEngine.ts";
+import { assertEnterpriseTenantAccess } from "../enterprise/enterpriseTenantPolicy.ts";
 
 export async function dispatchHttpRoutes01(context) {
   const {
@@ -11,7 +12,7 @@ export async function dispatchHttpRoutes01(context) {
     createResponseCachePolicy, invalidateCache, lookupCache, readResponseCacheSummary,
     writeCacheRecord, listResponseCacheAuditTrail, routeAnswerPath, routeQualityCostAnswer,
     getEvidenceById, TASK_MATRIX, LATENCY_DRY_RUN_CASES, PHASE315A_TIMEOUT_TYPES,
-    PHASE315A_LATENCY_RISK_LEVELS, PHASE315A_COMPLETION_CONFIDENCE, executeThreeModeRequest, evaluateTaijiBeidouChatGatewayExecutePreviewHook,
+    PHASE315A_LATENCY_RISK_LEVELS, PHASE315A_COMPLETION_CONFIDENCE, evaluateTaijiBeidouChatGatewayExecutePreviewHook,
     evaluateTaijiBeidouChatPreviewHook, handleChatLocalActionRoute, routeChatActionProposal, buildModelUsabilityMatrix,
     createModelVerificationPlan, getPluginRegistry, readJson,
     writeJson, writeSseEvent, writeSseHeaders, writeServiceLog,
@@ -223,7 +224,7 @@ export async function dispatchHttpRoutes01(context) {
       providerCalled: false,
       localExecutionTriggered: false,
       secretContentStored: false,
-      ...fileContextStore.select(body),
+      ...fileContextStore.select(body, request.enterpriseIdentity),
     }, { startedAt }));
     return;
   }
@@ -240,7 +241,7 @@ export async function dispatchHttpRoutes01(context) {
   }
 
   if (request.method === "GET" && url.pathname === "/enterprise/health") {
-    writeJson(response, 200, createOkEnvelope(enterpriseGovernanceService.getHealth(), { startedAt }));
+    writeJson(response, 200, createOkEnvelope(enterpriseGovernanceService.getPublicHealth(), { startedAt }));
     return;
   }
 
@@ -265,7 +266,7 @@ export async function dispatchHttpRoutes01(context) {
   }
 
   if (request.method === "GET" && url.pathname === "/enterprise/users") {
-    writeJson(response, 200, createOkEnvelope(enterpriseGovernanceService.listUsers(), { startedAt }));
+    writeJson(response, 200, createOkEnvelope(enterpriseGovernanceService.listUsers(request.enterpriseIdentity), { startedAt }));
     return;
   }
 
@@ -340,7 +341,11 @@ export async function dispatchHttpRoutes01(context) {
     try {
       const result = enterpriseGovernanceService.getApiKeyManager().create({
         role: body.role,
-        tenantId: body.tenantId ?? request.enterpriseIdentity?.tenantId,
+        tenantId: assertEnterpriseTenantAccess(
+          request.enterpriseIdentity,
+          body.tenantId,
+          "enterprise_virtual_key_tenant_forbidden",
+        ),
         description: body.description,
         expiresAt: body.expiresAt ?? null,
         budget: body.budget ?? null,
@@ -378,7 +383,6 @@ export async function dispatchHttpRoutes01(context) {
       if (
         target
         && target.tenantId !== request.enterpriseIdentity?.tenantId
-        && request.enterpriseIdentity?.role !== "admin"
       ) {
         writeJson(response, 403, createErrorEnvelope(
           "enterprise_virtual_key_tenant_forbidden",
@@ -442,9 +446,52 @@ export async function dispatchHttpRoutes01(context) {
     return;
   }
 
+  if (
+    request.method === "POST"
+    && url.pathname === "/enterprise/provider-statement-reconciliation"
+  ) {
+    try {
+      const body = await readJson(request);
+      const result = await application.providerStatementReconciliationService.reconcile({
+        tenantId: request.enterpriseIdentity?.tenantId,
+        statement: body,
+      });
+      await enterpriseGovernanceService.recordAudit({
+        outcome: result.status === "balanced" ? "allowed" : "review-required",
+        method: request.method,
+        path: url.pathname,
+        permission: "user:admin",
+        statusCode: 200,
+        code: "provider_statement_reconciliation_completed",
+        identity: request.enterpriseIdentity,
+        details: {
+          tenantId: result.tenantId,
+          provider: result.provider,
+          statementId: result.statementId,
+          statementDigestSha256: result.statementDigestSha256,
+          status: result.status,
+          statementLineCount: result.summary.statementLineCount,
+          exactMatchLineCount: result.summary.exactMatchLineCount,
+          riskCount: result.risks.length,
+          sourceAuthenticated: false,
+          legalInvoice: false,
+        },
+      });
+      writeJson(response, 200, createOkEnvelope(result, { startedAt }));
+    } catch (error) {
+      writeEnterpriseError({
+        response,
+        error,
+        startedAt,
+        fallbackCode: "provider_statement_reconciliation_failed",
+      });
+    }
+    return;
+  }
+
   if (request.method === "GET" && url.pathname === "/enterprise/guardrails") {
     writeJson(response, 200, createOkEnvelope(
-      { config: getGuardrailsEngine().describeConfig() },
+      { config: getGuardrailsEngine(request.enterpriseIdentity?.tenantId).describeConfig() },
       { startedAt },
     ));
     return;
@@ -455,7 +502,7 @@ export async function dispatchHttpRoutes01(context) {
     if (!body) return;
 
     try {
-      const config = getGuardrailsEngine().applyOverrides({
+      const config = getGuardrailsEngine(request.enterpriseIdentity?.tenantId).applyOverrides({
         ...(typeof body.enabled === "boolean" ? { enabled: body.enabled } : {}),
         ...(body.rules && typeof body.rules === "object" ? { rules: body.rules } : {}),
         ...(typeof body.maxInputChars === "number" ? { maxInputChars: body.maxInputChars } : {}),
@@ -490,14 +537,23 @@ export async function dispatchHttpRoutes01(context) {
 
   if (request.method === "GET" && url.pathname === "/enterprise/audit") {
     const limit = url.searchParams.get("limit") ?? 50;
-    writeJson(response, 200, createOkEnvelope(await enterpriseGovernanceService.listAudit({ limit, filters: readAuditFilters(url) }), { startedAt }));
+    writeJson(response, 200, createOkEnvelope(await enterpriseGovernanceService.listAudit({
+      limit,
+      filters: readAuditFilters(url),
+      actorIdentity: request.enterpriseIdentity,
+    }), { startedAt }));
     return;
   }
 
   if (request.method === "GET" && url.pathname === "/enterprise/audit/export") {
     const limit = url.searchParams.get("limit") ?? 200;
     const format = url.searchParams.get("format") ?? "jsonl";
-    writeJson(response, 200, createOkEnvelope(await enterpriseGovernanceService.exportAudit({ limit, format, filters: readAuditFilters(url) }), { startedAt }));
+    writeJson(response, 200, createOkEnvelope(await enterpriseGovernanceService.exportAudit({
+      limit,
+      format,
+      filters: readAuditFilters(url),
+      actorIdentity: request.enterpriseIdentity,
+    }), { startedAt }));
     return;
   }
 
@@ -558,7 +614,7 @@ export async function dispatchHttpRoutes01(context) {
     if (!body) return;
 
     try {
-      const result = await enterpriseOpsService.validateRestore(body);
+      const result = await enterpriseOpsService.validateRestore(body, request.enterpriseIdentity);
       await enterpriseGovernanceService.recordAudit({
         outcome: result.valid ? "allowed" : "denied",
         method: request.method,

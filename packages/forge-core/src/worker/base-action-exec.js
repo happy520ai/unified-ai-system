@@ -7,11 +7,68 @@
  * validation, and fuzzy edit matching.
  */
 
-import { readFile, writeFile, mkdir, stat, readdir, access } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
-import { resolve, dirname, extname } from 'node:path';
+import { readFile, open, mkdir, stat, readdir, access, lstat, realpath } from 'node:fs/promises';
+import { constants as fsConstants, existsSync } from 'node:fs';
+import { resolve, dirname, extname, relative, join, sep } from 'node:path';
 import { matchGlob } from './glob.js';
 import { validateJsSyntax, tryFixSyntax, autoLint } from './base-syntax-utils.js';
+
+function normalizeForPathComparison(value) {
+  return process.platform === 'win32' ? value.toLowerCase() : value;
+}
+
+function isWithinRoot(target, root) {
+  const normalizedTarget = normalizeForPathComparison(target);
+  const normalizedRoot = normalizeForPathComparison(root);
+  return normalizedTarget === normalizedRoot || normalizedTarget.startsWith(normalizedRoot + sep);
+}
+
+/**
+ * Resolve an action path through canonical existing parents and reject every
+ * symlink/junction component. This closes static link escapes; callers repeat
+ * the check after creating parent directories and immediately before writes.
+ */
+export async function resolveActionPath(projectRoot, actionPath = '') {
+  const canonicalRoot = await realpath(resolve(projectRoot));
+  const target = resolve(canonicalRoot, actionPath || '');
+  if (!isWithinRoot(target, canonicalRoot)) {
+    throw new Error(`Path traversal blocked: ${actionPath} resolves outside project root`);
+  }
+
+  const rel = relative(canonicalRoot, target);
+  let cursor = canonicalRoot;
+  for (const segment of rel.split(/[\\/]+/).filter(Boolean)) {
+    cursor = join(cursor, segment);
+    let entry;
+    try {
+      entry = await lstat(cursor);
+    } catch (error) {
+      if (error?.code === 'ENOENT') break;
+      throw error;
+    }
+    if (entry.isSymbolicLink()) {
+      throw new Error(`Path traversal blocked: ${actionPath} contains a symlink or junction`);
+    }
+    const canonicalEntry = await realpath(cursor);
+    if (!isWithinRoot(canonicalEntry, canonicalRoot)) {
+      throw new Error(`Path traversal blocked: ${actionPath} resolves outside project root`);
+    }
+  }
+  return target;
+}
+
+async function writeFileNoFollow(path, content) {
+  const flags = fsConstants.O_WRONLY
+    | fsConstants.O_CREAT
+    | fsConstants.O_TRUNC
+    | (fsConstants.O_NOFOLLOW ?? 0);
+  const handle = await open(path, flags, 0o600);
+  try {
+    await handle.writeFile(content, 'utf8');
+  } finally {
+    await handle.close();
+  }
+}
 
 /**
  * Execute a single action (write/edit/diff/bash/read) within the project.
@@ -27,15 +84,9 @@ import { validateJsSyntax, tryFixSyntax, autoLint } from './base-syntax-utils.js
  * @returns {Promise<object>} — action result
  */
 export async function executeAction(action, projectRoot, task, opts) {
-  const { logger, bashSafety, incrementalEdit } = opts;
-  let fullPath = resolve(projectRoot, action.path || '');
+  const { logger, bashSafety, incrementalEdit, sandboxExecutor, signal } = opts;
+  let fullPath = await resolveActionPath(projectRoot, action.path || '');
   let relPath = action.path || '';
-
-  // Security: block path traversal for ALL actions
-  const resolvedRoot = resolve(projectRoot);
-  if (fullPath !== resolvedRoot && !fullPath.startsWith(resolvedRoot + '/') && !fullPath.startsWith(resolvedRoot + '\\')) {
-    throw new Error(`Path traversal blocked: ${relPath} resolves outside project root`);
-  }
 
   // Security: only restrict destructive operations (write/edit) to allowed patterns
   const mutatingActions = new Set(['write', 'edit', 'diff']);
@@ -47,7 +98,7 @@ export async function executeAction(action, projectRoot, task, opts) {
         logger.info(`Path auto-corrected: ${relPath} → ${inferred} (inferred subdirectory prefix)`);
         action.path = inferred;
         relPath = inferred;
-        fullPath = resolve(projectRoot, inferred);
+        fullPath = await resolveActionPath(projectRoot, inferred);
       } else {
         logger.info(`BLOCKED: ${relPath} not in patterns: ${JSON.stringify(patterns?.slice?.(0, 5) || patterns)}`);
         throw new Error(`File ${relPath} is not in allowed patterns`);
@@ -58,6 +109,7 @@ export async function executeAction(action, projectRoot, task, opts) {
   switch (action.type) {
     case 'write': {
       await mkdir(dirname(fullPath), { recursive: true });
+      fullPath = await resolveActionPath(projectRoot, relPath);
 
       let contentToWrite = action.content;
       if (typeof contentToWrite !== 'string') {
@@ -99,7 +151,8 @@ export async function executeAction(action, projectRoot, task, opts) {
         }
       }
 
-      await writeFile(fullPath, contentToWrite, 'utf-8');
+      fullPath = await resolveActionPath(projectRoot, relPath);
+      await writeFileNoFollow(fullPath, contentToWrite);
       try {
         await access(fullPath);
         const written = await readFile(fullPath, 'utf-8');
@@ -109,20 +162,22 @@ export async function executeAction(action, projectRoot, task, opts) {
       } catch (verifyErr) {
         throw new Error(`Write verification failed for ${relPath}: ${verifyErr.message}`);
       }
-      await autoLint(fullPath, relPath, logger);
+      await autoLint(fullPath, relPath, logger, { projectRoot, sandboxExecutor, signal });
       return { modified: true, path: relPath, action: 'created' };
     }
 
     case 'edit': {
       const oldStr = typeof action.oldString === 'string' ? action.oldString : String(action.oldString || '');
       const newStr = typeof action.newString === 'string' ? action.newString : String(action.newString || '');
+      fullPath = await resolveActionPath(projectRoot, relPath);
       const current = await readFile(fullPath, 'utf-8');
 
       if (!current.includes(oldStr)) {
         // Fuzzy matching: normalize whitespace
         const fuzzyResult = fuzzyMatchEdit(current, oldStr, newStr);
         if (fuzzyResult) {
-          await writeFile(fullPath, fuzzyResult.content, 'utf-8');
+          fullPath = await resolveActionPath(projectRoot, relPath);
+          await writeFileNoFollow(fullPath, fuzzyResult.content);
           try { await access(fullPath); } catch { throw new Error(`Edit verification failed for ${relPath}`); }
           logger.info(fuzzyResult.message);
           return { modified: true, path: relPath, action: 'modified' };
@@ -131,7 +186,8 @@ export async function executeAction(action, projectRoot, task, opts) {
         // Line-based matching
         const lineResult = lineBasedEdit(current, oldStr, newStr);
         if (lineResult) {
-          await writeFile(fullPath, lineResult.content, 'utf-8');
+          fullPath = await resolveActionPath(projectRoot, relPath);
+          await writeFileNoFollow(fullPath, lineResult.content);
           try { await access(fullPath); } catch { throw new Error(`Edit verification failed for ${relPath}`); }
           logger.info(lineResult.message);
           return { modified: true, path: relPath, action: 'modified' };
@@ -153,7 +209,8 @@ export async function executeAction(action, projectRoot, task, opts) {
             const retryCheck = await validateJsSyntax(fixed);
             if (retryCheck.valid) {
               logger.info(`Auto-fixed post-edit syntax errors in ${relPath}`);
-              await writeFile(fullPath, fixed, 'utf-8');
+              fullPath = await resolveActionPath(projectRoot, relPath);
+              await writeFileNoFollow(fullPath, fixed);
               try { await access(fullPath); } catch { throw new Error(`Edit verification failed for ${relPath}`); }
               return { modified: true, path: relPath, action: 'modified' };
             }
@@ -162,9 +219,10 @@ export async function executeAction(action, projectRoot, task, opts) {
         }
       }
 
-      await writeFile(fullPath, updated, 'utf-8');
+      fullPath = await resolveActionPath(projectRoot, relPath);
+      await writeFileNoFollow(fullPath, updated);
       try { await access(fullPath); } catch { throw new Error(`Edit verification failed for ${relPath}`); }
-      await autoLint(fullPath, relPath, logger);
+      await autoLint(fullPath, relPath, logger, { projectRoot, sandboxExecutor, signal });
       return { modified: true, path: relPath, action: 'modified' };
     }
 
@@ -172,13 +230,25 @@ export async function executeAction(action, projectRoot, task, opts) {
       if (!action.edits || !Array.isArray(action.edits)) {
         throw new Error(`Diff action requires an "edits" array`);
       }
-      const diffResult = await incrementalEdit.applyDiffToFile(fullPath, action.edits);
+      fullPath = await resolveActionPath(projectRoot, relPath);
+      const current = await readFile(fullPath, 'utf8');
+      const appliedDiff = incrementalEdit.applyDiff(current, action.edits);
+      const diffResult = {
+        modified: appliedDiff.applied > 0,
+        path: fullPath,
+        applied: appliedDiff.applied,
+        errors: appliedDiff.errors,
+      };
+      if (diffResult.modified) {
+        fullPath = await resolveActionPath(projectRoot, relPath);
+        await writeFileNoFollow(fullPath, appliedDiff.result);
+      }
       if (diffResult.errors.length > 0) {
         logger.info(`Diff edit had ${diffResult.errors.length} error(s): ${diffResult.errors.join('; ')}`);
       }
       if (diffResult.applied > 0) {
         if (relPath.match(/\.m?js$/)) {
-          await autoLint(fullPath, relPath, logger);
+          await autoLint(fullPath, relPath, logger, { projectRoot, sandboxExecutor, signal });
         }
         logger.info(`Diff edit: ${diffResult.applied} edit(s) applied to ${relPath}`);
         return { modified: true, path: relPath, action: 'diff-applied', applied: diffResult.applied, errors: diffResult.errors };
@@ -191,28 +261,35 @@ export async function executeAction(action, projectRoot, task, opts) {
       const safetyCheck = bashSafety.check(action.command);
       if (safetyCheck.verdict === SafetyVerdict.BLOCKED) {
         logger.info(`Bash BLOCKED: "${action.command?.slice(0, 60)}" — ${safetyCheck.reason}`);
-        return { modified: false, output: `Command blocked by safety policy: ${safetyCheck.reason}` };
+        throw new Error(`Command blocked by safety policy: ${safetyCheck.reason}`);
       }
       if (safetyCheck.verdict === SafetyVerdict.NEEDS_REVIEW) {
         logger.info(`Bash NEEDS_REVIEW: "${action.command?.slice(0, 60)}" — skipping in automated mode`);
-        return { modified: false, output: `Command requires manual review: ${safetyCheck.reason}` };
+        throw new Error(`Command requires manual review: ${safetyCheck.reason}`);
       }
-      const { execSync } = await import('node:child_process');
-      try {
-        const output = execSync(action.command, {
-          cwd: projectRoot,
-          timeout: 60000,
-          encoding: 'utf-8',
-          stdio: ['pipe', 'pipe', 'pipe'],
-        });
-        return { modified: false, output: output.slice(0, 5000) };
-      } catch (err) {
-        return { modified: false, output: err.stderr?.slice(0, 5000) || err.message };
+      if (!sandboxExecutor) {
+        throw new Error('SANDBOX_BACKEND_UNAVAILABLE: LLM-generated bash requires an attested isolation backend.');
       }
+      const result = await sandboxExecutor.execute(action.command, {
+        cwd: projectRoot,
+        level: 'full',
+        workspaceMode: 'ro',
+        timeout: 60_000,
+        signal,
+      });
+      const output = [result.stdout, result.stderr].filter(Boolean).join('\n').slice(0, 5000);
+      if (result.exitCode !== 0 || result.killed || result.cleanupUncertain) {
+        throw new Error(`Sandbox command failed (${result.killReason || result.exitCode}): ${output}`);
+      }
+      return {
+        modified: false,
+        output,
+      };
     }
 
     case 'read': {
       try {
+        fullPath = await resolveActionPath(projectRoot, relPath);
         const fileStat = await stat(fullPath);
         if (fileStat.isDirectory()) {
           const entries = await readdir(fullPath);

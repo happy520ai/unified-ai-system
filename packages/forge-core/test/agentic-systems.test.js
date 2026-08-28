@@ -148,32 +148,39 @@ describe("agentToolRegistry expanded", () => {
     assert.ok(tool.inputSchema && tool.execute);
   });
 
-  it("registers all new built-in tools", () => {
+  it("registers safe built-in tools and omits high-risk executors by default", () => {
     const registry = createAgentToolRegistry();
     const toolNames = registry.listTools().map((t) => t.name);
 
     assert.ok(toolNames.includes("file_read") && toolNames.includes("file_write"));
-    assert.ok(toolNames.includes("shell_exec") && toolNames.includes("web_fetch"));
-    assert.ok(toolNames.includes("code_run") && toolNames.includes("file_edit"));
+    assert.ok(!toolNames.includes("shell_exec") && !toolNames.includes("web_fetch"));
+    assert.ok(!toolNames.includes("code_run") && toolNames.includes("file_edit"));
     assert.ok(toolNames.includes("file_insert") && toolNames.includes("glob"));
     assert.ok(toolNames.includes("grep") && toolNames.includes("web_search"));
     assert.ok(toolNames.includes("image_analyze") && toolNames.includes("image_read"));
   });
 
-  it("registers git tools", () => {
+  it("registers local git tools and keeps remote mutations opt-in", () => {
     const registry = createAgentToolRegistry();
     const toolNames = registry.listTools().map((t) => t.name);
 
     assert.ok(toolNames.includes("git_status") && toolNames.includes("git_diff"));
     assert.ok(toolNames.includes("git_log") && toolNames.includes("git_branch"));
-    assert.ok(toolNames.includes("git_commit") && toolNames.includes("git_push"));
-    assert.ok(toolNames.includes("git_create_pr"));
+    assert.ok(toolNames.includes("git_commit"));
+    assert.ok(!toolNames.includes("git_push") && !toolNames.includes("git_create_pr"));
+
+    const privileged = createAgentToolRegistry({
+      enableHighRiskTools: true,
+      permissionChecker: { check: () => ({ allowed: true }) },
+    });
+    const privilegedNames = privileged.listTools().map((tool) => tool.name);
+    assert.ok(privilegedNames.includes("git_push") && privilegedNames.includes("git_create_pr"));
   });
 
-  it("has at least 19 tools registered", () => {
+  it("has a broad safe tool set registered", () => {
     const registry = createAgentToolRegistry();
     const tools = registry.listTools();
-    assert.ok(tools.length >= 19, `Expected >= 19 tools, got ${tools.length}`);
+    assert.ok(tools.length >= 16, `Expected >= 16 safe tools, got ${tools.length}`);
   });
 
   it("listTools with allowlist filter works", () => {
@@ -186,7 +193,10 @@ describe("agentToolRegistry expanded", () => {
     const registry = createAgentToolRegistry();
     const all = registry.listTools();
     const filtered = registry.listTools({ denylist: ["shell_exec", "file_write"] });
-    assert.equal(filtered.length, all.length - 2);
+    const deniedPresent = ["shell_exec", "file_write"]
+      .filter((name) => all.some((tool) => tool.name === name))
+      .length;
+    assert.equal(filtered.length, all.length - deniedPresent);
   });
 
   it("listTools readOnly mode filters write tools", () => {

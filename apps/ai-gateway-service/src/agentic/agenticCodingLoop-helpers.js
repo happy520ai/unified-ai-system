@@ -6,6 +6,7 @@
  */
 
 import { withProviderTimeout, debugLoop } from "./agenticCodingLoop-constants.js";
+import { compactMessageHistory, defineCompactionPolicy } from "@unified-ai-system/codex-context-gateway";
 import {
   convertRegistryToOpenAITools,
   summarizeToolUsage,
@@ -129,60 +130,20 @@ export function adjustIterationBudget(currentBudget, recentResults, iteration, m
 
 /**
  * Compact the messages array by summarizing older iterations while keeping
- * recent iterations in full detail.
+ * recent iterations in full detail. Delegates to the unified context
+ * compaction engine (packages/codex-context-gateway) — iteration-style
+ * facade with pinned system/leading-user messages.
  */
 export function compactMessages(messages, keepRecent = 5) {
-  const systemMsgs = [];
-  for (let i = 0; i < messages.length; i++) {
-    if (messages[i].role === "system" || (messages[i].role === "user" && i <= 1)) {
-      systemMsgs.push(messages[i]);
-    }
-  }
-
-  const assistantIndices = [];
-  for (let i = 0; i < messages.length; i++) {
-    if (messages[i].role === "assistant") {
-      assistantIndices.push(i);
-    }
-  }
-
-  if (assistantIndices.length <= keepRecent) {
-    return messages;
-  }
-
-  const cutoffIndex = assistantIndices[assistantIndices.length - keepRecent];
-  const oldMessages = messages.slice(systemMsgs.length, cutoffIndex);
-  const recentMessages = messages.slice(cutoffIndex);
-
-  const toolResultCount = oldMessages.filter((m) => m.role === "tool").length;
-  const iterationCount = oldMessages.filter((m) => m.role === "assistant").length;
-
-  const keyFindings = [];
-  for (const msg of oldMessages) {
-    if (msg.role === "tool" && msg.content) {
-      try {
-        const parsed = typeof msg.content === "string" ? JSON.parse(msg.content) : msg.content;
-        if (parsed?.status === "error") {
-          keyFindings.push(
-            `Error in ${msg._meta?.toolName || "tool"}: ${parsed.error || parsed.message || "unknown"}`
-          );
-        }
-      } catch (_e) {
-        // Not JSON — skip silently
-      }
-    }
-  }
-
-  const summaryContent =
-    `[Context compacted: ${iterationCount} earlier iterations summarized. ` +
-    `${toolResultCount} tool results processed.` +
-    (keyFindings.length > 0
-      ? " Key issues found: " + keyFindings.slice(0, 5).join("; ")
-      : "") +
-    ` Continuing with full detail for the last ${keepRecent} iterations.]`;
-
-  const summaryMsg = { role: "system", content: summaryContent };
-  return [...systemMsgs, summaryMsg, ...recentMessages];
+  const { messages: result } = compactMessageHistory(
+    messages,
+    defineCompactionPolicy({
+      summaryStyle: "iteration",
+      keepRecentTurns: keepRecent,
+      preserveLeadingUserMessages: 2,
+    }),
+  );
+  return result;
 }
 
 // ============================================================
@@ -270,8 +231,12 @@ export function getOpenAITools(toolRegistry, allowlist) {
   return convertRegistryToOpenAITools(tools);
 }
 
-export function buildProviderRequest({ messages, tools, providerId, modelId, maxTokensPerTurn }) {
+export function buildProviderRequest({ messages, tools, providerId, modelId, maxTokensPerTurn, signal }) {
   return {
+    // Wall-clock abort must reach the in-flight provider call; without this the
+    // loop only observes cancellation at iteration boundaries and a completing
+    // first response silently swallows the timeout.
+    ...(signal ? { execution: { signal } } : {}),
     request: {
       messages,
       tools,
@@ -327,7 +292,10 @@ import { randomUUID } from "node:crypto";
 
 export async function syncMcpToolsToRegistry(mcpBridge, toolRegistry) {
   try {
-    const mcpTools = await mcpBridge.listAllTools();
+    const listing = await mcpBridge.listAllTools();
+    const mcpTools = Array.isArray(listing)
+      ? listing
+      : Array.isArray(listing?.tools) ? listing.tools : [];
     if (Array.isArray(mcpTools)) {
       for (const mcpTool of mcpTools) {
         const toolName = mcpTool.name || mcpTool.prefixedName;
@@ -337,11 +305,22 @@ export async function syncMcpToolsToRegistry(mcpBridge, toolRegistry) {
             name: toolName,
             description: mcpTool.description || `MCP tool: ${toolName}`,
             inputSchema: mcpTool.inputSchema || createInputSchema({}),
-            execute: async (params) => mcpBridge.callTool(toolName, params),
+            execute: async (params, context) => {
+              await context.commitExternalEffect();
+              return mcpBridge.callTool(toolName, params);
+            },
             requiredPermissions: ["mcp:call"],
-            isReadOnly: true,
+            isReadOnly: false,
+            externalEffectType: "mcp:agent-tool-call",
+            externalEffectRequiresFence: true,
           });
-          toolRegistry.registerTool(tool);
+          const registration = toolRegistry.registerTool(tool);
+          if (!registration || registration.status !== "success") {
+            debugLoop("MCP tool registration denied", {
+              toolName,
+              code: registration?.code || "MCP_TOOL_REGISTRATION_FAILED",
+            });
+          }
         }
       }
     }

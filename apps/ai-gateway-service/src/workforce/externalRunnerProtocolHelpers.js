@@ -15,6 +15,7 @@ export const RUNNER_STATUS = {
   STARTING: "starting",   // 正在启动
   RUNNING: "running",     // 正在执行
   COMPLETED: "completed", // 执行完成
+  SKIPPED: "skipped",     // 未执行（缺少处理器/配置，诚实跳过）
   FAILED: "failed",       // 执行失败
   CANCELLED: "cancelled", // 已取消
 };

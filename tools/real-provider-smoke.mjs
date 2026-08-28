@@ -13,6 +13,8 @@
 
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
@@ -55,6 +57,8 @@ async function runSmoke() {
   // Provision a per-run random bootstrap token; the value never leaves the
   // child environment and is never printed.
   const runToken = randomBytes(32).toString("hex");
+  const auditCheckpointKey = randomBytes(32).toString("hex");
+  const isolatedStateRoot = await mkdtemp(join(tmpdir(), "uai-real-provider-smoke-"));
   const child = spawn(process.execPath, [smokeEntry], {
     cwd: repoRoot,
     env: {
@@ -71,6 +75,13 @@ async function runSmoke() {
         : {}),
       PME_AUTH_TOKEN: runToken,
       PME_AUTH_TENANT_ID: "real-provider-smoke",
+      PME_AUDIT_LOG_PATH: join(isolatedStateRoot, "enterprise-audit.jsonl"),
+      PME_AUDIT_CHAIN_PATH: join(isolatedStateRoot, "enterprise-audit.chain.jsonl"),
+      PME_AUDIT_CHECKPOINT_PATH: join(isolatedStateRoot, "enterprise-audit.checkpoint.json"),
+      PME_AUDIT_CHECKPOINT_HMAC_KEY: auditCheckpointKey,
+      AI_GATEWAY_USAGE_LOG_DIR: join(isolatedStateRoot, "usage"),
+      AI_GATEWAY_PROVIDER_DISPATCH_SQLITE_PATH: join(isolatedStateRoot, "provider-dispatch.sqlite"),
+      AI_GATEWAY_PROVIDER_DISPATCH_HMAC_SECRET: randomBytes(32).toString("hex"),
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -97,6 +108,7 @@ async function runSmoke() {
     child.once("close", (code) => resolve(code ?? -1));
   });
   clearTimeout(timer);
+  await rm(isolatedStateRoot, { recursive: true, force: true });
 
   return { exitCode, stdout, stderr, timedOut: exitCode === -1 && !stderr.includes("spawn failed") };
 }

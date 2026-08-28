@@ -3,14 +3,14 @@ import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 export async function dispatchHttpRoutes05(context) {
   const {
     createErrorEnvelope, createOkEnvelope, getSafeRuntimeConfig, createRouteFailureEnvelope,
-    createLocalAgentIntentExplainer, runLocalOperationLoop, getSupportedKnowledgeFileTypes, parseKnowledgeFile,
+    createLocalAgentIntentExplainer, runLocalOperationLoop, assertKnowledgeFileBatch, getSupportedKnowledgeFileTypes, parseKnowledgeFile,
     listModelImportProviders, detectRuntimeCredentialProviders, getRequestContext,
     createNextCodexTask, writeNextCodexTaskOutbox, readCodexLoopStatus, checkTokenCostGuard,
     appendEstimateRecord, readTokenCostSummary, readLatestMimoTokenCalibrationProfile, createResponseCacheKey,
     createResponseCachePolicy, invalidateCache, lookupCache, readResponseCacheSummary,
     writeCacheRecord, listResponseCacheAuditTrail, routeAnswerPath, routeQualityCostAnswer,
     getEvidenceById, TASK_MATRIX, LATENCY_DRY_RUN_CASES, PHASE315A_TIMEOUT_TYPES,
-    PHASE315A_LATENCY_RISK_LEVELS, PHASE315A_COMPLETION_CONFIDENCE, executeThreeModeRequest, evaluateTaijiBeidouChatGatewayExecutePreviewHook,
+    PHASE315A_LATENCY_RISK_LEVELS, PHASE315A_COMPLETION_CONFIDENCE, evaluateTaijiBeidouChatGatewayExecutePreviewHook,
     evaluateTaijiBeidouChatPreviewHook, handleChatLocalActionRoute, routeChatActionProposal, buildModelUsabilityMatrix,
     createModelVerificationPlan, getPluginRegistry, readJson,
     writeJson, writeSseEvent, writeSseHeaders, writeServiceLog,
@@ -316,13 +316,7 @@ export async function dispatchHttpRoutes05(context) {
 
     try {
       const files = Array.isArray(body?.files) ? body.files : [];
-
-      if (files.length === 0) {
-        const error = new Error("Knowledge file load requires at least one file.");
-        error.code = "KNOWLEDGE_FILE_LOAD_FILES_REQUIRED";
-        error.category = "validation";
-        throw error;
-      }
+      assertKnowledgeFileBatch(files);
 
       const documents = [];
       const skipped = [];
@@ -331,6 +325,7 @@ export async function dispatchHttpRoutes05(context) {
         try {
           documents.push(await parseKnowledgeFile(file));
         } catch (error) {
+          if (error?.retryable === true) throw error;
           skipped.push({
             fileName: file?.fileName ?? file?.name ?? "unknown",
             code: error?.code ?? "KNOWLEDGE_FILE_PARSE_FAILED",
@@ -385,13 +380,14 @@ export async function dispatchHttpRoutes05(context) {
         code: error?.code,
         durationMs: Date.now() - startedAt,
       });
+      const statusCode = error?.category === "validation" ? 400 : error?.category === "availability" ? 503 : 422;
       writeJson(
         response,
-        error?.category === "validation" ? 400 : 422,
+        statusCode,
         createErrorEnvelope(error?.code ?? "knowledge_file_load_failed", error instanceof Error ? error.message : "Knowledge file load failed.", {
           startedAt,
           category: error?.category ?? "knowledge",
-          retryable: false,
+          retryable: error?.retryable === true,
           details: error?.details,
         }),
       );

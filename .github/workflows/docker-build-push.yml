@@ -30,7 +30,7 @@ jobs:
   build-and-push:
     name: Build and push Docker image
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
@@ -51,7 +51,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Workspace check
-        run: pnpm -r --if-present check
+        run: pnpm check
 
       - name: Public repository hygiene
         run: pnpm check:public
@@ -71,24 +71,30 @@ jobs:
             .tmp/docker-smoke-openai-sdk-chat.log \
             .tmp/docker-smoke-container-runtime.log \
             .tmp/docker-smoke-base-url.json
+          hardened_run_args=(
+            --read-only
+            --cap-drop ALL
+            --security-opt no-new-privileges
+            --tmpfs /tmp:rw,noexec,nosuid,size=64m
+          )
           docker build --tag unified-ai-system-smoke .
           docker build \
             --target mcp \
             --tag unified-ai-system-mcp-smoke \
             .
-          docker run --rm \
+          docker run --rm "${hardened_run_args[@]}" \
             --env AI_GATEWAY_PROVIDER_MODE=fake \
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
             --env PME_ENTERPRISE_AUTH_ENABLED=false \
             unified-ai-system-smoke \
-            pnpm gateway demo --json 2>&1 | tee .tmp/docker-smoke-gateway-demo.json
+            node apps/agent-console/src/cli.js demo --json 2>&1 | tee .tmp/docker-smoke-gateway-demo.json
           piped_evidence="$(printf '%s' 'Container stdin evidence test' | \
-            docker run --rm -i \
+            docker run --rm -i "${hardened_run_args[@]}" \
             --env AI_GATEWAY_PROVIDER_MODE=fake \
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
             --env PME_ENTERPRISE_AUTH_ENABLED=false \
             unified-ai-system-smoke \
-            pnpm --silent gateway demo --enhance --profile coding --language en --json \
+            node apps/agent-console/src/cli.js demo --enhance --profile coding --language en --json \
             2>&1 | tee .tmp/docker-smoke-piped-demo.json)"
           extract_json() { node --input-type=module -e 'const s=process.argv[1];const a=s.indexOf("{");const b=s.lastIndexOf("}");if(a<0||b<a)process.exit(1);process.stdout.write(s.slice(a,b+1));' "$1"; }
           PIPED_EVIDENCE_JSON="$(extract_json "${piped_evidence}")" node --input-type=module <<'NODE'
@@ -106,19 +112,19 @@ jobs:
           console.log(JSON.stringify(checks));
           if (!Object.values(checks).every(Boolean)) process.exit(1);
           NODE
-          enhancement_evidence="$(docker run --rm \
+          enhancement_evidence="$(docker run --rm "${hardened_run_args[@]}" \
             --env AI_GATEWAY_PROVIDER_MODE=fake \
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
             --env PME_ENTERPRISE_AUTH_ENABLED=false \
             --env AI_GATEWAY_SERVICE_HOST=127.0.0.1 \
             unified-ai-system-smoke \
             sh -c '
-              pnpm gateway serve >/tmp/gateway.log 2>&1 &
+              node apps/agent-console/src/cli.js serve >/tmp/gateway.log 2>&1 &
               pid=$!
               trap "kill $pid 2>/dev/null || true" EXIT
               ready=false
               for attempt in $(seq 1 30); do
-                if pnpm --silent gateway status --json >/tmp/status.json 2>/dev/null; then
+                if node apps/agent-console/src/cli.js status --json >/tmp/status.json 2>/dev/null; then
                   ready=true
                   break
                 fi
@@ -128,7 +134,7 @@ jobs:
                 cat /tmp/gateway.log
                 exit 1
               fi
-              pnpm --silent gateway enhance "Container evidence test" --profile coding --language en --evidence
+              node apps/agent-console/src/cli.js enhance "Container evidence test" --profile coding --language en --evidence
             ' | tee .tmp/docker-smoke-container-evidence.json)"
           EVIDENCE_JSON="$(extract_json "${enhancement_evidence}")" node --input-type=module <<'NODE'
           const evidence = JSON.parse(process.env.EVIDENCE_JSON);
@@ -145,16 +151,16 @@ jobs:
           console.log(JSON.stringify(checks));
           if (!Object.values(checks).every(Boolean)) process.exit(1);
           NODE
-          docker run --rm \
+          docker run --rm "${hardened_run_args[@]}" \
             --env AI_GATEWAY_PROVIDER_MODE=fake \
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
             --env PME_ENTERPRISE_AUTH_ENABLED=false \
             unified-ai-system-smoke \
-            pnpm smoke:mcp --json 2>&1 | tee .tmp/docker-smoke-mcp-smoke.json
+            node tools/mcp-smoke.mjs --json 2>&1 | tee .tmp/docker-smoke-mcp-smoke.json
           node tools/mcp-smoke.mjs \
             --docker-image=unified-ai-system-mcp-smoke \
             --json 2>&1 | tee .tmp/docker-smoke-tools-mcp-smoke.json
-          container_id="$(docker run --detach \
+          container_id="$(docker run --detach "${hardened_run_args[@]}" \
             --publish 127.0.0.1::3100 \
             --env AI_GATEWAY_PROVIDER_MODE=fake \
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
@@ -183,6 +189,11 @@ jobs:
           AI_GATEWAY_SERVICE_URL="${SMOKE_BASE_URL}" \
             PME_AUTH_TOKEN=local-smoke-admin-token-0123456789abcdef0123456789 \
             node docs/examples/openai-sdk-chat.mjs 2>&1 | tee .tmp/docker-smoke-openai-sdk-chat.log
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+        with:
+          platforms: arm64
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
@@ -226,12 +237,15 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
+          target: gateway
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push != 'false') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=gateway
           cache-to: type=gha,mode=max,scope=gateway
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
+          provenance: mode=max
+          sbom: true
 
       - name: Build and push MCP image
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
@@ -246,24 +260,9 @@ jobs:
             type=gha,scope=mcp
             type=gha,scope=gateway
           cache-to: type=gha,mode=max,scope=mcp
-          platforms: linux/amd64
-
-      # arm64 腿独立且非阻断：qemu 模拟下的网络下载在 CI 基础设施波动时
-      # 会确定性失败（exit 255）；amd64 主发布不受影响，arm64 恢复后由
-      # workflow_dispatch 或下次发布补齐。
-      - name: Build and push arm64 images (best effort)
-        continue-on-error: true
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
-        with:
-          context: .
-          file: ./Dockerfile
-          push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push != 'false') }}
-          tags: ${{ steps.mcp-meta.outputs.tags }}
-          labels: ${{ steps.mcp-meta.outputs.labels }}
-          cache-from: |
-            type=gha,scope=mcp
-            type=gha,scope=gateway
-          platforms: linux/arm64
+          platforms: linux/amd64,linux/arm64
+          provenance: mode=max
+          sbom: true
 
       - name: Verify published images anonymously
         if: github.event_name != 'pull_request' && (github.event.inputs.push != 'false')
@@ -277,7 +276,14 @@ jobs:
             .tmp/docker-published-mcp-smoke.json \
             .tmp/docker-published-tools-mcp-smoke.json \
             .tmp/docker-published-openai-sdk-chat.log \
-            .tmp/docker-published-runtime.log
+            .tmp/docker-published-runtime.log \
+            .tmp/docker-published-manifests.log
+          hardened_run_args=(
+            --read-only
+            --cap-drop ALL
+            --security-opt no-new-privileges
+            --tmpfs /tmp:rw,noexec,nosuid,size=64m
+          )
           anonymous_config="$(mktemp -d)"
           container_id=""
           cleanup() {
@@ -290,6 +296,20 @@ jobs:
           export DOCKER_CONFIG="${anonymous_config}"
           image="${REGISTRY}/${IMAGE_NAME}:sha-${GITHUB_SHA::7}"
           mcp_image="${REGISTRY}/${MCP_IMAGE_NAME}:sha-${GITHUB_SHA::7}"
+          inspect_multiarch() {
+            local label="$1"
+            local target_image="$2"
+            local manifest
+            manifest="$(docker buildx imagetools inspect "${target_image}")"
+            echo "## ${label} manifest"
+            echo "${manifest}"
+            grep -q "linux/amd64" <<<"${manifest}"
+            grep -q "linux/arm64" <<<"${manifest}"
+          }
+          {
+            inspect_multiarch "Gateway" "${image}"
+            inspect_multiarch "MCP" "${mcp_image}"
+          } | tee .tmp/docker-published-manifests.log
           pull_with_retry() {
             local target_image="$1"
             for attempt in $(seq 1 6); do
@@ -306,12 +326,12 @@ jobs:
           pull_with_retry "${mcp_image}"
           # 直接以 node 调用 CLI：pnpm run 的 verify-deps 检查在非 root 的
           # /app 下会偶发触发重装/清库；镜像内依赖已由 frozen-lockfile 锁定。
-          docker run --rm \
+          docker run --rm "${hardened_run_args[@]}" \
             --env AI_GATEWAY_PROVIDER_MODE=fake \
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
             "${image}" \
             node apps/agent-console/src/cli.js demo --json 2>&1 | tee .tmp/docker-published-gateway-demo.json
-          docker run --rm \
+          docker run --rm "${hardened_run_args[@]}" \
             --env AI_GATEWAY_PROVIDER_MODE=fake \
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
             "${image}" \
@@ -319,7 +339,7 @@ jobs:
           node tools/mcp-smoke.mjs \
             --docker-image="${mcp_image}" \
             --json 2>&1 | tee .tmp/docker-published-tools-mcp-smoke.json
-          container_id="$(docker run --detach \
+          container_id="$(docker run --detach "${hardened_run_args[@]}" \
             --publish 127.0.0.1::3100 \
             --env AI_GATEWAY_PROVIDER_MODE=fake \
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
@@ -412,11 +432,16 @@ jobs:
               echo "### Published image runtime logs"
               cat .tmp/docker-published-runtime.log
             fi
+            if [ -f .tmp/docker-published-manifests.log ]; then
+              echo ""
+              echo "### Published multi-architecture manifests"
+              cat .tmp/docker-published-manifests.log
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload local docker smoke evidence artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: docker-smoke-evidence
           path: |
@@ -431,7 +456,7 @@ jobs:
 
       - name: Upload published docker evidence artifacts
         if: github.event_name != 'pull_request' && (github.event.inputs.push != 'false')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: docker-published-evidence
           path: |
@@ -440,6 +465,7 @@ jobs:
             .tmp/docker-published-tools-mcp-smoke.json
             .tmp/docker-published-openai-sdk-chat.log
             .tmp/docker-published-runtime.log
+            .tmp/docker-published-manifests.log
 
       - name: Install MCP Registry publisher
         if: startsWith(github.ref, 'refs/tags/v')

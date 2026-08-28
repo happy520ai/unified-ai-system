@@ -17,7 +17,6 @@
  */
 
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
 import {
   CHECK_RESULT,
   FORBIDDEN_PATHS,
@@ -28,6 +27,7 @@ import {
   checkForForbiddenPaths,
   checkForDangerousCommands,
   createAuditEntry,
+  createSecurityAuditLogPath,
   writeAuditLog,
 } from "./securityReviewCheckpointHelpers.js";
 
@@ -265,7 +265,7 @@ export function createSecurityReviewCheckpoint(options = {}) {
      */
     async getAuditLog(planId) {
       try {
-        const logPath = resolve(auditLogDir, `${planId.trim()}.json`);
+        const logPath = createSecurityAuditLogPath(auditLogDir, planId);
         const content = await readFile(logPath, "utf8");
         const entries = JSON.parse(content);
         return {

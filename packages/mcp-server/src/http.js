@@ -17,6 +17,15 @@ const DEFAULT_PORT = 3210;
 const DEFAULT_PATH = "/mcp";
 const MIN_REMOTE_TOKEN_BYTES = 32;
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "[::1]", "localhost"]);
+const MCP_CORS_REQUEST_HEADERS = [
+  "Authorization",
+  "Content-Type",
+  "Mcp-Protocol-Version",
+  "Mcp-Session-Id",
+  "Mcp-Method",
+  "Mcp-Name",
+  "Last-Event-ID",
+];
 
 function isLoopbackHost(host) {
   return LOOPBACK_HOSTS.has(String(host).trim().toLowerCase());
@@ -140,16 +149,22 @@ function writeJson(res, statusCode, payload, headers = {}) {
 function setCorsHeaders(req, res) {
   const origin = getHeader(req.headers, "origin");
   if (!origin) return;
+  const requestedHeaders = String(
+    getHeader(req.headers, "access-control-request-headers") ?? "",
+  )
+    .split(",")
+    .map((header) => header.trim())
+    .filter((header) => /^mcp-param-[a-z0-9-]+$/i.test(header));
   res.setHeader("access-control-allow-origin", origin);
   res.setHeader("vary", "Origin");
   res.setHeader(
     "access-control-allow-headers",
-    "Authorization, Content-Type, Mcp-Protocol-Version, Mcp-Session-Id, Last-Event-ID",
+    [...new Set([...MCP_CORS_REQUEST_HEADERS, ...requestedHeaders])].join(", "),
   );
   res.setHeader("access-control-allow-methods", "GET, POST, DELETE, OPTIONS");
   res.setHeader(
     "access-control-expose-headers",
-    "Mcp-Protocol-Version, Mcp-Session-Id",
+    "Mcp-Protocol-Version, Mcp-Session-Id, Mcp-Method, Mcp-Name",
   );
 }
 

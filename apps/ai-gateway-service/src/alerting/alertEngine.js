@@ -3,7 +3,7 @@
 // 延迟/错误率/成本阈值告警，支持 Webhook/日志/控制台
 // =============================================================================
 
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, appendFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { safeOutboundFetch } from "../security/safeOutboundFetch.ts";
@@ -18,6 +18,8 @@ export function createAlertEngine(options = {}) {
   const cooldownMs = options.cooldownMs ?? 300_000; // 5 分钟冷却
   const lastAlertTime = new Map(); // ruleId -> lastTriggerTime
   const webhookUrls = options.webhookUrls ?? [];
+  const externalEffectGuard = options.externalEffectGuard ?? null;
+  const pendingDispatches = new Set();
 
   // 内置规则
   addRule({ id: "high_error_rate", name: "高错误率", metric: "errorRate", threshold: 0.05, operator: "gt", windowMs: 300_000, severity: "critical" });
@@ -74,7 +76,11 @@ export function createAlertEngine(options = {}) {
         triggered.push(alert);
         alertHistory.push(alert);
         if (alertHistory.length > MAX_HISTORY) alertHistory.shift();
-        dispatchAlert(alert);
+        const dispatch = dispatchAlert(alert).catch((error) => {
+          console.error("[alertEngine]:", error?.message || error);
+        });
+        pendingDispatches.add(dispatch);
+        void dispatch.finally(() => pendingDispatches.delete(dispatch));
       }
     }
     return triggered;
@@ -92,6 +98,7 @@ export function createAlertEngine(options = {}) {
     // Webhook
     for (const url of webhookUrls) {
       try {
+        await reserveAlertWebhook({ alert, url, externalEffectGuard });
         const response = await safeOutboundFetch(url, {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -121,8 +128,32 @@ export function createAlertEngine(options = {}) {
       enabledRules: Array.from(rules.values()).filter((r) => r.enabled).length,
       alertsTriggered: alertHistory.length,
       webhookCount: webhookUrls.length,
+      externalEffectGuardConfigured: Boolean(
+        externalEffectGuard && typeof externalEffectGuard.reserveAndCommit === "function",
+      ),
     };
   }
 
-  return { addRule, removeRule, evaluate, getHistory, getRules, getHealth };
+  async function flush() {
+    await Promise.allSettled([...pendingDispatches]);
+  }
+
+  return { addRule, removeRule, evaluate, getHistory, getRules, getHealth, flush };
+}
+
+async function reserveAlertWebhook({ alert, url, externalEffectGuard }) {
+  if (!externalEffectGuard || typeof externalEffectGuard.reserveAndCommit !== "function") {
+    throw Object.assign(new Error("Alert webhooks require a durable external-effect guard."), {
+      code: "ALERT_EXTERNAL_EFFECT_GUARD_REQUIRED",
+    });
+  }
+  const targetFingerprint = createHash("sha256").update(String(url)).digest("hex");
+  await externalEffectGuard.reserveAndCommit({
+    effectType: "webhook:alert",
+    effectKeyHash: createHash("sha256").update(`${alert.id}\0${targetFingerprint}`).digest("hex"),
+    targetFingerprint,
+    payloadFingerprint: createHash("sha256")
+      .update(JSON.stringify({ targetFingerprint, alert }))
+      .digest("hex"),
+  });
 }

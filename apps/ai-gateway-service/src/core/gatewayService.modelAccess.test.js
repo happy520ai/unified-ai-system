@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { GatewayService } from "./gatewayService.js";
 import { ProviderRegistry } from "../providers/providerRegistry.js";
 import { createFakeProvider } from "../providers/fakeProvider.js";
@@ -35,7 +35,7 @@ describe("GatewayService model access guard", () => {
 
     const result = await service.execute({
       messages: [{ role: "user", content: "hello" }],
-      metadata: { userId: "alice" },
+      enterpriseIdentity: { userId: "alice" },
     });
     expect(result.success).toBe(true);
   });
@@ -46,20 +46,34 @@ describe("GatewayService model access guard", () => {
 
     const result = await service.execute({
       messages: [{ role: "user", content: "hello" }],
-      metadata: { userId: "bob" },
+      enterpriseIdentity: { userId: "bob" },
     });
     expect(result.success).toBe(false);
     expect(result.code).toBe("MODEL_ACCESS_DENIED");
   });
 
-  it("skips the check when no identity is present", async () => {
+  it("fails closed when enforcement has no server-authenticated identity", async () => {
     const rbac = createAdvancedRBAC();
     const service = buildService({ modelAccessEnforce: true, governance: rbac });
 
     const result = await service.execute({
-      messages: [{ role: "user", content: "hello" }], // no metadata.userId
+      messages: [{ role: "user", content: "hello" }],
     });
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
+    expect(result.code).toBe("MODEL_ACCESS_IDENTITY_REQUIRED");
+  });
+
+  it("never accepts caller metadata as model-access identity", async () => {
+    const rbac = createAdvancedRBAC();
+    rbac.assignRole("spoofed-admin", "api_user");
+    const service = buildService({ modelAccessEnforce: true, governance: rbac });
+
+    const result = await service.execute({
+      messages: [{ role: "user", content: "hello" }],
+      metadata: { userId: "spoofed-admin" },
+    });
+    expect(result.success).toBe(false);
+    expect(result.code).toBe("MODEL_ACCESS_IDENTITY_REQUIRED");
   });
 
   it("does not enforce when the flag is off", async () => {
@@ -71,5 +85,41 @@ describe("GatewayService model access guard", () => {
       metadata: { userId: "nobody" },
     });
     expect(result.success).toBe(true);
+  });
+
+  it("enforces server identity before a streaming adapter is invoked", async () => {
+    const registry = new ProviderRegistry();
+    const provider = createFakeProvider({
+      providerId: "local-fake-provider",
+      modelId: "local-fake-model",
+      providerType: "fake",
+      capabilities: ["chat"],
+      enabled: true,
+    });
+    const generateStream = vi.spyOn(provider, "generateStream");
+    registry.register(provider);
+    const service = new GatewayService({
+      providerRegistry: registry,
+      runtimeConfig: {
+        providerMode: "fake",
+        realProviderEnabled: false,
+        fallbackEnabled: false,
+        modelAccessEnforce: true,
+      },
+      governance: createAdvancedRBAC(),
+    });
+
+    const events = [];
+    for await (const event of service.executeStream({
+      messages: [{ role: "user", content: "hello" }],
+      enterpriseIdentity: { userId: "denied-user" },
+    })) {
+      events.push(event);
+    }
+    expect(events.at(-1)).toMatchObject({
+      type: "error",
+      envelope: { code: "MODEL_ACCESS_DENIED" },
+    });
+    expect(generateStream).not.toHaveBeenCalled();
   });
 });

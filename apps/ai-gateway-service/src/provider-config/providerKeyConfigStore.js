@@ -1,5 +1,17 @@
-import { createNvidiaUnifiedClient } from "../providers/nvidia/nvidiaUnifiedClient.js";
+import { createGatewayBackedNvidiaClient } from "../providers/gatewayBackedNvidiaClient.ts";
+import {
+  getProviderExecutionDecision,
+  readProviderExecutionRuntimeConfig,
+} from "../providers/providerExecutionGate.ts";
 
+/**
+ * @param {{
+ *   env?: Record<string, string | undefined>;
+ *   runtimeCredentialStore?: any;
+ *   providerRegistry?: any;
+ *   modelLibraryStore?: any;
+ * }} options
+ */
 export function createProviderKeyConfigStore({ env = process.env, runtimeCredentialStore, providerRegistry, modelLibraryStore } = {}) {
   function getStatus() {
     const runtime = runtimeCredentialStore?.describe?.("nvidia");
@@ -41,7 +53,7 @@ export function createProviderKeyConfigStore({ env = process.env, runtimeCredent
 
   function save(body = {}) {
     const providerId = String(body.providerId ?? "openrouter").trim().toLowerCase();
-    const allowedProviders = ["nvidia", "openrouter"];
+    const allowedProviders = readAllowedProviders(env);
     if (!allowedProviders.includes(providerId)) {
       return {
         success: false,
@@ -70,6 +82,18 @@ export function createProviderKeyConfigStore({ env = process.env, runtimeCredent
         source: "provider-key-config-center",
         models: [],
       });
+    }
+    const provider = providerRegistry?.get?.(providerId);
+    const decision = getProviderExecutionDecision({
+      providerId,
+      providerType: provider?.descriptor?.metadata?.providerType ?? providerId,
+      runtimeConfig: readProviderExecutionRuntimeConfig(env),
+    });
+    const credentialConfigured = Boolean(
+      apiKey || env[`${providerId.toUpperCase()}_API_KEY`] || runtimeCredentialStore?.has?.(providerId),
+    );
+    const runtimeProviderEnabled = credentialConfigured && decision.allowed;
+    if (runtimeProviderEnabled) {
       providerRegistry?.enableProvider?.(providerId);
     }
 
@@ -78,16 +102,33 @@ export function createProviderKeyConfigStore({ env = process.env, runtimeCredent
       code: "provider_config_saved",
       message: apiKey ? `${providerId} provider configuration saved without echoing the key.` : `${providerId} provider status refreshed from existing configuration.`,
       providerId,
-      apiKeyConfigured: Boolean(apiKey || env[`${providerId.toUpperCase()}_API_KEY`] || runtimeCredentialStore?.has?.(providerId)),
+      apiKeyConfigured: credentialConfigured,
       endpointConfigured: Boolean(baseUrl),
       secretValueVisible: false,
       credential,
+      runtimeProviderEnabled,
+      runtimeProviderBlockers: decision.blockers,
     };
   }
 
-  async function test(body = {}) {
+  /**
+   * @param {Record<string, any>} body
+   * @param {{ execute: (input: Record<string, unknown>) => Promise<any> } | null} gatewayService
+   */
+  async function test(body = {}, gatewayService = null) {
     const modelId = String(body.modelId ?? env.NVIDIA_MODEL ?? "meta/llama-3.1-8b-instruct").trim();
-    const client = createNvidiaUnifiedClient({ env, runtimeCredentialStore, modelLibraryStore });
+    if (!gatewayService?.execute) {
+      return {
+        success: false,
+        code: "provider_test_governed_gateway_required",
+        message: "Provider connection tests must use the governed GatewayService execution lane.",
+        providerId: "nvidia",
+        modelId,
+        realExternalCall: false,
+        secretValueVisible: false,
+      };
+    }
+    const client = createGatewayBackedNvidiaClient(gatewayService);
     const result = await client.chatCompletion({
       modelId,
       messages: [{ role: "user", content: "Reply with exactly: phase312a-provider-key-ok" }],
@@ -117,4 +158,19 @@ export function createProviderKeyConfigStore({ env = process.env, runtimeCredent
     save,
     test,
   };
+}
+
+// Env-gated allowlist extension: AI_GATEWAY_PROVIDER_CONFIG_ALLOWED_PROVIDERS
+// is a comma-separated provider id list appended to the built-in pair. Without
+// the env only ["nvidia", "openrouter"] are accepted, matching prior behavior.
+function readAllowedProviders(env) {
+  const raw = String(env.AI_GATEWAY_PROVIDER_CONFIG_ALLOWED_PROVIDERS ?? "").trim();
+  if (!raw) {
+    return ["nvidia", "openrouter"];
+  }
+  const extra = raw
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+  return Array.from(new Set(["nvidia", "openrouter", ...extra]));
 }

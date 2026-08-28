@@ -344,7 +344,7 @@ export function createShellExecTool(workingDirectory = process.cwd()) {
   requiredPermissions: ["shell:exec"],
   isReadOnly: false,
   maxResultSizeChars: 50_000,
-  async execute(params, _context) {
+  async execute(params, context) {
     const { execSync } = await import("node:child_process");
     const { command, cwd, timeout_ms = 30000 } = params;
 
@@ -388,6 +388,9 @@ export function createShellExecTool(workingDirectory = process.cwd()) {
     }
 
     try {
+      if (context?.externalEffectRequired === true) {
+        await context.commitExternalEffect();
+      }
       const output = execSync(command, {
         cwd: cwd || workingDirectory,
         timeout: safeTimeout,

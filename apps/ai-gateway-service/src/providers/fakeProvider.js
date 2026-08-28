@@ -8,7 +8,7 @@ import { createProviderDescriptor } from "./providerAdapter.js";
 import { createProviderResponse } from "./providerMapping.js";
 
 export function createFakeProvider(modelConfig, options = {}) {
-  const fixedLatencyMs = modelConfig.fixedLatencyMs ?? 10;
+  const fixedLatencyMs = modelConfig.fixedLatencyMs ?? 0;
   const descriptor = createProviderDescriptor(modelConfig, {
     metadata: {
       fake: true,

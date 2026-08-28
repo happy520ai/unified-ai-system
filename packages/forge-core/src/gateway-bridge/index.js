@@ -6,8 +6,8 @@
  * provider routing, automatic failover, and usage tracking.
  *
  * This module gives Forge tasks a high-level interface to those capabilities
- * while transparently falling back to direct LLM calls when the gateway is
- * unreachable.
+ * while failing closed when the gateway is unreachable. Direct fallback is
+ * available only through an explicit constructor option.
  *
  * Gateway endpoints used:
  *   POST /chat             - Chat completion with provider routing
@@ -19,6 +19,7 @@
  * @module gateway-bridge
  */
 
+import { randomUUID } from 'node:crypto';
 import { callLLMDirectWithUsage } from '../llm-client.js';
 import {
   DEFAULT_GATEWAY_URL,
@@ -58,6 +59,12 @@ export class GatewayBridge {
   /** @type {boolean|null} null = not yet checked */
   #available = null;
 
+  /** @type {boolean|null} null = transport reachability not yet checked */
+  #reachable = null;
+
+  /** @type {Record<string, string>} */
+  #authHeaders;
+
   /** @type {Array<object>} */
   #providers = [];
 
@@ -68,12 +75,21 @@ export class GatewayBridge {
    * @param {object} [options]
    * @param {string} [options.gatewayUrl='http://127.0.0.1:3100']
    *   Gateway core API base URL.
-   * @param {boolean} [options.fallbackDirect=true]
+   * @param {boolean} [options.fallbackDirect=false]
    *   Whether to fall back to direct LLM calls when the gateway is unavailable.
+   * @param {string} [options.gatewayAuthToken]
+   *   Enterprise gateway token. Defaults to PME_AUTH_TOKEN when present.
    */
-  constructor({ gatewayUrl = DEFAULT_GATEWAY_URL, fallbackDirect = true } = {}) {
+  constructor({
+    gatewayUrl = DEFAULT_GATEWAY_URL,
+    fallbackDirect = false,
+    gatewayAuthToken = process.env.PME_AUTH_TOKEN,
+  } = {}) {
     this.#gatewayUrl = gatewayUrl.replace(/\/+$/, ''); // strip trailing slash
     this.#fallbackDirect = fallbackDirect;
+    this.#authHeaders = typeof gatewayAuthToken === 'string' && gatewayAuthToken.length > 0
+      ? { Authorization: `Bearer ${gatewayAuthToken}` }
+      : {};
   }
 
   // -------------------------------------------------------------------------
@@ -89,13 +105,22 @@ export class GatewayBridge {
    * @returns {Promise<boolean>} true if the gateway responded successfully
    */
   async checkAvailability() {
-    const res = await safeFetch(
-      `${this.#gatewayUrl}/providers`,
-      { method: 'GET' },
-      3000,
-    );
+    let res;
+    try {
+      res = await fetch(`${this.#gatewayUrl}/providers`, {
+        method: 'GET',
+        headers: this.#authHeaders,
+        signal: AbortSignal.timeout(3000),
+      });
+      this.#reachable = true;
+    } catch {
+      this.#reachable = false;
+      this.#available = false;
+      this.#providers = [];
+      return false;
+    }
 
-    if (res) {
+    if (res.ok) {
       try {
         const body = await res.json();
         this.#available = true;
@@ -117,7 +142,7 @@ export class GatewayBridge {
    * Does not re-check if already determined.
    */
   async #ensureAvailable() {
-    if (this.#available === null) {
+    if (this.#reachable === null) {
       await this.checkAvailability();
     }
   }
@@ -145,7 +170,7 @@ export class GatewayBridge {
         `${this.#gatewayUrl}/routing/preview`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...this.#authHeaders },
           body: JSON.stringify({
             message: context || `Task type: ${taskType}`,
             mode: 'standard',
@@ -188,17 +213,26 @@ export class GatewayBridge {
    * @param {string} [options.model='auto'] - Model name, or 'auto' for gateway routing
    * @param {number} [options.temperature=0.1]
    * @param {number} [options.maxTokens=8192]
+   * @param {string} [options.idempotencyKey] - Reuse only for a retry of the same operation.
    * @returns {Promise<{ text: string, usage: object|null, model: string, source: string }>}
    * @throws {Error} If gateway is unavailable and fallbackDirect is false
    */
-  async chat(messages, { model = 'auto', temperature = 0.1, maxTokens = 8192 } = {}) {
+  async chat(messages, {
+    model = 'auto',
+    temperature = 0.1,
+    maxTokens = 8192,
+    idempotencyKey,
+  } = {}) {
     await this.#ensureAvailable();
 
-    if (this.#available) {
+    if (this.#reachable) {
       try {
+        const dispatchHeaders = idempotencyKey === undefined
+          ? { 'Provider-Dispatch-Key': `forge-bridge-${randomUUID()}` }
+          : { 'Idempotency-Key': idempotencyKey };
         const res = await fetch(`${this.#gatewayUrl}/chat`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...this.#authHeaders, ...dispatchHeaders },
           body: JSON.stringify({
             model,
             messages,
@@ -248,8 +282,14 @@ export class GatewayBridge {
             source: 'gateway',
           };
         }
+        throw new Error(`Gateway chat returned HTTP ${res.status}`);
       } catch (err) {
-        console.log(`[forge:gateway] Chat request failed: ${err.message}, falling back to direct`);
+        const error = new Error(
+          `Gateway chat outcome is uncertain; direct fallback was suppressed: ${err.message}`,
+          { cause: err },
+        );
+        error.code = 'FORGE_GATEWAY_OUTCOME_UNCERTAIN';
+        throw error;
       }
     }
 
@@ -267,17 +307,25 @@ export class GatewayBridge {
    * @param {object} [options]
    * @param {number} [options.temperature=0.1]
    * @param {number} [options.maxTokens=8192]
+   * @param {string} [options.idempotencyKey] - Reuse only for a retry of the same operation.
    * @returns {Promise<{ text: string, usage: object|null, model: string, provider: string, source: string }>}
    * @throws {Error} If gateway is unavailable and fallbackDirect is false
    */
-  async chatAuto(messages, { temperature = 0.1, maxTokens = 8192 } = {}) {
+  async chatAuto(messages, {
+    temperature = 0.1,
+    maxTokens = 8192,
+    idempotencyKey,
+  } = {}) {
     await this.#ensureAvailable();
 
-    if (this.#available) {
+    if (this.#reachable) {
       try {
+        const dispatchHeaders = idempotencyKey === undefined
+          ? { 'Provider-Dispatch-Key': `forge-bridge-${randomUUID()}` }
+          : { 'Idempotency-Key': idempotencyKey };
         const res = await fetch(`${this.#gatewayUrl}/chat/auto`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...this.#authHeaders, ...dispatchHeaders },
           body: JSON.stringify({
             messages,
             temperature,
@@ -324,8 +372,14 @@ export class GatewayBridge {
             source: 'gateway-auto',
           };
         }
+        throw new Error(`Gateway auto-chat returned HTTP ${res.status}`);
       } catch (err) {
-        console.log(`[forge:gateway] Auto-chat failed: ${err.message}, falling back to direct`);
+        const error = new Error(
+          `Gateway auto-chat outcome is uncertain; direct fallback was suppressed: ${err.message}`,
+          { cause: err },
+        );
+        error.code = 'FORGE_GATEWAY_OUTCOME_UNCERTAIN';
+        throw error;
       }
     }
 
@@ -351,7 +405,7 @@ export class GatewayBridge {
 
     const res = await safeFetch(
       `${this.#gatewayUrl}/routing/data`,
-      { method: 'GET' },
+      { method: 'GET', headers: this.#authHeaders },
       5000,
     );
 
@@ -441,7 +495,7 @@ export class GatewayBridge {
 
 /**
  * Pre-configured singleton for convenience.
- * Uses default settings (gateway at 127.0.0.1:3100, direct fallback enabled).
+ * Uses default settings (gateway at 127.0.0.1:3100, direct fallback disabled).
  *
  * @type {GatewayBridge}
  */

@@ -3,6 +3,11 @@ import { createRouteFailureEnvelope } from "../core/gatewayService.js";
 import { writeJson, writeSseHeaders, writeSseEvent, writeServiceLog } from "./utils/responseUtils.js";
 import { normalizeChatBody, extractChatPrompt } from "./utils/chatUtils.js";
 import { evaluateTaijiBeidouChatPreviewHook } from "../gateway/taijiBeidouChatPreviewHook.js";
+import { getGuardrailsEngine } from "../guardrails/guardrailsEngine.ts";
+import {
+  recordGuardrailEvaluation,
+  recordGuardrailFinding,
+} from "../observability/aiMetrics.ts";
 import { handleChatLocalActionRoute, routeChatActionProposal } from "../owner-automation/chatActionProposalRouter.js";
 import { TASK_TO_INTENT_MAP } from "../chat-gateway/chatGatewayTaskMatrix.js";
 import { resolveChatResultHttpStatus } from "./routes/chatRoutes.js";
@@ -16,6 +21,31 @@ export function createChatRoutes(ctx) {
   // POST /chat/stream
   handlers.set("POST /chat/stream", async (request, response, { startedAt, body }) => {
     const streamInput = normalizeChatBody(body, application.config);
+    const guardrailsEngine = getGuardrailsEngine(request.enterpriseIdentity?.tenantId);
+    const guardrailInputVerdict = guardrailsEngine.inspectInput({ messages: streamInput?.messages });
+    if (guardrailInputVerdict.decision === "block") {
+      recordGuardrailEvaluation("input", "block");
+      for (const finding of guardrailInputVerdict.findings) {
+        if (finding.action === "block") recordGuardrailFinding(finding.rule, finding.action);
+      }
+      writeServiceLog("chat_guardrail_blocked", {
+        method: request.method,
+        path: "/chat/stream",
+        findings: guardrailInputVerdict.findings,
+        durationMs: Date.now() - startedAt,
+      });
+      writeJson(response, 400, createErrorEnvelope("guardrail_blocked", "Request blocked by chat guardrails.", {
+        startedAt,
+        category: "governance",
+      }));
+      return;
+    }
+    for (const replacement of guardrailInputVerdict.replacements) {
+      const message = streamInput?.messages?.[replacement.index];
+      if (message && typeof message.content === "string") {
+        message.content = replacement.content;
+      }
+    }
     const providerKey = streamInput?.providerId ?? streamInput?.provider ?? "gateway";
     const breaker = circuitBreakerRegistry ? circuitBreakerRegistry.getOrCreate(providerKey) : null;
 
@@ -41,6 +71,13 @@ export function createChatRoutes(ctx) {
             failed = true;
             writeSseEvent(response, "error", event.envelope);
             throw new Error(event.envelope?.code || "stream_error");
+          }
+          // Guardrails 输出侧（流式）：对每个 delta 尽力脱敏，fail-open 保证流不中断。
+          if (typeof event.textDelta === "string" && event.textDelta) {
+            const redactedDelta = guardrailsEngine.inspectSseDelta(event.textDelta);
+            if (redactedDelta !== event.textDelta) {
+              event.textDelta = redactedDelta;
+            }
           }
           writeSseEvent(response, event.type, event);
         }
@@ -116,11 +153,74 @@ export function createChatRoutes(ctx) {
 
     // Fall through to gateway execution
     const chatInput = normalizeChatBody(body, application.config);
+    // Guardrails（确定性本地扫描）：与 /v1/* 协议 lane 同一引擎与租户覆盖。
+    const chatGuardrailsEngine = getGuardrailsEngine(request.enterpriseIdentity?.tenantId);
+    const chatGuardrailVerdict = chatGuardrailsEngine.inspectInput({ messages: chatInput?.messages });
+    if (chatGuardrailVerdict.decision === "block") {
+      recordGuardrailEvaluation("input", "block");
+      for (const finding of chatGuardrailVerdict.findings) {
+        if (finding.action === "block") recordGuardrailFinding(finding.rule, finding.action);
+      }
+      writeServiceLog("chat_guardrail_blocked", {
+        method: request.method,
+        path: "/chat",
+        findings: chatGuardrailVerdict.findings,
+        durationMs: Date.now() - startedAt,
+      });
+      writeJson(response, 400, createErrorEnvelope("guardrail_blocked", "Request blocked by chat guardrails.", {
+        startedAt,
+        category: "governance",
+      }));
+      return;
+    }
+    if (chatGuardrailVerdict.findings.length) {
+      recordGuardrailEvaluation("input", "allow");
+      for (const finding of chatGuardrailVerdict.findings) {
+        recordGuardrailFinding(finding.rule, finding.action);
+      }
+    }
+    for (const replacement of chatGuardrailVerdict.replacements) {
+      const message = chatInput?.messages?.[replacement.index];
+      if (message && typeof message.content === "string") {
+        message.content = replacement.content;
+      }
+    }
     const providerKey = chatInput?.providerId ?? chatInput?.provider ?? "gateway";
     const breaker = circuitBreakerRegistry ? circuitBreakerRegistry.getOrCreate(providerKey) : null;
     const result = breaker
       ? await breaker.execute(() => gatewayService.execute(chatInput))
       : await gatewayService.execute(chatInput);
+    // Guardrails 输出侧：对最终文本脱敏；fail-open 保证不影响正常响应。
+    const chatOutputText = result?.data?.message?.content ?? result?.data?.text;
+    if (result.success && typeof chatOutputText === "string" && chatOutputText) {
+      const outputVerdict = chatGuardrailsEngine.inspectOutputText(chatOutputText);
+      if (outputVerdict.findings.length) {
+        recordGuardrailEvaluation("output", outputVerdict.decision);
+        for (const finding of outputVerdict.findings) {
+          recordGuardrailFinding(finding.rule, finding.action);
+        }
+      }
+      if (outputVerdict.decision === "block") {
+        writeServiceLog("chat_guardrail_output_blocked", {
+          method: request.method,
+          path: "/chat",
+          findings: outputVerdict.findings,
+          durationMs: Date.now() - startedAt,
+        });
+        writeJson(response, 400, createErrorEnvelope("guardrail_blocked", "Response blocked by chat guardrails.", {
+          startedAt,
+          category: "governance",
+        }));
+        return;
+      }
+      if (outputVerdict.text !== chatOutputText) {
+        if (typeof result.data.message?.content === "string") {
+          result.data.message.content = outputVerdict.text;
+        } else {
+          result.data.text = outputVerdict.text;
+        }
+      }
+    }
     writeServiceLog(result.success ? "request_completed" : "request_failed", {
       method: request.method,
       path: "/chat",

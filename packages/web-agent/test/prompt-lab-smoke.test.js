@@ -47,9 +47,16 @@ async function listen(server) {
 }
 
 async function launchSmokeBrowser() {
-  const attempts = process.env.CI
-    ? [{ headless: true }]
-    : [{ channel: "chrome", headless: true }, { headless: true }];
+  const configuredExecutablePath = String(
+    process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ?? "",
+  ).trim();
+  const attempts = [
+    ...(configuredExecutablePath
+      ? [{ executablePath: configuredExecutablePath, headless: true }]
+      : []),
+    { channel: "chrome", headless: true },
+    { headless: true },
+  ];
   let lastError;
 
   for (const options of attempts) {
@@ -63,8 +70,7 @@ async function launchSmokeBrowser() {
   throw lastError;
 }
 
-async function assertPromptLab(page, baseUrl, pathname) {
-  const externalRequests = [];
+async function routeProviderFreePage(page, baseUrl, externalRequests) {
   await page.route("**/*", async (route) => {
     const url = route.request().url();
     if (!url.startsWith(baseUrl) && !url.startsWith("data:")) {
@@ -74,6 +80,11 @@ async function assertPromptLab(page, baseUrl, pathname) {
     }
     await route.continue();
   });
+}
+
+async function assertPromptLab(page, baseUrl, pathname) {
+  const externalRequests = [];
+  await routeProviderFreePage(page, baseUrl, externalRequests);
 
   await page.goto(`${baseUrl}/${pathname}`, { waitUntil: "networkidle" });
   const lab = page.locator("[data-prompt-lab]");
@@ -104,7 +115,7 @@ async function assertPromptLab(page, baseUrl, pathname) {
     Object.keys(evidence.detectedSignals).sort(),
     ["audience", "constraints", "environment", "evidence", "format", "success"],
   );
-  assert.equal(evidence.compiledSections.length, 3);
+  assert.equal(evidence.compiledSections.length, 4);
   assert.equal(
     evidence.compiledSections.every((section) => section.itemCount > 0),
     true,
@@ -150,6 +161,60 @@ async function assertPromptLab(page, baseUrl, pathname) {
   );
 }
 
+async function assertMultilineUnicodeShareRoundTrip(page, baseUrl) {
+  const input = "请比较方案 A&B #1？\n保留 100% + 加号，并检查路径 /api?q=测试#片段。";
+  const externalRequests = [];
+  await routeProviderFreePage(page, baseUrl, externalRequests);
+  await page.goto(`${baseUrl}/index.html`, { waitUntil: "networkidle" });
+
+  await page.locator("[data-prompt-input]").fill(input);
+  await page.locator("[data-prompt-profile]").selectOption("analysis");
+  await page.locator("[data-prompt-language]").selectOption("zh-CN");
+  await page.locator("[data-prompt-form]").evaluate((form) => form.requestSubmit());
+  await page.locator("[data-prompt-share]:not([disabled])").waitFor();
+
+  await page.locator("[data-prompt-copy-evidence]").click();
+  const sourceEvidence = JSON.parse(await page.evaluate(() => navigator.clipboard.readText()));
+  assert.equal(sourceEvidence.input, input);
+  assert.equal(sourceEvidence.profile, "analysis");
+  assert.equal(sourceEvidence.language, "zh-CN");
+  assert.equal(sourceEvidence.metadata.providerCalled, false);
+  assert.equal(sourceEvidence.metadata.originalPreserved, true);
+
+  await page.locator("[data-prompt-share]").click();
+  const shareUrl = await page.evaluate(() => navigator.clipboard.readText());
+  for (const encodedMarker of ["%0A", "%26", "%23", "%3F", "%25", "%2B"]) {
+    assert.equal(shareUrl.includes(encodedMarker), true, `share URL should contain ${encodedMarker}`);
+  }
+
+  const sharedPage = await page.context().newPage();
+  try {
+    await routeProviderFreePage(sharedPage, baseUrl, externalRequests);
+    await sharedPage.goto(shareUrl, { waitUntil: "networkidle" });
+    await sharedPage.locator("[data-prompt-copy-evidence]:not([disabled])").waitFor();
+    assert.equal(await sharedPage.locator("[data-prompt-input]").inputValue(), input);
+    assert.equal(await sharedPage.locator("[data-prompt-profile]").inputValue(), "analysis");
+    assert.equal(await sharedPage.locator("[data-prompt-language]").inputValue(), "zh-CN");
+    assert.equal((await sharedPage.locator("[data-prompt-output]").textContent()).includes(input), true);
+
+    await sharedPage.locator("[data-prompt-copy-evidence]").click();
+    const restoredEvidence = JSON.parse(
+      await sharedPage.evaluate(() => navigator.clipboard.readText()),
+    );
+    assert.equal(restoredEvidence.input, input);
+    assert.equal(restoredEvidence.profile, "analysis");
+    assert.equal(restoredEvidence.language, "zh-CN");
+    assert.equal(restoredEvidence.metadata.providerCalled, false);
+    assert.equal(restoredEvidence.metadata.credentialRequired, false);
+    assert.equal(restoredEvidence.metadata.originalPreserved, true);
+    assert.equal(restoredEvidence.metadata.deterministic, true);
+  } finally {
+    await sharedPage.close();
+  }
+
+  assert.deepEqual(externalRequests, []);
+}
+
 const server = createDocsServer();
 const baseUrl = await listen(server);
 const browser = await launchSmokeBrowser();
@@ -159,6 +224,14 @@ const context = await browser.newContext({
 });
 
 try {
+  const unicodeSharePage = await context.newPage();
+  try {
+    await unicodeSharePage.setViewportSize({ width: 1440, height: 900 });
+    await assertMultilineUnicodeShareRoundTrip(unicodeSharePage, baseUrl);
+  } finally {
+    await unicodeSharePage.close();
+  }
+
   for (const viewport of [
     { width: 390, height: 844 },
     { width: 1440, height: 900 },
@@ -173,7 +246,7 @@ try {
       }
     }
   }
-  console.log("Prompt Lab smoke passed for English and Chinese pages at mobile and desktop sizes.");
+  console.log("Prompt Lab smoke passed for multiline Unicode sharing and English/Chinese mobile/desktop pages.");
 } finally {
   await context.close();
   await browser.close();

@@ -4,6 +4,7 @@ export * from "./provider.js";
 export * from "./routing.js";
 export * from "./governance.js";
 export * from "./knowledge.js";
+export * from "./localClient.js";
 export * from "./modelImport.js";
 export * from "./setup.js";
 export * from "./workflow.js";

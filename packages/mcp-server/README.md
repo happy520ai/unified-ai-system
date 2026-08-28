@@ -14,10 +14,13 @@ the MCP session ends. It does not enable or authorize real provider calls.
 | `gateway_health` | Inspect gateway health and provider safety state. |
 | `gateway_readiness` | Inspect first-run and chat readiness. |
 | `gateway_prompt_enhance` | Structure a natural-language request locally without a provider call. |
+| `gateway_prompt_enhance_llm` | Enhance prompts via optional LLM backend (or falls back when unavailable). |
 | `gateway_chat` | Send one fake-provider-only chat request. |
 | `knowledge_readiness` | Inspect local knowledge infrastructure. |
+| `knowledge_retrieve` | Search the local knowledge base by keyword. |
 | `workflow_health` | Inspect the governed workflow subsystem. |
 | `workflow_actions` | List workflow action definitions. |
+| `workflow_run` | Execute a safe three-step local workflow and write a controlled artifact. |
 | `workforce_health` | Inspect the workforce subsystem. |
 | `workforce_agents` | List workforce agent descriptors. |
 
@@ -25,7 +28,7 @@ All inspection tools are read-only. The chat tool checks the gateway safety
 state before every request and fails closed unless `realProviderEnabled` is
 exactly `false` and the response proves `executionMode: "fake"`.
 
-The source build and pinned `0.4.9` image both expose all twelve tools, including
+The source build and pinned `0.5.0` image both expose all twelve tools, including
 the provider-free `gateway_prompt_enhance` preview.
 
 ## Run From Source
@@ -78,7 +81,7 @@ pnpm mcp:http
 The built-in Bearer token is a bounded self-hosting control, not an OAuth
 authorization server. Terminate TLS at a trusted reverse proxy and use a
 dedicated identity layer before exposing the endpoint to untrusted networks.
-The published `v0.4.9` container remains stdio-only; the HTTP command above is
+The published `v0.5.0` container remains stdio-only; the HTTP command above is
 source-build functionality until a later release publishes it.
 
 ## Add To Codex With Docker
@@ -86,7 +89,7 @@ source-build functionality until a later release publishes it.
 No clone or API key is required:
 
 ```bash
-codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.9
+codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.5.0
 ```
 
 The dedicated image starts the MCP server by default; no command override is
@@ -104,7 +107,7 @@ args = [
   "run",
   "--rm",
   "-i",
-  "ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.9",
+  "ghcr.io/happy520ai/unified-ai-system/mcp-server:0.5.0",
 ]
 startup_timeout_sec = 45
 tool_timeout_sec = 60
@@ -152,10 +155,14 @@ real-provider execution remain outside this preview surface.
 
 ## Verify
 
-The tests launch both transports through the official MCP v2 client. They
-complete stdio and Streamable HTTP handshakes, list all source-build tools,
-prove local prompt enhancement and fake-provider safety, exercise HTTP access
-controls, close the clients, and confirm that each managed gateway stopped:
+The tests launch both transports through the official MCP v2 client. They pin
+the modern `2026-07-28` stateless era on stdio and Streamable HTTP, retain
+legacy `2025-11-25` plus `2025-06-18` initialize compatibility, list all
+source-build tools, prove local prompt enhancement and fake-provider safety,
+exercise HTTP/CORS access controls, close the clients, and confirm that each
+managed gateway stopped. The container-safe raw smoke also uses
+`server/discover` plus a per-request `_meta` envelope rather than inferring
+modern support from the SDK version:
 
 ```bash
 pnpm verify:mcp

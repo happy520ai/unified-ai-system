@@ -29,6 +29,16 @@ only selectable when all three line up:
 Pin the default lane with `AI_GATEWAY_DEFAULT_PROVIDER` and
 `AI_GATEWAY_DEFAULT_MODEL` so routing cannot drift to an unpinned model.
 
+Every real-provider request also requires an opaque `Idempotency-Key` by
+default. The gateway commits a durable dispatch tombstone before the adapter
+runs. Configure SDK default headers and provision the single-host SQLite or
+cross-host PostgreSQL store described in
+[Real-provider dispatch idempotency](./provider-dispatch-idempotency.md).
+This applies to compatibility chat, streaming, internal Forge/Agent/Three Mode
+calls, provider connection tests, and image/embedding/TTS/STT routes. Online
+Knowledge embeddings cannot be switched to a direct HTTP provider with
+environment credentials; a governed provider implementation must be injected.
+
 Recommended minimal first enablement (single cheap model, smallest blast
 radius):
 
@@ -59,20 +69,19 @@ Two supported paths; pick one per deployment.
      -d '{"providerId":"openai","apiKey":"<key>"}'
    ```
 
-   The store persists to a `0600` local file by default
-   (`PME_RUNTIME_CREDENTIAL_STORE_MODE` = `local-file`), keeps everything in
-   memory (`memory`), or shares across processes via SQLite (`sqlite`).
+   The store is memory-only by default. Persistent local-file or same-host
+   SQLite modes must be selected explicitly and require a separate 256-bit
+   master key.
    `POST /providers/runtime-credential/detect` reports which providers have a
    usable credential without exposing values.
 
-   **Storage semantics (honest boundary):** provider runtime credentials are
-   persisted **in cleartext** inside that permission-restricted file — the
-   gateway must be able to present the key to the provider, so it cannot be
-   hashed. Only *virtual keys* (`uai-`) and *user tokens* are stored as
-   SHA-256 hashes. The `0600` mode applies on POSIX; on Windows the file ACL
-   is restricted to the current user on best effort. For stricter at-rest
-   protection use the environment path with your platform's secret manager,
-   or `PME_RUNTIME_CREDENTIAL_STORE_MODE=memory`.
+   **Storage semantics:** persistent provider credentials use per-record
+   AES-256-GCM authenticated encryption. The key is never stored beside the
+   ciphertext. Corrupt, mixed-format, plaintext, and wrong-key stores fail
+   closed. File permissions remain a defense-in-depth control, not the
+   confidentiality boundary. See
+   [Runtime credential encryption](./runtime-credential-encryption.md) for
+   provisioning, one-time plaintext migration, rotation, backup, and rollback.
 
 Rollback for path 2 is store eviction plus restart; for path 1, unset the
 variable and restart.
@@ -88,6 +97,8 @@ variable and restart.
    AI_GATEWAY_SMOKE_MODE=real-with-key \
    OPENAI_API_KEY=<key> \
    PME_AUTH_TOKEN=<any-local-secret> \
+   PME_AUDIT_CHECKPOINT_PATH=<restricted-checkpoint-path> \
+   PME_AUDIT_CHECKPOINT_HMAC_KEY=<dedicated-32-byte-key> \
    pnpm --filter @unified-ai-system/ai-gateway-service smoke:openai-route
    ```
 
@@ -107,10 +118,62 @@ variable and restart.
 ## Cost control
 
 - Pin one cheap model first (`gpt-4o-mini` class); widen only after
-  `GET /cost/summary` and the token ledger look healthy.
+  `GET /usage/summary` reports `health.status=ready`,
+  `health.durableWritesRequired=true`, and no unknown-cost records. The
+  `/cost/summary` route is the preview-only cost-guard estimate ledger; it is
+  not evidence of provider-billed usage.
 - `POST /cost/guard/check` and the request-path token cost guard remain active
   in real mode and hard-block over-budget requests.
 - The CI smoke is `workflow_dispatch`-only on purpose: no automatic spend.
+
+Single-process real-provider startup requires a writable
+`AI_GATEWAY_USAGE_LOG_DIR` (default `.data/request-logs`) when the store mode is
+`file`; setting it to the empty string blocks startup. Cross-host deployments
+must select `AI_GATEWAY_USAGE_LEDGER_STORE_MODE=postgres` and configure the
+central URL/namespace described in the multi-process guide.
+
+Before a billable adapter is invoked, the gateway awaits a write-ahead attempt
+reservation and then a write-ahead attempt record in the selected durable
+stores. Each terminal result is committed before
+the route can report success; a post-call storage failure returns
+`USAGE_LEDGER_WRITE_FAILED` instead of hiding the unmetered result. A crash
+between those records remains visible as
+`unresolvedBillableAttempts` and contributes to `unknownCostRecords`. Every
+fallback and shadow-provider attempt receives its own paired lifecycle. Fake-only
+preview retains bounded, fail-open buffering so a local demo does not become
+unavailable because its optional log directory is unwritable.
+
+Each process writes a unique current-day JSONL file to avoid cross-process
+append and rotation races, while `/usage/summary` and `/usage/logs` aggregate a
+bounded current-day window from the shared directory. This remains the durable
+same-host option. PostgreSQL mode adds one central, tenant-queryable ledger with
+per-attempt idempotency and contradictory-terminal conflict detection. Neither
+mode is a legal invoice, payment/tax system, or provider statement
+reconciliation; reconcile unknown/unresolved records against provider invoices
+before claiming production billing completeness.
+
+Real-provider mode also makes a signed enterprise audit checkpoint a readiness
+requirement. Configure `PME_AUDIT_CHECKPOINT_PATH` and a dedicated 32-byte
+`PME_AUDIT_CHECKPOINT_HMAC_KEY` (or restricted
+`PME_AUDIT_CHECKPOINT_HMAC_KEY_FILE`); retain an external sequence/hash floor as
+described in the [multi-process deployment guide](./multi-process-deployment.md).
+The gateway can validate the signature and floor, but cannot self-certify that
+the target storage is external or immutable.
+
+Multi-instance real-provider deployments additionally require
+`PME_AUDIT_STORE_MODE=postgres`, a dedicated central HMAC key, and a verified
+TLS PostgreSQL URL. The central chain supplies one global sequence and canonical
+tenant reads across replicas; the local signed chain remains a forensic mirror.
+Neither backend self-certifies external WORM retention, so publish the central
+sequence/hash floor to an independently retained system.
+
+Immediately before every non-fake adapter attempt (including fallback,
+streaming, and explicitly enabled shadow traffic), the core gateway commits an
+`attempt-authorized` enterprise audit entry. The entry contains the tenant,
+provider, model, shadow flag, and usage-attempt ID; it intentionally excludes
+prompt content and credentials. A missing or failed enterprise audit sink
+returns `PROVIDER_AUDIT_UNAVAILABLE` / `PROVIDER_AUDIT_WRITE_FAILED` before the
+adapter function runs.
 
 ## What never changes when real mode is on
 

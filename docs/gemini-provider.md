@@ -58,3 +58,36 @@ env), split SSE frames, mid-stream blocks, and abort propagation.
 ```bash
 npx vitest run apps/ai-gateway-service/src/providers/geminiAdapter.test.ts
 ```
+
+## Inbound Gemini Compatibility (v1beta)
+
+Gemini-native clients can call the gateway directly on the Google wire
+protocol (the adapter above remains the outbound path):
+
+```text
+POST /v1beta/models/{model}:generateContent
+POST /v1beta/models/{model}:streamGenerateContent   # SSE (alt=sse)
+GET  /v1beta/models                                 # model list
+```
+
+Translation behavior:
+
+- Requests are converted to the internal chat input through the same
+  normalizer as `/v1/chat/completions`, so model resolution, validation,
+  guardrails, virtual-key budgets, and metrics are identical across lanes.
+- `systemInstruction`, `contents`, `generationConfig` (temperature, topP,
+  maxOutputTokens, stopSequences, JSON responseMimeType), `tools`
+  (functionDeclarations), and `toolConfig` map to their OpenAI equivalents;
+  assistant `functionCall`/`functionResponse` parts map to `tool_calls` /
+  `tool` messages and back.
+- `inlineData` image parts become data-URL image inputs (vision-capable
+  models); non-image inline data is rejected with `INVALID_ARGUMENT`.
+- Errors follow the Google REST error shape (`error.code/status/message`).
+- Streaming emits Gemini-shaped SSE chunks and a terminal chunk carrying
+  `finishReason` and `usageMetadata`.
+
+Verification:
+
+```bash
+npx vitest run apps/ai-gateway-service/src/http/geminiCompatibilityRoutes.test.ts
+```

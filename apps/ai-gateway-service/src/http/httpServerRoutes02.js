@@ -23,7 +23,7 @@ export async function dispatchHttpRoutes02(context) {
     readEnterpriseJson, writeEnterpriseError, writeCapabilityError, normalizeChatBody,
     normalizeRagChatBody, extractChatPrompt, createRagRetrieveRequest, createRagCitations,
     createRagPrompt, createRagChatData, OWNER_AUTOMATION_CHAT_PROPOSAL_FLAG, application,
-    request, response, url, startedAt, rateLimiter, resilienceMetrics,
+    request, response, url, startedAt, rateLimiter, resilienceMetrics, a2aGateway,
     approvalStore, fileContextStore, phase319LocalOperation, connectorFeishuDryRun,
     connectorWeComDryRun, capabilityRouterService, codexExecCrsRuntimeCandidate, enterpriseGovernanceService,
     enterpriseOpsService, fiveCapabilityActivationService, gatewayService, knowledgeService,
@@ -87,15 +87,33 @@ export async function dispatchHttpRoutes02(context) {
     const saturated = saturationThreshold > 0 && currentInFlight >= saturationThreshold;
     const lifecycle = gatewayLifecycle?.snapshot?.() ?? null;
     const idempotency = await readIdempotencyHealth(idempotencyCoordinator);
+    const providerDispatch = await readProviderDispatchHealth(application?.providerDispatchGate);
+    const externalEffects = await readExternalEffectHealth(application?.externalEffectGate);
     const rateLimit = await readRateLimitHealth(rateLimiter);
     const webSocketLease = await readWebSocketLeaseHealth(webSocketConnectionLeaseManager);
+    const a2aTaskStore = await readA2ATaskStoreHealth(a2aGateway);
+    const workforceClaimStore = await readWorkforceClaimStoreHealth(application?.workforceExecutor);
+    const workforceTaskQueue = await readWorkforceTaskQueueHealth(application?.workforceExecutor);
+    const workforceExecutionControl = await readWorkforceExecutionControlHealth(application?.workforceExecutor);
     const readinessFailures = collectReadinessFailures(healthSnapshot, readinessSnapshot, {
       saturated,
       gatewayErrorCircuitState: resilienceSnapshot?.gatewayErrorCircuitState,
       lifecycleState: lifecycle?.state,
       idempotencyStoreUnavailable: idempotency?.storeMode === "postgres" && idempotency?.available !== true,
+      providerDispatchUnavailable:
+        application?.gatewayService?.runtimeConfig?.requireProviderDispatchGate === true
+        && (providerDispatch?.enabled !== true || providerDispatch?.available !== true),
+      externalEffectStoreUnavailable:
+        externalEffects?.enabled === true && externalEffects?.available !== true,
       rateLimitStoreUnavailable: rateLimit?.storeMode === "postgres" && rateLimit?.available !== true,
       webSocketLeaseStoreUnavailable: Boolean(webSocketConnectionLeaseManager) && webSocketLease?.available !== true,
+      a2aTaskStoreUnavailable: Boolean(a2aGateway) && a2aTaskStore?.available !== true,
+      workforceClaimStoreUnavailable: workforceClaimStore?.distributed === true
+        && workforceClaimStore.available !== true,
+      workforceTaskQueueUnavailable: workforceTaskQueue?.distributed === true
+        && workforceTaskQueue.available !== true,
+      workforceExecutionControlUnavailable: workforceExecutionControl?.distributed === true
+        && workforceExecutionControl.available !== true,
     });
     resilienceMetrics?.recordReadinessCheck?.(readinessFailures);
     const degraded = saturated || readinessFailures.length > 0;
@@ -110,8 +128,14 @@ export async function dispatchHttpRoutes02(context) {
       isReady: !degraded,
       lifecycle,
       idempotency,
+      providerDispatch,
+      externalEffects,
       rateLimit,
       webSocketLease,
+      a2aTaskStore,
+      workforceClaimStore,
+      workforceTaskQueue,
+      workforceExecutionControl,
       saturation: {
         inFlight: currentInFlight,
         threshold: saturationThreshold,
@@ -152,7 +176,9 @@ export async function dispatchHttpRoutes02(context) {
     }
     writeJson(response, 200, createOkEnvelope({
       enabled: true,
-      stats: requestLogger.getStats({}),
+      stats: await requestLogger.getStats({
+        tenantId: request.enterpriseIdentity?.tenantId ?? "default",
+      }),
       health: requestLogger.getHealth(),
     }, { startedAt }));
     return;
@@ -167,11 +193,12 @@ export async function dispatchHttpRoutes02(context) {
     const limit = Math.min(Math.max(Number.parseInt(url.searchParams.get("limit") ?? "50", 10) || 50, 1), 500);
     const filter = {
       limit,
+      tenantId: request.enterpriseIdentity?.tenantId ?? "default",
       provider: url.searchParams.get("provider") ?? undefined,
       model: url.searchParams.get("model") ?? undefined,
       statusCode: url.searchParams.get("statusCode") ? Number(url.searchParams.get("statusCode")) : undefined,
     };
-    const records = requestLogger.query(filter);
+    const records = await requestLogger.query(filter);
     writeJson(response, 200, createOkEnvelope({
       enabled: true,
       count: records.length,
@@ -180,11 +207,52 @@ export async function dispatchHttpRoutes02(context) {
     return;
   }
 
+  // 自有 key 用量查询：虚拟 key 持有者查看本 key 的实时预算/限流状态，
+  // 不暴露其他 key 或租户数据。
+  if (request.method === "GET" && url.pathname === "/usage/my-key") {
+    const fingerprint = request.enterpriseIdentity?.apiKeyFingerprint;
+    if (!fingerprint) {
+      writeJson(response, 403, createErrorEnvelope(
+        "USAGE_MY_KEY_VIRTUAL_KEY_REQUIRED",
+        "Only virtual-key callers (uai- keys) can query their own key usage.",
+        { startedAt, category: "auth" },
+      ));
+      return;
+    }
+    const manager = enterpriseGovernanceService?.getApiKeyManager?.();
+    if (!manager) {
+      writeJson(response, 200, createOkEnvelope({
+        enabled: false,
+        reason: "virtual_key_manager_unavailable",
+        keyFingerprint: fingerprint,
+      }, { startedAt }));
+      return;
+    }
+    const usage = manager.describeUsage({ keyId: fingerprint });
+    if (!usage) {
+      writeJson(response, 404, createErrorEnvelope(
+        "USAGE_MY_KEY_NOT_FOUND",
+        "No active virtual key matches the caller identity; it may have been revoked.",
+        { startedAt, category: "auth" },
+      ));
+      return;
+    }
+    writeJson(response, 200, createOkEnvelope({
+      enabled: true,
+      keyFingerprint: fingerprint,
+      key: usage,
+    }, { startedAt }));
+    return;
+  }
+
   if (request.method === "GET" && url.pathname === "/metrics") {
     const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
     const healthSnapshot = createHealth(application);
     const readinessSnapshot = createSetupReadiness(application);
-    const stats = application?.requestLogger?.getStats?.({}) ?? {};
+    const stats = await (application?.requestLogger?.getStats?.({
+      tenantId: request.enterpriseIdentity?.tenantId ?? "default",
+    }) ?? {});
+    const usageLedger = application?.requestLogger?.getHealth?.() ?? null;
     const readinessResilienceSnapshot = resilienceMetrics?.snapshot?.() ?? {};
     const currentInFlight = Number.isFinite(Number(readinessResilienceSnapshot.currentInFlight))
       ? Number(readinessResilienceSnapshot.currentInFlight)
@@ -195,15 +263,33 @@ export async function dispatchHttpRoutes02(context) {
     const saturated = saturationThreshold > 0 && currentInFlight >= saturationThreshold;
     const lifecycle = gatewayLifecycle?.snapshot?.() ?? null;
     const idempotency = await readIdempotencyHealth(idempotencyCoordinator);
+    const providerDispatch = await readProviderDispatchHealth(application?.providerDispatchGate);
+    const externalEffects = await readExternalEffectHealth(application?.externalEffectGate);
     const rateLimit = await readRateLimitHealth(rateLimiter);
     const webSocketLease = await readWebSocketLeaseHealth(webSocketConnectionLeaseManager);
+    const a2aTaskStore = await readA2ATaskStoreHealth(a2aGateway);
+    const workforceClaimStore = await readWorkforceClaimStoreHealth(application?.workforceExecutor);
+    const workforceTaskQueue = await readWorkforceTaskQueueHealth(application?.workforceExecutor);
+    const workforceExecutionControl = await readWorkforceExecutionControlHealth(application?.workforceExecutor);
     const readinessFailures = collectReadinessFailures(healthSnapshot, readinessSnapshot, {
       saturated,
       gatewayErrorCircuitState: readinessResilienceSnapshot?.gatewayErrorCircuitState,
       lifecycleState: lifecycle?.state,
       idempotencyStoreUnavailable: idempotency?.storeMode === "postgres" && idempotency?.available !== true,
+      providerDispatchUnavailable:
+        application?.gatewayService?.runtimeConfig?.requireProviderDispatchGate === true
+        && (providerDispatch?.enabled !== true || providerDispatch?.available !== true),
+      externalEffectStoreUnavailable:
+        externalEffects?.enabled === true && externalEffects?.available !== true,
       rateLimitStoreUnavailable: rateLimit?.storeMode === "postgres" && rateLimit?.available !== true,
       webSocketLeaseStoreUnavailable: Boolean(webSocketConnectionLeaseManager) && webSocketLease?.available !== true,
+      a2aTaskStoreUnavailable: Boolean(a2aGateway) && a2aTaskStore?.available !== true,
+      workforceClaimStoreUnavailable: workforceClaimStore?.distributed === true
+        && workforceClaimStore.available !== true,
+      workforceTaskQueueUnavailable: workforceTaskQueue?.distributed === true
+        && workforceTaskQueue.available !== true,
+      workforceExecutionControlUnavailable: workforceExecutionControl?.distributed === true
+        && workforceExecutionControl.available !== true,
     });
     const snapshot = {
       totalRequests: stats.totalRequests ?? 0,
@@ -216,10 +302,18 @@ export async function dispatchHttpRoutes02(context) {
       readinessFailureCount: readinessFailures.length,
       lifecycle,
       idempotency,
+      providerDispatch,
+      externalEffects,
       webSocketLease,
-      latency: stats.avgLatencyMs
-        ? { p50: stats.avgLatencyMs, p95: stats.avgLatencyMs, p99: stats.avgLatencyMs }
-        : undefined,
+      a2aTaskStore,
+      workforceClaimStore,
+      workforceTaskQueue,
+      workforceExecutionControl,
+      usageLedger,
+      latency: stats.latencyQuantiles
+        ?? (stats.avgLatencyMs
+          ? { p50: stats.avgLatencyMs, p95: stats.avgLatencyMs, p99: stats.avgLatencyMs }
+          : undefined),
       totalErrors: Math.round((stats.totalRequests ?? 0) * (stats.errorRate ?? 0)),
       providerScores: application?.healthScorer?.getAllScores?.() ?? {},
       ai: getAiMetricsSnapshot(),
@@ -259,7 +353,7 @@ export async function dispatchHttpRoutes02(context) {
   if (request.method === "POST" && url.pathname === "/provider-config/test") {
     const body = await readCapabilityJson({ request, response, startedAt, code: "provider_config_test_invalid_json" });
     if (!body) return;
-    const result = await providerConfigRoutes.test(body);
+    const result = await providerConfigRoutes.test(body, gatewayService);
     writeJson(response, 200, createOkEnvelope(result, { startedAt }));
     return;
   }
@@ -345,7 +439,7 @@ export async function dispatchHttpRoutes02(context) {
   if (request.method === "POST" && url.pathname === "/model-library/test-model") {
     const body = await readCapabilityJson({ request, response, startedAt, code: "model_library_test_invalid_json" });
     if (!body) return;
-    const result = await testPhase312AModel({ application, body });
+    const result = await testPhase312AModel({ application, body, gatewayService });
     if (result.success === false) {
       const statusCode = result.code === "real_smoke_not_enabled" ? 503 : 400;
       writeJson(response, statusCode, createErrorEnvelope(
@@ -379,7 +473,7 @@ export async function dispatchHttpRoutes02(context) {
       writeJson(response, taijiBeidouExecuteHook.responseStatus ?? 200, createOkEnvelope(taijiBeidouExecuteHook.result, { startedAt }));
       return;
     }
-    const result = await runPhase312AChatGateway({ application, body, startedAt });
+    const result = await runPhase312AChatGateway({ application, body, startedAt, gatewayService });
     writeJson(response, 200, createOkEnvelope(result, { startedAt }));
     return;
   }
@@ -387,7 +481,7 @@ export async function dispatchHttpRoutes02(context) {
   if (request.method === "POST" && url.pathname === "/three-mode/execute") {
     const body = await readCapabilityJson({ request, response, startedAt, code: "three_mode_execute_invalid_json" });
     if (!body) return;
-    const result = await executeThreeModeRequest({ request: body, application });
+    const result = await executeThreeModeRequest({ request: body, application, gatewayService });
     writeJson(response, result.success ? 200 : 422, result);
     return;
   }
@@ -601,6 +695,14 @@ function collectReadinessFailures(healthSnapshot, readinessSnapshot, context = {
   if (healthSnapshot?.workforce?.status !== "ready") {
     readinessFailures.push("workforce");
   }
+  if (healthSnapshot?.usageLedger?.requiredForRealProviders === true
+    && healthSnapshot.usageLedger.status !== "ready") {
+    readinessFailures.push("usage-ledger-unavailable");
+  }
+  if (healthSnapshot?.enterprise?.audit?.central
+    && healthSnapshot.enterprise.audit.central.status !== "ready") {
+    readinessFailures.push("audit-central-store-unavailable");
+  }
   if (context?.saturated) {
     readinessFailures.push("inflight-saturation");
   }
@@ -613,20 +715,253 @@ function collectReadinessFailures(healthSnapshot, readinessSnapshot, context = {
   if (context?.idempotencyStoreUnavailable) {
     readinessFailures.push("idempotency-store-unavailable");
   }
+  if (context?.providerDispatchUnavailable) {
+    readinessFailures.push("provider-dispatch-store-unavailable");
+  }
+  if (context?.externalEffectStoreUnavailable) {
+    readinessFailures.push("external-effect-store-unavailable");
+  }
   if (context?.rateLimitStoreUnavailable) {
     readinessFailures.push("rate-limit-store-unavailable");
   }
   if (context?.webSocketLeaseStoreUnavailable) {
     readinessFailures.push("websocket-lease-store-unavailable");
   }
+  if (context?.a2aTaskStoreUnavailable) {
+    readinessFailures.push("a2a-task-store-unavailable");
+  }
+  if (context?.workforceClaimStoreUnavailable) {
+    readinessFailures.push("workforce-claim-store-unavailable");
+  }
+  if (context?.workforceTaskQueueUnavailable) {
+    readinessFailures.push("workforce-task-queue-unavailable");
+  }
+  if (context?.workforceExecutionControlUnavailable) {
+    readinessFailures.push("workforce-execution-control-unavailable");
+  }
 
   return Array.from(new Set(readinessFailures));
+}
+
+async function readWorkforceClaimStoreHealth(workforceExecutor) {
+  if (!workforceExecutor?.getTaskClaimHealth) return null;
+  try {
+    const snapshot = await workforceExecutor.getTaskClaimHealth();
+    return {
+      mode: snapshot?.mode ?? "unknown",
+      distributed: snapshot?.distributed === true,
+      available: snapshot?.available === true,
+      activeClaims: Number(snapshot?.activeClaims ?? 0),
+      maxClaims: Number(snapshot?.maxClaims ?? 0),
+      statsUpdatedAt: snapshot?.statsUpdatedAt ?? null,
+    };
+  } catch {
+    return {
+      mode: "unknown",
+      distributed: true,
+      available: false,
+      activeClaims: 0,
+      maxClaims: 0,
+      statsUpdatedAt: null,
+    };
+  }
+}
+
+async function readWorkforceTaskQueueHealth(workforceExecutor) {
+  if (!workforceExecutor?.getTaskQueueHealth) return null;
+  try {
+    const snapshot = await workforceExecutor.getTaskQueueHealth();
+    return {
+      mode: snapshot?.mode ?? "unknown",
+      durable: snapshot?.durable === true,
+      distributed: snapshot?.distributed === true,
+      available: snapshot?.available === true,
+      atomicTerminalFence: snapshot?.atomicTerminalFence === true,
+      totalQueued: Number(snapshot?.totalQueued ?? 0),
+      totalActive: Number(snapshot?.totalActive ?? 0),
+      totalCompleted: Number(snapshot?.totalCompleted ?? 0),
+      totalFailed: Number(snapshot?.totalFailed ?? 0),
+      totalCancelled: Number(snapshot?.totalCancelled ?? 0),
+      maxEntries: Number(snapshot?.maxEntries ?? 0),
+      maxTaskBytes: Number(snapshot?.maxTaskBytes ?? 0),
+      statsUpdatedAt: snapshot?.statsUpdatedAt ?? null,
+    };
+  } catch {
+    return {
+      mode: "unknown",
+      durable: true,
+      distributed: true,
+      available: false,
+      atomicTerminalFence: false,
+      totalQueued: 0,
+      totalActive: 0,
+      totalCompleted: 0,
+      totalFailed: 0,
+      totalCancelled: 0,
+      maxEntries: 0,
+      maxTaskBytes: 0,
+      statsUpdatedAt: null,
+    };
+  }
+}
+
+async function readWorkforceExecutionControlHealth(workforceExecutor) {
+  if (!workforceExecutor?.getExecutionControlHealth) return null;
+  try {
+    const snapshot = await workforceExecutor.getExecutionControlHealth();
+    return {
+      mode: snapshot?.mode ?? "unknown",
+      durable: snapshot?.durable === true,
+      distributed: snapshot?.distributed === true,
+      centralRequired: snapshot?.centralRequired === true,
+      available: snapshot?.available === true,
+      approval: {
+        available: snapshot?.approval?.available === true,
+        activeApprovals: Number(snapshot?.approval?.activeApprovals ?? 0),
+        maxApprovals: Number(snapshot?.approval?.maxApprovals ?? 0),
+        statsUpdatedAt: snapshot?.approval?.statsUpdatedAt ?? null,
+      },
+      lifecycle: {
+        available: snapshot?.lifecycle?.available === true,
+        activeExecutions: Number(snapshot?.lifecycle?.activeExecutions ?? 0),
+        maxExecutions: Number(snapshot?.lifecycle?.maxExecutions ?? 0),
+        maxStateBytes: Number(snapshot?.lifecycle?.maxStateBytes ?? 0),
+        statsUpdatedAt: snapshot?.lifecycle?.statsUpdatedAt ?? null,
+      },
+    };
+  } catch {
+    return {
+      mode: "unknown",
+      durable: true,
+      distributed: true,
+      centralRequired: true,
+      available: false,
+      approval: { available: false, activeApprovals: 0, maxApprovals: 0, statsUpdatedAt: null },
+      lifecycle: { available: false, activeExecutions: 0, maxExecutions: 0, maxStateBytes: 0, statsUpdatedAt: null },
+    };
+  }
+}
+
+async function readA2ATaskStoreHealth(a2aGateway) {
+  if (!a2aGateway?.getTaskStoreHealth) return null;
+  try {
+    const snapshot = a2aGateway.checkTaskStoreHealth
+      ? await a2aGateway.checkTaskStoreHealth()
+      : a2aGateway.getTaskStoreHealth();
+    return {
+      mode: snapshot?.mode ?? "unknown",
+      durable: snapshot?.durable === true,
+      distributed: snapshot?.distributed === true,
+      required: snapshot?.required === true,
+      centralRequired: snapshot?.centralRequired === true,
+      available: snapshot?.available === true,
+      reason: snapshot?.reason ?? null,
+      ttlMs: Number(snapshot?.ttlMs ?? 0),
+      maxEntries: Number(snapshot?.maxEntries ?? 0),
+      maxEntriesPerOwner: Number(snapshot?.maxEntriesPerOwner ?? 0),
+      maxTaskBytes: Number(snapshot?.maxTaskBytes ?? 0),
+      maxHistoryMessages: Number(snapshot?.maxHistoryMessages ?? 0),
+      maxArtifacts: Number(snapshot?.maxArtifacts ?? 0),
+      atomicTerminalFence: snapshot?.atomicTerminalFence === true,
+      terminalCommitGraceMs: Number(snapshot?.terminalCommitGraceMs ?? 0),
+      executionLease: readA2AExecutionLeaseHealth(snapshot?.executionLease),
+    };
+  } catch {
+    return {
+      available: false,
+      durable: false,
+      distributed: false,
+      mode: "unknown",
+      reason: "health_probe_failed",
+      executionLease: readA2AExecutionLeaseHealth({
+        available: false,
+        reason: "health_probe_failed",
+      }),
+    };
+  }
+}
+
+function readA2AExecutionLeaseHealth(snapshot) {
+  return {
+    mode: snapshot?.mode ?? "disabled",
+    enabled: snapshot?.enabled === true,
+    distributed: snapshot?.distributed === true,
+    required: snapshot?.required === true,
+    available: snapshot?.available !== false,
+    reason: snapshot?.reason ?? null,
+    ttlMs: Number(snapshot?.ttlMs ?? 0),
+    heartbeatMs: Number(snapshot?.heartbeatMs ?? 0),
+    maxLeases: Number(snapshot?.maxLeases ?? 0),
+    activeLeases: Number(snapshot?.activeLeases ?? 0),
+    atomicTerminalFence: snapshot?.atomicTerminalFence === true,
+  };
 }
 
 async function readIdempotencyHealth(coordinator) {
   if (!coordinator) return null;
   if (typeof coordinator.checkHealth === "function") return coordinator.checkHealth();
   return coordinator.getStats?.() ?? null;
+}
+
+async function readProviderDispatchHealth(gate) {
+  if (!gate) return null;
+  try {
+    const snapshot = typeof gate.checkHealth === "function"
+      ? await gate.checkHealth()
+      : gate.getHealth?.();
+    return sanitizeProviderDispatchHealth(snapshot, gate.status);
+  } catch {
+    return sanitizeProviderDispatchHealth({ available: false }, gate.status);
+  }
+}
+
+async function readExternalEffectHealth(gate) {
+  if (!gate) return null;
+  try {
+    const snapshot = typeof gate.checkHealth === "function"
+      ? await gate.checkHealth()
+      : gate.getHealth?.();
+    return sanitizeExternalEffectHealth(snapshot, gate.status);
+  } catch {
+    return sanitizeExternalEffectHealth({ available: false }, gate.status);
+  }
+}
+
+function sanitizeExternalEffectHealth(snapshot, status = {}) {
+  if (!snapshot && !status) return null;
+  return {
+    mode: snapshot?.mode ?? status?.mode ?? "unknown",
+    enabled: snapshot?.enabled === true || status?.enabled === true,
+    durable: snapshot?.durable === true || status?.durable === true,
+    distributed: snapshot?.distributed === true || status?.distributed === true,
+    centralRequired: snapshot?.centralRequired === true || status?.centralRequired === true,
+    available: snapshot?.available === true,
+    ttlMs: Number(snapshot?.ttlMs ?? status?.ttlMs ?? 0),
+    maxEntries: Number(snapshot?.maxEntries ?? status?.maxEntries ?? 0),
+    entries: Number(snapshot?.entries ?? 0),
+    inFlight: Number(snapshot?.inFlight ?? 0),
+    tombstones: Number(snapshot?.tombstones ?? 0),
+    statsUpdatedAt: snapshot?.statsUpdatedAt ?? null,
+  };
+}
+
+function sanitizeProviderDispatchHealth(snapshot, status = {}) {
+  if (!snapshot && !status) return null;
+  return {
+    mode: snapshot?.mode ?? status?.mode ?? "unknown",
+    enabled: snapshot?.enabled === true || status?.enabled === true,
+    required: snapshot?.required === true || status?.required === true,
+    durable: snapshot?.durable === true || status?.durable === true,
+    distributed: snapshot?.distributed === true || status?.distributed === true,
+    centralRequired: snapshot?.centralRequired === true || status?.centralRequired === true,
+    available: snapshot?.available === true,
+    ttlMs: Number(snapshot?.ttlMs ?? status?.ttlMs ?? 0),
+    maxEntries: Number(snapshot?.maxEntries ?? status?.maxEntries ?? 0),
+    entries: Number(snapshot?.entries ?? 0),
+    inFlight: Number(snapshot?.inFlight ?? 0),
+    tombstones: Number(snapshot?.tombstones ?? 0),
+    statsUpdatedAt: snapshot?.statsUpdatedAt ?? null,
+  };
 }
 
 async function readRateLimitHealth(rateLimiter) {

@@ -781,7 +781,7 @@ function checkDistributedIdempotencySafety() {
       "clock_timestamp()",
       "created-unconfirmed",
       "IDEMPOTENCY_STORE_UNAVAILABLE",
-      "await idempotencyCoordinator.close()",
+      "() => idempotencyCoordinator.close()",
       "idempotency-store-unavailable",
       "idempotency_store_available",
       "coalesces one provider operation across coordinators",
@@ -851,7 +851,7 @@ function checkDistributedRateLimitSafety() {
       "RATE_LIMIT_STORE_UNAVAILABLE",
       "RATE_LIMIT_STORE_CAPACITY",
       "await routeRateLimiter.apply",
-      "await rateLimiter.close()",
+      "() => rateLimiter.close()",
       "rate-limit-store-unavailable",
       "rate_limit_store_available",
       "real PostgreSQL distributed rate limiting",
@@ -980,7 +980,7 @@ function checkCriticalAttackChainHardening() {
       "blocks zero-width and encoded instruction overrides",
       "maps credential and provider mutation routes to provider:write",
       "Critical gateway attack-chain hardening",
-      "PME_ENTERPRISE_AUTH_ENABLED=true",
+      "PME_ENTERPRISE_AUTH_ENABLED=${PME_ENTERPRISE_AUTH_ENABLED:-true} exec node",
       'PME_ENTERPRISE_AUTH_ENABLED: "true"',
     ];
     const missingMarkers = requiredMarkers.filter((marker) => !source.includes(marker));

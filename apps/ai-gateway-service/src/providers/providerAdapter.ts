@@ -30,3 +30,5 @@ export interface ProviderAdapter {
   readonly descriptor: ProviderDescriptor;
   generate(request: ProviderRequest): Promise<ProviderResponse>;
 }
+
+export declare function assertProviderAdapter(provider: unknown): asserts provider is ProviderAdapter;

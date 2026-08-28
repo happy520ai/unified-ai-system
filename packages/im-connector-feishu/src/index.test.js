@@ -48,4 +48,49 @@ describe("im-connector-feishu", () => {
     );
     assert.equal(result.metadata.format, "card");
   });
+
+  it("fails closed without an external-effect guard and sends only after hashed reservation", async () => {
+    const originalFetch = globalThis.fetch;
+    let fetchCalls = 0;
+    globalThis.fetch = async () => {
+      fetchCalls += 1;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ code: 0, message_id: "message-1" }),
+      };
+    };
+    try {
+      const unguarded = createFeishuConnector({
+        dryRun: false,
+        webhookUrl: "https://open.feishu.example/webhook/secret",
+      });
+      const denied = await unguarded.sendMessage(mockEnvelope, {
+        externalEffectKey: "feishu-operation-1",
+      });
+      assert.equal(denied.error, "feishu_external_effect_guard_required");
+      assert.equal(fetchCalls, 0);
+
+      let reservationInput;
+      const guarded = createFeishuConnector({
+        dryRun: false,
+        webhookUrl: "https://open.feishu.example/webhook/secret",
+        externalEffectGuard: {
+          async reserveAndCommit(input) { reservationInput = input; },
+        },
+      });
+      const delivered = await guarded.sendMessage(mockEnvelope, {
+        externalEffectKey: "feishu-operation-1",
+      });
+      assert.equal(delivered.delivered, true);
+      assert.equal(fetchCalls, 1);
+      assert.match(reservationInput.effectKeyHash, /^[a-f0-9]{64}$/);
+      assert.match(reservationInput.targetFingerprint, /^[a-f0-9]{64}$/);
+      assert.match(reservationInput.payloadFingerprint, /^[a-f0-9]{64}$/);
+      assert.doesNotMatch(JSON.stringify(reservationInput), /feishu-operation-1|webhook\/secret|Test body content/);
+      assert.equal(guarded.getHealth().externalEffectGuardConfigured, true);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });

@@ -6,7 +6,8 @@
  * 从 securityReviewCheckpoint.js 拆分而出，保持单文件职责单一。
  */
 
-import { mkdir, writeFile, readFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir, writeFile, readFile, rename, rm } from "node:fs/promises";
 import { resolve } from "node:path";
 
 // 默认审计日志路径
@@ -14,6 +15,7 @@ export const DEFAULT_AUDIT_LOG_DIR = resolve(process.cwd(), ".data", "workforce"
 
 // 输出大小限制：1MB
 export const MAX_OUTPUT_SIZE_BYTES = 1 * 1024 * 1024;
+const auditWriteTails = new Map();
 
 // 敏感路径模式列表
 export const FORBIDDEN_PATHS = [
@@ -196,18 +198,31 @@ export function createAuditEntry({ planId, agentId, checkpoint, result, checks }
  * 写入审计日志
  */
 export async function writeAuditLog(auditLogDir, planId, entry) {
-  try {
-    await mkdir(auditLogDir, { recursive: true });
-    const logPath = resolve(auditLogDir, `${(planId || "unknown").trim()}.json`);
+  const logPath = createSecurityAuditLogPath(auditLogDir, planId);
+  const previous = auditWriteTails.get(logPath) ?? Promise.resolve();
+  const operation = previous.then(async () => {
+    await mkdir(auditLogDir, { recursive: true, mode: 0o700 });
 
     // 读取现有日志
     let entries = [];
     try {
       const content = await readFile(logPath, "utf8");
       entries = JSON.parse(content);
-      if (!Array.isArray(entries)) entries = [];
-    } catch {
-      entries = [];
+      if (!Array.isArray(entries)) {
+        throw Object.assign(new Error("The security checkpoint audit log is corrupt."), {
+          code: "WORKFORCE_SECURITY_AUDIT_CORRUPT",
+        });
+      }
+    } catch (error) {
+      if (error?.code === "ENOENT") {
+        entries = [];
+      } else if (error?.code === "WORKFORCE_SECURITY_AUDIT_CORRUPT") {
+        throw error;
+      } else {
+        throw Object.assign(new Error("The security checkpoint audit log is corrupt."), {
+          code: "WORKFORCE_SECURITY_AUDIT_CORRUPT",
+        });
+      }
     }
 
     entries.push(entry);
@@ -217,9 +232,35 @@ export async function writeAuditLog(auditLogDir, planId, entry) {
       entries = entries.slice(-1000);
     }
 
-    await writeFile(logPath, `${JSON.stringify(entries, null, 2)}\n`, "utf8");
-  } catch (error) {
-    // 审计日志写入失败不应阻塞执行
-    console.error(`[securityReviewCheckpoint] 审计日志写入失败: ${error.message}`);
+    const temporaryPath = `${logPath}.${process.pid}.${randomUUID()}.tmp`;
+    try {
+      await writeFile(temporaryPath, `${JSON.stringify(entries, null, 2)}\n`, {
+        encoding: "utf8",
+        mode: 0o600,
+      });
+      await rename(temporaryPath, logPath);
+    } finally {
+      await rm(temporaryPath, { force: true }).catch(() => {});
+    }
+  });
+  const tail = operation.catch(() => undefined);
+  auditWriteTails.set(logPath, tail);
+  try {
+    await operation;
+  } finally {
+    if (auditWriteTails.get(logPath) === tail) auditWriteTails.delete(logPath);
   }
+}
+
+export function createSecurityAuditLogPath(auditLogDir, planId) {
+  const normalized = typeof planId === "string" && planId.trim()
+    ? planId.trim()
+    : "unknown";
+  if (normalized.length > 512 || /[\u0000-\u001f\u007f]/u.test(normalized)) {
+    throw Object.assign(new Error("The security audit plan identifier is invalid."), {
+      code: "WORKFORCE_SECURITY_AUDIT_ID_INVALID",
+    });
+  }
+  const digest = createHash("sha256").update(normalized, "utf8").digest("hex");
+  return resolve(auditLogDir, `plan-${digest}.json`);
 }

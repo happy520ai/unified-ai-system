@@ -130,11 +130,14 @@ describe("Batch14 Fix5: workforceControlledExecutor timer cleanup", () => {
     assert.ok(src.includes("_timeoutTimer"), "_timeoutTimer variable not found");
   });
 
-  it("clears timer in .finally() on the executeAllRoles promise", () => {
-    assert.ok(
-      src.includes("finally(() => clearTimeout(_timeoutTimer))"),
-      "finally clearTimeout not found"
-    );
+  it("clears the timer in finally before waiting for DAG settlement", () => {
+    const raceIdx = src.indexOf("allRoleResults = await Promise.race");
+    const finallyIdx = src.indexOf("} finally {", raceIdx);
+    const clearIdx = src.indexOf("clearTimeout(_timeoutTimer)", finallyIdx);
+    const settleIdx = src.indexOf("await executionPromise", finallyIdx);
+    assert.ok(raceIdx >= 0 && finallyIdx > raceIdx, "timeout race finally block not found");
+    assert.ok(clearIdx > finallyIdx, "timer cleanup not found in finally");
+    assert.ok(settleIdx > clearIdx, "DAG settlement wait must follow timer cleanup");
   });
 
   it("assigns timer to _timeoutTimer in setTimeout", () => {

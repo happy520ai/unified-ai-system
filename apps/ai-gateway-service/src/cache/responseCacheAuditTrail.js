@@ -1,8 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { createResponseCacheTenantScope } from "./responseCacheTenantScope.ts";
+import { DEFAULT_RESPONSE_CACHE_STORE_PATHS } from "./responseCacheStore.js";
 
-const auditPath = resolve(process.cwd(), "apps/ai-gateway-service/evidence/response-cache/response-cache-audit-trail.jsonl");
+const auditPath = DEFAULT_RESPONSE_CACHE_STORE_PATHS.audit;
 
 export function listResponseCacheAuditTrail(options = {}) {
   const tenantScope = createResponseCacheTenantScope(options.tenantScopeIdentity);

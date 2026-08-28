@@ -14,6 +14,7 @@ Public documentation is grouped by task so the repo stays easy to scan.
 - [A2A v1.0 网关（中文）](a2a-protocol.zh-CN.md)
 - [Protocol and client compatibility](protocol-client-compatibility.md)
 - [协议与客户端兼容性（中文）](protocol-client-compatibility.zh-CN.md)
+- [Anthropic Messages compatibility](anthropic-messages-compatibility.md)
 - [Codex MCP quickstart](codex-mcp-quickstart.md)
 - [MCP client compatibility matrix](mcp-client-compatibility.md)
 - [MCP 客户端兼容性矩阵（中文）](mcp-client-compatibility.zh-CN.md)
@@ -23,11 +24,13 @@ Public documentation is grouped by task so the repo stays easy to scan.
 - [Provider setup](providers.md)
 - [First-run troubleshooting](first-run-troubleshooting.md)
 - [First-run troubleshooting (Chinese)](first-run-troubleshooting.zh-CN.md)
+- [General troubleshooting](troubleshooting.md)
 - [Chinese site documentation](index.zh-CN.html)
 
 ## Product References
 
 - [Architecture](architecture.md)
+- [Local client intelligence gateway](local-client-intelligence-gateway.md)
 - [Gemini provider](gemini-provider.md)
 - [Chat guardrails](guardrails.md)
 - [Spend reporting](spend-reporting.md)
@@ -36,7 +39,12 @@ Public documentation is grouped by task so the repo stays easy to scan.
 - [Installable Agent Skill](https://skills.sh/happy520ai/unified-ai-system/unified-ai-gateway)
 - [Readiness & observability](readiness-observability-guide.md)
 - [Task handoff loop](task-handoff-loop.md)
+- [Forge container sandbox](forge-container-sandbox.md)
+- [Forge vision quickstart](forge-quickstart.md)
 - [Gateway-driven external runner (design only)](gateway-driven-external-runner-design.md)
+- [Gateway SLO benchmark methodology](gateway-slo-benchmark.md)
+- [Gateway open-loop soak methodology](gateway-open-loop-soak.md)
+- [Gateway resource stability soak methodology](gateway-resource-soak.md)
 - [Quality trend digest guide](quality-trend-digest-guide.md)
 - [Quality trend runbook](quality-trend-runbook.md)
 - [Project vision](../VISION.md)
@@ -59,10 +67,34 @@ Public documentation is grouped by task so the repo stays easy to scan.
 - [Security policy](../SECURITY.md)
 - [Security evidence index](security/README.md)
 - [Provider adapter contribution guide](provider-adapter-contribution.md)
+- [Language selection playbook](language-selection-playbook.md)
+
+## Reliability Contracts And Hardening
+
+- [Graceful shutdown contract](graceful-shutdown-contract.md)
+- [Idempotent chat contract](idempotent-chat-contract.md)
+- [Provider dispatch idempotency](provider-dispatch-idempotency.md)
+- [Rate-limit client contract](rate-limit-client-contract.md)
+- [Request cancellation contract](request-cancellation-contract.md)
+- [SDK error contract](sdk-error-contract.md)
+- [Trusted proxy identity contract](trusted-proxy-identity-contract.md)
+- [Response cache tenant isolation](response-cache-tenant-isolation.md)
+- [WebSocket distributed execution leases](websocket-distributed-execution-leases.md)
+- [Agent tool execution security](agent-tool-execution-security.md)
+- [Logging security](logging-security.md)
+- [MCP upstream security](mcp-upstream-security.md)
+- [Prompt-injection trust boundary](prompt-injection-trust-boundary.md)
+- [Runtime credential encryption](runtime-credential-encryption.md)
+- [Knowledge tenant isolation](knowledge-tenant-isolation.md)
+- [Platform control-plane isolation](platform-control-plane-isolation.md)
+- [Enterprise control-plane tenant isolation](enterprise-control-plane-tenant-isolation.md)
+- [Enterprise backup security](enterprise-backup-security.md)
 
 ## History
 
 - [Full audit report, 2026-08-12](history/audit-report-2026-08-12.md) — the 6.1/10 baseline the hardening cycles started from
 - [Thirty-five round upgrade summary, 2026-08-13](history/upgrade-summary-2026-08-13.md)
 - [Upgrade commit guide, 2026-08-13](history/upgrade-commit-guide-2026-08-13.md)
+- [Security audit, 2026-08-19](security-audit-2026-08-19.md)
+- [Comprehensive audit, 2026-08-24 (Chinese)](comprehensive-audit-2026-08-24.zh-CN.md)
 - [Project history](history.md)

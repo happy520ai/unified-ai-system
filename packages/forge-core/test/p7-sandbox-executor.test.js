@@ -9,6 +9,35 @@ describe('SandboxExecutor', () => {
   let SandboxExecutor;
   let SandboxLevel;
 
+  const attestation = Object.freeze({
+    backend: 'test-container',
+    networkIsolation: true,
+    readOnlyRoot: true,
+    nonRootUser: true,
+    noNewPrivileges: true,
+    capabilitiesDropped: true,
+    processTreeKill: true,
+    resourceLimits: true,
+    imageDigest: 'sha256:test',
+  });
+
+  const createBackend = (overrides = {}) => ({
+    type: 'test-container',
+    attest: async () => ({ ...attestation }),
+    run: async () => ({
+      exitCode: 0,
+      stdout: 'allowed\n',
+      stderr: '',
+      duration: 1,
+      killed: false,
+      killReason: null,
+      peakMemoryMB: 0,
+      backend: 'test-container',
+      isolation: { ...attestation },
+    }),
+    ...overrides,
+  });
+
   before(async () => {
     const mod = await import('../src/sandbox-executor/index.js');
     SandboxExecutor = mod.SandboxExecutor;
@@ -72,7 +101,7 @@ describe('SandboxExecutor', () => {
   });
 
   it('should capture stdout from child process', async () => {
-    const sb = new SandboxExecutor({ level: 'process' });
+    const sb = new SandboxExecutor({ level: 'process', hostExecutionEnabled: true });
     // Avoid quoting issues — use quote-free node -e expression
     const result = await sb.execute('node -e "console.log(42)"');
     assert.equal(result.exitCode, 0);
@@ -80,14 +109,14 @@ describe('SandboxExecutor', () => {
   });
 
   it('should capture stderr as a string from child process', async () => {
-    const sb = new SandboxExecutor({ level: 'process' });
+    const sb = new SandboxExecutor({ level: 'process', hostExecutionEnabled: true });
     const result = await sb.execute('echo hello');
     // stderr is always captured as a string, even when empty
     assert.equal(typeof result.stderr, 'string');
   });
 
   it('should capture non-zero exit code', async () => {
-    const sb = new SandboxExecutor({ level: 'process' });
+    const sb = new SandboxExecutor({ level: 'process', hostExecutionEnabled: true });
     // Use shell-native exit: cmd.exe uses 'exit N', sh uses 'exit N'
     const cmd = process.platform === 'win32' ? 'exit 1' : 'exit 1';
     const result = await sb.execute(cmd);
@@ -115,7 +144,7 @@ describe('SandboxExecutor', () => {
     const result = await sb.execute(':(){ :|:& };:');
     assert.equal(result.exitCode, -1);
     assert.equal(result.killed, true);
-    assert.ok(result.killReason.includes('Fork bomb'));
+    assert.ok(result.stderr.includes('Fork bomb'));
   });
 
   it('should fail pre-check for mkfs pattern', async () => {
@@ -123,7 +152,7 @@ describe('SandboxExecutor', () => {
     const result = await sb.execute('mkfs /dev/sda1');
     assert.equal(result.exitCode, -1);
     assert.equal(result.killed, true);
-    assert.ok(result.killReason.includes('Filesystem format'));
+    assert.ok(result.stderr.includes('Filesystem format'));
   });
 
   it('should fail pre-check for shutdown pattern', async () => {
@@ -131,7 +160,7 @@ describe('SandboxExecutor', () => {
     const result = await sb.execute('shutdown -h now');
     assert.equal(result.exitCode, -1);
     assert.equal(result.killed, true);
-    assert.ok(result.killReason.includes('shutdown'));
+    assert.ok(result.stderr.includes('shutdown'));
   });
 
   it('should reject cwd outside allowed paths at filesystem level', async () => {
@@ -142,24 +171,26 @@ describe('SandboxExecutor', () => {
     const result = await sb.execute('echo test', { cwd: '/nonexistent/outside/path' });
     assert.equal(result.exitCode, -1);
     assert.equal(result.killed, true);
-    assert.ok(result.killReason.includes('outside allowed'));
+    assert.equal(result.killReason, 'SANDBOX_WORKSPACE_DENIED');
   });
 
   it('should reject cwd inside denied paths at filesystem level', async () => {
     const sb = new SandboxExecutor({
       level: 'filesystem',
+      allowedPaths: [process.cwd()],
       deniedPaths: [process.cwd()],
     });
     const result = await sb.execute('echo test', { cwd: process.cwd() });
     assert.equal(result.exitCode, -1);
     assert.equal(result.killed, true);
-    assert.ok(result.killReason.includes('denied'));
+    assert.equal(result.killReason, 'SANDBOX_WORKSPACE_DENIED');
   });
 
   it('should allow cwd within allowed paths at filesystem level', async () => {
     const sb = new SandboxExecutor({
       level: 'filesystem',
       allowedPaths: [process.cwd()],
+      backend: createBackend(),
     });
     const result = await sb.execute('echo allowed', { cwd: process.cwd() });
     assert.equal(result.exitCode, 0);
@@ -167,7 +198,7 @@ describe('SandboxExecutor', () => {
   });
 
   it('should kill process on timeout', async () => {
-    const sb = new SandboxExecutor({ level: 'process', maxTimeMs: 300 });
+    const sb = new SandboxExecutor({ level: 'process', maxTimeMs: 300, hostExecutionEnabled: true });
     // Use ping (Windows) or sleep (Unix) as reliable long-running commands
     const cmd = process.platform === 'win32'
       ? 'ping -n 3 127.0.0.1'
@@ -178,7 +209,7 @@ describe('SandboxExecutor', () => {
   });
 
   it('should support per-call level override', async () => {
-    const sb = new SandboxExecutor({ level: 'none' });
+    const sb = new SandboxExecutor({ level: 'none', hostExecutionEnabled: true });
     const result = await sb.execute('echo override', { level: 'process' });
     assert.equal(result.exitCode, 0);
     assert.equal(result.sandboxLevel, 'process');
@@ -360,24 +391,61 @@ describe('SandboxExecutor', () => {
 
   // ── getMaxSupportedLevel() ───────────────────────────────────────────────
 
-  it('should return FILESYSTEM for win32 platform', () => {
+  it('should not infer isolation from win32 platform', () => {
     const sb = new SandboxExecutor({ platform: 'win32' });
-    assert.equal(sb.getMaxSupportedLevel(), 'filesystem');
+    assert.equal(sb.getMaxSupportedLevel(), 'none');
   });
 
-  it('should return FULL for linux platform', () => {
+  it('should not infer isolation from linux platform', () => {
     const sb = new SandboxExecutor({ platform: 'linux' });
-    assert.equal(sb.getMaxSupportedLevel(), 'full');
+    assert.equal(sb.getMaxSupportedLevel(), 'none');
   });
 
-  it('should return FULL for darwin platform', () => {
+  it('should not infer isolation from darwin platform', () => {
     const sb = new SandboxExecutor({ platform: 'darwin' });
+    assert.equal(sb.getMaxSupportedLevel(), 'none');
+  });
+
+  it('should report PROCESS only after explicit host opt-in', () => {
+    const sb = new SandboxExecutor({ platform: 'freebsd', hostExecutionEnabled: true });
+    assert.equal(sb.getMaxSupportedLevel(), 'process');
+  });
+
+  it('should report FULL only when an isolation backend is configured', () => {
+    const sb = new SandboxExecutor({ platform: 'freebsd', backend: createBackend() });
     assert.equal(sb.getMaxSupportedLevel(), 'full');
   });
 
-  it('should return PROCESS for unknown platform', () => {
+  it('should fail closed when filesystem isolation has no backend', async () => {
+    const sb = new SandboxExecutor({ level: 'filesystem', allowedPaths: [process.cwd()] });
+    const result = await sb.execute('echo blocked', { cwd: process.cwd() });
+    assert.equal(result.exitCode, -1);
+    assert.equal(result.killReason, 'SANDBOX_BACKEND_UNAVAILABLE');
+    assert.ok(result.stderr.includes('SANDBOX_BACKEND_UNAVAILABLE'));
+  });
+
+  it('should reject invalid levels instead of silently downgrading', async () => {
     const sb = new SandboxExecutor({ platform: 'freebsd' });
-    assert.equal(sb.getMaxSupportedLevel(), 'process');
+    const result = await sb.execute('echo blocked', { level: 'imaginary' });
+    assert.equal(result.exitCode, -1);
+    assert.equal(result.killReason, 'SANDBOX_LEVEL_INVALID');
+  });
+
+  it('should not leak ambient secrets in explicit PROCESS mode', async () => {
+    const canaryKey = 'FORGE_SANDBOX_SECRET_CANARY';
+    const previous = process.env[canaryKey];
+    process.env[canaryKey] = 'must-not-leak';
+    try {
+      const sb = new SandboxExecutor({ level: 'process', hostExecutionEnabled: true });
+      const command = 'node -e "console.log(process.env.FORGE_SANDBOX_SECRET_CANARY || \'missing\')"';
+      const result = await sb.execute(command);
+      assert.equal(result.exitCode, 0);
+      assert.ok(result.stdout.includes('missing'));
+      assert.ok(!result.stdout.includes('must-not-leak'));
+    } finally {
+      if (previous === undefined) delete process.env[canaryKey];
+      else process.env[canaryKey] = previous;
+    }
   });
 
   // ── getStatus() ──────────────────────────────────────────────────────────

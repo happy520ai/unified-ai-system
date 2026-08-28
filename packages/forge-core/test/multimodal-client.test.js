@@ -71,6 +71,90 @@ describe('Multimodal Client', () => {
     globalThis.fetch = originalFetch;
   });
 
+  it('sends unique governed operation keys and gateway auth across every provider-bearing endpoint', async () => {
+    const calls = [];
+    globalThis.fetch = async (url, opts = {}) => {
+      calls.push({ url: String(url), opts });
+      if (String(url).endsWith('/v1/audio/speech')) {
+        return {
+          ok: true,
+          status: 200,
+          arrayBuffer: async () => Buffer.from('audio'),
+          text: async () => '',
+        };
+      }
+      if (String(url).endsWith('/v1/audio/transcriptions')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ text: 'transcribed', model: 'whisper-1' }),
+          text: async () => '',
+        };
+      }
+      if (String(url).endsWith('/v1/embeddings')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ data: [{ embedding: [0.1] }] }),
+          text: async () => '',
+        };
+      }
+      const requestBody = JSON.parse(opts.body);
+      return {
+        ok: true,
+        status: 200,
+        json: async () => requestBody.modality === 'video'
+          ? { data: [{ url: 'https://example.com/video.mp4' }] }
+          : { data: [{ url: 'https://example.com/image.png' }] },
+        text: async () => '',
+      };
+    };
+    const governed = { gatewayAuthToken: 'multimodal-gateway-token' };
+
+    await multimodalmMod.generateImage('image', governed);
+    await multimodalmMod.generateVideo('video', governed);
+    await multimodalmMod.generateEmbedding('embedding', governed);
+    await multimodalmMod.synthesizeSpeech('speech', governed);
+    await multimodalmMod.transcribeAudio(Buffer.from('audio'), governed);
+
+    assert.equal(calls.length, 5);
+    const dispatchKeys = calls.map(({ opts }) => opts.headers['Provider-Dispatch-Key']);
+    assert.equal(new Set(dispatchKeys).size, 5);
+    for (const { opts } of calls) {
+      assert.match(opts.headers['Provider-Dispatch-Key'], /^forge-multimodal-[A-Za-z0-9-]+$/);
+      assert.equal(opts.headers['Idempotency-Key'], undefined);
+      assert.equal(opts.headers.Authorization, 'Bearer multimodal-gateway-token');
+    }
+  });
+
+  it('supports explicit response identity and rejects ambiguous multimodal keys locally', async () => {
+    const calls = [];
+    globalThis.fetch = async (url, opts = {}) => {
+      calls.push({ url: String(url), opts });
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [{ url: 'https://example.com/image.png' }] }),
+        text: async () => '',
+      };
+    };
+
+    await multimodalmMod.generateImage('stable operation', {
+      idempotencyKey: 'multimodal-operation-1',
+    });
+    assert.equal(calls[0].opts.headers['Idempotency-Key'], 'multimodal-operation-1');
+    assert.equal(calls[0].opts.headers['Provider-Dispatch-Key'], undefined);
+
+    await assert.rejects(
+      () => multimodalmMod.generateImage('ambiguous operation', {
+        idempotencyKey: 'response-key',
+        providerDispatchKey: 'provider-key',
+      }),
+      (error) => error?.code === 'INVALID_INPUT',
+    );
+    assert.equal(calls.length, 1);
+  });
+
   describe('generateImage', () => {
     it('should generate an image with URL response', async () => {
       globalThis.fetch = createMockFetch({
@@ -419,8 +503,10 @@ describe('Retry behavior', () => {
 
   it('should retry on 500 and succeed', async () => {
     let callCount = 0;
+    const dispatchKeys = [];
     globalThis.fetch = async (url, opts) => {
       callCount++;
+      dispatchKeys.push(opts.headers['Provider-Dispatch-Key']);
       if (callCount === 1) {
         return { ok: false, status: 500, text: async () => 'Internal Server Error', json: async () => ({}) };
       }
@@ -429,6 +515,7 @@ describe('Retry behavior', () => {
     const result = await multimodalmMod.generateImage('test prompt');
     assert.ok(result.images.length > 0);
     assert.equal(callCount, 2);
+    assert.equal(new Set(dispatchKeys).size, 1);
   });
 
   it('should exhaust retries and throw', async () => {

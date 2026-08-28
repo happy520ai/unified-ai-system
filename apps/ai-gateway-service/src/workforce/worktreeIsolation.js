@@ -128,7 +128,7 @@ export function createWorktreeIsolation(options = {}) {
      * @param {string} worktreeId - Worktree ID
      * @returns {Promise<object>} 移除结果
      */
-    async remove(worktreeId) {
+    async remove(worktreeId, removeOptions = {}) {
       const record = worktrees.get(worktreeId);
       if (!record) {
         return {
@@ -137,29 +137,69 @@ export function createWorktreeIsolation(options = {}) {
         };
       }
 
+      let removed = false;
       try {
         // 使用 git worktree remove 清理
         await execFileAsync("git", ["worktree", "remove", record.path, "--force"], {
           cwd: repoRoot,
           timeout: DEFAULT_TIMEOUT_MS,
         });
-      } catch {
+        removed = true;
+      } catch (gitError) {
         // 如果 git 命令失败，尝试直接删除目录
         try {
           await rm(record.path, { recursive: true, force: true });
-        } catch {
-          // 目录可能已不存在
+          removed = true;
+        } catch (fileError) {
+          return {
+            success: false,
+            code: "WORKTREE_REMOVE_FAILED",
+            worktreeId,
+            reason: "The isolated worktree could not be removed.",
+            errors: [gitError?.code, fileError?.code].filter(Boolean),
+          };
         }
       }
 
-      // 清理分支
-      try {
-        await execFileAsync("git", ["branch", "-D", record.branch], {
-          cwd: repoRoot,
-          timeout: DEFAULT_TIMEOUT_MS,
-        });
-      } catch {
-        // 分支可能已不存在或已被使用
+      if (!removed) {
+        return {
+          success: false,
+          code: "WORKTREE_REMOVE_FAILED",
+          worktreeId,
+          reason: "The isolated worktree could not be removed.",
+        };
+      }
+
+      const preserveBranch = removeOptions?.preserveBranch === true;
+      // Rollback deletes the candidate branch. A verified manual-merge
+      // candidate must survive worktree directory cleanup.
+      if (!preserveBranch) {
+        let branchRemoved = false;
+        try {
+          await execFileAsync("git", ["branch", "-D", record.branch], {
+            cwd: repoRoot,
+            timeout: DEFAULT_TIMEOUT_MS,
+          });
+          branchRemoved = true;
+        } catch {
+          try {
+            const { stdout } = await execFileAsync("git", ["branch", "--list", record.branch], {
+              cwd: repoRoot,
+              timeout: DEFAULT_TIMEOUT_MS,
+            });
+            branchRemoved = !stdout.trim();
+          } catch {
+            branchRemoved = false;
+          }
+        }
+        if (!branchRemoved) {
+          return {
+            success: false,
+            code: "WORKTREE_BRANCH_REMOVE_FAILED",
+            worktreeId,
+            reason: "The isolated candidate branch could not be removed.",
+          };
+        }
       }
 
       record.status = "removed";
@@ -169,6 +209,8 @@ export function createWorktreeIsolation(options = {}) {
       return {
         success: true,
         worktreeId,
+        branch: record.branch,
+        branchPreserved: preserveBranch,
         message: `Worktree 已移除: ${record.path}`,
       };
     },

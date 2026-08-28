@@ -1,7 +1,18 @@
 import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import {
+  existsSync,
+  lstatSync,
+  readFileSync,
+  realpathSync,
+  statSync,
+} from "node:fs";
+import {
+  dirname,
+  isAbsolute,
+  relative,
+  resolve,
+} from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -27,6 +38,8 @@ export const DEFAULT_GATEWAY_URL =
 
 const COMMANDS = new Set([
   "chat",
+  "clients",
+  "clients-onboarding",
   "demo",
   "doctor",
   "enhance",
@@ -46,6 +59,178 @@ const ENHANCEMENT_PROFILES = new Set([
   "planning",
 ]);
 const ENHANCEMENT_LANGUAGES = new Set(["auto", "zh-CN", "en"]);
+const LOCAL_CLIENT_LIFECYCLE_SUBCOMMANDS = new Set([
+  "discover",
+  "list",
+  "inspect",
+  "register",
+  "verify",
+  "disable",
+  "revoke",
+  "smart-manage",
+]);
+const LOCAL_CLIENT_LIFECYCLE_ALWAYS_MUTATING = new Set([
+  "register",
+  "verify",
+  "disable",
+  "revoke",
+]);
+const LOCAL_CLIENT_DISABLE_REASONS = new Set([
+  "manual_disable",
+  "maintenance",
+  "security_review",
+]);
+const LOCAL_CLIENT_REVOKE_REASONS = new Set([
+  "manual_revoke",
+  "credential_compromise",
+  "identity_mismatch",
+  "security_incident",
+]);
+const SAFE_LOCAL_CLIENT_LIFECYCLE_ERROR_CODES = new Set([
+  "FORBIDDEN",
+  "GATEWAY_CLIENT_ABORTED",
+  "GATEWAY_CLIENT_TIMEOUT",
+  "GATEWAY_HTTP_ERROR",
+  "GATEWAY_NETWORK_ERROR",
+  "GATEWAY_PROTOCOL_ERROR",
+  "LOCAL_CLIENT_LIFECYCLE_OUTCOME_UNKNOWN",
+  "LOCAL_CLIENT_LIFECYCLE_UNAVAILABLE",
+  "LOCAL_CLIENT_VERIFICATION_CANCELLED",
+  "LOCAL_CLIENT_VERIFICATION_CONFIGURATION_INVALID",
+  "LOCAL_CLIENT_VERIFICATION_DECLARATION_NOT_FOUND",
+  "LOCAL_CLIENT_VERIFICATION_DECLARATION_STALE",
+  "LOCAL_CLIENT_VERIFICATION_EVIDENCE_INVALID",
+  "LOCAL_CLIENT_VERIFICATION_PROBE_FAILED",
+  "LOCAL_CLIENT_VERIFICATION_PROBE_UNAVAILABLE",
+  "LOCAL_CLIENT_VERIFICATION_PROMOTION_FAILED",
+  "LOCAL_CLIENT_VERIFICATION_REQUEST_INVALID",
+  "LOCAL_CLIENT_VERIFICATION_SCOPE_REQUIRED",
+  "UNAUTHENTICATED",
+  "local_client_disable_client_missing",
+  "local_client_disable_failed",
+  "local_client_disable_invalid_json",
+  "local_client_disable_invalid_payload",
+  "local_client_disable_not_found",
+  "local_client_discover_system_failed",
+  "local_client_discover_system_invalid_json",
+  "local_client_invalid_payload",
+  "local_client_register_adapter_binding_incomplete",
+  "local_client_register_adapter_binding_invalid",
+  "local_client_register_capabilities_missing",
+  "local_client_register_client_missing",
+  "local_client_register_failed",
+  "local_client_register_invalid_json",
+  "local_client_register_persistence_failed",
+  "local_client_register_revoked",
+  "local_client_registry_corrupt",
+  "local_client_registry_failed",
+  "local_client_revoke_authority_unavailable",
+  "local_client_revoke_client_missing",
+  "local_client_revoke_failed",
+  "local_client_revoke_invalid_json",
+  "local_client_revoke_invalid_payload",
+  "local_client_revoke_not_found",
+  "local_client_revoke_revision_conflict",
+  "local_client_revoke_revision_required",
+  "local_client_scope_invalid",
+  "local_client_scope_required",
+  "local_client_smart_manage_failed",
+  "local_client_smart_manage_invalid_json",
+  "local_client_verification_persistence_failed",
+  "local_client_verification_scope_required",
+  "local_client_verify_failed",
+  "local_client_verify_invalid_json",
+]);
+const LOCAL_CLIENT_ID_PATTERN = /^[a-z][a-z0-9._-]{0,127}$/u;
+const LOCAL_CLIENT_CAPABILITY_PATTERN = /^[a-z][a-z0-9._-]{0,63}$/u;
+const LOCAL_CLIENT_DECLARATION_PATTERN = /^[a-z][a-z0-9._-]{0,127}$/u;
+const LOCAL_CLIENT_SEMVER_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u;
+const LOCAL_CLIENT_ONBOARDING_SUBCOMMANDS = new Set([
+  "profiles",
+  "inspect",
+  "verify",
+  "plan",
+  "approve",
+  "apply",
+  "rollback",
+  "recover",
+]);
+const LOCAL_CLIENT_ONBOARDING_MUTATIONS = new Set([
+  "approve",
+  "apply",
+  "rollback",
+  "recover",
+]);
+const LOCAL_CLIENT_ONBOARDING_ACTIONS = new Set([
+  "enable",
+  "disable",
+  "rollback",
+  "recover",
+]);
+const LOCAL_CLIENT_ONBOARDING_CERTIFICATION =
+  "fixture-tested-not-real-client-certified";
+const LOCAL_CLIENT_ONBOARDING_PROFILE_DEFINITIONS = Object.freeze([
+  Object.freeze({
+    profileId: "claude-compatible-mcp-json",
+    client: "claude-compatible",
+    label: "Claude-compatible",
+    containerKey: "mcpServers",
+  }),
+  Object.freeze({
+    profileId: "cursor-mcp-json",
+    client: "cursor",
+    label: "Cursor",
+    containerKey: "mcpServers",
+  }),
+  Object.freeze({
+    profileId: "vscode-mcp-json",
+    client: "vscode",
+    label: "VS Code",
+    containerKey: "servers",
+  }),
+]);
+const SAFE_LOCAL_CLIENT_ONBOARDING_ERROR_CODES = new Set([
+  "FORBIDDEN",
+  "GATEWAY_CLIENT_ABORTED",
+  "GATEWAY_CLIENT_TIMEOUT",
+  "GATEWAY_HTTP_ERROR",
+  "GATEWAY_NETWORK_ERROR",
+  "GATEWAY_PROTOCOL_ERROR",
+  "LOCAL_CLIENT_ONBOARDING_API_APPROVAL_INVALID",
+  "LOCAL_CLIENT_ONBOARDING_API_CONFIGURATION_INVALID",
+  "LOCAL_CLIENT_ONBOARDING_DISABLED",
+  "LOCAL_CLIENT_ONBOARDING_API_EXTERNAL_EFFECT_NOT_DURABLE",
+  "LOCAL_CLIENT_ONBOARDING_API_IDEMPOTENCY_NOT_DURABLE",
+  "LOCAL_CLIENT_ONBOARDING_API_IDEMPOTENCY_REQUIRED",
+  "LOCAL_CLIENT_ONBOARDING_API_DEPENDENCY_FAILED",
+  "LOCAL_CLIENT_ONBOARDING_API_PLAN_MISMATCH",
+  "LOCAL_CLIENT_ONBOARDING_API_PLAN_UNKNOWN",
+  "LOCAL_CLIENT_ONBOARDING_API_REQUEST_INVALID",
+  "LOCAL_CLIENT_ONBOARDING_APPROVAL_IDEMPOTENCY_CONFLICT",
+  "LOCAL_CLIENT_ONBOARDING_APPROVAL_OUTCOME_UNKNOWN",
+  "LOCAL_CLIENT_ONBOARDING_CANCELLED",
+  "LOCAL_CLIENT_ONBOARDING_IDEMPOTENCY_REJECTED",
+  "LOCAL_CLIENT_ONBOARDING_OUTCOME_UNKNOWN",
+  "LOCAL_CLIENT_ONBOARDING_PRECOMMIT_REJECTED",
+  "LOCAL_CLIENT_ONBOARDING_RUNTIME_CLOSED",
+  "LOCAL_CLIENT_ONBOARDING_RUNTIME_CONFIGURATION_INVALID",
+  "LOCAL_CLIENT_ONBOARDING_TENANT_FORBIDDEN",
+  "LOCAL_CLIENT_ONBOARDING_UNAVAILABLE",
+  "UNAUTHENTICATED",
+]);
+const UNKNOWN_LOCAL_CLIENT_ONBOARDING_ERROR_CODES = new Set([
+  "LOCAL_CLIENT_ONBOARDING_APPROVAL_OUTCOME_UNKNOWN",
+  "LOCAL_CLIENT_ONBOARDING_OUTCOME_UNKNOWN",
+]);
+const LOCAL_CLIENT_ONBOARDING_PROFILE_IDS = new Set(
+  LOCAL_CLIENT_ONBOARDING_PROFILE_DEFINITIONS.map(({ profileId }) => profileId),
+);
+const LOCAL_CLIENT_ONBOARDING_RECEIPT_MAX_BYTES = 64 * 1024;
+const LOCAL_CLIENT_ONBOARDING_PLAN_ID_PATTERN = /^onboarding_[a-f0-9]{64}$/u;
+const LOCAL_CLIENT_ONBOARDING_REGISTRY_PLAN_ID_PATTERN = /^onboard:[a-z0-9-]+:[a-f0-9]{64}$/u;
+const LOCAL_CLIENT_ONBOARDING_TRANSACTION_ID_PATTERN = /^tx_[a-f0-9]{64}$/u;
+const SHA256_PATTERN = /^[a-f0-9]{64}$/u;
+const IDEMPOTENCY_KEY_PATTERN = /^[\x21-\x7e]{1,255}$/u;
 
 const COMMAND_ALIASES = new Map([
   ["health", "status"],
@@ -58,6 +243,31 @@ export class CliUsageError extends Error {
     this.name = "CliUsageError";
     this.exitCode = options.exitCode ?? 2;
     this.hint = options.hint;
+  }
+}
+
+class CliOnboardingFailure extends Error {
+  constructor(code, options = {}) {
+    super(code);
+    this.name = "CliOnboardingFailure";
+    this.code = code;
+    this.operation = options.operation ?? null;
+    this.status = options.status ?? "rejected";
+    this.retryAllowed = false;
+    this.exitCode = 1;
+  }
+}
+
+class CliLocalClientFailure extends Error {
+  constructor(code, options = {}) {
+    super(code);
+    this.name = "CliLocalClientFailure";
+    this.code = code;
+    this.operation = options.operation ?? null;
+    this.status = options.status ?? "rejected";
+    this.mutation = options.mutation === true;
+    this.retryAllowed = false;
+    this.exitCode = 1;
   }
 }
 
@@ -84,6 +294,31 @@ export function parseCliArgs(
     languageProvided: false,
     allowRealProvider: false,
     adminKey: env.AGENT_CONSOLE_ADMIN_KEY ?? env.PME_AUTH_TOKEN ?? null,
+    onboardingProfileId: null,
+    onboardingAction: null,
+    onboardingPlanId: null,
+    onboardingReceiptFile: null,
+    idempotencyKey: null,
+    confirmed: false,
+    lifecycleClientId: null,
+    lifecycleDisplayName: null,
+    lifecycleCapabilities: [],
+    lifecycleIncludeDisabled: false,
+    lifecycleLimit: null,
+    lifecycleOffset: null,
+    lifecycleApply: false,
+    lifecycleMaxProcesses: null,
+    lifecycleIncludeUnknown: false,
+    lifecycleIncludeSystemProcesses: false,
+    lifecycleIncludeMissingAsDisabled: false,
+    lifecycleAutoDiscoverAll: false,
+    lifecycleRevision: null,
+    lifecycleAdapterId: null,
+    lifecycleAdapterType: null,
+    lifecycleAdapterVersion: null,
+    lifecycleManifestSha256: null,
+    lifecycleProtocolVersion: null,
+    lifecycleReason: null,
     host: null,
     port: null,
   };
@@ -132,6 +367,137 @@ export function parseCliArgs(
     }
     if (flag === "--admin-key") {
       options.adminKey = readFlagValue(argv, index, flag, inlineValue);
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--profile-id") {
+      options.onboardingProfileId = readFlagValue(argv, index, flag, inlineValue);
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--action") {
+      options.onboardingAction = readFlagValue(argv, index, flag, inlineValue);
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--plan-id") {
+      options.onboardingPlanId = readFlagValue(argv, index, flag, inlineValue);
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--receipt-file") {
+      options.onboardingReceiptFile = readFlagValue(argv, index, flag, inlineValue);
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--idempotency-key") {
+      options.idempotencyKey = readFlagValue(argv, index, flag, inlineValue);
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--yes") {
+      if (inlineValue !== null) {
+        throw new CliUsageError("--yes does not accept a value.");
+      }
+      options.confirmed = true;
+      continue;
+    }
+    if (flag === "--client-id") {
+      options.lifecycleClientId = readFlagValue(argv, index, flag, inlineValue);
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--display-name") {
+      options.lifecycleDisplayName = readFlagValue(argv, index, flag, inlineValue);
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--capability") {
+      options.lifecycleCapabilities.push(readFlagValue(argv, index, flag, inlineValue));
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--include-disabled") {
+      assertFlagHasNoInlineValue(flag, inlineValue);
+      options.lifecycleIncludeDisabled = true;
+      continue;
+    }
+    if (flag === "--limit") {
+      const value = readFlagValue(argv, index, flag, inlineValue);
+      options.lifecycleLimit = parseIntegerOption(value, flag, 1, 100);
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--offset") {
+      const value = readFlagValue(argv, index, flag, inlineValue);
+      options.lifecycleOffset = parseIntegerOption(value, flag, 0, Number.MAX_SAFE_INTEGER);
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--apply") {
+      assertFlagHasNoInlineValue(flag, inlineValue);
+      options.lifecycleApply = true;
+      continue;
+    }
+    if (flag === "--max-processes") {
+      const value = readFlagValue(argv, index, flag, inlineValue);
+      options.lifecycleMaxProcesses = parseIntegerOption(value, flag, 1, 10_000);
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--include-unknown") {
+      assertFlagHasNoInlineValue(flag, inlineValue);
+      options.lifecycleIncludeUnknown = true;
+      continue;
+    }
+    if (flag === "--include-system-processes") {
+      assertFlagHasNoInlineValue(flag, inlineValue);
+      options.lifecycleIncludeSystemProcesses = true;
+      continue;
+    }
+    if (flag === "--include-missing-as-disabled") {
+      assertFlagHasNoInlineValue(flag, inlineValue);
+      options.lifecycleIncludeMissingAsDisabled = true;
+      continue;
+    }
+    if (flag === "--auto-discover-all") {
+      assertFlagHasNoInlineValue(flag, inlineValue);
+      options.lifecycleAutoDiscoverAll = true;
+      continue;
+    }
+    if (flag === "--revision") {
+      const value = readFlagValue(argv, index, flag, inlineValue);
+      options.lifecycleRevision = parseIntegerOption(value, flag, 1, Number.MAX_SAFE_INTEGER);
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--adapter-id") {
+      options.lifecycleAdapterId = readFlagValue(argv, index, flag, inlineValue);
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--adapter-type") {
+      options.lifecycleAdapterType = readFlagValue(argv, index, flag, inlineValue);
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--adapter-version") {
+      options.lifecycleAdapterVersion = readFlagValue(argv, index, flag, inlineValue);
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--manifest-sha256") {
+      options.lifecycleManifestSha256 = readFlagValue(argv, index, flag, inlineValue);
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--protocol-version") {
+      options.lifecycleProtocolVersion = readFlagValue(argv, index, flag, inlineValue);
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--reason") {
+      options.lifecycleReason = readFlagValue(argv, index, flag, inlineValue);
       if (inlineValue === null) index += 1;
       continue;
     }
@@ -240,8 +606,14 @@ export async function runCli(
         return await runEnhance(options, output, runtime.stdin ?? process.stdin);
       case "chat":
         return await runChat(options, output, runtime.stdin ?? process.stdin);
+      case "clients":
+        return await runClients(options, output);
+      case "clients-onboarding":
+        return await runClientsOnboarding(options, output, runtime.cwd ?? process.cwd());
       case "spend":
         return await runSpend(options, output);
+      case "forge":
+        return await runForge(options, output);
       default:
         throw new CliUsageError(`Unknown command: ${options.command}`);
     }
@@ -260,6 +632,9 @@ async function runEnhance(options, output, stdin) {
   const client = createGatewayClient({
     baseUrl: options.url,
     timeoutMs: options.timeoutMs,
+    headers: process.env.PME_AUTH_TOKEN
+      ? { authorization: `Bearer ${process.env.PME_AUTH_TOKEN}` }
+      : {},
   });
   const response = await client.enhancePrompt({
     input: prompt,
@@ -405,6 +780,46 @@ async function runServe(options, runtime, output) {
   );
 }
 
+// forge:设想族群的命令行入口(status/polish/quality/memory/taiji/workforce)。
+function trimUrl(url) {
+  return String(url ?? "").replace(/[/]+$/, "");
+}
+async function runForge(options, output) {
+  const client = createGatewayClient({ baseUrl: options.url, timeoutMs: options.timeoutMs });
+  const sub = String(options._.length > 1 ? options._[1] : options.forgeCommand ?? "status");
+  const request = async (path, body) => {
+    const response = await fetch(`${trimUrl(options.url)}${path}`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "provider-dispatch-key": `uai-cli-${randomUUID()}`,
+        ...(process.env.PME_AUTH_TOKEN ? { authorization: `Bearer ${process.env.PME_AUTH_TOKEN}` } : {}),
+      },
+      body: JSON.stringify(body ?? {}),
+    });
+    const payload = await response.json().catch(() => ({}));
+    return { status: response.status, payload };
+  };
+  const get = async (path) => {
+    const response = await fetch(`${trimUrl(options.url)}${path}`, {
+      headers: process.env.PME_AUTH_TOKEN ? { authorization: `Bearer ${process.env.PME_AUTH_TOKEN}` } : {},
+    });
+    return { status: response.status, payload: await response.json().catch(() => ({})) };
+  };
+  let result;
+  if (sub === "status") result = await get("/forge/status");
+  else if (sub === "polish") result = await request("/forge/polish", { content: String(options.text ?? options._.slice(2).join(" ") ?? "") });
+  else if (sub === "quality") result = await request("/forge/quality", { code: String(options.text ?? options._.slice(2).join(" ") ?? "") });
+  else if (sub === "memory") result = await request("/forge/memory", { action: "remember", content: String(options.text ?? options._.slice(2).join(" ") ?? "") });
+  else if (sub === "recall") result = await request("/forge/memory", { action: "recall", query: String(options.text ?? options._.slice(2).join(" ") ?? "") });
+  else if (sub === "taiji") result = await request("/taiji/compile", { request: String(options.text ?? options._.slice(2).join(" ") ?? "") });
+  else if (sub === "workforce") result = await request("/workforce/preview", { task: String(options.text ?? options._.slice(2).join(" ") ?? "") });
+  else throw new CliUsageError("Unknown forge subcommand. Use: status | polish | quality | memory | recall | taiji | workforce");
+  output.write(`${JSON.stringify(result.payload, null, 2)}
+`);
+  return result.status >= 200 && result.status < 300 ? 0 : 1;
+}
+
 async function runStatus(options, output) {
   const client = createGatewayClient({
     baseUrl: options.url,
@@ -534,6 +949,9 @@ async function runChat(options, output, stdin) {
   const client = createGatewayClient({
     baseUrl: options.url,
     timeoutMs: options.timeoutMs,
+    headers: process.env.PME_AUTH_TOKEN
+      ? { authorization: `Bearer ${process.env.PME_AUTH_TOKEN}` }
+      : {},
   });
   const health = unwrapEnvelope(await client.health());
   const safeFakeRuntime =
@@ -743,6 +1161,1288 @@ async function runSpend(options, output) {
   return 0;
 }
 
+async function runClients(options, output) {
+  if (!options.adminKey) {
+    throw new CliUsageError(
+      "The clients command requires an admin key.",
+      { hint: "Pass --admin-key or set AGENT_CONSOLE_ADMIN_KEY." },
+    );
+  }
+  if (options.positionals.length === 1) {
+    return runLocalClientLifecycle(options, output);
+  }
+
+  const client = createGatewayClient({
+    baseUrl: options.url,
+    timeoutMs: options.timeoutMs,
+    headers: { authorization: `Bearer ${options.adminKey}` },
+  });
+  const [statusResponse, registryResponse, onboarding] = await Promise.all([
+    client.localClientsStatus(),
+    client.localClients({ includeDisabled: true, limit: 100 }),
+    loadLocalClientOnboarding(client),
+  ]);
+  const status = projectLocalClientStatus(unwrapEnvelope(statusResponse));
+  const registry = projectLocalClientRegistry(unwrapEnvelope(registryResponse));
+  const result = {
+    ok: true,
+    gatewayUrl: options.url,
+    mode: status.executionEnabled === true ? "governed-execution" : "preview-only",
+    status,
+    registry,
+    onboarding,
+  };
+
+  if (options.json) {
+    output.write(`${JSON.stringify(result, null, 2)}\n`);
+  } else {
+    output.write([
+      "",
+      output.bold("Local client management"),
+      `Gateway: ${options.url}`,
+      `Mode: ${result.mode}`,
+      `Status: ${status.status ?? "unknown"}`,
+      `Clients: ${registry.total ?? 0}`,
+      "",
+      status.executionEnabled === true
+        ? output.yellow("Execution is enabled only through governed adapters.")
+        : output.muted("Execution is preview-only; no local application action was performed."),
+      "",
+      ...renderLocalClientOnboarding(onboarding, output),
+      "",
+    ].join("\n"));
+  }
+  return 0;
+}
+
+function projectLocalClientStatus(value) {
+  if (
+    !isPlainRecord(value)
+    || !new Set(["ready", "preview-ready", "degraded"]).has(value.status)
+    || typeof value.executionEnabled !== "boolean"
+    || !isPlainRecord(value.boundaries)
+    || typeof value.boundaries.previewOnly !== "boolean"
+    || value.boundaries.tenantScoped !== true
+    || value.boundaries.observedApplicationsRoutable !== false
+    || typeof value.boundaries.executionAdapterConfigured !== "boolean"
+  ) {
+    throw new Error("invalid local-client status response");
+  }
+  return Object.freeze({
+    status: value.status,
+    executionEnabled: value.executionEnabled,
+    boundaries: Object.freeze({
+      previewOnly: value.boundaries.previewOnly,
+      tenantScoped: true,
+      observedApplicationsRoutable: false,
+      executionAdapterConfigured: value.boundaries.executionAdapterConfigured,
+      ...(typeof value.boundaries.executionRequested === "boolean"
+        ? { executionRequested: value.boundaries.executionRequested }
+        : {}),
+      ...(typeof value.boundaries.executionReady === "boolean"
+        ? { executionReady: value.boundaries.executionReady }
+        : {}),
+      ...(typeof value.boundaries.executionMode === "string"
+        && new Set(["ready", "preview-only", "blocked"]).has(value.boundaries.executionMode)
+        ? { executionMode: value.boundaries.executionMode }
+        : {}),
+      ...(Array.isArray(value.boundaries.executionBlockers)
+        ? { executionBlockers: Object.freeze(value.boundaries.executionBlockers.map(projectSafeLifecycleLabel)) }
+        : {}),
+    }),
+  });
+}
+
+async function runLocalClientLifecycle(options, output) {
+  const operation = options.positionals[0];
+  const mutation = isLocalClientLifecycleMutation(options);
+  const client = createGatewayClient({
+    baseUrl: options.url,
+    timeoutMs: options.timeoutMs,
+    headers: { authorization: `Bearer ${options.adminKey}` },
+  });
+
+  try {
+    let data;
+    if (operation === "list") {
+      data = projectLocalClientRegistry(unwrapEnvelope(await client.localClients({
+        includeDisabled: options.lifecycleIncludeDisabled,
+        limit: options.lifecycleLimit ?? 100,
+        offset: options.lifecycleOffset ?? 0,
+        capabilities: options.lifecycleCapabilities,
+      })));
+    } else if (operation === "inspect") {
+      data = projectLocalClientInspection(
+        unwrapEnvelope(await client.inspectLocalClient(options.lifecycleClientId)),
+        options.lifecycleClientId,
+      );
+    } else if (operation === "discover") {
+      const request = {
+        dryRun: !options.lifecycleApply,
+        ...(options.lifecycleMaxProcesses === null
+          ? {}
+          : { maxProcesses: options.lifecycleMaxProcesses }),
+        ...(options.lifecycleIncludeUnknown ? { includeUnknown: true } : {}),
+        ...(options.lifecycleIncludeSystemProcesses ? { includeSystemProcesses: true } : {}),
+        ...(options.lifecycleIncludeMissingAsDisabled
+          ? { includeMissingAsDisabled: true }
+          : {}),
+        ...(options.lifecycleAutoDiscoverAll ? { autoDiscoverAll: true } : {}),
+      };
+      data = projectLocalClientDiscovery(
+        unwrapEnvelope(await client.discoverLocalClients(request)),
+        request,
+      );
+    } else if (operation === "register") {
+      const adapterBinding = options.lifecycleAdapterId === null
+        ? {}
+        : {
+            adapterId: options.lifecycleAdapterId,
+            adapterType: options.lifecycleAdapterType,
+            adapterVersion: options.lifecycleAdapterVersion,
+            manifestSha256: options.lifecycleManifestSha256,
+          };
+      const request = {
+        clientId: options.lifecycleClientId,
+        ...(options.lifecycleDisplayName === null
+          ? {}
+          : { displayName: options.lifecycleDisplayName }),
+        capabilityIds: options.lifecycleCapabilities,
+        ...adapterBinding,
+        ...(options.lifecycleProtocolVersion === null
+          ? {}
+          : { protocolVersion: options.lifecycleProtocolVersion }),
+      };
+      data = projectLocalClientMutationResult(
+        unwrapEnvelope(await client.registerLocalClient(request)),
+        operation,
+        options.lifecycleClientId,
+      );
+    } else if (operation === "verify") {
+      const request = {
+        clientId: options.lifecycleClientId,
+        expectedRevision: options.lifecycleRevision,
+        expectedAdapter: {
+          id: options.lifecycleAdapterId,
+          type: options.lifecycleAdapterType,
+          version: options.lifecycleAdapterVersion,
+        },
+        expectedManifestSha256: options.lifecycleManifestSha256,
+      };
+      data = projectLocalClientVerification(
+        unwrapEnvelope(await client.verifyLocalClient(request)),
+        request,
+      );
+    } else if (operation === "disable") {
+      data = projectLocalClientMutationResult(
+        unwrapEnvelope(await client.disableLocalClient({
+          clientId: options.lifecycleClientId,
+          reason: options.lifecycleReason ?? "manual_disable",
+        })),
+        operation,
+        options.lifecycleClientId,
+      );
+    } else if (operation === "revoke") {
+      data = projectLocalClientMutationResult(
+        unwrapEnvelope(await client.revokeLocalClient({
+          clientId: options.lifecycleClientId,
+          expectedRevision: options.lifecycleRevision,
+          reason: options.lifecycleReason ?? "manual_revoke",
+        })),
+        operation,
+        options.lifecycleClientId,
+      );
+    } else {
+      const request = { dryRun: !options.lifecycleApply };
+      data = projectLocalClientSmartManage(
+        unwrapEnvelope(await client.smartManageLocalClients(request)),
+        request,
+      );
+    }
+
+    const result = {
+      ok: true,
+      command: "clients",
+      operation,
+      mode: mutation
+        ? "governed-mutation"
+        : new Set(["discover", "smart-manage"]).has(operation)
+          ? "dry-run"
+          : "read-only",
+      ...(mutation ? { retryAllowed: false } : { writesPerformed: false }),
+      data,
+    };
+    if (options.json) {
+      output.write(`${JSON.stringify(result, null, 2)}\n`);
+    } else {
+      renderLocalClientLifecycle(result, output);
+    }
+    return 0;
+  } catch (error) {
+    if (error instanceof CliUsageError) throw error;
+    throw createSafeLocalClientLifecycleFailure(error, { operation, mutation });
+  }
+}
+
+function projectLocalClientRegistry(value) {
+  if (
+    !isPlainRecord(value)
+    || !isNonNegativeSafeInteger(value.total)
+    || !Array.isArray(value.clients)
+    || !isPlainRecord(value.pagination)
+    || !isNonNegativeSafeInteger(value.pagination.offset)
+    || !Number.isSafeInteger(value.pagination.limit)
+    || value.pagination.limit < 1
+    || !isNonNegativeSafeInteger(value.pagination.returned)
+    || typeof value.pagination.includeDisabled !== "boolean"
+  ) {
+    throw new Error("invalid local-client registry response");
+  }
+  const clients = value.clients.map(projectManagedLocalClient);
+  if (clients.length !== value.pagination.returned || clients.length > value.total) {
+    throw new Error("inconsistent local-client registry response");
+  }
+  return Object.freeze({
+    source: "registry-list",
+    total: value.total,
+    clients: Object.freeze(clients),
+    pagination: Object.freeze({
+      offset: value.pagination.offset,
+      limit: value.pagination.limit,
+      returned: value.pagination.returned,
+      includeDisabled: value.pagination.includeDisabled,
+    }),
+  });
+}
+
+function projectLocalClientInspection(value, expectedClientId) {
+  if (
+    !isPlainRecord(value)
+    || value.source !== "registry-list"
+    || value.independentAuthority !== false
+    || value.clientId !== expectedClientId
+    || typeof value.found !== "boolean"
+    || !Number.isSafeInteger(value.pagesScanned)
+    || value.pagesScanned < 1
+    || (value.found ? !isPlainRecord(value.client) : value.client !== null)
+  ) {
+    throw new Error("invalid local-client inspection response");
+  }
+  return Object.freeze({
+    source: "registry-list",
+    independentAuthority: false,
+    clientId: expectedClientId,
+    found: value.found,
+    pagesScanned: value.pagesScanned,
+    client: value.found ? projectManagedLocalClient(value.client) : null,
+  });
+}
+
+function projectLocalClientDiscovery(value, request) {
+  if (
+    !isPlainRecord(value)
+    || value.strategy !== "system-scan"
+    || value.dryRun !== request.dryRun
+    || !isNonNegativeSafeInteger(value.discovered)
+    || typeof value.includeUnknown !== "boolean"
+    || (request.dryRun && typeof value.includeMissingAsDisabled !== "boolean")
+    || typeof value.includedSystemProcesses !== "boolean"
+    || typeof value.autoDiscoverAll !== "boolean"
+    || !Number.isSafeInteger(value.maxProcesses)
+    || value.maxProcesses < 1
+  ) {
+    throw new Error("invalid local-client discovery response");
+  }
+  const droppedCount = projectLocalClientDiscoveryDroppedCount(value.dropped);
+  const source = projectSafeLifecycleLabel(value.source);
+  const common = {
+    source,
+    strategy: "system-scan",
+    dryRun: value.dryRun,
+    discovered: value.discovered,
+    includeUnknown: value.includeUnknown,
+    includeMissingAsDisabled: typeof value.includeMissingAsDisabled === "boolean"
+      ? value.includeMissingAsDisabled
+      : request.includeMissingAsDisabled === true || request.autoDiscoverAll === true,
+    includeSystemProcesses: value.includedSystemProcesses,
+    autoDiscoverAll: value.autoDiscoverAll,
+    maxProcesses: value.maxProcesses,
+    droppedCount,
+  };
+  if (request.dryRun) {
+    if (!Array.isArray(value.candidates)) {
+      throw new Error("invalid local-client discovery preview");
+    }
+    return Object.freeze({
+      ...common,
+      candidates: Object.freeze(value.candidates.map(projectManagedLocalClient)),
+      writesPerformed: false,
+    });
+  }
+  if (!Array.isArray(value.inserted) || !Array.isArray(value.updated)) {
+    throw new Error("invalid local-client discovery mutation result");
+  }
+  return Object.freeze({
+    ...common,
+    inserted: Object.freeze(projectClientIdList(value.inserted)),
+    updated: Object.freeze(projectClientIdList(value.updated)),
+    registry: projectLocalClientRegistry(value.registry),
+  });
+}
+
+function projectLocalClientMutationResult(value, operation, expectedClientId) {
+  if (!isPlainRecord(value) || !isPlainRecord(value.client)) {
+    throw new Error("invalid local-client mutation response");
+  }
+  const allowedActions = {
+    register: new Set(["created", "updated"]),
+    disable: new Set(["disabled"]),
+    revoke: new Set(["revoked", "already-revoked"]),
+  }[operation];
+  if (!allowedActions.has(value.action)) {
+    throw new Error("invalid local-client mutation action");
+  }
+  if (operation !== "register" && value.mode !== "applied") {
+    throw new Error("invalid local-client mutation mode");
+  }
+  const client = projectManagedLocalClient(value.client);
+  if (client.clientId !== expectedClientId) {
+    throw new Error("local-client mutation target mismatch");
+  }
+  return Object.freeze({
+    action: value.action,
+    ...(operation === "register" ? {} : { mode: "applied" }),
+    client,
+  });
+}
+
+function projectLocalClientVerification(value, request) {
+  if (
+    !isPlainRecord(value)
+    || value.promotionVersion !== "local-client-verification-promotion-v1"
+    || value.descriptorVersion !== "verified-local-client-adapter-target-v1"
+    || value.clientId !== request.clientId
+    || !Number.isSafeInteger(value.revision)
+    || value.revision < request.expectedRevision
+    || value.state !== "verified"
+    || value.trustDecision !== "verified"
+    || !isPlainRecord(value.adapter)
+    || value.adapter.id !== request.expectedAdapter.id
+    || value.adapter.type !== request.expectedAdapter.type
+    || value.adapter.version !== request.expectedAdapter.version
+    || value.manifestSha256 !== request.expectedManifestSha256
+    || !Array.isArray(value.capabilityIds)
+    || !isPlainRecord(value.verification)
+    || !SHA256_PATTERN.test(value.verification.fingerprint)
+    || !isNonNegativeSafeInteger(value.verification.verifiedAtMs)
+    || !isNonNegativeSafeInteger(value.verification.expiresAtMs)
+    || value.verification.verifiedAtMs >= value.verification.expiresAtMs
+  ) {
+    throw new Error("invalid local-client verification response");
+  }
+  return Object.freeze({
+    promotionVersion: value.promotionVersion,
+    descriptorVersion: value.descriptorVersion,
+    clientId: value.clientId,
+    revision: value.revision,
+    state: "verified",
+    trustDecision: "verified",
+    adapter: Object.freeze({
+      id: value.adapter.id,
+      type: value.adapter.type,
+      version: value.adapter.version,
+    }),
+    manifestSha256: value.manifestSha256,
+    capabilityIds: Object.freeze(projectCapabilityList(value.capabilityIds)),
+    verification: Object.freeze({
+      fingerprint: value.verification.fingerprint,
+      verifiedAtMs: value.verification.verifiedAtMs,
+      expiresAtMs: value.verification.expiresAtMs,
+    }),
+  });
+}
+
+function projectLocalClientSmartManage(value, request) {
+  if (
+    !isPlainRecord(value)
+    || value.action !== "smart-manage"
+    || value.dryRun !== request.dryRun
+    || typeof value.includeDiscoveryOnly !== "boolean"
+    || !isPlainRecord(value.discovery)
+    || value.discovery.dryRun !== request.dryRun
+    || !isNonNegativeSafeInteger(value.discovery.discovered)
+  ) {
+    throw new Error("invalid local-client smart-manage response");
+  }
+  const droppedCount = projectLocalClientDiscoveryDroppedCount(value.discovery.dropped);
+  const maintenance = value.maintenance === null
+    ? null
+    : projectLocalClientMaintenanceSummary(value.maintenance);
+  return Object.freeze({
+    action: "smart-manage",
+    dryRun: value.dryRun,
+    includeDiscoveryOnly: value.includeDiscoveryOnly,
+    discovery: Object.freeze({
+      source: projectSafeLifecycleLabel(value.discovery.source),
+      dryRun: value.discovery.dryRun,
+      discovered: value.discovery.discovered,
+      includeUnknown: value.discovery.includeUnknown === true,
+      includeMissingAsDisabled: value.discovery.includeMissingAsDisabled === true,
+      includeSystemProcesses: value.discovery.includeSystemProcesses === true,
+      autoDiscoverAll: value.discovery.autoDiscoverAll === true,
+      droppedCount,
+    }),
+    maintenance,
+    recommendationCount: Array.isArray(value.recommendations)
+      ? value.recommendations.length
+      : 0,
+    registrySnapshotCount: Array.isArray(value.registrySnapshot)
+      ? value.registrySnapshot.length
+      : 0,
+    ...(request.dryRun ? { writesPerformed: false } : {}),
+  });
+}
+
+function projectLocalClientDiscoveryDroppedCount(value) {
+  if (Array.isArray(value)) return value.length;
+  const keys = [
+    "filteredSystemProcessCount",
+    "filteredUnknownCount",
+    "duplicateProcessCount",
+  ];
+  if (
+    !hasExactKeys(value, keys)
+    || keys.some((key) => !isNonNegativeSafeInteger(value[key]))
+  ) {
+    throw new Error("invalid local-client discovery drop summary");
+  }
+  return keys.reduce((total, key) => total + value[key], 0);
+}
+
+function projectLocalClientMaintenanceSummary(value) {
+  if (!isPlainRecord(value) || typeof value.dryRun !== "boolean") {
+    throw new Error("invalid local-client maintenance response");
+  }
+  const summary = isPlainRecord(value.summary) ? value.summary : {};
+  const counts = isPlainRecord(value.counts) ? value.counts : {};
+  return Object.freeze({
+    dryRun: value.dryRun,
+    staleCandidates: projectOptionalCount(value.staleCandidates),
+    autoRiskRecoveries: projectOptionalCount(value.autoRiskRecoveries),
+    summary: Object.freeze({
+      totalClients: projectOptionalCount(summary.totalClients),
+      staleCandidates: projectOptionalCount(summary.staleCandidates),
+      riskCandidates: projectOptionalCount(summary.riskCandidates),
+      appliedChanges: projectOptionalCount(summary.appliedChanges),
+    }),
+    counts: Object.freeze({
+      staleDisabledCount: projectOptionalCount(counts.staleDisabledCount),
+      autoRiskRecoveredCount: projectOptionalCount(counts.autoRiskRecoveredCount),
+      riskDisabledCount: projectOptionalCount(counts.riskDisabledCount),
+      riskMarkedCount: projectOptionalCount(counts.riskMarkedCount),
+    }),
+  });
+}
+
+function projectManagedLocalClient(value) {
+  if (
+    !isPlainRecord(value)
+    || !LOCAL_CLIENT_ID_PATTERN.test(value.clientId ?? "")
+    || !new Set(["observed", "declared", "pending_approval", "verified", "disabled", "revoked"]).has(value.state)
+    || typeof value.enabled !== "boolean"
+    || typeof value.routable !== "boolean"
+    || !Array.isArray(value.capabilityIds)
+    || !isPlainRecord(value.health)
+    || !new Set(["healthy", "degraded", "unhealthy", "unknown"]).has(value.health.status)
+    || !new Set(["unverified", "declared", "verified", "rejected"]).has(value.trustDecision)
+    || (value.revision !== undefined && (!Number.isSafeInteger(value.revision) || value.revision < 1))
+  ) {
+    throw new Error("invalid managed local-client projection");
+  }
+  return Object.freeze({
+    clientId: value.clientId,
+    displayName: projectSafeDisplayName(value.displayName, value.clientId),
+    state: value.state,
+    enabled: value.enabled,
+    routable: value.routable,
+    ...projectOptionalDeclarationFields(value),
+    capabilityIds: Object.freeze(projectCapabilityList(value.capabilityIds)),
+    health: Object.freeze({
+      status: value.health.status,
+      ...(Number.isFinite(value.health.latencyMs)
+        ? { latencyMs: value.health.latencyMs }
+        : {}),
+      ...(validIsoDate(value.health.lastSeenAt) ? { lastSeenAt: value.health.lastSeenAt } : {}),
+      ...(validIsoDate(value.health.leaseExpiresAt)
+        ? { leaseExpiresAt: value.health.leaseExpiresAt }
+        : {}),
+    }),
+    trustDecision: value.trustDecision,
+    ...(value.revision === undefined ? {} : { revision: value.revision }),
+  });
+}
+
+function projectOptionalDeclarationFields(value) {
+  const output = {};
+  for (const key of ["adapterId", "adapterType", "adapterVersion", "protocolVersion"]) {
+    if (value[key] === null) output[key] = null;
+    else if (typeof value[key] === "string" && LOCAL_CLIENT_DECLARATION_PATTERN.test(value[key])) {
+      output[key] = value[key];
+    }
+  }
+  if (value.manifestSha256 === null) output.manifestSha256 = null;
+  else if (SHA256_PATTERN.test(value.manifestSha256 ?? "")) {
+    output.manifestSha256 = value.manifestSha256;
+  }
+  return output;
+}
+
+function projectCapabilityList(values) {
+  const capabilities = values.map((value) => String(value).trim().toLowerCase());
+  if (capabilities.some((value) => !LOCAL_CLIENT_CAPABILITY_PATTERN.test(value))) {
+    throw new Error("invalid local-client capability projection");
+  }
+  return [...new Set(capabilities)];
+}
+
+function projectClientIdList(values) {
+  if (values.some((value) => !LOCAL_CLIENT_ID_PATTERN.test(value ?? ""))) {
+    throw new Error("invalid local-client id projection");
+  }
+  return [...new Set(values)];
+}
+
+function projectSafeDisplayName(value, fallback) {
+  return typeof value === "string"
+    && value.length >= 1
+    && value.length <= 128
+    && value === value.trim()
+    && !/[\\/\u0000-\u001f\u007f]/u.test(value)
+    ? value
+    : fallback;
+}
+
+function projectSafeLifecycleLabel(value) {
+  if (typeof value !== "string" || !/^[a-z0-9][a-z0-9._:-]{0,127}$/u.test(value)) {
+    throw new Error("invalid local-client response label");
+  }
+  return value;
+}
+
+function projectOptionalCount(value) {
+  return isNonNegativeSafeInteger(value) ? value : 0;
+}
+
+function isLocalClientLifecycleMutation(options) {
+  const operation = options.positionals[0];
+  return LOCAL_CLIENT_LIFECYCLE_ALWAYS_MUTATING.has(operation)
+    || (new Set(["discover", "smart-manage"]).has(operation) && options.lifecycleApply);
+}
+
+function createSafeLocalClientLifecycleFailure(error, { operation, mutation }) {
+  const rawCode = typeof error?.code === "string" ? error.code : null;
+  const allowlisted = SAFE_LOCAL_CLIENT_LIFECYCLE_ERROR_CODES.has(rawCode);
+  const safeCode = allowlisted ? rawCode : "LOCAL_CLIENT_LIFECYCLE_UNAVAILABLE";
+  const transportUncertain = new Set([
+    "GATEWAY_CLIENT_ABORTED",
+    "GATEWAY_CLIENT_TIMEOUT",
+    "GATEWAY_HTTP_ERROR",
+    "GATEWAY_NETWORK_ERROR",
+    "GATEWAY_PROTOCOL_ERROR",
+  ]).has(safeCode);
+  const unknown = mutation && (
+    transportUncertain
+    || !allowlisted
+    || (Number.isInteger(error?.statusCode) && error.statusCode >= 500)
+  );
+  return new CliLocalClientFailure(
+    unknown ? "LOCAL_CLIENT_LIFECYCLE_OUTCOME_UNKNOWN" : safeCode,
+    {
+      operation,
+      mutation,
+      status: unknown ? "unknown-reconcile-required" : "rejected",
+    },
+  );
+}
+
+function renderLocalClientLifecycle(result, output) {
+  const lines = [
+    "",
+    output.bold("Governed local-client lifecycle"),
+    `Operation: ${result.operation}`,
+    `Mode: ${result.mode}`,
+  ];
+  if (result.operation === "list") {
+    lines.push(`Clients: ${result.data.total}`, "Configuration writes: none");
+  } else if (result.operation === "inspect") {
+    lines.push(
+      `Client: ${result.data.clientId}`,
+      `Found: ${result.data.found}`,
+      "Source: registry-list (not an independent authoritative read)",
+      "Configuration writes: none",
+    );
+  } else if (!isLocalClientLifecycleMutation({
+    positionals: [result.operation],
+    lifecycleApply: result.mode === "governed-mutation",
+  })) {
+    lines.push(
+      `Discovered: ${result.data.discovery?.discovered ?? result.data.discovered ?? 0}`,
+      "Configuration writes: none (dry-run)",
+    );
+  } else {
+    const clientId = result.data.clientId ?? result.data.client?.clientId ?? null;
+    if (clientId) lines.push(`Client: ${clientId}`);
+    lines.push(
+      `Status: ${result.data.action ?? result.data.state ?? "completed"}`,
+      output.yellow("Automatic retry: forbidden; reconcile before another attempt."),
+    );
+  }
+  output.write(`${lines.join("\n")}\n\n`);
+}
+
+async function runClientsOnboarding(options, output, receiptRoot) {
+  const operation = options.positionals[0];
+  const mutation = LOCAL_CLIENT_ONBOARDING_MUTATIONS.has(operation);
+  const client = createGatewayClient({
+    baseUrl: options.url,
+    timeoutMs: options.timeoutMs,
+    headers: options.adminKey
+      ? { authorization: `Bearer ${options.adminKey}` }
+      : {},
+  });
+
+  try {
+    let data;
+    if (operation === "profiles") {
+      data = {
+        profiles: projectLocalClientOnboardingProfiles(
+          unwrapEnvelope(await client.localClientOnboardingProfiles()),
+        ),
+        certificationStatus: LOCAL_CLIENT_ONBOARDING_CERTIFICATION,
+      };
+    } else if (operation === "inspect") {
+      data = projectLocalClientOnboardingInspection(
+        unwrapEnvelope(
+          await client.localClientOnboardingProfile(options.onboardingProfileId),
+        ),
+        options.onboardingProfileId,
+      );
+    } else if (operation === "verify") {
+      data = projectLocalClientOnboardingVerification(
+        unwrapEnvelope(
+          await client.verifyLocalClientOnboardingProfile(options.onboardingProfileId),
+        ),
+        options.onboardingProfileId,
+      );
+    } else if (operation === "plan") {
+      const receipt = options.onboardingAction === "rollback"
+        ? readBoundedLocalClientOnboardingReceipt({
+            path: options.onboardingReceiptFile,
+            root: receiptRoot,
+            expectedProfileId: options.onboardingProfileId,
+          })
+        : undefined;
+      const request = {
+        profileId: options.onboardingProfileId,
+        action: options.onboardingAction,
+        ...(receipt === undefined ? {} : { receipt }),
+      };
+      data = projectLocalClientOnboardingPlan(
+        unwrapEnvelope(await client.planGovernedLocalClientOnboarding(request)),
+        request,
+      );
+    } else if (operation === "approve") {
+      data = projectLocalClientOnboardingApproval(
+        unwrapEnvelope(await client.approveGovernedLocalClientOnboarding(
+          { planId: options.onboardingPlanId },
+          { idempotencyKey: options.idempotencyKey },
+        )),
+        options.onboardingPlanId,
+      );
+    } else {
+      const method = {
+        apply: "applyGovernedLocalClientOnboarding",
+        rollback: "rollbackGovernedLocalClientOnboarding",
+        recover: "recoverGovernedLocalClientOnboarding",
+      }[operation];
+      data = projectLocalClientOnboardingMutationOutcome(
+        unwrapEnvelope(await client[method](
+          { planId: options.onboardingPlanId },
+          { idempotencyKey: options.idempotencyKey },
+        )),
+        operation,
+        options.onboardingPlanId,
+      );
+    }
+
+    const result = {
+      ok: true,
+      command: "clients-onboarding",
+      operation,
+      mode: mutation ? "governed-mutation" : "read-only",
+      ...(mutation ? { retryAllowed: false } : { writesPerformed: false }),
+      data,
+    };
+    if (options.json) {
+      output.write(`${JSON.stringify(result, null, 2)}\n`);
+    } else {
+      renderLocalClientOnboardingCommand(result, output);
+    }
+    return 0;
+  } catch (error) {
+    if (error instanceof CliUsageError) throw error;
+    throw createSafeLocalClientOnboardingFailure(error, { operation, mutation });
+  }
+}
+
+function projectLocalClientOnboardingInspection(value, expectedProfileId) {
+  if (!isPlainRecord(value)) throw new Error("invalid onboarding inspection");
+  const profiles = projectLocalClientOnboardingProfiles(
+    [value.profile],
+    [expectedProfileId],
+  );
+  if (
+    profiles.length !== 1
+    || profiles[0].profileId !== expectedProfileId
+    || typeof value.recoveryRequired !== "boolean"
+    || typeof value.journalCorrupt !== "boolean"
+    || !isNonNegativeSafeInteger(value.pendingTransactionCount)
+    || !isNonNegativeSafeInteger(value.storedPlanCount)
+    || value.available !== true
+  ) {
+    throw new Error("invalid onboarding inspection");
+  }
+  return Object.freeze({
+    profile: profiles[0],
+    installation: projectLocalClientOnboardingVerification(
+      value.installation,
+      expectedProfileId,
+    ),
+    recoveryRequired: value.recoveryRequired,
+    journalCorrupt: value.journalCorrupt,
+    pendingTransactionCount: value.pendingTransactionCount,
+    storedPlanCount: value.storedPlanCount,
+    available: true,
+  });
+}
+
+function projectLocalClientOnboardingVerification(value, expectedProfileId) {
+  if (
+    !isPlainRecord(value)
+    || value.profileId !== expectedProfileId
+    || typeof value.installed !== "boolean"
+    || !new Set(["exact", "absent", "different"]).has(value.state)
+    || value.installed !== (value.state === "exact")
+    || value.format !== "json-only"
+    || value.certificationStatus !== LOCAL_CLIENT_ONBOARDING_CERTIFICATION
+    || value.redacted !== true
+  ) {
+    throw new Error("invalid onboarding verification");
+  }
+  return Object.freeze({
+    profileId: expectedProfileId,
+    installed: value.installed,
+    state: value.state,
+    format: "json-only",
+    certificationStatus: LOCAL_CLIENT_ONBOARDING_CERTIFICATION,
+    redacted: true,
+  });
+}
+
+function projectLocalClientOnboardingPlan(value, request) {
+  if (
+    !isPlainRecord(value)
+    || value.apiVersion !== "local-client-governed-onboarding-api-v1"
+    || value.planVersion !== "local-client-governed-onboarding-plan-v1"
+    || !LOCAL_CLIENT_ONBOARDING_PLAN_ID_PATTERN.test(value.planId)
+    || value.profileId !== request.profileId
+    || value.action !== request.action
+    || !isNonNegativeSafeInteger(value.createdAtMs)
+    || !isNonNegativeSafeInteger(value.expiresAtMs)
+    || value.createdAtMs >= value.expiresAtMs
+    || value.writesPerformed !== false
+    || value.redacted !== true
+  ) {
+    throw new Error("invalid onboarding plan");
+  }
+  return Object.freeze({
+    apiVersion: value.apiVersion,
+    planVersion: value.planVersion,
+    planId: value.planId,
+    profileId: value.profileId,
+    action: value.action,
+    createdAtMs: value.createdAtMs,
+    expiresAtMs: value.expiresAtMs,
+    writesPerformed: false,
+    redacted: true,
+  });
+}
+
+function projectLocalClientOnboardingApproval(value, expectedPlanId) {
+  if (
+    !isPlainRecord(value)
+    || value.apiVersion !== "local-client-governed-onboarding-api-v1"
+    || value.operation !== "approve"
+    || value.status !== "approved"
+    || typeof value.approvalId !== "string"
+    || value.approvalId.length < 1
+    || value.approvalId.length > 256
+    || value.planId !== expectedPlanId
+    || !validIsoDate(value.approvedAt)
+    || !validIsoDate(value.expiresAt)
+    || Date.parse(value.approvedAt) >= Date.parse(value.expiresAt)
+    || value.writesPerformed !== false
+    || value.redacted !== true
+  ) {
+    throw new Error("invalid onboarding approval");
+  }
+  return Object.freeze({
+    apiVersion: value.apiVersion,
+    operation: "approve",
+    status: "approved",
+    approvalId: value.approvalId,
+    planId: value.planId,
+    approvedAt: value.approvedAt,
+    expiresAt: value.expiresAt,
+    writesPerformed: false,
+    redacted: true,
+  });
+}
+
+function projectLocalClientOnboardingMutationOutcome(value, operation, expectedPlanId) {
+  if (
+    !isPlainRecord(value)
+    || value.accepted !== true
+    || !new Set(["completed", "replayed"]).has(value.status)
+    || !new Set(["created", "replayed"]).has(value.idempotencyStatus)
+    || typeof value.replayed !== "boolean"
+    || value.replayed !== (value.status === "replayed")
+    || value.replayable !== true
+    || typeof value.operationInvoked !== "boolean"
+    || value.retryAllowed !== false
+  ) {
+    throw new Error("invalid onboarding mutation outcome");
+  }
+  return Object.freeze({
+    accepted: true,
+    status: value.status,
+    idempotencyStatus: value.idempotencyStatus,
+    replayed: value.replayed,
+    replayable: true,
+    operationInvoked: value.operationInvoked,
+    retryAllowed: false,
+    result: projectLocalClientOnboardingMutationResult(
+      value.result,
+      operation,
+      expectedPlanId,
+    ),
+  });
+}
+
+function projectLocalClientOnboardingMutationResult(value, operation, expectedPlanId) {
+  const expectedAction = operation === "apply" ? null : operation;
+  if (
+    !isPlainRecord(value)
+    || value.apiVersion !== "local-client-governed-onboarding-api-v1"
+    || value.operation !== operation
+    || !LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.has(value.profileId)
+    || value.planId !== expectedPlanId
+    || value.status !== "completed"
+    || value.redacted !== true
+    || (expectedAction === null
+      ? !new Set(["enable", "disable"]).has(value.action)
+      : value.action !== expectedAction)
+  ) {
+    throw new Error("invalid onboarding mutation result");
+  }
+  const receipt = operation === "apply"
+    ? projectLocalClientOnboardingApplyReceipt(value.receipt, value.profileId)
+    : projectLocalClientOnboardingReceiptSummary(value.receipt, operation, value.profileId);
+  return Object.freeze({
+    apiVersion: value.apiVersion,
+    operation,
+    profileId: value.profileId,
+    action: value.action,
+    planId: value.planId,
+    status: "completed",
+    receipt,
+    redacted: true,
+  });
+}
+
+function projectLocalClientOnboardingReceiptSummary(value, operation, expectedProfileId) {
+  if (
+    !isPlainRecord(value)
+    || value.profileId !== expectedProfileId
+    || value.format !== "json-only"
+    || value.certificationStatus !== LOCAL_CLIENT_ONBOARDING_CERTIFICATION
+    || value.redacted !== true
+  ) {
+    throw new Error("invalid onboarding mutation receipt");
+  }
+  if (
+    operation === "rollback"
+    && (
+      value.rollbackVersion !== "local-client-onboarding-rollback-v1"
+      || !new Set(["enable", "disable"]).has(value.action)
+      || !LOCAL_CLIENT_ONBOARDING_REGISTRY_PLAN_ID_PATTERN.test(value.planId)
+    )
+  ) {
+    throw new Error("invalid onboarding rollback receipt");
+  }
+  if (
+    operation === "recover"
+    && value.recoveryVersion !== "local-client-onboarding-recovery-v1"
+  ) {
+    throw new Error("invalid onboarding recovery receipt");
+  }
+  return Object.freeze({
+    ...(operation === "rollback"
+      ? {
+          rollbackVersion: value.rollbackVersion,
+          action: value.action,
+          planId: value.planId,
+        }
+      : { recoveryVersion: value.recoveryVersion }),
+    profileId: value.profileId,
+    format: "json-only",
+    certificationStatus: LOCAL_CLIENT_ONBOARDING_CERTIFICATION,
+    redacted: true,
+  });
+}
+
+function readBoundedLocalClientOnboardingReceipt({ path, root, expectedProfileId }) {
+  let rootPath;
+  let unresolvedPath;
+  let receiptPath;
+  let fileStat;
+  try {
+    rootPath = realpathSync(root);
+    unresolvedPath = resolve(rootPath, path);
+    if (lstatSync(unresolvedPath).isSymbolicLink()) {
+      throw new CliUsageError("Rollback receipt files cannot be symbolic links.");
+    }
+    receiptPath = realpathSync(unresolvedPath);
+    const relativePath = relative(rootPath, receiptPath);
+    if (isAbsolute(relativePath) || /^\.\.(?:[\\/]|$)/u.test(relativePath)) {
+      throw new CliUsageError("Rollback receipt file must stay within the current working directory.");
+    }
+    fileStat = statSync(receiptPath);
+  } catch (error) {
+    if (error instanceof CliUsageError) throw error;
+    throw new CliUsageError("Rollback receipt file is unavailable or unsafe.");
+  }
+  if (
+    !fileStat.isFile()
+    || fileStat.size < 2
+    || fileStat.size > LOCAL_CLIENT_ONBOARDING_RECEIPT_MAX_BYTES
+  ) {
+    throw new CliUsageError(
+      `Rollback receipt file must be a JSON file no larger than ${LOCAL_CLIENT_ONBOARDING_RECEIPT_MAX_BYTES} bytes.`,
+    );
+  }
+  let rawReceipt;
+  try {
+    rawReceipt = readFileSync(receiptPath, "utf8");
+  } catch {
+    throw new CliUsageError("Rollback receipt file is unavailable or unsafe.");
+  }
+  if (Buffer.byteLength(rawReceipt, "utf8") > LOCAL_CLIENT_ONBOARDING_RECEIPT_MAX_BYTES) {
+    throw new CliUsageError(
+      `Rollback receipt file must be a JSON file no larger than ${LOCAL_CLIENT_ONBOARDING_RECEIPT_MAX_BYTES} bytes.`,
+    );
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(rawReceipt);
+  } catch {
+    throw new CliUsageError("Rollback receipt file must contain valid JSON.");
+  }
+  try {
+    return projectLocalClientOnboardingApplyReceipt(parsed, expectedProfileId);
+  } catch {
+    throw new CliUsageError(
+      "Rollback receipt must be an exact redacted local-client onboarding apply receipt.",
+    );
+  }
+}
+
+function projectLocalClientOnboardingApplyReceipt(value, expectedProfileId) {
+  const topKeys = [
+    "receiptVersion",
+    "profileId",
+    "action",
+    "planId",
+    "transaction",
+    "receiptDigest",
+    "format",
+    "certificationStatus",
+    "redacted",
+  ];
+  const transactionKeys = [
+    "receiptVersion",
+    "transactionId",
+    "planId",
+    "targetFingerprint",
+    "beforeSha256",
+    "afterSha256",
+    "backupSha256",
+    "afterIdentityFingerprint",
+    "committedAtMs",
+    "receiptDigest",
+  ];
+  if (
+    !hasExactKeys(value, topKeys)
+    || value.receiptVersion !== "local-client-onboarding-receipt-v1"
+    || value.profileId !== expectedProfileId
+    || !new Set(["enable", "disable"]).has(value.action)
+    || !LOCAL_CLIENT_ONBOARDING_REGISTRY_PLAN_ID_PATTERN.test(value.planId)
+    || !SHA256_PATTERN.test(value.receiptDigest)
+    || value.format !== "json-only"
+    || value.certificationStatus !== LOCAL_CLIENT_ONBOARDING_CERTIFICATION
+    || value.redacted !== true
+    || !hasExactKeys(value.transaction, transactionKeys)
+    || value.transaction.receiptVersion !== "local-client-config-receipt-v1"
+    || !LOCAL_CLIENT_ONBOARDING_TRANSACTION_ID_PATTERN.test(value.transaction.transactionId)
+    || !transactionKeys.slice(2, 8).every((key) => SHA256_PATTERN.test(value.transaction[key]))
+    || !isNonNegativeSafeInteger(value.transaction.committedAtMs)
+    || !SHA256_PATTERN.test(value.transaction.receiptDigest)
+    || !value.planId.endsWith(`:${value.transaction.planId}`)
+  ) {
+    throw new Error("invalid onboarding apply receipt");
+  }
+  return Object.freeze({
+    receiptVersion: value.receiptVersion,
+    profileId: value.profileId,
+    action: value.action,
+    planId: value.planId,
+    transaction: Object.freeze({
+      receiptVersion: value.transaction.receiptVersion,
+      transactionId: value.transaction.transactionId,
+      planId: value.transaction.planId,
+      targetFingerprint: value.transaction.targetFingerprint,
+      beforeSha256: value.transaction.beforeSha256,
+      afterSha256: value.transaction.afterSha256,
+      backupSha256: value.transaction.backupSha256,
+      afterIdentityFingerprint: value.transaction.afterIdentityFingerprint,
+      committedAtMs: value.transaction.committedAtMs,
+      receiptDigest: value.transaction.receiptDigest,
+    }),
+    receiptDigest: value.receiptDigest,
+    format: "json-only",
+    certificationStatus: LOCAL_CLIENT_ONBOARDING_CERTIFICATION,
+    redacted: true,
+  });
+}
+
+function createSafeLocalClientOnboardingFailure(error, { operation, mutation }) {
+  const rawCode = typeof error?.code === "string" ? error.code : null;
+  const safeCode = SAFE_LOCAL_CLIENT_ONBOARDING_ERROR_CODES.has(rawCode)
+    ? rawCode
+    : "LOCAL_CLIENT_ONBOARDING_UNAVAILABLE";
+  const transportUncertain = new Set([
+    "GATEWAY_CLIENT_ABORTED",
+    "GATEWAY_CLIENT_TIMEOUT",
+    "GATEWAY_HTTP_ERROR",
+    "GATEWAY_NETWORK_ERROR",
+    "GATEWAY_PROTOCOL_ERROR",
+  ]).has(safeCode);
+  const unknown = UNKNOWN_LOCAL_CLIENT_ONBOARDING_ERROR_CODES.has(safeCode)
+    || (
+      mutation
+      && (
+        transportUncertain
+        || !SAFE_LOCAL_CLIENT_ONBOARDING_ERROR_CODES.has(rawCode)
+      )
+    );
+  return new CliOnboardingFailure(
+    unknown
+      ? (UNKNOWN_LOCAL_CLIENT_ONBOARDING_ERROR_CODES.has(safeCode)
+          ? safeCode
+          : "LOCAL_CLIENT_ONBOARDING_OUTCOME_UNKNOWN")
+      : safeCode,
+    {
+      operation,
+      status: unknown ? "unknown-reconcile-required" : "rejected",
+    },
+  );
+}
+
+function renderLocalClientOnboardingCommand(result, output) {
+  const lines = [
+    "",
+    output.bold("Governed local-client onboarding"),
+    `Operation: ${result.operation}`,
+    `Mode: ${result.mode}`,
+  ];
+  if (result.operation === "profiles") {
+    lines.push(
+      ...result.data.profiles.map((profile) => `  - ${profile.profileId} (${profile.client})`),
+      "Configuration writes: none",
+    );
+  } else if (result.operation === "inspect") {
+    lines.push(
+      `Profile: ${result.data.profile.profileId}`,
+      `Installation state: ${result.data.installation.state}`,
+      `Recovery required: ${result.data.recoveryRequired}`,
+      "Configuration writes: none",
+    );
+  } else if (result.operation === "verify") {
+    lines.push(
+      `Profile: ${result.data.profileId}`,
+      `Installation state: ${result.data.state}`,
+      "Configuration writes: none",
+    );
+  } else if (result.operation === "plan") {
+    lines.push(
+      `Plan: ${result.data.planId}`,
+      `Profile: ${result.data.profileId}`,
+      `Action: ${result.data.action}`,
+      "Configuration writes: none",
+    );
+  } else if (result.operation === "approve") {
+    lines.push(
+      `Plan: ${result.data.planId}`,
+      `Status: ${result.data.status}`,
+      "Configuration writes: none",
+      output.yellow("Automatic retry: forbidden; reconcile before another attempt."),
+    );
+  } else {
+    lines.push(
+      `Plan: ${result.data.result.planId}`,
+      `Status: ${result.data.status}`,
+      `Idempotency: ${result.data.idempotencyStatus}`,
+      "Receipt: redacted",
+      output.yellow("Automatic retry: forbidden; reconcile before another attempt."),
+    );
+  }
+  output.write(`${lines.join("\n")}\n\n`);
+}
+
+function hasExactKeys(value, keys) {
+  if (!isPlainRecord(value)) return false;
+  const actual = Object.keys(value).sort();
+  const expected = [...keys].sort();
+  return actual.length === expected.length
+    && actual.every((key, index) => key === expected[index]);
+}
+
+function isPlainRecord(value) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function isNonNegativeSafeInteger(value) {
+  return Number.isSafeInteger(value) && value >= 0;
+}
+
+function validIsoDate(value) {
+  return typeof value === "string" && Number.isFinite(Date.parse(value));
+}
+
+async function loadLocalClientOnboarding(client) {
+  try {
+    const response = await client.localClientOnboardingProfiles();
+    return Object.freeze({
+      available: true,
+      profiles: projectLocalClientOnboardingProfiles(unwrapEnvelope(response)),
+      certificationStatus: LOCAL_CLIENT_ONBOARDING_CERTIFICATION,
+    });
+  } catch (error) {
+    if (
+      error?.statusCode !== 503
+      && error?.code !== "LOCAL_CLIENT_ONBOARDING_DISABLED"
+    ) {
+      throw error;
+    }
+    return Object.freeze({
+      available: false,
+      code: redactLocalClientOnboardingErrorCode(error),
+    });
+  }
+}
+
+function projectLocalClientOnboardingProfiles(value, expectedProfileIds = null) {
+  const rawProfiles = Array.isArray(value)
+    ? value
+    : Array.isArray(value?.profiles)
+      ? value.profiles
+      : [];
+  const definitions = expectedProfileIds === null
+    ? LOCAL_CLIENT_ONBOARDING_PROFILE_DEFINITIONS
+    : LOCAL_CLIENT_ONBOARDING_PROFILE_DEFINITIONS.filter((definition) => (
+        expectedProfileIds.includes(definition.profileId)
+      ));
+  if (
+    definitions.length < 1
+    || definitions.length !== (expectedProfileIds?.length ?? definitions.length)
+    || rawProfiles.length !== definitions.length
+    || new Set(rawProfiles.map((profile) => profile?.profileId)).size !== rawProfiles.length
+  ) {
+    throw new Error("invalid local-client onboarding profile set");
+  }
+  const profilesById = new Map(rawProfiles.map((profile) => [profile?.profileId, profile]));
+  return Object.freeze(definitions.map((definition) => {
+    const profile = profilesById.get(definition.profileId);
+    if (
+      !profile
+      || profile.client !== definition.client
+      || profile.format !== "json-only"
+      || profile.containerKey !== definition.containerKey
+      || profile.serverName !== "unified-ai-system"
+      || profile.transport !== "stdio"
+      || !Array.isArray(profile.supportedActions)
+      || profile.supportedActions.length !== 2
+      || profile.supportedActions[0] !== "enable"
+      || profile.supportedActions[1] !== "disable"
+      || profile.certificationStatus !== LOCAL_CLIENT_ONBOARDING_CERTIFICATION
+      || !new Set(["aes-256-gcm", "0600-plaintext"]).has(profile.backupProtection)
+      || profile.redacted !== true
+    ) {
+      throw new Error("invalid local-client onboarding profile");
+    }
+    return Object.freeze({
+      profileId: definition.profileId,
+      client: profile.client,
+      format: profile.format,
+      containerKey: profile.containerKey,
+      serverName: profile.serverName,
+      transport: profile.transport,
+      backupProtection: profile.backupProtection,
+      supportedActions: Object.freeze([...profile.supportedActions]),
+      certificationStatus: profile.certificationStatus,
+      redacted: true,
+    });
+  }));
+}
+
+function redactLocalClientOnboardingErrorCode(error) {
+  return SAFE_LOCAL_CLIENT_ONBOARDING_ERROR_CODES.has(error?.code)
+    ? error.code
+    : "LOCAL_CLIENT_ONBOARDING_UNAVAILABLE";
+}
+
+function renderLocalClientOnboarding(onboarding, output) {
+  if (!onboarding.available) {
+    return [
+      output.muted(`Onboarding profiles: unavailable (${onboarding.code})`),
+      output.muted("inspection only; no config changed"),
+    ];
+  }
+  const labelsByClient = new Map(
+    LOCAL_CLIENT_ONBOARDING_PROFILE_DEFINITIONS.map((definition) => [definition.client, definition.label]),
+  );
+  return [
+    output.bold("Supported onboarding profiles"),
+    ...onboarding.profiles.map((profile) => (
+      `  - ${labelsByClient.get(profile.client)}: ${profile.profileId} (${profile.backupProtection} backup)`
+    )),
+    `Certification: ${onboarding.certificationStatus}`,
+    output.muted("inspection only; no config changed"),
+  ];
+}
+
 function renderSpend(result, output) {
   const totals = result.totals ?? {};
   output.write(`Spend report — ${result.window}\n`);
@@ -784,6 +2484,10 @@ Usage:
   pnpm gateway <command> [options]
 
 Commands:
+  clients [operation]
+                   discover, list, inspect, register, verify, disable, revoke, smart-manage
+  clients-onboarding <operation>
+                   Governed profiles, inspection, planning, and explicit mutations
   demo [prompt]    Run an isolated credential-free demonstration
   serve            Start the local gateway
   status           Inspect gateway and chat readiness
@@ -802,7 +2506,33 @@ Options:
   --profile <name>            auto, general, coding, analysis, writing, research, planning
   --language <name>           auto, zh-CN, en (for prompt enhancement)
   --allow-real-provider       Authorize one chat command to use a real provider
-  --admin-key <uai-…>         Admin virtual key for enterprise routes (spend)
+  --admin-key <uai-…>         Admin virtual key (clients/onboarding mutations/spend)
+  --client-id <id>            Bounded lifecycle client identifier
+  --display-name <name>       Safe display name for register
+  --capability <id>           Repeatable list filter or register capability
+  --include-disabled          Include disabled clients in list
+  --limit <n>                 Registry page size, 1-100
+  --offset <n>                Registry page offset
+  --apply                     Apply discover/smart-manage; default is dry-run
+  --max-processes <n>         System discovery bound, 1-10000
+  --include-unknown           Include unknown processes in discovery preview/apply
+  --include-system-processes  Include system processes in discovery preview/apply
+  --include-missing-as-disabled
+                               Mark missing discovered clients disabled when applied
+  --auto-discover-all         Enable the service's bounded full-process discovery mode
+  --revision <n>              Exact current revision for verify or revoke
+  --adapter-id <id>           Exact adapter identifier for register or verify
+  --adapter-type <type>       Exact adapter type for register or verify
+  --adapter-version <semver>  Exact adapter version for register or verify
+  --manifest-sha256 <sha256>  Exact manifest binding for register or verify
+  --protocol-version <value>  Optional bounded register protocol identifier
+  --reason <value>            Allowlisted disable or revoke reason
+  --profile-id <id>           Onboarding profile for inspect, verify, or plan
+  --action <action>           enable, disable, rollback, or recover (plan only)
+  --plan-id <id>              Server-issued onboarding plan for mutations
+  --receipt-file <json>       Redacted apply receipt for a rollback plan
+  --idempotency-key <key>     Explicit mutation key; never generated or retried
+  --yes                       Confirm one governed client mutation
   --host <host>               Host override for serve
   --port <port>               Port override for serve
   --json                      Emit machine-readable output
@@ -816,7 +2546,19 @@ Examples:
   pnpm gateway demo "帮我设计一个 API" --enhance --profile coding --language zh-CN
   pnpm gateway serve
   pnpm gateway status
-  pnpm gateway spend --admin-key uai-…
+  # First set AGENT_CONSOLE_ADMIN_KEY in the environment; do not put it in argv.
+  pnpm gateway clients
+  pnpm gateway clients list --include-disabled
+  pnpm gateway clients inspect --client-id desktop-browser
+  pnpm gateway clients discover --max-processes 200
+  pnpm gateway clients discover --apply --yes
+  pnpm gateway clients revoke --client-id desktop-browser --revision 7 --yes
+  pnpm gateway clients-onboarding profiles
+  pnpm gateway clients-onboarding inspect --profile-id cursor-mcp-json
+  pnpm gateway clients-onboarding plan --profile-id cursor-mcp-json --action enable
+  pnpm gateway clients-onboarding approve --plan-id onboarding_<sha256> --yes --idempotency-key <key>
+  pnpm gateway clients-onboarding apply --plan-id onboarding_<sha256> --yes --idempotency-key <new-key>
+  pnpm gateway spend
   pnpm gateway enhance "Build me an API"
   pnpm gateway enhance "帮我规划一个小型 API" --language zh-CN
   pnpm gateway chat "Build me an API" --enhance --profile coding
@@ -831,6 +2573,12 @@ Pipe input:
 Safety:
   chat refuses to send when a real provider may be active unless
   --allow-real-provider is supplied explicitly.
+  clients discover and smart-manage are dry-run unless --apply --yes is explicit.
+  lifecycle mutations require a scoped control-plane key and --yes and are never retried automatically.
+  clients inspect is a bounded registry-list helper, not an independent authoritative read.
+  onboarding profiles, inspect, verify, and plan never write client config.
+  onboarding mutations require a scoped control-plane key, --yes, and an explicit idempotency key.
+  mutation requests are sent once; unknown outcomes require reconciliation, not retry.
 `;
 }
 
@@ -856,7 +2604,7 @@ function validateOptions(options) {
   }
 
   if (
-    !["chat", "demo", "enhance"].includes(options.command)
+    !["chat", "demo", "enhance", "clients", "clients-onboarding"].includes(options.command)
     && (options.prompt !== null || options.positionals.length > 0)
   ) {
     throw new CliUsageError(
@@ -871,6 +2619,31 @@ function validateOptions(options) {
     throw new CliUsageError(
       "Use either positional prompt text or --prompt, not both.",
     );
+  }
+  const onboardingOptionsUsed = options.onboardingProfileId !== null
+    || options.onboardingAction !== null
+    || options.onboardingPlanId !== null
+    || options.onboardingReceiptFile !== null
+    || options.idempotencyKey !== null;
+  if (options.command !== "clients-onboarding" && onboardingOptionsUsed) {
+    throw new CliUsageError(
+      "--profile-id, --action, --plan-id, --receipt-file, and --idempotency-key are only valid with clients-onboarding.",
+    );
+  }
+  const lifecycleOptionsUsed = localClientLifecycleOptionsUsed(options);
+  if (options.command !== "clients" && lifecycleOptionsUsed) {
+    throw new CliUsageError(
+      "Local-client lifecycle options are only valid with the clients command.",
+    );
+  }
+  if (!new Set(["clients", "clients-onboarding"]).has(options.command) && options.confirmed) {
+    throw new CliUsageError("--yes is only valid with governed client mutations.");
+  }
+  if (options.command === "clients-onboarding") {
+    validateLocalClientOnboardingOptions(options);
+  }
+  if (options.command === "clients") {
+    validateLocalClientLifecycleOptions(options);
   }
   if (options.allowRealProvider && options.command !== "chat") {
     throw new CliUsageError(
@@ -921,17 +2694,17 @@ function validateOptions(options) {
   }
   if (
     (options.urlProvided || options.timeoutProvided)
-    && !["chat", "doctor", "enhance", "spend", "status"].includes(options.command)
+    && !["chat", "clients", "clients-onboarding", "doctor", "enhance", "spend", "status"].includes(options.command)
   ) {
     throw new CliUsageError(
-      "--url and --timeout are only valid with chat, doctor, enhance, spend, or status.",
+      "--url and --timeout are only valid with chat, clients, clients-onboarding, doctor, enhance, spend, or status.",
     );
   }
   if (options.json && options.command === "serve") {
     throw new CliUsageError("--json is not supported by serve.");
   }
 
-  if (["chat", "doctor", "enhance", "spend", "status"].includes(options.command)) {
+  if (["chat", "clients", "clients-onboarding", "doctor", "enhance", "spend", "status"].includes(options.command)) {
     let parsedUrl;
     try {
       parsedUrl = new URL(options.url);
@@ -940,6 +2713,252 @@ function validateOptions(options) {
     }
     if (!["http:", "https:"].includes(parsedUrl.protocol)) {
       throw new CliUsageError("Gateway URL must use http or https.");
+    }
+  }
+}
+
+function validateLocalClientLifecycleOptions(options) {
+  if (options.prompt !== null || options.positionals.length > 1) {
+    throw new CliUsageError(
+      "clients accepts at most one operation: discover, list, inspect, register, verify, disable, revoke, or smart-manage.",
+    );
+  }
+  if (options.positionals.length === 0) {
+    if (localClientLifecycleOptionsUsed(options) || options.confirmed) {
+      throw new CliUsageError("Lifecycle options require an explicit clients operation.");
+    }
+    return;
+  }
+
+  const operation = options.positionals[0];
+  if (!LOCAL_CLIENT_LIFECYCLE_SUBCOMMANDS.has(operation)) {
+    throw new CliUsageError(`Unsupported clients operation: ${operation}`);
+  }
+  if (!options.adminKey) {
+    throw new CliUsageError(
+      `${operation} requires an admin key.`,
+      { hint: "Pass --admin-key or set AGENT_CONSOLE_ADMIN_KEY." },
+    );
+  }
+
+  const mutation = isLocalClientLifecycleMutation(options);
+  if (mutation && !options.confirmed) {
+    throw new CliUsageError(`${operation} requires explicit --yes confirmation.`);
+  }
+  if (!mutation && options.confirmed) {
+    throw new CliUsageError("--yes is only valid with an applied lifecycle mutation.");
+  }
+  if (options.lifecycleApply && !new Set(["discover", "smart-manage"]).has(operation)) {
+    throw new CliUsageError("--apply is only valid with discover or smart-manage.");
+  }
+
+  const requiresClientId = new Set(["inspect", "register", "verify", "disable", "revoke"])
+    .has(operation);
+  if (requiresClientId) {
+    if (!LOCAL_CLIENT_ID_PATTERN.test(options.lifecycleClientId ?? "")) {
+      throw new CliUsageError(
+        `${operation} requires a lowercase letter-leading --client-id using letters, digits, dot, underscore, or hyphen.`,
+      );
+    }
+  } else if (options.lifecycleClientId !== null) {
+    throw new CliUsageError("--client-id is only valid with inspect, register, verify, disable, or revoke.");
+  }
+
+  const normalizedCapabilities = options.lifecycleCapabilities
+    .map((value) => String(value).trim());
+  if (normalizedCapabilities.some((value) => (
+    value !== value.toLowerCase()
+    || !LOCAL_CLIENT_CAPABILITY_PATTERN.test(value)
+  ))) {
+    throw new CliUsageError(
+      "--capability values must be bounded lowercase identifiers without paths or whitespace.",
+    );
+  }
+  options.lifecycleCapabilities = [...new Set(normalizedCapabilities)];
+  if (!new Set(["list", "register"]).has(operation) && options.lifecycleCapabilities.length > 0) {
+    throw new CliUsageError("--capability is only valid with list or register.");
+  }
+  if (operation === "register" && options.lifecycleCapabilities.length === 0) {
+    throw new CliUsageError("register requires at least one --capability.");
+  }
+
+  const listOptionsUsed = options.lifecycleIncludeDisabled
+    || options.lifecycleLimit !== null
+    || options.lifecycleOffset !== null;
+  if (operation !== "list" && listOptionsUsed) {
+    throw new CliUsageError("--include-disabled, --limit, and --offset are only valid with list.");
+  }
+
+  const discoveryOptionsUsed = options.lifecycleMaxProcesses !== null
+    || options.lifecycleIncludeUnknown
+    || options.lifecycleIncludeSystemProcesses
+    || options.lifecycleIncludeMissingAsDisabled
+    || options.lifecycleAutoDiscoverAll;
+  if (operation !== "discover" && discoveryOptionsUsed) {
+    throw new CliUsageError("System discovery options are only valid with discover.");
+  }
+
+  if (options.lifecycleDisplayName !== null) {
+    if (
+      operation !== "register"
+      || options.lifecycleDisplayName.length < 1
+      || options.lifecycleDisplayName.length > 128
+      || options.lifecycleDisplayName !== options.lifecycleDisplayName.trim()
+      || /[\\/\u0000-\u001f\u007f]/u.test(options.lifecycleDisplayName)
+    ) {
+      throw new CliUsageError("--display-name is only valid for register and cannot contain a path or control characters.");
+    }
+  }
+
+  const adapterValues = [
+    options.lifecycleAdapterId,
+    options.lifecycleAdapterType,
+    options.lifecycleAdapterVersion,
+    options.lifecycleManifestSha256,
+  ];
+  const adapterCount = adapterValues.filter((value) => value !== null).length;
+  if (new Set(["register", "verify"]).has(operation)) {
+    if ((operation === "verify" && adapterCount !== 4) || (adapterCount !== 0 && adapterCount !== 4)) {
+      throw new CliUsageError(
+        `${operation} requires the complete adapter binding: --adapter-id, --adapter-type, --adapter-version, and --manifest-sha256.`,
+      );
+    }
+    if (
+      adapterCount === 4
+      && (
+        !LOCAL_CLIENT_DECLARATION_PATTERN.test(options.lifecycleAdapterId)
+        || !LOCAL_CLIENT_DECLARATION_PATTERN.test(options.lifecycleAdapterType)
+        || !LOCAL_CLIENT_SEMVER_PATTERN.test(options.lifecycleAdapterVersion)
+        || !SHA256_PATTERN.test(options.lifecycleManifestSha256)
+      )
+    ) {
+      throw new CliUsageError("The adapter binding is invalid or not canonically formatted.");
+    }
+  } else if (adapterCount > 0) {
+    throw new CliUsageError("Adapter binding options are only valid with register or verify.");
+  }
+
+  if (options.lifecycleProtocolVersion !== null) {
+    if (
+      operation !== "register"
+      || !LOCAL_CLIENT_DECLARATION_PATTERN.test(options.lifecycleProtocolVersion)
+    ) {
+      throw new CliUsageError("--protocol-version is only valid with register and must be a bounded identifier.");
+    }
+  }
+
+  if (new Set(["verify", "revoke"]).has(operation)) {
+    if (!Number.isSafeInteger(options.lifecycleRevision) || options.lifecycleRevision < 1) {
+      throw new CliUsageError(`${operation} requires the exact current --revision.`);
+    }
+  } else if (options.lifecycleRevision !== null) {
+    throw new CliUsageError("--revision is only valid with verify or revoke.");
+  }
+
+  if (options.lifecycleReason !== null) {
+    const allowed = operation === "disable"
+      ? LOCAL_CLIENT_DISABLE_REASONS
+      : operation === "revoke"
+        ? LOCAL_CLIENT_REVOKE_REASONS
+        : null;
+    if (!allowed?.has(options.lifecycleReason)) {
+      throw new CliUsageError("--reason is only valid with disable or revoke and must use an allowlisted value.");
+    }
+  }
+}
+
+function localClientLifecycleOptionsUsed(options) {
+  return options.lifecycleClientId !== null
+    || options.lifecycleDisplayName !== null
+    || options.lifecycleCapabilities.length > 0
+    || options.lifecycleIncludeDisabled
+    || options.lifecycleLimit !== null
+    || options.lifecycleOffset !== null
+    || options.lifecycleApply
+    || options.lifecycleMaxProcesses !== null
+    || options.lifecycleIncludeUnknown
+    || options.lifecycleIncludeSystemProcesses
+    || options.lifecycleIncludeMissingAsDisabled
+    || options.lifecycleAutoDiscoverAll
+    || options.lifecycleRevision !== null
+    || options.lifecycleAdapterId !== null
+    || options.lifecycleAdapterType !== null
+    || options.lifecycleAdapterVersion !== null
+    || options.lifecycleManifestSha256 !== null
+    || options.lifecycleProtocolVersion !== null
+    || options.lifecycleReason !== null;
+}
+
+function validateLocalClientOnboardingOptions(options) {
+  if (options.prompt !== null || options.positionals.length !== 1) {
+    throw new CliUsageError(
+      "clients-onboarding requires exactly one operation: profiles, inspect, verify, plan, approve, apply, rollback, or recover.",
+    );
+  }
+  const operation = options.positionals[0];
+  if (!LOCAL_CLIENT_ONBOARDING_SUBCOMMANDS.has(operation)) {
+    throw new CliUsageError(`Unsupported clients-onboarding operation: ${operation}`);
+  }
+  const needsProfile = new Set(["inspect", "verify", "plan"]).has(operation);
+  if (needsProfile) {
+    if (!LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.has(options.onboardingProfileId)) {
+      throw new CliUsageError(
+        "--profile-id must be claude-compatible-mcp-json, cursor-mcp-json, or vscode-mcp-json.",
+      );
+    }
+  } else if (options.onboardingProfileId !== null) {
+    throw new CliUsageError("--profile-id is only valid with inspect, verify, or plan.");
+  }
+
+  if (operation === "plan") {
+    if (!LOCAL_CLIENT_ONBOARDING_ACTIONS.has(options.onboardingAction)) {
+      throw new CliUsageError(
+        "plan requires --action enable, disable, rollback, or recover.",
+      );
+    }
+    if (options.onboardingAction === "rollback") {
+      if (options.onboardingReceiptFile === null) {
+        throw new CliUsageError("A rollback plan requires --receipt-file <redacted-json>.");
+      }
+    } else if (options.onboardingReceiptFile !== null) {
+      throw new CliUsageError("--receipt-file is only valid for a rollback plan.");
+    }
+  } else {
+    if (options.onboardingAction !== null) {
+      throw new CliUsageError("--action is only valid with plan.");
+    }
+    if (options.onboardingReceiptFile !== null) {
+      throw new CliUsageError("--receipt-file is only valid for a rollback plan.");
+    }
+  }
+
+  const mutation = LOCAL_CLIENT_ONBOARDING_MUTATIONS.has(operation);
+  if (mutation) {
+    if (!options.adminKey) {
+      throw new CliUsageError(
+        `${operation} requires an admin key.`,
+        { hint: "Pass --admin-key or set AGENT_CONSOLE_ADMIN_KEY." },
+      );
+    }
+    if (!options.confirmed) {
+      throw new CliUsageError(`${operation} requires explicit --yes confirmation.`);
+    }
+    if (!IDEMPOTENCY_KEY_PATTERN.test(options.idempotencyKey ?? "")) {
+      throw new CliUsageError(
+        `${operation} requires a valid explicit --idempotency-key (1-255 visible ASCII characters).`,
+      );
+    }
+    if (!LOCAL_CLIENT_ONBOARDING_PLAN_ID_PATTERN.test(options.onboardingPlanId ?? "")) {
+      throw new CliUsageError(
+        `${operation} requires a valid server-issued --plan-id.`,
+      );
+    }
+  } else {
+    if (options.confirmed || options.idempotencyKey !== null) {
+      throw new CliUsageError("--yes and --idempotency-key are only valid with onboarding mutations.");
+    }
+    if (options.onboardingPlanId !== null) {
+      throw new CliUsageError("--plan-id is only valid with onboarding mutations.");
     }
   }
 }
@@ -964,6 +2983,12 @@ function readFlagValue(argv, index, flag, inlineValue) {
     throw new CliUsageError(`${flag} requires a value.`);
   }
   return value;
+}
+
+function assertFlagHasNoInlineValue(flag, inlineValue) {
+  if (inlineValue !== null) {
+    throw new CliUsageError(`${flag} does not accept a value.`);
+  }
 }
 
 function parseIntegerOption(value, flag, minimum, maximum) {
@@ -1043,6 +3068,46 @@ function runChildProcess(
 
 function reportFailure({ error, options, argv, stderr }) {
   const jsonRequested = options?.json ?? argv.includes("--json");
+  if (error instanceof CliLocalClientFailure) {
+    if (jsonRequested) {
+      stderr.write(`${JSON.stringify({
+        ok: false,
+        command: "clients",
+        operation: error.operation,
+        status: error.status,
+        code: error.code,
+        retryAllowed: false,
+      }, null, 2)}\n`);
+    } else {
+      stderr.write(`\n[error] ${error.code}\n`);
+      stderr.write(`[status] ${error.status}\n`);
+      if (error.mutation) {
+        stderr.write("[retry] forbidden; reconcile before any new attempt\n");
+      }
+      stderr.write("\n");
+    }
+    return error.exitCode;
+  }
+  if (error instanceof CliOnboardingFailure) {
+    if (jsonRequested) {
+      stderr.write(`${JSON.stringify({
+        ok: false,
+        command: "clients-onboarding",
+        operation: error.operation,
+        status: error.status,
+        code: error.code,
+        retryAllowed: false,
+      }, null, 2)}\n`);
+    } else {
+      stderr.write(`\n[error] ${error.code}\n`);
+      stderr.write(`[status] ${error.status}\n`);
+      if (LOCAL_CLIENT_ONBOARDING_MUTATIONS.has(error.operation)) {
+        stderr.write("[retry] forbidden; reconcile before any new attempt\n");
+      }
+      stderr.write("\n");
+    }
+    return error.exitCode;
+  }
   const message = error instanceof Error ? error.message : String(error);
   const hint =
     error?.hint

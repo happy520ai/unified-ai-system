@@ -9,6 +9,18 @@ function request(key: string, authorization = "Bearer tenant-a") {
 }
 
 describe("idempotency coordinator", () => {
+  it("requires verify-full TLS for non-loopback PostgreSQL", () => {
+    expect(() => createIdempotencyCoordinator({
+      env: {
+        AI_GATEWAY_IDEMPOTENCY_STORE_MODE: "postgres",
+        AI_GATEWAY_IDEMPOTENCY_POSTGRES_URL: "postgresql://gateway@db.example.test/gateway",
+        AI_GATEWAY_IDEMPOTENCY_HMAC_SECRET: "x".repeat(64),
+      },
+    })).toThrow(expect.objectContaining({
+      code: "IDEMPOTENCY_POSTGRES_TLS_VERIFY_REQUIRED",
+    }));
+  });
+
   it("coalesces concurrent requests and replays one result", async () => {
     const coordinator = createIdempotencyCoordinator({ secret: "test-secret" });
     let calls = 0;

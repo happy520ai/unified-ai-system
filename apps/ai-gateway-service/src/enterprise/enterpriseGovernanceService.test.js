@@ -1,4 +1,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createEnterpriseGovernanceService } from "./enterpriseGovernanceService.js";
 
 function localRequest(method, url, headers = {}) {
@@ -9,6 +12,12 @@ function localRequest(method, url, headers = {}) {
     socket: { remoteAddress: "127.0.0.1" },
   };
 }
+
+const defaultAdminIdentity = {
+  userId: "test-admin",
+  tenantId: "default",
+  role: "admin",
+};
 
 describe("enterprise-governance-service", () => {
   let service;
@@ -32,6 +41,16 @@ describe("enterprise-governance-service", () => {
       permission: "local:preview",
       routePolicy: "explicit-protocol-allowlist",
     }));
+  });
+
+  it("exposes a minimal public health view without host storage paths", () => {
+    const health = service.getPublicHealth();
+    expect(health.status).toBe("ready");
+    expect(health.userStore.pathExposed).toBe(false);
+    expect(health.apiKeys.pathExposed).toBe(false);
+    expect(health.audit.pathExposed).toBe(false);
+    expect(JSON.stringify(health)).not.toContain("enterprise-audit.jsonl");
+    expect(JSON.stringify(health)).not.toContain("users.json");
   });
 
   it("lists roles with permissions", () => {
@@ -123,20 +142,55 @@ describe("enterprise-governance-service", () => {
     expect(decision.code).toBe("enterprise_auth_required_for_remote_peer");
   });
 
+  it("binds admin identity to its credential tenant and rejects tenant-header forgery", () => {
+    const adminService = createEnterpriseGovernanceService({
+      env: {
+        PME_ENTERPRISE_USERS_JSON: JSON.stringify([{
+          token: "tenant-b-admin-token",
+          userId: "tenant-b-admin",
+          tenantId: "tenant-b",
+          role: "admin",
+        }]),
+      },
+    });
+
+    const forged = adminService.authenticate(localRequest(
+      "GET",
+      "/enterprise/audit",
+      {
+        "x-pme-auth-token": "tenant-b-admin-token",
+        "x-pme-tenant-id": "tenant-a",
+      },
+    ));
+
+    expect(forged.authenticated).toBe(false);
+    expect(forged.statusCode).toBe(403);
+    expect(forged.code).toBe("enterprise_tenant_forbidden");
+    expect(forged.identity.tenantId).toBe("tenant-b");
+
+    const ownTenant = adminService.authenticate(localRequest(
+      "GET",
+      "/enterprise/audit",
+      { "x-pme-auth-token": "tenant-b-admin-token" },
+    ));
+    expect(ownTenant.authenticated).toBe(true);
+    expect(ownTenant.identity.tenantId).toBe("tenant-b");
+  });
+
   it("creates and lists users", () => {
     const result = service.upsertUser({
       userId: "test-user-1",
       tenantId: "default",
       role: "operator",
       token: "test-token-123",
-    });
+    }, defaultAdminIdentity);
     expect(result.user.userId).toBe("test-user-1");
     expect(result.user.role).toBe("operator");
 
-    const users = service.listUsers();
+    const users = service.listUsers(defaultAdminIdentity);
     expect(users.users.some((u) => u.userId === "test-user-1")).toBe(true);
 
-    service.revokeUser({ userId: "test-user-1" });
+    service.revokeUser({ userId: "test-user-1" }, defaultAdminIdentity);
   });
 
   it("records audit entries", async () => {
@@ -146,15 +200,210 @@ describe("enterprise-governance-service", () => {
       path: "/test",
       permission: "test:read",
       statusCode: 200,
-      identity: { userId: "test" },
+      identity: { userId: "test", tenantId: "default" },
     });
-    const audit = await service.listAudit({ limit: 10 });
+    const audit = await service.listAudit({ limit: 10, actorIdentity: defaultAdminIdentity });
     expect(audit.entries.length).toBeGreaterThan(0);
   });
 
   it("exports audit as JSONL", async () => {
-    const exported = await service.exportAudit({ format: "jsonl", limit: 10 });
+    const exported = await service.exportAudit({
+      format: "jsonl",
+      limit: 10,
+      actorIdentity: defaultAdminIdentity,
+    });
     expect(exported.format).toBe("jsonl");
     expect(typeof exported.content).toBe("string");
+  });
+});
+
+describe("enterprise audit durability", () => {
+  it("refuses real-provider startup without a signed checkpoint", () => {
+    expect(() => createEnterpriseGovernanceService({
+      env: { AI_GATEWAY_REAL_PROVIDER_ENABLED: "true" },
+    })).toThrowError(expect.objectContaining({
+      code: "AUDIT_CHECKPOINT_REQUIRED",
+      category: "audit",
+    }));
+  });
+
+  it("commits and reports a configured signed checkpoint without claiming external retention", async () => {
+    const root = mkdtempSync(join(tmpdir(), "enterprise-audit-checkpoint-"));
+    try {
+      const service = createEnterpriseGovernanceService({
+        env: {
+          AI_GATEWAY_REAL_PROVIDER_ENABLED: "true",
+          PME_AUDIT_CHAIN_PATH: join(root, "audit-chain.jsonl"),
+          PME_AUDIT_CHECKPOINT_PATH: join(root, "anchor", "audit.checkpoint.json"),
+          PME_AUDIT_CHECKPOINT_HMAC_KEY: `hex:${"42".repeat(32)}`,
+        },
+        auditLogPath: join(root, "enterprise-audit.jsonl"),
+      });
+      await service.recordAudit({
+        outcome: "allowed",
+        method: "GET",
+        path: "/signed-audit",
+        permission: "audit:test",
+        statusCode: 200,
+        identity: { userId: "test", tenantId: "default" },
+      });
+
+      const integrity = await service.verifyAuditIntegrity();
+      expect(integrity).toEqual({ valid: true, totalEntries: 1, brokenAt: null });
+      const readiness = service.getSecurityReadiness();
+      expect(readiness.blockers).not.toContain("audit_signed_checkpoint_required");
+      expect(readiness.warnings).toContain("audit_external_retention_unverified");
+      expect(readiness.audit.checkpoint).toEqual(expect.objectContaining({
+        configured: true,
+        status: "ready",
+        signed: true,
+        externalRetentionVerified: false,
+        keyExposed: false,
+        pathExposed: false,
+      }));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects an incomplete signed-checkpoint configuration", () => {
+    expect(() => createEnterpriseGovernanceService({
+      env: { PME_AUDIT_CHECKPOINT_PATH: "checkpoint-without-key.json" },
+    })).toThrowError(expect.objectContaining({ code: "AUDIT_CHECKPOINT_CONFIG_INCOMPLETE" }));
+  });
+
+  it("persists every entry to a verifiable hash chain before returning", async () => {
+    const root = mkdtempSync(join(tmpdir(), "enterprise-audit-durable-"));
+    try {
+      const service = createEnterpriseGovernanceService({
+        env: { PME_AUDIT_CHAIN_PATH: join(root, "audit-chain.jsonl") },
+        auditLogPath: join(root, "enterprise-audit.jsonl"),
+      });
+      const entry = await service.recordAudit({
+        outcome: "allowed",
+        method: "GET",
+        path: "/durable-test",
+        permission: "audit:test",
+        statusCode: 200,
+        identity: { userId: "test", tenantId: "default" },
+      });
+
+      expect(entry.integrity).toEqual(expect.objectContaining({
+        sequence: 1,
+        hash: expect.stringMatching(/^[a-f0-9]{64}$/),
+        previousHash: "GENESIS",
+      }));
+      await expect(service.verifyAuditIntegrity()).resolves.toEqual(expect.objectContaining({
+        valid: true,
+        totalEntries: 1,
+      }));
+      expect(service.getHealth().audit).toEqual(expect.objectContaining({
+        status: "ready",
+        durable: true,
+        totalFailures: 0,
+      }));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps governance audit writes valid across concurrent service instances", async () => {
+    const root = mkdtempSync(join(tmpdir(), "enterprise-audit-multi-instance-"));
+    try {
+      const auditLogPath = join(root, "enterprise-audit.jsonl");
+      const env = { PME_AUDIT_CHAIN_PATH: join(root, "audit-chain.jsonl") };
+      const first = createEnterpriseGovernanceService({ env, auditLogPath });
+      const second = createEnterpriseGovernanceService({ env, auditLogPath });
+
+      const entries = await Promise.all(Array.from({ length: 20 }, (_, index) => (
+        (index % 2 === 0 ? first : second).recordAudit({
+          outcome: "allowed",
+          method: "POST",
+          path: `/multi-instance/${index}`,
+          permission: "audit:test",
+          statusCode: 200,
+          identity: { userId: `writer-${index % 2}`, tenantId: "default" },
+        })
+      )));
+
+      expect(entries.map((entry) => entry.integrity.sequence).sort((a, b) => a - b))
+        .toEqual(Array.from({ length: 20 }, (_, index) => index + 1));
+      await expect(first.verifyAuditIntegrity()).resolves.toEqual({
+        valid: true,
+        totalEntries: 20,
+        brokenAt: null,
+      });
+      const listed = await first.listAudit({ limit: 50, actorIdentity: defaultAdminIdentity });
+      expect(listed.entries).toHaveLength(20);
+      expect(new Set(listed.entries.map((entry) => entry.id)).size).toBe(20);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("uses the verified chain as canonical when the compatibility mirror fails", async () => {
+    const root = mkdtempSync(join(tmpdir(), "enterprise-audit-canonical-chain-"));
+    const mirrorParent = join(root, "blocked-mirror");
+    writeFileSync(mirrorParent, "not a directory", "utf8");
+    const chainPath = join(root, "audit-chain.jsonl");
+    try {
+      const service = createEnterpriseGovernanceService({
+        env: { PME_AUDIT_CHAIN_PATH: chainPath },
+        auditLogPath: join(mirrorParent, "audit.jsonl"),
+      });
+      await expect(service.recordAudit({
+        outcome: "allowed",
+        method: "POST",
+        path: "/canonical-even-if-mirror-fails",
+        permission: "audit:test",
+        statusCode: 200,
+        identity: { userId: "test", tenantId: "default" },
+      })).rejects.toMatchObject({ code: "enterprise_audit_persistence_failed" });
+
+      const restarted = createEnterpriseGovernanceService({
+        env: { PME_AUDIT_CHAIN_PATH: chainPath },
+        auditLogPath: join(root, "empty-compatibility-mirror.jsonl"),
+      });
+      const listed = await restarted.listAudit({ limit: 10, actorIdentity: defaultAdminIdentity });
+      expect(listed.entries).toHaveLength(1);
+      expect(listed.entries[0]).toEqual(expect.objectContaining({
+        path: "/canonical-even-if-mirror-fails",
+        integrity: expect.objectContaining({ sequence: 1 }),
+      }));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("fails closed and exposes degraded health when durable audit cannot be written", async () => {
+    const root = mkdtempSync(join(tmpdir(), "enterprise-audit-failure-"));
+    const blockedParent = join(root, "not-a-directory");
+    writeFileSync(blockedParent, "blocked", "utf8");
+    try {
+      const service = createEnterpriseGovernanceService({
+        env: { PME_AUDIT_CHAIN_PATH: join(blockedParent, "audit-chain.jsonl") },
+        auditLogPath: join(blockedParent, "enterprise-audit.jsonl"),
+      });
+
+      await expect(service.recordAudit({
+        outcome: "allowed",
+        method: "POST",
+        path: "/must-not-proceed",
+        permission: "workflow:run",
+        statusCode: 200,
+        identity: { userId: "test", tenantId: "default" },
+      })).rejects.toMatchObject({
+        code: "enterprise_audit_persistence_failed",
+        category: "audit",
+      });
+      expect(service.getHealth().audit).toEqual(expect.objectContaining({
+        status: "degraded",
+        durable: false,
+        totalFailures: 1,
+        pendingWrites: 0,
+      }));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

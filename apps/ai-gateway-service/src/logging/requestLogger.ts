@@ -4,6 +4,9 @@
  */
 
 export interface RequestLogEntry {
+  usageAttemptId?: string;
+  usageEventType?: "attempt-started" | "attempt-completed" | "attempt-failed";
+  tenantId?: string;
   method?: string;
   path?: string;
   statusCode?: number;
@@ -14,9 +17,14 @@ export interface RequestLogEntry {
   outputTokens?: number;
   totalTokens?: number;
   estimatedCostUsd?: number;
+  costSource?: string;
+  costEstimateAvailable?: boolean;
   cacheHit?: boolean;
   fallbackUsed?: boolean;
   fallbackFrom?: string;
+  shadow?: boolean;
+  providerCallAttempted?: boolean;
+  billable?: boolean;
   error?: string;
   userAgent?: string;
   clientIp?: string;
@@ -29,6 +37,9 @@ export interface RequestLogEntry {
 export interface RequestLogRecord {
   id: string;
   timestamp: number;
+  usageAttemptId?: string;
+  usageEventType?: "attempt-started" | "attempt-completed" | "attempt-failed";
+  tenantId: string;
   method?: string;
   path?: string;
   statusCode?: number;
@@ -39,9 +50,14 @@ export interface RequestLogRecord {
   outputTokens: number;
   totalTokens: number;
   estimatedCostUsd: number;
+  costSource?: string;
+  costEstimateAvailable: boolean;
   cacheHit: boolean;
   fallbackUsed: boolean;
   fallbackFrom?: string;
+  shadow: boolean;
+  providerCallAttempted: boolean;
+  billable: boolean;
   error?: string;
   userAgent?: string;
   clientIp?: string;
@@ -52,6 +68,7 @@ export interface RequestLogRecord {
 }
 
 export interface RequestLogQuery {
+  tenantId?: string;
   since?: number;
   until?: number;
   provider?: string;
@@ -69,6 +86,8 @@ export interface RequestLogStats {
   avgLatencyMs: number;
   totalTokens: number;
   totalCostUsd: number;
+  unknownCostRecords: number;
+  unresolvedBillableAttempts: number;
   errorRate: number;
   cacheHitRate: number;
   fallbackRate: number;
@@ -77,18 +96,23 @@ export interface RequestLogStats {
 }
 
 export interface RequestLogger {
-  log(entry: RequestLogEntry): void;
-  flush(): void;
-  query(filter?: RequestLogQuery): RequestLogRecord[];
-  getStats(filter?: RequestLogQuery): RequestLogStats;
+  log(entry: RequestLogEntry): void | Promise<void>;
+  flush(options?: { throwOnFailure?: boolean }): boolean | Promise<boolean>;
+  assertDurable(): boolean | Promise<boolean>;
+  query(filter?: RequestLogQuery): RequestLogRecord[] | Promise<RequestLogRecord[]>;
+  getStats(filter?: RequestLogQuery): RequestLogStats | Promise<RequestLogStats>;
   getHealth(): Record<string, unknown>;
+  close(): void | Promise<void>;
 }
 
 export interface RequestLoggerOptions {
   logDir?: string;
   maxLogSizeBytes?: number;
   enableBodyLogging?: boolean;
+  enableIdentityLogging?: boolean;
   maxBodyLogSize?: number;
+  maxRetentionDays?: number;
+  durableWrites?: boolean;
 }
 
 export declare function createRequestLogger(options?: RequestLoggerOptions): RequestLogger;

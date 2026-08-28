@@ -27,7 +27,7 @@ const DEFAULTS = {
     warningThreshold: 0.8, criticalThreshold: 0.95,
   },
   server: {
-    port: 4500, corsOrigin: '*', snapshotInterval: 5000, version: '0.4.0',
+    host: '127.0.0.1', port: 4500, corsOrigin: '*', snapshotInterval: 5000, version: '0.4.0',
   },
   llm: {
     provider: 'xiaomi', model: 'mimo-v2.5-pro',
@@ -63,6 +63,7 @@ const ENV_MAP = {
   FORGE_MAX_MINUTES:          'budget.maxMinutes',
   FORGE_CODE_INTEL:           'pool.enableCodeIntel',
   FORGE_SERVER_PORT:          'server.port',
+  FORGE_SERVER_HOST:          'server.host',
   FORGE_CORS_ORIGIN:          'server.corsOrigin',
   FORGE_SNAPSHOT_INTERVAL:    'server.snapshotInterval',
   FORGE_LLM_PROVIDER:        'llm.provider',

@@ -29,7 +29,7 @@ export const DEFAULT_RUNTIME_CONFIG = {
         enabled: true,
         priority: 2,
         capabilities: ["chat", "summary", "vision"],
-        fixedLatencyMs: 20,
+        fixedLatencyMs: 0,
       },
       {
         providerId: "openai",
@@ -381,14 +381,14 @@ export const DEFAULT_RUNTIME_CONFIG = {
       },
       {
         providerId: "mimo",
-        modelId: "mimo-model-from-console",
+        modelId: "mimo-v2.5-pro",
         providerType: "openai-compatible",
-        providerDisplayName: "MiMo Token Plan",
-        modelDisplayName: "MiMo model from console",
+        providerDisplayName: "Xiaomi MiMo API",
+        modelDisplayName: "MiMo V2.5 Pro",
         enabled: false,
         priority: 96,
         capabilities: ["chat", "reasoning", "summary"],
-        endpoint: "https://token-plan-cn.xiaomimimo.com/v1",
+        endpoint: "https://api.xiaomimimo.com/v1",
         dryRun: false,
       },
       {
@@ -412,5 +412,13 @@ export const DEFAULT_RUNTIME_CONFIG = {
     },
     providerMode: "fake",
     realProviderEnabled: false,
+    // Long-conversation compaction on the chat path: when a request's history
+    // exceeds the message threshold or token budget, older turns are replaced
+    // by a summary from the unified context compaction engine. 0 disables.
+    chatContextCompaction: {
+      thresholdMessages: 60,
+      maxContextTokens: 24_000,
+      keepRecentTurns: 10,
+    },
   },
 };

@@ -144,22 +144,25 @@ describe("Batch12-4: worker/base isAllowed JSON.parse safety", () => {
 // 5. worker/base: Command injection prevention in autoLint
 // ----------------------------------------------------------------
 describe("Batch12-5: worker/base autoLint command injection prevention", () => {
-  it("uses execFileSync instead of execSync", () => {
-    const src = readFileSync(join(FORGE_SRC, "worker", "base.js"), "utf-8");
-    const idx = src.indexOf("autoLint");
+  it("routes executable eslint configuration through FULL isolation", () => {
+    const src = readFileSync(join(FORGE_SRC, "worker", "base-syntax-utils.js"), "utf-8");
+    const idx = src.indexOf("export async function autoLint");
     assert.ok(idx > 0, "Should find autoLint method");
-    const area = src.slice(idx, idx + 500);
+    const area = src.slice(idx, idx + 1800);
 
-    assert.ok(area.includes("execFileSync"), "Should use execFileSync (no shell interpretation)");
-    assert.ok(!area.includes("execSync(\`"), "Should NOT use execSync with template literal (shell injection)");
+    assert.ok(area.includes("sandboxExecutor.execute"), "Should use the sandbox executor");
+    assert.ok(area.includes("level: 'full'"), "Should require FULL isolation");
+    assert.ok(area.includes("workspaceMode: 'rw'"), "Should explicitly scope the writable workspace mount");
+    assert.ok(!area.includes("node:child_process"), "Should not invoke project eslint on the host");
   });
 
-  it("passes eslint args as array, not string interpolation", () => {
-    const src = readFileSync(join(FORGE_SRC, "worker", "base.js"), "utf-8");
-    const idx = src.indexOf("autoLint");
-    const area = src.slice(idx, idx + 500);
+  it("quotes the validated relative path inside the container shell", () => {
+    const src = readFileSync(join(FORGE_SRC, "worker", "base-syntax-utils.js"), "utf-8");
+    const idx = src.indexOf("export async function autoLint");
+    const area = src.slice(idx, idx + 1800);
 
-    assert.ok(area.includes("['eslint', '--fix', fullPath]"), "Should pass args as array");
+    assert.ok(area.includes("quotePosixShellArg(containerPath)"), "Should quote the path as one shell argument");
+    assert.ok(area.includes("npx --no-install eslint --fix --"), "Should prohibit package download and terminate eslint flags");
   });
 });
 
@@ -167,28 +170,27 @@ describe("Batch12-5: worker/base autoLint command injection prevention", () => {
 // 6. worker/base: Path traversal guard for ALL actions
 // ----------------------------------------------------------------
 describe("Batch12-6: worker/base path traversal guard for read actions", () => {
-  it("blocks paths outside project root for all action types", () => {
-    const src = readFileSync(join(FORGE_SRC, "worker", "base.js"), "utf-8");
-    // Anchor on the unique error message
-    const anchorIdx = src.indexOf("Path traversal blocked:");
-    assert.ok(anchorIdx > 0, "Should find path traversal error message");
-    // Look backward to include the method definition context
-    const areaStart = Math.max(0, anchorIdx - 400);
-    const area = src.slice(areaStart, anchorIdx + 200);
+  it("canonically blocks outside paths and symlink or junction components", () => {
+    const src = readFileSync(join(FORGE_SRC, "worker", "base-action-exec.js"), "utf-8");
+    const guardIdx = src.indexOf("export async function resolveActionPath");
+    assert.ok(guardIdx > 0, "Should find canonical action-path guard");
+    const area = src.slice(guardIdx, guardIdx + 2200);
 
-    assert.ok(area.includes("resolvedRoot"), "Should resolve project root");
-    assert.ok(area.includes("startsWith"), "Should check path starts with project root");
+    assert.ok(area.includes("realpath(resolve(projectRoot))"), "Should canonicalize the project root");
+    assert.ok(area.includes("isWithinRoot"), "Should enforce canonical root containment");
+    assert.ok(area.includes("lstat"), "Should inspect every existing path component");
+    assert.ok(area.includes("isSymbolicLink"), "Should reject symlinks and Windows junctions");
     assert.ok(area.includes("Path traversal blocked"), "Should throw on traversal attempt");
   });
 
   it("checks path BEFORE the mutating-action-only restriction", () => {
-    const src = readFileSync(join(FORGE_SRC, "worker", "base.js"), "utf-8");
+    const src = readFileSync(join(FORGE_SRC, "worker", "base-action-exec.js"), "utf-8");
     // Use the method definition as anchor
-    const execIdx = src.indexOf("async function executeAction(");
+    const execIdx = src.indexOf("export async function executeAction(");
     assert.ok(execIdx > 0, "Should find executeAction function definition");
-    const area = src.slice(execIdx, execIdx + 1000);
+    const area = src.slice(execIdx, execIdx + 1600);
 
-    const traversalIdx = area.indexOf("Path traversal");
+    const traversalIdx = area.indexOf("resolveActionPath(projectRoot");
     const mutatingIdx = area.indexOf("mutatingActions");
     assert.ok(traversalIdx > 0 && mutatingIdx > 0, "Both guards should exist");
     assert.ok(traversalIdx < mutatingIdx, "Path traversal check should come BEFORE mutating-action check");

@@ -41,9 +41,10 @@ export class Forge {
    * @param {string} [options.dbPath] — path to SQLite database (default: .forge/forge.db)
    * @param {boolean} [options.enableProgress] — enable ProgressReporter (default: false)
    * @param {string} [options.gatewayUrl] — AI Gateway URL (default: http://127.0.0.1:3100)
+   * @param {string} [options.gatewayAuthToken] — enterprise gateway token
    * @param {boolean} [options.enableCostTracking] — enable P11 cost modules (default: true)
    */
-  constructor({ projectRoot, dbPath, enableProgress, gatewayUrl, enableCostTracking = true }) {
+  constructor({ projectRoot, dbPath, enableProgress, gatewayUrl, gatewayAuthToken, enableCostTracking = true }) {
     this.#projectRoot = projectRoot;
     this.#dbPath = dbPath ?? join(projectRoot, '.forge', 'forge.db');
 
@@ -58,7 +59,7 @@ export class Forge {
     }
 
     // Gateway: Initialize lifecycle manager
-    this.#gatewayLifecycle = new GatewayLifecycle({ gatewayUrl });
+    this.#gatewayLifecycle = new GatewayLifecycle({ gatewayUrl, gatewayAuthToken });
 
     // P11: Wire cost tracking modules into llm-client for all LLM calls
     if (enableCostTracking) {
@@ -357,7 +358,7 @@ export { BudgetTracker } from './budget-tracker/index.js';
 export { ContextEngine } from './context-engine/index.js';
 export { CodebaseSearch } from './codebase-search/index.js';
 export { CodeIntelligence } from './code-intel/index.js';
-export { callLLM, callLLMWithUsage, callLLMDirect, callLLMDirectWithUsage, callLLMStream, setProviderRegistry, getProviderRegistry, setP11Cache, setP11TokenPredictor, setP11BudgetEnforcer, getP11Cache, getP11TokenPredictor, getP11BudgetEnforcer, clearLLMCache, getLLMCacheSize } from './llm-client.js';
+export { callLLM, callLLMWithUsage, callLLMDirect, callLLMDirectWithUsage, callLLMStream, runWithLlmCaller, setProviderRegistry, getProviderRegistry, setP11Cache, setP11TokenPredictor, setP11BudgetEnforcer, getP11Cache, getP11TokenPredictor, getP11BudgetEnforcer, clearLLMCache, getLLMCacheSize } from './llm-client.js';
 // Phase 4: Collaborative evolution
 export { AgentPoolManager } from './agent-pool/index.js';
 export { GoalTransfer } from './export-import/index.js';
@@ -395,7 +396,7 @@ export { ErrorPatternLearner } from './error-pattern-learner/index.js';
 
 // P7: Advanced review, sandbox, streaming, and defense
 export { MultiAgentReview, ReviewSeverity, ReviewCategory } from './multi-agent-review/index.js';
-export { SandboxExecutor, SandboxLevel } from './sandbox-executor/index.js';
+export { SandboxExecutor, SandboxLevel, ContainerSandboxBackend } from './sandbox-executor/index.js';
 export { LiveStream, StreamEvent } from './live-stream/index.js';
 export { PromptInjectionDefense } from './injection-defense/index.js';
 

@@ -11,8 +11,8 @@ the documented request/route boundaries and provides reproducible evidence.
 
 | Surface | Verified implementation | Covered behavior | Boundary |
 | --- | --- | --- | --- |
-| MCP stdio | Official `@modelcontextprotocol/client` `2.0.0` | Handshake, twelve tools, prompt enhancement, fake chat, cleanup | Protocol verified; named host UI behavior needs a report. |
-| MCP Streamable HTTP | Official `@modelcontextprotocol/client` `2.0.0` | HTTP handshake, twelve tools, Bearer rejection, Origin rejection, cleanup | Source build only; published `v0.4.9` image is stdio-only. |
+| MCP stdio | Official `@modelcontextprotocol/client` `2.0.0` | Modern `2026-07-28` `server/discover`, per-request envelope, twelve tools, prompt enhancement, fake chat, cleanup | Modern era is source-verified; named host UI behavior still needs a report. |
+| MCP Streamable HTTP | Official `@modelcontextprotocol/client` `2.0.0` | Modern `2026-07-28`, legacy `2025-11-25` and `2025-06-18`, header routing/CORS, twelve tools, Bearer/Origin rejection, cleanup | Source build only; published `v0.5.0` image is stdio-only. |
 | OpenAI Chat Completions | Official `openai` JS SDK `7.4.0` plus real Cline/Continue hosts | Models, text completion, streaming, structured errors, enhancement, function tools, tool results, bounded inline image input | Image input is restricted to validated base64 PNG/JPEG/WebP/GIF data URLs; remote URLs and audio content remain fail-closed. |
 | OpenAI wire-alias profile | OpenAI-compatible HTTP route matrix (`openai-wire-smoke.mjs`) | `/v1`, root aliases, `/openai/deployments`, `/v1/engines`, SSE | Confirms route variants used by many wrappers. |
 | OpenAI Legacy Completions | Official `openai` JS SDK `7.4.0` | `/v1/completions` text `prompt` and streaming | Text profile; no logprobs, no tool calling, no images/audio. |
@@ -22,7 +22,7 @@ the documented request/route boundaries and provides reproducible evidence.
 | OpenAI-compatible aliases | Legacy and root path aliases (e.g., `/chat/completions`, `/responses`) | Alias path normalization and permission mapping | Alias support enables SDKs that send root paths without `/v1`. |
 | OpenAI Legacy Engines | `/v1/engines/{engine}/chat/completions`, `/v1/engines/{engine}/completions` | Legacy route remapping with model inference from the engine segment | Text-only completion profile with model fallback and no tool/multimodal support. |
 | OpenAI Model/Engine Details | `GET /v1/models/{id}`, `GET /v1/engines/{id}` | Model and engine inventory detail entries returned in same schema as list responses | Supports ID lookups from compatibility lists; not all OpenAI object-level fields are implemented. |
-| A2A v1.0 JSON-RPC | Official `@a2a-js/sdk` `1.0.1` | Agent Card, `SendMessage`, `GetTask`, `ListTasks`, task artifacts | Source build, fake-provider-only, in-memory tasks, no streaming. |
+| A2A v1.0 JSON-RPC | Official `@a2a-js/sdk` `1.0.1` | Verifiable Agent Card/JWKS, `SendMessage`, `GetTask`, `ListTasks`, `CancelTask`, task artifacts, bounded memory/SQLite/PostgreSQL state, and PostgreSQL execution fencing | Source build, fake-provider-only, no streaming; downstream side effects are not yet atomically fence-aware. |
 | Native HTTP and shared SDK | Node `fetch`, curl examples, repository SDK tests | Health, chat, streaming, prompt enhancement, operational reads | Unified AI System contract, not a third-party protocol. |
 
 ## Verified Named MCP Hosts
@@ -56,7 +56,7 @@ We do not promise one-off support for every client package ever shipped.
 We do promise protocol-first compatibility:
 
 - OpenAI-compatible: `/v1` and supported alias paths for text Chat/Completions/Responses, plus focused multimodal routes (`embeddings`, `images/generations`, `audio/speech`, `audio/transcriptions`).
-- MCP: standard stdio/Streamable HTTP MCP tool session handshake and transport behavior.
+- MCP: modern stateless `2026-07-28` plus legacy initialize-era stdio/Streamable HTTP behavior.
 - A2A: JSON-RPC contract, `Agent Card` discovery, and task lifecycle methods.
 
 If a client fits this profile, we onboard it through the registry and collect

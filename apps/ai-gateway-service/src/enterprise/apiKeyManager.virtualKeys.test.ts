@@ -3,8 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EventEmitter } from "node:events";
 import { Readable } from "node:stream";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { createApiKeyManager } from "./apiKeyManager.js";
+import { afterEach, describe, expect, it, vi, type Mock } from "vitest";
+import {
+  createApiKeyManager,
+  type ApiKeyManager,
+  type ApiKeyManagerOptions,
+} from "./apiKeyManager.js";
 import { createEnterpriseGovernanceService } from "./enterpriseGovernanceService.js";
 import { dispatchOpenAiCompatibilityRoutes } from "../http/openAiCompatibilityRoutes.js";
 
@@ -16,7 +20,31 @@ const descriptors = [
   },
 ];
 
-function createManager(overrides = {}) {
+interface TestRequest extends Readable {
+  method: string;
+  enterpriseIdentity?: unknown;
+}
+
+interface TestResponse extends EventEmitter {
+  statusCode: number | null;
+  headers: Record<string, unknown>;
+  body: any;
+  text: string;
+  writableEnded: boolean;
+  headersSent: boolean;
+  writeHead(statusCode: number, headers?: Record<string, unknown>): void;
+  flushHeaders(): void;
+  write(chunk: unknown): boolean;
+  end(body?: unknown): void;
+}
+
+interface TestGatewayService {
+  getProviderDescriptors(): typeof descriptors;
+  execute: Mock<(input: any) => Promise<any>>;
+  executeStream(input?: any): AsyncGenerator<any>;
+}
+
+function createManager(overrides: Partial<ApiKeyManagerOptions> = {}) {
   const dir = mkdtempSync(join(tmpdir(), "api-key-manager-test-"));
   const clock = { now: 1_000_000_000_000 };
   const manager = createApiKeyManager({
@@ -27,10 +55,10 @@ function createManager(overrides = {}) {
   return { manager, dir, clock };
 }
 
-function createGatewayService() {
+function createGatewayService(): TestGatewayService {
   return {
     getProviderDescriptors: () => descriptors,
-    execute: vi.fn(async () => ({
+    execute: vi.fn(async (_input: any): Promise<any> => ({
       success: true,
       data: {
         id: "request-123",
@@ -53,32 +81,35 @@ function createGatewayService() {
   };
 }
 
-function createJsonRequest(body, { method = "POST", enterpriseIdentity } = {}) {
-  const request = Readable.from([Buffer.from(JSON.stringify(body))]);
+function createJsonRequest(
+  body: any,
+  { method = "POST", enterpriseIdentity }: { method?: string; enterpriseIdentity?: unknown } = {},
+): TestRequest {
+  const request = Readable.from([Buffer.from(JSON.stringify(body))]) as TestRequest;
   request.method = method;
   if (enterpriseIdentity) request.enterpriseIdentity = enterpriseIdentity;
   return request;
 }
 
-function createResponseRecorder() {
-  const response = new EventEmitter();
+function createResponseRecorder(): TestResponse {
+  const response = new EventEmitter() as TestResponse;
   response.statusCode = null;
   response.headers = {};
   response.body = null;
   response.text = "";
   response.writableEnded = false;
   response.headersSent = false;
-  response.writeHead = (statusCode, headers = {}) => {
+  response.writeHead = (statusCode: number, headers: Record<string, unknown> = {}) => {
     response.statusCode = statusCode;
     response.headers = headers;
     response.headersSent = true;
   };
   response.flushHeaders = () => {};
-  response.write = (chunk) => {
+  response.write = (chunk: unknown) => {
     response.text += String(chunk);
     return true;
   };
-  response.end = (body) => {
+  response.end = (body?: unknown) => {
     if (body !== undefined) {
       response.text += String(body);
       response.body = JSON.parse(String(body));
@@ -88,7 +119,7 @@ function createResponseRecorder() {
   return response;
 }
 
-const cleanup = [];
+const cleanup: string[] = [];
 afterEach(() => {
   for (const dir of cleanup.splice(0)) {
     rmSync(dir, { recursive: true, force: true });
@@ -112,6 +143,7 @@ describe("api key manager virtual keys", () => {
 
     const validated = manager.validate(key);
     expect(validated.valid).toBe(true);
+    if (!validated.record) throw new Error("Expected a validated API key record.");
     expect(validated.record.keyId).toBe(record.keyId);
 
     const listed = manager.list({ tenantId: "tenant-a" });
@@ -156,6 +188,7 @@ describe("api key manager virtual keys", () => {
     const limited = manager.authorizeUsage({ keyId: record.keyId });
     expect(limited.allowed).toBe(false);
     expect(limited.code).toBe("VIRTUAL_KEY_RATE_LIMITED");
+    if (!limited.rate) throw new Error("Expected rate-limit details.");
     expect(limited.rate.requestsPerMinute).toBe(2);
   });
 
@@ -187,7 +220,9 @@ describe("api key manager virtual keys", () => {
 
     const restarted = createApiKeyManager({ storePath: join(dir, "api-keys.json"), now: () => clock.now });
     expect(restarted.validate(key).valid).toBe(true);
-    expect(restarted.describeUsage({ keyId: record.keyId }).usage.tokensUsed).toBe(120);
+    const restartedUsage = restarted.describeUsage({ keyId: record.keyId });
+    if (!restartedUsage) throw new Error("Expected persisted usage.");
+    expect(restartedUsage.usage.tokensUsed).toBe(120);
     expect(restarted.validate(revoked.key).valid).toBe(false);
     expect(restarted.list({ tenantId: "tenant-a" }).totalCount).toBe(1);
   });
@@ -232,6 +267,7 @@ describe("governance authentication with virtual keys", () => {
       socket: { remoteAddress: "127.0.0.1" },
     });
     expect(decision.authenticated).toBe(true);
+    if (!decision.identity) throw new Error("Expected an authenticated identity.");
     expect(decision.identity.role).toBe("operator");
     expect(decision.identity.tenantId).toBe("tenant-a");
     expect(decision.identity.apiKeyFingerprint).toBe(record.keyFingerprint);
@@ -249,7 +285,15 @@ describe("governance authentication with virtual keys", () => {
 });
 
 describe("chat completions virtual key enforcement", () => {
-  function createContext({ body, manager, enterpriseIdentity }) {
+  function createContext({
+    body,
+    manager,
+    enterpriseIdentity,
+  }: {
+    body: any;
+    manager: ApiKeyManager;
+    enterpriseIdentity: unknown;
+  }) {
     return {
       request: createJsonRequest(body, { enterpriseIdentity }),
       response: createResponseRecorder(),
@@ -305,7 +349,9 @@ describe("chat completions virtual key enforcement", () => {
     await dispatchOpenAiCompatibilityRoutes(context);
 
     expect(context.response.statusCode).toBe(200);
-    expect(manager.describeUsage({ keyId: record.keyId }).usage.tokensUsed).toBe(12);
+    const usage = manager.describeUsage({ keyId: record.keyId });
+    if (!usage) throw new Error("Expected recorded usage.");
+    expect(usage.usage.tokensUsed).toBe(12);
   });
 
   it("does not touch the manager when the identity is not a virtual key", async () => {

@@ -225,12 +225,14 @@ export async function _fetchWithRetry(url, init, timeoutMs, retryOpts = {}) {
  * @param {string} url
  * @param {object} body
  * @param {number} timeoutMs
+ * @param {object} [requestOptions]
+ * @param {Record<string, string>} [requestOptions.headers]
  * @returns {Promise<object>}
  */
-export async function _post(url, body, timeoutMs) {
+export async function _post(url, body, timeoutMs, requestOptions = {}) {
   const response = await _fetchWithRetry(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: requestOptions.headers ?? { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   }, timeoutMs);
 

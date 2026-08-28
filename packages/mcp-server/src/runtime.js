@@ -4,6 +4,10 @@ import { once } from "node:events";
 import { createServer } from "node:net";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  createManagedGatewayEnvironment,
+  redactManagedGatewayOutput,
+} from "./runtime-environment.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const serviceEntrypoint = resolve(
@@ -185,16 +189,20 @@ export async function createGatewayRuntime(options = {}) {
   // the window elapsed and all authenticated tools became unusable.
   const authExpiresAt = null;
   const requestHeaders = Object.freeze({ Authorization: `Bearer ${authToken}` });
+  const inheritedTestRuntime = env.NODE_ENV === "test"
+    || env.VITEST === "true"
+    || Boolean(env.NODE_TEST_CONTEXT);
   let stdout = "";
   let stderr = "";
+  let rawStderr = "";
   const child = (options.spawnProcess ?? spawn)(
     process.execPath,
     [serviceEntrypoint],
     {
       cwd: repoRoot,
       windowsHide: true,
-      env: {
-        ...env,
+      env: createManagedGatewayEnvironment(env, {
+        ...(inheritedTestRuntime ? { NODE_ENV: "test" } : {}),
         AI_GATEWAY_SERVICE_HOST: "127.0.0.1",
         AI_GATEWAY_SERVICE_PORT: String(port),
         AI_GATEWAY_PROVIDER_MODE: "fake",
@@ -220,7 +228,7 @@ export async function createGatewayRuntime(options = {}) {
           ],
           expiresAt: authExpiresAt,
         }]),
-      },
+      }),
       stdio: ["ignore", "pipe", "pipe"],
     },
   );
@@ -231,7 +239,8 @@ export async function createGatewayRuntime(options = {}) {
     stdout = `${stdout}${chunk}`.slice(-OUTPUT_TAIL_LIMIT);
   });
   child.stderr?.on("data", (chunk) => {
-    stderr = `${stderr}${chunk}`.slice(-OUTPUT_TAIL_LIMIT);
+    rawStderr = `${rawStderr}${chunk}`.slice(-(OUTPUT_TAIL_LIMIT * 2));
+    stderr = redactManagedGatewayOutput(rawStderr).slice(-OUTPUT_TAIL_LIMIT);
   });
 
   try {

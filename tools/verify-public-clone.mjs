@@ -1,14 +1,28 @@
 import { spawn } from "node:child_process";
+import { createHash, randomBytes } from "node:crypto";
 import { once } from "node:events";
+import {
+  mkdir,
+  mkdtemp,
+  lstat,
+  open,
+  realpath,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { createServer as createHttpServer } from "node:http";
 import { createServer as createNetServer } from "node:net";
-import { dirname, resolve } from "node:path";
+import { tmpdir } from "node:os";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const serviceRoot = resolve(repoRoot, "apps/ai-gateway-service");
 const serviceEntrypoint = resolve(serviceRoot, "src/index.js");
 const mcpSmokeEntrypoint = resolve(repoRoot, "tools/mcp-smoke.mjs");
+const localClientSmokeEntrypoint = resolve(repoRoot, "tools/local-client-control-plane-smoke.mjs");
+const vitestEntrypoint = resolve(repoRoot, "node_modules/vitest/vitest.mjs");
 const circuitRecoveryDrillEntrypoint = resolve(repoRoot, "tools/circuit-recovery-drill.mjs");
 const javascriptExampleEntrypoint = resolve(
   repoRoot,
@@ -31,6 +45,377 @@ const a2aSdkExampleEntrypoint = resolve(
   "docs/examples/a2a-sdk-client.mjs",
 );
 const ISSUE_SOURCE = "verify-public-clone";
+const INTERNAL_CLEAN_CLONE_ARGUMENT = "--internal-clean-clone";
+const INTERNAL_MANIFEST_ENV = "AI_GATEWAY_PUBLIC_CLONE_INTERNAL_MANIFEST";
+const INTERNAL_TOKEN_ENV = "AI_GATEWAY_PUBLIC_CLONE_INTERNAL_TOKEN";
+
+async function runCaptured(command, args, options = {}) {
+  const child = spawn(command, args, {
+    cwd: options.cwd,
+    env: options.env ?? process.env,
+    windowsHide: true,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let stdout = "";
+  let stderr = "";
+  child.stdout.setEncoding("utf8");
+  child.stderr.setEncoding("utf8");
+  child.stdout.on("data", (chunk) => { stdout += chunk; });
+  child.stderr.on("data", (chunk) => { stderr += chunk; });
+  const code = await waitForChildExitCode(
+    child,
+    options.timeoutMs ?? 60_000,
+    `${command} ${args.join(" ")}`,
+  );
+  return { code, stdout, stderr };
+}
+
+async function runInherited(command, args, options = {}) {
+  const child = spawn(command, args, {
+    cwd: options.cwd,
+    env: options.env ?? process.env,
+    windowsHide: true,
+    stdio: "inherit",
+    shell: options.shell === true,
+  });
+  return waitForChildExitCode(
+    child,
+    options.timeoutMs ?? 15 * 60_000,
+    `${command} ${args.join(" ")}`,
+  );
+}
+
+async function waitForChildExitCode(child, timeoutMs, label) {
+  const completion = new Promise((resolveCompletion, rejectCompletion) => {
+    child.once("error", rejectCompletion);
+    child.once("close", (code) => resolveCompletion({ code: Number(code ?? 1) }));
+  });
+  let timeoutHandle;
+  const timeout = new Promise((resolveTimeout) => {
+    timeoutHandle = setTimeout(() => resolveTimeout({ timeout: true }), timeoutMs);
+    timeoutHandle.unref?.();
+  });
+  let outcome;
+  try {
+    outcome = await Promise.race([completion, timeout]);
+  } finally {
+    clearTimeout(timeoutHandle);
+  }
+  if (outcome?.timeout !== true) return outcome.code;
+  await terminateChildTree(child);
+  const error = new Error(`Child process exceeded its deadline: ${label}`);
+  error.code = "PUBLIC_CLONE_CHILD_DEADLINE_EXCEEDED";
+  throw error;
+}
+
+async function terminateChildTree(child) {
+  if (hasChildExited(child)) return;
+  if (process.platform === "win32") {
+    const pid = Number(child.pid);
+    if (!Number.isSafeInteger(pid) || pid <= 0) throw childCleanupError();
+    const killer = spawn("taskkill.exe", ["/PID", String(pid), "/T", "/F"], {
+      windowsHide: true,
+      stdio: "ignore",
+    });
+    let killerTimeout;
+    let killerCompleted = false;
+    try {
+      killerCompleted = await Promise.race([
+        once(killer, "close").then(() => true, () => false),
+        new Promise((resolveTimeout) => {
+          killerTimeout = setTimeout(() => resolveTimeout(false), 5_000);
+          killerTimeout.unref?.();
+        }),
+      ]);
+    } finally {
+      clearTimeout(killerTimeout);
+    }
+    if (!killerCompleted && !hasChildExited(killer)) {
+      killer.kill("SIGKILL");
+      await waitForChildExit(killer, 2_000);
+    }
+  } else {
+    child.kill("SIGTERM");
+    await waitForChildExit(child, 3_000);
+    if (!hasChildExited(child)) child.kill("SIGKILL");
+  }
+  await waitForChildExit(child, 5_000);
+  if (!hasChildExited(child)) throw childCleanupError();
+}
+
+function childCleanupError() {
+  const error = new Error("A public-clone child process could not be terminated safely.");
+  error.code = "PUBLIC_CLONE_CHILD_CLEANUP_FAILED";
+  return error;
+}
+
+function credentialFreeCloneEnv(isolatedHome, isolatedTemp, extra = {}) {
+  const env = {};
+  for (const name of [
+    "PATH",
+    "SystemRoot",
+    "WINDIR",
+    "ComSpec",
+    "PATHEXT",
+    "LANG",
+    "LC_ALL",
+  ]) {
+    if (typeof process.env[name] === "string") env[name] = process.env[name];
+  }
+  return {
+    ...env,
+    HOME: isolatedHome,
+    USERPROFILE: isolatedHome,
+    APPDATA: join(isolatedHome, "appdata"),
+    LOCALAPPDATA: join(isolatedHome, "localappdata"),
+    TEMP: isolatedTemp,
+    TMP: isolatedTemp,
+    TMPDIR: isolatedTemp,
+    COREPACK_HOME: join(isolatedHome, "corepack"),
+    NPM_CONFIG_USERCONFIG: join(isolatedHome, "npmrc-disabled"),
+    NPM_CONFIG_GLOBALCONFIG: join(isolatedHome, "npmrc-global-disabled"),
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_CONFIG_GLOBAL: join(isolatedHome, "gitconfig-disabled"),
+    CI: "1",
+    NODE_ENV: "test",
+    AI_GATEWAY_PROVIDER_MODE: "fake",
+    AI_GATEWAY_REAL_PROVIDER_ENABLED: "false",
+    ...extra,
+  };
+}
+
+async function runInActualPublicClone() {
+  const status = await runCaptured(
+    "git",
+    [
+      "status",
+      "--porcelain=v1",
+      "-z",
+      "--untracked-files=all",
+      "--",
+      ".",
+      ":(top,literal,exclude).mcp.json",
+    ],
+    { cwd: repoRoot },
+  );
+  if (status.code !== 0) throw new Error(`git status failed: ${status.stderr.trim()}`);
+  const dirtyRecords = status.stdout.split("\0").filter(Boolean);
+  if (dirtyRecords.length > 0) {
+    const dirtyPaths = dirtyRecords
+      .map((record) => record.replace(/^\S{0,2}\s+/u, ""))
+      .slice(0, 20);
+    const error = new Error(
+      `Public clone verification requires a tracked clean candidate; ${dirtyRecords.length} worktree entries remain (${dirtyPaths.join(", ")}).`,
+    );
+    error.code = "PUBLIC_CLONE_WORKTREE_NOT_CLEAN";
+    throw error;
+  }
+
+  const sourceHead = await runCaptured("git", ["rev-parse", "HEAD"], { cwd: repoRoot });
+  if (sourceHead.code !== 0) throw new Error(`git rev-parse failed: ${sourceHead.stderr.trim()}`);
+  const pnpmInstall = await resolvePnpmInstallInvocation();
+  const temporaryRoot = await mkdtemp(join(tmpdir(), "unified-ai-public-clone-"));
+  const cloneRoot = join(temporaryRoot, "checkout");
+  const isolatedHome = join(temporaryRoot, "home");
+  const isolatedTemp = join(temporaryRoot, "tmp");
+  try {
+    await Promise.all([
+      mkdir(isolatedHome, { recursive: true }),
+      mkdir(isolatedTemp, { recursive: true }),
+      mkdir(join(isolatedHome, "appdata"), { recursive: true }),
+      mkdir(join(isolatedHome, "localappdata"), { recursive: true }),
+    ]);
+    const cloneEnv = credentialFreeCloneEnv(isolatedHome, isolatedTemp);
+    const cloned = await runInherited(
+      "git",
+      ["clone", "--quiet", "--no-local", "--no-hardlinks", repoRoot, cloneRoot],
+      { cwd: repoRoot, env: cloneEnv },
+    );
+    if (cloned !== 0) throw new Error("git clone failed for the public verification candidate.");
+    const cloneHead = await runCaptured("git", ["rev-parse", "HEAD"], { cwd: cloneRoot });
+    if (cloneHead.code !== 0 || cloneHead.stdout.trim() !== sourceHead.stdout.trim()) {
+      throw new Error("The public clone did not resolve to the exact source HEAD commit.");
+    }
+    const installed = await runInherited(
+      pnpmInstall.command,
+      pnpmInstall.args,
+      {
+        cwd: cloneRoot,
+        env: cloneEnv,
+        shell: pnpmInstall.shell,
+      },
+    );
+    if (installed !== 0) throw new Error("Credential-free dependency installation failed in the public clone.");
+    const sourceRealPath = await realpath(repoRoot);
+    const cloneRealPath = await realpath(cloneRoot);
+    const internalToken = randomBytes(32).toString("hex");
+    const manifestPath = join(temporaryRoot, "inner-manifest.json");
+    const manifest = {
+      version: 1,
+      token: internalToken,
+      expectedHead: sourceHead.stdout.trim(),
+      sourceRootFingerprint: pathFingerprint(sourceRealPath),
+      cloneRootFingerprint: pathFingerprint(cloneRealPath),
+    };
+    await writeFile(manifestPath, `${JSON.stringify(manifest)}\n`, {
+      encoding: "utf8",
+      mode: 0o600,
+      flag: "wx",
+    });
+    const innerEnv = credentialFreeCloneEnv(isolatedHome, isolatedTemp, {
+      [INTERNAL_MANIFEST_ENV]: manifestPath,
+      [INTERNAL_TOKEN_ENV]: internalToken,
+    });
+    const verified = await runInherited(
+      process.execPath,
+      [
+        join(cloneRoot, "tools", "verify-public-clone.mjs"),
+        INTERNAL_CLEAN_CLONE_ARGUMENT,
+      ],
+      { cwd: cloneRoot, env: innerEnv },
+    );
+    if (verified !== 0) throw new Error("Public clone runtime verification failed.");
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  }
+}
+
+async function resolvePnpmInstallInvocation() {
+  if (process.platform !== "win32") {
+    return Object.freeze({
+      command: "pnpm",
+      args: Object.freeze(["install", "--frozen-lockfile"]),
+      shell: false,
+    });
+  }
+  const located = await runCaptured("where.exe", ["pnpm.cmd"], {
+    cwd: repoRoot,
+    env: process.env,
+    timeoutMs: 10_000,
+  });
+  const candidate = located.stdout.split(/\r?\n/u).map((value) => value.trim()).find(Boolean);
+  if (
+    located.code !== 0
+    || typeof candidate !== "string"
+    || !isAbsolute(candidate)
+    || !/\.cmd$/iu.test(candidate)
+    || /["&|<>^\r\n]/u.test(candidate)
+  ) {
+    const error = new Error("A safe absolute pnpm.cmd executable could not be resolved.");
+    error.code = "PUBLIC_CLONE_PNPM_RESOLUTION_FAILED";
+    throw error;
+  }
+  let canonical;
+  try {
+    canonical = await realpath(candidate);
+    const info = await stat(canonical);
+    if (!info.isFile() || /["&|<>^\r\n]/u.test(canonical)) throw new Error("not a safe file");
+  } catch {
+    const error = new Error("The resolved pnpm.cmd executable is not a regular file.");
+    error.code = "PUBLIC_CLONE_PNPM_RESOLUTION_FAILED";
+    throw error;
+  }
+  return Object.freeze({
+    command: `"${canonical}" install --frozen-lockfile`,
+    args: Object.freeze([]),
+    shell: true,
+  });
+}
+
+async function assertInternalCleanClone() {
+  const status = await runCaptured(
+    "git",
+    ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+    { cwd: repoRoot },
+  );
+  if (status.code !== 0 || status.stdout.length !== 0) {
+    const error = new Error(
+      "Internal public-clone verification requires an entirely clean checkout.",
+    );
+    error.code = "PUBLIC_CLONE_INTERNAL_CHECKOUT_NOT_CLEAN";
+    throw error;
+  }
+  const manifestPath = process.env[INTERNAL_MANIFEST_ENV];
+  const suppliedToken = process.env[INTERNAL_TOKEN_ENV];
+  if (
+    typeof manifestPath !== "string"
+    || !isAbsolute(manifestPath)
+    || typeof suppliedToken !== "string"
+    || !/^[a-f0-9]{64}$/u.test(suppliedToken)
+    || !isPathOutsideRoot(repoRoot, manifestPath)
+  ) throw internalContextError();
+  let manifest;
+  let manifestHandle;
+  try {
+    const linkInfo = await lstat(manifestPath);
+    if (linkInfo.isSymbolicLink()) throw internalContextError();
+    const canonicalManifestPath = await realpath(manifestPath);
+    if (!isPathOutsideRoot(repoRoot, canonicalManifestPath)) throw internalContextError();
+    manifestHandle = await open(manifestPath, "r");
+    const info = await manifestHandle.stat();
+    if (!info.isFile() || info.size < 2 || info.size > 4_096) throw internalContextError();
+    manifest = JSON.parse(await manifestHandle.readFile({ encoding: "utf8" }));
+  } catch {
+    throw internalContextError();
+  } finally {
+    await manifestHandle?.close().catch(() => undefined);
+  }
+  if (
+    !manifest
+    || typeof manifest !== "object"
+    || Array.isArray(manifest)
+    || Object.keys(manifest).sort().join(",") !== [
+      "cloneRootFingerprint",
+      "expectedHead",
+      "sourceRootFingerprint",
+      "token",
+      "version",
+    ].sort().join(",")
+    || manifest.version !== 1
+    || manifest.token !== suppliedToken
+    || !/^[a-f0-9]{40,64}$/u.test(String(manifest.expectedHead ?? ""))
+    || !/^[a-f0-9]{64}$/u.test(String(manifest.sourceRootFingerprint ?? ""))
+    || !/^[a-f0-9]{64}$/u.test(String(manifest.cloneRootFingerprint ?? ""))
+  ) throw internalContextError();
+  const [head, topLevel, origin] = await Promise.all([
+    runCaptured("git", ["rev-parse", "HEAD"], { cwd: repoRoot }),
+    runCaptured("git", ["rev-parse", "--show-toplevel"], { cwd: repoRoot }),
+    runCaptured("git", ["remote", "get-url", "origin"], { cwd: repoRoot }),
+  ]);
+  if (head.code !== 0 || topLevel.code !== 0 || origin.code !== 0) throw internalContextError();
+  let currentRoot;
+  let originRoot;
+  try {
+    currentRoot = await realpath(topLevel.stdout.trim());
+    originRoot = await realpath(resolve(repoRoot, origin.stdout.trim()));
+  } catch {
+    throw internalContextError();
+  }
+  if (
+    head.stdout.trim() !== manifest.expectedHead
+    || pathFingerprint(currentRoot) !== manifest.cloneRootFingerprint
+    || pathFingerprint(originRoot) !== manifest.sourceRootFingerprint
+    || manifest.cloneRootFingerprint === manifest.sourceRootFingerprint
+  ) throw internalContextError();
+}
+
+function pathFingerprint(path) {
+  const normalized = process.platform === "win32" ? path.toLowerCase() : path;
+  return createHash("sha256").update(normalized, "utf8").digest("hex");
+}
+
+function isPathOutsideRoot(root, candidate) {
+  const relation = relative(resolve(root), resolve(candidate));
+  return relation === ".."
+    || relation.startsWith(`..${sep}`)
+    || isAbsolute(relation);
+}
+
+function internalContextError() {
+  const error = new Error("Internal public-clone verification context is invalid.");
+  error.code = "PUBLIC_CLONE_INTERNAL_CONTEXT_INVALID";
+  return error;
+}
 
 function normalizeIssueCode(raw) {
   const slug = String(raw ?? "")
@@ -234,6 +619,18 @@ const CHECK_ISSUE_CATALOG = {
     message: "MCP smoke validation failed.",
     artifactPath: "tools/mcp-smoke.mjs",
   },
+  localClientControlPlaneReady: {
+    code: "public_clone_local_client_control_plane_invalid",
+    severity: "high",
+    message: "Credential-free local-client control-plane smoke did not remain tenant-scoped, redacted, fake, and preview-only.",
+    artifactPath: "tools/local-client-control-plane-smoke.mjs",
+  },
+  localClientContractsReady: {
+    code: "public_clone_local_client_contracts_invalid",
+    severity: "high",
+    message: "Local-client control, verification, durable execution, or trusted provider-routing contract tests failed.",
+    artifactPath: "apps/ai-gateway-service/src/capabilities/localClientLoopbackAdapter.test.ts",
+  },
 };
 
 function buildIssueCodesFromChecks(checks) {
@@ -388,8 +785,10 @@ async function fetchJson(url, options) {
 async function waitForReady(baseUrl, child) {
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
-    if (child.exitCode !== null) {
-      throw new Error(`Gateway exited before becoming ready with code ${child.exitCode}.`);
+    if (hasChildExited(child)) {
+      throw new Error(
+        `Gateway exited before becoming ready with code ${child.exitCode ?? child.signalCode}.`,
+      );
     }
     try {
       const health = await fetchJson(`${baseUrl}/health/check`);
@@ -403,13 +802,45 @@ async function waitForReady(baseUrl, child) {
 }
 
 async function stopChild(child) {
-  if (child.exitCode !== null) return;
-  child.kill("SIGTERM");
-  await Promise.race([once(child, "exit"), delay(3_000)]);
-  if (child.exitCode === null) {
-    child.kill("SIGKILL");
-    await Promise.race([once(child, "exit"), delay(2_000)]);
+  if (hasChildExited(child)) return;
+  if (process.platform === "win32") {
+    await terminateChildTree(child);
+    return;
   }
+  child.kill("SIGTERM");
+  await waitForChildExit(child, 3_000);
+  if (!hasChildExited(child)) {
+    child.kill("SIGKILL");
+    await waitForChildExit(child, 5_000);
+  }
+  if (!hasChildExited(child)) {
+    const error = new Error("Gateway child process did not terminate after forced cleanup.");
+    error.code = "PUBLIC_CLONE_CHILD_CLEANUP_FAILED";
+    throw error;
+  }
+}
+
+function waitForChildExit(child, timeoutMs) {
+  if (hasChildExited(child)) return Promise.resolve(true);
+  return new Promise((resolvePromise) => {
+    let timer;
+    let settled = false;
+    const finish = (exited) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      child.off("exit", onExit);
+      resolvePromise(exited);
+    };
+    const onExit = () => finish(true);
+    child.once("exit", onExit);
+    timer = setTimeout(() => finish(hasChildExited(child)), timeoutMs);
+    if (hasChildExited(child)) finish(true);
+  });
+}
+
+function hasChildExited(child) {
+  return child.exitCode !== null || child.signalCode !== null;
 }
 
 async function runMcpSmoke() {
@@ -434,7 +865,7 @@ async function runMcpSmoke() {
   child.stderr.on("data", (chunk) => {
     stderr = `${stderr}${chunk}`.slice(-8_000);
   });
-  const [exitCode] = await once(child, "exit");
+  const exitCode = await waitForChildExitCode(child, 5 * 60_000, "MCP smoke");
   let body;
   try {
     body = JSON.parse(stdout);
@@ -446,6 +877,165 @@ async function runMcpSmoke() {
     };
   }
   return { exitCode, body };
+}
+
+async function runLocalClientControlPlaneSmoke() {
+  let stdout = "";
+  let stderr = "";
+  const child = spawn(process.execPath, [localClientSmokeEntrypoint], {
+    cwd: repoRoot,
+    windowsHide: true,
+    env: {
+      ...process.env,
+      AI_GATEWAY_PROVIDER_MODE: "fake",
+      AI_GATEWAY_REAL_PROVIDER_ENABLED: "false",
+      AI_GATEWAY_LOCAL_CLIENT_EXECUTION_ENABLED: "false",
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  child.stdout.setEncoding("utf8");
+  child.stderr.setEncoding("utf8");
+  child.stdout.on("data", (chunk) => {
+    stdout = `${stdout}${chunk}`.slice(-16_000);
+  });
+  child.stderr.on("data", (chunk) => {
+    stderr = `${stderr}${chunk}`.slice(-8_000);
+  });
+  const exitCode = await waitForChildExitCode(child, 2 * 60_000, "local-client smoke");
+  let body = null;
+  try {
+    body = JSON.parse(stdout);
+  } catch {
+    body = null;
+  }
+  return {
+    exitCode,
+    body,
+    stdout: stdout.trim(),
+    stderr: stderr.trim(),
+  };
+}
+
+async function runLocalClientContractTests() {
+  let stdout = "";
+  let stderr = "";
+  const child = spawn(process.execPath, [
+    vitestEntrypoint,
+    "run",
+    "apps/ai-gateway-service/src/capabilities/localClientAdapterRegistry.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientConfigTransaction.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientExecutionIdempotencyCoordinator.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientExecutionOrchestrator.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientExecutionReceiptReconciliation.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientExecutionReceiptJournalRegistry.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientExecutionReceiptRecoveryService.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientExecutionFeedbackDispatcher.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientExecutionPreview.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientExecutionReadiness.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientGovernedExecutionApi.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientGovernedOnboardingApi.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientGovernedOnboardingRuntime.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientRoutePlanStore.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientSqliteRoutePlanStore.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientSqliteExecutionClaimStore.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientSqliteFeedbackDedupStore.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientSqliteExecutionFeedbackOutbox.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientSqliteOnboardingReceiptAuthorityStore.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientSqliteVerificationAuthorityEpochStore.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientLoopbackAdapter.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientLoopbackAdapterConfig.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientLoopbackVerificationProbe.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientManagementService.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientOnboardingConfig.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientOnboardingRegistry.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientPopIdentityAuthority.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientPopHttpAuth.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientSqlitePopReplayGuard.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientPopSnapshotRollbackProtection.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientProtocolPrincipalConfig.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientSmartManagementScheduler.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientSmartManagementSchedulerConfig.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientVerificationService.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientVerificationOwnership.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientVerifiedExecutionFence.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientWindowsProtectedAuthorityAnchor.test.ts",
+    "apps/ai-gateway-service/src/capabilities/localClientWindowsAuthorityBrokerService.test.ts",
+    "apps/ai-gateway-service/src/application/createGatewayApplication.test.js",
+    "apps/ai-gateway-service/src/http/gatewayShutdown.test.ts",
+    "apps/ai-gateway-service/src/http/httpRequestExecution.test.ts",
+    "apps/ai-gateway-service/src/http/httpServer.providerDispatch.test.ts",
+    "apps/ai-gateway-service/src/http/openAiChatCompletionResponseCache.test.ts",
+    "apps/ai-gateway-service/src/http/utils/healthUtils.usageLedger.test.ts",
+    "apps/ai-gateway-service/src/http/utils/responseUtils.test.js",
+    "apps/ai-gateway-service/src/http/localClientGovernedExecution.e2e.test.ts",
+    "apps/ai-gateway-service/src/http/localClientManagementRoutes.test.ts",
+    "apps/ai-gateway-service/src/routing/localClientProviderPolicy.test.ts",
+    "apps/ai-gateway-service/src/routing/localClientProviderPolicyConfig.test.ts",
+    "apps/ai-gateway-service/src/routing/localClientProviderRuntimeRouter.test.ts",
+    "apps/ai-gateway-service/src/routing/localClientProviderDispatchBinding.test.ts",
+    "apps/ai-gateway-service/src/core/gatewayService.providerDispatch.test.ts",
+    "apps/ai-gateway-service/src/core/gatewayService.providerOperation.test.ts",
+  ], {
+    cwd: repoRoot,
+    windowsHide: true,
+    env: {
+      ...process.env,
+      AI_GATEWAY_PROVIDER_MODE: "fake",
+      AI_GATEWAY_REAL_PROVIDER_ENABLED: "false",
+      AI_GATEWAY_LOCAL_CLIENT_EXECUTION_ENABLED: "false",
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  child.stdout.setEncoding("utf8");
+  child.stderr.setEncoding("utf8");
+  child.stdout.on("data", (chunk) => {
+    stdout = `${stdout}${chunk}`.slice(-16_000);
+  });
+  child.stderr.on("data", (chunk) => {
+    stderr = `${stderr}${chunk}`.slice(-8_000);
+  });
+  const exitCode = await waitForChildExitCode(child, 10 * 60_000, "local-client contract tests");
+  return {
+    exitCode,
+    passed: exitCode === 0,
+    outputTail: `${stdout}\n${stderr}`.trim().slice(-4_000),
+  };
+}
+
+async function runManagedLocalClientSdkTests() {
+  let stdout = "";
+  let stderr = "";
+  const child = spawn(process.execPath, [
+    "--test",
+    "packages/shared-sdk/src/index.test.js",
+  ], {
+    cwd: repoRoot,
+    windowsHide: true,
+    env: {
+      ...process.env,
+      AI_GATEWAY_PROVIDER_MODE: "fake",
+      AI_GATEWAY_REAL_PROVIDER_ENABLED: "false",
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  child.stdout.setEncoding("utf8");
+  child.stderr.setEncoding("utf8");
+  child.stdout.on("data", (chunk) => {
+    stdout = `${stdout}${chunk}`.slice(-16_000);
+  });
+  child.stderr.on("data", (chunk) => {
+    stderr = `${stderr}${chunk}`.slice(-8_000);
+  });
+  const exitCode = await waitForChildExitCode(
+    child,
+    2 * 60_000,
+    "managed local-client SDK tests",
+  );
+  return {
+    exitCode,
+    passed: exitCode === 0,
+    outputTail: `${stdout}\n${stderr}`.trim().slice(-4_000),
+  };
 }
 
 async function runCircuitRecoveryDrill() {
@@ -468,7 +1058,7 @@ async function runCircuitRecoveryDrill() {
   child.stderr.setEncoding("utf8");
   child.stdout.on("data", (chunk) => { stdout += chunk; });
   child.stderr.on("data", (chunk) => { stderr += chunk; });
-  const [exitCode] = await once(child, "exit");
+  const exitCode = await waitForChildExitCode(child, 5 * 60_000, "circuit recovery drill");
   let body = null;
   try {
     body = JSON.parse(stdout);
@@ -502,7 +1092,7 @@ async function runJavaScriptExample(baseUrl) {
   child.stderr.on("data", (chunk) => {
     stderr = `${stderr}${chunk}`.slice(-4_000);
   });
-  const [exitCode] = await once(child, "exit");
+  const exitCode = await waitForChildExitCode(child, 2 * 60_000, "JavaScript example");
   return {
     exitCode,
     stdout: stdout.trim(),
@@ -541,7 +1131,7 @@ async function runSharedSdkExample(baseUrl) {
   child.stderr.on("data", (chunk) => {
     stderr = `${stderr}${chunk}`.slice(-4_000);
   });
-  const [exitCode] = await once(child, "exit");
+  const exitCode = await waitForChildExitCode(child, 2 * 60_000, "shared SDK example");
   let body = null;
   try {
     body = JSON.parse(stdout);
@@ -576,7 +1166,7 @@ async function runOpenAiSdkExample(baseUrl) {
   child.stderr.on("data", (chunk) => {
     stderr = `${stderr}${chunk}`.slice(-8_000);
   });
-  const [exitCode] = await once(child, "exit");
+  const exitCode = await waitForChildExitCode(child, 2 * 60_000, "OpenAI SDK example");
   let body = null;
   try {
     body = JSON.parse(stdout);
@@ -611,7 +1201,7 @@ async function runAnthropicSdkExample(baseUrl) {
   child.stderr.on("data", (chunk) => {
     stderr = `${stderr}${chunk}`.slice(-8_000);
   });
-  const [exitCode] = await once(child, "exit");
+  const exitCode = await waitForChildExitCode(child, 2 * 60_000, "Anthropic SDK example");
   let body = null;
   try {
     body = JSON.parse(stdout);
@@ -646,7 +1236,7 @@ async function runA2ASdkExample(baseUrl) {
   child.stderr.on("data", (chunk) => {
     stderr = `${stderr}${chunk}`.slice(-8_000);
   });
-  const [exitCode] = await once(child, "exit");
+  const exitCode = await waitForChildExitCode(child, 2 * 60_000, "A2A SDK example");
   let body = null;
   try {
     body = JSON.parse(stdout);
@@ -661,8 +1251,73 @@ async function runA2ASdkExample(baseUrl) {
   };
 }
 
+const internalCleanCloneRun = process.argv.length === 3
+  && process.argv[2] === INTERNAL_CLEAN_CLONE_ARGUMENT;
+if (!internalCleanCloneRun) {
+  if (process.argv.length !== 2) {
+    const issueCodes = [createIssueCode(
+      "public_clone_argument_invalid",
+      "Public clone verification does not accept caller-supplied mode arguments.",
+      "high",
+      "tools/verify-public-clone.mjs",
+    )];
+    process.stdout.write(`${JSON.stringify({
+      ok: false,
+      phase: "outer-clean-clone",
+      issueCodes,
+      issueCodeSummary: summarizeIssueCodes(issueCodes),
+      realProviderCallsMade: false,
+    }, null, 2)}\n`);
+    process.exit(1);
+  }
+  try {
+    await runInActualPublicClone();
+  } catch (error) {
+    const issueCodes = [
+      createIssueCode(
+        error?.code ?? "public_clone_outer_failure",
+        error instanceof Error ? error.message : String(error),
+        "high",
+        "tools/verify-public-clone.mjs",
+      ),
+    ];
+    process.stdout.write(`${JSON.stringify({
+      ok: false,
+      phase: "outer-clean-clone",
+      issueCodes,
+      issueCodeSummary: summarizeIssueCodes(issueCodes),
+      realProviderCallsMade: false,
+    }, null, 2)}\n`);
+    process.exitCode = 1;
+  }
+  if (process.exitCode) process.exit(process.exitCode);
+  process.exit(0);
+}
+
+try {
+  await assertInternalCleanClone();
+} catch (error) {
+  const issueCodes = [createIssueCode(
+    error?.code ?? "public_clone_internal_context_invalid",
+    error instanceof Error ? error.message : String(error),
+    "high",
+    "tools/verify-public-clone.mjs",
+  )];
+  process.stdout.write(`${JSON.stringify({
+    ok: false,
+    phase: "internal-clean-clone-bootstrap",
+    issueCodes,
+    issueCodeSummary: summarizeIssueCodes(issueCodes),
+    realProviderCallsMade: false,
+  }, null, 2)}\n`);
+  process.exit(1);
+}
 const mcpSmoke = await runMcpSmoke();
+const localClientControlPlaneSmoke = await runLocalClientControlPlaneSmoke();
+const localClientContractTests = await runLocalClientContractTests();
+const managedLocalClientSdkTests = await runManagedLocalClientSdkTests();
 const circuitRecoveryDrill = await runCircuitRecoveryDrill();
+
 const port = await findFreePort();
 const baseUrl = `http://127.0.0.1:${port}`;
 const otlpCollector = await startOtlpCollector();
@@ -703,6 +1358,7 @@ child.stderr.on("data", (chunk) => {
 });
 
 let result;
+let gatewayCleanedUp = false;
 try {
   const health = await waitForReady(baseUrl, child);
   const setup = await fetchJson(`${baseUrl}/setup/readiness`);
@@ -989,6 +1645,19 @@ try {
       && mcpSmoke.body?.toolCount === 12
       && mcpSmoke.body?.executionMode === "fake"
       && mcpSmoke.body?.managedGatewayCleanedUp === true,
+    localClientControlPlaneReady:
+      localClientControlPlaneSmoke.exitCode === 0
+      && localClientControlPlaneSmoke.body?.ok === true
+      && Object.values(localClientControlPlaneSmoke.body?.checks ?? {}).every(Boolean)
+      && localClientControlPlaneSmoke.body?.executionMode === "fake-and-preview-only"
+      && localClientControlPlaneSmoke.body?.realProviderCallsMade === false
+      && localClientControlPlaneSmoke.body?.localApplicationEffectPerformed === false,
+    localClientContractsReady:
+      localClientContractTests.exitCode === 0
+      && localClientContractTests.passed === true,
+    managedLocalClientSdkReady:
+      managedLocalClientSdkTests.exitCode === 0
+      && managedLocalClientSdkTests.passed === true,
   };
   const issueCodes = buildIssueCodesFromChecks(checks);
 
@@ -1008,6 +1677,9 @@ try {
     anthropicSdkExample,
     a2aSdkExample,
     mcp: mcpSmoke.body,
+    localClientControlPlane: localClientControlPlaneSmoke.body,
+    localClientContractTests,
+    managedLocalClientSdkTests,
   };
   if (!result.ok) process.exitCode = 1;
 } catch (error) {
@@ -1030,8 +1702,50 @@ try {
   };
   process.exitCode = 1;
 } finally {
-  await stopChild(child);
-  await otlpCollector.close();
+  const cleanupResults = await Promise.allSettled([
+    stopChild(child),
+    otlpCollector.close(),
+  ]);
+  const cleanupFailures = cleanupResults.filter((entry) => entry.status === "rejected");
+  gatewayCleanedUp = cleanupFailures.length === 0 && await isPortReleased(port);
+  if (!gatewayCleanedUp) {
+    const cleanupIssue = createIssueCode(
+      "public_clone_gateway_cleanup_failed",
+      "The public-clone gateway process or listening port was not cleaned up.",
+      "high",
+      "tools/verify-public-clone.mjs",
+    );
+    const issueCodes = [...(result?.issueCodes ?? []), cleanupIssue];
+    result = {
+      ...(result ?? {}),
+      ok: false,
+      issueCodes,
+      issueCodeSummary: summarizeIssueCodes(issueCodes),
+      gatewayCleanedUp: false,
+      realProviderCallsMade: false,
+    };
+    process.exitCode = 1;
+  }
 }
 
+if (result && gatewayCleanedUp) result.gatewayCleanedUp = true;
 process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+
+async function isPortReleased(port) {
+  return new Promise((resolvePort) => {
+    const probe = createNetServer();
+    let settled = false;
+    const finish = (released) => {
+      if (settled) return;
+      settled = true;
+      probe.removeAllListeners();
+      if (probe.listening) {
+        probe.close(() => resolvePort(released));
+      } else {
+        resolvePort(released);
+      }
+    };
+    probe.once("error", () => finish(false));
+    probe.listen(port, "127.0.0.1", () => finish(true));
+  });
+}

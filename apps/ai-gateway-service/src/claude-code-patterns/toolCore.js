@@ -46,7 +46,12 @@ export function createToolUseContext({ registry, permissionChecker, eventBus, ag
     },
     /** 检查权限 */
     async checkPermission(action) {
-      if (!permissionChecker) return { allowed: true };
+      if (!permissionChecker || typeof permissionChecker.check !== "function") {
+        return {
+          allowed: false,
+          reason: "A permission checker is required before agent tools can execute.",
+        };
+      }
       return permissionChecker.check(action);
     },
     /** 发布事件 */
@@ -75,6 +80,9 @@ export function createToolUseContext({ registry, permissionChecker, eventBus, ag
  * @param {string[]} def.requiredPermissions - 需要的权限列表
  * @param {number} [def.maxResultSizeChars] - 结果最大字符数
  * @param {boolean} [def.isReadOnly] - 是否只读操作
+ * @param {string} [def.externalEffectType] - Irreversible external effect class
+ * @param {boolean} [def.externalEffectRequiresFence] - Require an active execution fence
+ * @param {boolean} [def.readOnlyAttested] - Explicit trusted attestation for dynamically registered read-only tools
  * @returns {Object} 标准化的工具定义
  */
 export function buildTool(def) {
@@ -86,6 +94,9 @@ export function buildTool(def) {
     requiredPermissions: def.requiredPermissions || [],
     maxResultSizeChars: def.maxResultSizeChars || 100_000,
     isReadOnly: def.isReadOnly ?? false,
+    externalEffectType: def.externalEffectType || null,
+    externalEffectRequiresFence: def.externalEffectRequiresFence === true,
+    readOnlyAttested: def.readOnlyAttested === true,
     /** 来源标记，区分内置工具 vs 外部注册工具 */
     source: def.source || "built-in",
     /** 工具版本号 */

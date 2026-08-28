@@ -93,6 +93,7 @@ export function applyPromptEnhancement(chatBody, options) {
     input: targetText,
     profile: options.profile,
     language: options.language,
+    target: options.target,
   });
   messages[targetIndex] = {
     ...targetMessage,

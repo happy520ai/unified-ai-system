@@ -1,5 +1,6 @@
 import { Agent as HttpAgent } from "node:http";
 import { Agent as HttpsAgent } from "node:https";
+import type { LookupFunction } from "node:net";
 import { Readable } from "node:stream";
 import { fetchWithAgent } from "../http/connectionPool.js";
 import {
@@ -10,7 +11,7 @@ import {
 const REDIRECT_STATUSES = new Set([300, 301, 302, 303, 305, 307, 308]);
 const BODYLESS_STATUSES = new Set([204, 205, 304]);
 
-function createPinnedAgent(url: string, lookup: unknown) {
+function createPinnedAgent(url: string, lookup: LookupFunction) {
   const AgentClass = new URL(url).protocol === "https:" ? HttpsAgent : HttpAgent;
   return new AgentClass({
     keepAlive: false,

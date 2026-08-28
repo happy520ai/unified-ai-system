@@ -77,7 +77,7 @@ describe("WebSocket distributed connection lease integration", () => {
     const closed = new Promise<number>((resolve) => socket.once("close", (code) => resolve(code)));
     valid = false;
     socket.send("must-not-execute");
-    onLost?.();
+    (onLost as (() => void) | null)?.();
     await expect(closed).resolves.toBe(1013);
     expect(onMessage).not.toHaveBeenCalled();
   });
@@ -85,7 +85,7 @@ describe("WebSocket distributed connection lease integration", () => {
 
 async function startGateway(
   connectionLeaseManager: WebSocketConnectionLeaseManager,
-  onMessage: ReturnType<typeof vi.fn>,
+  onMessage: (...args: any[]) => unknown,
 ): Promise<RunningGateway> {
   const server = createServer((_request, response) => {
     response.writeHead(404).end();
@@ -147,13 +147,14 @@ function createManager(
 ): WebSocketConnectionLeaseManager {
   return {
     acquire,
+    acquireExecution: async () => ({ acquired: false, scope: "global", retryAfterSeconds: 1 }),
     checkHealth: async () => ({ available: true }),
     getStats: () => ({ mode: "test" }),
     close: async () => undefined,
   };
 }
 
-function createLease(overrides: Partial<WebSocketConnectionLease> = {}): WebSocketConnectionLease & {
+function createLease(overrides: Partial<Omit<WebSocketConnectionLease, "release">> = {}): WebSocketConnectionLease & {
   release: ReturnType<typeof vi.fn>;
 } {
   const release = vi.fn(async () => undefined);

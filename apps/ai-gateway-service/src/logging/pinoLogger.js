@@ -4,6 +4,7 @@
 // =============================================================================
 
 import pino from "pino";
+import { sanitizeLogValue } from "../security/logSanitizationPolicy.ts";
 
 /**
  * 创建 pino logger
@@ -17,16 +18,40 @@ export function createPinoLogger(options = {}) {
   // 生产环境用 JSON 格式，开发环境用 pretty 格式
   const isProduction = process.env.NODE_ENV === "production";
 
-  const logger = pino({
+  const loggerOptions = {
     name: app,
     level,
+    redact: {
+      paths: [
+        "authorization",
+        "cookie",
+        "apiKey",
+        "api_key",
+        "token",
+        "password",
+        "secret",
+        "credential",
+        "headers.authorization",
+        "headers.cookie",
+        "headers['set-cookie']",
+        "headers['x-api-key']",
+        "req.headers.authorization",
+        "req.headers.cookie",
+        "req.headers['set-cookie']",
+        "req.headers['x-api-key']",
+      ],
+      censor: "[REDACTED]",
+    },
     // 全部用 JSON 格式（高性能，生产级）
     // 开发时可通过 `| pino-pretty` 管道美化：node app.js | npx pino-pretty
     // 序列化器
     serializers: {
-      err: pino.stdSerializers.err,
-      req: pino.stdSerializers.req,
-      res: pino.stdSerializers.res,
+      err: (error) => sanitizeLogValue(pino.stdSerializers.err(error)),
+      req: (request) => sanitizeLogValue(pino.stdSerializers.req(request)),
+      res: (response) => sanitizeLogValue(pino.stdSerializers.res(response)),
+    },
+    formatters: {
+      log: (object) => sanitizeLogValue(object),
     },
     // 基础字段
     base: {
@@ -35,9 +60,11 @@ export function createPinoLogger(options = {}) {
     },
     // 时间戳
     timestamp: pino.stdTimeFunctions.isoTime,
-  });
+  };
 
-  return logger;
+  return options.destination
+    ? pino(loggerOptions, options.destination)
+    : pino(loggerOptions);
 }
 
 /**

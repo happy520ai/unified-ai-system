@@ -45,6 +45,26 @@ export function buildTaskRecord(task) {
 
   return {
     taskId: randomUUID(),
+    planId: typeof task.planId === "string" && task.planId.trim()
+      ? task.planId.trim()
+      : (typeof task.payload?.planId === "string" && task.payload.planId.trim()
+        ? task.payload.planId.trim()
+        : "standalone"),
+    claimPlanId: typeof task.claimPlanId === "string" && task.claimPlanId.trim()
+      ? task.claimPlanId.trim()
+      : (typeof task.planId === "string" && task.planId.trim()
+        ? task.planId.trim()
+        : (typeof task.payload?.planId === "string" && task.payload.planId.trim()
+          ? task.payload.planId.trim()
+          : "standalone")),
+    tenantId: typeof task.tenantId === "string" && task.tenantId.trim()
+      ? task.tenantId.trim()
+      : "default",
+    ownerId: typeof task.ownerId === "string" && task.ownerId.trim()
+      ? task.ownerId.trim()
+      : (typeof task.requestedBy === "string" && task.requestedBy.trim()
+        ? task.requestedBy.trim()
+        : "system"),
     title: task.title ?? "Untitled task",
     description: task.description ?? "",
     priority,
@@ -52,6 +72,9 @@ export function buildTaskRecord(task) {
     type: task.type ?? "general",
     payload: task.payload ?? {},
     requiredSkills: Array.isArray(task.requiredSkills) ? task.requiredSkills : [],
+    dependsOnRoleIds: Array.isArray(task.dependsOnRoleIds)
+      ? [...new Set(task.dependsOnRoleIds.map(String).filter(Boolean))]
+      : [],
     requestedBy: task.requestedBy ?? "system",
     status: TASK_STATUS.QUEUED,
     retryCount: 0,
@@ -64,6 +87,7 @@ export function buildTaskRecord(task) {
     completedAt: null,
     result: null,
     error: null,
+    claim: null,
   };
 }
 

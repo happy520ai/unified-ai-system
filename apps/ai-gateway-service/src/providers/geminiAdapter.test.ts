@@ -7,11 +7,11 @@ vi.mock("../security/outboundUrlPolicy.ts", () => ({
   resolveSafeOutboundUrl: vi.fn(async (url) => ({ url: String(url), lookup: undefined })),
 }));
 
-function sseFrame(data) {
+function sseFrame(data: unknown): string {
   return `data: ${JSON.stringify(data)}\n\n`;
 }
 
-function createSseResponse(frames, { splitMidFrame = false } = {}) {
+function createSseResponse(frames: string[], { splitMidFrame = false }: { splitMidFrame?: boolean } = {}) {
   const text = frames.join("");
   const encoder = new TextEncoder();
   const chunks = splitMidFrame
@@ -28,7 +28,7 @@ function createSseResponse(frames, { splitMidFrame = false } = {}) {
   return { ok: true, status: 200, body };
 }
 
-function jsonOk(payload) {
+function jsonOk(payload: unknown) {
   return { ok: true, status: 200, text: async () => JSON.stringify(payload) };
 }
 
@@ -47,7 +47,7 @@ function happyStreamFrames() {
   ];
 }
 
-function createAdapter(overrides = {}) {
+function createAdapter(overrides: Parameters<typeof createGeminiAdapter>[0] = {}) {
   return createGeminiAdapter({
     providerId: "gemini",
     apiKey: "AIza-test-key-1234567890",
@@ -69,8 +69,8 @@ function createProviderRequest() {
   };
 }
 
-async function collectStream(iterable) {
-  const chunks = [];
+async function collectStream<T>(iterable: AsyncIterable<T>): Promise<T[]> {
+  const chunks: T[] = [];
   for await (const chunk of iterable) {
     chunks.push(chunk);
   }
@@ -147,7 +147,7 @@ describe("gemini-adapter", () => {
       },
       "gemini-2.5-pro",
     );
-    expect(mapped.contents[0].parts).toEqual([
+    expect((mapped.contents as any[])[0].parts).toEqual([
       { text: "what is this" },
       { inlineData: { mimeType: "image/png", data: "aGVsbG8=" } },
     ]);
@@ -164,7 +164,8 @@ describe("gemini-adapter", () => {
     const adapter = createAdapter({ apiKey: "AIza-secret-key-999999" });
     const result = await adapter.generate(createProviderRequest());
 
-    const [calledUrl, init] = vi.mocked(fetchWithAgent).mock.calls[0];
+    const [calledUrl, rawInit] = vi.mocked(fetchWithAgent).mock.calls[0]!;
+    const init = rawInit as any;
     expect(String(calledUrl)).not.toContain("AIza");
     expect(String(calledUrl)).not.toContain("key=");
     expect(init.headers["x-goog-api-key"]).toBe("AIza-secret-key-999999");
@@ -216,7 +217,7 @@ describe("gemini-adapter", () => {
     await adapter.generate(createProviderRequest());
 
     expect(store.getCredential).toHaveBeenCalledWith("gemini");
-    expect(vi.mocked(fetchWithAgent).mock.calls[0][1].headers["x-goog-api-key"]).toBe("AIza-store-key-0000000");
+    expect((vi.mocked(fetchWithAgent).mock.calls[0]![1] as any).headers["x-goog-api-key"]).toBe("AIza-store-key-0000000");
   });
 
   it("falls back to GEMINI_API_KEY then GOOGLE_API_KEY env vars", async () => {
@@ -227,13 +228,13 @@ describe("gemini-adapter", () => {
 
     const adapter = createGeminiAdapter({ providerId: "gemini", models: [{ id: "gemini-2.5-pro" }] });
     await adapter.generate(createProviderRequest());
-    expect(vi.mocked(fetchWithAgent).mock.calls[0][1].headers["x-goog-api-key"]).toBe("AIza-env1-key-0000000000");
+    expect((vi.mocked(fetchWithAgent).mock.calls[0]![1] as any).headers["x-goog-api-key"]).toBe("AIza-env1-key-0000000000");
 
     vi.mocked(fetchWithAgent).mockClear();
     delete process.env.GEMINI_API_KEY;
     process.env.GOOGLE_API_KEY = "AIza-env2-key-0000000000";
     await adapter.generate(createProviderRequest());
-    expect(vi.mocked(fetchWithAgent).mock.calls[0][1].headers["x-goog-api-key"]).toBe("AIza-env2-key-0000000000");
+    expect((vi.mocked(fetchWithAgent).mock.calls[0]![1] as any).headers["x-goog-api-key"]).toBe("AIza-env2-key-0000000000");
   });
 
   it("streams text deltas and a terminal chunk with usage", async () => {
@@ -246,9 +247,10 @@ describe("gemini-adapter", () => {
     expect(text).toBe("Hello world");
 
     const last = chunks[chunks.length - 1];
-    expect(last.raw.gemini).toBe(true);
-    expect(last.raw.finishReason).toBe("stop");
-    expect(last.raw.usage).toEqual({ inputTokens: 10, outputTokens: 5, totalTokens: 15 });
+    const lastRaw = last.raw as any;
+    expect(lastRaw.gemini).toBe(true);
+    expect(lastRaw.finishReason).toBe("stop");
+    expect(lastRaw.usage).toEqual({ inputTokens: 10, outputTokens: 5, totalTokens: 15 });
 
     const [calledUrl] = vi.mocked(fetchWithAgent).mock.calls[0];
     expect(String(calledUrl)).toContain(":streamGenerateContent?alt=sse");
@@ -260,7 +262,7 @@ describe("gemini-adapter", () => {
     const adapter = createAdapter();
     const chunks = await collectStream(adapter.generateStream(createProviderRequest()));
     expect(chunks.map((c) => c.textDelta).join("")).toBe("Hello world");
-    expect(chunks[chunks.length - 1].raw.usage.totalTokens).toBe(15);
+    expect((chunks[chunks.length - 1].raw as any).usage.totalTokens).toBe(15);
   });
 
   it("emits a terminal chunk even when the stream ends without usage", async () => {
@@ -273,8 +275,8 @@ describe("gemini-adapter", () => {
     const adapter = createAdapter();
     const chunks = await collectStream(adapter.generateStream(createProviderRequest()));
     expect(chunks.map((c) => c.textDelta).join("")).toBe("partial");
-    expect(chunks[chunks.length - 1].raw.gemini).toBe(true);
-    expect(chunks[chunks.length - 1].raw.usage).toEqual({ inputTokens: 0, outputTokens: 0, totalTokens: 0 });
+    expect((chunks[chunks.length - 1].raw as any).gemini).toBe(true);
+    expect((chunks[chunks.length - 1].raw as any).usage).toEqual({ inputTokens: 0, outputTokens: 0, totalTokens: 0 });
   });
 
   it("surfaces mid-stream content blocks as errors", async () => {
@@ -301,9 +303,9 @@ describe("gemini-adapter", () => {
   });
 
   it("aborts the upstream request when the execution signal fires", async () => {
-    let capturedSignal;
+    let capturedSignal: AbortSignal | undefined;
     vi.mocked(fetchWithAgent).mockImplementation(async (_url, init) => {
-      capturedSignal = init.signal;
+      capturedSignal = (init as any)?.signal;
       return createSseResponse(happyStreamFrames());
     });
 

@@ -1,6 +1,5 @@
 /**
- * Direct LLM client — calls OpenAI-compatible APIs directly, bypassing the AI Gateway.
- * Used when the Gateway is in fake mode or when Forge needs direct provider access.
+ * LLM client with gateway-first routing and explicitly authorized direct calls.
  *
  * Resilience: AbortSignal timeout, exponential backoff retry, circuit breaker.
  *
@@ -13,6 +12,9 @@
  * call logic and racing.
  */
 
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { randomUUID } from 'node:crypto';
+
 import { getTraceContext } from './tracing/index.js';
 import {
   getTraceManager, resolveProvider, getProviderNames,
@@ -23,6 +25,8 @@ import {
   getProviderRegistry, callLLMDirectCore,
 } from './llm-client-helpers.js';
 
+const scopedLlmCallerStorage = new AsyncLocalStorage();
+
 // Re-export all public helpers so existing imports from llm-client.js keep working
 export {
   setTraceManager, clearLLMCache, getLLMCacheSize,
@@ -31,6 +35,71 @@ export {
   getP11Cache, getP11TokenPredictor, getP11BudgetEnforcer,
   getBreakerState, resetBreaker, getRaceStatus,
 } from './llm-client-helpers.js';
+
+/**
+ * Run an operation with an in-process LLM caller bound to the current async
+ * request. Scoped callers are evaluated before global caches or network
+ * fallback, so concurrent tenants cannot overwrite each other's route.
+ *
+ * @param {Function} llmCaller (userPrompt, systemPrompt, options) => string|result
+ * @param {Function} operation async operation executed inside the scope
+ */
+export function runWithLlmCaller(llmCaller, operation) {
+  if (typeof llmCaller !== 'function' || typeof operation !== 'function') {
+    throw new TypeError('runWithLlmCaller requires a caller and an operation function');
+  }
+  return scopedLlmCallerStorage.run(llmCaller, operation);
+}
+
+async function callScopedLlmCaller(systemPrompt, userPrompt, opts) {
+  const llmCaller = scopedLlmCallerStorage.getStore();
+  if (!llmCaller) return null;
+
+  const result = await llmCaller(userPrompt, systemPrompt, opts);
+  const text = typeof result === 'string'
+    ? result
+    : result?.text ?? result?.data?.text ?? result?.data?.message?.content;
+  if (typeof text !== 'string') {
+    throw new Error('Scoped Forge LLM caller returned no text');
+  }
+  const usage = typeof result === 'object' && result?.usage
+    ? result.usage
+    : { inputTokens: 0, outputTokens: 0, totalTokens: 0, model: 'gateway-scoped' };
+  return { text, usage };
+}
+
+function directFallbackEnabled(opts = {}) {
+  if (opts.allowDirectFallback === true) return true;
+  return String(process.env.FORGE_DIRECT_PROVIDER_FALLBACK_ENABLED ?? 'false').trim().toLowerCase() === 'true';
+}
+
+function createGatewayAuthHeaders(opts = {}) {
+  const token = opts.gatewayAuthToken ?? process.env.PME_AUTH_TOKEN;
+  return typeof token === 'string' && token.length > 0
+    ? { authorization: `Bearer ${token}` }
+    : {};
+}
+
+async function isGatewayTransportReachable(gatewayUrl, headers) {
+  try {
+    await fetch(`${gatewayUrl}/health/check`, {
+      method: 'GET',
+      headers,
+      signal: AbortSignal.timeout(Math.min(3000, GATEWAY_TIMEOUT_MS)),
+    });
+    // Any HTTP response proves transport reachability. Authentication or
+    // readiness failures must not be reclassified as permission to bypass.
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function createGatewayOutcomeUncertainError(message, cause) {
+  const error = new Error(message, cause === undefined ? undefined : { cause });
+  error.code = 'FORGE_GATEWAY_OUTCOME_UNCERTAIN';
+  return error;
+}
 
 // ============================================================================
 // Direct LLM Call Wrappers
@@ -58,7 +127,8 @@ export async function callLLMDirectWithUsage(opts) {
 // ============================================================================
 
 /**
- * Core smart LLM call — tries Gateway first, falls back to direct API.
+ * Core smart LLM call. Direct fallback is allowed only before a gateway POST
+ * when transport unavailability is proven, or after authoritative fake proof.
  * Returns both text and usage metadata.
  *
  * @param {string} systemPrompt
@@ -66,7 +136,10 @@ export async function callLLMDirectWithUsage(opts) {
  * @param {object} opts
  * @returns {{ text: string, usage: { inputTokens: number, outputTokens: number, totalTokens: number, model: string } }}
  */
-async function _callLLMCore(systemPrompt, userPrompt, opts = {}) {
+async function _callLLMCore(systemPrompt, userPrompt, opts = {}, internal = {}) {
+  const scopedResult = await callScopedLlmCaller(systemPrompt, userPrompt, opts);
+  if (scopedResult) return scopedResult;
+
   const _p11Cache = getP11Cache();
   const _tokenPredictor = getP11TokenPredictor();
   const _budgetEnforcer = getP11BudgetEnforcer();
@@ -141,11 +214,59 @@ async function _callLLMCore(systemPrompt, userPrompt, opts = {}) {
     }
   }
 
+  const allowDirectFallback = directFallbackEnabled(opts);
+  const executeDirectFallback = async () => {
+    console.log(`[forge:llm] Gateway transport unavailable or fake-confirmed, calling ${provider} directly...`);
+    const directResult = await callLLMDirectCore({
+      provider, model, messages,
+      temperature: opts.temperature ?? 0.2,
+      maxTokens: opts.maxTokens ?? 4096,
+      responseFormat: opts.responseFormat,
+    });
+    if (_tokenPredictor && directResult.usage) {
+      _tokenPredictor.recordActual({
+        inputTokens: directResult.usage.inputTokens,
+        outputTokens: directResult.usage.outputTokens,
+        totalTokens: directResult.usage.totalTokens,
+        model: directResult.usage.model,
+      });
+    }
+    if (_budgetEnforcer && directResult.usage) {
+      try { _budgetEnforcer.recordUsage(opts.goalId || 'default', directResult.usage); } catch { /* goal not registered */ }
+    }
+    if (_p11Cache && ck) {
+      _p11Cache.set(systemPrompt, userPrompt, directResult, directResult.usage);
+    }
+    if (ck) cacheSet(ck, directResult);
+    return directResult;
+  };
+
+  if (internal.gatewayUnavailableVerified === true) {
+    try { gatewaySpan?.end('error', { 'forge.llm.gateway_transport_unavailable': true }); } catch { /* best-effort */ }
+    if (!allowDirectFallback) {
+      const error = new Error('Direct provider fallback is disabled');
+      error.code = 'FORGE_DIRECT_PROVIDER_FALLBACK_DISABLED';
+      throw error;
+    }
+    return executeDirectFallback();
+  }
+
+  const gatewayAuthHeaders = createGatewayAuthHeaders(opts);
+  if (allowDirectFallback && !(await isGatewayTransportReachable(gatewayUrl, gatewayAuthHeaders))) {
+    try { gatewaySpan?.end('error', { 'forge.llm.gateway_transport_unavailable': true }); } catch { /* best-effort */ }
+    return executeDirectFallback();
+  }
+
   // Try Gateway first (with timeout)
+  const dispatchHeaders = opts.idempotencyKey === undefined
+    ? { 'provider-dispatch-key': `forge-llm-${randomUUID()}` }
+    : { 'idempotency-key': opts.idempotencyKey };
+  let gatewayAttemptError;
+  let gatewayConfirmedFake = false;
   try {
     const res = await fetch(`${gatewayUrl}/chat`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...gatewayAuthHeaders, ...dispatchHeaders },
       body: JSON.stringify({
         messages,
         options: {
@@ -157,69 +278,65 @@ async function _callLLMCore(systemPrompt, userPrompt, opts = {}) {
       signal: AbortSignal.timeout(GATEWAY_TIMEOUT_MS),
     });
 
-    if (res.ok) {
-      const json = await res.json();
-      if (json.success) {
-        const textCandidate = json.data?.outputText || json.data?.text;
-        // Check if it's from a fake provider (echo back)
-        if (textCandidate && !textCandidate.startsWith('[fake:')) {
-          console.log(`[forge:llm] Response via Gateway (${json.data?.selectedProvider || 'unknown'})`);
-          const usage = {
-            inputTokens: json.data?.usage?.prompt_tokens ?? json.data?.usage?.inputTokens ?? 0,
-            outputTokens: json.data?.usage?.completion_tokens ?? json.data?.usage?.outputTokens ?? 0,
-            totalTokens: json.data?.usage?.total_tokens ?? json.data?.usage?.totalTokens ?? 0,
-            model: json.data?.selectedModel || model,
-          };
-          try { gatewaySpan?.end('ok', { 'forge.llm.input_tokens': usage?.inputTokens, 'forge.llm.output_tokens': usage?.outputTokens, 'forge.llm.total_tokens': usage?.totalTokens }); } catch { /* best-effort */ }
-          const result = { text: textCandidate, usage };
-          if (_tokenPredictor) {
-            _tokenPredictor.recordActual({ inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, totalTokens: usage.totalTokens, model: usage.model });
-          }
-          if (_budgetEnforcer) {
-            try { _budgetEnforcer.recordUsage(opts.goalId || 'default', usage); } catch { /* goal not registered */ }
-          }
-          if (_p11Cache && ck) {
-            _p11Cache.set(systemPrompt, userPrompt, result, usage);
-          }
-          if (ck) cacheSet(ck, result);
-          return result;
+    if (!res.ok) throw new Error(`Gateway chat returned HTTP ${res.status}`);
+    const json = await res.json();
+    if (json.success) {
+      const textCandidate = json.data?.outputText || json.data?.text;
+      if (
+        json.data?.executionMode === 'fake'
+        && json.data?.selectedProvider === 'local-fake-provider'
+      ) {
+        gatewayConfirmedFake = true;
+      } else if (textCandidate) {
+        console.log(`[forge:llm] Response via Gateway (${json.data?.selectedProvider || 'unknown'})`);
+        const usage = {
+          inputTokens: json.data?.usage?.prompt_tokens ?? json.data?.usage?.inputTokens ?? 0,
+          outputTokens: json.data?.usage?.completion_tokens ?? json.data?.usage?.outputTokens ?? 0,
+          totalTokens: json.data?.usage?.total_tokens ?? json.data?.usage?.totalTokens ?? 0,
+          model: json.data?.selectedModel || model,
+        };
+        try { gatewaySpan?.end('ok', { 'forge.llm.input_tokens': usage?.inputTokens, 'forge.llm.output_tokens': usage?.outputTokens, 'forge.llm.total_tokens': usage?.totalTokens }); } catch { /* best-effort */ }
+        const result = { text: textCandidate, usage };
+        if (_tokenPredictor) {
+          _tokenPredictor.recordActual({ inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, totalTokens: usage.totalTokens, model: usage.model });
         }
+        if (_budgetEnforcer) {
+          try { _budgetEnforcer.recordUsage(opts.goalId || 'default', usage); } catch { /* goal not registered */ }
+        }
+        if (_p11Cache && ck) {
+          _p11Cache.set(systemPrompt, userPrompt, result, usage);
+        }
+        if (ck) cacheSet(ck, result);
+        return result;
       }
+    }
+    if (!gatewayConfirmedFake) {
+      throw new Error('Gateway chat returned no governed completion');
     }
     try { gatewaySpan?.end('ok'); } catch { /* best-effort */ }
   } catch (err) {
+    gatewayAttemptError = err;
     try { gatewaySpan?.end('error', { 'forge.llm.error': err.message }); } catch { /* best-effort */ }
   }
 
-  // Fallback to direct API
-  console.log(`[forge:llm] Gateway unavailable/fake, calling ${provider} directly...`);
-  const directResult = await callLLMDirectCore({
-    provider, model, messages,
-    temperature: opts.temperature ?? 0.2,
-    maxTokens: opts.maxTokens ?? 4096,
-    responseFormat: opts.responseFormat,
-  });
-  if (_tokenPredictor && directResult.usage) {
-    _tokenPredictor.recordActual({
-      inputTokens: directResult.usage.inputTokens,
-      outputTokens: directResult.usage.outputTokens,
-      totalTokens: directResult.usage.totalTokens,
-      model: directResult.usage.model,
-    });
+  // Direct fallback is an explicit standalone capability. Gateway-integrated
+  // requests fail closed instead of silently bypassing provider governance.
+  if (!allowDirectFallback) {
+    const error = new Error('Gateway unavailable or returned fake output; direct provider fallback is disabled');
+    error.code = 'FORGE_DIRECT_PROVIDER_FALLBACK_DISABLED';
+    throw error;
   }
-  if (_budgetEnforcer && directResult.usage) {
-    try { _budgetEnforcer.recordUsage(opts.goalId || 'default', directResult.usage); } catch { /* goal not registered */ }
-  }
-  if (_p11Cache && ck) {
-    _p11Cache.set(systemPrompt, userPrompt, directResult, directResult.usage);
-  }
-  if (ck) cacheSet(ck, directResult);
-  return directResult;
+  if (gatewayConfirmedFake) return executeDirectFallback();
+  throw createGatewayOutcomeUncertainError(
+    'Gateway chat outcome is uncertain; direct fallback was suppressed.',
+    gatewayAttemptError,
+  );
 }
 
 /**
  * Streaming LLM call via Gateway's SSE endpoint (/chat/stream).
- * Falls back to non-streaming if gateway is unavailable.
+ * Uses direct fallback only when an explicit preflight proves that no gateway
+ * POST was attempted. Once streaming POST begins, failures are fail-closed.
  *
  * @param {string} systemPrompt
  * @param {string} userPrompt
@@ -230,6 +347,11 @@ async function _callLLMCore(systemPrompt, userPrompt, opts = {}) {
  */
 export async function callLLMStream(systemPrompt, userPrompt, opts = {}) {
   const onChunk = opts.onChunk || (() => {});
+  const scopedResult = await callScopedLlmCaller(systemPrompt, userPrompt, opts);
+  if (scopedResult) {
+    if (scopedResult.text) onChunk(scopedResult.text);
+    return scopedResult;
+  }
   const _p11Cache = getP11Cache();
   const _tokenPredictor = getP11TokenPredictor();
   const _budgetEnforcer = getP11BudgetEnforcer();
@@ -255,11 +377,27 @@ export async function callLLMStream(systemPrompt, userPrompt, opts = {}) {
     { role: 'system', content: systemPrompt },
     { role: 'user', content: userPrompt },
   ];
+  const dispatchHeaders = opts.idempotencyKey === undefined
+    ? { 'provider-dispatch-key': `forge-stream-${randomUUID()}` }
+    : { 'idempotency-key': opts.idempotencyKey };
+  const gatewayAuthHeaders = createGatewayAuthHeaders(opts);
+
+  if (
+    directFallbackEnabled(opts)
+    && !(await isGatewayTransportReachable(gatewayUrl, gatewayAuthHeaders))
+  ) {
+    return _callLLMCore(systemPrompt, userPrompt, opts, { gatewayUnavailableVerified: true });
+  }
 
   try {
     const res = await fetch(`${gatewayUrl}/chat/stream`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'accept': 'text/event-stream' },
+      headers: {
+        'content-type': 'application/json',
+        'accept': 'text/event-stream',
+        ...gatewayAuthHeaders,
+        ...dispatchHeaders,
+      },
       body: JSON.stringify({
         messages,
         options: {
@@ -338,8 +476,10 @@ export async function callLLMStream(systemPrompt, userPrompt, opts = {}) {
     console.log(`[forge:llm] Stream complete (${fullText.length} chars, ${usage.totalTokens} tokens)`);
     return { text: fullText, usage };
   } catch (err) {
-    console.log(`[forge:llm] Stream failed (${err.message}), falling back to non-streaming...`);
-    return _callLLMCore(systemPrompt, userPrompt, opts);
+    throw createGatewayOutcomeUncertainError(
+      'Gateway stream outcome is uncertain; non-stream and direct fallbacks were suppressed.',
+      err,
+    );
   }
 }
 

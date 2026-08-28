@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { Readable } from "node:stream";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { dispatchOpenAiCompatibilityRoutes } from "../http/openAiCompatibilityRoutes.js";
 import {
   createGuardrailsEngineForTests,
@@ -15,10 +15,33 @@ const descriptors = [
   },
 ];
 
-function createGatewayService() {
+interface TestRequest extends Readable {
+  method: string;
+}
+
+interface TestResponse extends EventEmitter {
+  statusCode: number | null;
+  headers: Record<string, unknown>;
+  body: any;
+  text: string;
+  writableEnded: boolean;
+  headersSent: boolean;
+  writeHead(statusCode: number, headers?: Record<string, unknown>): void;
+  flushHeaders(): void;
+  write(chunk: unknown): boolean;
+  end(body?: unknown): void;
+}
+
+interface TestGatewayService {
+  getProviderDescriptors(): typeof descriptors;
+  execute: Mock<(input: any) => Promise<any>>;
+  executeStream(input?: any): AsyncGenerator<any>;
+}
+
+function createGatewayService(): TestGatewayService {
   return {
     getProviderDescriptors: () => descriptors,
-    execute: vi.fn(async () => ({
+    execute: vi.fn(async (_input: any): Promise<any> => ({
       success: true,
       data: {
         id: "request-123",
@@ -41,27 +64,27 @@ function createGatewayService() {
   };
 }
 
-function createContext({ body }) {
-  const request = Readable.from([Buffer.from(JSON.stringify(body))]);
+function createContext({ body }: { body: any }) {
+  const request = Readable.from([Buffer.from(JSON.stringify(body))]) as TestRequest;
   request.method = "POST";
-  const response = new EventEmitter();
+  const response = new EventEmitter() as TestResponse;
   response.statusCode = null;
   response.headers = {};
   response.body = null;
   response.text = "";
   response.writableEnded = false;
   response.headersSent = false;
-  response.writeHead = (statusCode, headers = {}) => {
+  response.writeHead = (statusCode: number, headers: Record<string, unknown> = {}) => {
     response.statusCode = statusCode;
     response.headers = headers;
     response.headersSent = true;
   };
   response.flushHeaders = () => {};
-  response.write = (chunk) => {
+  response.write = (chunk: unknown) => {
     response.text += String(chunk);
     return true;
   };
-  response.end = (endBody) => {
+  response.end = (endBody?: unknown) => {
     if (endBody !== undefined) {
       response.text += String(endBody);
       response.body = JSON.parse(String(endBody));
@@ -116,7 +139,7 @@ describe("chat completions guardrails wiring", () => {
 
     expect(context.response.statusCode).toBe(200);
     expect(context.gatewayService.execute).toHaveBeenCalledTimes(1);
-    const passedInput = context.gatewayService.execute.mock.calls[0][0];
+    const passedInput = context.gatewayService.execute.mock.calls[0]![0];
     expect(JSON.stringify(passedInput)).not.toContain("jane@corp.example");
     expect(JSON.stringify(passedInput)).toContain("[redacted-email]");
     expect(context.writeServiceLog).toHaveBeenCalledWith(
@@ -166,7 +189,7 @@ describe("chat completions guardrails wiring", () => {
     await dispatchOpenAiCompatibilityRoutes(context);
 
     expect(context.response.statusCode).toBe(200);
-    const passedInput = context.gatewayService.execute.mock.calls[0][0];
+    const passedInput = context.gatewayService.execute.mock.calls[0]![0];
     expect(JSON.stringify(passedInput)).toContain("jane@corp.example");
     expect(JSON.stringify(passedInput)).toContain("AKIAIOSFODNN7EXAMPLE");
   });
@@ -176,7 +199,7 @@ describe("chat completions guardrails wiring", () => {
       model: "local-fake-model",
       max_tokens: 64,
       messages: [{ role: "user", content: `here use ${["sk-ant-", "1234567890", "abcdef"].join("")}` }],
-    }))]);
+    }))]) as TestRequest;
     request.method = "POST";
     const response = createResponseRecorderForTest();
     const gatewayService = createGatewayService();
@@ -197,8 +220,8 @@ describe("chat completions guardrails wiring", () => {
   });
 });
 
-function createResponseRecorderForTest() {
-  const recorder = new EventEmitter();
+function createResponseRecorderForTest(): TestResponse {
+  const recorder = new EventEmitter() as TestResponse;
   recorder.statusCode = null;
   recorder.headers = {};
   recorder.body = null;

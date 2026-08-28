@@ -35,6 +35,15 @@ function createEnvelopeContext(overrides = {}) {
     url: { pathname: "/healthz" },
     startedAt: 0,
     rateLimiter: {},
+    a2aGateway: {
+      getTaskStoreHealth: () => ({
+        mode: "memory",
+        durable: false,
+        required: false,
+        available: true,
+        reason: null,
+      }),
+    },
     resilienceMetrics: {
       snapshot: () => ({ currentInFlight: 1 }),
     },
@@ -141,6 +150,52 @@ describe("dispatchHttpRoutes02 healthz readiness", () => {
     expect(context.response.payload.error.details.readinessFailures).toContain("gateway-error-circuit");
   });
 
+  it("returns unready when a required durable usage ledger degrades", async () => {
+    const context = createEnvelopeContext({
+      createHealth: () => ({
+        app: "ai-gateway-service",
+        status: "degraded",
+        knowledge: { status: "ready" },
+        workflow: { status: "ready" },
+        workforce: { status: "ready" },
+        usageLedger: {
+          status: "degraded",
+          requiredForRealProviders: true,
+        },
+      }),
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(context.response.status).toBe(503);
+    expect(context.response.payload.error.details.readinessFailures).toContain("usage-ledger-unavailable");
+  });
+
+  it("returns unready when the central enterprise audit store degrades", async () => {
+    const context = createEnvelopeContext({
+      createHealth: () => ({
+        app: "ai-gateway-service",
+        status: "degraded",
+        knowledge: { status: "ready" },
+        workflow: { status: "ready" },
+        workforce: { status: "ready" },
+        enterprise: {
+          status: "degraded",
+          audit: {
+            central: { status: "degraded", available: false },
+          },
+        },
+      }),
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(context.response.status).toBe(503);
+    expect(context.response.payload.error.details.readinessFailures).toContain(
+      "audit-central-store-unavailable",
+    );
+  });
+
   it("returns ready payload when saturation is below threshold", async () => {
     const context = createEnvelopeContext({
       resilienceMetrics: {
@@ -230,6 +285,107 @@ describe("dispatchHttpRoutes02 healthz readiness", () => {
     expect(context.response.payload.error.details.idempotency).not.toHaveProperty("connectionString");
   });
 
+  it("returns unready with a redacted snapshot when required provider dispatch storage degrades", async () => {
+    const context = createEnvelopeContext({
+      application: {
+        gatewayService: { runtimeConfig: { requireProviderDispatchGate: true } },
+        providerDispatchGate: {
+          status: {
+            mode: "postgres",
+            enabled: true,
+            required: true,
+            durable: true,
+            distributed: true,
+            centralRequired: true,
+            ttlMs: 86_400_000,
+            maxEntries: 100_000,
+          },
+          checkHealth: async () => ({
+            mode: "postgres",
+            enabled: true,
+            required: true,
+            durable: true,
+            distributed: true,
+            centralRequired: true,
+            available: false,
+            entries: 7,
+            inFlight: 1,
+            tombstones: 6,
+            connectionString: "postgres://must-not-leak",
+            hmacSecret: "must-not-leak",
+          }),
+        },
+      },
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(context.response.status).toBe(503);
+    expect(context.response.payload.error.details.readinessFailures)
+      .toContain("provider-dispatch-store-unavailable");
+    expect(context.response.payload.error.details.providerDispatch).toMatchObject({
+      mode: "postgres",
+      enabled: true,
+      required: true,
+      available: false,
+      entries: 7,
+      tombstones: 6,
+    });
+    const serialized = JSON.stringify(context.response.payload.error.details.providerDispatch);
+    expect(serialized).not.toContain("must-not-leak");
+    expect(serialized).not.toContain("connectionString");
+    expect(serialized).not.toContain("hmacSecret");
+  });
+
+  it("returns unready with a redacted snapshot when enabled external-effect storage degrades", async () => {
+    const context = createEnvelopeContext({
+      application: {
+        externalEffectGate: {
+          status: {
+            mode: "postgres",
+            enabled: true,
+            durable: true,
+            distributed: true,
+            centralRequired: true,
+            ttlMs: 86_400_000,
+            maxEntries: 100_000,
+          },
+          checkHealth: async () => ({
+            mode: "postgres",
+            enabled: true,
+            durable: true,
+            distributed: true,
+            centralRequired: true,
+            available: false,
+            entries: 4,
+            inFlight: 1,
+            tombstones: 3,
+            maxEntries: 100_000,
+            connectionString: "postgres://must-not-leak",
+            effectKeyHash: "must-not-leak",
+          }),
+        },
+      },
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(context.response.status).toBe(503);
+    expect(context.response.payload.error.details.readinessFailures)
+      .toContain("external-effect-store-unavailable");
+    expect(context.response.payload.error.details.externalEffects).toMatchObject({
+      mode: "postgres",
+      enabled: true,
+      available: false,
+      entries: 4,
+      tombstones: 3,
+    });
+    const serialized = JSON.stringify(context.response.payload.error.details.externalEffects);
+    expect(serialized).not.toContain("must-not-leak");
+    expect(serialized).not.toContain("connectionString");
+    expect(serialized).not.toContain("effectKeyHash");
+  });
+
   it("returns unready when the PostgreSQL rate-limit store is unavailable", async () => {
     const context = createEnvelopeContext({
       rateLimiter: {
@@ -282,9 +438,182 @@ describe("dispatchHttpRoutes02 healthz readiness", () => {
     expect(context.response.payload.error.details.webSocketLease).not.toHaveProperty("namespace");
     expect(context.response.payload.error.details.webSocketLease).not.toHaveProperty("subjectHash");
   });
+
+  it("returns unready without exposing the A2A task-store path when its probe fails", async () => {
+    const context = createEnvelopeContext({
+      a2aGateway: {
+        getTaskStoreHealth: () => ({
+          mode: "sqlite",
+          durable: true,
+          required: true,
+          available: false,
+          reason: "store_unavailable",
+          sqlitePath: "E:/private/a2a-tasks.sqlite",
+        }),
+      },
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(context.response.status).toBe(503);
+    expect(context.response.payload.error.details.readinessFailures).toContain(
+      "a2a-task-store-unavailable",
+    );
+    expect(context.response.payload.error.details.a2aTaskStore).toMatchObject({
+      mode: "sqlite",
+      durable: true,
+      available: false,
+    });
+    expect(context.response.payload.error.details.a2aTaskStore).not.toHaveProperty("sqlitePath");
+  });
+
+  it("returns unready with a redacted distributed Workforce claim-store snapshot", async () => {
+    const context = createEnvelopeContext({
+      application: {
+        workforceExecutor: {
+          getTaskClaimHealth: async () => ({
+            mode: "postgres-fenced",
+            distributed: true,
+            available: false,
+            activeClaims: 2,
+            maxClaims: 2_000,
+            connectionString: "postgresql://must-not-leak",
+          }),
+        },
+      },
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(context.response.status).toBe(503);
+    expect(context.response.payload.error.details.readinessFailures).toContain(
+      "workforce-claim-store-unavailable",
+    );
+    expect(context.response.payload.error.details.workforceClaimStore).toMatchObject({
+      mode: "postgres-fenced",
+      distributed: true,
+      available: false,
+      activeClaims: 2,
+    });
+    expect(context.response.payload.error.details.workforceClaimStore)
+      .not.toHaveProperty("connectionString");
+  });
+
+  it("returns unready with a redacted central Workforce queue snapshot", async () => {
+    const context = createEnvelopeContext({
+      application: {
+        workforceExecutor: {
+          getTaskQueueHealth: async () => ({
+            mode: "postgres-central-fenced",
+            durable: true,
+            distributed: true,
+            available: false,
+            atomicTerminalFence: true,
+            totalQueued: 7,
+            maxEntries: 3_000,
+            connectionString: "postgresql://must-not-leak",
+            namespace: "private-queue",
+          }),
+        },
+      },
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(context.response.status).toBe(503);
+    expect(context.response.payload.error.details.readinessFailures).toContain(
+      "workforce-task-queue-unavailable",
+    );
+    expect(context.response.payload.error.details.workforceTaskQueue).toMatchObject({
+      mode: "postgres-central-fenced",
+      distributed: true,
+      available: false,
+      totalQueued: 7,
+      atomicTerminalFence: true,
+    });
+    expect(JSON.stringify(context.response.payload.error.details.workforceTaskQueue))
+      .not.toContain("must-not-leak");
+    expect(JSON.stringify(context.response.payload.error.details.workforceTaskQueue))
+      .not.toContain("private-queue");
+  });
+
+  it("returns unready with redacted central Workforce execution-control state", async () => {
+    const context = createEnvelopeContext({
+      application: {
+        workforceExecutor: {
+          getExecutionControlHealth: async () => ({
+            mode: "postgres-central",
+            durable: true,
+            distributed: true,
+            centralRequired: true,
+            available: false,
+            approval: { available: false, activeApprovals: 3, maxApprovals: 100 },
+            lifecycle: { available: true, activeExecutions: 2, maxExecutions: 100, maxStateBytes: 65536 },
+            connectionString: "postgresql://must-not-leak",
+            namespace: "private-control",
+          }),
+        },
+      },
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(context.response.status).toBe(503);
+    expect(context.response.payload.error.details.readinessFailures).toContain(
+      "workforce-execution-control-unavailable",
+    );
+    expect(context.response.payload.error.details.workforceExecutionControl).toMatchObject({
+      mode: "postgres-central",
+      distributed: true,
+      available: false,
+      approval: { activeApprovals: 3 },
+      lifecycle: { activeExecutions: 2, maxStateBytes: 65536 },
+    });
+    const serialized = JSON.stringify(context.response.payload.error.details.workforceExecutionControl);
+    expect(serialized).not.toContain("must-not-leak");
+    expect(serialized).not.toContain("private-control");
+  });
 });
 
 describe("dispatchHttpRoutes02 metrics readiness visibility", () => {
+  it("awaits central usage statistics before rendering metrics", async () => {
+    let metricsText = "";
+    const context = createEnvelopeContext({
+      application: {
+        requestLogger: {
+          getStats: async () => ({
+            totalRequests: 2,
+            avgLatencyMs: 25,
+            errorRate: 0.5,
+          }),
+          getHealth: () => ({
+            status: "ready",
+            storeMode: "postgres",
+            persistence: "postgres-central",
+            available: true,
+            rowCount: 4,
+            maxRows: 1_000,
+            totalWriteFailures: 0,
+          }),
+        },
+      },
+      response: {
+        headersSent: false,
+        writeHead() {},
+        end(body) {
+          metricsText = body;
+        },
+      },
+      url: { pathname: "/metrics" },
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(metricsText).toContain("ai_gateway_requests_total 2");
+    expect(metricsText).toContain('ai_gateway_usage_ledger_store_available{mode="postgres"} 1');
+    expect(metricsText).toContain('ai_gateway_usage_ledger_rows{state="current"} 4');
+  });
+
   it("includes readiness state and reasons in /metrics payload", async () => {
     let metricsText = "";
     let metricsStatus = undefined;
@@ -628,6 +957,57 @@ describe("dispatchHttpRoutes02 metrics readiness visibility", () => {
     expect(metricsText).toContain('ai_gateway_idempotency_store_available{mode="postgres"} 1');
     expect(metricsText).toContain('ai_gateway_idempotency_entries{mode="postgres",state="total"} 8');
     expect(metricsText).toContain('ai_gateway_idempotency_entries{mode="postgres",state="in_flight"} 2');
-    expect(metricsText).toContain('ai_gateway_idempotency_entries{mode="postgres",state="tombstone"} 2');
+    expect(metricsText).toContain('ai_gateway_idempotency_entries{mode="postgres",state="replayable"} 4');
+  });
+});
+
+describe("dispatchHttpRoutes02 usage/my-key", () => {
+  it("returns the caller's own virtual key usage state", async () => {
+    const describeUsage = () => ({
+      keyId: "fp123",
+      role: "operator",
+      usage: { tokensUsed: 120, limitTokens: 1000 },
+    });
+    const context = createEnvelopeContext({
+      url: { pathname: "/usage/my-key" },
+      request: { method: "GET", enterpriseIdentity: { apiKeyFingerprint: "fp123", tenantId: "default" } },
+      enterpriseGovernanceService: {
+        getApiKeyManager: () => ({ describeUsage }),
+      },
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(context.response.status).toBe(200);
+    expect(context.response.payload.data.enabled).toBe(true);
+    expect(context.response.payload.data.keyFingerprint).toBe("fp123");
+    expect(context.response.payload.data.key.usage.tokensUsed).toBe(120);
+  });
+
+  it("rejects non virtual-key callers", async () => {
+    const context = createEnvelopeContext({
+      url: { pathname: "/usage/my-key" },
+      request: { method: "GET", enterpriseIdentity: { tenantId: "default" } },
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(context.response.status).toBe(403);
+    expect(context.response.payload.error.code).toBe("USAGE_MY_KEY_VIRTUAL_KEY_REQUIRED");
+  });
+
+  it("reports revoked keys as not found", async () => {
+    const context = createEnvelopeContext({
+      url: { pathname: "/usage/my-key" },
+      request: { method: "GET", enterpriseIdentity: { apiKeyFingerprint: "gone", tenantId: "default" } },
+      enterpriseGovernanceService: {
+        getApiKeyManager: () => ({ describeUsage: () => null }),
+      },
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(context.response.status).toBe(404);
+    expect(context.response.payload.error.code).toBe("USAGE_MY_KEY_NOT_FOUND");
   });
 });
