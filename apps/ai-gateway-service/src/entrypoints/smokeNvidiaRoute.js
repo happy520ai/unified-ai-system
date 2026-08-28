@@ -84,6 +84,9 @@ async function runRouteCheck({ name, env, expected }) {
       headers: {
         "content-type": "application/json",
         "idempotency-key": `gateway-smoke-${randomUUID()}`,
+        ...(env.PME_AUTH_TOKEN
+          ? { authorization: `Bearer ${env.PME_AUTH_TOKEN}` }
+          : {}),
       },
       body: JSON.stringify({
         taskType: "chat",
