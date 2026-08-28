@@ -833,6 +833,80 @@ describe("local client management service", () => {
     }
   });
 
+  it("keeps core Windows processes out of all-application discovery by default", async () => {
+    const service = createService({
+      processRowsProvider: async () => [
+        { imageName: "System Idle Process", pid: "0" },
+        { imageName: "Secure System", pid: "1" },
+        { imageName: "Registry", pid: "2" },
+        { imageName: "wininit.exe", pid: "3" },
+        { imageName: "winlogon.exe", pid: "4" },
+        {
+          imageName: "UnlistedCoreService.exe",
+          pid: "7",
+          sessionName: "Services",
+          sessionId: "0",
+          userName: "NT AUTHORITY\\SYSTEM",
+        },
+        { imageName: "Code.exe", pid: "5" },
+        { imageName: "Cursor.exe", pid: "6" },
+      ],
+    });
+
+    const result = await service.discoverFromSystem({
+      dryRun: true,
+      includeUnknown: true,
+      autoDiscoverAll: true,
+      maxProcesses: 100,
+    }, TENANT_A_SCOPE);
+
+    expect(result).toMatchObject({
+      dryRun: true,
+      discovered: 2,
+      includedSystemProcesses: false,
+      dropped: {
+        filteredSystemProcessCount: 6,
+        filteredUnknownCount: 0,
+        duplicateProcessCount: 0,
+      },
+    });
+    expect(result.candidates).toBeDefined();
+    expect((result.candidates ?? []).map((client) => client.displayName).sort()).toEqual([
+      "Visual Studio Code",
+      "cursor",
+    ]);
+  });
+
+  it("uses one stable system observation across manual and smart-management sources", async () => {
+    const service = createService({
+      processRowsProvider: async () => [{ imageName: "Code.exe", pid: "42" }],
+    });
+
+    const manual = await service.discoverFromSystem({
+      source: "local-process-scan",
+      dryRun: false,
+      includeUnknown: true,
+      autoDiscoverAll: true,
+    }, TENANT_A_SCOPE);
+    const managed = await service.discoverFromSystem({
+      source: "local-management-cycle",
+      dryRun: false,
+      includeUnknown: true,
+      autoDiscoverAll: true,
+    }, TENANT_A_SCOPE);
+    const registry = await service.list({ includeDisabled: true, limit: 10 }, TENANT_A_SCOPE);
+
+    expect("inserted" in manual).toBe(true);
+    expect("inserted" in managed).toBe(true);
+    if (!("inserted" in manual) || !("inserted" in managed)) {
+      throw new Error("Applied system discovery did not return mutation results.");
+    }
+    expect(manual.inserted).toHaveLength(1);
+    expect(managed.inserted).toHaveLength(0);
+    expect(managed.updated).toEqual(manual.inserted);
+    expect(registry.total).toBe(1);
+  });
+
   it("persists a cryptographically verified promotion and resolves only its sanitized exact target", async () => {
     const adapterRegistry = governedAdapterRegistry();
     const service = createService({ adapterRegistry });

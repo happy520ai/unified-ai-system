@@ -1450,10 +1450,10 @@ function projectLocalClientDiscovery(value, request) {
     || typeof value.autoDiscoverAll !== "boolean"
     || !Number.isSafeInteger(value.maxProcesses)
     || value.maxProcesses < 1
-    || !Array.isArray(value.dropped)
   ) {
     throw new Error("invalid local-client discovery response");
   }
+  const droppedCount = projectLocalClientDiscoveryDroppedCount(value.dropped);
   const source = projectSafeLifecycleLabel(value.source);
   const common = {
     source,
@@ -1467,7 +1467,7 @@ function projectLocalClientDiscovery(value, request) {
     includeSystemProcesses: value.includedSystemProcesses,
     autoDiscoverAll: value.autoDiscoverAll,
     maxProcesses: value.maxProcesses,
-    droppedCount: value.dropped.length,
+    droppedCount,
   };
   if (request.dryRun) {
     if (!Array.isArray(value.candidates)) {
@@ -1571,10 +1571,10 @@ function projectLocalClientSmartManage(value, request) {
     || !isPlainRecord(value.discovery)
     || value.discovery.dryRun !== request.dryRun
     || !isNonNegativeSafeInteger(value.discovery.discovered)
-    || !Array.isArray(value.discovery.dropped)
   ) {
     throw new Error("invalid local-client smart-manage response");
   }
+  const droppedCount = projectLocalClientDiscoveryDroppedCount(value.discovery.dropped);
   const maintenance = value.maintenance === null
     ? null
     : projectLocalClientMaintenanceSummary(value.maintenance);
@@ -1590,7 +1590,7 @@ function projectLocalClientSmartManage(value, request) {
       includeMissingAsDisabled: value.discovery.includeMissingAsDisabled === true,
       includeSystemProcesses: value.discovery.includeSystemProcesses === true,
       autoDiscoverAll: value.discovery.autoDiscoverAll === true,
-      droppedCount: value.discovery.dropped.length,
+      droppedCount,
     }),
     maintenance,
     recommendationCount: Array.isArray(value.recommendations)
@@ -1601,6 +1601,22 @@ function projectLocalClientSmartManage(value, request) {
       : 0,
     ...(request.dryRun ? { writesPerformed: false } : {}),
   });
+}
+
+function projectLocalClientDiscoveryDroppedCount(value) {
+  if (Array.isArray(value)) return value.length;
+  const keys = [
+    "filteredSystemProcessCount",
+    "filteredUnknownCount",
+    "duplicateProcessCount",
+  ];
+  if (
+    !hasExactKeys(value, keys)
+    || keys.some((key) => !isNonNegativeSafeInteger(value[key]))
+  ) {
+    throw new Error("invalid local-client discovery drop summary");
+  }
+  return keys.reduce((total, key) => total + value[key], 0);
 }
 
 function projectLocalClientMaintenanceSummary(value) {

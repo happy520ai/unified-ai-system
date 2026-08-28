@@ -443,6 +443,7 @@ test("clients discover and smart-manage default to dry-run without --yes", async
   const discoverOutput = JSON.parse(discovered.stdout);
   assert.equal(discoverOutput.mode, "dry-run");
   assert.equal(discoverOutput.writesPerformed, false);
+  assert.equal(discoverOutput.data.droppedCount, 6);
   assert.deepEqual(gateway.last("discover").body, {
     dryRun: true,
     maxProcesses: 50,
@@ -462,6 +463,7 @@ test("clients discover and smart-manage default to dry-run without --yes", async
   const manageOutput = JSON.parse(managed.stdout);
   assert.equal(manageOutput.mode, "dry-run");
   assert.equal(manageOutput.data.recommendationCount, 1);
+  assert.equal(manageOutput.data.discovery.droppedCount, 6);
   assert.doesNotMatch(managed.stdout, /secret-path|private-command|token-value/i);
   assert.deepEqual(gateway.last("smart-manage").body, { dryRun: true });
   assert.equal(gateway.mutationRequestCount, 0);
@@ -1707,7 +1709,11 @@ async function createLifecycleMockGateway(options = {}) {
           includeMissingAsDisabled: body.includeMissingAsDisabled === true,
           autoDiscoverAll: body.autoDiscoverAll === true,
           maxProcesses: body.maxProcesses ?? 200,
-          dropped: [{ command: "private-command --token token-value" }],
+          dropped: {
+            filteredSystemProcessCount: 1,
+            filteredUnknownCount: 2,
+            duplicateProcessCount: 3,
+          },
         };
         return writeJson(response, 200, {
           status: "ok",
@@ -1800,7 +1806,11 @@ async function createLifecycleMockGateway(options = {}) {
             includeMissingAsDisabled: true,
             includeSystemProcesses: false,
             autoDiscoverAll: true,
-            dropped: [{ path: "C:\\secret-path\\client.json" }],
+            dropped: {
+              filteredSystemProcessCount: 1,
+              filteredUnknownCount: 2,
+              duplicateProcessCount: 3,
+            },
           },
           maintenance: {
             dryRun: body.dryRun,

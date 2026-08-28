@@ -390,12 +390,18 @@ interface ProcessRow extends UnknownRecord {
   path?: string;
   executable?: string | null;
   pid?: string | number | null;
+  sessionName?: string | null;
+  sessionId?: string | number | null;
+  userName?: string | null;
 }
 
 interface NormalizedProcessRow {
   processName: string;
   executable: string;
   pid: number | null;
+  sessionName: string;
+  sessionId: number | null;
+  userName: string;
 }
 
 interface DiscoveryHint extends UnknownRecord {
@@ -552,6 +558,7 @@ const MAX_VERIFICATION_EVIDENCE_TTL_MS = 24 * 60 * 60_000;
 const MAX_REGISTRY_FILE_BYTES = 16 * 1024 * 1024;
 const execFileAsync = promisify(execFile);
 const WINDOWS_TASKLIST_MAX_ROWS = 4000;
+const WINDOWS_TASKLIST_TIMEOUT_MS = 20_000;
 const ADAPTIVE_RELIABILITY_ALPHA = 0.35;
 const ADAPTIVE_RELIABILITY_INITIAL = 0.7;
 const DEFAULT_UNKNOWN_TASK_CAPABILITIES = ["local_application"];
@@ -564,9 +571,16 @@ const DEFAULT_CRITICAL_HEALTH_SCORE = 22;
 const DEFAULT_RISK_DISABLE_FAILURE_STREAK = 4;
 const DISPATCHER_PROCESS_KEYWORDS = Object.freeze(new Set([
   "system",
+  "system idle process",
+  "secure system",
+  "registry",
+  "memory compression",
   "svchost",
   "csrss",
   "smss",
+  "wininit",
+  "winlogon",
+  "fontdrvhost",
   "spoolsv",
   "ctfmon",
   "dwm",
@@ -576,6 +590,16 @@ const DISPATCHER_PROCESS_KEYWORDS = Object.freeze(new Set([
   "sihost",
   "search",
   "rundll32",
+  "conhost",
+  "taskhostw",
+  "backgroundtaskhost",
+  "shellexperiencehost",
+  "startmenuexperiencehost",
+  "textinputhost",
+  "lockapp",
+  "wudfhost",
+  "wmiprvse",
+  "dllhost",
   "explorer",
 ]));
 const STABLE_ID_NAMESPACE = "localclient";
@@ -2085,9 +2109,17 @@ function buildBuiltInHintMap(): Map<string, DiscoveryHint> {
   return toStableHintMap(BUILTIN_DISCOVERY_HINTS);
 }
 
-function isSystemProcessName(processName: string, includeSystemProcesses: boolean): boolean {
+function isSystemProcessRow(
+  row: NormalizedProcessRow,
+  includeSystemProcesses: boolean,
+): boolean {
   if (includeSystemProcesses) return false;
-  return DISPATCHER_PROCESS_KEYWORDS.has(processName);
+  if (DISPATCHER_PROCESS_KEYWORDS.has(row.processName)) return true;
+  if (process.platform !== "win32") return false;
+  const userName = row.userName.toLowerCase();
+  return row.sessionId === 0
+    || row.sessionName.toLowerCase() === "services"
+    || /^(?:nt authority\\)?(?:system|local service|network service)$/u.test(userName);
 }
 
 function inferCapabilitiesByName(processName: unknown): string[] {
@@ -2187,6 +2219,9 @@ function normalizeProcessRow(lineOrObject: ProcessRow | null | undefined): Norma
     processName: normalized,
     executable: safeTrimOrNull(lineOrObject.executablePath || lineOrObject.path) || normalized,
     pid: parseOptionalPositiveInt(lineOrObject.pid, null, 1, Number.MAX_SAFE_INTEGER),
+    sessionName: safeTrim(lineOrObject.sessionName, ""),
+    sessionId: parseOptionalPositiveInt(lineOrObject.sessionId, null, 0, Number.MAX_SAFE_INTEGER),
+    userName: safeTrim(lineOrObject.userName, ""),
   };
 }
 
@@ -2206,7 +2241,9 @@ function buildDiscoverableClient(
     sourceRaw: processName,
   };
   return {
-    clientId: hint?.clientId || createStableClientId(STABLE_ID_NAMESPACE, `${request.source}:${processName}`),
+    // The observation source is audit metadata, not client identity. Manual
+    // discovery and smart-management rounds must converge on one stable record.
+    clientId: hint?.clientId || createStableClientId(STABLE_ID_NAMESPACE, `system-scan:${processName}`),
     name: discoveredName,
     displayName: discoveredName,
     description: hint?.description ?? `Auto-discovered local process ${processName}`,
@@ -2272,8 +2309,8 @@ async function listProcessRows(
   throwIfLocalClientAborted(signal);
   const safeMaxRows = Math.min(Math.max(1, maxRows), WINDOWS_TASKLIST_MAX_ROWS);
   if (process.platform === "win32") {
-    const { stdout } = await execFileAsync("tasklist", ["/fo", "csv", "/nh"], {
-      timeout: 6_000,
+    const { stdout } = await execFileAsync("tasklist", ["/v", "/fo", "csv", "/nh"], {
+      timeout: WINDOWS_TASKLIST_TIMEOUT_MS,
       maxBuffer: 2 * 1024 * 1024,
       signal,
     });
@@ -2282,7 +2319,13 @@ async function listProcessRows(
       .split(/\r?\n/)
       .slice(0, safeMaxRows)
       .map(parseCsvLine)
-      .map((cells) => ({ imageName: cells[0], pid: cells[1] }))
+      .map((cells) => ({
+        imageName: cells[0],
+        pid: cells[1],
+        sessionName: cells[2],
+        sessionId: cells[3],
+        userName: cells[6],
+      }))
       .filter((item) => item.imageName);
   }
   const { stdout } = await execFileAsync("ps", ["-eo", "comm="], {
@@ -2321,7 +2364,7 @@ function buildDiscoveryCandidates(
       dropped.duplicateProcessCount += 1;
       continue;
     }
-    if (isSystemProcessName(processName, request.includeSystemProcesses)) {
+    if (isSystemProcessRow(normalized, request.includeSystemProcesses)) {
       dropped.filteredSystemProcessCount += 1;
       continue;
     }
