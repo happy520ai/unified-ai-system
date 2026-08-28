@@ -19,7 +19,7 @@
     "@unified-ai-system/shared-utils": "workspace:*",
     "@unified-ai-system/shared-contracts": "workspace:*",
     "@unified-ai-system/shared-config": "workspace:*",
-    "better-sqlite3": "^11.10.0",
+    "better-sqlite3": "^13.0.3",
     "chalk": "^6.0.0",
     "ora": "^9.4.1"
   },
