@@ -17,6 +17,24 @@ import { createGatewayBackedProviderAdapter } from "../providers/gatewayBackedPr
 
 export const AGENT_EXEC_PATH = "/agent-exec/run";
 
+/**
+ * Derives the governed agent identity from the request's enterprise
+ * identity. Requests without an enterprise identity run ungoverned
+ * (legacy behavior); governed runs carry tenant/user on every tool call.
+ */
+export function buildAgentGovernanceIdentity(request) {
+  const identity = request?.enterpriseIdentity;
+  if (!identity || typeof identity !== "object") return null;
+  const tenantId = typeof identity.tenantId === "string" && identity.tenantId.trim() !== ""
+    ? identity.tenantId.trim()
+    : null;
+  const userId = typeof identity.userId === "string" && identity.userId.trim() !== ""
+    ? identity.userId.trim()
+    : null;
+  if (!tenantId || !userId) return null;
+  return { tenantId, userId, role: identity.role };
+}
+
 export const AGENT_EXEC_LIMITS = Object.freeze({
   maxGoalLength: 4_000,
   defaultMaxIterations: 8,
@@ -64,7 +82,9 @@ export async function dispatchAgentExecRoutes(context) {
   }
 
   try {
-    const result = await runBoundedAgentExec(body, application, requestGatewayService);
+    const result = await runBoundedAgentExec(body, application, requestGatewayService, {
+      agentGovernanceIdentity: buildAgentGovernanceIdentity(request),
+    });
     writeServiceLog?.("agent_exec_completed", {
       method: request.method,
       path: AGENT_EXEC_PATH,
@@ -179,7 +199,7 @@ function resolveToolAllowlist(body, toolMode) {
   return [...AGENT_EXEC_LIMITS.readonlyToolAllowlist];
 }
 
-export async function runBoundedAgentExec(body, application, executionGatewayService = null) {
+export async function runBoundedAgentExec(body, application, executionGatewayService = null, options = {}) {
   const normalized = normalizeAgentExecRequest(body);
   const providerRegistry = application?.gatewayService?.providerRegistry;
   if (!providerRegistry) {
@@ -242,6 +262,10 @@ export async function runBoundedAgentExec(body, application, executionGatewaySer
     maxContextTokens: AGENT_EXEC_LIMITS.defaultMaxContextTokens,
     recentTurnsToKeep: AGENT_EXEC_LIMITS.defaultRecentTurnsToKeep,
     enableHighRiskTools: false,
+    // Governed agent identity + Tool Proxy: per-call enforcement flows
+    // from the HTTP enterprise identity into every tool call.
+    agentGovernance: options.agentGovernanceIdentity ?? null,
+    governanceToolProxy: application?.agentGovernance?.toolProxy ?? null,
   });
 
   const controller = new AbortController();

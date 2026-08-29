@@ -17,6 +17,7 @@
     "@unified-ai-system/context-codec-core": "workspace:*",
     "@unified-ai-system/employee-brain-adapter": "workspace:*",
     "@unified-ai-system/forge-core": "workspace:*",
+    "@unified-ai-system/policy-engine": "workspace:*",
     "@unified-ai-system/shared-config": "workspace:*",
     "@unified-ai-system/shared-contracts": "workspace:*",
     "@unified-ai-system/shared-sdk": "workspace:*",

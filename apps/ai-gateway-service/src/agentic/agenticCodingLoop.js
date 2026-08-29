@@ -96,6 +96,7 @@ export function createAgenticLoop(options = {}) {
     externalEffectGate: options.externalEffectGate,
     externalEffectFence: options.externalEffectFence,
     externalEffectTenantId: options.tenantId,
+    governanceToolProxy: options.governanceToolProxy ?? null,
   });
   if (options.mcpBridge) syncMcpToolsToRegistry(options.mcpBridge, toolRegistry);
 
@@ -161,6 +162,8 @@ export function createAgenticLoop(options = {}) {
     const startedAt = Date.now();
     const goal = typeof input.goal === "string" ? input.goal : String(input.goal ?? "");
     if (!goal.trim()) return createErrorResult("AGENTIC_GOAL_EMPTY", "Goal is required and must be a non-empty string.");
+    // Governed identity flows per request into every tool call.
+    const governanceCallContext = input.agentGovernance ?? options.agentGovernance ?? null;
 
     const enhancedPrompt = await enhancePrompt(systemPrompt, goal);
     const taskComplexity = analyzeComplexity(goal);
@@ -242,6 +245,7 @@ export function createAgenticLoop(options = {}) {
         const toolResults = await executeToolCalls(toolCalls, toolRegistry, {
           workingDirectory,
           sessionId,
+          ...(governanceCallContext ? { agentGovernance: governanceCallContext } : {}),
         });
         await processToolResults(toolCalls, toolResults, messages, allToolResults, iteration, plan);
         trace.push({ iteration, type: "tool_results", results: toolResults.map((r) => ({ tool_call_id: r.tool_call_id, isError: r._meta?.isError, durationMs: r._meta?.durationMs })), timestamp: new Date().toISOString() });
@@ -275,6 +279,7 @@ export function createAgenticLoop(options = {}) {
     const sessionId = randomUUID(); const startedAt = Date.now();
     const goal = typeof input.goal === "string" ? input.goal : String(input.goal ?? "");
     if (!goal.trim()) { yield createStreamEvent("error", { code: "AGENTIC_GOAL_EMPTY", message: "Goal is required and must be a non-empty string." }); return; }
+    const governanceCallContext = input.agentGovernance ?? options.agentGovernance ?? null;
 
     const enhancedStreamPrompt = await enhancePrompt(systemPrompt, goal);
     analyzeComplexity(goal);
@@ -314,6 +319,7 @@ export function createAgenticLoop(options = {}) {
         const toolResults = await executeToolCalls(toolCalls, toolRegistry, {
           workingDirectory,
           sessionId,
+          ...(governanceCallContext ? { agentGovernance: governanceCallContext } : {}),
         });
         await processToolResults(toolCalls, toolResults, messages, allToolResults, iteration, null);
         for (const r of toolResults) yield createStreamEvent("tool_call_result", { tool_call_id: r.tool_call_id, tool: r._meta?.toolName, result: truncateForEvent(r.content), durationMs: r._meta?.durationMs, isError: r._meta?.isError });

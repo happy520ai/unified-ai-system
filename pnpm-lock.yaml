@@ -89,6 +89,9 @@ importers:
       '@unified-ai-system/forge-core':
         specifier: workspace:*
         version: link:../../packages/forge-core
+      '@unified-ai-system/policy-engine':
+        specifier: workspace:*
+        version: link:../../packages/policy-engine
       '@unified-ai-system/shared-config':
         specifier: workspace:*
         version: link:../../packages/shared-config
@@ -198,6 +201,12 @@ importers:
       '@unified-ai-system/mcp-server':
         specifier: workspace:*
         version: link:../mcp-server
+
+  packages/policy-engine:
+    dependencies:
+      '@unified-ai-system/shared-contracts':
+        specifier: workspace:*
+        version: link:../shared-contracts
 
   packages/position-library:
     dependencies:

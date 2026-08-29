@@ -28,6 +28,8 @@ import { createContentGuardrails } from "../guardrails/contentGuardrails.js";
 import { createLocalKnowledgeService } from "../knowledge/localKnowledgeService.js";
 import { createKnowledgeInfra } from "../knowledge/knowledgeInfra.js";
 import { createMcpGatewayService } from "../mcpGateway/mcpGatewayService.ts";
+import { createAgentGovernanceService } from "../agent-governance/agentGovernanceService.ts";
+import { createAgentGovernanceToolProxy } from "../agent-governance/toolProxy.ts";
 import { createLocalWorkflowService } from "../workflow/localWorkflowService.js";
 import { createWorkforceService } from "../workforce/workforceService.js";
 import { createControlledExecutor } from "../workforce/workforceControlledExecutor.js";
@@ -296,6 +298,18 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
     externalEffectGate,
     recordAudit: (event) => enterpriseGovernanceService.recordAudit(event),
   });
+  // Agent 治理控制平面：生成→校验→编译→登记→逐调用 Tool Proxy 强制。
+  // 无 agentGovernance 身份的 legacy 调用方不受影响；
+  // AI_GATEWAY_AGENT_GOVERNANCE_ENABLED=false 可整体关闭。
+  const agentGovernanceEnabled = String(env.AI_GATEWAY_AGENT_GOVERNANCE_ENABLED ?? "").toLowerCase() !== "false";
+  let agentGovernance = null;
+  if (agentGovernanceEnabled) {
+    const agentGovernanceService = createAgentGovernanceService({ env });
+    agentGovernance = Object.freeze({
+      service: agentGovernanceService,
+      toolProxy: createAgentGovernanceToolProxy({ service: agentGovernanceService }),
+    });
+  }
   const enterpriseOpsService = createEnterpriseOpsService({
     env,
     config,
@@ -817,6 +831,7 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
   });
 
   return {
+    agentGovernance,
     auditHashChain: enterpriseGovernanceService.getAuditHashChain(),
     capabilityRouterService,
     contentGuardrails,

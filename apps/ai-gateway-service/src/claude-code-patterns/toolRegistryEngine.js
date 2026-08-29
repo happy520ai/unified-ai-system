@@ -32,6 +32,8 @@ import { createExternalEffectToolBoundary } from "../external-effects/externalEf
  * @param {Object} [options.externalEffectGate] - Durable irreversible-effect gate
  * @param {Object} [options.externalEffectFence] - Trusted execution fence
  * @param {string} [options.externalEffectTenantId] - Server-derived tenant identity
+ * @param {Object} [options.governanceToolProxy] - Agent governance Tool Proxy;
+ *   enforced per call whenever the caller context carries agentGovernance identity
  */
 export function createAgentToolRegistry(options = {}) {
   const {
@@ -44,6 +46,7 @@ export function createAgentToolRegistry(options = {}) {
   const externalEffectGate = options.externalEffectGate;
   const externalEffectFence = options.externalEffectFence;
   const externalEffectTenantId = options.externalEffectTenantId;
+  const governanceToolProxy = options.governanceToolProxy ?? null;
 
   /** 已注册的工具映射 name -> tool */
   const tools = new Map();
@@ -329,6 +332,36 @@ export function createAgentToolRegistry(options = {}) {
         return { status: "error", error: `工具 ${toolName} 未注册` };
       }
 
+      // Agent governance Tool Proxy — the per-call enforcement point.
+      // Runs before coercion so approval argument hashes lock exactly the
+      // arguments the agent sent. Legacy callers without governed
+      // identity are untouched.
+      if (governanceToolProxy && contextOverride?.agentGovernance) {
+        const verdict = await governanceToolProxy.enforce({
+          context: contextOverride.agentGovernance,
+          toolName,
+          params,
+        });
+        if (verdict.outcome !== "allow") {
+          const record = {
+            id: randomUUID(),
+            toolName,
+            params: sanitizeParams(params),
+            status: "denied",
+            reason: verdict.reason ?? verdict.code ?? "Denied by the agent governance tool proxy.",
+            timestamp: new Date().toISOString(),
+          };
+          executionLog.push(record);
+          capExecutionLog();
+          return {
+            status: "denied",
+            code: verdict.code ?? "TOOL_GOVERNANCE_DENIED",
+            error: record.reason,
+            ...(verdict.approvalId ? { approvalId: verdict.approvalId } : {}),
+          };
+        }
+      }
+
       // 强转参数类型 (LLM 常将数字/布尔值以字符串形式返回)
       const coercedParams = coerceParams(tool.inputSchema, params);
 
@@ -557,6 +590,7 @@ export function createAgentToolRegistry(options = {}) {
         maxChainDepth,
         permissionMode: permissionCheckerConfigured ? "configured" : "fail-closed",
         highRiskToolsEnabled,
+        governanceToolProxyConfigured: Boolean(governanceToolProxy),
         externalEffectGateConfigured: Boolean(
           externalEffectGate && typeof externalEffectGate.reserve === "function",
         ),

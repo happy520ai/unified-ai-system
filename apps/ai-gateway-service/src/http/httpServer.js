@@ -183,6 +183,7 @@ import {
 } from "./httpRouteDispatch.js";
 import { dispatchPromptEnhancementRoutes } from "./promptEnhancementRoutes.js";
 import { dispatchAgentExecRoutes } from "./agentExecRoutes.js";
+import { dispatchAgentGovernanceRoutes } from "./agentGovernanceRoutes.ts";
 import { createA2AGateway } from "./a2aGateway.js";
 import { dispatchA2ARoutes } from "./a2aRoutes.js";
 import {
@@ -264,6 +265,7 @@ const HTTP_ROUTE_DEPENDENCIES = Object.freeze({
 const HTTP_ROUTE_GROUPS = Object.freeze([
   dispatchA2ARoutes,
   dispatchPromptEnhancementRoutes,
+  dispatchAgentGovernanceRoutes,
   dispatchAgentExecRoutes,
   dispatchMultimodalRoutes,
   dispatchWorkforceExecutionRoutes,
