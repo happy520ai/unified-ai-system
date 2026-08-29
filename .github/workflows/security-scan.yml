@@ -18,23 +18,15 @@ permissions:
 jobs:
   dependency-vulnerability-scan:
     name: OSV dependency scan (advisory)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: Scan lockfile for known vulnerabilities
-        continue-on-error: true
-        uses: google/osv-scanner-action@6e4298ebc4db23e847df9b2e2de2939d6f066c67 # v2.5.1
-        with:
-          scan-args: |-
-            --lockfile=./pnpm-lock.yaml
-      - name: Scan repository source for known vulnerabilities
-        continue-on-error: true
-        uses: google/osv-scanner-action@6e4298ebc4db23e847df9b2e2de2939d6f066c67 # v2.5.1
-        with:
-          scan-args: |-
-            --recursive
-            ./
+    # Official v2.5.x reusable workflow; the root action.yml is not a
+    # runnable action at this tag. fail-on-vuln=false keeps it advisory.
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@6e4298ebc4db23e847df9b2e2de2939d6f066c67 # v2.5.1
+    with:
+      scan-args: |-
+        --recursive
+        ./
+      fail-on-vuln: false
+      upload-sarif: false
 
   sbom:
     name: SPDX SBOM artifact
