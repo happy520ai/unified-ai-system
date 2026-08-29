@@ -15,11 +15,11 @@ v0.7.0 is a deliberately narrow release. It accepts no new capability
 surface; it closes what v0.6.0 already promises and removes friction for
 evaluators:
 
-1. **Read-only operator console** at `GET /console`, opt-in via
-   `AI_GATEWAY_CONSOLE_ENABLED` (default off preserves the terminal-first
-   public-clone invariant) — overview, virtual keys, local clients, and
-   cache audit in one authenticated browser page with no client build step
-   and no mutation surface.
+1. **Operations overview API** at `GET /api/overview` — a compact JSON
+   snapshot (provider mode, health, readiness, request stats, circuit
+   state) for CLI and dashboard tooling. The gateway stays terminal-first:
+   no browser console page is served, because the public-clone gate pins
+   `GET /ui` and `GET /console` to 404 (see Not Doing).
 2. **Close the v0.6.0 self-declared release gates** for the local client
    intelligence gateway: real-client atomic receipt certification and the
    PostgreSQL mode for route-plan/claim/feedback/outbox state.
@@ -59,8 +59,10 @@ reintroduce pruned packages without a source import.
 Explicit non-goals, recorded so they are re-decided deliberately instead of
 drifting in:
 
-- A browser chat UI. CLI, API, and MCP remain the interaction surfaces;
-  the console is read-only operations, not chat.
+- A browser console or dashboard page. The public-clone gate pins `GET /ui`
+  and `GET /console` to 404; serving a browser page would require an explicit
+  owner revision of that terminal-first invariant, not a drift-in feature.
+- A browser chat UI. CLI, API, and MCP remain the interaction surfaces.
 - A token resale/billing platform (payment gateways, top-ups, resale
   pricing). Spend reporting stays an internal cost-evidence feature.
 - Built-in high-availability orchestration (quorum election, external HA

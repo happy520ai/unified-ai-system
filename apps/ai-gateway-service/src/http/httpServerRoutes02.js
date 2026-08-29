@@ -1,7 +1,6 @@
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { createPrometheusExporter } from "../observability/prometheusExporter.js";
 import { getAiMetricsSnapshot } from "../observability/aiMetrics.ts";
-import { GATEWAY_CONSOLE_HTML } from "./consoleOverviewAsset.ts";
 
 export async function dispatchHttpRoutes02(context) {
   const {
@@ -38,33 +37,12 @@ export async function dispatchHttpRoutes02(context) {
     return;
   }
 
-  // Read-only operator console: one exact route, no static directory, and no
-  // client build step. Opt-in via AI_GATEWAY_CONSOLE_ENABLED — the public
-  // clone invariant keeps the gateway terminal-first, so GET /console stays
-  // 404 unless an operator explicitly enables the page. Once enabled it
-  // follows the same authorization path as every other route
-  // (dashboard:read) and only calls existing read APIs.
-  if (request.method === "GET" && url.pathname === "/console") {
-    if (process.env.AI_GATEWAY_CONSOLE_ENABLED !== "true") {
-      writeJson(response, 404, createErrorEnvelope(
-        "console_disabled",
-        "The operator console is disabled. Set AI_GATEWAY_CONSOLE_ENABLED=true to serve it.",
-        { startedAt, category: "request" },
-      ));
-      return;
-    }
-    response.writeHead(200, {
-      "content-type": "text/html; charset=utf-8",
-      "cache-control": "no-store",
-      "x-content-type-options": "nosniff",
-    });
-    response.end(GATEWAY_CONSOLE_HTML);
-    return;
-  }
-
-  // Compact JSON snapshot for the console overview tab. It reuses the same
-  // health/readiness/stats sources as /metrics without the Prometheus text
-  // payload, so a long-lived browser tab stays cheap.
+  // Compact JSON snapshot for terminal-first operations tooling. It reuses
+  // the same health/readiness/stats sources as /metrics without the
+  // Prometheus text payload, so long-running dashboards and CLI status
+  // commands stay cheap. No browser page is served: the public-clone gate
+  // pins GET /ui and GET /console to 404, and a console page would need an
+  // explicit owner revision of that terminal-first invariant.
   if (request.method === "GET" && url.pathname === "/api/overview") {
     const runtimeConfig = application?.gatewayService?.runtimeConfig ?? null;
     const healthSnapshot = createHealth(application);

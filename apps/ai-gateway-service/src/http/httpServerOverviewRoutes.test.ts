@@ -1,8 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { createErrorEnvelope, createOkEnvelope } from "@unified-ai-system/shared-utils";
 
-import { GATEWAY_CONSOLE_HTML } from "./consoleOverviewAsset.ts";
 import { dispatchHttpRoutes02 } from "./httpServerRoutes02.js";
 import { isPublicRoute } from "./routeAccessPolicy.js";
 import {
@@ -78,49 +77,21 @@ function createContext(pathname: string) {
   };
 }
 
-describe("GET /console", () => {
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
-  it("stays 404 by default (terminal-first public-clone invariant)", async () => {
-    vi.stubEnv("AI_GATEWAY_CONSOLE_ENABLED", undefined);
-    const { context, response } = createContext("/console");
-    await dispatchHttpRoutes02(context);
-    expect(response.statusCode).toBe(404);
-    const payload = JSON.parse(response.body);
-    expect(payload.status).toBe("error");
-    expect(payload.error.code).toBe("console_disabled");
-  });
-
-  it("serves the self-contained read-only console HTML when opted in", async () => {
-    vi.stubEnv("AI_GATEWAY_CONSOLE_ENABLED", "true");
-    const { context, response } = createContext("/console");
-    await dispatchHttpRoutes02(context);
-    expect(response.statusCode).toBe(200);
-    expect(response.headers["content-type"]).toContain("text/html");
-    expect(response.headers["cache-control"]).toBe("no-store");
-    expect(response.headers["x-content-type-options"]).toBe("nosniff");
-    expect(response.body).toContain("Unified AI Gateway Console");
-    expect(response.body).not.toContain("${");
-  });
-
-  it("keeps the console asset free of template-literal leakage", () => {
-    expect(GATEWAY_CONSOLE_HTML).not.toContain("\\u0024\\u007b");
-    expect(GATEWAY_CONSOLE_HTML.startsWith("<!doctype html>")).toBe(true);
-    expect(GATEWAY_CONSOLE_HTML.endsWith("</html>\n")).toBe(true);
-  });
-
-  it("requires authorization like every other dashboard route", () => {
+describe("terminal-first boundary", () => {
+  it("keeps GET /console unmapped so the public-clone invariant holds", () => {
+    // The public-clone runtime gate requires 404 on GET /ui and GET /console.
+    // A registered protected route answers 403 for the unauthenticated local
+    // preview identity instead, so serving a browser console page would need
+    // an explicit owner revision of that invariant first.
+    expect(resolvePermission("GET", "/console")).toBe(UNKNOWN_ROUTE_PERMISSION);
     expect(isPublicRoute("/console")).toBe(false);
-    expect(resolvePermission("GET", "/console")).toBe("dashboard:read");
     expect(
       shouldRejectUnmappedRoute({
         isPublic: false,
         permission: resolvePermission("GET", "/console"),
         authorizationAllowed: true,
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 });
 
