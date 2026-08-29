@@ -39,9 +39,20 @@ export async function dispatchHttpRoutes02(context) {
   }
 
   // Read-only operator console: one exact route, no static directory, and no
-  // client build step. It follows the same authorization path as every other
-  // route (dashboard:read) and only calls existing read APIs.
+  // client build step. Opt-in via AI_GATEWAY_CONSOLE_ENABLED — the public
+  // clone invariant keeps the gateway terminal-first, so GET /console stays
+  // 404 unless an operator explicitly enables the page. Once enabled it
+  // follows the same authorization path as every other route
+  // (dashboard:read) and only calls existing read APIs.
   if (request.method === "GET" && url.pathname === "/console") {
+    if (process.env.AI_GATEWAY_CONSOLE_ENABLED !== "true") {
+      writeJson(response, 404, createErrorEnvelope(
+        "console_disabled",
+        "The operator console is disabled. Set AI_GATEWAY_CONSOLE_ENABLED=true to serve it.",
+        { startedAt, category: "request" },
+      ));
+      return;
+    }
     response.writeHead(200, {
       "content-type": "text/html; charset=utf-8",
       "cache-control": "no-store",

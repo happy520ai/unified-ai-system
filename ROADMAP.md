@@ -15,9 +15,11 @@ v0.7.0 is a deliberately narrow release. It accepts no new capability
 surface; it closes what v0.6.0 already promises and removes friction for
 evaluators:
 
-1. **Read-only operator console** at `GET /console` — overview, virtual
-   keys, local clients, and cache audit in one authenticated browser page
-   with no client build step and no mutation surface.
+1. **Read-only operator console** at `GET /console`, opt-in via
+   `AI_GATEWAY_CONSOLE_ENABLED` (default off preserves the terminal-first
+   public-clone invariant) — overview, virtual keys, local clients, and
+   cache audit in one authenticated browser page with no client build step
+   and no mutation surface.
 2. **Close the v0.6.0 self-declared release gates** for the local client
    intelligence gateway: real-client atomic receipt certification and the
    PostgreSQL mode for route-plan/claim/feedback/outbox state.

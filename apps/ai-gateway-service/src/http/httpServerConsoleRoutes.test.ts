@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createOkEnvelope } from "@unified-ai-system/shared-utils";
+import { createErrorEnvelope, createOkEnvelope } from "@unified-ai-system/shared-utils";
 
 import { GATEWAY_CONSOLE_HTML } from "./consoleOverviewAsset.ts";
 import { dispatchHttpRoutes02 } from "./httpServerRoutes02.js";
@@ -56,7 +56,7 @@ function createContext(pathname: string) {
       startedAt: Date.now(),
       writeJson,
       createOkEnvelope,
-      createErrorEnvelope: createOkEnvelope,
+      createErrorEnvelope,
       application: {
         gatewayService: {
           runtimeConfig: { providerMode: "fake", realProviderEnabled: false },
@@ -79,7 +79,22 @@ function createContext(pathname: string) {
 }
 
 describe("GET /console", () => {
-  it("serves the self-contained read-only console HTML", async () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("stays 404 by default (terminal-first public-clone invariant)", async () => {
+    vi.stubEnv("AI_GATEWAY_CONSOLE_ENABLED", undefined);
+    const { context, response } = createContext("/console");
+    await dispatchHttpRoutes02(context);
+    expect(response.statusCode).toBe(404);
+    const payload = JSON.parse(response.body);
+    expect(payload.status).toBe("error");
+    expect(payload.error.code).toBe("console_disabled");
+  });
+
+  it("serves the self-contained read-only console HTML when opted in", async () => {
+    vi.stubEnv("AI_GATEWAY_CONSOLE_ENABLED", "true");
     const { context, response } = createContext("/console");
     await dispatchHttpRoutes02(context);
     expect(response.statusCode).toBe(200);
