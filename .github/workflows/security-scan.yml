@@ -18,15 +18,23 @@ permissions:
 jobs:
   dependency-vulnerability-scan:
     name: OSV dependency scan (advisory)
-    # Official v2.5.x reusable workflow; the root action.yml is not a
-    # runnable action at this tag. fail-on-vuln=false keeps it advisory.
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@6e4298ebc4db23e847df9b2e2de2939d6f066c67 # v2.5.1
-    with:
-      scan-args: |-
-        --recursive
-        ./
-      fail-on-vuln: false
-      upload-sarif: false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      # The v2.5.1 GitHub action ships as reusable workflows / a metadata-only
+      # root action.yml, so install the pinned release binary directly.
+      # Version and SHA256 are pinned from the official v2.5.1 release assets.
+      - name: Install pinned osv-scanner v2.5.1
+        run: |
+          curl -sSL -o /usr/local/bin/osv-scanner "https://github.com/google/osv-scanner/releases/download/v2.5.1/osv-scanner_linux_amd64"
+          echo "f9f25499a2c8cc367b3af45df2ea7eeca7fbccceab9c35079968f4b3652194be  /usr/local/bin/osv-scanner" | sha256sum -c -
+          chmod +x /usr/local/bin/osv-scanner
+          osv-scanner --version
+      - name: Scan repository for known vulnerabilities
+        # Advisory until the first triage baseline exists; see the header.
+        continue-on-error: true
+        run: osv-scanner --recursive ./
 
   sbom:
     name: SPDX SBOM artifact
