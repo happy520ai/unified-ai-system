@@ -24,13 +24,13 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Scan lockfile for known vulnerabilities
         continue-on-error: true
-        uses: google/osv-scanner-action/.osv-scanner@6e4298ebc4db23e847df9b2e2de2939d6f066c67 # v2.5.1
+        uses: google/osv-scanner-action@6e4298ebc4db23e847df9b2e2de2939d6f066c67 # v2.5.1
         with:
           scan-args: |-
             --lockfile=./pnpm-lock.yaml
       - name: Scan repository source for known vulnerabilities
         continue-on-error: true
-        uses: google/osv-scanner-action/.osv-scanner@6e4298ebc4db23e847df9b2e2de2939d6f066c67 # v2.5.1
+        uses: google/osv-scanner-action@6e4298ebc4db23e847df9b2e2de2939d6f066c67 # v2.5.1
         with:
           scan-args: |-
             --recursive
