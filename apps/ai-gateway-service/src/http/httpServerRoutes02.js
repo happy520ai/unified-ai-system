@@ -1,6 +1,7 @@
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { createPrometheusExporter } from "../observability/prometheusExporter.js";
 import { getAiMetricsSnapshot } from "../observability/aiMetrics.ts";
+import { GATEWAY_CONSOLE_HTML } from "./consoleOverviewAsset.ts";
 
 export async function dispatchHttpRoutes02(context) {
   const {
@@ -34,6 +35,42 @@ export async function dispatchHttpRoutes02(context) {
 
   if (request.method === "GET" && url.pathname === "/dashboard/status") {
     writeJson(response, 200, createOkEnvelope(userExperienceService.getDashboard(getRequestContext(request)), { startedAt }));
+    return;
+  }
+
+  // Read-only operator console: one exact route, no static directory, and no
+  // client build step. It follows the same authorization path as every other
+  // route (dashboard:read) and only calls existing read APIs.
+  if (request.method === "GET" && url.pathname === "/console") {
+    response.writeHead(200, {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+      "x-content-type-options": "nosniff",
+    });
+    response.end(GATEWAY_CONSOLE_HTML);
+    return;
+  }
+
+  // Compact JSON snapshot for the console overview tab. It reuses the same
+  // health/readiness/stats sources as /metrics without the Prometheus text
+  // payload, so a long-lived browser tab stays cheap.
+  if (request.method === "GET" && url.pathname === "/api/overview") {
+    const runtimeConfig = application?.gatewayService?.runtimeConfig ?? null;
+    const healthSnapshot = createHealth(application);
+    const readinessSnapshot = createSetupReadiness(application);
+    const stats = await (application?.requestLogger?.getStats?.({
+      tenantId: request.enterpriseIdentity?.tenantId ?? "default",
+    }) ?? {});
+    const resilienceSnapshot = resilienceMetrics?.snapshot?.() ?? {};
+    writeJson(response, 200, createOkEnvelope({
+      providerMode: runtimeConfig?.providerMode ?? null,
+      realProviderEnabled: runtimeConfig?.realProviderEnabled === true,
+      health: { status: healthSnapshot?.status ?? null },
+      readiness: { status: readinessSnapshot?.status ?? null },
+      totalRequests: stats.totalRequests ?? resilienceSnapshot.totalRequests ?? 0,
+      currentInFlight: resilienceSnapshot.currentInFlight ?? 0,
+      gatewayErrorCircuitState: resilienceSnapshot.gatewayErrorCircuitState ?? "unknown",
+    }, { startedAt }));
     return;
   }
 

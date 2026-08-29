@@ -1,0 +1,49 @@
+name: Security Scan
+
+# Advisory dependency-vulnerability scanning and SBOM generation.
+# Blocking CI on these scans starts only after the first triage baseline
+# exists (ROADMAP v0.7.0, item 4); until then findings are visible
+# artifacts, not release gates.
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-vulnerability-scan:
+    name: OSV dependency scan (advisory)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Scan lockfile for known vulnerabilities
+        continue-on-error: true
+        uses: google/osv-scanner-action/.osv-scanner@6e4298ebc4db23e847df9b2e2de2939d6f066c67 # v2.5.1
+        with:
+          scan-args: |-
+            --lockfile=./pnpm-lock.yaml
+      - name: Scan repository source for known vulnerabilities
+        continue-on-error: true
+        uses: google/osv-scanner-action/.osv-scanner@6e4298ebc4db23e847df9b2e2de2939d6f066c67 # v2.5.1
+        with:
+          scan-args: |-
+            --recursive
+            ./
+
+  sbom:
+    name: SPDX SBOM artifact
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Generate SPDX JSON SBOM
+        uses: anchore/sbom-action@006b7ce8314066bdf1765b4500370d40fa6917a3 # v0.24.2
+        with:
+          format: spdx-json
+          artifact-name: unified-ai-system-sbom.spdx.json

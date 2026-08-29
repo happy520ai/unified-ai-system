@@ -37,7 +37,7 @@
   />
 </p>
 
-Unified AI System turns a rough request into a structured, reviewable prompt before execution. It gives teams one self-hosted surface for OpenAI-compatible SDKs, MCP, A2A, CLI, and HTTP while keeping provider calls explicit — with virtual keys and token budgets, exact + semantic response caching, reverse MCP governance with REST→MCP generation, and operations-focused observability.
+Unified AI System turns a rough request into a structured, reviewable prompt before execution. It gives teams one self-hosted surface for OpenAI-compatible SDKs, MCP, A2A, CLI, and HTTP while keeping provider calls explicit — with virtual keys and token budgets, exact response caching plus an opt-in lexical-approximate similarity layer, reverse MCP governance with REST→MCP generation, a read-only operator console, and operations-focused observability.
 
 > **Current maturity:** hardened **Public Preview**. The credential-free path is
 > reproducible and CI-gated; production deployment still requires your own
@@ -125,7 +125,8 @@ fake-provider-first, so you can try every feature with zero credentials:
 | --- | --- | --- |
 | OpenAI + Anthropic + Gemini compatible APIs | `/v1/chat/completions` (SSE streaming, tools, image/audio input, n>1), `/v1/messages` with **native Anthropic streaming and prompt-caching passthrough**, **native Gemini inbound** `:generateContent/:streamGenerateContent/:batchGenerateContent`, the Responses API, and model discovery — keep your existing SDK, change only the base URL. | [OpenAI-compatible API](docs/openai-compatible-api.md) · [Gemini](docs/gemini-provider.md) |
 | Virtual keys + budgets | Issue `uai-` keys with periodic token budgets (daily/monthly windows), per-key request limits, soft-budget alerts, spend attribution, and instant revocation. Consumers never hold provider keys. | [Virtual keys](docs/virtual-keys.md) · [Spend reporting](docs/spend-reporting.md) |
-| Response cache — exact + semantic | Tenant-scoped hot-path caching with byte-identical JSON/SSE replay, an opt-in semantic layer for paraphrased requests, TTL and size caps, and a full audit trail. | [Response cache](docs/response-cache-hot-path.md) |
+| Response cache — exact + lexical-approximate | Tenant-scoped hot-path caching with byte-identical JSON/SSE replay, plus an opt-in similarity layer for near-duplicate requests. The default layer is deterministic lexical approximation, not a semantic model; attach a real embedding endpoint via the HTTP embedding hook for semantic-grade matching. | [Response cache](docs/response-cache-hot-path.md) |
+| Read-only operator console | `GET /console` serves a self-contained, build-free dashboard page (overview snapshot, virtual keys, local clients, cache audit) behind the same authentication and `dashboard:read` authorization as every other route — no mutation surface. | [Observability](docs/observability-export.md) |
 | Guardrails — deterministic & local | Input/output scans: pasted secrets block, PII redacts, injection phrasings warn, banned terms and size limits enforce — no cloud tier, no extra credentials, <0.2 ms measured overhead, runtime-configurable per rule. | [Guardrails](docs/guardrails.md) |
 | Reverse MCP governance | Aggregate upstream MCP servers (Streamable HTTP and stdio) behind one authenticated, audited, allow-listed surface — plus **REST→MCP**: any OpenAPI 3 spec becomes governed MCP tools. | [Reverse MCP governance](docs/reverse-mcp-governance.md) |
 | Observability | Chat-specific Prometheus metrics on `/metrics` — tokens per model, cache hit rates, TTFT histograms, virtual-key rejections, guardrail findings — plus an opt-in Langfuse export and a per-key spend report API/CLI. | [Observability](docs/observability-export.md) |

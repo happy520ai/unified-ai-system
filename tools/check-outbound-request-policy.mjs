@@ -7,6 +7,9 @@ const sourceDir = path.join(rootDir, "apps", "ai-gateway-service", "src");
 const packagesDir = path.join(rootDir, "packages");
 const allowedDirectFetchFiles = new Set([
   "capabilities/neuronCodeGenerator.js",
+  // Browser-side fetch inside the served /console HTML string; it never
+  // executes in Node, and its targets are same-origin read APIs.
+  "http/consoleOverviewAsset.ts",
   "entrypoints/entrypointUtils.js",
   "entrypoints/smokeNvidiaRoute.js",
   "entrypoints/smokeOpenAiRoute.js",
