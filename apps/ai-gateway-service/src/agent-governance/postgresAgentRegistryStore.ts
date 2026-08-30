@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import type {
   AgentFamily,
   AgentRegistryRecord,
@@ -13,7 +13,10 @@ import {
   POSTGRES_AGENT_REGISTRY_MIGRATION_LOCK,
   POSTGRES_AGENT_REGISTRY_MIGRATION_TABLE,
   POSTGRES_AGENT_REGISTRY_MIGRATIONS,
+  POSTGRES_AGENT_REGISTRY_AUTHORITY_TABLE,
+  POSTGRES_AGENT_REGISTRY_MUTATION_TABLE,
   POSTGRES_AGENT_REGISTRY_SCHEMA_FINGERPRINT,
+  POSTGRES_AGENT_REGISTRY_SCHEMA_FINGERPRINTS,
   POSTGRES_AGENT_REGISTRY_SCHEMA_STATE_TABLE,
   POSTGRES_AGENT_REGISTRY_SCHEMA_VERSION,
   POSTGRES_AGENT_REGISTRY_TABLE,
@@ -46,11 +49,28 @@ export interface PostgresAgentRegistryStoreOptions {
   connectionString?: string;
   pool?: AgentRegistryPostgresPool;
   namespace: string;
+  /** Stable, non-secret deployment authority UUID; required before async load. */
+  authorityId: string;
   poolMax?: number;
   statementTimeoutMs?: number;
   maxRecordBytes?: number;
+  /** Independent HMAC authority; never store this value in PostgreSQL. */
+  integritySecret: string;
+  /** Externally retained rollback floor. Without it this adapter is preview-only. */
+  externalCheckpointFloor?: PostgresAgentRegistryCheckpointFloor;
   now?: () => number;
 }
+
+export type PostgresAgentRegistryCheckpointFloor = Readonly<{
+  minimumRevision: number;
+  trustedHeadHash: string;
+}>;
+
+export type PostgresAgentRegistryCheckpoint = Readonly<{
+  authorityBinding: string;
+  minimumRevision: number;
+  trustedHeadHash: string;
+}>;
 
 export const POSTGRES_AGENT_REGISTRY_BOUNDARIES = Object.freeze({
   storageMode: "central-postgres" as const,
@@ -61,7 +81,6 @@ export const POSTGRES_AGENT_REGISTRY_BOUNDARIES = Object.freeze({
   tlsConfigurationRequiredFromOuterRuntime: true as const,
   tlsVerifiedByThisAdapter: false as const,
   realPostgresIntegrationVerified: false as const,
-  rollbackProtected: false as const,
 });
 
 export type PostgresAgentRegistryHealth = Readonly<{
@@ -77,10 +96,17 @@ export type PostgresAgentRegistryHealth = Readonly<{
   lastSuccessAt: string | null;
   lastFailureAt: string | null;
   lastErrorCode: string | null;
+  rollbackProtected: boolean;
+  singleOwnerPreview: boolean;
+  externalCheckpointConfigured: boolean;
+  externalCheckpointVerified: boolean;
+  minimumTrustedRevision: number | null;
+  authorityRevision: number | null;
 } & typeof POSTGRES_AGENT_REGISTRY_BOUNDARIES>;
 
 export interface PostgresAgentRegistryStore extends AgentRegistryStore {
   getAuthorityBinding(): string;
+  getCheckpoint(): Promise<PostgresAgentRegistryCheckpoint>;
   checkHealth(): Promise<boolean>;
   getHealth(): PostgresAgentRegistryHealth;
   close(): Promise<void>;
@@ -113,11 +139,45 @@ type RegistryRow = {
   record_sha256: string;
 };
 
+type AuthorityRow = {
+  installation_id: string;
+  backend_kind: string;
+  revision: string | number;
+  head_hash: string;
+  projection_hash: string;
+  record_count: string | number;
+  genesis_projection: unknown;
+};
+
+type MutationRow = {
+  revision: string | number;
+  event_id: string;
+  previous_hash: string;
+  mutation_json: unknown;
+  mutation_hash: string;
+  projection_hash: string;
+  record_count: string | number;
+  event_hash: string;
+};
+
+type ProjectionEntry = { agentId: string; recordHash: string };
+type MutationEntry = ProjectionEntry;
+type VerifiedAuthority = {
+  installationId: string;
+  revision: number;
+  headHash: string;
+  projectionHash: string;
+  recordCount: number;
+  authorityBinding: string;
+};
+
 const DEFAULT_POOL_MAX = 4;
 const DEFAULT_STATEMENT_TIMEOUT_MS = 5_000;
 const DEFAULT_MAX_RECORD_BYTES = 256 * 1024;
 const MAX_RECORD_BYTES = 1024 * 1024;
 const MAX_BATCH_RECORDS = 10_000;
+const MAX_AUTHORITY_EVENTS = 1_000_000;
+const MAX_AUTHORITY_RECORDS = 1_000_000;
 const MUTATION_LOCK_CLASS_ID = 1_431_193_303;
 const AGENT_ID_PATTERN = /^agt_[A-Za-z0-9_-]{1,128}$/u;
 const POLICY_HASH_PATTERN = /^sha256:[a-f0-9]{64}$/u;
@@ -126,6 +186,8 @@ const SAFE_SCOPE_PATTERN = /^[^\u0000-\u001f\u007f]{1,256}$/u;
 const SAFE_TOKEN_PATTERN = /^[A-Za-z0-9_.:-]{1,256}$/u;
 const FREE_TEXT_CONTROL_PATTERN = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/u;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const AUTHORITY_DOMAIN = "unified-ai/agent-governance/postgres-registry-authority/v1";
 const RESERVED_KEYS = new Set(["__proto__", "prototype", "constructor"]);
 const FAMILIES = new Set<AgentFamily>([
   "analysis", "execution", "communication", "monitoring", "development", "orchestration", "governance",
@@ -207,7 +269,7 @@ export function createPostgresAgentRegistryStore(
   rawOptions: PostgresAgentRegistryStoreOptions,
 ): PostgresAgentRegistryStore {
   const options = normalizeOptions(rawOptions);
-  const authorityBinding = `postgres-v1:${createHash("sha256").update(options.namespace, "utf8").digest("hex")}`;
+  const configuredAuthorityBinding = authorityBinding(options.namespace, options.authorityId);
   const ownsPool = !rawOptions.pool;
   const poolPromise = rawOptions.pool
     ? Promise.resolve(rawOptions.pool)
@@ -220,6 +282,8 @@ export function createPostgresAgentRegistryStore(
   let lastSuccessAt: string | null = null;
   let lastFailureAt: string | null = null;
   let lastErrorCode: string | null = null;
+  let authority: VerifiedAuthority | null = null;
+  let externalCheckpointVerified = false;
 
   void poolPromise.then((pool) => {
     pool.on?.("error", () => {
@@ -236,6 +300,9 @@ export function createPostgresAgentRegistryStore(
     if (!readyPromise) {
       readyPromise = poolPromise.then(async (pool) => {
         await initializeSchema(pool, options);
+        const verified = await initializeAndVerifyAuthority(pool, options);
+        authority = verified;
+        externalCheckpointVerified = options.externalCheckpointFloor !== undefined;
         available = true;
         lastSuccessAt = new Date(options.now()).toISOString();
         lastErrorCode = null;
@@ -254,15 +321,10 @@ export function createPostgresAgentRegistryStore(
 
   async function load(): Promise<void> {
     if (loaded && available) return;
-    const pool = await getReadyPool();
+    await getReadyPool();
     try {
-      const result = await pool.query<{ count: string | number }>(`
-        /* agent-registry:load-health */
-        SELECT COUNT(*)::bigint AS count
-        FROM ${POSTGRES_AGENT_REGISTRY_TABLE}
-        WHERE namespace = $1
-      `, [options.namespace]);
-      recordCount = safeCount(result.rows[0]?.count);
+      if (!authority) throw authorityError("PostgreSQL Agent registry authority is unavailable.");
+      recordCount = authority.recordCount;
       markSuccess();
     } catch (error) {
       markFailure(error);
@@ -300,8 +362,8 @@ export function createPostgresAgentRegistryStore(
         "/* agent-registry:mutation-lock */ SELECT pg_advisory_xact_lock($1, $2)",
         [MUTATION_LOCK_CLASS_ID, namespaceLockKey(options.namespace)],
       );
+      const currentAuthority = await verifyNamespaceAuthorityClient(client, options, true);
 
-      const existingById = new Map<string, AgentRegistryRecord>();
       for (const record of [...ordered].sort((left, right) => left.agentId.localeCompare(right.agentId))) {
         const result = await client.query<RegistryRow>(`
           /* agent-registry:lock-existing */
@@ -313,7 +375,6 @@ export function createPostgresAgentRegistryStore(
         if (result.rows[0]) {
           const existing = decodeRow(result.rows[0], options.maxRecordBytes);
           assertImmutableIdentity(existing, record);
-          existingById.set(existing.agentId, existing);
         }
       }
 
@@ -348,11 +409,22 @@ export function createPostgresAgentRegistryStore(
           throw corrupt(`PostgreSQL Agent registry write verification failed for ${record.agentId}.`);
         }
       }
+      const projection = await readProjection(client, options);
+      const mutations = ordered.map((record) => ({
+        agentId: record.agentId,
+        recordHash: recordDigest(record),
+      })).sort((left, right) => left.agentId.localeCompare(right.agentId));
+      const nextAuthority = await appendMutationEvent(
+        client,
+        options,
+        currentAuthority,
+        mutations,
+        projection,
+      );
       await client.query("COMMIT");
       began = false;
-      recordCount = recordCount === null
-        ? null
-        : recordCount + ordered.filter((record) => !existingById.has(record.agentId)).length;
+      authority = nextAuthority;
+      recordCount = nextAuthority.recordCount;
       markSuccess();
     } catch (error) {
       if (began) {
@@ -378,6 +450,11 @@ export function createPostgresAgentRegistryStore(
     await load();
     try {
       const pool = await getReadyPool();
+      if (options.externalCheckpointFloor) {
+        authority = await verifyNamespaceAuthority(pool, options);
+        externalCheckpointVerified = true;
+        recordCount = authority.recordCount;
+      }
       const result = await pool.query<RegistryRow>(`
         /* agent-registry:${tag} */
         SELECT ${SELECT_FIELDS}
@@ -403,13 +480,31 @@ export function createPostgresAgentRegistryStore(
 
   function markFailure(error: unknown): void {
     available = false;
+    externalCheckpointVerified = false;
     lastFailureAt = new Date(options.now()).toISOString();
     lastErrorCode = errorCode(error);
   }
 
   return {
     getAuthorityBinding() {
-      return authorityBinding;
+      return configuredAuthorityBinding;
+    },
+    async getCheckpoint() {
+      await load();
+      try {
+        authority = await verifyNamespaceAuthority(await getReadyPool(), options);
+        externalCheckpointVerified = options.externalCheckpointFloor !== undefined;
+        recordCount = authority.recordCount;
+        markSuccess();
+        return Object.freeze({
+          authorityBinding: authority.authorityBinding,
+          minimumRevision: authority.revision,
+          trustedHeadHash: authority.headHash,
+        });
+      } catch (error) {
+        markFailure(error);
+        throw normalizePostgresError(error, "AGENT_REGISTRY_POSTGRES_CHECKPOINT_FAILED");
+      }
     },
     load,
     async upsert(record) {
@@ -445,6 +540,11 @@ export function createPostgresAgentRegistryStore(
       await load();
       try {
         const pool = await getReadyPool();
+        if (options.externalCheckpointFloor) {
+          authority = await verifyNamespaceAuthority(pool, options);
+          externalCheckpointVerified = true;
+          recordCount = authority.recordCount;
+        }
         const result = await pool.query<{ count: string | number }>(`
           /* agent-registry:count-children */
           SELECT COUNT(*)::bigint AS count
@@ -471,13 +571,9 @@ export function createPostgresAgentRegistryStore(
       if (closed) throw closedError();
       try {
         const pool = await getReadyPool();
-        const result = await pool.query<{ count: string | number }>(`
-          /* agent-registry:health */
-          SELECT COUNT(*)::bigint AS count
-          FROM ${POSTGRES_AGENT_REGISTRY_TABLE}
-          WHERE namespace = $1
-        `, [options.namespace]);
-        recordCount = safeCount(result.rows[0]?.count);
+        authority = await verifyNamespaceAuthority(pool, options);
+        externalCheckpointVerified = options.externalCheckpointFloor !== undefined;
+        recordCount = authority.recordCount;
         markSuccess();
         return true;
       } catch (error) {
@@ -497,6 +593,12 @@ export function createPostgresAgentRegistryStore(
         schemaFingerprint: POSTGRES_AGENT_REGISTRY_SCHEMA_FINGERPRINT,
         migrationCount: POSTGRES_AGENT_REGISTRY_MIGRATIONS.length,
         recordCount,
+        rollbackProtected: externalCheckpointVerified,
+        singleOwnerPreview: options.externalCheckpointFloor === undefined,
+        externalCheckpointConfigured: options.externalCheckpointFloor !== undefined,
+        externalCheckpointVerified,
+        minimumTrustedRevision: options.externalCheckpointFloor?.minimumRevision ?? null,
+        authorityRevision: authority?.revision ?? null,
         lastSuccessAt,
         lastFailureAt,
         lastErrorCode,
@@ -580,21 +682,51 @@ async function initializeSchema(
       ) VALUES (TRUE, $1::integer, $2, clock_timestamp())
       ON CONFLICT (singleton) DO NOTHING
     `, [POSTGRES_AGENT_REGISTRY_SCHEMA_VERSION, POSTGRES_AGENT_REGISTRY_SCHEMA_FINGERPRINT]);
-    const schemaState = await client.query<SchemaStateRow>(`
+    let schemaState = await client.query<SchemaStateRow>(`
       /* agent-registry:schema-state-read */
       SELECT schema_version, schema_fingerprint
       FROM ${POSTGRES_AGENT_REGISTRY_SCHEMA_STATE_TABLE}
       WHERE singleton = TRUE
       FOR UPDATE
     `);
-    if (Number(schemaState.rows[0]?.schema_version) !== POSTGRES_AGENT_REGISTRY_SCHEMA_VERSION
-      || schemaState.rows[0]?.schema_fingerprint !== POSTGRES_AGENT_REGISTRY_SCHEMA_FINGERPRINT) {
-      throw new PostgresAgentRegistryError(
-        "AGENT_REGISTRY_SCHEMA_FINGERPRINT_MISMATCH",
-        "PostgreSQL Agent registry global schema fingerprint diverged.",
-        "integrity",
-        500,
-      );
+    const observedVersion = Number(schemaState.rows[0]?.schema_version);
+    const observedFingerprint = schemaState.rows[0]?.schema_fingerprint;
+    if (observedVersion !== POSTGRES_AGENT_REGISTRY_SCHEMA_VERSION
+      || observedFingerprint !== POSTGRES_AGENT_REGISTRY_SCHEMA_FINGERPRINT) {
+      const knownPrior = Number.isSafeInteger(observedVersion) && observedVersion >= 1
+        && observedVersion < POSTGRES_AGENT_REGISTRY_SCHEMA_VERSION
+        && observedFingerprint === POSTGRES_AGENT_REGISTRY_SCHEMA_FINGERPRINTS[observedVersion - 1];
+      if (!knownPrior) {
+        throw new PostgresAgentRegistryError(
+          "AGENT_REGISTRY_SCHEMA_FINGERPRINT_MISMATCH",
+          "PostgreSQL Agent registry global schema fingerprint diverged.",
+          "integrity",
+          500,
+        );
+      }
+      const upgraded = await client.query(`
+        /* agent-registry:schema-state-upgrade */
+        UPDATE ${POSTGRES_AGENT_REGISTRY_SCHEMA_STATE_TABLE}
+        SET schema_version = $1::integer, schema_fingerprint = $2, updated_at = clock_timestamp()
+        WHERE singleton = TRUE AND schema_version = $3::integer AND schema_fingerprint = $4
+      `, [
+        POSTGRES_AGENT_REGISTRY_SCHEMA_VERSION,
+        POSTGRES_AGENT_REGISTRY_SCHEMA_FINGERPRINT,
+        observedVersion,
+        observedFingerprint,
+      ]);
+      if (upgraded.rowCount !== 1) throw migrationError();
+      schemaState = await client.query<SchemaStateRow>(`
+        /* agent-registry:schema-state-read */
+        SELECT schema_version, schema_fingerprint
+        FROM ${POSTGRES_AGENT_REGISTRY_SCHEMA_STATE_TABLE}
+        WHERE singleton = TRUE
+        FOR UPDATE
+      `);
+      if (Number(schemaState.rows[0]?.schema_version) !== POSTGRES_AGENT_REGISTRY_SCHEMA_VERSION
+        || schemaState.rows[0]?.schema_fingerprint !== POSTGRES_AGENT_REGISTRY_SCHEMA_FINGERPRINT) {
+        throw migrationError();
+      }
     }
     await client.query(`
       /* agent-registry:schema-probe */
@@ -616,6 +748,359 @@ async function initializeSchema(
   } finally {
     client.release();
   }
+}
+
+async function initializeAndVerifyAuthority(
+  pool: AgentRegistryPostgresPool,
+  options: NormalizedOptions,
+): Promise<VerifiedAuthority> {
+  const client = await pool.connect();
+  let began = false;
+  try {
+    await client.query("BEGIN");
+    began = true;
+    await setStatementTimeout(client, options.statementTimeoutMs);
+    await client.query(
+      "/* agent-registry:mutation-lock */ SELECT pg_advisory_xact_lock($1, $2)",
+      [MUTATION_LOCK_CLASS_ID, namespaceLockKey(options.namespace)],
+    );
+    const projection = await readProjection(client, options);
+    const installationId = options.authorityId;
+    const genesisProjectionHash = projectionDigest(projection);
+    const genesisHeadHash = signGenesis({
+      namespace: options.namespace,
+      installationId,
+      projectionHash: genesisProjectionHash,
+      recordCount: projection.length,
+    }, options.integritySecret);
+    await client.query(`
+      /* agent-registry:authority-init */
+      INSERT INTO ${POSTGRES_AGENT_REGISTRY_AUTHORITY_TABLE} (
+        namespace, installation_id, backend_kind, revision, head_hash,
+        projection_hash, record_count, genesis_projection, created_at, updated_at
+      ) VALUES ($1, $2::uuid, 'postgres', 0, $3, $4, $5::bigint, $6::jsonb,
+        clock_timestamp(), clock_timestamp())
+      ON CONFLICT (namespace) DO NOTHING
+    `, [
+      options.namespace,
+      installationId,
+      genesisHeadHash,
+      genesisProjectionHash,
+      projection.length,
+      JSON.stringify(projection),
+    ]);
+    const verified = await verifyNamespaceAuthorityClient(client, options, true);
+    await client.query("COMMIT");
+    began = false;
+    return verified;
+  } catch (error) {
+    if (began) await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function verifyNamespaceAuthority(
+  pool: AgentRegistryPostgresPool,
+  options: NormalizedOptions,
+): Promise<VerifiedAuthority> {
+  const client = await pool.connect();
+  let began = false;
+  try {
+    await client.query("BEGIN");
+    began = true;
+    await setStatementTimeout(client, options.statementTimeoutMs);
+    await client.query(
+      "/* agent-registry:mutation-lock */ SELECT pg_advisory_xact_lock($1, $2)",
+      [MUTATION_LOCK_CLASS_ID, namespaceLockKey(options.namespace)],
+    );
+    const verified = await verifyNamespaceAuthorityClient(client, options, true);
+    await client.query("COMMIT");
+    began = false;
+    return verified;
+  } catch (error) {
+    if (began) await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function verifyNamespaceAuthorityClient(
+  client: AgentRegistryPostgresClient,
+  options: NormalizedOptions,
+  lock: boolean,
+): Promise<VerifiedAuthority> {
+  const authorityResult = await client.query<AuthorityRow>(`
+    /* agent-registry:authority-read */
+    SELECT installation_id::text, backend_kind, revision, head_hash,
+      projection_hash, record_count, genesis_projection
+    FROM ${POSTGRES_AGENT_REGISTRY_AUTHORITY_TABLE}
+    WHERE namespace = $1
+    ${lock ? "FOR UPDATE" : ""}
+  `, [options.namespace]);
+  if (authorityResult.rowCount !== 1 || !authorityResult.rows[0]) {
+    throw authorityError("PostgreSQL Agent registry namespace authority is missing or duplicated.");
+  }
+  const row = authorityResult.rows[0];
+  const installationId = String(row.installation_id ?? "");
+  const revision = strictRevision(row.revision);
+  const recordCount = safeCount(row.record_count);
+  const genesisProjection = parseProjection(row.genesis_projection, "genesis projection");
+  const genesisProjectionHash = projectionDigest(genesisProjection);
+  if (!UUID_PATTERN.test(installationId) || installationId !== options.authorityId
+    || row.backend_kind !== "postgres"
+    || !safeHash(row.head_hash) || !safeHash(row.projection_hash)
+    || genesisProjection.length > recordCount) {
+    throw authorityError("PostgreSQL Agent registry namespace authority is malformed.");
+  }
+  let expectedHead = signGenesis({
+    namespace: options.namespace,
+    installationId,
+    projectionHash: genesisProjectionHash,
+    recordCount: genesisProjection.length,
+  }, options.integritySecret);
+  const projection = new Map(genesisProjection.map((entry) => [entry.agentId, entry.recordHash]));
+  const eventsResult = await client.query<MutationRow>(`
+    /* agent-registry:authority-events */
+    SELECT revision, event_id::text, previous_hash, mutation_json,
+      mutation_hash, projection_hash, record_count, event_hash
+    FROM ${POSTGRES_AGENT_REGISTRY_MUTATION_TABLE}
+    WHERE namespace = $1
+    ORDER BY revision ASC
+    LIMIT ${MAX_AUTHORITY_EVENTS + 1}
+  `, [options.namespace]);
+  if (eventsResult.rows.length > MAX_AUTHORITY_EVENTS || eventsResult.rows.length !== revision) {
+    throw authorityError("PostgreSQL Agent registry mutation chain length diverged from authority revision.");
+  }
+  const floorHeads = new Map<number, string>([[0, expectedHead]]);
+  for (let index = 0; index < eventsResult.rows.length; index += 1) {
+    const event = eventsResult.rows[index]!;
+    const eventRevision = strictRevision(event.revision);
+    const eventId = String(event.event_id ?? "");
+    const mutations = parseProjection(event.mutation_json, "mutation event");
+    const mutationHash = projectionDigest(mutations);
+    if (eventRevision !== index + 1 || !UUID_PATTERN.test(eventId)
+      || event.previous_hash !== expectedHead || event.mutation_hash !== mutationHash
+      || !safeHash(event.projection_hash) || !safeHash(event.event_hash)) {
+      throw authorityError("PostgreSQL Agent registry mutation chain is malformed.");
+    }
+    for (const mutation of mutations) projection.set(mutation.agentId, mutation.recordHash);
+    const expectedProjection = projectionEntries(projection);
+    const expectedProjectionHash = projectionDigest(expectedProjection);
+    if (event.projection_hash !== expectedProjectionHash
+      || safeCount(event.record_count) !== expectedProjection.length) {
+      throw authorityError("PostgreSQL Agent registry mutation projection is inconsistent.");
+    }
+    const computedEventHash = signMutationEvent({
+      namespace: options.namespace,
+      installationId,
+      revision: eventRevision,
+      eventId,
+      previousHash: expectedHead,
+      mutationHash,
+      projectionHash: expectedProjectionHash,
+      recordCount: expectedProjection.length,
+    }, options.integritySecret);
+    if (!safeHashEqual(event.event_hash, computedEventHash)) {
+      throw authorityError("PostgreSQL Agent registry mutation HMAC verification failed.");
+    }
+    expectedHead = computedEventHash;
+    floorHeads.set(eventRevision, expectedHead);
+  }
+  const currentProjection = await readProjection(client, options);
+  const currentProjectionHash = projectionDigest(currentProjection);
+  if (row.head_hash !== expectedHead || row.projection_hash !== currentProjectionHash
+    || projectionDigest(projectionEntries(projection)) !== currentProjectionHash
+    || recordCount !== currentProjection.length) {
+    throw authorityError("PostgreSQL Agent registry authority head diverged from its current projection.");
+  }
+  verifyCheckpointFloor(options.externalCheckpointFloor, revision, floorHeads);
+  return {
+    installationId,
+    revision,
+    headHash: expectedHead,
+    projectionHash: currentProjectionHash,
+    recordCount,
+    authorityBinding: authorityBinding(options.namespace, installationId),
+  };
+}
+
+async function appendMutationEvent(
+  client: AgentRegistryPostgresClient,
+  options: NormalizedOptions,
+  current: VerifiedAuthority,
+  mutations: MutationEntry[],
+  projection: ProjectionEntry[],
+): Promise<VerifiedAuthority> {
+  const revision = current.revision + 1;
+  if (!Number.isSafeInteger(revision)) throw authorityError("PostgreSQL Agent registry revision overflowed.");
+  const eventId = randomUUID();
+  const mutationHash = projectionDigest(mutations);
+  const projectionHash = projectionDigest(projection);
+  const eventHash = signMutationEvent({
+    namespace: options.namespace,
+    installationId: current.installationId,
+    revision,
+    eventId,
+    previousHash: current.headHash,
+    mutationHash,
+    projectionHash,
+    recordCount: projection.length,
+  }, options.integritySecret);
+  const inserted = await client.query(`
+    /* agent-registry:authority-event-insert */
+    INSERT INTO ${POSTGRES_AGENT_REGISTRY_MUTATION_TABLE} (
+      namespace, revision, event_id, previous_hash, mutation_json,
+      mutation_hash, projection_hash, record_count, event_hash, created_at
+    ) VALUES ($1, $2::bigint, $3::uuid, $4, $5::jsonb, $6, $7, $8::bigint, $9,
+      clock_timestamp())
+  `, [
+    options.namespace, revision, eventId, current.headHash, JSON.stringify(mutations),
+    mutationHash, projectionHash, projection.length, eventHash,
+  ]);
+  if (inserted.rowCount !== 1) throw authorityError("PostgreSQL Agent registry mutation event was not inserted.");
+  const updated = await client.query(`
+    /* agent-registry:authority-update */
+    UPDATE ${POSTGRES_AGENT_REGISTRY_AUTHORITY_TABLE}
+    SET revision = $2::bigint, head_hash = $3, projection_hash = $4,
+      record_count = $5::bigint, updated_at = clock_timestamp()
+    WHERE namespace = $1 AND revision = $6::bigint AND head_hash = $7
+  `, [
+    options.namespace, revision, eventHash, projectionHash, projection.length,
+    current.revision, current.headHash,
+  ]);
+  if (updated.rowCount !== 1) throw authorityError("PostgreSQL Agent registry authority changed during mutation.");
+  return {
+    ...current,
+    revision,
+    headHash: eventHash,
+    projectionHash,
+    recordCount: projection.length,
+  };
+}
+
+async function readProjection(
+  client: AgentRegistryPostgresClient,
+  options: NormalizedOptions,
+): Promise<ProjectionEntry[]> {
+  const result = await client.query<RegistryRow>(`
+    /* agent-registry:authority-projection */
+    SELECT ${SELECT_FIELDS}
+    FROM ${POSTGRES_AGENT_REGISTRY_TABLE}
+    WHERE namespace = $1
+    ORDER BY agent_id ASC
+    LIMIT ${MAX_AUTHORITY_RECORDS + 1}
+  `, [options.namespace]);
+  if (result.rows.length > MAX_AUTHORITY_RECORDS) {
+    throw authorityError("PostgreSQL Agent registry projection exceeds its bounded capacity.");
+  }
+  return result.rows.map((row) => {
+    const record = decodeRow(row, options.maxRecordBytes);
+    return { agentId: record.agentId, recordHash: recordDigest(record) };
+  });
+}
+
+function parseProjection(value: unknown, label: string): ProjectionEntry[] {
+  let input = value;
+  if (typeof input === "string") {
+    try { input = JSON.parse(input); }
+    catch (error) { throw authorityError(`PostgreSQL Agent registry ${label} is malformed.`, error); }
+  }
+  if (!Array.isArray(input) || input.length > MAX_AUTHORITY_RECORDS) {
+    throw authorityError(`PostgreSQL Agent registry ${label} is malformed.`);
+  }
+  const seen = new Set<string>();
+  const entries = input.map((candidate) => {
+    if (!isPlainRecord(candidate) || Object.keys(candidate).length !== 2
+      || !Object.hasOwn(candidate, "agentId") || !Object.hasOwn(candidate, "recordHash")) {
+      throw authorityError(`PostgreSQL Agent registry ${label} is malformed.`);
+    }
+    const entry = { agentId: String(candidate.agentId ?? ""), recordHash: String(candidate.recordHash ?? "") };
+    if (!AGENT_ID_PATTERN.test(entry.agentId) || !safeHash(entry.recordHash) || seen.has(entry.agentId)) {
+      throw authorityError(`PostgreSQL Agent registry ${label} is malformed.`);
+    }
+    seen.add(entry.agentId);
+    return entry;
+  }).sort((left, right) => left.agentId.localeCompare(right.agentId));
+  return entries;
+}
+
+function projectionEntries(projection: Map<string, string>): ProjectionEntry[] {
+  return [...projection.entries()]
+    .map(([agentId, recordHash]) => ({ agentId, recordHash }))
+    .sort((left, right) => left.agentId.localeCompare(right.agentId));
+}
+
+function projectionDigest(entries: ProjectionEntry[]): string {
+  return createHash("sha256").update(stableStringify(entries), "utf8").digest("hex");
+}
+
+function authorityBinding(namespace: string, installationId: string): string {
+  return `postgres-authority-v1:${createHash("sha256")
+    .update(stableStringify({ backend: "postgres", namespace, installationId }), "utf8")
+    .digest("hex")}`;
+}
+
+function signGenesis(
+  input: { namespace: string; installationId: string; projectionHash: string; recordCount: number },
+  secret: string,
+): string {
+  return authorityHmac("genesis", input, secret);
+}
+
+function signMutationEvent(input: Record<string, unknown>, secret: string): string {
+  return authorityHmac("mutation", input, secret);
+}
+
+function authorityHmac(kind: string, input: unknown, secret: string): string {
+  return createHmac("sha256", secret)
+    .update(`${AUTHORITY_DOMAIN}/${kind}\n${stableStringify(input)}`, "utf8")
+    .digest("hex");
+}
+
+function verifyCheckpointFloor(
+  floor: PostgresAgentRegistryCheckpointFloor | undefined,
+  revision: number,
+  heads: Map<number, string>,
+): void {
+  if (!floor) return;
+  if (revision < floor.minimumRevision) {
+    throw new PostgresAgentRegistryError(
+      "AGENT_REGISTRY_ROLLBACK_DETECTED",
+      "PostgreSQL Agent registry revision is below its external checkpoint floor.",
+      "integrity",
+      500,
+    );
+  }
+  const observed = heads.get(floor.minimumRevision);
+  if (!observed || !safeHashEqual(observed, floor.trustedHeadHash)) {
+    throw new PostgresAgentRegistryError(
+      "AGENT_REGISTRY_CHECKPOINT_MISMATCH",
+      "PostgreSQL Agent registry external checkpoint head does not match its mutation chain.",
+      "integrity",
+      500,
+    );
+  }
+}
+
+function strictRevision(value: unknown): number {
+  const revision = Number(value);
+  if (!Number.isSafeInteger(revision) || revision < 0) {
+    throw authorityError("PostgreSQL Agent registry authority revision is malformed.");
+  }
+  return revision;
+}
+
+function safeHash(value: unknown): value is string {
+  return typeof value === "string" && SHA256_PATTERN.test(value);
+}
+
+function safeHashEqual(left: unknown, right: unknown): boolean {
+  if (!safeHash(left) || !safeHash(right)) return false;
+  try { return timingSafeEqual(Buffer.from(left, "hex"), Buffer.from(right, "hex")); }
+  catch { return false; }
 }
 
 async function readParentForShare(
@@ -823,14 +1308,22 @@ function safeCount(value: unknown): number {
 
 type NormalizedOptions = Required<Pick<
   PostgresAgentRegistryStoreOptions,
-  "namespace" | "poolMax" | "statementTimeoutMs" | "maxRecordBytes" | "now"
->> & Pick<PostgresAgentRegistryStoreOptions, "connectionString">;
+  "namespace" | "authorityId" | "poolMax" | "statementTimeoutMs" | "maxRecordBytes" | "now" | "integritySecret"
+>> & Pick<PostgresAgentRegistryStoreOptions, "connectionString" | "externalCheckpointFloor">;
 
 function normalizeOptions(options: PostgresAgentRegistryStoreOptions): NormalizedOptions {
   if (!options || !SAFE_NAMESPACE_PATTERN.test(String(options.namespace ?? ""))) {
     throw new PostgresAgentRegistryError(
       "AGENT_REGISTRY_POSTGRES_CONFIGURATION_INVALID",
       "PostgreSQL Agent registry requires a bounded namespace.",
+      "configuration",
+      500,
+    );
+  }
+  if (!UUID_PATTERN.test(String(options.authorityId ?? ""))) {
+    throw new PostgresAgentRegistryError(
+      "AGENT_REGISTRY_POSTGRES_CONFIGURATION_INVALID",
+      "PostgreSQL Agent registry requires a stable authorityId UUID.",
       "configuration",
       500,
     );
@@ -843,12 +1336,37 @@ function normalizeOptions(options: PostgresAgentRegistryStoreOptions): Normalize
       500,
     );
   }
+  if (typeof options.integritySecret !== "string" || options.integritySecret.length < 32) {
+    throw new PostgresAgentRegistryError(
+      "AGENT_REGISTRY_POSTGRES_CONFIGURATION_INVALID",
+      "PostgreSQL Agent registry integritySecret must contain at least 32 characters.",
+      "configuration",
+      500,
+    );
+  }
+  let externalCheckpointFloor: PostgresAgentRegistryCheckpointFloor | undefined;
+  if (options.externalCheckpointFloor !== undefined) {
+    const minimumRevision = Number(options.externalCheckpointFloor.minimumRevision);
+    const trustedHeadHash = options.externalCheckpointFloor.trustedHeadHash;
+    if (!Number.isSafeInteger(minimumRevision) || minimumRevision < 0 || !safeHash(trustedHeadHash)) {
+      throw new PostgresAgentRegistryError(
+        "AGENT_REGISTRY_POSTGRES_CONFIGURATION_INVALID",
+        "PostgreSQL Agent registry external checkpoint floor is malformed.",
+        "configuration",
+        500,
+      );
+    }
+    externalCheckpointFloor = Object.freeze({ minimumRevision, trustedHeadHash });
+  }
   return {
     namespace: options.namespace,
+    authorityId: options.authorityId,
     connectionString: options.connectionString,
     poolMax: boundedInteger(options.poolMax, DEFAULT_POOL_MAX, 1, 64),
     statementTimeoutMs: boundedInteger(options.statementTimeoutMs, DEFAULT_STATEMENT_TIMEOUT_MS, 100, 60_000),
     maxRecordBytes: boundedInteger(options.maxRecordBytes, DEFAULT_MAX_RECORD_BYTES, 1_024, MAX_RECORD_BYTES),
+    integritySecret: options.integritySecret,
+    externalCheckpointFloor,
     now: options.now ?? Date.now,
   };
 }
@@ -907,6 +1425,17 @@ function migrationError(cause?: unknown): PostgresAgentRegistryError {
 function corrupt(message: string, cause?: unknown): PostgresAgentRegistryError {
   return new PostgresAgentRegistryError(
     "AGENT_REGISTRY_RECORD_CORRUPT",
+    message,
+    "integrity",
+    500,
+    false,
+    cause,
+  );
+}
+
+function authorityError(message: string, cause?: unknown): PostgresAgentRegistryError {
+  return new PostgresAgentRegistryError(
+    "AGENT_REGISTRY_AUTHORITY_INTEGRITY_FAILED",
     message,
     "integrity",
     500,

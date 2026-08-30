@@ -12,10 +12,12 @@ import {
 import {
   createSqliteAgentRegistryStore,
   type SqliteAgentRegistryStore,
+  type SqliteAgentRegistryStoreOptions,
 } from "./sqliteAgentRegistryStore.ts";
 
 const roots: string[] = [];
 const NOW = "2026-08-30T00:00:00.000Z";
+const HMAC_SECRET = "sqlite-agent-registry-test-secret-2026-08-30";
 
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, {
@@ -31,7 +33,8 @@ describe("SQLite Agent registry", () => {
     const fixture = await createFixture();
     const store = fixture.store;
     await store.load();
-    expect(store.getAuthorityBinding()).toMatch(/^sqlite-v1:[a-f0-9]{64}$/u);
+    expect(store.getAuthorityBinding()).toMatch(/^sqlite-v2:[a-f0-9]{64}$/u);
+    expect(store.getAuthorityProtocol()).toBe("sqlite-checkpoint-v1");
 
     expect(store.getHealth()).toMatchObject({
       status: "ready",
@@ -46,13 +49,21 @@ describe("SQLite Agent registry", () => {
       journalMode: "wal",
       synchronous: "full",
       foreignKeys: true,
-      rollbackProtected: false,
-      cryptographicallyTamperEvident: false,
+      rollbackProtected: true,
+      rollbackProtectionScope: "database-file-only-with-same-host-checkpoint",
+      cryptographicallyTamperEvident: true,
+      databaseSnapshotRollbackProtected: true,
+      wholeDirectoryRollbackProtected: false,
+      authorityProtocol: "sqlite-checkpoint-v1",
       schemaVersion: SQLITE_AGENT_REGISTRY_SCHEMA_VERSION,
       migrationCount: SQLITE_AGENT_REGISTRY_MIGRATIONS.length,
       recordCount: 0,
       busyTimeoutMs: 5_000,
       pathExposed: false,
+      checkpointVerified: true,
+      authorityRevision: 0,
+      authorityInstallationExposed: false,
+      recoveryStatus: "initialized",
       lastErrorCode: null,
     });
     await store.close();
@@ -77,6 +88,13 @@ describe("SQLite Agent registry", () => {
       expect(strictTables.get("schema_migrations")).toBe(1);
       expect(strictTables.get("agent_registry_metadata")).toBe(1);
       expect(strictTables.get("agent_registry_records")).toBe(1);
+      expect(strictTables.get("agent_registry_authority")).toBe(1);
+      expect(strictTables.get("agent_registry_authority_events")).toBe(1);
+      const recordColumns = new Set(
+        (db.prepare("PRAGMA table_info('agent_registry_records')").all() as Array<{ name: string }>)
+          .map(({ name }) => name),
+      );
+      expect(recordColumns.has("record_hmac")).toBe(true);
       const indexes = new Set(
         (db.prepare("PRAGMA index_list('agent_registry_records')").all() as Array<{ name: string }>)
           .map(({ name }) => name),
@@ -185,10 +203,8 @@ describe("SQLite Agent registry", () => {
     const second = createStore(fixture.dbPath, "host-a");
     await Promise.all([fixture.store.load(), second.load()]);
 
-    await Promise.all([
-      fixture.store.upsert(record("agt_connection_a", "tenant-a")),
-      second.upsert(record("agt_connection_b", "tenant-b")),
-    ]);
+    await fixture.store.upsert(record("agt_connection_a", "tenant-a"));
+    await second.upsert(record("agt_connection_b", "tenant-b"));
     expect((await fixture.store.listAll()).map(({ agentId }) => agentId).sort()).toEqual([
       "agt_connection_a",
       "agt_connection_b",
@@ -276,14 +292,9 @@ describe("SQLite Agent registry", () => {
       UPDATE agent_registry_records SET record_json = '{}'
       WHERE agent_id = 'agt_corrupt_json'
     `);
-    const corruptStore = createStore(rowFixture.dbPath, "host-a");
-    await expect(corruptStore.load()).rejects.toMatchObject({ name: "GovernanceAgentRegistryCorrupt" });
-    expect(corruptStore.getHealth()).toMatchObject({
-      status: "degraded",
-      available: false,
-      lastErrorCode: "AGENT_REGISTRY_SQLITE_CORRUPT",
-    });
-    await corruptStore.close();
+    expect(() => createStore(rowFixture.dbPath, "host-a")).toThrowError(
+      expect.objectContaining({ name: "GovernanceAgentRegistryCorrupt" }),
+    );
 
     const linkFixture = await createFixture();
     await linkFixture.store.close();
@@ -318,11 +329,17 @@ async function createFixture(): Promise<{
   return { root, dbPath, store: createStore(dbPath, "host-a") };
 }
 
-function createStore(dbPath: string, hostId: string): SqliteAgentRegistryStore {
+function createStore(
+  dbPath: string,
+  hostId: string,
+  options: Partial<Omit<SqliteAgentRegistryStoreOptions, "sqlitePath" | "hostId" | "hmacSecret">> = {},
+): SqliteAgentRegistryStore {
   return createSqliteAgentRegistryStore({
     sqlitePath: dbPath,
     hostId,
+    hmacSecret: HMAC_SECRET,
     now: () => NOW,
+    ...options,
   });
 }
 

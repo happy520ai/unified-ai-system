@@ -28,6 +28,7 @@
     "eval:prompt-enhancement": "node ./tools/prompt-enhancement-eval.mjs",
     "build": "pnpm -r --if-present build",
     "docs:agent-governance:openapi": "node tools/print-agent-governance-openapi.mjs",
+    "migrate:agent-governance:sqlite": "node tools/migrate-agent-governance-json-to-sqlite.mjs",
     "check": "pnpm -r --if-present check && pnpm typecheck && pnpm check:language-policy && pnpm check:supply-chain-config && pnpm check:route-permissions && pnpm check:outbound-policy",
     "typecheck": "tsc -p tsconfig.json",
     "test": "pnpm -r --if-present test",

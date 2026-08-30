@@ -1,15 +1,19 @@
 # Local single-host Agent Governance profile.
 # Usage: docker compose -f docker-compose.yml -f docker-compose.agent-governance.yml up --build
 #
-# This profile deliberately keeps the signed JSON Registry as the sole runtime
-# authority. SQLite/PostgreSQL adapters are not promoted until an independent
-# monotonic rollback/authority anchor and real deployment evidence exist.
+# This profile uses the promoted single-host SQLite Registry on a persistent
+# volume. Its separately signed checkpoint detects DB-file rollback; it is not
+# multi-host HA and cannot detect rollback of the entire volume plus secret.
+# Existing JSON volumes must run the offline migration command before switching.
 services:
   ai-gateway-service:
     environment:
       AI_GATEWAY_AGENT_GOVERNANCE_ENABLED: "true"
       AI_GATEWAY_AGENT_GOVERNANCE_DATA_DIR: /app/.data/agent-governance
-      AI_GATEWAY_AGENT_GOVERNANCE_REGISTRY_STORE_MODE: json
+      AI_GATEWAY_AGENT_GOVERNANCE_REGISTRY_STORE_MODE: sqlite
+      AI_GATEWAY_AGENT_GOVERNANCE_HOST_ID: compose-single-host
+      AI_GATEWAY_AGENT_GOVERNANCE_SQLITE_PATH: /app/.data/agent-governance/agent-registry.sqlite
+      AI_GATEWAY_AGENT_GOVERNANCE_SQLITE_CHECKPOINT_PATH: /app/.data/agent-governance/agent-registry.checkpoint.json
     healthcheck:
       test:
         - CMD

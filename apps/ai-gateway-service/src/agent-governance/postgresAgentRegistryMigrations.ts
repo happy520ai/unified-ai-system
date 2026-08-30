@@ -12,6 +12,10 @@ export const POSTGRES_AGENT_REGISTRY_MIGRATION_TABLE =
   "public.ai_gateway_agent_governance_schema_migrations";
 export const POSTGRES_AGENT_REGISTRY_SCHEMA_STATE_TABLE =
   "public.ai_gateway_agent_governance_schema_state";
+export const POSTGRES_AGENT_REGISTRY_AUTHORITY_TABLE =
+  "public.ai_gateway_agent_governance_registry_authority";
+export const POSTGRES_AGENT_REGISTRY_MUTATION_TABLE =
+  "public.ai_gateway_agent_governance_registry_mutations";
 export const POSTGRES_AGENT_REGISTRY_MIGRATION_LOCK = Object.freeze({
   classId: 1_431_193_303,
   objectId: 1_768_841_421,
@@ -143,6 +147,46 @@ const DEFINITIONS = [
         (namespace, status, expires_at, agent_id);
     `,
   },
+  {
+    version: 3,
+    name: "add-agent-governance-registry-authority-chain",
+    sql: `
+      /* agent-registry:migration-003 */
+      CREATE TABLE IF NOT EXISTS ${POSTGRES_AGENT_REGISTRY_AUTHORITY_TABLE} (
+        namespace TEXT PRIMARY KEY CHECK (length(namespace) BETWEEN 1 AND 128),
+        installation_id UUID NOT NULL,
+        backend_kind TEXT NOT NULL CHECK (backend_kind = 'postgres'),
+        revision BIGINT NOT NULL CHECK (revision >= 0),
+        head_hash CHAR(64) NOT NULL CHECK (head_hash ~ '^[a-f0-9]{64}$'),
+        projection_hash CHAR(64) NOT NULL CHECK (projection_hash ~ '^[a-f0-9]{64}$'),
+        record_count BIGINT NOT NULL CHECK (record_count >= 0),
+        genesis_projection JSONB NOT NULL CHECK (jsonb_typeof(genesis_projection) = 'array'),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp()
+      );
+
+      CREATE TABLE IF NOT EXISTS ${POSTGRES_AGENT_REGISTRY_MUTATION_TABLE} (
+        namespace TEXT NOT NULL,
+        revision BIGINT NOT NULL CHECK (revision > 0),
+        event_id UUID NOT NULL,
+        previous_hash CHAR(64) NOT NULL CHECK (previous_hash ~ '^[a-f0-9]{64}$'),
+        mutation_json JSONB NOT NULL CHECK (jsonb_typeof(mutation_json) = 'array'),
+        mutation_hash CHAR(64) NOT NULL CHECK (mutation_hash ~ '^[a-f0-9]{64}$'),
+        projection_hash CHAR(64) NOT NULL CHECK (projection_hash ~ '^[a-f0-9]{64}$'),
+        record_count BIGINT NOT NULL CHECK (record_count >= 0),
+        event_hash CHAR(64) NOT NULL CHECK (event_hash ~ '^[a-f0-9]{64}$'),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+        PRIMARY KEY (namespace, revision),
+        UNIQUE (namespace, event_id),
+        FOREIGN KEY (namespace)
+          REFERENCES ${POSTGRES_AGENT_REGISTRY_AUTHORITY_TABLE} (namespace)
+          ON UPDATE RESTRICT ON DELETE RESTRICT
+      );
+
+      CREATE INDEX IF NOT EXISTS ai_gateway_agent_governance_registry_mutation_head_idx
+        ON ${POSTGRES_AGENT_REGISTRY_MUTATION_TABLE} (namespace, revision DESC);
+    `,
+  },
 ] as const;
 
 export const POSTGRES_AGENT_REGISTRY_SCHEMA_VERSION = DEFINITIONS.length;
@@ -158,10 +202,15 @@ export const POSTGRES_AGENT_REGISTRY_MIGRATIONS: readonly PostgresAgentRegistryM
   }),
 );
 
-export const POSTGRES_AGENT_REGISTRY_SCHEMA_FINGERPRINT = createHash("sha256")
-  .update(JSON.stringify(POSTGRES_AGENT_REGISTRY_MIGRATIONS.map((migration) => ({
-    version: migration.version,
-    name: migration.name,
-    checksum: migration.checksum,
-  }))), "utf8")
-  .digest("hex");
+export const POSTGRES_AGENT_REGISTRY_SCHEMA_FINGERPRINTS: readonly string[] = Object.freeze(
+  POSTGRES_AGENT_REGISTRY_MIGRATIONS.map((_migration, index) => createHash("sha256")
+    .update(JSON.stringify(POSTGRES_AGENT_REGISTRY_MIGRATIONS.slice(0, index + 1).map((item) => ({
+      version: item.version,
+      name: item.name,
+      checksum: item.checksum,
+    }))), "utf8")
+    .digest("hex")),
+);
+
+export const POSTGRES_AGENT_REGISTRY_SCHEMA_FINGERPRINT =
+  POSTGRES_AGENT_REGISTRY_SCHEMA_FINGERPRINTS.at(-1)!;

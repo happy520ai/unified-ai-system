@@ -32,6 +32,13 @@ import { createAgentGovernanceService } from "../agent-governance/agentGovernanc
 import { createAgentGovernanceToolProxy } from "../agent-governance/toolProxy.ts";
 import { createGatewayModelProposer } from "../agent-governance/gatewayModelProposer.ts";
 import { resolveGovernanceSecret } from "../agent-governance/governanceSecret.ts";
+import { createSqliteAgentRegistryStore } from "../agent-governance/sqliteAgentRegistryStore.ts";
+import { createPostgresAgentRegistryStore } from "../agent-governance/postgresAgentRegistryStore.ts";
+import {
+  assertRegistryAuthorityModeSync,
+  computeSignedJsonRegistryDigestSync,
+  readRegistryAuthoritySwitchMarkerSync,
+} from "../agent-governance/registryAuthoritySwitch.ts";
 import { createLocalWorkflowService } from "../workflow/localWorkflowService.js";
 import { createWorkforceService } from "../workforce/workforceService.js";
 import { createControlledExecutor } from "../workforce/workforceControlledExecutor.js";
@@ -342,20 +349,23 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
       repoRoot,
       agentGovernanceDataDir,
     );
-    // Establish the no-link/private-ACL governance root before SQLite can
-    // create its database or WAL files in that authority directory.
-    resolveGovernanceSecret({ env, dataDir: agentGovernanceDataDir });
-    // SQLite/PostgreSQL adapters remain testable migration candidates, but no
-    // runtime may promote them until Registry rollback/authority anchoring has
-    // independent evidence. The only executable authority is signed JSON.
-    const agentRegistryStore = null;
+    // Establish the no-link/private-ACL governance root before a database can
+    // create its authority/checkpoint files in that directory.
+    const governanceSecret = resolveGovernanceSecret({ env, dataDir: agentGovernanceDataDir });
+    const agentRegistryStore = createConfiguredAgentGovernanceRegistryStore({
+      configuration: registryConfiguration,
+      dataDir: agentGovernanceDataDir,
+      secret: governanceSecret,
+    });
     let agentGovernanceService;
     try {
       agentGovernanceService = createAgentGovernanceService({
         env,
         dataDir: agentGovernanceDataDir,
         modelProposer,
-        registryAuthority: registryConfiguration.authorityBinding,
+        ...(agentRegistryStore
+          ? { stores: { registry: agentRegistryStore } }
+          : { registryAuthority: registryConfiguration.authorityBinding }),
       });
     } catch (error) {
       void agentRegistryStore?.close?.();
@@ -1226,46 +1236,281 @@ function resolveAgentGovernanceRegistryConfiguration(env, repositoryRoot, dataDi
     error.category = "configuration";
     throw error;
   }
-  if (mode !== "json") {
-    const error = new Error(
-      `${mode} Agent Registry is implemented but not promoted: rollback and external authority anchoring are not proven.`,
-    );
-    error.code = "AGENT_GOVERNANCE_REGISTRY_BACKEND_UNPROMOTED";
-    error.category = "configuration";
-    throw error;
-  }
   const postgresConfigured = [
     "AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_URL",
     "AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_URL_FILE",
     "AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_NAMESPACE",
+    "AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_AUTHORITY_ID",
     "AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_TLS_REQUIRED",
     "AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_POOL_MAX",
     "AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_STATEMENT_TIMEOUT_MS",
+    "AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_MINIMUM_REVISION",
+    "AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_TRUSTED_HEAD_HASH",
   ].some((name) => String(env[name] ?? "").trim() !== "");
-  if (postgresConfigured) {
-    const error = new Error(
-      "PostgreSQL Agent Registry configuration is present, but that authority is not promoted for runtime use.",
-    );
-    error.code = "AGENT_GOVERNANCE_REGISTRY_BACKEND_UNPROMOTED";
-    error.category = "configuration";
-    throw error;
-  }
   const configuredPath = String(env.AI_GATEWAY_AGENT_GOVERNANCE_SQLITE_PATH ?? "").trim();
   const sqlitePath = configuredPath
     ? (isAbsolute(configuredPath) ? configuredPath : resolve(repositoryRoot, configuredPath))
     : resolve(dataDir, "agent-registry.sqlite");
-  const sqliteConfigured = configuredPath
+  const configuredCheckpoint = String(
+    env.AI_GATEWAY_AGENT_GOVERNANCE_SQLITE_CHECKPOINT_PATH ?? "",
+  ).trim();
+  const sqliteCheckpointPath = configuredCheckpoint
+    ? (isAbsolute(configuredCheckpoint)
+      ? configuredCheckpoint
+      : resolve(repositoryRoot, configuredCheckpoint))
+    : resolve(dirname(sqlitePath), "agent-registry.checkpoint.json");
+  const sqliteConfigured = Boolean(configuredPath
+    || configuredCheckpoint
     || String(env.AI_GATEWAY_AGENT_GOVERNANCE_HOST_ID ?? "").trim()
-    || String(env.AI_GATEWAY_AGENT_GOVERNANCE_SQLITE_BUSY_TIMEOUT_MS ?? "").trim();
-  if (sqliteConfigured || existsSync(sqlitePath)) {
-    const error = new Error(
-      "SQLite Agent Registry artifacts/configuration are present, but that authority is not promoted for runtime use.",
-    );
-    error.code = "AGENT_GOVERNANCE_REGISTRY_BACKEND_UNPROMOTED";
-    error.category = "configuration";
-    throw error;
+    || String(env.AI_GATEWAY_AGENT_GOVERNANCE_SQLITE_BUSY_TIMEOUT_MS ?? "").trim());
+
+  if (mode === "json") {
+    if (postgresConfigured || sqliteConfigured || existsSync(sqlitePath) || existsSync(sqliteCheckpointPath)) {
+      throw agentGovernanceRegistryConfigurationError(
+        "AGENT_GOVERNANCE_REGISTRY_CONFIGURATION_CONFLICT",
+        "Database Agent Registry configuration or artifacts require an explicit non-JSON authority mode.",
+      );
+    }
+    return Object.freeze({ mode: "json", authorityBinding: "signed-json-v1" });
   }
-  return Object.freeze({ mode: "json", authorityBinding: "signed-json-v1" });
+
+  if (mode === "sqlite") {
+    if (postgresConfigured) {
+      throw agentGovernanceRegistryConfigurationError(
+        "AGENT_GOVERNANCE_REGISTRY_CONFIGURATION_CONFLICT",
+        "SQLite and PostgreSQL Agent Registry configuration cannot be combined.",
+      );
+    }
+    const hostId = String(env.AI_GATEWAY_AGENT_GOVERNANCE_HOST_ID ?? "").trim();
+    if (!hostId || hostId.length > 256 || /[\u0000-\u001f\u007f]/u.test(hostId)) {
+      throw agentGovernanceRegistryConfigurationError(
+        "AGENT_GOVERNANCE_REGISTRY_CONFIGURATION_INVALID",
+        "SQLite Agent Registry requires a stable bounded AI_GATEWAY_AGENT_GOVERNANCE_HOST_ID.",
+      );
+    }
+    assertAgentGovernanceRegistryPath(dataDir, sqlitePath, "SQLite database");
+    assertAgentGovernanceRegistryPath(dataDir, sqliteCheckpointPath, "SQLite checkpoint");
+    if (sqlitePath === sqliteCheckpointPath) {
+      throw agentGovernanceRegistryConfigurationError(
+        "AGENT_GOVERNANCE_REGISTRY_CONFIGURATION_INVALID",
+        "SQLite Agent Registry database and checkpoint paths must differ.",
+      );
+    }
+    return Object.freeze({
+      mode: "sqlite",
+      sqlitePath,
+      checkpointPath: sqliteCheckpointPath,
+      hostId,
+      busyTimeoutMs: strictRegistryInteger(
+        env.AI_GATEWAY_AGENT_GOVERNANCE_SQLITE_BUSY_TIMEOUT_MS,
+        5_000,
+        100,
+        30_000,
+        "AI_GATEWAY_AGENT_GOVERNANCE_SQLITE_BUSY_TIMEOUT_MS",
+      ),
+    });
+  }
+
+  if (sqliteConfigured || existsSync(sqlitePath) || existsSync(sqliteCheckpointPath)) {
+    throw agentGovernanceRegistryConfigurationError(
+      "AGENT_GOVERNANCE_REGISTRY_CONFIGURATION_CONFLICT",
+      "PostgreSQL and SQLite Agent Registry configuration or artifacts cannot be combined.",
+    );
+  }
+  if (String(env.AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_URL_FILE ?? "").trim()) {
+    throw agentGovernanceRegistryConfigurationError(
+      "AGENT_GOVERNANCE_REGISTRY_POSTGRES_URL_FILE_UNSUPPORTED",
+      "PostgreSQL Agent Registry URL-file loading is not enabled; inject the URL through a protected runtime secret.",
+    );
+  }
+  const connectionString = String(env.AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_URL ?? "").trim();
+  const namespace = String(env.AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_NAMESPACE ?? "default").trim();
+  const authorityId = String(env.AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_AUTHORITY_ID ?? "").trim();
+  if (!connectionString || !/^[A-Za-z0-9_.:-]{1,128}$/u.test(namespace)
+    || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(authorityId)) {
+    throw agentGovernanceRegistryConfigurationError(
+      "AGENT_GOVERNANCE_REGISTRY_CONFIGURATION_INVALID",
+      "PostgreSQL Agent Registry requires a URL, bounded namespace, and stable authority UUID.",
+    );
+  }
+  assertSecureAgentGovernancePostgresUrl(connectionString, env);
+  const minimumRevisionRaw = String(
+    env.AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_MINIMUM_REVISION ?? "",
+  ).trim();
+  const trustedHeadHash = String(
+    env.AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_TRUSTED_HEAD_HASH ?? "",
+  ).trim().toLowerCase();
+  if (Boolean(minimumRevisionRaw) !== Boolean(trustedHeadHash)) {
+    throw agentGovernanceRegistryConfigurationError(
+      "AGENT_GOVERNANCE_REGISTRY_CONFIGURATION_INVALID",
+      "PostgreSQL rollback floor revision and trusted head hash must be configured together.",
+    );
+  }
+  const externalCheckpointFloor = minimumRevisionRaw
+    ? Object.freeze({
+      minimumRevision: strictRegistryInteger(
+        minimumRevisionRaw,
+        0,
+        0,
+        Number.MAX_SAFE_INTEGER,
+        "AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_MINIMUM_REVISION",
+      ),
+      trustedHeadHash,
+    })
+    : undefined;
+  if (externalCheckpointFloor && !/^[a-f0-9]{64}$/u.test(externalCheckpointFloor.trustedHeadHash)) {
+    throw agentGovernanceRegistryConfigurationError(
+      "AGENT_GOVERNANCE_REGISTRY_CONFIGURATION_INVALID",
+      "PostgreSQL rollback floor head hash must be a canonical SHA-256/HMAC digest.",
+    );
+  }
+  return Object.freeze({
+    mode: "postgres",
+    connectionString,
+    namespace,
+    authorityId,
+    poolMax: strictRegistryInteger(
+      env.AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_POOL_MAX,
+      4,
+      1,
+      64,
+      "AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_POOL_MAX",
+    ),
+    statementTimeoutMs: strictRegistryInteger(
+      env.AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_STATEMENT_TIMEOUT_MS,
+      5_000,
+      100,
+      60_000,
+      "AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_STATEMENT_TIMEOUT_MS",
+    ),
+    externalCheckpointFloor,
+  });
+}
+
+function createConfiguredAgentGovernanceRegistryStore({ configuration, dataDir, secret }) {
+  if (configuration.mode === "json") {
+    assertRegistryAuthorityModeSync({ dataDir, secret, mode: "json" });
+    return null;
+  }
+  if (configuration.mode === "sqlite") {
+    const sourceDigest = computeSignedJsonRegistryDigestSync(dataDir);
+    const marker = readRegistryAuthoritySwitchMarkerSync({ dataDir, secret });
+    if (sourceDigest && !marker) {
+      throw agentGovernanceRegistryConfigurationError(
+        "AGENT_REGISTRY_AUTHORITY_SWITCH_REQUIRED",
+        "Run the verified offline JSON-to-SQLite migration before selecting SQLite authority.",
+      );
+    }
+    if (marker && (!sourceDigest
+      || !existsSync(configuration.sqlitePath)
+      || !existsSync(configuration.checkpointPath))) {
+      throw agentGovernanceRegistryConfigurationError(
+        "AGENT_REGISTRY_AUTHORITY_TARGET_UNAVAILABLE",
+        "The authenticated SQLite authority switch exists but its exact source or target is unavailable.",
+      );
+    }
+    const store = createSqliteAgentRegistryStore({
+      sqlitePath: configuration.sqlitePath,
+      checkpointPath: configuration.checkpointPath,
+      hostId: configuration.hostId,
+      hmacSecret: secret,
+      busyTimeoutMs: configuration.busyTimeoutMs,
+    });
+    const health = store.getHealth();
+    try {
+      assertRegistryAuthorityModeSync({
+        dataDir,
+        secret,
+        mode: "sqlite",
+        target: {
+          authorityProtocol: store.getAuthorityProtocol(),
+          authorityBinding: store.getAuthorityBinding(),
+          recordCount: health.recordCount,
+          sqliteSchemaVersion: health.schemaVersion,
+        },
+      });
+      return store;
+    } catch (error) {
+      void store.close();
+      throw error;
+    }
+  }
+  if (computeSignedJsonRegistryDigestSync(dataDir)
+    || readRegistryAuthoritySwitchMarkerSync({ dataDir, secret })) {
+    throw agentGovernanceRegistryConfigurationError(
+      "AGENT_GOVERNANCE_REGISTRY_POSTGRES_MIGRATION_REQUIRED",
+      "PostgreSQL Registry startup requires a fresh governance installation or an explicit migration.",
+    );
+  }
+  return createPostgresAgentRegistryStore({
+    connectionString: configuration.connectionString,
+    namespace: configuration.namespace,
+    authorityId: configuration.authorityId,
+    integritySecret: secret,
+    poolMax: configuration.poolMax,
+    statementTimeoutMs: configuration.statementTimeoutMs,
+    externalCheckpointFloor: configuration.externalCheckpointFloor,
+  });
+}
+
+function assertAgentGovernanceRegistryPath(dataDir, candidate, label) {
+  const base = resolve(dataDir);
+  const target = resolve(candidate);
+  const relation = relative(base, target);
+  if (relation === "" || relation === ".." || relation.startsWith(`..${sep}`) || isAbsolute(relation)) {
+    throw agentGovernanceRegistryConfigurationError(
+      "AGENT_GOVERNANCE_REGISTRY_PATH_UNSAFE",
+      `${label} must stay inside the protected Agent Governance data directory.`,
+    );
+  }
+}
+
+function assertSecureAgentGovernancePostgresUrl(connectionString, env) {
+  let url;
+  try { url = new URL(connectionString); }
+  catch {
+    throw agentGovernanceRegistryConfigurationError(
+      "AGENT_GOVERNANCE_REGISTRY_POSTGRES_URL_INVALID",
+      "The PostgreSQL Agent Registry URL is invalid.",
+    );
+  }
+  if (url.protocol !== "postgres:" && url.protocol !== "postgresql:") {
+    throw agentGovernanceRegistryConfigurationError(
+      "AGENT_GOVERNANCE_REGISTRY_POSTGRES_URL_INVALID",
+      "The Agent Registry database URL must use PostgreSQL.",
+    );
+  }
+  const hostname = url.hostname.toLowerCase();
+  const loopback = hostname === "localhost" || hostname === "::1"
+    || hostname === "[::1]" || /^127(?:\.[0-9]{1,3}){3}$/u.test(hostname);
+  const tlsRequired = strictAgentGovernanceBoolean(
+    env.AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_TLS_REQUIRED,
+    true,
+    "AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_TLS_REQUIRED",
+  );
+  if (loopback) return;
+  const sslMode = String(url.searchParams.get("sslmode") ?? env.PGSSLMODE ?? "").trim().toLowerCase();
+  if (!tlsRequired || sslMode !== "verify-full") {
+    throw agentGovernanceRegistryConfigurationError(
+      "AGENT_GOVERNANCE_REGISTRY_POSTGRES_TLS_VERIFY_REQUIRED",
+      "A non-loopback PostgreSQL Agent Registry must use sslmode=verify-full.",
+    );
+  }
+}
+
+function strictAgentGovernanceBoolean(value, fallback, name) {
+  if (value === undefined || value === null || String(value).trim() === "") return fallback;
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === "true" || normalized === "1") return true;
+  if (normalized === "false" || normalized === "0") return false;
+  throw agentGovernanceRegistryConfigurationError(
+    "AGENT_GOVERNANCE_REGISTRY_CONFIGURATION_INVALID",
+    `${name} must be true or false when configured.`,
+  );
+}
+
+function agentGovernanceRegistryConfigurationError(code, message) {
+  return Object.assign(new Error(message), { code, category: "configuration" });
 }
 
 function strictRegistryInteger(value, fallback, minimum, maximum, name) {

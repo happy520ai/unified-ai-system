@@ -1,5 +1,12 @@
 import { dryRunDesktopAction } from "./desktopActionRuntime.js";
 
+/**
+ * @param {{
+ *   proposal?: { actionId?: string, input?: Record<string, unknown>, dryRunPreview?: Record<string, unknown> },
+ *   env?: Record<string, string | undefined>,
+ *   approval?: Record<string, unknown> | null
+ * }} input
+ */
 export async function evaluateChatLocalActionExecutionGate({ proposal, env = process.env, approval = null }) {
   if (env.OWNER_AUTOMATION_CHAT_REAL_RUN_ENABLED !== "true") {
     return { allowed: false, blocker: "chat_real_run_feature_flag_disabled", providerCallsMade: false };

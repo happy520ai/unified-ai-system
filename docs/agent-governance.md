@@ -533,7 +533,7 @@ service identity, SYSTEM and Administrators; failure to establish that ACL
 blocks startup. `AI_GATEWAY_AGENT_GOVERNANCE_DATA_DIR` is resolved from the
 repository root when relative, so different launch entrypoints share one state.
 
-The sole promoted runtime authority is the signed JSON Agent Registry:
+The default runtime authority remains the signed JSON Agent Registry:
 
 ```text
 AI_GATEWAY_AGENT_GOVERNANCE_REGISTRY_STORE_MODE=json
@@ -541,11 +541,61 @@ AI_GATEWAY_AGENT_GOVERNANCE_REGISTRY_STORE_MODE=json
 
 Every generation WAL signs the stable Registry authority binding, so restart
 recovery cannot replay an in-flight Agent into another backend or namespace.
-SQLite and PostgreSQL adapters, checksummed migrations and direct tests remain
-in the repository as migration candidates, but application startup rejects both
-with `AGENT_GOVERNANCE_REGISTRY_BACKEND_UNPROMOTED`. They cannot be promoted
-until an independently verifiable monotonic rollback/authority anchor and
-explicit migration procedure are implemented and tested.
+
+### Offline JSON Registry to SQLite authority migration
+
+SQLite is selectable only after the offline migration tool has authenticated
+the complete signed JSON state, copied every Registry record and parent-child
+edge into a fresh SQLite authority, verified the records one by one, and
+published `registry-authority-switch.json`. The switch marker is HMAC-signed,
+binds the exact source `agents.json` digest to the SQLite v2 authority/checkpoint,
+and is immutable. Its existence permanently blocks JSON-mode startup; SQLite
+startup verifies the marker whenever the anchored `agents.json` remains.
+
+Stop the gateway first. Pending state, generation, or policy-activation journals
+must be recovered by the original JSON runtime before migration. The target
+database, checkpoint, and reserved `.migration-staging` paths must not contain
+unrelated files. Supply the existing governance HMAC key through the protected
+environment or `secret.key`; it is deliberately not accepted as a command-line
+argument:
+
+```bash
+pnpm migrate:agent-governance:sqlite \
+  --source-dir .data/agent-governance \
+  --target .data/agent-governance/agent-registry.sqlite \
+  --checkpoint .data/agent-governance/agent-registry.checkpoint.json \
+  --host-id replace-with-stable-single-host-id \
+  --json
+```
+
+A successful command reports only counts, schema/protocol state, and a semantic
+digest—never tenant IDs, Agent IDs, paths, records, or secrets—and exits zero
+with `targetReady=true`. It never edits runtime configuration. Only after that
+success may the operator set the same stable host binding and exact paths:
+
+```text
+AI_GATEWAY_AGENT_GOVERNANCE_REGISTRY_STORE_MODE=sqlite
+AI_GATEWAY_AGENT_GOVERNANCE_SQLITE_PATH=.data/agent-governance/agent-registry.sqlite
+AI_GATEWAY_AGENT_GOVERNANCE_SQLITE_CHECKPOINT_PATH=.data/agent-governance/agent-registry.checkpoint.json
+AI_GATEWAY_AGENT_GOVERNANCE_HOST_ID=replace-with-stable-single-host-id
+```
+
+On failure, no switch marker is written and configuration remains unchanged.
+An unmarked target is not an eligible SQLite authority and may be verified on a
+retry; unknown staging files are preserved and cause a fail-closed conflict.
+Do not delete or modify `agents.json`, the signed state heads, or the switch
+marker after success: the anchor still authenticates the source bytes and the
+marker is the one-way rollback fence. Re-running the same completed migration
+only re-verifies both authorities and preserves the original `completedAt`.
+
+The SQLite backend is single-host and uses STRICT checksummed migrations. Its
+HMAC authority binds the installation to the configured SQLite path and
+authenticates every record and mutation event; separate metadata verifies the
+stable host ID on reopen. The independently signed same-host checkpoint detects
+DB-only snapshot rollback. It does not provide multi-host HA or detect rollback
+of the complete directory together with its checkpoint and HMAC material.
+PostgreSQL remains separately migration-gated and is not enabled by this SQLite
+procedure.
 
 The repository includes a credential-free local Compose overlay:
 
@@ -553,11 +603,47 @@ The repository includes a credential-free local Compose overlay:
 docker compose -f docker-compose.yml -f docker-compose.agent-governance.yml up --build
 ```
 
-Its healthcheck uses `/ready`, and its comments explicitly retain the signed
-JSON/single-host boundary. It does not start or impersonate SQLite, PostgreSQL,
-or HA deployment. The PostgreSQL adapter uses one global checksummed migration
+Its healthcheck uses `/ready`, and it selects the promoted single-host SQLite
+authority on the persistent gateway data volume. It does not start or
+impersonate PostgreSQL or an HA deployment.
+
+A fresh single-owner installation may instead select PostgreSQL. Existing JSON
+Registry data is rejected until a separate explicit PostgreSQL migration exists:
+
+```text
+AI_GATEWAY_AGENT_GOVERNANCE_REGISTRY_STORE_MODE=postgres
+AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_URL=postgresql://...?...sslmode=verify-full
+AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_NAMESPACE=default
+AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_AUTHORITY_ID=<stable-non-secret-uuid>
+```
+
+After storing a returned checkpoint in an independent trusted system, pin it on
+restart with both fields (never one without the other):
+
+```text
+AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_MINIMUM_REVISION=<revision>
+AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_TRUSTED_HEAD_HASH=<64-lowercase-hex>
+```
+
+The PostgreSQL adapter uses one global checksummed migration
 ledger and schema fingerprint because product DDL is global; namespaces isolate
-data only. That engineering evidence does **not** promote runtime use. When
+data only. Each configured PostgreSQL namespace additionally requires a stable,
+non-secret authority UUID and a separately supplied HMAC secret. Its namespace
+authority row authenticates the installation, genesis projection, monotonic
+revision and current projection; every `upsert`/`upsertMany` commits the Agent
+projection, a domain-separated HMAC mutation event and the next authority head
+in one transaction. Startup replays and verifies the complete chain before
+exposing rows. `getCheckpoint()` returns the current `minimumRevision` and
+`trustedHeadHash` for storage in an independent checkpoint system; a configured
+floor must match that exact historical event and the verified chain extension.
+Without such an external floor, health reports `singleOwnerPreview=true` and
+`rollbackProtected=false` even though internal corruption and partial rollback
+are detected. A database administrator who can restore the whole database and
+also replace the external checkpoint or obtain the HMAC secret remains outside
+this adapter's trust boundary. The application exposes this as a single-owner
+runtime preview; it is not multi-host or production evidence. The real
+PostgreSQL integration test remains conditional on
+`AI_GATEWAY_TEST_POSTGRES_URL`. When
 `AI_GATEWAY_MULTI_INSTANCE=true`, explicitly enabling governance still fails
 startup until every authority store shares one rollback-protected transactional
 backend and real cross-host integration/HA tests pass.
@@ -577,7 +663,7 @@ dispatch. After an abnormal exit, the next startup removes the stale file only
 when the recorded process instance is definitely absent or the PID now has a
 different creation-time fingerprint; malformed, changed, legacy-version or
 unverifiable lease metadata blocks startup for manual inspection. This fence
-does not make the JSON backend multi-process or distributed.
+does not make any Registry backend multi-process or distributed.
 
 Every governance JSON file and the central audit stream are also bound to a
 signed local state anchor plus an independently signed checkpoint. Each commit
@@ -646,9 +732,16 @@ is required to detect that physical-administration scenario.
   `agentAuditMirrorRecovery.test.ts` — signed generation WAL stages,
   `VALIDATED`-before-audit activation, staged/fsynced bundle publication,
   audit-mirror reconciliation, divergence detection, and link-attack denial.
-- `sqliteAgentRegistryStore.test.ts` — real SQLite Registry migrations,
+- `sqliteAgentRegistryStore.test.ts` and
+  `sqliteAgentRegistryAuthority.test.ts` — real SQLite Registry migrations,
   transaction rollback, host/tenant/lineage isolation, strict row validation,
-  reopen behavior and explicit single-host/non-rollback-protected boundary.
+  authenticated record/event/projection authority, DB-only rollback detection,
+  reopen behavior and the explicit whole-directory rollback boundary.
+- `registryAuthoritySwitch.test.ts` and
+  `agentRegistryJsonToSqliteMigration.test.ts` — exclusive HMAC switch marker,
+  sync runtime mode gate, source/state tamper rejection, atomic DB+checkpoint
+  publication, complete semantic comparison, idempotency, safe retry and
+  preservation of unknown staging files.
 - `gatewayModelProposer.test.ts`, `gatewayService.usageLedger.test.js`, and
   `requestLogger.test.js` — Gateway-only model proposal, deterministic risk
   backfill, non-forgeable Agent run attribution, and Agent-filtered token/cost

@@ -61,6 +61,54 @@ const DEFINITIONS = [
         ON agent_registry_records (status, expires_at, agent_id);
     `,
   },
+  {
+    version: 3,
+    name: "add-rollback-protected-registry-authority",
+    sql: `
+      ALTER TABLE agent_registry_records ADD COLUMN record_hmac TEXT;
+
+      CREATE TABLE agent_registry_authority (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        installation_id TEXT NOT NULL,
+        backend_id TEXT NOT NULL,
+        path_binding_sha256 TEXT NOT NULL CHECK (length(path_binding_sha256) = 64),
+        revision INTEGER NOT NULL CHECK (revision >= 0),
+        event_head TEXT NOT NULL,
+        projection_xor TEXT NOT NULL CHECK (length(projection_xor) = 64),
+        projection_hash TEXT NOT NULL CHECK (length(projection_hash) = 64),
+        record_count INTEGER NOT NULL CHECK (record_count >= 0),
+        state_hmac TEXT NOT NULL CHECK (length(state_hmac) = 64),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      ) STRICT;
+
+      CREATE TABLE agent_registry_authority_events (
+        revision INTEGER PRIMARY KEY CHECK (revision > 0),
+        previous_head TEXT NOT NULL,
+        event_hash TEXT NOT NULL CHECK (length(event_hash) = 64),
+        event_hmac TEXT NOT NULL CHECK (length(event_hmac) = 64),
+        batch_hash TEXT NOT NULL CHECK (length(batch_hash) = 64),
+        path_binding_sha256 TEXT NOT NULL CHECK (length(path_binding_sha256) = 64),
+        projection_hash TEXT NOT NULL CHECK (length(projection_hash) = 64),
+        record_count INTEGER NOT NULL CHECK (record_count >= 0),
+        created_at TEXT NOT NULL
+      ) STRICT;
+
+      CREATE TRIGGER agent_registry_record_hmac_required_insert
+      BEFORE INSERT ON agent_registry_records
+      WHEN NEW.record_hmac IS NULL OR length(NEW.record_hmac) <> 64
+      BEGIN
+        SELECT RAISE(ABORT, 'agent registry record HMAC required');
+      END;
+
+      CREATE TRIGGER agent_registry_record_hmac_required_update
+      BEFORE UPDATE ON agent_registry_records
+      WHEN NEW.record_hmac IS NULL OR length(NEW.record_hmac) <> 64
+      BEGIN
+        SELECT RAISE(ABORT, 'agent registry record HMAC required');
+      END;
+    `,
+  },
 ] as const;
 
 export const SQLITE_AGENT_REGISTRY_SCHEMA_VERSION = DEFINITIONS.length;

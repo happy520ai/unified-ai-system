@@ -158,6 +158,7 @@ describe("Agent Governance backup consistency export", () => {
       sqliteStore = createSqliteAgentRegistryStore({
         sqlitePath: join(dataDir, "agent-registry.sqlite"),
         hostId: "backup-export-test-host",
+        hmacSecret: "backup-export-sqlite-authority-test-secret",
       });
       await sqliteStore.upsert(AGENT_RECORD as any);
       const registryStore = {

@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -93,7 +93,7 @@ describe("Agent Governance application configuration", () => {
     })).toThrow(expect.objectContaining({ code: "AGENT_EXEC_WORKING_DIRECTORY_INVALID" }));
   });
 
-  it("keeps signed JSON as the sole promoted runtime Registry authority", async () => {
+  it("keeps signed JSON as the default runtime Registry authority", async () => {
     const root = await mkdtemp(join(tmpdir(), "agent-governance-json-authority-"));
     try {
       const application = createGatewayApplication({
@@ -114,19 +114,180 @@ describe("Agent Governance application configuration", () => {
     }
   });
 
-  it("fails closed before reading SQLite/PostgreSQL runtime configuration", () => {
-    for (const mode of ["sqlite", "postgres"]) {
-      expect(() => createGatewayApplication({
+  it("starts a fresh checkpoint-verified SQLite Registry only with explicit single-host configuration", async () => {
+    const root = await mkdtemp(join(tmpdir(), "agent-governance-sqlite-authority-"));
+    let application: ReturnType<typeof createGatewayApplication> | null = null;
+    try {
+      const dataDir = join(root, "governance");
+      application = createGatewayApplication({
         AI_GATEWAY_AGENT_GOVERNANCE_ENABLED: "true",
-        AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: "application-unpromoted-registry-key-0123456789",
-        AI_GATEWAY_AGENT_GOVERNANCE_REGISTRY_STORE_MODE: mode,
-      })).toThrow(expect.objectContaining({ code: "AGENT_GOVERNANCE_REGISTRY_BACKEND_UNPROMOTED" }));
+        AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: "application-sqlite-registry-key-0123456789",
+        AI_GATEWAY_AGENT_GOVERNANCE_DATA_DIR: dataDir,
+        AI_GATEWAY_AGENT_GOVERNANCE_REGISTRY_STORE_MODE: "sqlite",
+        AI_GATEWAY_AGENT_GOVERNANCE_HOST_ID: "test-host-a",
+        AI_GATEWAY_AGENT_GOVERNANCE_SQLITE_PATH: join(dataDir, "registry.sqlite"),
+      });
+      expect(application.agentGovernance?.registryStore).not.toBeNull();
+      expect(application.agentGovernance?.registry).toMatchObject({
+        storageMode: "single-host-sqlite",
+        transactional: true,
+        rollbackProtected: true,
+        wholeDirectoryRollbackProtected: false,
+        checkpointVerified: true,
+        recordCount: 0,
+      });
+    } finally {
+      await application?.agentGovernance?.registryStore?.close?.();
+      await rm(root, { recursive: true, force: true });
     }
+  });
+
+  it("persists a generated Agent through the application SQLite authority across restart", async () => {
+    const root = await mkdtemp(join(tmpdir(), "agent-governance-sqlite-restart-"));
+    const dataDir = join(root, "governance");
+    const env = {
+      AI_GATEWAY_AGENT_GOVERNANCE_ENABLED: "true",
+      AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: "application-sqlite-restart-key-0123456789",
+      AI_GATEWAY_AGENT_GOVERNANCE_DATA_DIR: dataDir,
+      AI_GATEWAY_AGENT_GOVERNANCE_REGISTRY_STORE_MODE: "sqlite",
+      AI_GATEWAY_AGENT_GOVERNANCE_HOST_ID: "test-host-restart",
+      AI_GATEWAY_AGENT_GOVERNANCE_SQLITE_PATH: join(dataDir, "registry.sqlite"),
+    };
+    let first: ReturnType<typeof createGatewayApplication> | null = null;
+    let restarted: ReturnType<typeof createGatewayApplication> | null = null;
+    try {
+      first = createGatewayApplication(env);
+      const generated = await first.agentGovernance!.service.generateAgent({
+        name: "sqlite-restart-agent",
+        task: "read one bounded file",
+        requestedTools: ["file_read"],
+        ttlSeconds: 3_600,
+        parentAgentId: null,
+      }, {
+        tenantId: "tenant_a",
+        userId: "operator_a",
+        role: "admin",
+        permissions: ["*"],
+      });
+      await first.agentGovernance?.registryStore?.close?.();
+      first = null;
+
+      restarted = createGatewayApplication(env);
+      await expect(restarted.agentGovernance!.service.getAgent(generated.agentId, "tenant_a"))
+        .resolves.toMatchObject({ agentId: generated.agentId, status: "ACTIVE" });
+      expect(restarted.agentGovernance?.registry).toMatchObject({
+        checkpointVerified: true,
+        recordCount: 1,
+      });
+    } finally {
+      await first?.agentGovernance?.registryStore?.close?.();
+      await restarted?.agentGovernance?.registryStore?.close?.();
+      await rm(root, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it("constructs a fresh single-owner PostgreSQL Registry and exposes its honest preview boundary", async () => {
+    const root = await mkdtemp(join(tmpdir(), "agent-governance-postgres-authority-"));
+    let application: ReturnType<typeof createGatewayApplication> | null = null;
+    try {
+      application = createGatewayApplication({
+        AI_GATEWAY_AGENT_GOVERNANCE_ENABLED: "true",
+        AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: "application-postgres-registry-key-0123456789",
+        AI_GATEWAY_AGENT_GOVERNANCE_DATA_DIR: join(root, "governance"),
+        AI_GATEWAY_AGENT_GOVERNANCE_REGISTRY_STORE_MODE: "postgres",
+        AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_URL: "postgresql://127.0.0.1:1/governance",
+        AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_NAMESPACE: "test",
+        AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_AUTHORITY_ID: "11111111-1111-4111-8111-111111111111",
+      });
+      expect(application.agentGovernance?.registry).toMatchObject({
+        storageMode: "central-postgres",
+        status: "starting",
+        rollbackProtected: false,
+        singleOwnerPreview: true,
+        externalCheckpointConfigured: false,
+      });
+    } finally {
+      await application?.agentGovernance?.registryStore?.close?.();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects ambiguous database configuration and unsupported PostgreSQL URL files", () => {
     expect(() => createGatewayApplication({
       AI_GATEWAY_AGENT_GOVERNANCE_ENABLED: "true",
-      AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: "application-unpromoted-url-key-0123456789",
-      AI_GATEWAY_AGENT_GOVERNANCE_REGISTRY_STORE_MODE: "json",
+      AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: "application-missing-host-registry-key-0123456789",
+      AI_GATEWAY_AGENT_GOVERNANCE_REGISTRY_STORE_MODE: "sqlite",
+    })).toThrow(expect.objectContaining({ code: "AGENT_GOVERNANCE_REGISTRY_CONFIGURATION_INVALID" }));
+    expect(() => createGatewayApplication({
+      AI_GATEWAY_AGENT_GOVERNANCE_ENABLED: "true",
+      AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: "application-url-file-registry-key-0123456789",
+      AI_GATEWAY_AGENT_GOVERNANCE_REGISTRY_STORE_MODE: "postgres",
       AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_URL_FILE: "/run/secrets/never-read",
-    })).toThrow(expect.objectContaining({ code: "AGENT_GOVERNANCE_REGISTRY_BACKEND_UNPROMOTED" }));
+    })).toThrow(expect.objectContaining({ code: "AGENT_GOVERNANCE_REGISTRY_POSTGRES_URL_FILE_UNSUPPORTED" }));
+    expect(() => createGatewayApplication({
+      AI_GATEWAY_AGENT_GOVERNANCE_ENABLED: "true",
+      AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: "application-conflict-registry-key-0123456789",
+      AI_GATEWAY_AGENT_GOVERNANCE_REGISTRY_STORE_MODE: "json",
+      AI_GATEWAY_AGENT_GOVERNANCE_HOST_ID: "stray-host",
+    })).toThrow(expect.objectContaining({ code: "AGENT_GOVERNANCE_REGISTRY_CONFIGURATION_CONFLICT" }));
+  });
+
+  it("enforces protected SQLite paths and complete PostgreSQL TLS/floor configuration", async () => {
+    const root = await mkdtemp(join(tmpdir(), "agent-governance-database-config-"));
+    const common = {
+      AI_GATEWAY_AGENT_GOVERNANCE_ENABLED: "true",
+      AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: "application-database-config-key-0123456789",
+      AI_GATEWAY_AGENT_GOVERNANCE_DATA_DIR: join(root, "governance"),
+    };
+    try {
+      expect(() => createGatewayApplication({
+        ...common,
+        AI_GATEWAY_AGENT_GOVERNANCE_REGISTRY_STORE_MODE: "sqlite",
+        AI_GATEWAY_AGENT_GOVERNANCE_HOST_ID: "test-host",
+        AI_GATEWAY_AGENT_GOVERNANCE_SQLITE_PATH: join(root, "outside.sqlite"),
+      })).toThrow(expect.objectContaining({ code: "AGENT_GOVERNANCE_REGISTRY_PATH_UNSAFE" }));
+
+      expect(() => createGatewayApplication({
+        ...common,
+        AI_GATEWAY_AGENT_GOVERNANCE_REGISTRY_STORE_MODE: "postgres",
+        AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_URL: "postgresql://db.example.test/governance",
+        AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_AUTHORITY_ID: "11111111-1111-4111-8111-111111111111",
+      })).toThrow(expect.objectContaining({
+        code: "AGENT_GOVERNANCE_REGISTRY_POSTGRES_TLS_VERIFY_REQUIRED",
+      }));
+
+      expect(() => createGatewayApplication({
+        ...common,
+        AI_GATEWAY_AGENT_GOVERNANCE_REGISTRY_STORE_MODE: "postgres",
+        AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_URL: "postgresql://127.0.0.1:1/governance",
+        AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_AUTHORITY_ID: "11111111-1111-4111-8111-111111111111",
+        AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_MINIMUM_REVISION: "1",
+      })).toThrow(expect.objectContaining({ code: "AGENT_GOVERNANCE_REGISTRY_CONFIGURATION_INVALID" }));
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses an unmigrated JSON source before creating SQLite target artifacts", async () => {
+    const root = await mkdtemp(join(tmpdir(), "agent-governance-unmigrated-json-"));
+    const dataDir = join(root, "governance");
+    const sqlitePath = join(dataDir, "registry.sqlite");
+    const checkpointPath = join(dataDir, "agent-registry.checkpoint.json");
+    try {
+      await mkdir(dataDir, { recursive: true });
+      await writeFile(join(dataDir, "agents.json"), '{"version":1,"agents":{}}\n', "utf8");
+      expect(() => createGatewayApplication({
+        AI_GATEWAY_AGENT_GOVERNANCE_ENABLED: "true",
+        AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: "application-unmigrated-json-key-0123456789",
+        AI_GATEWAY_AGENT_GOVERNANCE_DATA_DIR: dataDir,
+        AI_GATEWAY_AGENT_GOVERNANCE_REGISTRY_STORE_MODE: "sqlite",
+        AI_GATEWAY_AGENT_GOVERNANCE_HOST_ID: "test-host",
+        AI_GATEWAY_AGENT_GOVERNANCE_SQLITE_PATH: sqlitePath,
+      })).toThrow(expect.objectContaining({ code: "AGENT_REGISTRY_AUTHORITY_SWITCH_REQUIRED" }));
+      await expect(stat(sqlitePath)).rejects.toMatchObject({ code: "ENOENT" });
+      await expect(stat(checkpointPath)).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });

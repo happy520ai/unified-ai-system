@@ -1,3 +1,4 @@
+// @test-isolation process
 import { describe, expect, it } from "vitest";
 import { evaluateChatLocalActionExecutionGate } from "./chatLocalActionExecutionGate.js";
 
