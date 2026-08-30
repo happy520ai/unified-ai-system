@@ -1,3 +1,4 @@
+// @test-isolation process
 import { request as httpRequest } from "node:http";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
