@@ -59,4 +59,27 @@ describe("route concurrency admission", () => {
       },
     })).toThrow(expect.objectContaining({ code: "ROUTE_CONCURRENCY_CONFIGURATION_INVALID" }));
   });
+
+  it("shares Agent and policy REST aliases with their compatibility concurrency buckets", () => {
+    const admission = createRouteConcurrencyAdmission({
+      rawConfig: {
+        "/agent-exec/run": { maxGlobal: 1, maxPerTenant: 1 },
+        "/v1/policies/activate": { maxGlobal: 1, maxPerTenant: 1 },
+      },
+    });
+    const run = admission.tryAcquire("/v1/agents/agt_demo/run", "tenant-a");
+    expect(run).toMatchObject({ allowed: true, pattern: "/agent-exec/run" });
+    expect(admission.tryAcquire("/agent-exec/run", "tenant-a")).toMatchObject({
+      allowed: false,
+      pattern: "/agent-exec/run",
+    });
+    if (!run.allowed) throw new Error("Expected REST Agent run admission.");
+    run.release();
+
+    const activation = admission.tryAcquire("/v1/policies/execution-family/3/activate", "tenant-a");
+    expect(activation).toMatchObject({ allowed: true, pattern: "/v1/policies/activate" });
+    expect(admission.tryAcquire("/v1/policies/activate", "tenant-a")).toMatchObject({ allowed: false });
+    if (!activation.allowed) throw new Error("Expected REST policy activation admission.");
+    activation.release();
+  });
 });

@@ -202,8 +202,8 @@ function validatePlan(plan: PolicyActivationRecoveryPlan, secret: string): void 
       || agent.nextPolicyHash !== agent.nextPolicy.policyHash || agent.oldRecord.policyHash !== agent.oldPolicyHash
       || agent.nextRecord.policyHash !== agent.nextPolicyHash || !Number.isSafeInteger(agent.clamped)
       || agent.clamped < 0
-      || !verifyEffectivePolicyIntegrity(agent.oldPolicy, agent.oldManifest, secret, agent.oldRecord).ok
-      || !verifyEffectivePolicyIntegrity(agent.nextPolicy, agent.nextManifest, secret, agent.nextRecord).ok) {
+      || !verifyEffectivePolicyIntegrity(agent.oldPolicy, agent.oldManifest, secret, agent.oldRecord, agent.delta).ok
+      || !verifyEffectivePolicyIntegrity(agent.nextPolicy, agent.nextManifest, secret, agent.nextRecord, agent.delta).ok) {
       throw journalError("Policy activation journal contains an invalid Agent recovery plan.");
     }
     ids.add(agent.agentId);

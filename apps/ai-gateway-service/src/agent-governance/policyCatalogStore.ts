@@ -514,9 +514,11 @@ const POLICY_TYPES = new Set<PolicyRecord["policyType"]>([
   "emergency", "root", "tenant", "family", "domain", "subclass", "trait", "instance", "task",
 ]);
 const POLICY_STATUSES = new Set<PolicyRecord["status"]>(["draft", "active", "superseded"]);
+const MAX_PUBLIC_POLICY_VERSION = 999_999_999;
 
 function validateCreatePolicyInput(input: CreatePolicyInput): void {
   if (!input || !isSafeKey(input.policyKey) || !Number.isSafeInteger(input.version) || input.version < 1
+    || input.version > MAX_PUBLIC_POLICY_VERSION
     || !POLICY_TYPES.has(input.policyType) || !isSafeKey(input.scopeKey)
     || !isRecord(input.content)) {
     throw named("PolicyVersionInvalid", "Policy input is malformed.");
@@ -542,6 +544,7 @@ function validateStoredPolicy(id: string, input: unknown): PolicyRecord {
   const record = input as unknown as PolicyRecord;
   const contentValidation = validatePolicyLayerContent(record.content, record.policyKey);
   if (!isSafeKey(record.policyKey) || !Number.isSafeInteger(record.version) || record.version < 1
+    || record.version > MAX_PUBLIC_POLICY_VERSION
     || id !== policyId(record.policyKey, record.version)
     || !POLICY_TYPES.has(record.policyType) || !isSafeKey(record.scopeKey)
     || !POLICY_STATUSES.has(record.status) || !isRecord(record.content) || !contentValidation.valid
@@ -554,7 +557,8 @@ function validateStoredPolicy(id: string, input: unknown): PolicyRecord {
 function validateActivationSnapshot(snapshot: PolicyCatalogActivationSnapshot): void {
   if (!snapshot || !isSafeKey(snapshot.policyKey)
     || (snapshot.activeVersion !== null
-      && (!Number.isSafeInteger(snapshot.activeVersion) || snapshot.activeVersion < 1))
+      && (!Number.isSafeInteger(snapshot.activeVersion) || snapshot.activeVersion < 1
+        || snapshot.activeVersion > MAX_PUBLIC_POLICY_VERSION))
     || !Array.isArray(snapshot.records)) {
     throw named("PolicyActivationSnapshotInvalid", "Policy activation snapshot is malformed.");
   }

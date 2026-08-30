@@ -32,7 +32,7 @@ function governedRouteFixture(overrides: Record<string, any> = {}) {
     outcome: "allow",
     executionLease: { release: toolRelease },
   }));
-  const enforceResult = vi.fn(async ({ result }) => {
+  const enforceResult = overrides.enforceResult ?? vi.fn(async ({ result }) => {
     overrides.events?.push("result-enforced");
     return { verdict: "allow", result };
   });
@@ -167,6 +167,44 @@ describe("governed POST /workforce/execute", () => {
     }));
     expect(events).toEqual(["result-enforced", "tool-release", "run-release"]);
     expect(fixture.writeJson).toHaveBeenCalledWith({}, 200, expect.objectContaining({ success: true }));
+  });
+
+  it("marks a completed Workforce run uncertain when terminal governance fails", async () => {
+    const fixture = governedRouteFixture({
+      enforceResult: vi.fn(async () => {
+        throw Object.assign(new Error("outcome audit unavailable"), {
+          code: "GOVERNANCE_AUDIT_REQUIRED",
+        });
+      }),
+      execute: vi.fn(async () => ({
+        success: true,
+        executionStatus: "completed",
+        executionId: "workforce-execution-1",
+        planId: "plan-1",
+      })),
+    });
+    await invoke(fixture, { agentId: "agt_root_1", goal: "completed effect" });
+
+    expect(fixture.workforceExecutor.execute).toHaveBeenCalledOnce();
+    expect(fixture.writeJson).not.toHaveBeenCalled();
+    expect(fixture.writeErrorResponse.mock.calls[0][0].error).toMatchObject({
+      code: "WORKFORCE_EXTERNAL_EFFECT_OUTCOME_UNCERTAIN",
+      statusCode: 503,
+      retryable: false,
+      details: {
+        outcomeUnknown: true,
+        retrySafe: false,
+        reconciliation: {
+          required: true,
+          agentId: "agt_root_1",
+          planId: "plan-1",
+          planDigest: PLAN_DIGEST,
+          executionId: "workforce-execution-1",
+        },
+      },
+    });
+    expect(fixture.toolRelease).toHaveBeenCalledOnce();
+    expect(fixture.runRelease).toHaveBeenCalledOnce();
   });
 
   it("requires agentId before authorization when governance is enabled", async () => {

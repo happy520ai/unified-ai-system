@@ -118,6 +118,14 @@ export function createWorkforceRoutes(application, helpers) {
 
   // ── POST /workforce/run-local ──
   async function handleWorkforceRunLocal(req, res, { startedAt, body }) {
+    if (agentGovernance) {
+      writeJson(res, 409, createErrorEnvelope(
+        "WORKFORCE_RUN_LOCAL_REQUIRES_GOVERNED_EXECUTION",
+        "Agent Governance is enabled; use POST /workforce/execute with a server-issued Agent identity.",
+        { startedAt, category: "governance", details: { replacementRoute: "/workforce/execute" } },
+      ));
+      return;
+    }
     if (!body) body = await readCapabilityJson({ request: req, response: res, startedAt, code: "workforce_run_local_invalid_json" });
     if (!body) return;
     try {
@@ -235,52 +243,93 @@ export function createWorkforceRoutes(application, helpers) {
       return;
     }
     let governedExecution = null;
+    let completedResult = null;
+    let output = null;
+    let approval = null;
+    let primaryError = null;
+    let releaseError = null;
     try {
       const userId = requireExecutionUserId(req);
       const tenantId = requireExecutionTenantId(req);
       const input = { ...body, userId, tenantId };
       governedExecution = await authorizeGovernedWorkforceExecution(req, input);
       if (governedExecution?.approval) {
-        writeJson(res, 202, createOkEnvelope(governedExecution.approval, { startedAt }));
-        return;
+        approval = governedExecution.approval;
+      } else {
+        const effectiveInput = governedExecution
+          ? applyApprovedWorkforceInput(input, governedExecution.approvedParams)
+          : input;
+        completedResult = governedExecution
+          ? await workforceExecutor.execute(effectiveInput, {
+              signal: requestExecution?.signal ?? null,
+              agentGovernance: {
+                context: governedExecution.context,
+                policy: governedExecution.policy,
+                executionLease: governedExecution.executionLease,
+                remainingSteps: governedExecution.remainingSteps,
+                reserveStep: governedExecution.reserveStep,
+              },
+            })
+          : requestExecution?.signal
+            ? await workforceExecutor.execute(input, { signal: requestExecution.signal })
+            : await workforceExecutor.execute(input);
+        output = completedResult;
+        if (governedExecution) {
+          const metered = await agentGovernance.toolProxy.enforceResult({
+            context: governedExecution.context,
+            toolName: GOVERNED_WORKFORCE_TOOL_NAME,
+            policy: governedExecution.policy,
+            result: completedResult,
+            // Workforce returns an orchestration envelope rather than a record
+            // collection. A configured maxRecords ceiling therefore remains
+            // fail-closed until a dedicated result contract is introduced.
+            descriptor: null,
+          });
+          if (!metered || typeof metered !== "object" || !Object.hasOwn(metered, "result")) {
+            throw workforceGovernanceError(
+              "WORKFORCE_RESULT_GOVERNANCE_INVALID",
+              "Workforce completed, but terminal governance returned a malformed result.",
+              503,
+            );
+          }
+          if (metered?.verdict === "replace") {
+            throw workforceGovernanceError(
+              metered.code ?? "WORKFORCE_GOVERNED_RESULT_REPLACED",
+              "Workforce completed, but its terminal result could not be returned safely.",
+              503,
+            );
+          }
+          output = metered.result;
+        }
       }
-      const effectiveInput = governedExecution
-        ? applyApprovedWorkforceInput(input, governedExecution.approvedParams)
-        : input;
-      let result = governedExecution
-        ? await workforceExecutor.execute(effectiveInput, {
-            signal: requestExecution?.signal ?? null,
-            agentGovernance: {
-              context: governedExecution.context,
-              policy: governedExecution.policy,
-              executionLease: governedExecution.executionLease,
-              remainingSteps: governedExecution.remainingSteps,
-              reserveStep: governedExecution.reserveStep,
-            },
-          })
-        : requestExecution?.signal
-          ? await workforceExecutor.execute(input, { signal: requestExecution.signal })
-          : await workforceExecutor.execute(input);
-      if (governedExecution) {
-        const metered = await agentGovernance.toolProxy.enforceResult({
-          context: governedExecution.context,
-          toolName: GOVERNED_WORKFORCE_TOOL_NAME,
-          policy: governedExecution.policy,
-          result,
-          // Workforce returns an orchestration envelope rather than a record
-          // collection. A configured maxRecords ceiling therefore remains
-          // fail-closed until a dedicated result contract is introduced.
-          descriptor: null,
-        });
-        result = metered.result;
-      }
-      writeJson(res, result?.success ? 200 : 422, createOkEnvelope(result, { startedAt }));
     } catch (e) {
-      writeErrorResponse({ response: res, error: e, startedAt, fallbackCode: "execute_failed" });
-    } finally {
-      governedExecution?.toolExecutionLease?.release();
-      governedExecution?.executionLease?.release();
+      primaryError = e;
     }
+    for (const [lease, release] of [
+      [governedExecution?.toolExecutionLease, () => governedExecution.toolExecutionLease.release()],
+      [governedExecution?.executionLease, () => governedExecution.executionLease.release()],
+    ]) {
+      if (typeof lease?.release !== "function") continue;
+      try { await release(); }
+      catch (error) { releaseError ??= error; }
+    }
+    if (approval && !primaryError) {
+      writeJson(res, 202, createOkEnvelope(approval, { startedAt }));
+      return;
+    }
+    const terminalError = primaryError ?? releaseError;
+    if (terminalError) {
+      writeErrorResponse({
+        response: res,
+        error: completedResult && governedExecution
+          ? workforceOutcomeUncertainError(completedResult, governedExecution, terminalError)
+          : terminalError,
+        startedAt,
+        fallbackCode: "execute_failed",
+      });
+      return;
+    }
+    writeJson(res, output?.success ? 200 : 422, createOkEnvelope(output, { startedAt }));
   }
 
   async function authorizeGovernedWorkforceExecution(request, input) {
@@ -667,4 +716,44 @@ function workforceGovernanceError(code, message, statusCode) {
     statusCode,
     category: statusCode >= 500 ? "availability" : "authorization",
   });
+}
+
+function workforceOutcomeUncertainError(completedResult, governedExecution, cause) {
+  const approved = governedExecution?.approvedParams;
+  const planId = safeReconciliationIdentifier(
+    approved?.planId ?? completedResult?.planId,
+  );
+  const planDigest = typeof approved?.planDigest === "string" && /^[a-f0-9]{64}$/u.test(approved.planDigest)
+    ? approved.planDigest
+    : null;
+  const executionId = safeReconciliationIdentifier(
+    completedResult?.executionId ?? completedResult?.runId,
+  );
+  return Object.assign(new Error(
+    "Workforce execution completed, but terminal governance did not; reconcile before retrying.",
+    { cause },
+  ), {
+    code: "WORKFORCE_EXTERNAL_EFFECT_OUTCOME_UNCERTAIN",
+    statusCode: 503,
+    category: "governance",
+    retryable: false,
+    details: {
+      outcomeUnknown: true,
+      retrySafe: false,
+      reconciliation: {
+        required: true,
+        agentId: governedExecution?.context?.agentId,
+        ...(planId ? { planId } : {}),
+        ...(planDigest ? { planDigest } : {}),
+        ...(executionId ? { executionId } : {}),
+      },
+    },
+  });
+}
+
+function safeReconciliationIdentifier(value) {
+  const normalized = typeof value === "string" ? value.trim() : "";
+  return normalized && normalized.length <= 160 && /^[A-Za-z0-9_.:-]+$/u.test(normalized)
+    ? normalized
+    : null;
 }

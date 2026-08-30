@@ -33,11 +33,14 @@ import {
   compileEffectivePolicy,
   computeAgentHash,
   computePolicyContentHash,
+  computePolicyDeltaHash,
   isPolicyExpired,
   recompileWithoutExpansion,
   recomputeClassification,
+  stableStringify,
   type RecompileClamp,
   validateAgentDraft,
+  validateNoSelfModification,
   verifyEffectivePolicyIntegrity,
 } from "@unified-ai-system/policy-engine";
 import type {
@@ -82,6 +85,13 @@ import type {
   PolicyActivationRecoveryPlan,
 } from "./policyActivationJournal.ts";
 import { createPolicyActivationJournal } from "./policyActivationJournal.ts";
+import type {
+  AgentGenerationJournal,
+  AgentGenerationRecoveryPlan,
+} from "./agentGenerationJournal.ts";
+import { createAgentGenerationJournal } from "./agentGenerationJournal.ts";
+import { getGovernanceStateAuthority } from "./governanceStateAnchor.ts";
+import { normalizeModelPolicyDraft } from "./modelPolicyDraft.ts";
 
 export interface GovernanceContext {
   tenantId: string;
@@ -103,6 +113,7 @@ export interface GenerateAgentInput {
   proposedTraits?: string[];
   proposedRiskLevel?: RiskLevel;
   instanceRules?: PolicyLayerContent;
+  taskPolicyKeys?: string[];
 }
 
 export interface GenerateAgentResult {
@@ -134,6 +145,13 @@ export interface ActivatePolicyResult {
     policyHash: string;
     clamped: number;
   }>;
+}
+
+export interface AgentGovernanceServiceHealth {
+  ready: boolean;
+  startupRecovery: "ready";
+  stateIntegrity: "verified" | "failed";
+  auditIntegrity: "verified" | "failed";
 }
 
 export interface AgentGovernanceService {
@@ -207,15 +225,28 @@ export interface AgentGovernanceService {
     review: AgentToolApprovalReview,
     reason?: string,
   ): Promise<AgentToolApprovalRecord>;
+  /** Non-secret readiness probe. The service Proxy completes startup
+   * reconciliation before this method verifies signed state and audit data. */
+  checkHealth(): Promise<AgentGovernanceServiceHealth>;
+  /** Strict read-only verification of every Registry Agent's complete signed bundle. */
+  verifyAllAgentBundles(): Promise<{ verifiedAgentCount: number }>;
   stats(): Promise<Record<string, unknown>>;
 }
 
 export interface ModelProposer {
-  /** Proposes classification only; risk backfill stays deterministic. */
-  proposeClassification(task: string): Promise<{
+  /** Proposes classification and an optional instance PolicyDraft only.
+   * Deterministic validation/compilation remains the sole authority. */
+  proposeClassification(task: string, context?: {
+    name: string;
+    requestedTools: string[];
+    tenantId: string;
+    userId: string;
+    requestId?: string;
+  }): Promise<{
     classification: AgentClassification;
     proposedTraits: string[];
     proposedRiskLevel: RiskLevel;
+    policyDraft?: PolicyLayerContent;
   } | null>;
 }
 
@@ -226,6 +257,9 @@ export interface AgentGovernanceServiceOptions {
   modelProposer?: ModelProposer | null;
   toolRiskCatalog?: ToolRiskCatalog;
   activationJournal?: PolicyActivationJournal;
+  generationJournal?: AgentGenerationJournal;
+  /** Stable, non-secret identity of the configured Registry authority. */
+  registryAuthority?: string;
   /** Maximum time revoke waits for already-aborted executions to drain. */
   executionDrainTimeoutMs?: number;
   /** Explicit migration-only seam for a semantically validated pre-anchor
@@ -236,6 +270,12 @@ export interface AgentGovernanceServiceOptions {
   activationFaultInjector?: (
     stage: PolicyActivationCommitStage,
     detail: { operationId: string; agentId?: string },
+  ) => void | Promise<void>;
+  /** Crash-simulation seam. Throw an error with code
+   * AGENT_GENERATION_CRASH_SIMULATION to retain the generation WAL. */
+  generationFaultInjector?: (
+    stage: AgentGenerationCommitStage,
+    detail: { operationId: string; agentId: string },
   ) => void | Promise<void>;
   /** Store injection keeps persistence failures deterministic in tests and
    * permits alternate durable adapters without changing governance semantics. */
@@ -256,6 +296,14 @@ export type PolicyActivationCommitStage =
   | "after-catalog"
   | "after-audit";
 
+export type AgentGenerationCommitStage =
+  | "after-generation-journal"
+  | "after-generation-usage"
+  | "after-generation-bundle"
+  | "after-generation-registry"
+  | "after-generation-audit"
+  | "after-generation-active";
+
 export function createAgentGovernanceService(options: AgentGovernanceServiceOptions = {}): AgentGovernanceService {
   const env = options.env ?? process.env;
   const dataDir = options.dataDir ?? ".data/agent-governance";
@@ -270,7 +318,7 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
     });
   const registry: AgentRegistryStore = options.stores?.registry
     ?? createAgentRegistryStore({ storePath: `${dataDir}/agents.json`, now, secret });
-  const files: AgentFileStore = options.stores?.files ?? createAgentFileStore({ dataDir });
+  const files: AgentFileStore = options.stores?.files ?? createAgentFileStore({ dataDir, secret });
   const approvals: AgentApprovalStore = createAgentApprovalStore({
     storePath: `${dataDir}/approvals.json`,
     secret,
@@ -295,6 +343,17 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
   const activationJournal = options.activationJournal
     ?? createPolicyActivationJournal({ dataDir, secret, now });
   const activationFaultInjector = options.activationFaultInjector;
+  const generationJournal = options.generationJournal
+    ?? createAgentGenerationJournal({ dataDir, secret, now });
+  const generationFaultInjector = options.generationFaultInjector;
+  const storeAuthority = (registry as AgentRegistryStore & {
+    getAuthorityBinding?: () => string;
+  }).getAuthorityBinding?.();
+  const registryAuthorityBase = normalizeRegistryAuthority(
+    options.registryAuthority ?? storeAuthority
+      ?? (options.stores?.registry ? "injected-registry-v1" : "signed-json-v1"),
+  );
+  let registryAuthorityPromise: Promise<string> | null = null;
   const executionDrainTimeoutMs = boundedInteger(
     options.executionDrainTimeoutMs
       ?? env.AI_GATEWAY_AGENT_GOVERNANCE_EXECUTION_DRAIN_TIMEOUT_MS,
@@ -320,17 +379,123 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
 
   type AuditEventInput = Omit<AgentGovernanceAuditEvent, "timestamp">;
 
+  async function resolveRegistryAuthority(): Promise<string> {
+    if (!registryAuthorityPromise) {
+      registryAuthorityPromise = getGovernanceStateAuthority({ dataDir, secret })
+        .then(({ installationId, epoch }) => {
+          const digest = createHash("sha256")
+            .update(stableStringify({ registryAuthorityBase, installationId, epoch }), "utf8")
+            .digest("hex");
+          return normalizeRegistryAuthority(`registry-authority-v2:${digest}`);
+        })
+        .catch((error) => {
+          registryAuthorityPromise = null;
+          throw error;
+        });
+    }
+    return registryAuthorityPromise;
+  }
+
   async function audit(event: AuditEventInput): Promise<void> {
-    const stamped: AgentGovernanceAuditEvent = { ...event, timestamp: now() };
+    const stamped: AgentGovernanceAuditEvent = {
+      ...event,
+      id: event.id ?? `age_${randomUUID()}`,
+      timestamp: now(),
+    };
     await auditLog.record(stamped);
     // Lifecycle events carrying an agentId also land in that agent's
     // append-only audit.ndjson.
     if (stamped.agentId) {
       try {
         await files.appendAudit(stamped.agentId, stamped);
-      } catch {
-        // Per-agent audit failures must not block governance decisions;
-        // the central stream already carries the event.
+      } catch (cause) {
+        startupMaintenanceReady = false;
+        startupMaintenancePromise = null;
+        throw Object.assign(new Error(
+          "The central governance audit committed but its per-Agent mirror did not; recovery is required.",
+          { cause },
+        ), {
+          name: "AgentAuditMirrorWriteError",
+          code: "AGENT_AUDIT_MIRROR_WRITE_FAILED",
+          category: "persistence",
+          statusCode: 503,
+          eventId: stamped.id,
+        });
+      }
+    }
+  }
+
+  async function verifyAuditMirrors(repair: boolean): Promise<void> {
+    const central = await auditLog.read(100_000);
+    const centralTruncated = central.some((event) => event.checkpoint?.truncated === true);
+    const byAgent = new Map<string, AgentGovernanceAuditEvent[]>();
+    for (const event of central) {
+      if (!event.agentId || !event.id) continue;
+      const events = byAgent.get(event.agentId) ?? [];
+      events.push(event);
+      byAgent.set(event.agentId, events);
+    }
+    for (const [agentId, expectedEvents] of byAgent) {
+      let mirrored: AgentGovernanceAuditEvent[];
+      try {
+        mirrored = await files.readAudit(agentId, 100_000);
+      } catch (cause) {
+        throw Object.assign(new Error("Agent audit mirror authentication or chain verification failed.", { cause }), {
+          code: "AGENT_AUDIT_MIRROR_INTEGRITY_FAILED",
+        });
+      }
+      const expectedIds = new Set(expectedEvents.map((event) => event.id!));
+      const seenMirrorIds = new Set<string>();
+      const retainedMirrorEvents: AgentGovernanceAuditEvent[] = [];
+      let retainedSequenceStarted = false;
+      for (const event of mirrored) {
+        if (event.id && seenMirrorIds.has(event.id)) {
+          throw Object.assign(new Error("Agent audit mirror contains a duplicate event identity."), {
+            code: "AGENT_AUDIT_MIRROR_INTEGRITY_FAILED",
+          });
+        }
+        if (event.id) seenMirrorIds.add(event.id);
+        if (event.id && expectedIds.has(event.id)) {
+          retainedSequenceStarted = true;
+          retainedMirrorEvents.push(event);
+        } else if (retainedSequenceStarted) {
+          throw Object.assign(new Error("Agent audit mirror has an unexpected event inside the retained sequence."), {
+            code: "AGENT_AUDIT_MIRROR_INTEGRITY_FAILED",
+          });
+        } else if (!centralTruncated) {
+          throw Object.assign(new Error("Agent audit mirror has an event absent from the untruncated central audit."), {
+            code: "AGENT_AUDIT_MIRROR_INTEGRITY_FAILED",
+          });
+        }
+      }
+      if (retainedMirrorEvents.length > expectedEvents.length) {
+        throw Object.assign(new Error("Agent audit mirror exceeds the retained central sequence."), {
+          code: "AGENT_AUDIT_MIRROR_INTEGRITY_FAILED",
+        });
+      }
+      for (let index = 0; index < retainedMirrorEvents.length; index += 1) {
+        const actual = retainedMirrorEvents[index];
+        const expected = expectedEvents[index];
+        if (actual.id !== expected.id) {
+          throw Object.assign(new Error("Agent audit mirror has a middle gap or reordered event."), {
+            code: "AGENT_AUDIT_MIRROR_INTEGRITY_FAILED",
+          });
+        }
+        if (stableStringify(actual) !== stableStringify(expected)) {
+          throw Object.assign(new Error("Agent audit mirror diverges from the retained central event."), {
+            code: "AGENT_AUDIT_MIRROR_INTEGRITY_FAILED",
+          });
+        }
+      }
+      if (retainedMirrorEvents.length < expectedEvents.length) {
+        if (!repair) {
+          throw Object.assign(new Error("Agent audit mirror is missing a retained central suffix."), {
+            code: "AGENT_AUDIT_MIRROR_INTEGRITY_FAILED",
+          });
+        }
+        for (const expected of expectedEvents.slice(retainedMirrorEvents.length)) {
+          await files.appendAudit(agentId, expected);
+        }
       }
     }
   }
@@ -372,7 +537,7 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
       classification: {
         family: anyWrite ? "execution" : "analysis",
         domain: "general",
-        subclass: input.name ? input.name.slice(0, 64) : "general",
+        subclass: input.name ? input.name.trim().slice(0, 64) : "general",
       },
       proposedTraits,
       proposedRiskLevel,
@@ -380,10 +545,12 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
   }
 
   async function assembleLayerStack(input: {
+    agentId: string;
     tenantId: string;
     classification: AgentClassification;
     traits: string[];
     instanceRules?: PolicyLayerContent;
+    taskPolicyKeys?: string[];
     activeOverrides?: ReadonlyMap<string, PolicyRecord | null>;
   }): Promise<PolicyRecord[]> {
     const stack: PolicyRecord[] = [];
@@ -402,17 +569,29 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
     for (const trait of input.traits) {
       await push(`${trait}-trait`);
     }
+    await push(`agent:${input.agentId}`);
     if (input.instanceRules && Object.keys(input.instanceRules).length > 0) {
       stack.push({
-        policyKey: "instance-delta",
+        policyKey: `agent:${input.agentId}:creation-delta`,
         version: 1,
         policyType: "instance",
-        scopeKey: "instance",
+        scopeKey: input.agentId,
         content: input.instanceRules,
         contentHash: computePolicyContentHash(input.instanceRules),
         status: "active",
         createdAt: now(),
       });
+    }
+    for (const taskPolicyKey of input.taskPolicyKeys ?? []) {
+      const policyKey = `task:${taskPolicyKey}`;
+      const before = stack.length;
+      await push(policyKey);
+      if (stack.length === before) {
+        throw Object.assign(new Error(`Task policy ${policyKey} is not active.`), {
+          name: "TaskPolicyNotActive",
+          code: "TASK_POLICY_NOT_ACTIVE",
+        });
+      }
     }
     return stack;
   }
@@ -462,6 +641,62 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
       }
       parentAgentId = parent.parentAgentId;
     }
+  }
+
+  async function actorAncestry(ctx: GovernanceContext): Promise<string[]> {
+    const actorAgentId = ctx.actorAgentId;
+    if (!actorAgentId) return [];
+    const actor = await registry.get(actorAgentId, ctx.tenantId);
+    if (!actor) {
+      throw forbidden(
+        "AGENT_ACTOR_IDENTITY_INVALID",
+        "The authenticated Agent actor does not exist in the caller tenant.",
+      );
+    }
+    const ancestry: string[] = [];
+    const seen = new Set<string>([actor.agentId]);
+    let parentAgentId = actor.parentAgentId;
+    while (parentAgentId) {
+      if (seen.has(parentAgentId)) {
+        throw forbidden(
+          "AGENT_ACTOR_ANCESTRY_INVALID",
+          "The authenticated Agent actor has an invalid ancestry chain.",
+        );
+      }
+      seen.add(parentAgentId);
+      const parent = await registry.get(parentAgentId, ctx.tenantId);
+      if (!parent) {
+        throw forbidden(
+          "AGENT_ACTOR_ANCESTRY_INVALID",
+          "The authenticated Agent actor has an incomplete ancestry chain.",
+        );
+      }
+      ancestry.push(parent.agentId);
+      parentAgentId = parent.parentAgentId;
+    }
+    return ancestry;
+  }
+
+  async function assertAgentActorTargetAllowed(
+    ctx: GovernanceContext,
+    targetAgentId: string,
+    operation: "policy" | "lifecycle",
+  ): Promise<void> {
+    if (!ctx.actorAgentId) return;
+    const violation = validateNoSelfModification({
+      actorAgentId: ctx.actorAgentId,
+      targetAgentId,
+      ancestry: await actorAncestry(ctx),
+    });
+    if (!violation) return;
+    throw forbidden(
+      operation === "lifecycle"
+        ? "SELF_LIFECYCLE_MODIFICATION_DENIED"
+        : violation.code,
+      operation === "lifecycle"
+        ? "An Agent actor may not revoke or change the lifecycle of itself or an ancestor."
+        : violation.message,
+    );
   }
 
   /**
@@ -538,12 +773,24 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
   async function loadVerifiedPolicyInternal(
     agentId: string,
     currentRecord?: AgentRegistryRecord | null,
-  ): Promise<{ policy: EffectiveAgentPolicy; manifest: AgentPolicyManifest } | null> {
+  ): Promise<{ policy: EffectiveAgentPolicy; manifest: AgentPolicyManifest; delta: AgentPolicyDelta } | null> {
     const record = currentRecord ?? await registry.getUnscoped(agentId);
-    const policy = await files.loadPolicy(agentId);
-    const manifest = await files.loadManifest(agentId);
-    if (!record || !policy || !manifest) return null;
-    const integrity = verifyEffectivePolicyIntegrity(policy, manifest, secret, record);
+    if (!record) return null;
+    let bundle;
+    try {
+      bundle = await files.loadBundle(agentId);
+    } catch {
+      bundle = null;
+    }
+    const policy = bundle?.policy ?? null;
+    const manifest = bundle?.manifest ?? null;
+    const delta = bundle?.delta ?? null;
+    const recordMatches = bundle
+      ? stableStringify(bundle.record) === stableStringify(record)
+      : false;
+    const integrity = policy && manifest && delta && recordMatches
+      ? verifyEffectivePolicyIntegrity(policy, manifest, secret, record, delta)
+      : { ok: false, reason: bundle ? "BUNDLE_RECORD_MISMATCH" : "BUNDLE_LOAD_FAILED" };
     if (!integrity.ok) {
       if (record.status === "ACTIVE") {
         fenceExecutions(record.agentId);
@@ -554,11 +801,11 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
         agentId,
         tenantId: record.tenantId,
         reason: integrity.reason,
-        policyHash: policy.policyHash,
+        policyHash: policy?.policyHash ?? record.policyHash,
       });
       return null;
     }
-    return { policy, manifest };
+    return { policy: policy!, manifest: manifest!, delta: delta! };
   }
 
   async function acquireGenerationLock(key: string): Promise<() => void> {
@@ -692,10 +939,12 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
       parentEffective = verifiedParent.policy;
     }
     const stack = await assembleLayerStack({
+      agentId: target.record.agentId,
       tenantId: target.record.tenantId,
       classification: target.record.classification,
       traits: target.record.traits,
       instanceRules: target.delta.instanceRules,
+      taskPolicyKeys: target.delta.taskPolicyKeys ?? [],
       activeOverrides,
     });
     const nextRaw = compileEffectivePolicy({
@@ -729,6 +978,7 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
       agentId: target.record.agentId,
       agentHash: computeAgentHash(nextRecord),
       policyHash: nextPolicy.policyHash,
+      deltaHash: computePolicyDeltaHash(target.delta),
       compiledAt: nextPolicy.compiledAt,
       secret,
     });
@@ -752,6 +1002,170 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
     };
   }
 
+  async function advanceGenerationPhase(
+    plan: AgentGenerationRecoveryPlan,
+    phase: AgentGenerationRecoveryPlan["phase"],
+  ): Promise<void> {
+    if (generationPhaseRank(plan.phase) >= generationPhaseRank(phase)) return;
+    plan.phase = phase;
+    await generationJournal.save(plan);
+  }
+
+  function generationAuditMatches(
+    event: AgentGovernanceAuditEvent,
+    plan: AgentGenerationRecoveryPlan,
+    eventType: "AGENT_ACTIVATED" | "POLICY_REJECTED",
+  ): boolean {
+    return event.eventType === eventType
+      && event.agentId === plan.record.agentId
+      && event.tenantId === plan.record.tenantId
+      && event.policyHash === plan.record.policyHash
+      && event.metadata?.generationOperationId === plan.operationId;
+  }
+
+  async function hasGenerationAudit(
+    plan: AgentGenerationRecoveryPlan,
+    eventType: "AGENT_ACTIVATED" | "POLICY_REJECTED",
+  ): Promise<boolean> {
+    const events = await auditLog.readForAgent(plan.record.agentId, 100_000);
+    return events.some((event) => generationAuditMatches(event, plan, eventType));
+  }
+
+  function generationRecordIdentityMatches(
+    current: AgentRegistryRecord,
+    expected: AgentRegistryRecord,
+  ): boolean {
+    const { status: _currentStatus, revokedAt: _currentRevokedAt, ...currentIdentity } = current;
+    const { status: _expectedStatus, revokedAt: _expectedRevokedAt, ...expectedIdentity } = expected;
+    return stableStringify(currentIdentity) === stableStringify(expectedIdentity);
+  }
+
+  async function emitGenerationActivated(plan: AgentGenerationRecoveryPlan): Promise<void> {
+    if (await hasGenerationAudit(plan, "AGENT_ACTIVATED")) return;
+    await audit({
+      eventType: "AGENT_ACTIVATED",
+      agentId: plan.record.agentId,
+      tenantId: plan.record.tenantId,
+      requestId: plan.requestId,
+      policyHash: plan.record.policyHash,
+      metadata: { generationOperationId: plan.operationId, generationOutcome: "activated" },
+    });
+  }
+
+  async function persistGenerationFailed(
+    plan: AgentGenerationRecoveryPlan,
+    reason: string,
+  ): Promise<void> {
+    const current = await registry.getUnscoped(plan.record.agentId);
+    if (current && !generationRecordIdentityMatches(current, plan.record)) {
+      throw agentGenerationRecoveryError(
+        `Agent ${plan.record.agentId} diverged from its generation journal; refusing recovery overwrite.`,
+      );
+    }
+    const failedRecord: AgentRegistryRecord = {
+      ...plan.record,
+      status: "FAILED",
+      ...(current?.revokedAt ? { revokedAt: current.revokedAt } : {}),
+    };
+    const failedManifest = buildManifest({
+      agentId: failedRecord.agentId,
+      agentHash: computeAgentHash(failedRecord),
+      policyHash: plan.policy.policyHash,
+      deltaHash: computePolicyDeltaHash(plan.delta),
+      compiledAt: plan.policy.compiledAt,
+      secret,
+    });
+    await files.writeAgentBundle({
+      record: failedRecord,
+      delta: plan.delta,
+      policy: plan.policy,
+      manifest: failedManifest,
+    });
+    await registry.upsert(failedRecord);
+    if (!await hasGenerationAudit(plan, "POLICY_REJECTED")) {
+      await audit({
+        eventType: "POLICY_REJECTED",
+        agentId: failedRecord.agentId,
+        tenantId: failedRecord.tenantId,
+        requestId: plan.requestId,
+        policyHash: failedRecord.policyHash,
+        reason,
+        metadata: { generationOperationId: plan.operationId, generationOutcome: "failed" },
+      });
+    }
+    await generationJournal.clear(plan.operationId);
+  }
+
+  async function recoverGenerationPlan(plan: AgentGenerationRecoveryPlan): Promise<void> {
+    if (plan.registryAuthority !== await resolveRegistryAuthority()) {
+      throw agentGenerationRecoveryError(
+        "Agent generation journal belongs to a different Registry authority; refusing cross-authority replay.",
+        undefined,
+        "AGENT_GENERATION_RECOVERY_AUTHORITY_MISMATCH",
+      );
+    }
+    const current = await registry.getUnscoped(plan.record.agentId);
+    if (current && !generationRecordIdentityMatches(current, plan.record)) {
+      throw agentGenerationRecoveryError(
+        `Agent ${plan.record.agentId} lifecycle or identity diverged from the generation journal.`,
+      );
+    }
+    const recoverableStatus = current?.status === "ACTIVE"
+      || current?.status === "VALIDATED"
+      || current?.status === "DRAFT";
+    if (current && !recoverableStatus) {
+      if (!await hasGenerationAudit(plan, "POLICY_REJECTED")) {
+        await audit({
+          eventType: "POLICY_REJECTED",
+          agentId: current.agentId,
+          tenantId: current.tenantId,
+          requestId: plan.requestId,
+          policyHash: current.policyHash,
+          reason: `generation recovery preserved terminal status ${current.status}`,
+          metadata: { generationOperationId: plan.operationId, generationOutcome: "failed" },
+        });
+      }
+      await generationJournal.clear(plan.operationId);
+      return;
+    }
+
+    if (plan.record.expiresAt <= now()) {
+      await persistGenerationFailed(plan, "generation recovery rejected an Agent whose signed TTL already expired");
+      return;
+    }
+    try {
+      await assertActiveAncestorChain(plan.record, now());
+    } catch (error) {
+      await persistGenerationFailed(
+        plan,
+        `generation recovery rejected an invalid ancestor chain: ${errorMessage(error)}`,
+      );
+      return;
+    }
+
+    const alreadyAudited = await hasGenerationAudit(plan, "AGENT_ACTIVATED");
+    if (!alreadyAudited || generationPhaseRank(plan.phase) < generationPhaseRank("active")) {
+      await usage.reset(plan.record.agentId);
+      await advanceGenerationPhase(plan, "usage-reset");
+    }
+    await files.writeAgentBundle({
+      record: plan.record,
+      delta: plan.delta,
+      policy: plan.policy,
+      manifest: plan.manifest,
+    });
+    await advanceGenerationPhase(plan, "bundle-written");
+    if (current?.status !== "ACTIVE") {
+      await registry.upsert({ ...plan.record, status: "VALIDATED" });
+    }
+    await advanceGenerationPhase(plan, "registry-validated");
+    await emitGenerationActivated(plan);
+    await advanceGenerationPhase(plan, "audited");
+    await registry.upsert(plan.record);
+    await advanceGenerationPhase(plan, "active");
+    await generationJournal.clear(plan.operationId);
+  }
+
   async function saveActivationPhase(
     plan: PolicyActivationRecoveryPlan,
     phase: PolicyActivationRecoveryPlan["phase"],
@@ -761,11 +1175,20 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
   }
 
   async function assertNoPendingActivation(): Promise<void> {
-    const pending = await activationJournal.load();
-    if (pending) {
+    const [pendingActivation, pendingGeneration] = await Promise.all([
+      activationJournal.load(),
+      generationJournal.load(),
+    ]);
+    if (pendingActivation) {
       throw conflict(
         "POLICY_ACTIVATION_IN_PROGRESS",
-        `Policy activation ${pending.operationId} must complete or recover before another lifecycle mutation.`,
+        `Policy activation ${pendingActivation.operationId} must complete or recover before another lifecycle mutation.`,
+      );
+    }
+    if (pendingGeneration) {
+      throw conflict(
+        "AGENT_GENERATION_IN_PROGRESS",
+        `Agent generation ${pendingGeneration.operationId} must complete or recover before another lifecycle mutation.`,
       );
     }
   }
@@ -774,13 +1197,22 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
     const deadline = Date.now() + Math.max(1_000, executionDrainTimeoutMs * 2);
     while (true) {
       const release = await acquireControlPlaneMutationLock();
-      const pending = await activationJournal.load();
-      if (!pending) return release;
+      const [pendingActivation, pendingGeneration] = await Promise.all([
+        activationJournal.load(),
+        generationJournal.load(),
+      ]);
+      if (!pendingActivation && !pendingGeneration) return release;
       release();
+      if (pendingGeneration) {
+        throw conflict(
+          "AGENT_GENERATION_IN_PROGRESS",
+          `Agent generation ${pendingGeneration.operationId} must complete or recover before another generation.`,
+        );
+      }
       if (Date.now() >= deadline) {
         throw conflict(
           "POLICY_ACTIVATION_IN_PROGRESS",
-          `Policy activation ${pending.operationId} did not finish before the generation wait deadline.`,
+          `Policy activation ${pendingActivation?.operationId ?? "unknown"} did not finish before the generation wait deadline.`,
         );
       }
       await new Promise<void>((resolve) => setTimeout(resolve, 10));
@@ -928,12 +1360,14 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
       const expectedPolicy = outcome === "committed" ? agent.nextPolicy : agent.oldPolicy;
       const expectedManifest = outcome === "committed" ? agent.nextManifest : agent.oldManifest;
       const current = await registry.getUnscoped(agent.agentId);
-      const storedPolicy = await files.loadPolicy(agent.agentId);
-      const storedManifest = await files.loadManifest(agent.agentId);
+      let bundle;
+      try { bundle = await files.loadBundle(agent.agentId); }
+      catch { bundle = null; }
       if (!current || current.status !== "ACTIVE" || current.policyHash !== expectedRecord.policyHash
-        || !storedPolicy || storedPolicy.policyHash !== expectedPolicy.policyHash
-        || !storedManifest || storedManifest.signature !== expectedManifest.signature
-        || !verifyEffectivePolicyIntegrity(storedPolicy, storedManifest, secret, current).ok) {
+        || !bundle || stableStringify(bundle.record) !== stableStringify(current)
+        || bundle.policy.policyHash !== expectedPolicy.policyHash
+        || bundle.manifest.signature !== expectedManifest.signature
+        || !verifyEffectivePolicyIntegrity(bundle.policy, bundle.manifest, secret, current, bundle.delta).ok) {
         throw policyActivationRecoveryError(
           `Completed activation ${plan.operationId} Agent ${agent.agentId} does not match its ${outcome} stamp.`,
         );
@@ -949,6 +1383,7 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
         agentId: failedRecord.agentId,
         agentHash: computeAgentHash(failedRecord),
         policyHash: agent.oldPolicyHash,
+        deltaHash: computePolicyDeltaHash(agent.delta),
         compiledAt: agent.oldPolicy.compiledAt,
         secret,
       });
@@ -975,8 +1410,22 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
       let migrate = false;
       const release = await acquireControlPlaneMutationLock();
       try {
-        const pending = await activationJournal.load();
-        if (pending) await recoverActivationPlan(pending);
+        // Resolve the authenticated installation identity before reading any
+        // recovery intent. A same-key WAL copied from another data root must
+        // fail before it can write a Registry record, bundle, usage or audit.
+        await resolveRegistryAuthority();
+        const [pendingGeneration, pendingActivation] = await Promise.all([
+          generationJournal.load(),
+          activationJournal.load(),
+        ]);
+        if (pendingGeneration && pendingActivation) {
+          throw agentGenerationRecoveryError(
+            "Generation and policy activation journals coexist; refusing ambiguous cross-store recovery.",
+          );
+        }
+        if (pendingGeneration) await recoverGenerationPlan(pendingGeneration);
+        if (pendingActivation) await recoverActivationPlan(pendingActivation);
+        await verifyAuditMirrors(true);
 
         let v2 = await catalog.get("execution-family", 2);
         let installed = false;
@@ -1048,14 +1497,17 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
   const service: AgentGovernanceService = {
     async generateAgent(input, ctx) {
       requireContext(ctx);
-      const releaseControlPlaneMutation = await acquireGenerationMutationLock();
-      const generationEpoch = controlPlaneEpoch;
-      const releaseGenerationLock = await acquireGenerationLock(
-        input.parentAgentId ? `${ctx.tenantId}:parent:${input.parentAgentId}` : `${ctx.tenantId}:root`,
-      );
-      try {
-      // The agent id exists from the first audit event so the complete
-      // lifecycle (including rejections) lands in the agent's audit trail.
+      if (ctx.actorAgentId && input.parentAgentId !== ctx.actorAgentId) {
+        throw forbidden(
+          "AGENT_ACTOR_CHILD_PARENT_REQUIRED",
+          "An Agent actor may only generate a child bound directly to itself as parent.",
+        );
+      }
+      // Allocate and audit the draft before asking an optional model for a
+      // classification proposal. The model is untrusted and may be slow; it
+      // must never hold the lifecycle mutation lock needed by emergency
+      // revoke or policy activation. All authority-bearing reads and the
+      // deterministic compilation still happen after the lock is acquired.
       const agentId = `agt_${randomUUID()}`;
       const unregistered = input.requestedTools.filter((tool) => !toolCatalog.lookup(tool));
       if (unregistered.length > 0) {
@@ -1079,9 +1531,15 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
         reason: input.task?.slice(0, 200),
       });
 
-      // 1. Classification proposal — model (optional) then deterministic
-      //    fallback. Risk backfill always recomputes from tool labels.
-      let proposal = input.classification
+      // Classification is only a proposal. Risk backfill, parent checks,
+      // entitlements, policy loading and compilation remain deterministic
+      // and are re-read under the mutation lock below.
+      let proposalSource: "request" | "gateway_model" | "deterministic" = input.classification
+        ? "request"
+        : "deterministic";
+      let modelProposalFailed = false;
+      let modelPolicyDraftProposed = false;
+      let proposal: Awaited<ReturnType<ModelProposer["proposeClassification"]>> = input.classification
         ? {
           classification: input.classification,
           proposedTraits: input.proposedTraits ?? [],
@@ -1090,13 +1548,47 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
         : null;
       if (!proposal && modelProposer) {
         try {
-          proposal = await modelProposer.proposeClassification(input.task);
+          const candidate = await modelProposer.proposeClassification(input.task, {
+            name: input.name,
+            requestedTools: [...input.requestedTools],
+            tenantId: ctx.tenantId,
+            userId: ctx.userId,
+            requestId: ctx.requestId,
+          });
+          if (candidate) {
+            modelPolicyDraftProposed = candidate.policyDraft !== undefined;
+            proposal = {
+              ...candidate,
+              ...(candidate.policyDraft !== undefined
+                ? { policyDraft: normalizeModelPolicyDraft(candidate.policyDraft) }
+                : {}),
+            };
+            proposalSource = "gateway_model";
+          } else {
+            modelProposalFailed = true;
+          }
         } catch {
           proposal = null;
+          modelProposalFailed = true;
         }
       }
       if (!proposal) proposal = deterministicProposal(input);
+      const explicitInstanceRules = input.instanceRules !== undefined;
+      const proposedInstanceRules = proposalSource === "gateway_model" ? proposal.policyDraft : undefined;
+      const modelPolicyDraftAdopted = !explicitInstanceRules
+        && proposedInstanceRules !== undefined
+        && Object.keys(proposedInstanceRules).length > 0;
+      const effectiveInstanceRules = explicitInstanceRules
+        ? input.instanceRules
+        : modelPolicyDraftAdopted ? proposedInstanceRules : undefined;
 
+      const releaseControlPlaneMutation = await acquireGenerationMutationLock();
+      const generationEpoch = controlPlaneEpoch;
+      const releaseGenerationLock = await acquireGenerationLock(
+        input.parentAgentId ? `${ctx.tenantId}:parent:${input.parentAgentId}` : `${ctx.tenantId}:root`,
+      );
+      try {
+      // 1. Deterministic risk backfill over the model/request proposal.
       const recomputed = recomputeClassification({
         classification: proposal.classification,
         proposedTraits: proposal.proposedTraits,
@@ -1109,6 +1601,12 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
         tenantId: ctx.tenantId,
         requestId: ctx.requestId,
         reason: `${recomputed.classification.family}/${recomputed.classification.domain} risk=${recomputed.riskLevel}`,
+        metadata: {
+          proposalSource,
+          modelProposalFailed,
+          modelPolicyDraftProposed,
+          modelPolicyDraftAdopted,
+        },
       });
 
       const draft = {
@@ -1166,10 +1664,12 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
 
       // 3. Compile with the full stack + parent ceiling.
       const stack = await assembleLayerStack({
+        agentId,
         tenantId: ctx.tenantId,
         classification: recomputed.classification,
         traits: recomputed.traits,
-        instanceRules: input.instanceRules,
+        instanceRules: effectiveInstanceRules,
+        taskPolicyKeys: normalizeTaskPolicyKeys(input.taskPolicyKeys),
       });
       const policy = compileEffectivePolicy({
         agentId,
@@ -1185,7 +1685,9 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
         now: now(),
       });
 
-      // 4. Persist: record → manifest → files → registry → ACTIVE.
+      // 4. Persist under an authenticated generation WAL. The record carries
+      //    its intended ACTIVE terminal image, but it is not externally
+      //    returned until bundle, registry and activation audit all commit.
       const record: AgentRegistryRecord = {
         agentId,
         name: input.name,
@@ -1206,42 +1708,92 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
         expiresAt: policy.expiresAt,
       };
       const agentHash = computeAgentHash(record);
+      const delta: AgentPolicyDelta = {
+        agentId,
+        inherits: stack
+          .filter((layer) => layer.policyKey !== `agent:${agentId}:creation-delta`)
+          .map((layer) => ({ policyKey: layer.policyKey, version: layer.version })),
+        instanceRules: effectiveInstanceRules ?? {},
+        taskPolicyKeys: normalizeTaskPolicyKeys(input.taskPolicyKeys),
+      };
       const manifest = buildManifest({
         agentId,
         agentHash,
         policyHash: policy.policyHash,
+        deltaHash: computePolicyDeltaHash(delta),
         compiledAt: policy.compiledAt,
         secret,
       });
       if (generationEpoch !== controlPlaneEpoch) {
         throw policyEpochChanged(generationEpoch, controlPlaneEpoch);
       }
-      await usage.reset(agentId);
-      await files.writeAgentBundle({
+      const generationPlan = await generationJournal.create({
+        actor: ctx.userId,
+        ...(ctx.requestId ? { requestId: ctx.requestId } : {}),
+        registryAuthority: await resolveRegistryAuthority(),
+        phase: "prepared",
         record,
-        delta: {
-          agentId,
-          inherits: stack
-            .filter((layer) => layer.policyKey !== "instance-delta")
-            .map((layer) => ({ policyKey: layer.policyKey, version: layer.version })),
-          instanceRules: input.instanceRules ?? {},
-        },
+        delta,
         policy,
         manifest,
       });
-      await registry.upsert(record);
+      let activationCommitted = false;
       try {
-        await audit({
-          eventType: "AGENT_ACTIVATED",
-          agentId,
-          tenantId: ctx.tenantId,
-          requestId: ctx.requestId,
-          policyHash: policy.policyHash,
-        });
+        const faultDetail = { operationId: generationPlan.operationId, agentId };
+        await generationFaultInjector?.("after-generation-journal", faultDetail);
+        await usage.reset(agentId);
+        await generationFaultInjector?.("after-generation-usage", faultDetail);
+        await advanceGenerationPhase(generationPlan, "usage-reset");
+        await files.writeAgentBundle({ record, delta, policy, manifest });
+        await generationFaultInjector?.("after-generation-bundle", faultDetail);
+        await advanceGenerationPhase(generationPlan, "bundle-written");
+        // Persist a non-runnable central record before the audit. ACTIVE is a
+        // separate final commit after AGENT_ACTIVATED is durable, so no crash
+        // window can leave an unaudited runnable Agent in the registry.
+        await registry.upsert({ ...record, status: "VALIDATED" });
+        await generationFaultInjector?.("after-generation-registry", faultDetail);
+        await advanceGenerationPhase(generationPlan, "registry-validated");
+        await emitGenerationActivated(generationPlan);
+        await generationFaultInjector?.("after-generation-audit", faultDetail);
+        await advanceGenerationPhase(generationPlan, "audited");
+        await registry.upsert(record);
+        activationCommitted = true;
+        await generationFaultInjector?.("after-generation-active", faultDetail);
+        await advanceGenerationPhase(generationPlan, "active");
+        try {
+          await generationJournal.clear(generationPlan.operationId);
+        } catch {
+          // The signed activation audit plus the exact ACTIVE registry/bundle
+          // is the terminal commit. Retain the WAL for idempotent recovery
+          // rather than failing or compensating an already-committed Agent.
+          startupMaintenanceReady = false;
+          startupMaintenancePromise = null;
+        }
       } catch (error) {
-        fenceExecutions(agentId);
-        await registry.upsert({ ...record, status: "FAILED" });
-        throw error;
+        if (isAgentGenerationCrashSimulation(error)) {
+          startupMaintenanceReady = false;
+          startupMaintenancePromise = null;
+          throw error;
+        }
+        if (activationCommitted) {
+          // A post-audit journal write failure cannot undo the committed audit.
+          // Leave the authenticated WAL for the next call/startup to verify and
+          // clear, and return the already-committed Agent exactly once.
+          startupMaintenanceReady = false;
+          startupMaintenancePromise = null;
+        } else {
+          try {
+            await persistGenerationFailed(
+              generationPlan,
+              `Agent generation failed before activation audit: ${errorMessage(error)}`,
+            );
+          } catch (recoveryError) {
+            startupMaintenanceReady = false;
+            startupMaintenancePromise = null;
+            throw agentGenerationTransactionError(error, recoveryError, agentId);
+          }
+          throw agentGenerationTransactionError(error, null, agentId);
+        }
       }
 
       return {
@@ -1354,7 +1906,7 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
     async getEffectivePolicy(agentId, tenantId) {
       const record = await registry.get(agentId, tenantId);
       if (!record) return null;
-      return files.loadPolicy(agentId);
+      return (await loadVerifiedPolicyInternal(agentId, record))?.policy ?? null;
     },
 
     async getEffectivePolicyView(agentId, tenantId) {
@@ -1376,6 +1928,7 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
 
     async revokeAgent(agentId, input, ctx) {
       requireContext(ctx);
+      await assertAgentActorTargetAllowed(ctx, agentId, "lifecycle");
       const releaseControlPlaneMutation = await acquireControlPlaneMutationLock();
       const fencedAgentIds: string[] = [];
       try {
@@ -1433,6 +1986,12 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
 
     async decideApproval(approvalId, decision, ctx) {
       requireContext(ctx);
+      if (ctx.actorAgentId) {
+        throw forbidden(
+          "AGENT_ACTOR_APPROVAL_DECISION_DENIED",
+          "Agent actors may not approve or reject governance approvals.",
+        );
+      }
       const approval = await approvals.get(approvalId);
       if (!approval) throw notFound("Approval not found.");
       const record = await registry.getUnscoped(approval.agentId);
@@ -1471,6 +2030,9 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
 
     async createPolicyVersion(input, ctx) {
       requireContext(ctx);
+      if (input.policyType === "instance") {
+        await assertAgentActorTargetAllowed(ctx, input.scopeKey, "policy");
+      }
       requirePlatformTenant(ctx, platformTenantId);
       assertCanonicalPolicyBinding(input);
       const releaseControlPlaneMutation = await acquireControlPlaneMutationLock();
@@ -1492,6 +2054,12 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
 
     async activatePolicyVersion(policyKey, version, ctx) {
       requireContext(ctx);
+      if (ctx.actorAgentId) {
+        throw forbidden(
+          "AGENT_ACTOR_POLICY_ACTIVATION_DENIED",
+          "Agent actors may not activate governance policies.",
+        );
+      }
       requirePlatformTenant(ctx, platformTenantId);
       let releaseControlPlaneMutation: (() => void) | null = await acquireControlPlaneMutationLock();
       try {
@@ -1507,15 +2075,11 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
             throw new Error(`Cannot recompile Agent ${record.agentId}: current policy integrity failed.`);
           }
           if (policyAppliesToAgent(candidate, record, verifiedOld.policy)) {
-            const delta = await files.loadDelta(record.agentId);
-            if (!delta) {
-              throw new Error(`Cannot recompile Agent ${record.agentId}: policy delta is unavailable.`);
-            }
             targets.push({
               record,
               oldPolicy: verifiedOld.policy,
               oldManifest: verifiedOld.manifest,
-              delta,
+              delta: verifiedOld.delta,
             });
           }
         }
@@ -1802,8 +2366,68 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
       return approval;
     },
 
+    async checkHealth() {
+      let stateIntegrity: AgentGovernanceServiceHealth["stateIntegrity"] = "verified";
+      let auditIntegrity: AgentGovernanceServiceHealth["auditIntegrity"] = "verified";
+      try {
+        await Promise.all([registry.listAll(), catalog.list()]);
+      } catch {
+        stateIntegrity = "failed";
+      }
+      try {
+        // Startup reconciliation already performs the full central-to-Agent
+        // mirror comparison once. Public readiness checks verify the signed
+        // central chain only; they must not rescan every per-Agent audit file.
+        await auditLog.read(1);
+      } catch {
+        auditIntegrity = "failed";
+      }
+      return {
+        ready: stateIntegrity === "verified" && auditIntegrity === "verified",
+        startupRecovery: "ready",
+        stateIntegrity,
+        auditIntegrity,
+      };
+    },
+
+    async verifyAllAgentBundles() {
+      const records = await registry.listAll();
+      if (records.length > 10_000) {
+        throw bundleVerificationError("Agent bundle verification exceeds its bounded Agent limit.");
+      }
+      for (const record of records) {
+        let bundle;
+        try {
+          bundle = await files.loadBundle(record.agentId);
+        } catch (cause) {
+          throw bundleVerificationError("An Agent bundle could not be loaded safely.", cause);
+        }
+        const recordMatches = record.status === "ACTIVE"
+          ? stableStringify(bundle.record) === stableStringify(record)
+          : generationRecordIdentityMatches(bundle.record, record);
+        if (!recordMatches) {
+          throw bundleVerificationError("An Agent bundle record diverges from the central Registry.");
+        }
+        const integrity = verifyEffectivePolicyIntegrity(
+          bundle.policy,
+          bundle.manifest,
+          secret,
+          bundle.record,
+          bundle.delta,
+          { requireActive: false },
+        );
+        if (!integrity.ok) {
+          throw bundleVerificationError(`An Agent bundle failed integrity verification (${integrity.reason}).`);
+        }
+      }
+      return { verifiedAgentCount: records.length };
+    },
+
     async stats() {
       const agents = await registry.listAll();
+      const registryHealth = (registry as AgentRegistryStore & {
+        getHealth?: () => Record<string, unknown>;
+      }).getHealth?.();
       return {
         agents: agents.length,
         byStatus: agents.reduce<Record<string, number>>((acc, record) => {
@@ -1811,7 +2435,28 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
           return acc;
         }, {}),
         policies: (await catalog.list()).length,
-        storage: { configured: true, pathExposed: false },
+        storage: {
+          configured: true,
+          pathExposed: false,
+          registry: registryHealth ? {
+            storageMode: registryHealth.storageMode,
+            durable: registryHealth.durable === true,
+            transactional: registryHealth.transactional === true,
+            distributed: registryHealth.distributed === true,
+            distributedCapable: registryHealth.distributedCapable === true,
+            distributedVerified: registryHealth.distributedVerified === true,
+            singleHost: registryHealth.singleHost === true,
+            available: registryHealth.available !== false,
+            schemaVersion: registryHealth.schemaVersion,
+          } : {
+            storageMode: "single-process-json",
+            durable: true,
+            transactional: false,
+            distributed: false,
+            singleHost: true,
+            available: true,
+          },
+        },
       };
     },
   };
@@ -1867,6 +2512,14 @@ function requireContext(ctx: GovernanceContext): void {
     error.name = "GovernanceContextRequired";
     throw error;
   }
+  if (ctx.actorAgentId !== undefined && ctx.actorAgentId !== null
+    && (typeof ctx.actorAgentId !== "string"
+      || !/^agt_[A-Za-z0-9_-]{1,128}$/u.test(ctx.actorAgentId))) {
+    throw forbidden(
+      "AGENT_ACTOR_IDENTITY_INVALID",
+      "Governance context actorAgentId must be a valid server-issued Agent identity.",
+    );
+  }
 }
 
 function boundedInteger(value: unknown, fallback: number, minimum: number, maximum: number): number {
@@ -1879,6 +2532,25 @@ function configuredNumber(value: unknown): number | undefined {
   if (typeof value !== "string" || value.trim() === "") return undefined;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function normalizeTaskPolicyKeys(value: unknown): string[] {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value) || value.length > 32
+    || value.some((item) => typeof item !== "string" || !/^[a-z][a-z0-9._-]{0,63}$/u.test(item))) {
+    throw Object.assign(new Error("taskPolicyKeys must contain at most 32 portable policy scope keys."), {
+      name: "TaskPolicyBindingInvalid",
+      code: "TASK_POLICY_BINDING_INVALID",
+    });
+  }
+  const unique = [...new Set(value)];
+  if (unique.length !== value.length) {
+    throw Object.assign(new Error("taskPolicyKeys must not contain duplicates."), {
+      name: "TaskPolicyBindingInvalid",
+      code: "TASK_POLICY_BINDING_INVALID",
+    });
+  }
+  return unique;
 }
 
 function notFound(message: string): Error {
@@ -1976,6 +2648,15 @@ function isPolicyActivationCrashSimulation(error: unknown): boolean {
     && (error as { code?: unknown }).code === "POLICY_ACTIVATION_CRASH_SIMULATION");
 }
 
+function isAgentGenerationCrashSimulation(error: unknown): boolean {
+  return Boolean(error && typeof error === "object"
+    && (error as { code?: unknown }).code === "AGENT_GENERATION_CRASH_SIMULATION");
+}
+
+function generationPhaseRank(phase: AgentGenerationRecoveryPlan["phase"]): number {
+  return ["prepared", "usage-reset", "bundle-written", "registry-validated", "audited", "active"].indexOf(phase);
+}
+
 function activationStateEqual(
   left: PolicyCatalogActivationState,
   right: PolicyCatalogActivationState,
@@ -1997,6 +2678,69 @@ function builtInPolicyMigrationError(message: string, cause?: unknown): Error {
     new Error(message, cause === undefined ? undefined : { cause }),
     { name: "BuiltInPolicyMigrationError", code: "BUILT_IN_POLICY_MIGRATION_REQUIRED" },
   );
+}
+
+function agentGenerationRecoveryError(
+  message: string,
+  cause?: unknown,
+  code = "AGENT_GENERATION_RECOVERY_REQUIRED",
+): Error {
+  return Object.assign(
+    new Error(message, cause === undefined ? undefined : { cause }),
+    { name: "AgentGenerationRecoveryError", code },
+  );
+}
+
+function normalizeRegistryAuthority(value: unknown): string {
+  const normalized = String(value ?? "").trim();
+  if (!/^[A-Za-z0-9_.:-]{1,256}$/u.test(normalized)) {
+    throw agentGenerationRecoveryError(
+      "Agent Registry authority binding is invalid.",
+      undefined,
+      "AGENT_REGISTRY_AUTHORITY_INVALID",
+    );
+  }
+  return normalized;
+}
+
+function bundleVerificationError(message: string, cause?: unknown): Error {
+  return Object.assign(
+    new Error(message, cause === undefined ? undefined : { cause }),
+    {
+      name: "AgentBundleIntegrityError",
+      code: "AGENT_GOVERNANCE_BUNDLE_INTEGRITY_FAILED",
+      category: "integrity",
+      statusCode: 503,
+      retryable: false,
+    },
+  );
+}
+
+function agentGenerationTransactionError(
+  cause: unknown,
+  recoveryError: unknown,
+  agentId: string,
+): Error {
+  const recovered = recoveryError === null;
+  const error = new Error(
+    recovered
+      ? `Agent generation failed before activation and Agent ${agentId} was persisted fail-closed.`
+      : `Agent generation failed and Agent ${agentId} requires startup recovery.`,
+    cause === undefined ? undefined : { cause },
+  ) as Error & {
+    code: string;
+    agentId: string;
+    failClosed: boolean;
+    recoveryError?: string;
+  };
+  error.name = "AgentGenerationTransactionFailed";
+  error.code = recovered
+    ? "AGENT_GENERATION_TRANSACTION_FAILED"
+    : "AGENT_GENERATION_RECOVERY_REQUIRED";
+  error.agentId = agentId;
+  error.failClosed = recovered;
+  if (recoveryError !== null) error.recoveryError = errorMessage(recoveryError);
+  return error;
 }
 
 function policyEpochChanged(expected: number, actual: number): Error {

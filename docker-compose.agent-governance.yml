@@ -1,0 +1,21 @@
+# Local single-host Agent Governance profile.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.agent-governance.yml up --build
+#
+# This profile deliberately keeps the signed JSON Registry as the sole runtime
+# authority. SQLite/PostgreSQL adapters are not promoted until an independent
+# monotonic rollback/authority anchor and real deployment evidence exist.
+services:
+  ai-gateway-service:
+    environment:
+      AI_GATEWAY_AGENT_GOVERNANCE_ENABLED: "true"
+      AI_GATEWAY_AGENT_GOVERNANCE_DATA_DIR: /app/.data/agent-governance
+      AI_GATEWAY_AGENT_GOVERNANCE_REGISTRY_STORE_MODE: json
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          fetch("http://127.0.0.1:3100/ready").then((response) => {
+          if (!response.ok) process.exit(1);
+          }).catch(() => process.exit(1));

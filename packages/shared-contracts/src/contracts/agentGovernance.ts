@@ -1,4 +1,4 @@
-import type { ContractMetadata } from "./common.js";
+import type { ContractMetadata, ResultEnvelope } from "./common.js";
 import type { RiskLevel } from "./governance.js";
 
 /**
@@ -275,12 +275,16 @@ export interface AgentCreatorEntitlements {
 
 /**
  * Tamper-evidence manifest stored beside each agent's effective policy.
- * signature = HMAC-SHA256 over `${agentHash}:${policyHash}`.
+ * signature = HMAC-SHA256 over the agent, effective-policy and immutable
+ * policy-delta hashes. Missing legacy delta hashes fail closed because an
+ * unsigned inheritance/instance-rule file cannot be migrated safely without
+ * an independently trusted source.
  */
 export interface AgentPolicyManifest {
   agentId: string;
   agentHash: string;
   policyHash: string;
+  deltaHash: string;
   signature: string;
   compiledAt: string;
 }
@@ -464,6 +468,8 @@ export type AgentGovernanceEventType =
   | "TOOL_REQUESTED"
   | "TOOL_ALLOWED"
   | "TOOL_DENIED"
+  | "TOOL_COMPLETED"
+  | "TOOL_FAILED"
   | "APPROVAL_REQUESTED"
   | "APPROVAL_APPROVED"
   | "APPROVAL_CONSUMED"
@@ -491,6 +497,8 @@ export interface AgentGovernanceAuditCheckpoint {
 
 /** One append-only audit event (redacted arguments only). */
 export interface AgentGovernanceAuditEvent {
+  /** Server-issued event identity shared by the central and per-Agent mirrors. */
+  id?: string;
   eventType: AgentGovernanceEventType;
   requestId?: string;
   agentId?: string;
@@ -498,6 +506,9 @@ export interface AgentGovernanceAuditEvent {
   tenantId?: string;
   toolName?: string;
   decision?: AgentToolDecision;
+  /** Tool arguments are deliberately omitted or redacted, never stored raw. */
+  argumentsRedacted?: boolean;
+  resultStatus?: "success" | "error" | "denied" | "pending";
   reason?: string;
   policyHash?: string;
   previousPolicyHash?: string;
@@ -505,3 +516,100 @@ export interface AgentGovernanceAuditEvent {
   checkpoint?: AgentGovernanceAuditCheckpoint;
   metadata?: ContractMetadata;
 }
+
+// ---------------------------------------------------------------------------
+// Public Gateway API DTOs
+// ---------------------------------------------------------------------------
+
+export interface GenerateGovernedAgentRequest {
+  name: string;
+  task: string;
+  requestedTools: string[];
+  ttlSeconds: number;
+  parentAgentId?: string | null;
+  classification?: AgentClassification;
+  proposedTraits?: AgentTrait[];
+  proposedRiskLevel?: RiskLevel;
+  instanceRules?: PolicyLayerContent;
+  taskPolicyKeys?: string[];
+}
+
+export interface GenerateGovernedAgentResponse {
+  agentId: string;
+  status: AgentStatus;
+  classification: AgentClassification;
+  traits: string[];
+  riskLevel: RiskLevel;
+  addedTraits: string[];
+  riskEscalated: boolean;
+  grantedTools: string[];
+  policyHash: string;
+  expiresAt: string;
+}
+
+export interface RunGovernedAgentRequest {
+  goal: string;
+  maxIterations?: number;
+  timeoutMs?: number;
+  maxTokensPerTurn?: number;
+  toolMode?: "readonly" | "none";
+  toolAllowlist?: string[];
+  providerId?: string;
+  modelId?: string;
+}
+
+export interface GovernedAgentRunResponse {
+  status: string;
+  goal: string;
+  finalAnswer: string;
+  iterations: { used: number; max: number };
+  timing: { durationMs: number; timeoutMs: number; timedOut: boolean };
+  tools: {
+    mode: string;
+    allowlist: string[];
+    usage: Record<string, unknown>;
+  };
+  usage: unknown;
+  compaction: {
+    engine: string;
+    policy: { maxContextTokens: number; recentTurnsToKeep: number };
+  };
+  provider: { id: string; modelId: string | null };
+  sessionId: string | null;
+  governance: { enforced: boolean; agentId?: string; runId?: string; policyHash?: string };
+}
+
+export interface RevokeGovernedAgentRequest {
+  reason?: string;
+  cascade?: boolean;
+}
+
+export interface CreateGovernancePolicyRequest {
+  policyKey: string;
+  version: number;
+  policyType: PolicyType;
+  scopeKey: string;
+  content: PolicyLayerContent;
+}
+
+export type GenerateGovernedAgentResult = ResultEnvelope<GenerateGovernedAgentResponse>;
+export type GovernedAgentListResult = ResultEnvelope<{ agents: AgentRegistryRecord[] }>;
+export type GovernedAgentDescribeResult = ResultEnvelope<{ agent: AgentRegistryRecord }>;
+export type GovernedAgentPolicyResult = ResultEnvelope<{ effectivePolicy: Record<string, unknown> }>;
+export type GovernedAgentAuditResult = ResultEnvelope<{ events: AgentGovernanceAuditEvent[] }>;
+export type GovernedAgentRunResult = ResultEnvelope<GovernedAgentRunResponse>;
+export type RevokeGovernedAgentResult = ResultEnvelope<{ revoked: string[] }>;
+export type GovernedApprovalListResult = ResultEnvelope<{ approvals: AgentToolApprovalRecord[] }>;
+export type GovernedApprovalDecisionResult = ResultEnvelope<{ approval: AgentToolApprovalRecord }>;
+export type GovernancePolicyListResult = ResultEnvelope<{ policies: PolicyRecord[] }>;
+export type CreateGovernancePolicyResult = ResultEnvelope<{ policy: PolicyRecord }>;
+export type ActivateGovernancePolicyResult = ResultEnvelope<{
+  policy: PolicyRecord;
+  affected: Array<{
+    agentId: string;
+    previousPolicyHash: string;
+    policyHash: string;
+    clamped: number;
+  }>;
+}>;
+export type AgentGovernanceStatsResult = ResultEnvelope<{ stats: Record<string, unknown> }>;

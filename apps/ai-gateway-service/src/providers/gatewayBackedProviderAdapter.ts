@@ -1,3 +1,5 @@
+import { AGENT_GOVERNANCE_EXECUTION_CONTEXT } from "../core/gatewayService.js";
+
 type GatewayServiceLike = {
   execute(input: Record<string, unknown>, execution?: Record<string, unknown>): Promise<any>;
 };
@@ -8,6 +10,13 @@ type GatewayBackedProviderAdapterOptions = {
   modelId?: string | null;
   descriptor?: Record<string, any> | null;
   source?: string;
+  agentExecutionContext?: {
+    agentId: string;
+    runId: string;
+    policyHash: string;
+    tenantId: string;
+    userId: string;
+  } | null;
 };
 
 type LowLevelProviderRequest = {
@@ -41,6 +50,7 @@ export function createGatewayBackedProviderAdapter({
   modelId,
   descriptor = null,
   source = "internal-gateway-adapter",
+  agentExecutionContext = null,
 }: GatewayBackedProviderAdapterOptions) {
   if (!gatewayService || typeof gatewayService.execute !== "function") {
     throw configurationError(
@@ -52,6 +62,9 @@ export function createGatewayBackedProviderAdapter({
   const pinnedModelId = modelId === undefined || modelId === null || String(modelId).trim() === ""
     ? null
     : boundedIdentifier(modelId, "modelId");
+  const trustedAgentContext = agentExecutionContext
+    ? normalizeAgentExecutionContext(agentExecutionContext)
+    : null;
 
   return Object.freeze({
     governedProviderOperation: true as const,
@@ -92,7 +105,14 @@ export function createGatewayBackedProviderAdapter({
         tools: request.tools,
         toolChoice: request.toolChoice,
         providerId: selectedProviderId,
-        modelId: selectedModelId,
+        model: selectedModelId,
+        ...(trustedAgentContext ? {
+          enterpriseIdentity: {
+            tenantId: trustedAgentContext.tenantId,
+            userId: trustedAgentContext.userId,
+          },
+          [AGENT_GOVERNANCE_EXECUTION_CONTEXT]: trustedAgentContext,
+        } : {}),
         metadata: {
           source,
           internalProviderExecution: {
@@ -123,6 +143,23 @@ export function createGatewayBackedProviderAdapter({
   });
 }
 
+function normalizeAgentExecutionContext(input: NonNullable<GatewayBackedProviderAdapterOptions["agentExecutionContext"]>) {
+  const agentId = String(input.agentId ?? "").trim();
+  const runId = String(input.runId ?? "").trim();
+  const policyHash = String(input.policyHash ?? "").trim();
+  const tenantId = boundedIdentity(input.tenantId, "agentExecutionContext.tenantId");
+  const userId = boundedIdentity(input.userId, "agentExecutionContext.userId");
+  if (!/^agt_[A-Za-z0-9_-]{1,128}$/u.test(agentId)
+    || !/^agr_[A-Za-z0-9_-]{1,128}$/u.test(runId)
+    || !/^sha256:[a-f0-9]{64}$/u.test(policyHash)) {
+    throw configurationError(
+      "GATEWAY_BACKED_PROVIDER_AGENT_CONTEXT_INVALID",
+      "The server-owned Agent execution context is invalid.",
+    );
+  }
+  return Object.freeze({ agentId, runId, policyHash, tenantId, userId });
+}
+
 function createGatewayExecutionError(result: any) {
   const routeError = result?.error ?? {};
   const code = routeError.code ?? result?.code ?? "GATEWAY_BACKED_PROVIDER_FAILED";
@@ -146,6 +183,17 @@ function boundedIdentifier(value: unknown, name: string) {
     throw configurationError(
       "GATEWAY_BACKED_PROVIDER_TARGET_INVALID",
       `${name} must be a portable provider or model identifier.`,
+    );
+  }
+  return normalized;
+}
+
+function boundedIdentity(value: unknown, name: string) {
+  const normalized = String(value ?? "").trim();
+  if (!normalized || normalized.length > 256 || /[\u0000-\u001f\u007f]/u.test(normalized)) {
+    throw configurationError(
+      "GATEWAY_BACKED_PROVIDER_AGENT_CONTEXT_INVALID",
+      `${name} must be a bounded authenticated identifier.`,
     );
   }
   return normalized;

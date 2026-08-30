@@ -91,7 +91,16 @@ export function createRouteRateLimiter(options = {}) {
   // Pre-sort patterns by length descending (most specific first)
   const sortedPatterns = Object.entries(routeLimits).sort((a, b) => b[0].length - a[0].length);
 
-  function getRouteLimiter(pathname) {
+  function getRouteLimiter(pathname, method = "GET") {
+    pathname = String(pathname ?? "/").replace(/\/+$/u, "") || "/";
+    method = String(method ?? "GET").toUpperCase();
+    if (/^\/v1\/agents\/agt_[A-Za-z0-9_-]{1,128}\/run$/u.test(pathname)) {
+      pathname = "/agent-exec/run";
+    } else if (method === "POST" && pathname === "/v1/policies") {
+      pathname = "/v1/policies/create";
+    } else if (/^\/v1\/policies\/[^/]{1,160}\/\d{1,9}\/activate$/u.test(pathname)) {
+      pathname = "/v1/policies/activate";
+    }
     // Find matching route pattern (longest prefix match)
     for (const [pattern, limits] of sortedPatterns) {
       if (pathname === pattern || pathname.startsWith(`${pattern}/`)) {
@@ -121,7 +130,7 @@ export function createRouteRateLimiter(options = {}) {
    */
   function apply(req, res) {
     const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
-    const routeMatch = getRouteLimiter(url.pathname);
+    const routeMatch = getRouteLimiter(url.pathname, req.method);
 
     if (routeMatch) {
       res.setHeader("X-RateLimit-Route", routeMatch.pattern);

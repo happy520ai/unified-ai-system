@@ -50,6 +50,12 @@ export interface GovernanceStateFileBinding {
   commit(content: string | Buffer): Promise<void>;
 }
 
+export interface GovernanceStateAuthority {
+  installationId: string;
+  epoch: string;
+  revision: number;
+}
+
 export interface GovernanceStateFileBindingOptions {
   filePath: string;
   secret: string;
@@ -134,10 +140,14 @@ class GovernanceStateCoordinator {
     this.#secretFingerprint = sha256(Buffer.from(secret, "utf8"));
   }
 
-  register(options: GovernanceStateFileBindingOptions): GovernanceStateFileBinding {
-    if (!safeEqual(this.#secretFingerprint, sha256(Buffer.from(options.secret, "utf8")))) {
+  assertSecret(secret: string): void {
+    if (!safeEqual(this.#secretFingerprint, sha256(Buffer.from(secret, "utf8")))) {
       throw integrity("Conflicting Governance state HMAC secrets were registered for one data directory.");
     }
+  }
+
+  register(options: GovernanceStateFileBindingOptions): GovernanceStateFileBinding {
+    this.assertSecret(options.secret);
     const absolutePath = resolve(options.filePath);
     const relativePath = portableRelative(this.#dataDir, absolutePath);
     const registration: Registration = {
@@ -183,13 +193,28 @@ class GovernanceStateCoordinator {
     };
   }
 
+  authority(): Promise<GovernanceStateAuthority> {
+    return this.#enqueue(async () => {
+      const { anchor, installation } = await this.#loadVerifiedAnchor();
+      return Object.freeze({
+        installationId: installation.installationId,
+        epoch: anchor.epoch,
+        revision: anchor.revision,
+      });
+    });
+  }
+
   #enqueue<T>(operation: () => Promise<T>): Promise<T> {
     const result = this.#tail.then(operation, operation);
     this.#tail = result.then(() => undefined, () => undefined);
     return result;
   }
 
-  async #loadVerifiedAnchor(): Promise<{ anchor: SignedAnchor; checkpoint: SignedCheckpoint }> {
+  async #loadVerifiedAnchor(): Promise<{
+    anchor: SignedAnchor;
+    checkpoint: SignedCheckpoint;
+    installation: SignedInstallation;
+  }> {
     await mkdir(this.#dataDir, { recursive: true });
     const journal = await readOptionalJson<SignedJournal>(this.#journalPath());
     if (journal) await this.#recover(journal);
@@ -215,7 +240,7 @@ class GovernanceStateCoordinator {
       throw integrity("Governance state anchor and independent checkpoint diverged.");
     }
     await this.#verifyEntries(anchor);
-    return { anchor, checkpoint };
+    return { anchor, checkpoint, installation };
   }
 
   async #assertBootstrapAllowed(): Promise<void> {
@@ -365,6 +390,29 @@ export function createGovernanceStateFileBinding(
     coordinators.set(dataDir, coordinator);
   }
   return coordinator.register({ ...options, filePath });
+}
+
+/**
+ * Returns the authenticated, installation-specific governance authority.
+ * The installation id and anchor epoch are stable for a complete data-root
+ * migration but differ for a fresh root even when the same HMAC key is reused.
+ */
+export async function getGovernanceStateAuthority(options: {
+  dataDir: string;
+  secret: string;
+}): Promise<GovernanceStateAuthority> {
+  if (typeof options.secret !== "string" || options.secret.length < 32) {
+    throw integrity("Governance state anchor HMAC secret must contain at least 32 characters.");
+  }
+  const dataDir = resolve(options.dataDir);
+  let coordinator = coordinators.get(dataDir);
+  if (!coordinator) {
+    coordinator = new GovernanceStateCoordinator(dataDir, options.secret);
+    coordinators.set(dataDir, coordinator);
+  } else {
+    coordinator.assertSecret(options.secret);
+  }
+  return coordinator.authority();
 }
 
 function nextAnchor(

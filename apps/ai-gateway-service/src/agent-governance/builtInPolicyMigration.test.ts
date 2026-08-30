@@ -7,6 +7,7 @@ import {
   compileEffectivePolicy,
   computeAgentHash,
   computePolicyContentHash,
+  computePolicyDeltaHash,
 } from "@unified-ai-system/policy-engine";
 import type {
   AgentClassification,
@@ -138,7 +139,7 @@ async function installExistingAgent(root: string, family: PolicyRecord): Promise
   await catalog.load();
   const registry = createAgentRegistryStore({ storePath: join(root, "agents.json"), secret: SECRET, now: () => NOW });
   await registry.load();
-  const files = createAgentFileStore({ dataDir: root });
+  const files = createAgentFileStore({ dataDir: root, secret: SECRET });
   const rootPolicy = await catalog.getActive("root-policy");
   if (!rootPolicy) throw new Error("test root policy missing");
   const agentId = "agt_00000000-0000-4000-8000-000000000001";
@@ -187,23 +188,25 @@ async function installExistingAgent(root: string, family: PolicyRecord): Promise
     createdAt: NOW,
     expiresAt: policy.expiresAt,
   };
+  const delta = {
+    agentId,
+    inherits: [
+      { policyKey: rootPolicy.policyKey, version: rootPolicy.version },
+      { policyKey: family.policyKey, version: family.version },
+    ],
+    instanceRules: {},
+  };
   const manifest = buildManifest({
     agentId,
     agentHash: computeAgentHash(record),
     policyHash: policy.policyHash,
+    deltaHash: computePolicyDeltaHash(delta),
     compiledAt: policy.compiledAt,
     secret: SECRET,
   });
   await files.writeAgentBundle({
     record,
-    delta: {
-      agentId,
-      inherits: [
-        { policyKey: rootPolicy.policyKey, version: rootPolicy.version },
-        { policyKey: family.policyKey, version: family.version },
-      ],
-      instanceRules: {},
-    },
+    delta,
     policy,
     manifest,
   });

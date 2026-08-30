@@ -262,6 +262,7 @@ export async function createGatewayRuntime(options = {}) {
           AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: governanceHmacKey,
           WORKFLOW_OUTPUT_DIR: join(governanceDataDir, "workflow-artifacts"),
           PME_ENTERPRISE_AUTH_ENABLED: "true",
+          PME_ENTERPRISE_PLATFORM_TENANT_ID: "managed-mcp",
           PME_AUTH_TOKEN: "",
           PME_ENTERPRISE_USERS_JSON: JSON.stringify([{
             token: authToken,

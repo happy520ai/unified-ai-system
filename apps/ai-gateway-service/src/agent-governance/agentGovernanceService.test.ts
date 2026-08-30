@@ -60,6 +60,10 @@ function newServiceFor(directory: string) {
   });
 }
 
+function newToolProxy(service: ReturnType<typeof createAgentGovernanceService>) {
+  return createAgentGovernanceToolProxy({ service, now: () => clockIso });
+}
+
 function advanceTo(iso: string) {
   clockIso = iso;
 }
@@ -99,6 +103,11 @@ describe("agent generation flow", () => {
     for (const file of ["agent.json", "policy-delta.json", "effective-policy.json", "manifest.json", "audit.ndjson"]) {
       expect(existsSync(join(dir, file))).toBe(true);
     }
+    expect(JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8")).deltaHash)
+      .toMatch(/^sha256:[a-f0-9]{64}$/u);
+    await expect(service.verifyAllAgentBundles()).resolves.toMatchObject({
+      verifiedAgentCount: expect.any(Number),
+    });
 
     const record = await service.getAgent(result.agentId, "tenant_a");
     expect(record?.status).toBe("ACTIVE");
@@ -172,7 +181,7 @@ describe("agent generation flow", () => {
 describe("tool proxy enforcement", () => {
   it("16. require_approval 工具在审批前不能执行", async () => {
     const service = newService();
-    const proxy = createAgentGovernanceToolProxy({ service });
+    const proxy = newToolProxy(service);
     const agent = await generateExecutionAgent("approvals");
     const verdict = await proxy.enforce({
       context: { agentId: agent.agentId, tenantId: "tenant_a" },
@@ -195,7 +204,7 @@ describe("tool proxy enforcement", () => {
 
   it("17. 审批通过后修改参数必须重新审批；原始参数可执行", async () => {
     const service = newService();
-    const proxy = createAgentGovernanceToolProxy({ service });
+    const proxy = newToolProxy(service);
     const agent = await generateExecutionAgent("locked-args");
     const original = { remote: "origin", branch: "main" };
     const first = await proxy.enforce({
@@ -247,6 +256,65 @@ describe("tool proxy enforcement", () => {
     expect(audit.some((event) => event.eventType === "POLICY_SIGNATURE_FAILED")).toBe(true);
   });
 
+  it("fails closed when policy-delta.json is changed after manifest signing", async () => {
+    const service = newService();
+    const agent = await generateExecutionAgent("tampered-delta", {
+      instanceRules: { limits: { maxToolCalls: 7 } },
+    });
+    const deltaPath = join(dataDir, "agents", agent.agentId, "policy-delta.json");
+    const delta = JSON.parse(readFileSync(deltaPath, "utf8"));
+    delta.instanceRules = { toolRules: { file_read: "deny" } };
+    writeFileSync(deltaPath, JSON.stringify(delta, null, 2));
+
+    await expect(service.verifyAllAgentBundles()).rejects.toMatchObject({
+      code: "AGENT_GOVERNANCE_BUNDLE_INTEGRITY_FAILED",
+    });
+    expect(await service.loadVerifiedPolicy(agent.agentId)).toBeNull();
+    const audit = await service.readAudit(agent.agentId, CTX.tenantId, 20);
+    expect(audit).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        eventType: "POLICY_SIGNATURE_FAILED",
+        reason: "MANIFEST_DELTA_HASH_MISMATCH",
+      }),
+    ]));
+  });
+
+  it("rejects legacy manifests without deltaHash instead of minting trust for an unsigned delta", async () => {
+    const service = newService();
+    const agent = await generateExecutionAgent("legacy-unsigned-delta");
+    const manifestPath = join(dataDir, "agents", agent.agentId, "manifest.json");
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    delete manifest.deltaHash;
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    expect(await service.loadVerifiedPolicy(agent.agentId)).toBeNull();
+    const audit = await service.readAudit(agent.agentId, CTX.tenantId, 20);
+    expect(audit).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        eventType: "POLICY_SIGNATURE_FAILED",
+        reason: "MANIFEST_DELTA_HASH_MISSING",
+      }),
+    ]));
+  });
+
+  it("deeply verifies terminal Registry Agents without treating expected lifecycle drift as tampering", async () => {
+    const isolatedDir = mkdtempSync(join(tmpdir(), "agent-governance-deep-terminal-"));
+    try {
+      const service = newServiceFor(isolatedDir);
+      const agent = await service.generateAgent({
+        name: "deep-terminal",
+        task: "read then revoke",
+        requestedTools: ["file_read"],
+        ttlSeconds: 3_600,
+        parentAgentId: null,
+      }, CTX);
+      await service.revokeAgent(agent.agentId, { reason: "test complete", cascade: false }, CTX);
+      await expect(service.verifyAllAgentBundles()).resolves.toEqual({ verifiedAgentCount: 1 });
+    } finally {
+      rmSync(isolatedDir, { recursive: true, force: true });
+    }
+  });
+
   it("rejects registry tenant/status tampering even when policy bytes are unchanged", async () => {
     const isolatedDir = mkdtempSync(join(tmpdir(), "agent-governance-registry-tamper-"));
     try {
@@ -269,7 +337,7 @@ describe("tool proxy enforcement", () => {
       writeFileSync(registryPath, JSON.stringify(registry, null, 2));
 
       const restarted = newServiceFor(isolatedDir);
-      const proxy = createAgentGovernanceToolProxy({ service: restarted });
+      const proxy = newToolProxy(restarted);
       await expect(proxy.enforce({
         context: { agentId: agent.agentId, tenantId: "tenant_b" },
         toolName: "file_read",
@@ -285,7 +353,7 @@ describe("tool proxy enforcement", () => {
 
   it("12-runtime. Agent 过期后禁止调用", async () => {
     const service = newService();
-    const proxy = createAgentGovernanceToolProxy({ service });
+    const proxy = newToolProxy(service);
     const agent = await generateExecutionAgent("shortlived", { ttlSeconds: 60 });
     advanceTo("2026-08-30T10:01:01.000Z");
     const verdict = await proxy.enforce({
@@ -300,7 +368,7 @@ describe("tool proxy enforcement", () => {
 
   it("18-runtime. 达到最大工具调用次数后拒绝", async () => {
     const service = newService();
-    const proxy = createAgentGovernanceToolProxy({ service });
+    const proxy = newToolProxy(service);
     const agent = await generateExecutionAgent("capped", {
       instanceRules: { limits: { maxToolCalls: 1 } },
     });
@@ -321,7 +389,7 @@ describe("tool proxy enforcement", () => {
 
   it("reserves maxToolCalls atomically under concurrent proxy calls", async () => {
     const service = newService();
-    const proxy = createAgentGovernanceToolProxy({ service });
+    const proxy = newToolProxy(service);
     const agent = await generateExecutionAgent("concurrent-cap", {
       instanceRules: { limits: { maxToolCalls: 1 } },
     });
@@ -386,7 +454,7 @@ describe("sub-agents and cascade revocation", () => {
 
   it("13. 父 Agent 撤销后子 Agent 级联失效", async () => {
     const { service, parent, child } = await generateParentAndChild();
-    const proxy = createAgentGovernanceToolProxy({ service });
+    const proxy = newToolProxy(service);
     const result = await service.revokeAgent(parent.agentId, { reason: "安全规则更新", cascade: true }, CTX);
     expect(result.revoked).toContain(parent.agentId);
     expect(result.revoked).toContain(child.agentId);
@@ -652,7 +720,7 @@ describe("policy activation recompilation", () => {
   it("rolls catalog and Agent state back when Agent bundle commit fails once", async () => {
     const root = mkdtempSync(join(tmpdir(), "agent-governance-activation-bundle-"));
     try {
-      const backingFiles = createAgentFileStore({ dataDir: root });
+      const backingFiles = createAgentFileStore({ dataDir: root, secret: SECRET });
       let failNextBundle = false;
       const service = createAgentGovernanceService({
         env: {
@@ -765,7 +833,7 @@ describe("policy activation recompilation", () => {
   it("persists FAILED and retains the execution fence when rollback storage is unavailable", async () => {
     const root = mkdtempSync(join(tmpdir(), "agent-governance-activation-failed-"));
     try {
-      const backingFiles = createAgentFileStore({ dataDir: root });
+      const backingFiles = createAgentFileStore({ dataDir: root, secret: SECRET });
       let rejectBundleWrites = false;
       const service = createAgentGovernanceService({
         env: {
@@ -849,6 +917,67 @@ describe("policy activation recompilation", () => {
     }
   });
 
+  it("loads versioned Task and Agent Instance policies into the effective stack", async () => {
+    const service = newService();
+    await service.createPolicyVersion({
+      policyKey: "task:reporting",
+      version: 1,
+      policyType: "task",
+      scopeKey: "reporting",
+      content: { toolRules: { file_write: "deny" }, limits: { maxSteps: 5 } },
+    }, CTX);
+    await service.activatePolicyVersion("task:reporting", 1, CTX);
+
+    const agent = await service.generateAgent({
+      name: "versioned-specific-policy",
+      task: "execute one reporting task",
+      requestedTools: ["file_read", "file_write", "git_commit", "git_push"],
+      ttlSeconds: 3_600,
+      parentAgentId: null,
+      proposedTraits: ["write_capable", "subagent_creator"],
+      proposedRiskLevel: "medium",
+      taskPolicyKeys: ["reporting"],
+    }, CTX);
+    let effective = await service.getEffectivePolicy(agent.agentId, CTX.tenantId);
+    expect(effective?.lineage).toEqual(expect.arrayContaining([
+      expect.objectContaining({ policyKey: "task:reporting", version: 1, bindingType: "task" }),
+    ]));
+    expect(effective?.toolDecisions.file_write).toBe("deny");
+    expect(effective?.limits.maxSteps).toBe(5);
+
+    await service.createPolicyVersion({
+      policyKey: `agent:${agent.agentId}`,
+      version: 1,
+      policyType: "instance",
+      scopeKey: agent.agentId,
+      content: { toolRules: { git_commit: "deny" } },
+    }, CTX);
+    const instanceActivation = await service.activatePolicyVersion(`agent:${agent.agentId}`, 1, CTX);
+    expect(instanceActivation.affected).toEqual(expect.arrayContaining([
+      expect.objectContaining({ agentId: agent.agentId }),
+    ]));
+    effective = await service.getEffectivePolicy(agent.agentId, CTX.tenantId);
+    expect(effective?.lineage).toEqual(expect.arrayContaining([
+      expect.objectContaining({ policyKey: `agent:${agent.agentId}`, version: 1, bindingType: "instance" }),
+    ]));
+    expect(effective?.toolDecisions.git_commit).toBe("deny");
+
+    await service.createPolicyVersion({
+      policyKey: "task:reporting",
+      version: 2,
+      policyType: "task",
+      scopeKey: "reporting",
+      content: { toolRules: { file_read: "require_approval", file_write: "deny" }, limits: { maxSteps: 3 } },
+    }, CTX);
+    const taskActivation = await service.activatePolicyVersion("task:reporting", 2, CTX);
+    expect(taskActivation.affected).toEqual(expect.arrayContaining([
+      expect.objectContaining({ agentId: agent.agentId }),
+    ]));
+    effective = await service.getEffectivePolicy(agent.agentId, CTX.tenantId);
+    expect(effective?.toolDecisions.file_read).toBe("require_approval");
+    expect(effective?.limits.maxSteps).toBe(3);
+  });
+
   it("19/20/21-runtime. 严格版自动收紧、宽松版不扩权、审计记录新旧哈希", async () => {
     const service = newService();
     const agent = await generateExecutionAgent("recompile-target");
@@ -902,7 +1031,7 @@ describe("policy activation recompilation", () => {
 describe("per-call audit events (mandatory test 15)", () => {
   it("15. 所有工具调用都产生 TOOL_REQUESTED 及对应结果事件（allow/deny/approval 三路径）", async () => {
     const service = newService();
-    const proxy = createAgentGovernanceToolProxy({ service });
+    const proxy = newToolProxy(service);
     const agent = await generateExecutionAgent("audited-calls");
 
     // Allow path: TOOL_REQUESTED + TOOL_ALLOWED.
@@ -986,13 +1115,26 @@ describe("registry seam", () => {
     const registry = createAgentToolRegistry({
       workingDirectory: process.cwd(),
       governanceRequired: true,
-      governanceToolProxy: createAgentGovernanceToolProxy({ service }),
+      governanceToolProxy: newToolProxy(service),
     });
     const result = await registry.executeTool("file_read", { file_path: "README.md", limit: 3 }, {
       agentGovernance: { agentId: agent.agentId, tenantId: CTX.tenantId, requestId: "real-read" },
     }) as { status?: string; content?: string };
     expect(result.status).toBe("success");
     expect(result.content).toContain("#");
+    const events = await service.readAudit(agent.agentId, CTX.tenantId, 50);
+    const completed = events.find((event) => (
+      event.eventType === "TOOL_COMPLETED" && event.toolName === "file_read"
+    ));
+    expect(completed).toMatchObject({
+      id: expect.stringMatching(/^age_/u),
+      requestId: "real-read",
+      resultStatus: "success",
+      argumentsRedacted: true,
+    });
+    const perAgentEvents = await createAgentFileStore({ dataDir, secret: SECRET })
+      .readAudit(agent.agentId, 50);
+    expect(perAgentEvents.some((event) => event.id === completed?.id)).toBe(true);
   });
 
   it("canonicalizes equivalent file path aliases before denied-resource enforcement", async () => {
@@ -1008,7 +1150,7 @@ describe("registry seam", () => {
     const registry = createAgentToolRegistry({
       workingDirectory: process.cwd(),
       governanceRequired: true,
-      governanceToolProxy: createAgentGovernanceToolProxy({ service }),
+      governanceToolProxy: newToolProxy(service),
     });
     const result = await registry.executeTool("file_read", { file_path: "./README.md", limit: 1 }, {
       agentGovernance: { agentId: agent.agentId, tenantId: CTX.tenantId, requestId: "denied-alias" },
@@ -1019,7 +1161,7 @@ describe("registry seam", () => {
   it("governed identity routes every call through the Tool Proxy", async () => {
     const service = newService();
     const agent = await generateExecutionAgent("seam");
-    const proxy = createAgentGovernanceToolProxy({ service });
+    const proxy = newToolProxy(service);
     let executed = 0;
     const registry = createAgentToolRegistry({
       workingDirectory: process.cwd(),

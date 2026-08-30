@@ -21,7 +21,7 @@ export function createRouteConcurrencyAdmission(options: { rawConfig?: unknown }
   const tenantActive = new Map<string, number>();
 
   function tryAcquire(pathname: string, tenantId: unknown) {
-    const routePath = canonicalizeRoutePath(pathname);
+    const routePath = concurrencyRouteKey(canonicalizeRoutePath(pathname));
     const limits = limitsByRoute.get(routePath);
     if (!limits) return { allowed: true as const, pattern: null, release() {} };
     const tenant = typeof tenantId === "string" && tenantId.trim() ? tenantId.trim() : "unscoped";
@@ -104,6 +104,12 @@ function parseLimits(raw: unknown): Map<string, RouteConcurrencyLimits> {
 
 export function canonicalizeRoutePath(pathname: string): string {
   return String(pathname ?? "").replace(/\/+$/u, "") || "/";
+}
+
+function concurrencyRouteKey(pathname: string): string {
+  if (/^\/v1\/agents\/agt_[A-Za-z0-9_-]{1,128}\/run$/u.test(pathname)) return "/agent-exec/run";
+  if (/^\/v1\/policies\/[^/]{1,160}\/\d{1,9}\/activate$/u.test(pathname)) return "/v1/policies/activate";
+  return pathname;
 }
 
 function boundedPositiveInteger(value: unknown): boolean {

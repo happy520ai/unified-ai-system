@@ -87,15 +87,19 @@ failure leaves no ACTIVE agent, only a `POLICY_REJECTED` audit event.
   agent.json            identity, classification, lifecycle
   policy-delta.json     instance rules + inheritance references
   effective-policy.json compiled permission snapshot
-  manifest.json         agent hash + policy hash + HMAC-SHA256 signature
+  manifest.json         agent + policy + delta hashes and HMAC-SHA256 signature
   audit.ndjson          append-only per-agent audit trail
 ```
 
 All writes are atomic (tmp + rename). JSON is used instead of the
 original specification's YAML to stay dependency-free; the five-file
 semantics are preserved. The Tool Proxy re-verifies the policy hash and
-manifest signature on **every** tool call — tampering with
-`effective-policy.json` fails closed and emits
+manifest signature on **every** tool call. Manifest v2 also binds the complete
+`policy-delta.json` hash, so changing inheritance, Task bindings, or instance
+rules fails closed before execution or recompilation. Legacy manifests without
+`deltaHash` are rejected; there is no automatic migration because an unsigned
+delta has no trustworthy source from which to mint a new signature. Tampering with
+`effective-policy.json` or `policy-delta.json` fails closed and emits
 `POLICY_SIGNATURE_FAILED`.
 
 ## Runtime enforcement
@@ -279,6 +283,31 @@ reverse-MCP, Workforce and Forge request contracts remain unchanged. Setting it
 to `true` enables the whole plane; those execution-bearing routes then require
 the server-bound Agent identity documented above.
 
+Optional model-assisted classification stays inside the same gateway process
+and uses the existing `GatewayService`; it never calls a Provider adapter
+directly. It requires server-owned routing configuration:
+
+```text
+AI_GATEWAY_AGENT_GOVERNANCE_MODEL_PROPOSER_ENABLED=true
+AI_GATEWAY_AGENT_GOVERNANCE_MODEL_PROPOSER_PROVIDER_ID=<configured-provider-id>
+AI_GATEWAY_AGENT_GOVERNANCE_MODEL_PROPOSER_MODEL_ID=<optional-model-id>
+```
+
+The model may return only a strict classification/trait/risk draft. Unknown
+keys, Markdown/prose, missing identity, unavailable Providers and malformed
+JSON fall back to deterministic classification. The policy engine always
+recomputes risk from registered tools, so model output cannot grant tools or
+lower risk.
+
+Generation may bind up to 32 already-active Task Policy scope keys through
+`taskPolicyKeys` (or `task_policy_keys`). The compiler then loads
+`task:{scope}` after the Agent Instance layer. Per-creation `instanceRules`
+remain an immutable, hashed `agent:{id}:creation-delta` in the Agent bundle;
+subsequent catalog versions at `agent:{id}` are loaded and recompiled through
+the normal activation WAL. Both layers can only restrict the effective policy,
+and Task/Instance version changes are covered by the same no-expansion clamp
+and old/new policy-hash audit as family/domain changes.
+
 High-risk tools are default-off and use an exact startup allowlist:
 
 ```text
@@ -307,23 +336,72 @@ amount of provider or control-plane work.
 | Route | Permission | Purpose |
 |---|---|---|
 | `POST /v1/agents/generate` | `workflow:run` | Generate a governed agent |
-| `GET /v1/agents/list` | `dashboard:read` | List tenant agents |
-| `GET /v1/agents/describe?agentId=` | `dashboard:read` | Registry record |
-| `GET /v1/agents/effective-policy?agentId=` | `dashboard:read` | Agent-facing policy view (no lineage/scope internals) |
-| `GET /v1/agents/audit?agentId=` | `audit:read` | Per-agent audit trail |
-| `POST /v1/agents/revoke` | `workflow:approve` | Revoke (cascade by default) |
-| `POST /v1/approvals/decide` | `workflow:approve` | Approve/reject locked-argument approvals |
-| `GET /v1/approvals/list` | `dashboard:read` | Pending approvals |
-| `POST /v1/policies/create` | `user:admin` | Create an immutable policy version |
-| `POST /v1/policies/activate` | `user:admin` | Activate a version + recompile affected agents |
-| `GET /v1/policies/list` | `audit:read` | Catalog listing |
-| `GET /v1/governance/stats` | `dashboard:read` | Counts by status |
+| `GET /v1/agents` | `dashboard:read` | List tenant agents |
+| `GET /v1/agents/{agentId}` | `dashboard:read` | Registry record |
+| `GET /v1/agents/{agentId}/effective-policy` | `dashboard:read` | Agent-facing policy view (no lineage/scope internals) |
+| `GET /v1/agents/{agentId}/audit` | `audit:read` | Per-agent audit trail |
+| `POST /v1/agents/{agentId}/run` | `workflow:run` | Execute with path-bound Agent identity |
+| `POST /v1/agents/{agentId}/revoke` | `workflow:approve` | Revoke (cascade by default) |
+| `GET /v1/approvals` | `dashboard:read` | Pending approvals |
+| `POST /v1/approvals/{approvalId}/approve` | `workflow:approve` | Approve exact sealed arguments once |
+| `POST /v1/approvals/{approvalId}/reject` | `workflow:approve` | Reject exact sealed arguments |
+| `POST /v1/policies` | `user:admin` | Create an immutable policy version |
+| `GET /v1/policies` | `audit:read` + platform tenant | Catalog listing |
+| `POST /v1/policies/{policyKey}/{version}/activate` | `user:admin` | Activate a version + recompile affected agents |
+| `GET /v1/governance/stats` | `dashboard:read` + platform tenant | Counts by status |
+
+The earlier query/body routes (`/v1/agents/list`,
+`/v1/approvals/decide`, `/v1/policies/create`, and related forms) remain
+compatibility aliases. Path identity is authoritative: a conflicting body
+`agentId` is rejected. Tool Proxy is an in-process capability, not a public
+`/internal/v1/tools/execute` HTTP bypass.
+
+## Health and readiness
+
+When Agent Governance is enabled, the gateway health plane verifies the
+single-process owner lease on every probe and periodically performs a bounded
+read-only service check. That service check waits for startup recovery, verifies
+the signed catalog/registry state, and verifies the central HMAC audit chain.
+
+`GET /health/check` remains a liveness-compatible HTTP 200 response but reports
+overall `status: degraded` and a non-secret `agentGovernance` summary when a
+probe fails. `GET /ready`, `GET /healthz`, and `GET /setup/readiness` return HTTP
+503 until the owner lease, startup recovery, state integrity, and audit integrity
+are all ready. The same bounded failure reasons flow into `/metrics` and the
+terminal-first overview.
+
+The public summary contains only enabled/ready state, fixed status enums, a
+fixed allowlisted failure code, and the last-check timestamp. It never includes
+tenant IDs, Agent IDs, owner IDs, process IDs, paths, policy hashes, audit
+records, HMAC material, or raw exception messages. Service-integrity checks are
+coalesced and cached for 60 seconds by default; the owner lease itself is still
+asserted on every health/readiness request so lease loss is not hidden by that
+cache. Full central-to-per-Agent mirror reconciliation runs during startup, not
+on public probes; regular probes verify the signed central chain without
+rescanning every Agent audit file.
+
+## Enterprise backup boundary
+
+The enterprise backup envelope can carry a platform-tenant-only, encrypted
+Agent Governance consistency summary. It covers Registry, Policy, Approval,
+Usage, central audit, Agent bundles, and signed integrity heads while excluding
+the governance secret, owner lease, recovery journals, staging files, and raw
+SQLite/WAL/SHM bytes. SQLite and PostgreSQL Registry evidence comes from two
+stable logical queries rather than copying an active database or connection
+material.
+
+This is a read-only export plus restore verifier. It performs deep verification
+of every Registry Agent's record, delta, effective policy and Manifest HMAC
+before accepting either consistency pass. It does not contain restorable
+governance state and always reports `restoreMode=verify-only`,
+`restorable=false`, and `mutation=none`. See
+[Enterprise backup security](./enterprise-backup-security.md#agent-governance-consistency-export).
 
 Example:
 
 ```bash
 export PME_AUTH_TOKEN="replace-with-your-enterprise-token"
-curl -X POST http://localhost:3917/v1/agents/generate \
+curl -X POST http://localhost:3100/v1/agents/generate \
   -H "content-type: application/json" \
   -H "authorization: Bearer $PME_AUTH_TOKEN" \
   -H "x-pme-tenant-id: tenant_a" \
@@ -339,17 +417,112 @@ Use the returned `agentId` for execution. The identifier is accepted only
 after the server binds it to the authenticated tenant and owner:
 
 ```bash
-curl -X POST http://localhost:3917/agent-exec/run \
+curl -X POST http://localhost:3100/v1/agents/agt_REPLACE_WITH_RETURNED_ID/run \
   -H "content-type: application/json" \
   -H "authorization: Bearer $PME_AUTH_TOKEN" \
   -H "x-pme-tenant-id: tenant_a" \
   -d '{
-    "agentId": "agt_REPLACE_WITH_RETURNED_ID",
     "goal": "分析退款报告",
     "toolMode": "none",
     "maxIterations": 4
   }'
 ```
+
+Inspect and revoke the same Agent with the canonical lifecycle routes:
+
+```bash
+curl http://localhost:3100/v1/agents/agt_REPLACE_WITH_RETURNED_ID \
+  -H "authorization: Bearer $PME_AUTH_TOKEN" \
+  -H "x-pme-tenant-id: tenant_a"
+
+curl http://localhost:3100/v1/agents/agt_REPLACE_WITH_RETURNED_ID/effective-policy \
+  -H "authorization: Bearer $PME_AUTH_TOKEN" \
+  -H "x-pme-tenant-id: tenant_a"
+
+curl -X POST http://localhost:3100/v1/agents/agt_REPLACE_WITH_RETURNED_ID/revoke \
+  -H "content-type: application/json" \
+  -H "authorization: Bearer $PME_AUTH_TOKEN" \
+  -H "x-pme-tenant-id: tenant_a" \
+  -d '{"reason":"operator stop","cascade":true}'
+```
+
+List pending approvals for one Agent, then choose exactly one terminal decision
+for a returned approval record `id`. Approval is one-shot and applies only to the
+server-sealed argument hash; neither endpoint accepts replacement arguments:
+
+```bash
+curl "http://localhost:3100/v1/approvals?agentId=agt_REPLACE_WITH_RETURNED_ID" \
+  -H "authorization: Bearer $PME_AUTH_TOKEN" \
+  -H "x-pme-tenant-id: tenant_a"
+
+# Approve a reviewed pending item.
+curl -X POST \
+  http://localhost:3100/v1/approvals/appr_REPLACE_WITH_LISTED_ID/approve \
+  -H "authorization: Bearer $PME_AUTH_TOKEN" \
+  -H "x-pme-tenant-id: tenant_a"
+
+# Or reject a different pending item. Do not send both decisions for one ID.
+curl -X POST \
+  http://localhost:3100/v1/approvals/appr_REPLACE_WITH_ANOTHER_LISTED_ID/reject \
+  -H "authorization: Bearer $PME_AUTH_TOKEN" \
+  -H "x-pme-tenant-id: tenant_a"
+```
+
+Policy mutations additionally require `user:admin` and the configured platform
+tenant. Supply the real scoped token through the operator's protected
+environment or secret injection; the placeholder values below are not valid
+credentials and must not be committed. Creating a version does not activate it:
+
+```bash
+export PME_PLATFORM_TENANT_ID="replace-with-configured-platform-tenant"
+export PME_PLATFORM_AUTH_TOKEN="replace-with-a-token-bound-to-that-platform-tenant"
+
+curl -X POST http://localhost:3100/v1/policies \
+  -H "content-type: application/json" \
+  -H "authorization: Bearer $PME_PLATFORM_AUTH_TOKEN" \
+  -H "x-pme-tenant-id: $PME_PLATFORM_TENANT_ID" \
+  -d '{
+    "policyKey": "task:reporting",
+    "version": 1,
+    "policyType": "task",
+    "scopeKey": "reporting",
+    "content": {
+      "limits": {"maxSteps": 20, "maxToolCalls": 10},
+      "requirements": {"auditRequired": true},
+      "toolRules": {"file_read": "allow", "git_push": "require_approval"}
+    }
+  }'
+
+curl http://localhost:3100/v1/policies \
+  -H "authorization: Bearer $PME_PLATFORM_AUTH_TOKEN" \
+  -H "x-pme-tenant-id: $PME_PLATFORM_TENANT_ID"
+
+curl -X POST \
+  http://localhost:3100/v1/policies/task%3Areporting/1/activate \
+  -H "authorization: Bearer $PME_PLATFORM_AUTH_TOKEN" \
+  -H "x-pme-tenant-id: $PME_PLATFORM_TENANT_ID"
+```
+
+To bind that task policy during generation, include
+`"taskPolicyKeys":["reporting"]`; the server resolves it to the canonical
+`task:reporting` key and still applies every stricter parent/root ceiling.
+
+Generate the machine-readable canonical governance OpenAPI document without
+starting the gateway or reading credentials:
+
+```bash
+pnpm docs:agent-governance:openapi > agent-governance.openapi.json
+```
+
+The generator is an offline artifact command; this release does not expose an
+unauthenticated `/api-docs` or internal Tool Proxy endpoint.
+
+The shared SDK exposes the same lifecycle. MCP exposes only tenant-safe,
+read-only `agent_governance_status`, `agent_governance_list`, and
+`agent_governance_describe`. Agent generation remains on REST/SDK and the human
+Agent Console until MCP generation has durable idempotency and cancellation
+proof; approval and policy activation are never exposed to a model. Human
+operators use `agent-console agents ...`, whose mutations require `--yes`.
 
 All governance state lives under gitignored `.data/agent-governance/`.
 The HMAC secret comes from `AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY` or is
@@ -360,10 +533,34 @@ service identity, SYSTEM and Administrators; failure to establish that ACL
 blocks startup. `AI_GATEWAY_AGENT_GOVERNANCE_DATA_DIR` is resolved from the
 repository root when relative, so different launch entrypoints share one state.
 
-The current durable JSON backend is intentionally single-process. When
-`AI_GATEWAY_MULTI_INSTANCE=true`, governance stays disabled unless explicitly
-enabled; explicitly combining both settings fails startup until a transactional
-shared governance backend is available.
+The sole promoted runtime authority is the signed JSON Agent Registry:
+
+```text
+AI_GATEWAY_AGENT_GOVERNANCE_REGISTRY_STORE_MODE=json
+```
+
+Every generation WAL signs the stable Registry authority binding, so restart
+recovery cannot replay an in-flight Agent into another backend or namespace.
+SQLite and PostgreSQL adapters, checksummed migrations and direct tests remain
+in the repository as migration candidates, but application startup rejects both
+with `AGENT_GOVERNANCE_REGISTRY_BACKEND_UNPROMOTED`. They cannot be promoted
+until an independently verifiable monotonic rollback/authority anchor and
+explicit migration procedure are implemented and tested.
+
+The repository includes a credential-free local Compose overlay:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.agent-governance.yml up --build
+```
+
+Its healthcheck uses `/ready`, and its comments explicitly retain the signed
+JSON/single-host boundary. It does not start or impersonate SQLite, PostgreSQL,
+or HA deployment. The PostgreSQL adapter uses one global checksummed migration
+ledger and schema fingerprint because product DDL is global; namespaces isolate
+data only. That engineering evidence does **not** promote runtime use. When
+`AI_GATEWAY_MULTI_INSTANCE=true`, explicitly enabling governance still fails
+startup until every authority store shares one rollback-protected transactional
+backend and real cross-host integration/HA tests pass.
 
 Creating the HTTP runtime atomically acquires
 `.data/agent-governance/owner.lease.json`. The file contains only a process ID,
@@ -410,6 +607,23 @@ the state anchor binds the exact retained file and head. This remains bounded
 local retention, not an external WORM archive; deployments that must retain every
 detailed event must export segments/checkpoints to protected append-only storage.
 
+New audit events carry a server-issued event ID. Tool authorization and actual
+tool outcome are separate events (`TOOL_ALLOWED` versus
+`TOOL_COMPLETED`/`TOOL_FAILED`), with raw arguments omitted and
+`argumentsRedacted=true`. Each per-Agent `audit.ndjson` record is itself an
+HMAC-authenticated chain entry binding Agent ID, monotonic sequence and previous
+record hash; readers verify the complete chain and return only its events.
+Unsigned legacy mirrors fail closed. The central HMAC chain remains
+authoritative: startup reconciliation may append only a missing suffix of the
+retained central sequence. Middle gaps, reordering, inserted events, duplicate
+IDs or divergent content fail closed. An unknown authenticated history prefix
+is accepted only when the central checkpoint proves that retention truncated an
+older prefix; an untruncated central log rejects every unknown prefix. Malformed
+files, symlinks and hard-linked audit targets also fail closed and degrade
+readiness. Steady-state append verifies a cached file identity/head and one
+bounded tail record; full-chain scans run on startup/read instead of making
+append cost grow quadratically.
+
 This is a same-host rollback detector, not an external trust anchor. An
 administrator who rolls back the complete directory together — canonical state,
 secret, signed anchor, checkpoint, installation marker, and any pending journal —
@@ -428,6 +642,17 @@ is required to detect that physical-administration scenario.
   detection, expiry, approval locking, usage ceilings, atomic cascade
   revocation, bounded drain/lock ordering, ancestor lifecycle defense,
   activation replay rejection, no-expansion recompilation and the registry seam.
+- `agentGenerationRecovery.test.ts`, `agentFileStore.test.ts`, and
+  `agentAuditMirrorRecovery.test.ts` — signed generation WAL stages,
+  `VALIDATED`-before-audit activation, staged/fsynced bundle publication,
+  audit-mirror reconciliation, divergence detection, and link-attack denial.
+- `sqliteAgentRegistryStore.test.ts` — real SQLite Registry migrations,
+  transaction rollback, host/tenant/lineage isolation, strict row validation,
+  reopen behavior and explicit single-host/non-rollback-protected boundary.
+- `gatewayModelProposer.test.ts`, `gatewayService.usageLedger.test.js`, and
+  `requestLogger.test.js` — Gateway-only model proposal, deterministic risk
+  backfill, non-forgeable Agent run attribution, and Agent-filtered token/cost
+  evidence.
 - `apps/ai-gateway-service/src/http/agentGovernanceRoutes.e2e.test.ts` — real
   authenticated HTTP lifecycle, server-bound file reads, owner lease conflict,
   safe approval review and a one-shot `git_push` into a temporary local bare
@@ -462,15 +687,26 @@ is required to detect that physical-administration scenario.
   reverse-MCP calls, the controlled DAG path of `POST /workforce/execute`, and
   the gateway `/forge/orchestrate` per-action path, plus the controlled local
   artifact sink at `POST /workflow/run`.
-  Workforce `run-local` and A2A execution remain outside this slice. Governed
+  `POST /workforce/run-local` is rejected while governance is enabled and the
+  caller must use governed `/workforce/execute`; its compatibility-mode local
+  runner no longer writes shared fixed paths under the repository. A2A
+  execution remains outside this slice. Governed
   `sandbox-merge` and `sandbox-merge-auto` are explicitly denied until every
   commit/merge sink can assert the Agent run fence immediately before effect;
   legacy behavior with Agent Governance disabled is unchanged. Standalone
   Forge package/server APIs remain development-only rather than evidence of a
   gateway-governed production execution path.
-- The model-based classification proposer is an injected hook
-  (`ModelProposer`); the default is deterministic, keeping the
-  credential-free default intact.
+- The model-based classification proposer is wired through the existing
+  gateway behind an explicit flag. The default remains deterministic, keeping
+  the credential-free fake-provider path intact.
+- `/chat` desktop-action recognition is proposal-only. Caller-supplied JSON is
+  not an approval authority even when old real-run flags are enabled; real
+  desktop effects remain disabled until registered behind Tool Proxy with a
+  server-sealed one-time approval.
+- Gateway-backed Agent Provider calls carry a non-JSON symbol context owned by
+  the server. File and PostgreSQL usage ledgers can attribute attempts, tokens
+  and cost by Agent/run/policy hash; request metadata cannot forge that
+  attribution.
 
 ## Language Selection
 

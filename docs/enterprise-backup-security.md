@@ -17,6 +17,48 @@ memory when an operator creates or validates a backup.
   checkpoints, and sequences below the trusted rollback floor.
 - Up to three previous keys can be configured during a bounded rotation window.
 
+## Agent Governance consistency export
+
+When Agent Governance is enabled, a backup created by the configured platform
+tenant includes an encrypted, verify-only consistency summary. It covers the
+central Registry, Policy Catalog, approvals, usage counters, central governance
+audit, per-Agent bundles, and the signed state heads. Only record/file counts,
+byte counts, and SHA-256 aggregate digests enter the already encrypted enterprise
+payload; no Agent record, approval ciphertext, audit event, policy body, path, or
+identifier is copied into the summary.
+
+The exporter performs a governance startup/integrity probe, deeply verifies
+every Registry Agent's record, policy delta, effective policy and Manifest HMAC, reads every supported
+component, repeats the integrity probe, and reads everything again. Both aggregate
+digests must match. An active generation, activation, state-write journal,
+non-empty bundle staging directory, unsafe link, incomplete registered bundle,
+or concurrent change makes backup creation fail closed and requires an operator
+retry after mutations drain.
+
+The SQLite Agent Registry is never copied from its live database file and the
+exporter never reads SQLite `-wal` or `-shm` bytes. It uses the Registry's logical
+query API for each pass, which gives a transactionally consistent SQLite SELECT
+snapshot. PostgreSQL Registry mode uses the same bounded logical-query summary
+and never exports connection strings or physical database bytes. JSON Registry mode reads the anchored regular file using bounded,
+no-link file-handle checks. Both modes remain single-host evidence; this is not a
+distributed backup transaction.
+
+The following are always excluded:
+
+- `secret.key` and all HMAC/encryption key material;
+- `owner.lease.json`, PID/fingerprint/owner metadata, and legacy owner files;
+- generation, activation, and state-write WAL/journal contents;
+- bundle staging/temp files;
+- raw SQLite database, WAL, and shared-memory files.
+
+Non-platform tenant backups contain only an authenticated marker that governance
+export requires the platform tenant; they never receive a global governance
+digest. Restore validation checks the summary schema and aggregate digest, but
+reports `restoreMode=verify-only`, `restorable=false`, and `mutation=none`.
+There is deliberately no automatic Agent Governance restore in this slice, so
+backup creation and restore validation report warning rather than ready whenever
+governance evidence is included.
+
 ## Required configuration
 
 Configure one dedicated 32-byte backup key. Do not reuse provider or runtime credential
@@ -62,7 +104,8 @@ or immutable control plane. This module validates artifacts only; it does not pe
 destructive data restore.
 
 The envelope contains tenant-facing enterprise users, a bounded audit export, readiness,
-and knowledge-health metadata. It does **not** contain the central PostgreSQL tables used
+knowledge-health metadata, and—when authorized—the Agent Governance consistency summary
+described above. It does **not** contain restorable Agent Governance state bytes or the central PostgreSQL tables used
 for idempotency, Provider dispatch, external-effect tombstones, usage, A2A, Workforce, or
 the canonical audit chain. Back up and restore those schemas with a database-native
 procedure. The repository's disposable [PostgreSQL logical recovery drill](./postgresql-recovery-drill.md)

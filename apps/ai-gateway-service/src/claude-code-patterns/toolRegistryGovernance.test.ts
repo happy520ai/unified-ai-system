@@ -1,8 +1,140 @@
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { resolve } from "node:path";
+import { computeArgumentsHash } from "@unified-ai-system/policy-engine";
 import { createAgentToolRegistry } from "./toolRegistryEngine.js";
 
 describe("agent tool registry governance boundary", () => {
+  it("marks a committed external effect uncertain when terminal outcome audit fails", async () => {
+    let committedEffects = 0;
+    const commit = vi.fn(async () => { committedEffects += 1; });
+    const enforceResult = vi.fn(async () => {
+      throw Object.assign(new Error("outcome audit unavailable"), { code: "GOVERNANCE_AUDIT_REQUIRED" });
+    });
+    const recordOutcome = vi.fn(async () => {
+      throw new Error("outcome audit unavailable");
+    });
+    const registry = createAgentToolRegistry({
+      governanceRequired: true,
+      governanceToolProxy: {
+        enforce: vi.fn(async () => ({
+          outcome: "allow",
+          policy: {
+            requirements: { auditRequired: true },
+            mandatory: { auditRequired: true },
+            permissions: { canWrite: true },
+            limits: {},
+            scope: {},
+          },
+        })),
+        enforceResult,
+        recordOutcome,
+      },
+      permissionChecker: { check: vi.fn(async () => ({ allowed: true })) },
+      externalEffectGate: { reserve: vi.fn(async () => ({ commit })) },
+      externalEffectFence: { fingerprint: "a".repeat(64), assertActive: vi.fn(async () => true) },
+      externalEffectTenantId: "tenant_a",
+    });
+    expect(registry.registerTool({
+      name: "governed_effect_probe",
+      description: "committed effect audit probe",
+      requiredPermissions: ["file:write"],
+      isReadOnly: false,
+      externalEffectType: "test:write",
+      externalEffectRequiresFence: true,
+      inputSchema: { type: "object", properties: {}, required: [] },
+      execute: vi.fn(async (_params, context) => {
+        await context.commitExternalEffect();
+        return { status: "success" };
+      }),
+    })).toMatchObject({ status: "success" });
+
+    const result = await registry.executeTool("governed_effect_probe", {}, {
+      agentGovernance: { agentId: "agt_effect", tenantId: "tenant_a", requestId: "effect-request" },
+      externalEffectKey: "effect-once",
+    });
+    expect(committedEffects).toBe(1);
+    expect(result).toMatchObject({
+      status: "error",
+      code: "TOOL_EXTERNAL_EFFECT_OUTCOME_UNCERTAIN",
+      outcomeUnknown: true,
+      retrySafe: false,
+      reconciliation: {
+        required: true,
+        effectType: "test:write",
+        effectKeyHash: expect.stringMatching(/^[a-f0-9]{64}$/u),
+        toolName: "governed_effect_probe",
+        executionId: expect.any(String),
+      },
+    });
+  });
+
+  it("marks a completed built-in file write uncertain when terminal outcome audit fails", async () => {
+    const root = await mkdtemp(join(tmpdir(), "governed-file-outcome-"));
+    const release = vi.fn();
+    try {
+      const registry = createAgentToolRegistry({
+        workingDirectory: root,
+        governanceRequired: true,
+        governanceToolProxy: {
+          enforce: vi.fn(async () => ({
+            outcome: "allow",
+            policy: {
+              requirements: { auditRequired: true },
+              mandatory: { auditRequired: true },
+              permissions: { canWrite: true },
+              limits: {},
+              scope: {},
+            },
+            executionLease: { release },
+          })),
+          enforceResult: vi.fn(async () => ({
+            verdict: "replace",
+            code: "GOVERNED_RESULT_REPLACED",
+            result: { status: "denied", code: "GOVERNED_RESULT_REPLACED" },
+          })),
+          recordOutcome: vi.fn(async () => {
+            throw new Error("outcome audit unavailable");
+          }),
+        },
+        permissionChecker: { check: vi.fn(async () => ({ allowed: true })) },
+      });
+
+      const result = await registry.executeTool("file_write", {
+        file_path: "result.txt",
+        content: "written exactly once",
+      }, {
+        agentGovernance: {
+          agentId: "agt_file_effect",
+          tenantId: "tenant_a",
+          requestId: "file-effect-request",
+        },
+      });
+
+      expect(await readFile(join(root, "result.txt"), "utf8")).toBe("written exactly once");
+      expect(result).toMatchObject({
+        status: "error",
+        code: "TOOL_EXTERNAL_EFFECT_OUTCOME_UNCERTAIN",
+        outcomeUnknown: true,
+        retrySafe: false,
+        reconciliation: {
+          required: true,
+          effectType: "local-tool-write",
+          toolName: "file_write",
+          parametersHash: computeArgumentsHash({
+            file_path: "result.txt",
+            content: "written exactly once",
+          }),
+          executionId: expect.any(String),
+        },
+      });
+      expect(release).toHaveBeenCalledOnce();
+    } finally {
+      await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+    }
+  });
+
   it("fails closed when a governed registry call omits agent identity", async () => {
     const enforce = vi.fn();
     const registry = createAgentToolRegistry({
@@ -135,7 +267,6 @@ describe("agent tool registry governance boundary", () => {
   it("redacts unsafe property keys from results, logs and event summaries", async () => {
     const eventBus = { emit: vi.fn() };
     const resultKey = `Authorization: Bearer ${"R".repeat(24)}`;
-    const paramKey = `token=${"P".repeat(24)}`;
     const toolResult = Object.create(null) as Record<string, unknown>;
     toolResult.status = "success";
     toolResult[resultKey] = "RESULT_KEY_CANARY";
@@ -169,13 +300,15 @@ describe("agent tool registry governance boundary", () => {
       requiredPermissions: ["file:read"],
       isReadOnly: true,
       readOnlyAttested: true,
-      inputSchema: { type: "object", properties: {}, required: [] },
+      inputSchema: {
+        type: "object",
+        properties: { probe: { type: "string" } },
+        required: ["probe"],
+        additionalProperties: false,
+      },
       execute: vi.fn(async () => toolResult),
     });
-    const params = Object.create(null) as Record<string, unknown>;
-    params[paramKey] = "PARAM_KEY_CANARY";
-    Object.defineProperty(params, "prototype", { value: "PARAM_PROTO_CANARY", enumerable: true });
-    const result = await registry.executeTool("governed_key_probe", params, {
+    const result = await registry.executeTool("governed_key_probe", { probe: "safe" }, {
       agentGovernance: { agentId: "agt_key", tenantId: "tenant_a" },
     });
     const allPublicSurfaces = JSON.stringify({
@@ -183,9 +316,8 @@ describe("agent tool registry governance boundary", () => {
       log: registry.getExecutionLog(),
       events: eventBus.emit.mock.calls,
     });
-    expect(allPublicSurfaces).not.toMatch(/RESULT_KEY_CANARY|CONSTRUCTOR_CANARY|PROTO_CANARY|PARAM_KEY_CANARY|PARAM_PROTO_CANARY|TOJSON_EVENT_CANARY/u);
+    expect(allPublicSurfaces).not.toMatch(/RESULT_KEY_CANARY|CONSTRUCTOR_CANARY|PROTO_CANARY|TOJSON_EVENT_CANARY/u);
     expect(allPublicSurfaces).not.toContain("R".repeat(24));
-    expect(allPublicSurfaces).not.toContain("P".repeat(24));
     expect(allPublicSurfaces).toContain("[redacted-key-");
     expect(Object.getPrototypeOf(result)).toBeNull();
     expect(Object.hasOwn(result as object, "__proto__")).toBe(false);

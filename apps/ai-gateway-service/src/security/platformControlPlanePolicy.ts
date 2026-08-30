@@ -23,6 +23,7 @@ const GLOBAL_MUTATION_PATHS = new Set([
 ]);
 
 const GLOBAL_CONTROL_PLANE_READ_PATHS = new Set([
+  "/v1/policies",
   "/v1/policies/list",
   "/v1/governance/stats",
 ]);

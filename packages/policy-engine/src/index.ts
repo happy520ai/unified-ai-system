@@ -70,6 +70,7 @@ export {
   computeAgentHash,
   computeArgumentsHash,
   computePolicyContentHash,
+  computePolicyDeltaHash,
   computePolicyHash,
   sha256Hex,
   stableStringify,

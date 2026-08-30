@@ -149,15 +149,45 @@ export function createForgeGovernedExecution({
             errors: event.result.errors.join("; "),
           }
         : event.result;
-      return toolProxy.enforceResult({
-        context: frozenContext,
-        toolName: event.toolName,
-        policy: event.authorization.policy,
-        result: governedResult,
-        descriptor: { kind: "zero-records" },
-      });
+      const sideEffectCompleted = forgeActionCompletedSideEffect(event);
+      try {
+        const verdict = await toolProxy.enforceResult({
+          context: frozenContext,
+          toolName: event.toolName,
+          policy: event.authorization.policy,
+          result: governedResult,
+          descriptor: { kind: "zero-records" },
+        });
+        if (!verdict || typeof verdict !== "object" || !Object.hasOwn(verdict, "result")) {
+          throw createForgeGatewayError(
+            "FORGE_ACTION_RESULT_GOVERNANCE_INVALID",
+            "Forge action governance returned a malformed terminal result.",
+          );
+        }
+        if (sideEffectCompleted && verdict?.verdict === "replace") {
+          throw createForgeGatewayError(
+            "FORGE_ACTION_OUTCOME_UNCERTAIN",
+            "A completed Forge action could not return its terminal governed result; reconcile before retrying.",
+          );
+        }
+        return verdict;
+      } catch (error) {
+        if (!sideEffectCompleted || error?.code === "FORGE_ACTION_OUTCOME_UNCERTAIN") throw error;
+        const uncertain = createForgeGatewayError(
+          "FORGE_ACTION_OUTCOME_UNCERTAIN",
+          "A completed Forge action could not commit its terminal governance audit; reconcile before retrying.",
+        );
+        uncertain.cause = error;
+        throw uncertain;
+      }
     },
   });
+}
+
+function forgeActionCompletedSideEffect(event) {
+  if (event?.actionType === "bash") return true;
+  return new Set(["write", "edit", "diff"]).has(event?.actionType)
+    && event?.result?.modified === true;
 }
 
 export function createForgeGatewayService({

@@ -79,6 +79,12 @@ export interface AgentGovernanceToolProxy {
     result: unknown;
     descriptor?: GovernedRecordDescriptor | null;
   }): Promise<GovernedRecordMeterVerdict>;
+  recordOutcome(input: {
+    context: AgentGovernanceCallContext;
+    toolName: string;
+    resultStatus: "success" | "error" | "denied";
+    reason?: string;
+  }): Promise<void>;
   mintSandboxAttestation(input: {
     context: AgentGovernanceCallContext;
     toolName: string;
@@ -163,8 +169,27 @@ export function createAgentGovernanceToolProxy(options: {
       && (metadata.isolation === "full" || requiredIsolation === "read-only");
   }
 
+  async function recordOutcome(input: {
+    context: AgentGovernanceCallContext;
+    toolName: string;
+    resultStatus: "success" | "error" | "denied";
+    reason?: string;
+  }): Promise<void> {
+    await service.emitAudit({
+      eventType: input.resultStatus === "success" ? "TOOL_COMPLETED" : "TOOL_FAILED",
+      agentId: input.context.agentId,
+      tenantId: input.context.tenantId,
+      requestId: input.context.requestId,
+      toolName: input.toolName,
+      argumentsRedacted: true,
+      resultStatus: input.resultStatus,
+      ...(input.reason ? { reason: input.reason.slice(0, 256) } : {}),
+    });
+  }
+
   return {
     mintSandboxAttestation,
+    recordOutcome,
     async enforce({ context, toolName, params, resourceContext }) {
       const deny = (code: string, reason: string): ToolProxyVerdict => ({ outcome: "deny", code, reason });
       const observe = (verdict: ToolProxyVerdict): ToolProxyVerdict =>
@@ -416,9 +441,44 @@ export function createAgentGovernanceToolProxy(options: {
           // The result remains closed even if the supplemental audit fails.
         }
       }
-      return { ...verdict, result: redactGovernedResult(verdict.result, policy) };
+      const governedResult = redactGovernedResult(verdict.result, policy);
+      const resultStatus = classifyToolResultStatus(governedResult);
+      try {
+        await recordOutcome({
+          context,
+          toolName,
+          resultStatus,
+          ...(resultStatus === "success" ? {} : { reason: toolResultReason(governedResult) }),
+        });
+      } catch {
+        const auditRequired = policy.requirements.auditRequired === true
+          || policy.mandatory?.auditRequired === true;
+        if (auditRequired) {
+          throw Object.assign(new Error("Required tool outcome audit persistence failed."), {
+            code: "GOVERNANCE_AUDIT_REQUIRED",
+          });
+        }
+      }
+      return { ...verdict, result: governedResult };
     },
   };
+}
+
+function classifyToolResultStatus(result: unknown): "success" | "error" | "denied" {
+  if (!result || typeof result !== "object" || Array.isArray(result)) return "success";
+  const record = result as Record<string, unknown>;
+  const status = String(record.status ?? "").toLowerCase();
+  if (status === "denied") return "denied";
+  if (record.success === false || ["error", "failed", "failure", "cancelled", "timeout"].includes(status)) {
+    return "error";
+  }
+  return "success";
+}
+
+function toolResultReason(result: unknown): string {
+  if (!result || typeof result !== "object" || Array.isArray(result)) return "tool_result_failed";
+  const record = result as Record<string, unknown>;
+  return String(record.code ?? record.error ?? record.status ?? "tool_result_failed");
 }
 
 function redactGovernedResult(result: unknown, policy: EffectiveAgentPolicy): unknown {

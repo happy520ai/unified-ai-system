@@ -1,4 +1,4 @@
-import { lstatSync, realpathSync } from "node:fs";
+import { existsSync, lstatSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, join, parse, relative, resolve, sep } from "node:path";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
@@ -30,6 +30,8 @@ import { createKnowledgeInfra } from "../knowledge/knowledgeInfra.js";
 import { createMcpGatewayService } from "../mcpGateway/mcpGatewayService.ts";
 import { createAgentGovernanceService } from "../agent-governance/agentGovernanceService.ts";
 import { createAgentGovernanceToolProxy } from "../agent-governance/toolProxy.ts";
+import { createGatewayModelProposer } from "../agent-governance/gatewayModelProposer.ts";
+import { resolveGovernanceSecret } from "../agent-governance/governanceSecret.ts";
 import { createLocalWorkflowService } from "../workflow/localWorkflowService.js";
 import { createWorkforceService } from "../workforce/workforceService.js";
 import { createControlledExecutor } from "../workforce/workforceControlledExecutor.js";
@@ -328,15 +330,56 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
       error.category = "configuration";
       throw error;
     }
-    const agentGovernanceService = createAgentGovernanceService({
+    const modelProposer = agentGovernanceRuntime.modelProposer.enabled
+      ? createGatewayModelProposer({
+        gatewayService,
+        providerId: agentGovernanceRuntime.modelProposer.providerId,
+        modelId: agentGovernanceRuntime.modelProposer.modelId,
+      })
+      : null;
+    const registryConfiguration = resolveAgentGovernanceRegistryConfiguration(
       env,
-      dataDir: agentGovernanceDataDir,
-    });
+      repoRoot,
+      agentGovernanceDataDir,
+    );
+    // Establish the no-link/private-ACL governance root before SQLite can
+    // create its database or WAL files in that authority directory.
+    resolveGovernanceSecret({ env, dataDir: agentGovernanceDataDir });
+    // SQLite/PostgreSQL adapters remain testable migration candidates, but no
+    // runtime may promote them until Registry rollback/authority anchoring has
+    // independent evidence. The only executable authority is signed JSON.
+    const agentRegistryStore = null;
+    let agentGovernanceService;
+    try {
+      agentGovernanceService = createAgentGovernanceService({
+        env,
+        dataDir: agentGovernanceDataDir,
+        modelProposer,
+        registryAuthority: registryConfiguration.authorityBinding,
+      });
+    } catch (error) {
+      void agentRegistryStore?.close?.();
+      throw error;
+    }
     agentGovernance = Object.freeze({
       service: agentGovernanceService,
       toolProxy: createAgentGovernanceToolProxy({ service: agentGovernanceService }),
       dataDir: agentGovernanceDataDir,
       highRiskTools: agentGovernanceRuntime.highRiskTools,
+      healthCheckIntervalMs: agentGovernanceRuntime.healthCheckIntervalMs,
+      registryStore: agentRegistryStore,
+      get registry() {
+        return Object.freeze(agentRegistryStore
+          ? agentRegistryStore.getHealth()
+          : {
+            storageMode: "single-process-json",
+            durable: true,
+            transactional: false,
+            distributed: false,
+            singleHost: true,
+            pathExposed: false,
+          });
+      },
     });
   }
   const enterpriseOpsService = createEnterpriseOpsService({
@@ -345,6 +388,7 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
     enterpriseGovernanceService,
     knowledgeInfra,
     knowledgeService,
+    agentGovernance,
   });
   const capabilityRouterService = createCapabilityRouterService({
     providerRegistry,
@@ -388,6 +432,7 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
       localClientAdapterConfiguration?.receiptJournalRegistry,
       ...(localClientAdapterConfiguration?.probes ?? []),
       localClientAdapterRegistry,
+      agentGovernance?.registryStore,
       externalEffectGate,
       workforceExecutor,
       requestLogger,
@@ -439,6 +484,7 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
       localClientExecutionFeedbackOutbox,
       localClientFeedbackDedupStore,
       localClientAuthorityEpochStore,
+      agentGovernance?.registryStore,
       externalEffectGate,
       workforceExecutor,
       requestLogger,
@@ -485,6 +531,7 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
       localClientExecutionFeedbackOutbox,
       localClientFeedbackDedupStore,
       localClientAuthorityEpochStore,
+      agentGovernance?.registryStore,
       externalEffectGate,
       workforceExecutor,
       requestLogger,
@@ -532,6 +579,7 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
       localClientExecutionFeedbackOutbox,
       localClientFeedbackDedupStore,
       localClientAuthorityEpochStore,
+      agentGovernance?.registryStore,
       externalEffectGate,
       workforceExecutor,
       requestLogger,
@@ -585,6 +633,7 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
       localClientExecutionFeedbackOutbox,
       localClientFeedbackDedupStore,
       localClientAuthorityEpochStore,
+      agentGovernance?.registryStore,
       externalEffectGate,
       workforceExecutor,
       requestLogger,
@@ -1114,7 +1163,121 @@ function resolveAgentGovernanceRuntimeConfiguration(env) {
     error.category = "configuration";
     throw error;
   }
-  return Object.freeze({ enabled, multiInstance, highRiskTools });
+  const proposerSetting = String(
+    env.AI_GATEWAY_AGENT_GOVERNANCE_MODEL_PROPOSER_ENABLED ?? "",
+  ).trim().toLowerCase();
+  if (proposerSetting && proposerSetting !== "true" && proposerSetting !== "false") {
+    const error = new Error(
+      "AI_GATEWAY_AGENT_GOVERNANCE_MODEL_PROPOSER_ENABLED must be true or false when configured.",
+    );
+    error.code = "AGENT_GOVERNANCE_CONFIGURATION_INVALID";
+    error.category = "configuration";
+    throw error;
+  }
+  const modelProposerEnabled = proposerSetting === "true";
+  if (modelProposerEnabled && !enabled) {
+    const error = new Error("Agent model proposal requires Agent Governance to be enabled.");
+    error.code = "AGENT_GOVERNANCE_MODEL_PROPOSER_REQUIRES_GOVERNANCE";
+    error.category = "configuration";
+    throw error;
+  }
+  const proposerProviderId = String(
+    env.AI_GATEWAY_AGENT_GOVERNANCE_MODEL_PROPOSER_PROVIDER_ID ?? "",
+  ).trim();
+  const proposerModelId = String(
+    env.AI_GATEWAY_AGENT_GOVERNANCE_MODEL_PROPOSER_MODEL_ID ?? "",
+  ).trim();
+  if (modelProposerEnabled && !proposerProviderId) {
+    const error = new Error(
+      "AI_GATEWAY_AGENT_GOVERNANCE_MODEL_PROPOSER_PROVIDER_ID is required when model proposal is enabled.",
+    );
+    error.code = "AGENT_GOVERNANCE_MODEL_PROPOSER_PROVIDER_REQUIRED";
+    error.category = "configuration";
+    throw error;
+  }
+  return Object.freeze({
+    enabled,
+    multiInstance,
+    highRiskTools,
+    healthCheckIntervalMs: strictRegistryInteger(
+      env.AI_GATEWAY_AGENT_GOVERNANCE_HEALTH_CHECK_INTERVAL_MS,
+      60_000,
+      1_000,
+      300_000,
+      "AI_GATEWAY_AGENT_GOVERNANCE_HEALTH_CHECK_INTERVAL_MS",
+    ),
+    modelProposer: Object.freeze({
+      enabled: modelProposerEnabled,
+      providerId: proposerProviderId,
+      modelId: proposerModelId || undefined,
+    }),
+  });
+}
+
+function resolveAgentGovernanceRegistryConfiguration(env, repositoryRoot, dataDir) {
+  const mode = String(
+    env.AI_GATEWAY_AGENT_GOVERNANCE_REGISTRY_STORE_MODE ?? "json",
+  ).trim().toLowerCase();
+  if (mode !== "json" && mode !== "sqlite" && mode !== "postgres") {
+    const error = new Error(
+      "AI_GATEWAY_AGENT_GOVERNANCE_REGISTRY_STORE_MODE must be json, sqlite, or postgres.",
+    );
+    error.code = "AGENT_GOVERNANCE_REGISTRY_CONFIGURATION_INVALID";
+    error.category = "configuration";
+    throw error;
+  }
+  if (mode !== "json") {
+    const error = new Error(
+      `${mode} Agent Registry is implemented but not promoted: rollback and external authority anchoring are not proven.`,
+    );
+    error.code = "AGENT_GOVERNANCE_REGISTRY_BACKEND_UNPROMOTED";
+    error.category = "configuration";
+    throw error;
+  }
+  const postgresConfigured = [
+    "AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_URL",
+    "AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_URL_FILE",
+    "AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_NAMESPACE",
+    "AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_TLS_REQUIRED",
+    "AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_POOL_MAX",
+    "AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_STATEMENT_TIMEOUT_MS",
+  ].some((name) => String(env[name] ?? "").trim() !== "");
+  if (postgresConfigured) {
+    const error = new Error(
+      "PostgreSQL Agent Registry configuration is present, but that authority is not promoted for runtime use.",
+    );
+    error.code = "AGENT_GOVERNANCE_REGISTRY_BACKEND_UNPROMOTED";
+    error.category = "configuration";
+    throw error;
+  }
+  const configuredPath = String(env.AI_GATEWAY_AGENT_GOVERNANCE_SQLITE_PATH ?? "").trim();
+  const sqlitePath = configuredPath
+    ? (isAbsolute(configuredPath) ? configuredPath : resolve(repositoryRoot, configuredPath))
+    : resolve(dataDir, "agent-registry.sqlite");
+  const sqliteConfigured = configuredPath
+    || String(env.AI_GATEWAY_AGENT_GOVERNANCE_HOST_ID ?? "").trim()
+    || String(env.AI_GATEWAY_AGENT_GOVERNANCE_SQLITE_BUSY_TIMEOUT_MS ?? "").trim();
+  if (sqliteConfigured || existsSync(sqlitePath)) {
+    const error = new Error(
+      "SQLite Agent Registry artifacts/configuration are present, but that authority is not promoted for runtime use.",
+    );
+    error.code = "AGENT_GOVERNANCE_REGISTRY_BACKEND_UNPROMOTED";
+    error.category = "configuration";
+    throw error;
+  }
+  return Object.freeze({ mode: "json", authorityBinding: "signed-json-v1" });
+}
+
+function strictRegistryInteger(value, fallback, minimum, maximum, name) {
+  const raw = String(value ?? "").trim();
+  const parsed = raw ? Number(raw) : fallback;
+  if (!Number.isSafeInteger(parsed) || parsed < minimum || parsed > maximum) {
+    const error = new Error(`${name} must be an integer between ${minimum} and ${maximum}.`);
+    error.code = "AGENT_GOVERNANCE_REGISTRY_CONFIGURATION_INVALID";
+    error.category = "configuration";
+    throw error;
+  }
+  return parsed;
 }
 
 function resolveAgentExecWorkingDirectory(env) {

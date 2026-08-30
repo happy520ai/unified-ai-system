@@ -6,24 +6,20 @@ import { createGatewayApplication } from "./createGatewayApplication.js";
 
 describe("Agent Governance application configuration", () => {
   it("keeps governance default-off so legacy execution route contracts remain compatible", () => {
-    const application = createGatewayApplication({});
-    expect(application.agentGovernance).toBeNull();
+    expect(createGatewayApplication({}).agentGovernance).toBeNull();
   });
 
-  it("refuses explicit governance enablement with a non-transactional multi-instance backend", () => {
+  it("refuses explicit governance enablement with multi-instance mode", () => {
     expect(() => createGatewayApplication({
       AI_GATEWAY_AGENT_GOVERNANCE_ENABLED: "true",
       AI_GATEWAY_MULTI_INSTANCE: "true",
-    })).toThrow(expect.objectContaining({
-      code: "AGENT_GOVERNANCE_MULTI_INSTANCE_UNSUPPORTED",
-    }));
+    })).toThrow(expect.objectContaining({ code: "AGENT_GOVERNANCE_MULTI_INSTANCE_UNSUPPORTED" }));
   });
 
   it("keeps governance explicitly disabled as a rollback boundary", () => {
-    const application = createGatewayApplication({
+    expect(createGatewayApplication({
       AI_GATEWAY_AGENT_GOVERNANCE_ENABLED: "false",
-    });
-    expect(application.agentGovernance).toBeNull();
+    }).agentGovernance).toBeNull();
   });
 
   it("rejects an in-repository custom state directory outside protected .data", () => {
@@ -64,9 +60,73 @@ describe("Agent Governance application configuration", () => {
     })).toThrow(expect.objectContaining({ code: "AGENT_GOVERNANCE_HIGH_RISK_REQUIRES_GOVERNANCE" }));
   });
 
+  it("keeps model proposal explicit and bound to a server-owned provider", async () => {
+    expect(() => createGatewayApplication({
+      AI_GATEWAY_AGENT_GOVERNANCE_MODEL_PROPOSER_ENABLED: "sometimes",
+    })).toThrow(expect.objectContaining({ code: "AGENT_GOVERNANCE_CONFIGURATION_INVALID" }));
+    expect(() => createGatewayApplication({
+      AI_GATEWAY_AGENT_GOVERNANCE_MODEL_PROPOSER_ENABLED: "true",
+    })).toThrow(expect.objectContaining({ code: "AGENT_GOVERNANCE_MODEL_PROPOSER_REQUIRES_GOVERNANCE" }));
+    expect(() => createGatewayApplication({
+      AI_GATEWAY_AGENT_GOVERNANCE_ENABLED: "true",
+      AI_GATEWAY_AGENT_GOVERNANCE_MODEL_PROPOSER_ENABLED: "true",
+    })).toThrow(expect.objectContaining({ code: "AGENT_GOVERNANCE_MODEL_PROPOSER_PROVIDER_REQUIRED" }));
+
+    const root = await mkdtemp(join(tmpdir(), "agent-governance-model-config-"));
+    try {
+      const application = createGatewayApplication({
+        AI_GATEWAY_AGENT_GOVERNANCE_ENABLED: "true",
+        AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: "application-model-governance-key-0123456789",
+        AI_GATEWAY_AGENT_GOVERNANCE_DATA_DIR: join(root, "governance"),
+        AI_GATEWAY_AGENT_GOVERNANCE_MODEL_PROPOSER_ENABLED: "true",
+        AI_GATEWAY_AGENT_GOVERNANCE_MODEL_PROPOSER_PROVIDER_ID: "local-fake-provider",
+      });
+      expect(application.agentGovernance).not.toBeNull();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("accepts only a trusted existing directory for Agent execution", () => {
     expect(() => createGatewayApplication({
       AI_GATEWAY_AGENT_EXEC_WORKING_DIRECTORY: "package.json",
     })).toThrow(expect.objectContaining({ code: "AGENT_EXEC_WORKING_DIRECTORY_INVALID" }));
+  });
+
+  it("keeps signed JSON as the sole promoted runtime Registry authority", async () => {
+    const root = await mkdtemp(join(tmpdir(), "agent-governance-json-authority-"));
+    try {
+      const application = createGatewayApplication({
+        AI_GATEWAY_AGENT_GOVERNANCE_ENABLED: "true",
+        AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: "application-json-authority-key-0123456789",
+        AI_GATEWAY_AGENT_GOVERNANCE_DATA_DIR: join(root, "governance"),
+        AI_GATEWAY_AGENT_GOVERNANCE_REGISTRY_STORE_MODE: "json",
+      });
+      expect(application.agentGovernance?.registryStore).toBeNull();
+      expect(application.agentGovernance?.registry).toMatchObject({
+        storageMode: "single-process-json",
+        durable: true,
+        transactional: false,
+        distributed: false,
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("fails closed before reading SQLite/PostgreSQL runtime configuration", () => {
+    for (const mode of ["sqlite", "postgres"]) {
+      expect(() => createGatewayApplication({
+        AI_GATEWAY_AGENT_GOVERNANCE_ENABLED: "true",
+        AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: "application-unpromoted-registry-key-0123456789",
+        AI_GATEWAY_AGENT_GOVERNANCE_REGISTRY_STORE_MODE: mode,
+      })).toThrow(expect.objectContaining({ code: "AGENT_GOVERNANCE_REGISTRY_BACKEND_UNPROMOTED" }));
+    }
+    expect(() => createGatewayApplication({
+      AI_GATEWAY_AGENT_GOVERNANCE_ENABLED: "true",
+      AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: "application-unpromoted-url-key-0123456789",
+      AI_GATEWAY_AGENT_GOVERNANCE_REGISTRY_STORE_MODE: "json",
+      AI_GATEWAY_AGENT_GOVERNANCE_POSTGRES_URL_FILE: "/run/secrets/never-read",
+    })).toThrow(expect.objectContaining({ code: "AGENT_GOVERNANCE_REGISTRY_BACKEND_UNPROMOTED" }));
   });
 });

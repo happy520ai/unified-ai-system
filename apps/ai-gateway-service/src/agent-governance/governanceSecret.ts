@@ -6,6 +6,7 @@ import {
   closeSync,
   existsSync,
   fsyncSync,
+  lstatSync,
   mkdirSync,
   openSync,
   readFileSync,
@@ -13,7 +14,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 const securedSecretPaths = new Set<string>();
 const securedDataDirectories = new Set<string>();
@@ -34,7 +35,12 @@ export function resolveGovernanceSecret(options: GovernanceSecretOptions = {}): 
   }
 
   const secretPath = join(dataDir, "secret.key");
+  assertNoLinkedPathComponents(dataDir);
   mkdirSync(dirname(secretPath), { recursive: true });
+  const dataDirectoryStats = lstatSync(dataDir);
+  if (!dataDirectoryStats.isDirectory() || dataDirectoryStats.isSymbolicLink()) {
+    throw secretError("Agent Governance data directory must be a real directory, not a link or reparse point.");
+  }
   if (!securedDataDirectories.has(dataDir)) {
     enforceDataDirectoryPermissions(dataDir);
     securedDataDirectories.add(dataDir);
@@ -54,6 +60,27 @@ export function resolveGovernanceSecret(options: GovernanceSecretOptions = {}): 
     securedSecretPaths.add(secretPath);
   }
   return existing;
+}
+
+function assertNoLinkedPathComponents(path: string): void {
+  const chain: string[] = [];
+  let current = resolve(path);
+  while (true) {
+    chain.push(current);
+    const parent = dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  for (const candidate of chain.reverse()) {
+    if (!existsSync(candidate)) continue;
+    const stats = lstatSync(candidate);
+    if (stats.isSymbolicLink()) {
+      throw secretError("Links and reparse points are forbidden in the Agent Governance storage path.");
+    }
+    if (candidate !== resolve(path) && !stats.isDirectory()) {
+      throw secretError("Agent Governance storage has a non-directory parent component.");
+    }
+  }
 }
 
 function enforceDataDirectoryPermissions(dataDir: string): void {

@@ -207,6 +207,20 @@ describe("bounded agent execution route", () => {
     }
   });
 
+  it("treats the REST path Agent id as authoritative over the request body", async () => {
+    const context = createContext({
+      path: "/v1/agents/agt_path_bound/run",
+      body: {
+        agentId: "agt_conflicting_body",
+        goal: "must remain pre-execution",
+        toolMode: "none",
+      },
+    });
+    await dispatchAgentExecRoutes(context);
+    expect(context.response.statusCode).toBe(409);
+    expect(context.response.body.error.code).toBe("AGENT_EXEC_PATH_IDENTITY_CONFLICT");
+  });
+
   it("blocks a real provider before the adapter is invoked when runtime gates are closed", async () => {
     const registry = new ProviderRegistry({ enabledProviders: ["openai"] });
     const provider = createFakeProvider({
@@ -300,7 +314,7 @@ describe("bounded agent execution route", () => {
   it("authorizes a governed run before provider execution and applies policy bounds", async () => {
     const base = createApplication();
     const policy = {
-      policyHash: "sha256:test",
+      policyHash: `sha256:${"a".repeat(64)}`,
       limits: { maxSteps: 1, maxRuntimeSeconds: 5 },
       grantedTools: [],
       toolDecisions: {},
@@ -345,7 +359,8 @@ describe("bounded agent execution route", () => {
     expect(context.response.body.data.governance).toEqual({
       enforced: true,
       agentId: "agt_valid",
-      policyHash: "sha256:test",
+      runId: expect.stringMatching(/^agr_/u),
+      policyHash: `sha256:${"a".repeat(64)}`,
     });
   }, 30_000);
 

@@ -82,6 +82,15 @@ export interface GatewayProviderOperationInput {
 
 /** Internal, non-JSON capability marker for a verified provider dispatch binding. */
 export declare const MANAGED_LOCAL_CLIENT_PROVIDER_PIN: unique symbol;
+export declare const AGENT_GOVERNANCE_EXECUTION_CONTEXT: unique symbol;
+
+export interface GatewayAgentGovernanceExecutionContext {
+  readonly agentId: string;
+  readonly runId: string;
+  readonly policyHash: string;
+  readonly tenantId: string;
+  readonly userId: string;
+}
 
 export interface GatewayManagedLocalClientProviderBinding {
   readonly clientId: string;
@@ -90,6 +99,7 @@ export interface GatewayManagedLocalClientProviderBinding {
 
 export type GatewayExecutionInput = Partial<GatewayRequest> & {
   readonly [MANAGED_LOCAL_CLIENT_PROVIDER_PIN]?: GatewayManagedLocalClientProviderBinding;
+  readonly [AGENT_GOVERNANCE_EXECUTION_CONTEXT]?: GatewayAgentGovernanceExecutionContext;
   readonly enterpriseIdentity?: Record<string, unknown>;
 };
 

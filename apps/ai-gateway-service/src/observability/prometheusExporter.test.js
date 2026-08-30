@@ -82,6 +82,32 @@ describe("prometheusExporter", () => {
     expect(text).toContain('ai_gateway_gateway_readiness_events_total{reason="service-dependency"} 2');
   });
 
+  it("exports non-secret Agent Governance readiness and integrity", () => {
+    const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
+    const text = exporter.formatMetrics({
+      health: {
+        agentGovernance: {
+          enabled: true,
+          ready: false,
+          ownerLease: "held",
+          startupRecovery: "ready",
+          stateIntegrity: "verified",
+          auditIntegrity: "failed",
+          failureCode: "audit_integrity_failed",
+          agentId: "agt_must_not_leak",
+          policyHash: `sha256:${"a".repeat(64)}`,
+        },
+      },
+    });
+    expect(text).toContain("ai_gateway_agent_governance_enabled 1");
+    expect(text).toContain("ai_gateway_agent_governance_ready 0");
+    expect(text).toContain('ai_gateway_agent_governance_integrity{component="owner_lease"} 1');
+    expect(text).toContain('ai_gateway_agent_governance_integrity{component="audit"} 0');
+    expect(text).toContain('ai_gateway_agent_governance_failure{code="audit_integrity_failed"} 1');
+    expect(text).not.toContain("agt_must_not_leak");
+    expect(text).not.toContain("sha256:");
+  });
+
   it("renders zeroed readiness metrics when no failures are present", () => {
     const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
     const text = exporter.formatMetrics({

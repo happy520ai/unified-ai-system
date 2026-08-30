@@ -2,6 +2,7 @@ import {
   createServer,
 } from "node:http";
 import { acquireGovernanceOwnerLease } from "../agent-governance/governanceOwnerLease.ts";
+import { createAgentGovernanceHealthMonitor } from "./agentGovernanceHealth.ts";
 import {
   createErrorEnvelope,
   createOkEnvelope,
@@ -301,6 +302,17 @@ export function createGatewayHttpServer(application) {
 }
 
 function createGatewayHttpServerWithOwnerLease(application, governanceOwnerLease) {
+  const agentGovernanceHealth = createAgentGovernanceHealthMonitor({
+    governance: application.agentGovernance,
+    ownerLease: governanceOwnerLease,
+    minimumServiceCheckIntervalMs: application.agentGovernance?.healthCheckIntervalMs,
+  });
+  Object.defineProperty(application, "agentGovernanceHealth", {
+    configurable: true,
+    enumerable: false,
+    writable: false,
+    value: agentGovernanceHealth,
+  });
   const { capabilityRouterService, codexExecCrsRuntimeCandidate, enterpriseGovernanceService, enterpriseOpsService, fiveCapabilityActivationService, gatewayService, knowledgeService, modelImportService, modelLibraryStore, providerConfigRoutes, runtimeCredentialStore, userExperienceService, workforceService, workflowService } = application;
   const { localClientManagementService } = application;
   const approvalStore = createApprovalStore();
@@ -708,7 +720,8 @@ function createGatewayHttpServerWithOwnerLease(application, governanceOwnerLease
     // HTTP transport a bounded grace window beyond the largest accepted Agent
     // deadline; the route also combines this transport signal with its own
     // timer, so disconnects still cancel immediately.
-    const routeTimeoutMs = pathname === "/agent-exec/run"
+    const routeTimeoutMs = (pathname === "/agent-exec/run"
+      || /^\/v1\/agents\/agt_[A-Za-z0-9_-]{1,128}\/run\/?$/u.test(pathname))
       ? Math.max(requestTimeoutMs, AGENT_EXEC_LIMITS.maxTimeoutMs + 5_000)
       : isStreamingRoute ? streamingRequestTimeoutMs : requestTimeoutMs;
     const requestTimeout = Math.max(routeTimeoutMs, 1_000);
@@ -1155,6 +1168,7 @@ function createGatewayHttpServerWithOwnerLease(application, governanceOwnerLease
   let shutdownResourcesPromise;
   server.gatewayLifecycle = gatewayLifecycle;
   server.agentGovernanceOwnerLease = governanceOwnerLease;
+  server.agentGovernanceHealth = agentGovernanceHealth;
   server.closeRealtimeConnections = () => wsServer.close(1001, "Gateway shutting down");
   server.shutdownResources = () => {
     shutdownResourcesPromise ??= (async () => {
@@ -1193,6 +1207,7 @@ function createGatewayHttpServerWithOwnerLease(application, governanceOwnerLease
         () => application.workforceExecutor?.close?.(),
         () => application.requestLogger?.close?.(),
         () => application.providerDispatchGate?.close?.(),
+        () => application.agentGovernance?.registryStore?.close?.(),
         () => application.externalEffectGate?.close?.(),
         () => application.mcpGatewayService?.close?.(),
         () => application.enterpriseGovernanceService?.close?.(),
@@ -1233,6 +1248,11 @@ function isAgentGovernanceRuntimePath(pathname) {
     || pathname === "/workforce/execute"
     || pathname === "/forge/orchestrate"
     || pathname === "/workflow/run"
+    || pathname === "/workforce/run-local"
+    || pathname === "/enterprise/backup"
+    || pathname === "/v1/agents"
+    || pathname === "/v1/approvals"
+    || pathname === "/v1/policies"
     || pathname.startsWith("/v1/agents/")
     || pathname.startsWith("/v1/approvals/")
     || pathname.startsWith("/v1/policies/")

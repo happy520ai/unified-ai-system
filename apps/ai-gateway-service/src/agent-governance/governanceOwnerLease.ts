@@ -391,7 +391,7 @@ function probePosixProcessFingerprint(pid: number): ProcessFingerprintResult {
 function ownerLeaseError(code: string, message: string, cause?: unknown): Error {
   return Object.assign(
     new Error(message, cause === undefined ? undefined : { cause }),
-    { name: "GovernanceOwnerLeaseError", code, category: "configuration" },
+    { name: "GovernanceOwnerLeaseError", code, category: "persistence", statusCode: 503 },
   );
 }
 

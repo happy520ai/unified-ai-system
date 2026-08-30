@@ -98,6 +98,13 @@ describe("Agent Governance policy catalog durability", () => {
         scopeKey: "credential",
         content: { mandatory: { credentialsExposedToAgent: true } },
       }, "platform-admin")).rejects.toMatchObject({ name: "PolicyContentInvalid" });
+      await expect(store.create({
+        policyKey: "oversized-version-domain",
+        version: 1_000_000_000,
+        policyType: "domain",
+        scopeKey: "oversized-version",
+        content: {},
+      }, "platform-admin")).rejects.toMatchObject({ name: "PolicyVersionInvalid" });
     } finally {
       await rm(root, { recursive: true, force: true });
     }

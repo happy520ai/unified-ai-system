@@ -323,6 +323,29 @@ describe("forgeGatewayService — 桥与惰性", () => {
     expect(Object.isFrozen(governedExecution)).toBe(true);
   });
 
+  it("marks a completed Forge write action uncertain when its terminal audit is replaced", async () => {
+    const governedExecution = createForgeGovernedExecution({
+      context: { agentId: "agt-a", tenantId: "tenant-a", requestId: "req-a" },
+      toolProxy: {
+        enforce: vi.fn(),
+        enforceResult: vi.fn(async () => ({
+          verdict: "replace",
+          code: "GOVERNANCE_AUDIT_REQUIRED",
+          result: { status: "denied", code: "GOVERNANCE_AUDIT_REQUIRED" },
+        })),
+      },
+    });
+
+    await expect(governedExecution.afterAction({
+      actionType: "write",
+      toolName: "file_write",
+      authorization: { policy: { policyHash: "policy-a" } },
+      result: { modified: true, path: "result.txt" },
+    })).rejects.toMatchObject({
+      code: "FORGE_ACTION_OUTCOME_UNCERTAIN",
+    });
+  });
+
   it("rejects an allow verdict without a verified policy and releasable action lease", async () => {
     const governedExecution = createForgeGovernedExecution({
       context: { agentId: "agt-a", tenantId: "tenant-a" },
@@ -920,6 +943,72 @@ describe("forgeRoutes dispatcher", () => {
     expect(requestedParams.options).toEqual({ maxConcurrent: 7, enableCodeIntel: false });
     expect(enforceResult).toHaveBeenCalledWith(expect.objectContaining({ toolName: "forge_orchestrate" }));
     expect(events).toEqual(["orchestrate", "top-release", "run-release"]);
+  });
+
+  it("marks completed Forge orchestration uncertain when terminal governance fails", async () => {
+    const runRelease = vi.fn();
+    const topRelease = vi.fn();
+    const controller = new AbortController();
+    const authorizeAgentExecution = vi.fn(async () => ({
+      record: { agentId: "agt_route", parentAgentId: null, generationDepth: 0, status: "ACTIVE" },
+      policy: { policyHash: "policy-a" },
+      executionLease: {
+        signal: controller.signal,
+        assertActive: vi.fn(async () => true),
+        release: runRelease,
+      },
+    }));
+    const enforce = vi.fn(async (input) => ({
+      outcome: "allow",
+      policy: { policyHash: "policy-a" },
+      approvedParams: input.params,
+      executionLease: { release: topRelease },
+    }));
+    const enforceResult = vi.fn(async () => {
+      throw Object.assign(new Error("outcome audit unavailable"), {
+        code: "GOVERNANCE_AUDIT_REQUIRED",
+      });
+    });
+    const orchestrate = vi.fn(async () => ({
+      ok: true,
+      runId: "forge-run-1",
+      result: { status: "completed" },
+    }));
+    const application = {
+      runtimeEnv: {},
+      gatewayService: createFakeGatewayService(),
+      agentGovernance: {
+        service: { authorizeAgentExecution },
+        toolProxy: { enforce, enforceResult },
+      },
+      __forgeGatewayService: { orchestrate },
+    };
+    const c = createContext({
+      path: "/forge/orchestrate",
+      body: { goal: "completed Forge effect", agentId: "agt_route" },
+      application,
+    });
+    c.request.enterpriseIdentity = { tenantId: "tenant-a", userId: "user-a" };
+    await dispatchForgeRoutes(c);
+
+    expect(orchestrate).toHaveBeenCalledOnce();
+    expect(c.response.statusCode).toBe(503);
+    expect(c.response.body.error).toMatchObject({
+      code: "FORGE_EXTERNAL_EFFECT_OUTCOME_UNCERTAIN",
+      details: {
+        outcomeUnknown: true,
+        retrySafe: false,
+        reconciliation: {
+          required: true,
+          agentId: "agt_route",
+          effectType: "forge:orchestrate",
+          goalDigest: expect.stringMatching(/^[a-f0-9]{64}$/u),
+          runId: "forge-run-1",
+        },
+      },
+    });
+    expect(topRelease).toHaveBeenCalledOnce();
+    expect(runRelease).toHaveBeenCalledOnce();
   });
 
   it("preserves the legacy orchestration path when Agent Governance is disabled", async () => {

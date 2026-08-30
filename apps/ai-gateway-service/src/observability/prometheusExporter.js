@@ -171,6 +171,25 @@ export function createPrometheusExporter(options = {}) {
       }
     }
 
+    const agentGovernance = snapshot.health?.agentGovernance;
+    const agentGovernanceEnabled = agentGovernance?.enabled === true;
+    lines.push(`# HELP ${prefix}_agent_governance_enabled Whether the Agent Governance control plane is enabled`);
+    lines.push(`# TYPE ${prefix}_agent_governance_enabled gauge`);
+    lines.push(`${prefix}_agent_governance_enabled ${agentGovernanceEnabled ? 1 : 0}`);
+    lines.push(`# HELP ${prefix}_agent_governance_ready Whether owner lease, recovery, state and audit integrity are ready`);
+    lines.push(`# TYPE ${prefix}_agent_governance_ready gauge`);
+    lines.push(`${prefix}_agent_governance_ready ${agentGovernanceEnabled ? (agentGovernance?.ready === true ? 1 : 0) : 1}`);
+    lines.push(`# HELP ${prefix}_agent_governance_integrity Agent Governance integrity checks`);
+    lines.push(`# TYPE ${prefix}_agent_governance_integrity gauge`);
+    lines.push(`${prefix}_agent_governance_integrity{component="owner_lease"} ${agentGovernanceEnabled ? (agentGovernance?.ownerLease === "held" ? 1 : 0) : 1}`);
+    lines.push(`${prefix}_agent_governance_integrity{component="state"} ${agentGovernanceEnabled ? (agentGovernance?.stateIntegrity === "verified" ? 1 : 0) : 1}`);
+    lines.push(`${prefix}_agent_governance_integrity{component="audit"} ${agentGovernanceEnabled ? (agentGovernance?.auditIntegrity === "verified" ? 1 : 0) : 1}`);
+    if (agentGovernanceEnabled && agentGovernance?.failureCode) {
+      lines.push(`# HELP ${prefix}_agent_governance_failure Current fixed Agent Governance health failure`);
+      lines.push(`# TYPE ${prefix}_agent_governance_failure gauge`);
+      lines.push(`${prefix}_agent_governance_failure{code="${sanitizeMetricLabel(agentGovernance.failureCode)}"} 1`);
+    }
+
     const idempotency = snapshot.idempotency;
     const idempotencyMode = sanitizeMetricLabel(idempotency?.storeMode ?? "memory");
     const idempotencyAvailable = idempotency?.storeMode === "postgres"

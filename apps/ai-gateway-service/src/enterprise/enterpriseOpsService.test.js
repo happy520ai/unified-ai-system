@@ -3,17 +3,25 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createEnterpriseOpsService } from "./enterpriseOpsService.js";
+import { createAgentGovernanceService } from "../agent-governance/agentGovernanceService.ts";
 
 const MASTER_KEY_A = Buffer.alloc(32, 0x31).toString("base64");
 const MASTER_KEY_B = Buffer.alloc(32, 0x32).toString("base64");
 
-function createTestService(root, { key = MASTER_KEY_A, previousKeys, auditContent = "[]" } = {}) {
+function createTestService(root, {
+  key = MASTER_KEY_A,
+  previousKeys,
+  auditContent = "[]",
+  agentGovernance = null,
+  platformTenantId,
+} = {}) {
   return createEnterpriseOpsService({
     env: {
       PME_ENTERPRISE_BACKUP_DIR: join(root, "backups"),
       PME_ENTERPRISE_BACKUP_CHECKPOINT_DIR: join(root, "checkpoints"),
       ...(key ? { PME_ENTERPRISE_BACKUP_MASTER_KEY: key } : {}),
       ...(previousKeys ? { PME_ENTERPRISE_BACKUP_PREVIOUS_MASTER_KEYS: previousKeys } : {}),
+      ...(platformTenantId ? { PME_ENTERPRISE_PLATFORM_TENANT_ID: platformTenantId } : {}),
     },
     config: {},
     enterpriseGovernanceService: {
@@ -32,6 +40,7 @@ function createTestService(root, { key = MASTER_KEY_A, previousKeys, auditConten
     knowledgeService: {
       getHealth: () => ({ storage: "file", persistence: { durable: true }, documentCount: 2 }),
     },
+    agentGovernance,
   });
 }
 
@@ -139,6 +148,85 @@ describe("enterprise operations backup", () => {
       expect(second.sequence).toBe(2);
       expect(second.keyId).not.toBe(first.keyId);
       expect((await rotated.validateRestore({ backupPath: second.backupPath }, TENANT_A)).valid).toBe(true);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("embeds a verified governance summary but never claims or performs governance restore", async () => {
+    const root = await mkdtemp(join(tmpdir(), "enterprise-ops-governance-"));
+    try {
+      const dataDir = join(root, "governance");
+      const governanceService = createAgentGovernanceService({
+        dataDir,
+        env: {
+          AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: "enterprise-governance-backup-secret-0123456789",
+          PME_ENTERPRISE_PLATFORM_TENANT_ID: TENANT_A.tenantId,
+        },
+      });
+      const generatedAgent = await governanceService.generateAgent({
+        name: "enterprise-backup-reader",
+        task: "read a report",
+        requestedTools: ["file_read"],
+        ttlSeconds: 600,
+        parentAgentId: null,
+      }, {
+        ...TENANT_A,
+        permissions: ["*"],
+      });
+      await writeFile(join(dataDir, "owner.lease.json"), JSON.stringify({ owner: "test-process" }), "utf8");
+      const service = createTestService(root, {
+        platformTenantId: TENANT_A.tenantId,
+        agentGovernance: { dataDir, service: governanceService, registryStore: null },
+      });
+      expect(service.getReadiness()).toMatchObject({
+        status: "warning",
+        backup: {
+          agentGovernance: {
+            enabled: true,
+            restoreMode: "verify-only",
+            restorable: false,
+          },
+        },
+        warnings: expect.arrayContaining(["agent_governance_backup_export"]),
+      });
+
+      const created = await service.createBackup({ reason: "governance consistency evidence" }, TENANT_A);
+      expect(created.status).toBe("warning");
+      expect(created.warnings).toContain("agent_governance_restore_is_verify_only");
+      expect(created.agentGovernance).toEqual({
+        enabled: true,
+        included: true,
+        mode: "read-only-consistency-export",
+        restoreMode: "verify-only",
+        restorable: false,
+        mutation: "none",
+      });
+      const artifact = await readFile(created.backupPath, "utf8");
+      expect(artifact).not.toContain("enterprise-backup-reader");
+      expect(artifact).not.toContain("enterprise-governance-backup-secret");
+      expect(artifact).not.toContain("owner.lease.json");
+
+      const validated = await service.validateRestore({ backupPath: created.backupPath }, TENANT_A);
+      expect(validated.valid).toBe(true);
+      expect(validated.status).toBe("warning");
+      expect(validated.mutation).toBe("none");
+      expect(validated.agentGovernance).toEqual({
+        valid: true,
+        included: true,
+        restoreMode: "verify-only",
+        restorable: false,
+        mutation: "none",
+        componentCount: 7,
+      });
+      expect(validated.warnings).toContain("agent_governance_restore_is_verify_only");
+
+      const policyPath = join(dataDir, "agents", generatedAgent.agentId, "effective-policy.json");
+      const policy = JSON.parse(await readFile(policyPath, "utf8"));
+      policy.grantedTools.push("shell_exec");
+      await writeFile(policyPath, JSON.stringify(policy), "utf8");
+      await expect(service.createBackup({ reason: "must reject corrupt bundle" }, TENANT_A))
+        .rejects.toMatchObject({ code: "AGENT_GOVERNANCE_BUNDLE_INTEGRITY_FAILED" });
     } finally {
       await rm(root, { recursive: true, force: true });
     }

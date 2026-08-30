@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   createGovernanceStateFileBinding,
+  getGovernanceStateAuthority,
   type GovernanceStateCommitStage,
 } from "./governanceStateAnchor.ts";
 import { createGovernanceAuditLog } from "./governanceAuditLog.ts";
@@ -42,6 +43,28 @@ describe("Agent Governance state rollback anchor", () => {
         .resolves.toContain("agent-governance-state-installation-v1");
     } finally {
       await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("returns a stable authority for one installation and a distinct authority for a fresh data root", async () => {
+    const firstRoot = await mkdtemp(join(tmpdir(), "governance-authority-first-"));
+    const secondRoot = await mkdtemp(join(tmpdir(), "governance-authority-second-"));
+    try {
+      await jsonBinding(join(firstRoot, "usage.json")).verify();
+      await jsonBinding(join(secondRoot, "usage.json")).verify();
+
+      const first = await getGovernanceStateAuthority({ dataDir: firstRoot, secret: SECRET });
+      const firstAgain = await getGovernanceStateAuthority({ dataDir: firstRoot, secret: SECRET });
+      const second = await getGovernanceStateAuthority({ dataDir: secondRoot, secret: SECRET });
+
+      expect(firstAgain).toEqual(first);
+      expect(second.installationId).not.toBe(first.installationId);
+      expect(second.epoch).not.toBe(first.epoch);
+    } finally {
+      await Promise.all([
+        rm(firstRoot, { recursive: true, force: true }),
+        rm(secondRoot, { recursive: true, force: true }),
+      ]);
     }
   });
 

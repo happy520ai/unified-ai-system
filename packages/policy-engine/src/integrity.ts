@@ -16,7 +16,7 @@ import type {
 
 const POLICY_HASH_PREFIX = "sha256";
 const SIGNATURE_PREFIX = "hmac-sha256";
-const MANIFEST_SIGNATURE_DOMAIN = "unified-ai/agent-governance-manifest/v1";
+const MANIFEST_SIGNATURE_DOMAIN = "unified-ai/agent-governance-manifest/v2";
 
 /** Canonical JSON: object keys sorted, arrays order-preserving, undefined dropped. */
 export function stableStringify(value: unknown): string {
@@ -64,6 +64,11 @@ export function computeArgumentsHash(args: unknown): string {
   return `${POLICY_HASH_PREFIX}:${sha256Hex(stableStringify(args === undefined ? null : args))}`;
 }
 
+/** Hash of the immutable per-Agent inheritance and instance-rule delta. */
+export function computePolicyDeltaHash(delta: unknown): string {
+  return `${POLICY_HASH_PREFIX}:${sha256Hex(stableStringify(delta === undefined ? null : delta))}`;
+}
+
 function hmacHex(secret: string | Uint8Array, input: string): string {
   return createHmac("sha256", secret).update(input, "utf8").digest("hex");
 }
@@ -81,6 +86,7 @@ export function buildManifest(input: {
   agentId: string;
   agentHash: string;
   policyHash: string;
+  deltaHash: string;
   compiledAt: string;
   secret: string | Uint8Array;
 }): AgentPolicyManifest {
@@ -88,8 +94,9 @@ export function buildManifest(input: {
   if (typeof input.agentId !== "string" || input.agentId.trim() === "") {
     throw new TypeError("Manifest agentId must be a non-empty string.");
   }
-  if (!isSha256Digest(input.agentHash) || !isSha256Digest(input.policyHash)) {
-    throw new TypeError("Manifest hashes must be canonical SHA-256 digests.");
+  if (!isSha256Digest(input.agentHash) || !isSha256Digest(input.policyHash)
+    || !isSha256Digest(input.deltaHash)) {
+    throw new TypeError("Manifest agent, policy and delta hashes must be canonical SHA-256 digests.");
   }
   if (typeof input.compiledAt !== "string" || !Number.isFinite(Date.parse(input.compiledAt))) {
     throw new TypeError("Manifest compiledAt must be a valid ISO timestamp.");
@@ -98,13 +105,22 @@ export function buildManifest(input: {
     agentId: input.agentId,
     agentHash: input.agentHash,
     policyHash: input.policyHash,
-    signature: signManifestInput(input.agentHash, input.policyHash, input.secret),
+    deltaHash: input.deltaHash,
+    signature: signManifestInput(input.agentHash, input.policyHash, input.deltaHash, input.secret),
     compiledAt: input.compiledAt,
   };
 }
 
-function signManifestInput(agentHash: string, policyHash: string, secret: string | Uint8Array): string {
-  return `${SIGNATURE_PREFIX}:${hmacHex(secret, `${MANIFEST_SIGNATURE_DOMAIN}\n${agentHash}:${policyHash}`)}`;
+function signManifestInput(
+  agentHash: string,
+  policyHash: string,
+  deltaHash: string,
+  secret: string | Uint8Array,
+): string {
+  return `${SIGNATURE_PREFIX}:${hmacHex(
+    secret,
+    `${MANIFEST_SIGNATURE_DOMAIN}\n${agentHash}:${policyHash}:${deltaHash}`,
+  )}`;
 }
 
 function safeEqualHex(left: unknown, right: unknown): boolean {
@@ -126,12 +142,13 @@ export function verifyManifestSignature(
 ): boolean {
   if (!manifest || typeof manifest !== "object" || !isNonEmptySecret(secret)) return false;
   const candidate = manifest as Record<string, unknown>;
-  if (!isSha256Digest(candidate.agentHash) || !isSha256Digest(candidate.policyHash)) return false;
+  if (!isSha256Digest(candidate.agentHash) || !isSha256Digest(candidate.policyHash)
+    || !isSha256Digest(candidate.deltaHash)) return false;
   if (typeof candidate.signature !== "string" || !/^hmac-sha256:[a-f0-9]{64}$/u.test(candidate.signature)) {
     return false;
   }
   try {
-    const expected = signManifestInput(candidate.agentHash, candidate.policyHash, secret);
+    const expected = signManifestInput(candidate.agentHash, candidate.policyHash, candidate.deltaHash, secret);
     return safeEqualHex(candidate.signature, expected);
   } catch {
     return false;
@@ -154,6 +171,8 @@ export function verifyEffectivePolicyIntegrity(
   manifest: AgentPolicyManifest | unknown,
   secret: string | Uint8Array,
   currentAgent: AgentRegistryRecord | null | undefined,
+  policyDelta: unknown,
+  options: { requireActive?: boolean } = {},
 ): EffectivePolicyIntegrityResult {
   if (!policy || typeof policy !== "object") {
     return { ok: false, reason: "POLICY_MISSING" };
@@ -164,6 +183,9 @@ export function verifyEffectivePolicyIntegrity(
   if (!currentAgent || typeof currentAgent !== "object") {
     return { ok: false, reason: "CURRENT_AGENT_REQUIRED" };
   }
+  if (policyDelta === undefined || policyDelta === null || typeof policyDelta !== "object") {
+    return { ok: false, reason: "POLICY_DELTA_REQUIRED" };
+  }
   const typedPolicy = policy as EffectiveAgentPolicy;
   const typedManifest = manifest as AgentPolicyManifest;
   if (typedManifest.agentId !== typedPolicy.agentId) {
@@ -172,7 +194,7 @@ export function verifyEffectivePolicyIntegrity(
   if (currentAgent.agentId !== typedPolicy.agentId) {
     return { ok: false, reason: "REGISTRY_AGENT_MISMATCH" };
   }
-  if (currentAgent.status !== "ACTIVE") {
+  if (options.requireActive !== false && currentAgent.status !== "ACTIVE") {
     return { ok: false, reason: "AGENT_NOT_ACTIVE" };
   }
   let recomputed: string;
@@ -189,6 +211,18 @@ export function verifyEffectivePolicyIntegrity(
   }
   if (typedManifest.policyHash !== typedPolicy.policyHash) {
     return { ok: false, reason: "MANIFEST_HASH_MISMATCH" };
+  }
+  if (!isSha256Digest(typedManifest.deltaHash)) {
+    return { ok: false, reason: "MANIFEST_DELTA_HASH_MISSING" };
+  }
+  let currentDeltaHash: string;
+  try {
+    currentDeltaHash = computePolicyDeltaHash(policyDelta);
+  } catch {
+    return { ok: false, reason: "POLICY_DELTA_MALFORMED" };
+  }
+  if (typedManifest.deltaHash !== currentDeltaHash) {
+    return { ok: false, reason: "MANIFEST_DELTA_HASH_MISMATCH" };
   }
   if (currentAgent.policyHash !== typedPolicy.policyHash) {
     return { ok: false, reason: "REGISTRY_POLICY_HASH_MISMATCH" };

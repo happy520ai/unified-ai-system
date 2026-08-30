@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { dispatchHttpRoutes02 } from "./httpServerRoutes02.js";
 
 function createEnvelopeContext(overrides = {}) {
@@ -235,6 +235,120 @@ describe("dispatchHttpRoutes02 healthz readiness", () => {
     expect(context.response.status).toBe(200);
     expect(context.response.payload.status).toBe("ok");
     expect(context.response.payload.data.status).toBe("ready");
+  });
+
+  it("returns 503 with a specific non-secret reason when the governance owner lease is lost", async () => {
+    const context = createEnvelopeContext({
+      url: { pathname: "/ready" },
+      createHealth: () => ({
+        app: "ai-gateway-service",
+        status: "degraded",
+        knowledge: { status: "ready" },
+        workflow: { status: "ready" },
+        workforce: { status: "ready" },
+        agentGovernance: {
+          enabled: true,
+          ready: false,
+          status: "degraded",
+          ownerLease: "lost",
+          startupRecovery: "ready",
+          stateIntegrity: "verified",
+          auditIntegrity: "verified",
+          failureCode: "owner_lease_lost",
+        },
+      }),
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(context.response.status).toBe(503);
+    expect(context.response.payload.error.details.readinessFailures).toContain(
+      "agent-governance-owner-lease-unavailable",
+    );
+    expect(JSON.stringify(context.response.payload)).not.toContain("ownerId");
+    expect(JSON.stringify(context.response.payload)).not.toContain("leasePath");
+  });
+
+  it("includes governance audit integrity failures in readiness", async () => {
+    const context = createEnvelopeContext({
+      createHealth: () => ({
+        app: "ai-gateway-service",
+        status: "degraded",
+        knowledge: { status: "ready" },
+        workflow: { status: "ready" },
+        workforce: { status: "ready" },
+        agentGovernance: {
+          enabled: true,
+          ready: false,
+          ownerLease: "held",
+          startupRecovery: "ready",
+          stateIntegrity: "verified",
+          auditIntegrity: "failed",
+        },
+      }),
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(context.response.status).toBe(503);
+    expect(context.response.payload.error.details.readinessFailures).toContain(
+      "agent-governance-audit-integrity-unavailable",
+    );
+  });
+
+  it("refreshes governance for health/check while preserving liveness status", async () => {
+    const check = vi.fn(async () => ({ ready: false }));
+    const context = createEnvelopeContext({
+      url: { pathname: "/health/check" },
+      application: { agentGovernanceHealth: { check } },
+      createHealth: () => ({
+        status: "degraded",
+        agentGovernance: {
+          enabled: true,
+          ready: false,
+          ownerLease: "lost",
+          failureCode: "owner_lease_lost",
+        },
+      }),
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(check).toHaveBeenCalledTimes(1);
+    expect(context.response.status).toBe(200);
+    expect(context.response.payload.data.agentGovernance).toEqual({
+      enabled: true,
+      ready: false,
+      ownerLease: "lost",
+      failureCode: "owner_lease_lost",
+    });
+  });
+
+  it("returns 503 from setup readiness when Agent Governance is degraded", async () => {
+    const check = vi.fn(async () => ({ ready: false }));
+    const context = createEnvelopeContext({
+      url: { pathname: "/setup/readiness" },
+      application: { agentGovernanceHealth: { check } },
+      createSetupReadiness: () => ({
+        status: "degraded",
+        readiness: {
+          agentGovernance: {
+            enabled: true,
+            ready: false,
+            failureCode: "startup_recovery_failed",
+          },
+        },
+      }),
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(check).toHaveBeenCalledTimes(1);
+    expect(context.response.status).toBe(503);
+    expect(context.response.payload.error.code).toBe("setup_unready");
+    expect(context.response.payload.error.details.readiness.agentGovernance.failureCode).toBe(
+      "startup_recovery_failed",
+    );
   });
 
   it("returns 503 when service readiness is degraded", async () => {
@@ -958,6 +1072,54 @@ describe("dispatchHttpRoutes02 metrics readiness visibility", () => {
     expect(metricsText).toContain('ai_gateway_idempotency_entries{mode="postgres",state="total"} 8');
     expect(metricsText).toContain('ai_gateway_idempotency_entries{mode="postgres",state="in_flight"} 2');
     expect(metricsText).toContain('ai_gateway_idempotency_entries{mode="postgres",state="replayable"} 4');
+  });
+});
+
+describe("dispatchHttpRoutes02 Agent usage attribution", () => {
+  it("keeps Agent/run filters server-tenant scoped for summaries and logs", async () => {
+    const getStats = vi.fn(async () => ({ totalRequests: 1 }));
+    const query = vi.fn(async () => [{ agentId: "agt_usage_filter", agentRunId: "agr_usage_run" }]);
+    const requestLogger = { getStats, query, getHealth: () => ({ status: "ready" }) };
+    const request = { method: "GET", enterpriseIdentity: { tenantId: "tenant-a" } };
+
+    const summary = createEnvelopeContext({
+      request,
+      url: new URL("http://local/usage/summary?agentId=agt_usage_filter&agentRunId=agr_usage_run"),
+      application: { requestLogger },
+    });
+    await dispatchHttpRoutes02(summary);
+    expect(summary.response.status).toBe(200);
+    expect(getStats).toHaveBeenCalledWith({
+      tenantId: "tenant-a",
+      agentId: "agt_usage_filter",
+      agentRunId: "agr_usage_run",
+    });
+
+    const logs = createEnvelopeContext({
+      request,
+      url: new URL("http://local/usage/logs?agentId=agt_usage_filter&agentRunId=agr_usage_run"),
+      application: { requestLogger },
+    });
+    await dispatchHttpRoutes02(logs);
+    expect(logs.response.status).toBe(200);
+    expect(query).toHaveBeenCalledWith(expect.objectContaining({
+      tenantId: "tenant-a",
+      agentId: "agt_usage_filter",
+      agentRunId: "agr_usage_run",
+    }));
+  });
+
+  it("rejects malformed Agent usage filters before querying the ledger", async () => {
+    const getStats = vi.fn();
+    const context = createEnvelopeContext({
+      request: { method: "GET", enterpriseIdentity: { tenantId: "tenant-a" } },
+      url: new URL("http://local/usage/summary?agentId=caller-controlled"),
+      application: { requestLogger: { getStats, getHealth: () => ({}) } },
+    });
+    await dispatchHttpRoutes02(context);
+    expect(context.response.status).toBe(400);
+    expect(context.response.payload.error.code).toBe("USAGE_AGENT_ID_INVALID");
+    expect(getStats).not.toHaveBeenCalled();
   });
 });
 

@@ -203,6 +203,8 @@ async function executeForgeOrchestration({
 
   let runLease = null;
   let topActionLease = null;
+  let completedResult = null;
+  let reconciliation = null;
   try {
     if (requestExecutionSignal?.aborted) throw requestExecutionSignal.reason;
     const authorization = await service.authorizeAgentExecution(identity.agentId, identity);
@@ -230,6 +232,12 @@ async function executeForgeOrchestration({
     }
 
     const requestedParams = buildForgeOrchestrateParams(goal, options);
+    reconciliation = Object.freeze({
+      required: true,
+      agentId: identity.agentId,
+      effectType: "forge:orchestrate",
+      goalDigest: requestedParams.goalDigest,
+    });
     const topVerdict = await toolProxy.enforce({
       context: identity,
       toolName: "forge_orchestrate",
@@ -286,7 +294,7 @@ async function executeForgeOrchestration({
       executionLease: runLease,
       signal: routeSignal,
     });
-    let result = await forge.orchestrate({
+    const orchestrationResult = await forge.orchestrate({
       goal,
       options: approvedOptions,
       tenantIdentity,
@@ -296,6 +304,11 @@ async function executeForgeOrchestration({
       signal: routeSignal,
     });
     if (routeSignal?.aborted) throw routeSignal.reason;
+    completedResult = orchestrationResult;
+    if (isForgePostExecutionGovernanceFailure(completedResult)) {
+      return forgeOutcomeUncertain(completedResult, reconciliation, completedResult);
+    }
+    let result = completedResult;
     if (typeof toolProxy.enforceResult === "function" && topVerdict.policy) {
       const resultVerdict = await toolProxy.enforceResult({
         context: identity,
@@ -304,11 +317,29 @@ async function executeForgeOrchestration({
         result,
         descriptor: { kind: "zero-records" },
       });
+      if (!resultVerdict || typeof resultVerdict !== "object"
+        || !Object.hasOwn(resultVerdict, "result")) {
+        throw Object.assign(new Error(
+          "Forge terminal governance returned a malformed result.",
+        ), {
+          code: "FORGE_RESULT_GOVERNANCE_INVALID",
+        });
+      }
+      if (resultVerdict?.verdict === "replace") {
+        throw Object.assign(new Error(
+          "Forge completed, but its terminal result could not be returned safely.",
+        ), {
+          code: resultVerdict.code ?? "FORGE_GOVERNED_RESULT_REPLACED",
+        });
+      }
       if (resultVerdict && Object.hasOwn(resultVerdict, "result")) result = resultVerdict.result;
     }
     if (routeSignal?.aborted) throw routeSignal.reason;
     return { result };
   } catch (error) {
+    if (completedResult) {
+      return forgeOutcomeUncertain(completedResult, reconciliation, error);
+    }
     return {
       error: {
         status: Number.isInteger(error?.statusCode) ? error.statusCode : 403,
@@ -317,9 +348,50 @@ async function executeForgeOrchestration({
       },
     };
   } finally {
-    topActionLease?.release?.();
-    runLease?.release?.();
+    try { await topActionLease?.release?.(); } catch { /* A completed result is already classified above. */ }
+    try { await runLease?.release?.(); } catch { /* Lease cleanup never makes a safe retry claim. */ }
   }
+}
+
+function forgeOutcomeUncertain(completedResult, reconciliation, cause) {
+  const runId = safeForgeReconciliationId(
+    completedResult?.runId ?? completedResult?.result?.runId,
+  );
+  return {
+    error: {
+      status: 503,
+      code: "FORGE_EXTERNAL_EFFECT_OUTCOME_UNCERTAIN",
+      message: "Forge completed, but terminal governance did not; reconcile before retrying.",
+      details: {
+        outcomeUnknown: true,
+        retrySafe: false,
+        reconciliation: {
+          ...(reconciliation ?? { required: true, effectType: "forge:orchestrate" }),
+          ...(runId ? { runId } : {}),
+        },
+        causeCode: safeForgeCauseCode(cause?.code),
+      },
+    },
+  };
+}
+
+function isForgePostExecutionGovernanceFailure(result) {
+  if (!result || typeof result !== "object" || result.ok !== false) return false;
+  return result.code === "FORGE_ACTION_OUTCOME_UNCERTAIN";
+}
+
+function safeForgeReconciliationId(value) {
+  const normalized = typeof value === "string" ? value.trim() : "";
+  return normalized && normalized.length <= 160 && /^[A-Za-z0-9_.:-]+$/u.test(normalized)
+    ? normalized
+    : null;
+}
+
+function safeForgeCauseCode(value) {
+  const normalized = typeof value === "string" ? value.trim() : "";
+  return /^[A-Za-z0-9_.:-]{1,128}$/u.test(normalized)
+    ? normalized
+    : "FORGE_POST_EXECUTION_FAILURE";
 }
 
 export async function dispatchForgeRoutes(context) {
@@ -349,8 +421,12 @@ export async function dispatchForgeRoutes(context) {
   const forge = application.__forgeGatewayService;
   const tenantIdentity = request.enterpriseIdentity ?? null;
 
-  const fail = (status, code, message) => {
-    writeJson(response, status, createErrorEnvelope(code, message, { startedAt, category: "forge" }));
+  const fail = (status, code, message, details) => {
+    writeJson(response, status, createErrorEnvelope(code, message, {
+      startedAt,
+      category: "forge",
+      ...(details === undefined ? {} : { details }),
+    }));
   };
 
   // ── H 族网关设想面:taiji 能力编译与 workforce 干跑预览 ──
@@ -446,7 +522,12 @@ export async function dispatchForgeRoutes(context) {
         return;
       }
       if (execution.error) {
-        return fail(execution.error.status, execution.error.code, execution.error.message);
+        return fail(
+          execution.error.status,
+          execution.error.code,
+          execution.error.message,
+          execution.error.details,
+        );
       }
       const result = execution.result;
       if (!result || typeof result !== "object" || Array.isArray(result)) {

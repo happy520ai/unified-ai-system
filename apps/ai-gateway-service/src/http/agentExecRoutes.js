@@ -8,6 +8,7 @@
 // Default execution stays credential-free: the fake provider serves requests
 // unless a real provider is explicitly selected.
 
+import { randomUUID } from "node:crypto";
 import { createAgenticLoop } from "../agentic/agenticCodingLoop.js";
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { readJson, writeJson } from "./utils/responseUtils.js";
@@ -16,6 +17,7 @@ import { assertProviderExecutionAllowed } from "../providers/providerExecutionGa
 import { createGatewayBackedProviderAdapter } from "../providers/gatewayBackedProviderAdapter.ts";
 
 export const AGENT_EXEC_PATH = "/agent-exec/run";
+const REST_AGENT_EXEC_PATH = /^\/v1\/agents\/(agt_[A-Za-z0-9_-]{1,128})\/run\/?$/u;
 
 /**
  * Binds a caller-selected agent id to the server-authenticated enterprise
@@ -77,7 +79,10 @@ export async function dispatchAgentExecRoutes(context) {
     requestExecution,
   } = context;
 
-  if (request.method !== "POST" || url.pathname !== AGENT_EXEC_PATH) {
+  const pathAgentId = request.method === "POST"
+    ? REST_AGENT_EXEC_PATH.exec(url.pathname)?.[1] ?? null
+    : null;
+  if (request.method !== "POST" || (url.pathname !== AGENT_EXEC_PATH && !pathAgentId)) {
     return ROUTE_NOT_HANDLED;
   }
 
@@ -91,6 +96,20 @@ export async function dispatchAgentExecRoutes(context) {
       { startedAt, category: "validation" },
     ));
     return;
+  }
+
+  if (pathAgentId) {
+    const bodyAgentId = body?.agentId ?? body?.agent_id;
+    if (bodyAgentId !== undefined && bodyAgentId !== null && bodyAgentId !== ""
+      && String(bodyAgentId).trim() !== pathAgentId) {
+      writeJson(response, 409, createErrorEnvelope(
+        "AGENT_EXEC_PATH_IDENTITY_CONFLICT",
+        "The request body agentId conflicts with the server-bound path Agent.",
+        { startedAt, category: "conflict" },
+      ));
+      return;
+    }
+    body = { ...body, agentId: pathAgentId };
   }
 
   try {
@@ -216,9 +235,10 @@ export function normalizeAgentExecRequest(body) {
     ? body.providerId.trim().toLowerCase()
     : "local-fake-provider";
   const modelId = typeof body.modelId === "string" && body.modelId.trim() ? body.modelId.trim() : undefined;
-  const agentId = body.agentId === undefined || body.agentId === null || body.agentId === ""
+  const rawAgentId = body.agentId ?? body.agent_id;
+  const agentId = rawAgentId === undefined || rawAgentId === null || rawAgentId === ""
     ? null
-    : String(body.agentId).trim();
+    : String(rawAgentId).trim();
   if (agentId && !/^agt_[A-Za-z0-9_-]{1,128}$/u.test(agentId)) {
     throw createExecError(
       "AGENT_EXEC_AGENT_ID_INVALID",
@@ -320,12 +340,20 @@ export async function runBoundedAgentExec(body, application, executionGatewaySer
 
   const selectedModelId = normalized.modelId
     ?? selectedProviderAdapter?.descriptor?.models?.[0]?.id;
+  const agentRunId = governanceRequired ? `agr_${randomUUID()}` : null;
   const providerAdapter = createGatewayBackedProviderAdapter({
     gatewayService: executionGatewayService ?? application?.gatewayService,
     providerId: normalized.providerId,
     modelId: selectedModelId,
     descriptor: selectedProviderAdapter.descriptor,
     source: "bounded-agent-exec",
+    agentExecutionContext: governanceRequired ? {
+      agentId: options.agentGovernanceIdentity.agentId,
+      runId: agentRunId,
+      policyHash: options.agentGovernancePolicy.policyHash,
+      tenantId: options.agentGovernanceIdentity.tenantId,
+      userId: options.agentGovernanceIdentity.userId,
+    } : null,
   });
 
   const loop = createAgenticLoop({
@@ -438,6 +466,7 @@ export async function runBoundedAgentExec(body, application, executionGatewaySer
     governance: governanceRequired ? {
       enforced: true,
       agentId: options.agentGovernanceIdentity.agentId,
+      runId: agentRunId,
       policyHash: options.agentGovernancePolicy.policyHash,
     } : { enforced: false },
   };

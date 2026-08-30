@@ -65,6 +65,9 @@ function createIssueCode(code, message, severity = "high", artifactPath = null) 
 const expectedTools = [
   "gateway_health",
   "gateway_readiness",
+  "agent_governance_status",
+  "agent_governance_list",
+  "agent_governance_describe",
   "gateway_prompt_enhance",
   "gateway_prompt_enhance_llm",
   "gateway_chat",

@@ -19,6 +19,9 @@ export const MCP_SUPPORTED_PROTOCOL_VERSIONS = Object.freeze([
 export const MCP_TOOL_NAMES = Object.freeze([
   "gateway_health",
   "gateway_readiness",
+  "agent_governance_status",
+  "agent_governance_list",
+  "agent_governance_describe",
   "gateway_prompt_enhance",
   "gateway_prompt_enhance_llm",
   "gateway_chat",
@@ -36,6 +39,8 @@ const SERVER_INSTRUCTIONS = [
   "The preview is fake-provider only: never represent its responses as real provider output.",
   "Use gateway_prompt_enhance to structure a natural-language request without calling a model.",
   "Prefer gateway_health and gateway_readiness before gateway_chat.",
+  "Use agent_governance_status, agent_governance_list, and agent_governance_describe for read-only inspection of the authenticated tenant's governed Agents.",
+  "Agent creation, execution, revocation, approval decisions, and policy activation remain human REST/SDK/CLI operations and are not exposed to the model tool surface.",
   "Use knowledge_retrieve to search the local knowledge base by keyword.",
   "Use workflow_run to execute the 3-step local workflow (retrieve, compose, write artifact).",
   "The workforce tools remain read-only inspection surfaces.",
@@ -98,6 +103,7 @@ function registerReadTool(server, runtime, definition) {
     {
       title: definition.title,
       description: definition.description,
+      ...(definition.inputSchema ? { inputSchema: definition.inputSchema } : {}),
       annotations: READ_ONLY_ANNOTATIONS,
     },
     async () => {
@@ -157,6 +163,22 @@ export function createUnifiedAiMcpServer(runtime, options = {}) {
       execute: () => client.setupReadiness(),
     },
     {
+      name: "agent_governance_status",
+      title: "Agent Governance status",
+      description:
+        "Inspect Agent Governance status through the authenticated Gateway identity. The tool accepts no tenant override and fails closed when that identity is not authorized for platform status.",
+      inputSchema: z.object({}).strict(),
+      execute: () => client.agentGovernanceStats(),
+    },
+    {
+      name: "agent_governance_list",
+      title: "List governed Agents",
+      description:
+        "List only the governed Agents visible to the Gateway-authenticated tenant. The tool accepts no tenant or owner override.",
+      inputSchema: z.object({}).strict(),
+      execute: () => client.governedAgents(),
+    },
+    {
       name: "knowledge_readiness",
       title: "Knowledge readiness",
       description:
@@ -196,6 +218,31 @@ export function createUnifiedAiMcpServer(runtime, options = {}) {
   for (const definition of readTools) {
     registerReadTool(server, runtime, definition);
   }
+
+  server.registerTool(
+    "agent_governance_describe",
+    {
+      title: "Describe a governed Agent",
+      description:
+        "Describe one governed Agent only when it is visible to the Gateway-authenticated tenant. Cross-tenant and missing identifiers remain indistinguishable.",
+      inputSchema: z.object({
+        agentId: z
+          .string()
+          .trim()
+          .regex(/^agt_[A-Za-z0-9_-]{1,128}$/u)
+          .describe("Server-issued governed Agent identifier"),
+      }).strict(),
+      annotations: READ_ONLY_ANNOTATIONS,
+    },
+    async ({ agentId }) => {
+      try {
+        const response = await client.governedAgent(agentId);
+        return createToolResult("agent_governance_describe", runtime, response);
+      } catch (error) {
+        return createToolError("agent_governance_describe", error);
+      }
+    },
+  );
 
   server.registerTool(
     "gateway_prompt_enhance",

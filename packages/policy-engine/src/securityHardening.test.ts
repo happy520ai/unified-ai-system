@@ -15,6 +15,7 @@ import {
   compileEffectivePolicy,
   computeAgentHash,
   computePolicyContentHash,
+  computePolicyDeltaHash,
   computePolicyHash,
   evaluateResourceScope,
   getEffectiveToolDecision,
@@ -368,24 +369,26 @@ describe("manifest-to-registry binding", () => {
   it("rejects malformed signatures without throwing and binds the current registry hash", () => {
     const policy = compile();
     const record = recordFor(policy);
+    const delta = { agentId: policy.agentId, inherits: [], instanceRules: {} };
     const manifest = buildManifest({
       agentId: policy.agentId,
       agentHash: computeAgentHash(record),
       policyHash: policy.policyHash,
+      deltaHash: computePolicyDeltaHash(delta),
       compiledAt: policy.compiledAt,
       secret: SECRET,
     });
-    expect(verifyEffectivePolicyIntegrity(policy, manifest, SECRET, record)).toEqual({ ok: true });
-    expect(verifyEffectivePolicyIntegrity(policy, manifest, SECRET, undefined).reason).toBe("CURRENT_AGENT_REQUIRED");
+    expect(verifyEffectivePolicyIntegrity(policy, manifest, SECRET, record, delta)).toEqual({ ok: true });
+    expect(verifyEffectivePolicyIntegrity(policy, manifest, SECRET, undefined, delta).reason).toBe("CURRENT_AGENT_REQUIRED");
 
     const movedTenant = { ...record, tenantId: "tenant_b" };
-    expect(verifyEffectivePolicyIntegrity(policy, manifest, SECRET, movedTenant).reason)
+    expect(verifyEffectivePolicyIntegrity(policy, manifest, SECRET, movedTenant, delta).reason)
       .toBe("MANIFEST_AGENT_HASH_MISMATCH");
 
     const malformed = { ...manifest, signature: { injected: true } } as unknown as AgentPolicyManifest;
     expect(() => verifyManifestSignature(malformed, SECRET)).not.toThrow();
     expect(verifyManifestSignature(malformed, SECRET)).toBe(false);
-    expect(verifyEffectivePolicyIntegrity(policy, malformed, SECRET, record).reason)
+    expect(verifyEffectivePolicyIntegrity(policy, malformed, SECRET, record, delta).reason)
       .toBe("MANIFEST_SIGNATURE_INVALID");
   });
 });

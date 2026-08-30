@@ -23,5 +23,14 @@ export async function evaluateChatLocalActionExecutionGate({ proposal, env = pro
   if (dryRunPreview?.dryRun !== true) {
     return { allowed: false, blocker: "dry_run_preview_required", providerCallsMade: false };
   }
-  return { allowed: true, blocker: null, dryRunPreview, providerCallsMade: false };
+  // A JSON object supplied by the chat caller is not an approval authority.
+  // Until desktop actions are registered behind Agent Governance Tool Proxy
+  // with a sealed, one-time server approval, /chat stays proposal-only even
+  // when legacy real-run flags are set.
+  return {
+    allowed: false,
+    blocker: "chat_real_run_requires_governed_tool_proxy",
+    dryRunPreview,
+    providerCallsMade: false,
+  };
 }

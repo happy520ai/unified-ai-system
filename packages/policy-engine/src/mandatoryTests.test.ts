@@ -23,6 +23,7 @@ import {
   compileEffectivePolicy,
   computeAgentHash,
   computeArgumentsHash,
+  computePolicyDeltaHash,
   evaluateResourceScope,
   isPolicyExpired,
   recomputeClassification,
@@ -34,6 +35,7 @@ import {
 } from "./index.ts";
 
 const NOW = "2026-08-30T10:00:00.000Z";
+const DELTA = Object.freeze({ agentId: "agt_test", inherits: [], instanceRules: {} });
 
 const TOOLS: Record<string, ToolGovernanceDescriptor> = {
   "orders.search": { name: "orders.search", actionType: "read", riskTraits: [], riskLevel: "low", defaultDecision: "allow", credentialMode: "server_side" },
@@ -300,35 +302,43 @@ describe("mandatory integrity tests", () => {
       agentId: policy.agentId,
       agentHash: computeAgentHash(record),
       policyHash: policy.policyHash,
+      deltaHash: computePolicyDeltaHash(DELTA),
       compiledAt: policy.compiledAt,
       secret: SECRET,
     });
-    expect(verifyEffectivePolicyIntegrity(policy, manifest, SECRET, record).ok).toBe(true);
+    expect(verifyEffectivePolicyIntegrity(policy, manifest, SECRET, record, DELTA).ok).toBe(true);
 
     const tampered: EffectiveAgentPolicy = { ...policy, grantedTools: [...policy.grantedTools, "shell.execute"] };
-    const result = verifyEffectivePolicyIntegrity(tampered, manifest, SECRET, record);
+    const result = verifyEffectivePolicyIntegrity(tampered, manifest, SECRET, record, DELTA);
     expect(result.ok).toBe(false);
     expect(result.reason).toBe("POLICY_HASH_MISMATCH");
 
     const tamperedDecision: EffectiveAgentPolicy = { ...policy, toolDecisions: { ...policy.toolDecisions, "orders.search": "allow" }, limits: { ...policy.limits, maxToolCalls: 999 } };
-    expect(verifyEffectivePolicyIntegrity(tamperedDecision, manifest, SECRET, record).ok).toBe(false);
+    expect(verifyEffectivePolicyIntegrity(tamperedDecision, manifest, SECRET, record, DELTA).ok).toBe(false);
 
-    const wrongSecret = verifyEffectivePolicyIntegrity(policy, manifest, "other-secret", record);
+    const wrongSecret = verifyEffectivePolicyIntegrity(policy, manifest, "other-secret", record, DELTA);
     expect(wrongSecret.ok).toBe(false);
     expect(wrongSecret.reason).toBe("MANIFEST_SIGNATURE_INVALID");
+
+    const tamperedDelta = { ...DELTA, instanceRules: { toolRules: { "orders.search": "deny" } } };
+    expect(verifyEffectivePolicyIntegrity(policy, manifest, SECRET, record, tamperedDelta).reason)
+      .toBe("MANIFEST_DELTA_HASH_MISMATCH");
+    const { deltaHash: _legacyDeltaHash, ...legacyManifest } = manifest;
+    expect(verifyEffectivePolicyIntegrity(policy, legacyManifest, SECRET, record, DELTA).reason)
+      .toBe("MANIFEST_DELTA_HASH_MISSING");
   });
 
   it("10. 签名在合法重编译（新哈希新签名）下通过，旧签名对策略不匹配", () => {
     const policy = compileFor(baseDraft(), [ROOT, ANALYSIS_FAMILY]);
     const record: AgentRegistryRecord = { ...makeParent(), agentId: policy.agentId, classification: policy.classification, traits: policy.traits, riskLevel: policy.riskLevel, requestedTools: baseDraft().requestedTools, grantedTools: policy.grantedTools, policyHash: policy.policyHash, expiresAt: policy.expiresAt };
-    const manifest = buildManifest({ agentId: policy.agentId, agentHash: computeAgentHash(record), policyHash: policy.policyHash, compiledAt: policy.compiledAt, secret: SECRET });
+    const manifest = buildManifest({ agentId: policy.agentId, agentHash: computeAgentHash(record), policyHash: policy.policyHash, deltaHash: computePolicyDeltaHash(DELTA), compiledAt: policy.compiledAt, secret: SECRET });
     const next = compileFor(baseDraft({ ttlSeconds: 1800 }), [ROOT, ANALYSIS_FAMILY], "2026-08-30T10:05:00.000Z");
     const nextRecord: AgentRegistryRecord = { ...record, grantedTools: next.grantedTools, policyHash: next.policyHash, expiresAt: next.expiresAt };
-    const nextManifest = buildManifest({ agentId: next.agentId, agentHash: computeAgentHash(nextRecord), policyHash: next.policyHash, compiledAt: next.compiledAt, secret: SECRET });
+    const nextManifest = buildManifest({ agentId: next.agentId, agentHash: computeAgentHash(nextRecord), policyHash: next.policyHash, deltaHash: computePolicyDeltaHash(DELTA), compiledAt: next.compiledAt, secret: SECRET });
     expect(next.policyHash).not.toBe(policy.policyHash);
-    expect(verifyEffectivePolicyIntegrity(next, nextManifest, SECRET, nextRecord).ok).toBe(true);
+    expect(verifyEffectivePolicyIntegrity(next, nextManifest, SECRET, nextRecord, DELTA).ok).toBe(true);
     // Old manifest must not validate the new policy bytes.
-    expect(verifyEffectivePolicyIntegrity(next, manifest, SECRET, nextRecord).ok).toBe(false);
+    expect(verifyEffectivePolicyIntegrity(next, manifest, SECRET, nextRecord, DELTA).ok).toBe(false);
   });
 });
 

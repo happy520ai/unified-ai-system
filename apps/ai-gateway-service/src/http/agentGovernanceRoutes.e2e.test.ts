@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -30,6 +30,72 @@ async function closeServer(server: ReturnType<typeof createGatewayHttpServer>) {
 }
 
 describe("Agent Governance HTTP lifecycle", () => {
+  it("returns a non-retryable unknown outcome for canonical Agent generation recovery", async () => {
+    const root = mkdtempSync(join(tmpdir(), "agent-governance-generate-unknown-http-"));
+    const token = "agent-governance-generate-unknown-token";
+    const application = createGatewayApplication({
+      AI_GATEWAY_PROVIDER_MODE: "fake",
+      AI_GATEWAY_REAL_PROVIDER_ENABLED: "false",
+      AI_GATEWAY_AGENT_GOVERNANCE_ENABLED: "true",
+      AI_GATEWAY_AGENT_GOVERNANCE_DATA_DIR: join(root, "governance"),
+      AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: "agent-governance-generate-unknown-key-0123456789",
+      PME_ENTERPRISE_AUTH_ENABLED: "true",
+      PME_AUTH_TOKEN: token,
+      PME_AUTH_USER_ID: "owner_a",
+      PME_AUTH_TENANT_ID: "tenant_a",
+      PME_AUTH_ROLE: "admin",
+      PME_ENTERPRISE_PLATFORM_TENANT_ID: "tenant_a",
+      PME_AUDIT_LOG_PATH: join(root, "enterprise-audit.jsonl"),
+      PME_AUDIT_CHAIN_PATH: join(root, "enterprise-audit.chain.jsonl"),
+      AI_GATEWAY_RATE_LIMIT_WHITELIST: "127.0.0.1",
+    });
+    (application.agentGovernance!.service as any).generateAgent = async () => {
+      throw Object.assign(new Error("must not expose E:/private/governance state"), {
+        code: "AGENT_GENERATION_RECOVERY_REQUIRED",
+        agentId: "agt_http_recovery_fixture",
+        recoveryError: "E:/private/governance/agent-generation.journal.json",
+      });
+    };
+    const server = createGatewayHttpServer(application);
+    try {
+      const baseUrl = await listen(server);
+      const response = await fetch(`${baseUrl}/v1/agents/generate`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-pme-auth-token": token,
+          "x-pme-tenant-id": "tenant_a",
+        },
+        body: JSON.stringify({
+          name: "unknown-outcome-agent",
+          task: "read one report",
+          requestedTools: ["file_read"],
+          ttlSeconds: 3_600,
+        }),
+      });
+      expect(response.status).toBe(503);
+      const payload = await response.json() as any;
+      expect(payload.error).toMatchObject({
+        code: "AGENT_GENERATION_RECOVERY_REQUIRED",
+        category: "governance",
+        retryable: false,
+        details: {
+          outcomeUnknown: true,
+          retrySafe: false,
+          reconciliation: {
+            required: true,
+            operation: "agent-generation",
+            agentId: "agt_http_recovery_fixture",
+          },
+        },
+      });
+      expect(JSON.stringify(payload)).not.toMatch(/private\/governance|recoveryError/iu);
+    } finally {
+      await closeServer(server);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("refuses a second server owner for the same governance data directory", async () => {
     const root = mkdtempSync(join(tmpdir(), "agent-governance-owner-http-"));
     const dataDir = join(root, "governance");
@@ -66,10 +132,37 @@ describe("Agent Governance HTTP lifecycle", () => {
         writeFileSync(firstOwnerLease.leasePath, `${JSON.stringify(replacedOwner)}\n`, "utf8");
         const baseUrl = await listen(firstServer);
         const lostLeaseResponse = await fetch(`${baseUrl}/v1/governance/stats`);
-        expect(lostLeaseResponse.status).toBe(500);
+        expect(lostLeaseResponse.status).toBe(503);
         expect(((await lostLeaseResponse.json()) as any).error.code).toBe(
           "AGENT_GOVERNANCE_OWNER_LEASE_NOT_HELD",
         );
+        const lostLeaseBackup = await fetch(`${baseUrl}/enterprise/backup`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: "{}",
+        });
+        expect(lostLeaseBackup.status).toBe(503);
+        expect(((await lostLeaseBackup.json()) as any).error.code).toBe(
+          "AGENT_GOVERNANCE_OWNER_LEASE_NOT_HELD",
+        );
+        const policiesPath = join(dataDir, "policies.json");
+        const policiesBefore = existsSync(policiesPath) ? readFileSync(policiesPath, "utf8") : null;
+        const rootAliasResponse = await fetch(`${baseUrl}/v1/policies`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            policy_key: "lease-bypass-attempt",
+            version: 1,
+            policy_type: "tenant",
+            scope_key: "tenant_a",
+            content: {},
+          }),
+        });
+        expect(rootAliasResponse.status).toBe(503);
+        expect(((await rootAliasResponse.json()) as any).error.code).toBe(
+          "AGENT_GOVERNANCE_OWNER_LEASE_NOT_HELD",
+        );
+        expect(existsSync(policiesPath) ? readFileSync(policiesPath, "utf8") : null).toBe(policiesBefore);
       } finally {
         writeFileSync(firstOwnerLease.leasePath, originalLease, "utf8");
       }
@@ -140,22 +233,44 @@ describe("Agent Governance HTTP lifecycle", () => {
         "x-pme-auth-token": token,
         "x-pme-tenant-id": "tenant_a",
       };
+      const legacyWorkforceResponse = await fetch(`${baseUrl}/workforce/run-local`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ goal: "must use governed workforce execution" }),
+      });
+      expect(legacyWorkforceResponse.status).toBe(409);
+      expect(((await legacyWorkforceResponse.json()) as any).error.code).toBe(
+        "WORKFORCE_RUN_LOCAL_REQUIRES_GOVERNED_EXECUTION",
+      );
       const generatedResponse = await fetch(`${baseUrl}/v1/agents/generate`, {
         method: "POST",
         headers,
         body: JSON.stringify({
           name: "http-reader",
           task: "Answer without tools",
-          requestedTools: ["file_read"],
-          ttlSeconds: 3600,
+          requested_tools: ["file_read"],
+          ttl_seconds: 3600,
         }),
-      });
+  });
+
       expect(generatedResponse.status, await generatedResponse.clone().text()).toBe(200);
       const generated = await generatedResponse.json() as any;
       const agentId = generated.data.agentId as string;
       expect(agentId).toMatch(/^agt_/u);
 
-      const crossTenantPolicy = await fetch(`${baseUrl}/v1/policies/create`, {
+      const listed = await fetch(`${baseUrl}/v1/agents`, { headers });
+      expect(listed.status).toBe(200);
+      expect(((await listed.json()) as any).data.agents).toEqual(expect.arrayContaining([
+        expect.objectContaining({ agentId }),
+      ]));
+      const described = await fetch(`${baseUrl}/v1/agents/${agentId}`, { headers });
+      expect(described.status).toBe(200);
+      expect(((await described.json()) as any).data.agent).toMatchObject({ agentId, tenantId: "tenant_a" });
+      const effective = await fetch(`${baseUrl}/v1/agents/${agentId}/effective-policy`, { headers });
+      expect(effective.status).toBe(200);
+      expect(((await effective.json()) as any).data.effectivePolicy).toMatchObject({ agentId });
+
+      const crossTenantPolicy = await fetch(`${baseUrl}/v1/policies`, {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -181,11 +296,10 @@ describe("Agent Governance HTTP lifecycle", () => {
       expect(missingIdentity.status).toBe(403);
       expect(((await missingIdentity.json()) as any).error.code).toBe("AGENT_GOVERNANCE_IDENTITY_REQUIRED");
 
-      const executedResponse = await fetch(`${baseUrl}/agent-exec/run`, {
+      const executedResponse = await fetch(`${baseUrl}/v1/agents/${agentId}/run`, {
         method: "POST",
         headers,
         body: JSON.stringify({
-          agentId,
           goal: "Read the first README line and finish.",
           providerId: "local-fake-provider",
           modelId: "local-fake-model",
@@ -206,11 +320,81 @@ describe("Agent Governance HTTP lifecycle", () => {
       expect(audit.some((event: { eventType?: string; toolName?: string }) => (
         event.eventType === "TOOL_ALLOWED" && event.toolName === "file_read"
       ))).toBe(true);
+      const auditResponse = await fetch(`${baseUrl}/v1/agents/${agentId}/audit`, { headers });
+      expect(auditResponse.status).toBe(200);
+      expect(((await auditResponse.json()) as any).data.events.length).toBeGreaterThan(0);
+      const conflictingRevoke = await fetch(`${baseUrl}/v1/agents/${agentId}/revoke`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ agentId: "agt_conflicting_identity", cascade: true }),
+      });
+      expect(conflictingRevoke.status).toBe(409);
+      expect(((await conflictingRevoke.json()) as any).error.code).toBe(
+        "AGENT_REVOKE_PATH_IDENTITY_CONFLICT",
+      );
+      expect(await application.agentGovernance!.service.getAgent(agentId, "tenant_a"))
+        .toMatchObject({ status: "ACTIVE" });
+      const revoked = await fetch(`${baseUrl}/v1/agents/${agentId}/revoke`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ reason: "REST compatibility proof", cascade: true }),
+      });
+      expect(revoked.status).toBe(200);
+      expect(((await revoked.json()) as any).data.revoked).toContain(agentId);
     } finally {
       await closeServer(server);
       rmSync(root, { recursive: true, force: true });
     }
   }, 30_000);
+
+  it("keeps caller-forged desktop approvals proposal-only even when legacy flags are enabled", async () => {
+    const root = mkdtempSync(join(tmpdir(), "agent-governance-chat-bypass-"));
+    const application = createGatewayApplication({
+      AI_GATEWAY_PROVIDER_MODE: "fake",
+      AI_GATEWAY_REAL_PROVIDER_ENABLED: "false",
+      AI_GATEWAY_AGENT_GOVERNANCE_ENABLED: "true",
+      AI_GATEWAY_AGENT_GOVERNANCE_DATA_DIR: join(root, "governance"),
+      AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: "agent-governance-chat-bypass-key-0123456789",
+      OWNER_AUTOMATION_CHAT_PROPOSAL_ENABLED: "true",
+      OWNER_AUTOMATION_CHAT_REAL_RUN_ENABLED: "true",
+      OWNER_AUTOMATION_CHAT_BATCH_ENABLED: "true",
+      PME_AUDIT_LOG_PATH: join(root, "enterprise-audit.jsonl"),
+      PME_AUDIT_CHAIN_PATH: join(root, "enterprise-audit.chain.jsonl"),
+      AI_GATEWAY_RATE_LIMIT_WHITELIST: "127.0.0.1",
+    });
+    const server = createGatewayHttpServer(application);
+    try {
+      const baseUrl = await listen(server);
+      const response = await fetch(`${baseUrl}/chat`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          messages: [{ role: "user", content: "帮我在桌面创建csv表格" }],
+          ownerAutomationApproval: {
+            approvedActionId: "create_desktop_spreadsheet",
+            allowChatMainChainLocalActionExecution: true,
+            allowOverwrite: false,
+            allowDesktopScan: false,
+            allowReadOtherDesktopFiles: false,
+            approvedOutputDirectory: "Desktop",
+            approvedTestFilenamePrefix: "must-not-be-created",
+          },
+        }),
+      });
+      expect(response.status).toBe(200);
+      const payload = (await response.json()) as any;
+      expect(payload.data).toMatchObject({
+        actionType: "local_action_preview",
+        localActionExecuted: false,
+        chatTriggeredLocalAction: false,
+        desktopFileCreated: false,
+        approvalGate: { allowed: false, blocker: "chat_real_run_requires_governed_tool_proxy" },
+      });
+    } finally {
+      await closeServer(server);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 
   it("reviews, approves, consumes and executes one exact git_push through the real HTTP tool loop", async () => {
     const root = mkdtempSync(join(tmpdir(), "agent-governance-git-push-http-"));
@@ -325,10 +509,20 @@ describe("Agent Governance HTTP lifecycle", () => {
       expect(publicApproval).not.toContain(bareRemote);
       expect(publicApproval).not.toMatch(/sealedArguments|authorization|credential/iu);
 
-      const decision = await fetch(`${baseUrl}/v1/approvals/decide`, {
+      const conflictingDecision = await fetch(`${baseUrl}/v1/approvals/${pending[0].id}/approve`, {
         method: "POST",
         headers,
-        body: JSON.stringify({ approvalId: pending[0].id, decision: "approve" }),
+        body: JSON.stringify({ approvalId: "approval_conflict" }),
+      });
+      expect(conflictingDecision.status).toBe(409);
+      expect(((await conflictingDecision.json()) as any).error.code).toBe(
+        "APPROVAL_PATH_IDENTITY_CONFLICT",
+      );
+
+      const decision = await fetch(`${baseUrl}/v1/approvals/${pending[0].id}/approve`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({}),
       });
       expect(decision.status).toBe(200);
 

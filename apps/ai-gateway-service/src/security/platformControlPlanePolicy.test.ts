@@ -16,6 +16,7 @@ describe("platform control-plane policy", () => {
     ["POST", "/real-capabilities/activate-five"],
     ["POST", "/v1/policies/create"],
     ["POST", "/v1/policies/activate"],
+    ["POST", "/v1/policies/execution-family/3/activate"],
     ["DELETE", "/providers/acme"],
   ])("classifies global mutation %s %s", (method, pathname) => {
     expect(isPlatformControlPlaneMutation(method, pathname)).toBe(true);
@@ -42,6 +43,10 @@ describe("platform control-plane policy", () => {
       identity: { tenantId: "tenant-b" },
       env: { PME_ENTERPRISE_PLATFORM_TENANT_ID: "platform" },
     })).toMatchObject({ required: true, allowed: false, code: "platform_tenant_mismatch" });
+  });
+
+  it("protects the canonical policy catalog read", () => {
+    expect(isPlatformControlPlaneAccess("GET", "/v1/policies")).toBe(true);
   });
 
   it("uses the explicit platform tenant before the authentication tenant", () => {

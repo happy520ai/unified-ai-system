@@ -75,8 +75,14 @@ export function isValidClassification(value: unknown): value is AgentClassificat
   if (!value || typeof value !== "object") return false;
   const candidate = value as Record<string, unknown>;
   return isAgentFamily(candidate.family)
-    && typeof candidate.domain === "string" && candidate.domain.trim() !== ""
-    && typeof candidate.subclass === "string" && candidate.subclass.trim() !== "";
+    && isBoundedClassificationPart(candidate.domain)
+    && isBoundedClassificationPart(candidate.subclass);
+}
+
+function isBoundedClassificationPart(value: unknown): value is string {
+  return typeof value === "string" && value === value.trim()
+    && value.length > 0 && value.length <= 256
+    && !/[\u0000-\u001f\u007f]/u.test(value);
 }
 
 /** Closure of a trait set under implications, sorted and de-duplicated. */

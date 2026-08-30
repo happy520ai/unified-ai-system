@@ -635,7 +635,7 @@ const CHECK_ISSUE_CATALOG = {
   agentGovernanceContractsReady: {
     code: "public_clone_agent_governance_contracts_invalid",
     severity: "high",
-    message: "Agent Governance HTTP, runtime, policy, lease, approval, MCP, Workforce, Forge-action, and redaction contract tests failed.",
+    message: "Agent Governance HTTP, health/readiness, backup-export, runtime, policy, lease, approval, MCP, Workforce, Forge-action, and redaction contract tests failed.",
     artifactPath: "apps/ai-gateway-service/src/http/agentGovernanceRoutes.e2e.test.ts",
   },
   localClientContractsReady: {
@@ -1115,6 +1115,17 @@ async function runAgentGovernanceContractTests() {
     "apps/ai-gateway-service/src/http/orchestrationHttpCancellation.e2e.test.ts",
     "apps/ai-gateway-service/src/http/agentGovernanceRoutes.e2e.test.ts",
     "apps/ai-gateway-service/src/http/agentGovernanceRoutes.errorMapping.test.ts",
+    "apps/ai-gateway-service/src/http/agentGovernanceHealth.test.ts",
+    "apps/ai-gateway-service/src/http/agentGovernanceHealth.e2e.test.ts",
+    "apps/ai-gateway-service/src/http/utils/healthUtils.agentGovernance.test.ts",
+    "apps/ai-gateway-service/src/enterprise/agentGovernanceBackupExport.test.ts",
+    "apps/ai-gateway-service/src/enterprise/enterpriseOpsService.test.js",
+    "apps/ai-gateway-service/src/agent-governance/agentFileStore.test.ts",
+    "apps/ai-gateway-service/src/agent-governance/agentGenerationRecovery.test.ts",
+    "apps/ai-gateway-service/src/agent-governance/agentAuditMirrorRecovery.test.ts",
+    "apps/ai-gateway-service/src/agent-governance/gatewayModelProposer.test.ts",
+    "apps/ai-gateway-service/src/agent-governance/sqliteAgentRegistryStore.test.ts",
+    "apps/ai-gateway-service/src/agent-governance/postgresAgentRegistryStore.test.ts",
     "apps/ai-gateway-service/src/http/routeConcurrencyAdmission.test.ts",
     "apps/ai-gateway-service/src/http/routeConcurrencyAdmission.e2e.test.ts",
     "apps/ai-gateway-service/src/http/httpServerRoutes03.mcpGovernance.test.ts",
@@ -1778,7 +1789,7 @@ try {
     mcpStdioReady:
       mcpSmoke.exitCode === 0
       && mcpSmoke.body?.ok === true
-      && mcpSmoke.body?.toolCount === 12
+      && mcpSmoke.body?.toolCount === 15
       && mcpSmoke.body?.executionMode === "fake"
       && mcpSmoke.body?.managedGatewayCleanedUp === true,
     localClientControlPlaneReady:

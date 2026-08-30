@@ -13,6 +13,9 @@ the MCP session ends. It does not enable or authorize real provider calls.
 | --- | --- |
 | `gateway_health` | Inspect gateway health and provider safety state. |
 | `gateway_readiness` | Inspect first-run and chat readiness. |
+| `agent_governance_status` | Inspect Agent Governance status when the authenticated identity has platform-status access. |
+| `agent_governance_list` | List only governed Agents visible to the authenticated tenant. |
+| `agent_governance_describe` | Describe one Agent only when it belongs to the authenticated tenant. |
 | `gateway_prompt_enhance` | Structure a natural-language request locally without a provider call. |
 | `gateway_prompt_enhance_llm` | Enhance prompts via optional LLM backend (or falls back when unavailable). |
 | `gateway_chat` | Send one fake-provider-only chat request. |
@@ -24,14 +27,22 @@ the MCP session ends. It does not enable or authorize real provider calls.
 | `workforce_health` | Inspect the workforce subsystem. |
 | `workforce_agents` | List workforce agent descriptors. |
 
-All inspection tools are read-only. `workflow_run` is the sole local write tool;
-it never overwrites an existing path and is routed through Agent Governance when
+Agent Governance inspection tools are read-only. `workflow_run` writes one
+controlled local artifact. Agent creation remains available through the REST,
+shared-SDK, and human Agent Console surfaces because the MCP tool protocol cannot
+yet prove idempotent, cancellation-safe generation after a transport timeout.
+No MCP tool exposes Agent creation/execution/revocation, approval/rejection, or
+policy creation/activation. Governance
+tools never accept `tenantId` or `ownerUserId`: the Gateway binds both from its
+authenticated identity, and cross-tenant descriptions fail as not found.
+`workflow_run` never overwrites an existing path and is routed through Agent Governance when
 the connected Gateway enables that control plane. The chat tool checks the gateway safety
 state before every request and fails closed unless `realProviderEnabled` is
 exactly `false` and the response proves `executionMode: "fake"`.
 
-The source build and pinned `0.5.0` image both expose all twelve tools, including
-the provider-free `gateway_prompt_enhance` preview.
+The source build exposes sixteen tools, including the four Agent Governance
+lifecycle tools and the provider-free `gateway_prompt_enhance` preview. Published
+images expose the tool set shipped by their pinned tag.
 
 ## Run From Source
 
@@ -56,7 +67,7 @@ pnpm mcp:http
 
 The MCP endpoint is `http://127.0.0.1:3210/mcp`. It listens on loopback by
 default, validates `Host` and `Origin`, starts the same fake-provider gateway,
-and exposes the same twelve tools as stdio. Point any MCP Streamable HTTP client
+and exposes the same sixteen source-build tools as stdio. Point any MCP Streamable HTTP client
 at that URL.
 
 For a local token-protected endpoint, set `MCP_HTTP_AUTH_TOKEN` and send it as
@@ -149,11 +160,19 @@ AI_GATEWAY_MCP_AUTH_TOKEN=<at-least-32-character-gateway-token> \
 node packages/mcp-server/src/index.js
 ```
 
-The managed gateway uses a private, ten-minute, least-privilege token that is
-never emitted in MCP results. External gateway startup rejects missing or weak
+The managed gateway uses a private least-privilege token whose lifetime is
+bounded by the isolated child process; it is never emitted in MCP results.
+External gateway startup rejects missing or weak
 tokens, URL credentials, non-loopback plaintext HTTP, invalid authentication,
 or any gateway that may call a real provider. Provider credentials and
 real-provider execution remain outside this preview surface.
+
+For Agent Governance, give the dedicated Gateway identity only
+`dashboard:read` and `workflow:run` unless a broader operator workflow is
+explicitly required. `agent_governance_status` additionally requires the
+Gateway's platform-tenant identity; ordinary tenants can still use tenant-scoped
+list, generate, and describe. Do not grant `workflow:approve` or `user:admin` to
+an MCP model merely to use these tools.
 
 ## Verify
 

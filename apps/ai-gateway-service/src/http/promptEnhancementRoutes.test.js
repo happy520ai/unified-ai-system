@@ -142,7 +142,7 @@ describe("prompt enhancement route", () => {
     expect(response.body.data.metadata.providerCalled).toBe(true);
     expect(requestGatewayService.execute).toHaveBeenCalledWith(expect.objectContaining({
       providerId: "openai",
-      modelId: "gpt-test",
+      model: "gpt-test",
       metadata: expect.objectContaining({ source: "prompt-enhancement-llm" }),
     }), expect.any(Object));
     expect(directGenerate).not.toHaveBeenCalled();
