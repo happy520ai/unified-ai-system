@@ -35,6 +35,7 @@ import {
  *
  * @param {Object} [options]
  * @param {string} [options.workingDirectory] - Git 仓库根目录
+ * @param {Object} [options.gitCreatePrDependencies] - Trusted test/runtime gh command adapter
  * @returns {Object[]} buildTool 格式的工具定义数组
  */
 export function createGitTools(options = {}) {
@@ -47,7 +48,7 @@ export function createGitTools(options = {}) {
     createGitBranchTool(defaultCwd),
     createGitCommitTool(defaultCwd),
     createGitPushTool(defaultCwd),
-    createGitCreatePRTool(defaultCwd),
+    createGitCreatePRTool(defaultCwd, options.gitCreatePrDependencies),
   ];
 }
 

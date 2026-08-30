@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { once } from "node:events";
 import { createServer } from "node:net";
 import { rm } from "node:fs/promises";
@@ -193,6 +194,8 @@ async function runDemo() {
   const port = await findFreePort();
   const baseUrl = `http://127.0.0.1:${port}`;
   const auditDir = resolve(tmpdir(), `unified-ai-system-demo-${process.pid}-${port}`);
+  const governanceDataDir = resolve(auditDir, "agent-governance");
+  const governanceHmacKey = randomBytes(32).toString("base64url");
   let stdout = "";
   let stderr = "";
   const child = spawn(process.execPath, [serviceEntrypoint], {
@@ -209,6 +212,9 @@ async function runDemo() {
       AI_GATEWAY_DEFAULT_MODEL: "local-fake-model",
       AI_GATEWAY_ENABLED_PROVIDERS:
         "local-fake-provider,backup-fake-provider",
+      AI_GATEWAY_AGENT_GOVERNANCE_ENABLED: "true",
+      AI_GATEWAY_AGENT_GOVERNANCE_DATA_DIR: governanceDataDir,
+      AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: governanceHmacKey,
       PME_ENTERPRISE_AUTH_ENABLED: "false",
       PME_AUDIT_LOG_PATH: resolve(auditDir, "enterprise-audit.jsonl"),
       PME_AUDIT_CHAIN_PATH: resolve(auditDir, "enterprise-audit.chain.jsonl"),

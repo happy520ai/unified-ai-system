@@ -21,6 +21,7 @@ import {
   buildManifest,
   checkUsageLimits,
   compileEffectivePolicy,
+  computeAgentHash,
   computeArgumentsHash,
   evaluateResourceScope,
   isPolicyExpired,
@@ -62,7 +63,12 @@ const ROOT = makePolicy("root-policy", 1, "root", "global", {
   limits: { maxGenerationDepth: 2, maxChildrenPerAgent: 5, maxRuntimeSeconds: 300, maxSteps: 30, maxToolCalls: 50 },
   toolRules: { "database.delete": "deny", "shell.execute": "deny", "payment.refund": "require_approval", "email.send": "require_approval" },
   requirements: { auditRequired: true },
-  permissions: { canCreateChildren: true },
+  permissions: {
+    canCreateChildren: true,
+    canWrite: true,
+    canSendExternalMessage: true,
+    canExecuteCode: false,
+  },
 });
 
 const ANALYSIS_FAMILY = makePolicy("analysis-family", 1, "family", "analysis", {
@@ -95,6 +101,10 @@ function compileFor(draft: AgentDraft, stack: PolicyRecord[], now = NOW): Effect
     ttlSeconds: draft.ttlSeconds,
     layerStack: stack,
     toolDescriptors: TOOLS,
+    creatorEntitlements: {
+      allowedTools: draft.requestedTools,
+      permissions: { canCreateChildren: true, canWrite: true, canSendExternalMessage: true, canExecuteCode: true },
+    },
     now,
   });
 }
@@ -139,7 +149,10 @@ function parentEffectiveFor(parent: AgentRegistryRecord): EffectiveAgentPolicy {
     layerStack: [ROOT],
     toolDescriptors: TOOLS,
     now: NOW,
-    userAllowedTools: null,
+    creatorEntitlements: {
+      allowedTools: parent.requestedTools,
+      permissions: { canCreateChildren: true, canWrite: true, canSendExternalMessage: true, canExecuteCode: true },
+    },
   });
 }
 
@@ -153,7 +166,7 @@ describe("mandatory permission tests", () => {
     const result = validateAgentDraft({
       draft: baseDraft({ parentAgentId: "agt_parent", requestedTools: ["orders.search", "payment.refund"] }),
       toolDescriptors: TOOLS,
-      parent: { record: parent, effective: parentEffectiveFor(parent) },
+      parent: { record: parent, effective: parentEffectiveFor(parent), currentChildrenCount: 0 },
       rootLimits: ROOT.content.limits,
       now: NOW,
     });
@@ -196,7 +209,7 @@ describe("mandatory permission tests", () => {
     const openFamily = makePolicy("open-family", 1, "family", "analysis", {
       capabilityCeiling: ["orders.search", "unknown.tool"],
     });
-    const policy = compileFor(baseDraft({ requestedTools: ["orders.search", "unknown.tool"] }), [openFamily]);
+    const policy = compileFor(baseDraft({ requestedTools: ["orders.search", "unknown.tool"] }), [ROOT, openFamily]);
     expect(policy.toolDecisions["unknown.tool"]).toBe("deny");
     expect(policy.grantedTools).not.toContain("unknown.tool");
   });
@@ -272,37 +285,50 @@ describe("mandatory integrity tests", () => {
 
   it("9. 修改 effective-policy 内容后完整性校验失败", () => {
     const policy = compileFor(baseDraft(), [ROOT, ANALYSIS_FAMILY]);
+    const record: AgentRegistryRecord = {
+      ...makeParent(),
+      agentId: policy.agentId,
+      classification: policy.classification,
+      traits: policy.traits,
+      riskLevel: policy.riskLevel,
+      requestedTools: baseDraft().requestedTools,
+      grantedTools: policy.grantedTools,
+      policyHash: policy.policyHash,
+      expiresAt: policy.expiresAt,
+    };
     const manifest = buildManifest({
       agentId: policy.agentId,
-      agentHash: "sha256:deadbeef",
+      agentHash: computeAgentHash(record),
       policyHash: policy.policyHash,
       compiledAt: policy.compiledAt,
       secret: SECRET,
     });
-    expect(verifyEffectivePolicyIntegrity(policy, manifest, SECRET).ok).toBe(true);
+    expect(verifyEffectivePolicyIntegrity(policy, manifest, SECRET, record).ok).toBe(true);
 
     const tampered: EffectiveAgentPolicy = { ...policy, grantedTools: [...policy.grantedTools, "shell.execute"] };
-    const result = verifyEffectivePolicyIntegrity(tampered, manifest, SECRET);
+    const result = verifyEffectivePolicyIntegrity(tampered, manifest, SECRET, record);
     expect(result.ok).toBe(false);
     expect(result.reason).toBe("POLICY_HASH_MISMATCH");
 
     const tamperedDecision: EffectiveAgentPolicy = { ...policy, toolDecisions: { ...policy.toolDecisions, "orders.search": "allow" }, limits: { ...policy.limits, maxToolCalls: 999 } };
-    expect(verifyEffectivePolicyIntegrity(tamperedDecision, manifest, SECRET).ok).toBe(false);
+    expect(verifyEffectivePolicyIntegrity(tamperedDecision, manifest, SECRET, record).ok).toBe(false);
 
-    const wrongSecret = verifyEffectivePolicyIntegrity(policy, manifest, "other-secret");
+    const wrongSecret = verifyEffectivePolicyIntegrity(policy, manifest, "other-secret", record);
     expect(wrongSecret.ok).toBe(false);
     expect(wrongSecret.reason).toBe("MANIFEST_SIGNATURE_INVALID");
   });
 
   it("10. 签名在合法重编译（新哈希新签名）下通过，旧签名对策略不匹配", () => {
     const policy = compileFor(baseDraft(), [ROOT, ANALYSIS_FAMILY]);
-    const manifest = buildManifest({ agentId: policy.agentId, agentHash: "sha256:aa", policyHash: policy.policyHash, compiledAt: policy.compiledAt, secret: SECRET });
+    const record: AgentRegistryRecord = { ...makeParent(), agentId: policy.agentId, classification: policy.classification, traits: policy.traits, riskLevel: policy.riskLevel, requestedTools: baseDraft().requestedTools, grantedTools: policy.grantedTools, policyHash: policy.policyHash, expiresAt: policy.expiresAt };
+    const manifest = buildManifest({ agentId: policy.agentId, agentHash: computeAgentHash(record), policyHash: policy.policyHash, compiledAt: policy.compiledAt, secret: SECRET });
     const next = compileFor(baseDraft({ ttlSeconds: 1800 }), [ROOT, ANALYSIS_FAMILY], "2026-08-30T10:05:00.000Z");
-    const nextManifest = buildManifest({ agentId: next.agentId, agentHash: "sha256:aa", policyHash: next.policyHash, compiledAt: next.compiledAt, secret: SECRET });
+    const nextRecord: AgentRegistryRecord = { ...record, grantedTools: next.grantedTools, policyHash: next.policyHash, expiresAt: next.expiresAt };
+    const nextManifest = buildManifest({ agentId: next.agentId, agentHash: computeAgentHash(nextRecord), policyHash: next.policyHash, compiledAt: next.compiledAt, secret: SECRET });
     expect(next.policyHash).not.toBe(policy.policyHash);
-    expect(verifyEffectivePolicyIntegrity(next, nextManifest, SECRET).ok).toBe(true);
+    expect(verifyEffectivePolicyIntegrity(next, nextManifest, SECRET, nextRecord).ok).toBe(true);
     // Old manifest must not validate the new policy bytes.
-    expect(verifyEffectivePolicyIntegrity(next, manifest, SECRET).ok).toBe(false);
+    expect(verifyEffectivePolicyIntegrity(next, manifest, SECRET, nextRecord).ok).toBe(false);
   });
 });
 
@@ -322,7 +348,8 @@ describe("mandatory lifecycle tests", () => {
     const result = validateAgentDraft({
       draft: baseDraft({ parentAgentId: "agt_parent", ttlSeconds: 7200, requestedTools: ["orders.search"], proposedTraits: ["subagent_creator", "handles_sensitive_data"] }),
       toolDescriptors: TOOLS,
-      parent: { record: parent, effective: parentEffectiveFor(parent) },
+      parent: { record: parent, effective: parentEffectiveFor(parent), currentChildrenCount: 0 },
+      familyPermissions: { canCreateChildren: true },
       rootLimits: ROOT.content.limits,
       now: NOW,
     });
@@ -332,7 +359,8 @@ describe("mandatory lifecycle tests", () => {
     const fitting = validateAgentDraft({
       draft: baseDraft({ parentAgentId: "agt_parent", ttlSeconds: 1800, requestedTools: ["orders.search"], proposedTraits: ["subagent_creator", "handles_sensitive_data"] }),
       toolDescriptors: TOOLS,
-      parent: { record: parent, effective: parentEffectiveFor(parent) },
+      parent: { record: parent, effective: parentEffectiveFor(parent), currentChildrenCount: 0 },
+      familyPermissions: { canCreateChildren: true },
       rootLimits: ROOT.content.limits,
       now: NOW,
     });
@@ -347,6 +375,10 @@ describe("mandatory lifecycle tests", () => {
       layerStack: [ROOT],
       toolDescriptors: TOOLS,
       parentEffective: parentEffectiveFor(parent),
+      creatorEntitlements: {
+        allowedTools: ["orders.search"],
+        permissions: { canCreateChildren: true, canWrite: true, canSendExternalMessage: true, canExecuteCode: true },
+      },
       now: NOW,
     });
     expect(compiled.expiresAt <= "2026-08-30T11:00:00.000Z").toBe(true);
@@ -441,6 +473,8 @@ describe("merge algebra units", () => {
     const { mergeLimits } = await import("./merge.ts");
     expect(mergeLimits([{ maxSteps: 30 }, { maxSteps: 15 }, {}])).toEqual({ maxSteps: 15 });
     expect(mergeLimits([null, undefined, { maxToolCalls: 50 }])).toEqual({ maxToolCalls: 50 });
+    expect(mergeLimits([{ maxWorkforceRoles: 8 }, { maxWorkforceRoles: 7 }]))
+      .toEqual({ maxWorkforceRoles: 7 });
   });
 
   it("安全要求 OR / 权限布尔 AND（缺省关闭）", async () => {
@@ -449,7 +483,7 @@ describe("merge algebra units", () => {
     expect(mergeSafetyRequirements([{}, {}]).auditRequired).toBeUndefined();
     expect(mergePermissions([{ canWrite: true }, { canWrite: true }]).canWrite).toBe(true);
     expect(mergePermissions([{ canWrite: true }, { canWrite: false }]).canWrite).toBe(false);
-    expect(mergePermissions([{}, {}]).canWrite).toBeUndefined();
+    expect(mergePermissions([{}, {}]).canWrite).toBe(false);
   });
 
   it("stableStringify 与键序无关", () => {

@@ -5,10 +5,53 @@
  * @module security-tools-and-adapters
  */
 
-import { describe, it } from "node:test";
+import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { access, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { BashSafety } from "../src/bash-safety/index.js";
+import { IncrementalEdit } from "../src/incremental-edit/index.js";
+import { runWithLlmCaller } from "../src/llm-client.js";
+import { BaseWorker } from "../src/worker/base.js";
+import { executeAction } from "../src/worker/base-action-exec.js";
 
 const APPS_SRC = "../../../apps/ai-gateway-service/src";
+const governedActionRoots = [];
+const governedActionLogger = { info() {}, error() {} };
+
+async function makeGovernedActionRoot() {
+  const root = await mkdtemp(join(tmpdir(), "forge-governance-"));
+  governedActionRoots.push(root);
+  return root;
+}
+
+function governedActionOptions(overrides = {}) {
+  return {
+    logger: governedActionLogger,
+    bashSafety: new BashSafety({ strict: true }),
+    incrementalEdit: new IncrementalEdit(),
+    sandboxExecutor: null,
+    governanceRequired: true,
+    ...overrides,
+  };
+}
+
+async function governedPathDoesNotExist(path) {
+  try {
+    await access(path);
+    return false;
+  } catch (error) {
+    if (error?.code === "ENOENT") return true;
+    throw error;
+  }
+}
+
+afterEach(async () => {
+  await Promise.all(governedActionRoots.splice(0)
+    .map((root) => rm(root, { recursive: true, force: true })));
+});
 
 // ────────────────────────────────────────────────────────────────
 // 1. imageAnalysisTool — Path Traversal Security
@@ -510,5 +553,284 @@ describe("sessionMemory module", () => {
     const prompt = await sm.buildMemoryPrompt("add tests for another module");
     // May return empty string if no relevant patterns, that's OK
     assert.equal(typeof prompt, "string");
+  });
+});
+
+describe("Forge per-action Agent Governance", () => {
+  it("fails closed before a denied write has any filesystem effect", async () => {
+    const root = await makeGovernedActionRoot();
+    let beforeCalls = 0;
+    let afterCalls = 0;
+    await assert.rejects(
+      executeAction(
+        { type: "write", path: "blocked.txt", content: "must-not-land" },
+        root,
+        {},
+        governedActionOptions({
+          governedExecution: {
+            async beforeAction(request) {
+              beforeCalls += 1;
+              assert.equal(request.toolName, "file_write");
+              return { outcome: "deny", code: "TEST_POLICY_DENY" };
+            },
+            async afterAction() { afterCalls += 1; },
+          },
+        }),
+      ),
+      (error) => error?.code === "TEST_POLICY_DENY",
+    );
+    assert.equal(beforeCalls, 1);
+    assert.equal(afterCalls, 0);
+    assert.equal(await governedPathDoesNotExist(join(root, "blocked.txt")), true);
+  });
+
+  it("uses approval-sealed params and holds the action lease through afterAction", async () => {
+    const root = await makeGovernedActionRoot();
+    let releases = 0;
+    let beforeRequest;
+    let afterRequest;
+    const result = await executeAction(
+      { type: "write", path: "unapproved.txt", content: "unapproved" },
+      root,
+      { id: "task-1", type: "implement", agent_role: "coder" },
+      governedActionOptions({
+        governedExecution: {
+          async beforeAction(request) {
+            beforeRequest = request;
+            assert.equal(Object.isFrozen(request.params), true);
+            return {
+              outcome: "allow",
+              policy: { policyHash: "policy-a" },
+              approvedParams: {
+                file_path: "sealed.txt",
+                content: "sealed-content",
+                mode: "overwrite",
+              },
+              executionLease: { release() { releases += 1; } },
+            };
+          },
+          async afterAction(event) {
+            afterRequest = event;
+            assert.equal(releases, 0);
+            assert.equal(await readFile(join(root, "sealed.txt"), "utf8"), "sealed-content");
+          },
+        },
+      }),
+    );
+    const canonicalRoot = await realpath(root);
+    assert.equal(result.modified, true);
+    assert.equal(releases, 1);
+    assert.equal(await governedPathDoesNotExist(join(root, "unapproved.txt")), true);
+    assert.equal(beforeRequest.params.file_path, "unapproved.txt");
+    assert.equal(beforeRequest.resourceContext.resourceKeys.projectRoot, canonicalRoot);
+    assert.equal(beforeRequest.resourceContext.resourceKeys.canonicalPath, join(canonicalRoot, "unapproved.txt"));
+    assert.ok(beforeRequest.resourceContext.resources.includes("unapproved.txt"));
+    assert.ok(beforeRequest.resourceContext.resources.includes(join(canonicalRoot, "unapproved.txt")));
+    assert.equal(afterRequest.params.file_path, "sealed.txt");
+    assert.equal(afterRequest.taskContext.taskId, "task-1");
+  });
+
+  it("maps the write-capable Forge diff action to file_edit, never git_diff", async () => {
+    const root = await makeGovernedActionRoot();
+    const target = join(root, "sample.txt");
+    await writeFile(target, "original\n", "utf8");
+    const tools = [];
+    await assert.rejects(
+      executeAction(
+        {
+          type: "diff",
+          path: "sample.txt",
+          edits: [{ startLine: 1, endLine: 1, newContent: "mutated" }],
+        },
+        root,
+        {},
+        governedActionOptions({
+          governedExecution: {
+            async beforeAction(request) {
+              tools.push(request.toolName);
+              return request.toolName === "git_diff"
+                ? { outcome: "allow" }
+                : { outcome: "deny", code: "FILE_EDIT_DENIED" };
+            },
+          },
+        }),
+      ),
+      (error) => error?.code === "FILE_EDIT_DENIED",
+    );
+    assert.deepEqual(tools, ["file_edit"]);
+    assert.equal(await readFile(target, "utf8"), "original\n");
+  });
+
+  it("does not invoke the sandbox when shell_exec is denied", async () => {
+    const root = await makeGovernedActionRoot();
+    let sandboxCalls = 0;
+    await assert.rejects(
+      executeAction(
+        { type: "bash", command: "npm test" },
+        root,
+        {},
+        governedActionOptions({
+          sandboxExecutor: {
+            async execute() {
+              sandboxCalls += 1;
+              return { exitCode: 0, stdout: "unexpected" };
+            },
+          },
+          governedExecution: {
+            async beforeAction(request) {
+              assert.equal(request.toolName, "shell_exec");
+              return { outcome: "deny", code: "SHELL_POLICY_DENY" };
+            },
+          },
+        }),
+      ),
+      (error) => error?.code === "SHELL_POLICY_DENY",
+    );
+    assert.equal(sandboxCalls, 0);
+  });
+
+  it("observes revocation before the effect and releases the acquired action lease", async () => {
+    const root = await makeGovernedActionRoot();
+    const controller = new AbortController();
+    let releases = 0;
+    await assert.rejects(
+      executeAction(
+        { type: "write", path: "revoked.txt", content: "blocked" },
+        root,
+        {},
+        governedActionOptions({
+          signal: controller.signal,
+          governedExecution: {
+            async beforeAction() {
+              controller.abort(new Error("agent revoked"));
+              return {
+                outcome: "allow",
+                policy: { policyHash: "policy-a" },
+                executionLease: { release() { releases += 1; } },
+              };
+            },
+          },
+        }),
+      ),
+      (error) => error?.code === "FORGE_RUN_ABORTED",
+    );
+    assert.equal(releases, 1);
+    assert.equal(await governedPathDoesNotExist(join(root, "revoked.txt")), true);
+  });
+
+  it("fails closed without a hook when governanceRequired is true", async () => {
+    const root = await makeGovernedActionRoot();
+    await assert.rejects(
+      executeAction(
+        { type: "write", path: "missing-hook.txt", content: "blocked" },
+        root,
+        {},
+        governedActionOptions({ governedExecution: null }),
+      ),
+      (error) => error?.code === "FORGE_ACTION_GOVERNANCE_REQUIRED",
+    );
+    assert.equal(await governedPathDoesNotExist(join(root, "missing-hook.txt")), true);
+  });
+
+  it("rejects an allow verdict without a per-action lease before touching the file", async () => {
+    const root = await makeGovernedActionRoot();
+    await assert.rejects(
+      executeAction(
+        { type: "write", path: "lease-missing.txt", content: "blocked" },
+        root,
+        {},
+        governedActionOptions({
+          governedExecution: {
+            async beforeAction() {
+              return { outcome: "allow", policy: { policyHash: "policy-a" } };
+            },
+          },
+        }),
+      ),
+      (error) => error?.code === "FORGE_ACTION_LEASE_REQUIRED",
+    );
+    assert.equal(await governedPathDoesNotExist(join(root, "lease-missing.txt")), true);
+  });
+
+  it("disables implicit context, memory, lint, and self-review I/O in governed mode", async () => {
+    const root = await makeGovernedActionRoot();
+    await writeFile(join(root, "secret.txt"), "UNGOVERNED_SECRET_MARKER", "utf8");
+    let extraContextCalls = 0;
+    let memoryRecallCalls = 0;
+    let memoryRememberCalls = 0;
+    let sandboxCalls = 0;
+    let capturedPrompt = "";
+
+    class GovernedProbeWorker extends BaseWorker {
+      constructor() {
+        super({
+          role: "probe",
+          systemPrompt: "Return the requested action.",
+          tools: ["read", "write", "edit", "diff"],
+          sandboxExecutor: {
+            async execute() {
+              sandboxCalls += 1;
+              return { exitCode: 0, stdout: "" };
+            },
+          },
+        });
+      }
+      async _getExtraContext() {
+        extraContextCalls += 1;
+        return "UNTRUSTED_EXTRA_CONTEXT";
+      }
+    }
+
+    const worker = new GovernedProbeWorker();
+    worker.setMemoryEngine({
+      recall() { memoryRecallCalls += 1; return ["UNTRUSTED_MEMORY"]; },
+      remember() { memoryRememberCalls += 1; },
+    });
+    worker.setSemanticMemory({ search() { throw new Error("semantic memory must be disabled"); } });
+    worker.setCrossSessionMemory({ search() { throw new Error("cross-session memory must be disabled"); } });
+    worker.setErrorPatternLearner({ getInstructions() { throw new Error("error history must be disabled"); } });
+    worker.setPromptRegistry({ getActive() { throw new Error("prompt history must be disabled"); } });
+
+    const result = await runWithLlmCaller(
+      async (userPrompt) => {
+        capturedPrompt = userPrompt;
+        return {
+          text: "[{\"type\":\"write\",\"path\":\"out.js\",\"content\":\"export const broken = ;\"}]\n---SUMMARY---\nwrite\n---END---",
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        };
+      },
+      () => worker.execute(
+        {
+          id: "governed-worker",
+          name: "governed worker probe",
+          type: "implement",
+          prompt: "write the requested file",
+          allowed_files: ["secret.txt", "out.js"],
+        },
+        root,
+        {
+          governanceRequired: true,
+          governedExecution: {
+            async beforeAction() {
+              return {
+                outcome: "allow",
+                policy: { policyHash: "policy-a" },
+                executionLease: { release() {} },
+              };
+            },
+          },
+        },
+      ),
+    );
+
+    assert.equal(result.success, true);
+    assert.equal(extraContextCalls, 0);
+    assert.equal(memoryRecallCalls, 0);
+    assert.equal(memoryRememberCalls, 0);
+    assert.equal(sandboxCalls, 0);
+    assert.equal(capturedPrompt.includes("UNGOVERNED_SECRET_MARKER"), false);
+    assert.equal(capturedPrompt.includes("UNTRUSTED_MEMORY"), false);
+    assert.equal(capturedPrompt.includes("UNTRUSTED_EXTRA_CONTEXT"), false);
+    assert.equal(await readFile(join(root, "out.js"), "utf8"), "export const broken = ;");
   });
 });

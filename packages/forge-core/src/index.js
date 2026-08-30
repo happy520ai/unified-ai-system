@@ -24,6 +24,10 @@ import { LLMCache } from './llm-cache/index.js';
 import { TokenPredictor } from './token-predictor/index.js';
 import { BudgetEnforcer } from './budget-enforcer/index.js';
 import { createSkillRegistry, createSkillRouter } from './skills/index.js';
+import {
+  createForgeExecutionError,
+  throwIfForgeAborted,
+} from './worker/base-action-exec.js';
 
 export class Forge {
   #store;
@@ -34,6 +38,9 @@ export class Forge {
   #gatewayLifecycle = null; // Gateway: lifecycle manager (optional)
   #skillRegistry = null; // Skill marketplace (GitHub skill discovery/install/execute)
   #skillRouter = null;   // Skill timing router (decides when to use skills vs built-in workers)
+  #governedExecution = null; // trusted, server-owned per-action hook
+  #governanceRequired = false;
+  #signal = null;
 
   /**
    * @param {object} options
@@ -43,10 +50,33 @@ export class Forge {
    * @param {string} [options.gatewayUrl] — AI Gateway URL (default: http://127.0.0.1:3100)
    * @param {string} [options.gatewayAuthToken] — enterprise gateway token
    * @param {boolean} [options.enableCostTracking] — enable P11 cost modules (default: true)
+   * @param {object} [options.governedExecution] — trusted per-action governance hook
+   * @param {boolean} [options.governanceRequired=false] — production fail-closed mode
+   * @param {AbortSignal} [options.signal] — execution cancellation/revocation signal
    */
-  constructor({ projectRoot, dbPath, enableProgress, gatewayUrl, gatewayAuthToken, enableCostTracking = true }) {
+  constructor({
+    projectRoot,
+    dbPath,
+    enableProgress,
+    gatewayUrl,
+    gatewayAuthToken,
+    enableCostTracking = true,
+    governedExecution = null,
+    governanceRequired = false,
+    signal = null,
+  }) {
     this.#projectRoot = projectRoot;
     this.#dbPath = dbPath ?? join(projectRoot, '.forge', 'forge.db');
+    this.#governedExecution = governedExecution;
+    this.#governanceRequired = governanceRequired === true;
+    this.#signal = signal ?? governedExecution?.signal ?? null;
+
+    if (this.#governanceRequired && typeof governedExecution?.beforeAction !== 'function') {
+      throw createForgeExecutionError(
+        'FORGE_ACTION_GOVERNANCE_REQUIRED',
+        'Forge production-governed execution requires a server-owned beforeAction hook.',
+      );
+    }
 
     // Ensure .forge directory exists
     mkdirSync(join(projectRoot, '.forge'), { recursive: true });
@@ -119,17 +149,35 @@ export class Forge {
    * @returns {object} — execution report
    */
   async run(goalText, options = {}) {
+    const governedExecution = options.governedExecution ?? this.#governedExecution;
+    const governanceRequired = this.#governanceRequired || options.governanceRequired === true;
+    const signal = options.signal ?? this.#signal ?? governedExecution?.signal ?? null;
+    if (governanceRequired && typeof governedExecution?.beforeAction !== 'function') {
+      throw createForgeExecutionError(
+        'FORGE_ACTION_GOVERNANCE_REQUIRED',
+        'Forge production-governed execution requires a server-owned beforeAction hook.',
+      );
+    }
+    throwIfForgeAborted(signal);
     console.log(`\n${'═'.repeat(60)}`);
     console.log(`  FORGE — Goal: "${goalText}"`);
     console.log(`${'═'.repeat(60)}\n`);
 
     // Step 1: Compile the goal into a Task DAG (enhanced refiner is default)
     console.log('[forge] Step 1: Compiling goal...');
-    const compiler = options.useRefiner === false ? compileGoal : compileGoalV2;
+    // The enhanced refiner probes the repository outside worker actions.
+    // Governed mode uses the probe-free compiler so all project reads happen
+    // through explicit, policy-checked `read` actions.
+    const compiler = governanceRequired
+      ? compileGoal
+      : (options.useRefiner === false ? compileGoal : compileGoalV2);
     const { goalId, taskCount, summary } = await compiler(this.#store, {
       goalText,
       projectRoot: this.#projectRoot,
+      skipCodebaseProbe: governanceRequired,
+      signal,
     });
+    throwIfForgeAborted(signal);
     console.log(`[forge] Compiled: ${taskCount} tasks — ${summary}\n`);
 
     // P10: Start progress tracking if enabled
@@ -145,9 +193,12 @@ export class Forge {
       budget: options.budget ?? {},
       enableCodeIntel: options.enableCodeIntel ?? true,
       progressReporter: this.#progressReporter, // P10: wire progress reporter
+      governedExecution,
+      governanceRequired,
+      signal,
     });
 
-    const report = await orchestrator.execute(goalId);
+    const report = await orchestrator.execute(goalId, { signal });
 
     // P10: Finalize progress
     if (this.#progressReporter) {
@@ -178,6 +229,12 @@ export class Forge {
    * @returns {Promise<{ goalId: string, status: string, completedTasks: number, failedTasks: number, totalTasks: number }>}
    */
   async submitGoal(goalText, options = {}) {
+    if (this.#governanceRequired || options.governanceRequired === true) {
+      throw createForgeExecutionError(
+        'FORGE_POOL_GOVERNANCE_UNSUPPORTED',
+        'Governed Forge execution currently requires the single-goal Orchestrator so every action shares the run fence.',
+      );
+    }
     if (!this.#pool) {
       throw new Error('No AgentPoolManager attached. Call forge.attachPool(pool) first, or use forge.run() for single-goal execution.');
     }
@@ -209,6 +266,16 @@ export class Forge {
    * Uses pool-based execution if available, otherwise falls back to Orchestrator.
    */
   async resume(goalId, options = {}) {
+    const governedExecution = options.governedExecution ?? this.#governedExecution;
+    const governanceRequired = this.#governanceRequired || options.governanceRequired === true;
+    const signal = options.signal ?? this.#signal ?? governedExecution?.signal ?? null;
+    if (governanceRequired && typeof governedExecution?.beforeAction !== 'function') {
+      throw createForgeExecutionError(
+        'FORGE_ACTION_GOVERNANCE_REQUIRED',
+        'Forge production-governed execution requires a server-owned beforeAction hook.',
+      );
+    }
+    throwIfForgeAborted(signal);
     const goal = this.#store.getGoal(goalId);
     if (!goal) throw new Error(`Goal ${goalId} not found`);
 
@@ -216,13 +283,23 @@ export class Forge {
 
     // Use pool-based resume if available
     if (this.#pool) {
+      if (governanceRequired) {
+        throw createForgeExecutionError(
+          'FORGE_POOL_GOVERNANCE_UNSUPPORTED',
+          'Governed Forge resume requires the single-goal Orchestrator action fence.',
+        );
+      }
       const userId = options.userId ?? 'system';
       return this.#pool.resumeGoal(goalId, userId);
     }
 
     // Fallback to Orchestrator
-    const orchestrator = new Orchestrator(this.#store, this.#projectRoot);
-    return orchestrator.execute(goalId);
+    const orchestrator = new Orchestrator(this.#store, this.#projectRoot, {
+      governedExecution,
+      governanceRequired,
+      signal,
+    });
+    return orchestrator.execute(goalId, { signal });
   }
 
   /**
@@ -232,6 +309,12 @@ export class Forge {
    * @returns {Promise<string[]>} — list of recovered goal IDs
    */
   async recoverGoals() {
+    if (this.#governanceRequired) {
+      throw createForgeExecutionError(
+        'FORGE_POOL_GOVERNANCE_UNSUPPORTED',
+        'Governed Forge recovery requires a server-issued run fence and cannot use the legacy pool path.',
+      );
+    }
     if (!this.#pool) {
       console.log('[forge] No pool attached, skipping goal recovery');
       return [];

@@ -1,14 +1,21 @@
+// @test-isolation process
 import { EventEmitter } from "node:events";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Readable } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
 import {
   AGENT_EXEC_LIMITS,
+  buildAgentGovernanceIdentity,
   dispatchAgentExecRoutes,
   normalizeAgentExecRequest,
 } from "./agentExecRoutes.js";
 import { createFakeProvider } from "../providers/fakeProvider.js";
 import { ProviderRegistry } from "../providers/providerRegistry.js";
 import { GatewayService } from "../core/gatewayService.js";
+import { createAgentGovernanceService } from "../agent-governance/agentGovernanceService.ts";
+import { createAgentGovernanceToolProxy } from "../agent-governance/toolProxy.ts";
 
 function createApplication({ fixedLatencyMs = 1 } = {}) {
   const registry = new ProviderRegistry();
@@ -32,9 +39,16 @@ function createApplication({ fixedLatencyMs = 1 } = {}) {
   };
 }
 
-function createContext({ body, application = createApplication(), path = "/agent-exec/run" }) {
+function createContext({
+  body,
+  application = createApplication(),
+  path = "/agent-exec/run",
+  enterpriseIdentity = null,
+  requestExecution = null,
+}) {
   const request = Readable.from([Buffer.from(JSON.stringify(body))]);
   request.method = "POST";
+  request.enterpriseIdentity = enterpriseIdentity;
   const response = createResponseRecorder();
   return {
     request,
@@ -43,6 +57,8 @@ function createContext({ body, application = createApplication(), path = "/agent
     url: new URL(`http://127.0.0.1${path}`),
     application,
     writeServiceLog: vi.fn(),
+    requestId: "req_agent_exec_test",
+    requestExecution,
   };
 }
 
@@ -132,6 +148,44 @@ describe("bounded agent execution route", () => {
     expect(result.timing.timeoutMs).toBe(AGENT_EXEC_LIMITS.minTimeoutMs);
   }, 30_000);
 
+  it("propagates the HTTP execution abort into the provider and terminates the run", async () => {
+    const application = createApplication();
+    const provider = application.gatewayService.providerRegistry.get("local-fake-provider");
+    const requestController = new AbortController();
+    let observedSignal;
+    provider.generate = vi.fn(async (request) => {
+      observedSignal = request.execution?.signal;
+      await new Promise((resolve, reject) => {
+        if (observedSignal?.aborted) {
+          reject(observedSignal.reason);
+          return;
+        }
+        observedSignal?.addEventListener("abort", () => reject(observedSignal.reason), { once: true });
+      });
+    });
+    const context = createContext({
+      application,
+      requestExecution: {
+        signal: requestController.signal,
+        timeoutMs: 60_000,
+        deadlineAt: Date.now() + 60_000,
+      },
+      body: { goal: "Cancel with the HTTP request.", toolMode: "none", maxIterations: 1, timeoutMs: 60_000 },
+    });
+
+    const running = dispatchAgentExecRoutes(context);
+    await vi.waitFor(
+      () => expect(provider.generate).toHaveBeenCalledOnce(),
+      { timeout: 15_000, interval: 50 },
+    );
+    requestController.abort(Object.assign(new Error("client disconnected"), { code: "CLIENT_DISCONNECTED" }));
+    await running;
+
+    expect(observedSignal?.aborted).toBe(true);
+    expect(context.response.statusCode).toBe(200);
+    expect(context.response.body.data.status).toBe("cancelled");
+  }, 30_000);
+
   it("rejects invalid requests with structured validation errors", async () => {
     for (const body of [
       {},
@@ -188,6 +242,7 @@ describe("bounded agent execution route", () => {
   it("normalizes defaults deterministically", () => {
     const normalized = normalizeAgentExecRequest({ goal: "Do it." });
     expect(normalized).toEqual({
+      agentId: null,
       goal: "Do it.",
       maxIterations: AGENT_EXEC_LIMITS.defaultMaxIterations,
       timeoutMs: AGENT_EXEC_LIMITS.defaultTimeoutMs,
@@ -197,5 +252,294 @@ describe("bounded agent execution route", () => {
       providerId: "local-fake-provider",
       modelId: undefined,
     });
+  });
+
+  it("binds agentId to server-authenticated identity and rejects a bare body id", () => {
+    expect(buildAgentGovernanceIdentity({}, "agt_valid", "req_1")).toBeNull();
+    expect(buildAgentGovernanceIdentity({
+      enterpriseIdentity: {
+        tenantId: "tenant_a",
+        userId: "user_a",
+        role: "operator",
+        permissions: ["workflow:run"],
+      },
+    }, "agt_valid", "req_1")).toEqual({
+      agentId: "agt_valid",
+      tenantId: "tenant_a",
+      userId: "user_a",
+      role: "operator",
+      permissions: ["workflow:run"],
+      requestId: "req_1",
+    });
+  });
+
+  it("fails closed when governance is enabled but agentId or identity is missing", async () => {
+    const base = createApplication();
+    const authorizeAgentExecution = vi.fn();
+    const application = {
+      ...base,
+      agentGovernance: {
+        service: { authorizeAgentExecution, reserveUsage: vi.fn(async () => ({ allowed: true })) },
+        toolProxy: { enforce: vi.fn() },
+      },
+    };
+    for (const input of [
+      { body: { goal: "No agent id.", toolMode: "none" }, enterpriseIdentity: {
+        tenantId: "tenant_a", userId: "user_a", permissions: ["workflow:run"],
+      } },
+      { body: { goal: "No identity.", agentId: "agt_valid", toolMode: "none" }, enterpriseIdentity: null },
+    ]) {
+      const context = createContext({ ...input, application });
+      await dispatchAgentExecRoutes(context);
+      expect(context.response.statusCode).toBe(403);
+      expect(context.response.body.error.code).toBe("AGENT_GOVERNANCE_IDENTITY_REQUIRED");
+    }
+    expect(authorizeAgentExecution).not.toHaveBeenCalled();
+  });
+
+  it("authorizes a governed run before provider execution and applies policy bounds", async () => {
+    const base = createApplication();
+    const policy = {
+      policyHash: "sha256:test",
+      limits: { maxSteps: 1, maxRuntimeSeconds: 5 },
+      grantedTools: [],
+      toolDecisions: {},
+    };
+    const runController = new AbortController();
+    const authorizeAgentExecution = vi.fn().mockResolvedValue({
+      policy,
+      executionLease: { signal: runController.signal, release: vi.fn() },
+    });
+    const application = {
+      ...base,
+      agentGovernance: {
+        service: { authorizeAgentExecution, reserveUsage: vi.fn(async () => ({ allowed: true })) },
+        toolProxy: { enforce: vi.fn() },
+      },
+    };
+    const context = createContext({
+      application,
+      enterpriseIdentity: {
+        tenantId: "tenant_a",
+        userId: "user_a",
+        role: "operator",
+        permissions: ["workflow:run"],
+      },
+      body: {
+        goal: "Answer without tools.",
+        agentId: "agt_valid",
+        toolMode: "none",
+        maxIterations: 4,
+        timeoutMs: 10_000,
+      },
+    });
+    await dispatchAgentExecRoutes(context);
+    expect(context.response.statusCode).toBe(200);
+    expect(authorizeAgentExecution).toHaveBeenCalledWith("agt_valid", expect.objectContaining({
+      agentId: "agt_valid",
+      tenantId: "tenant_a",
+      userId: "user_a",
+    }));
+    expect(context.response.body.data.iterations.max).toBe(1);
+    expect(context.response.body.data.timing.timeoutMs).toBe(5_000);
+    expect(context.response.body.data.governance).toEqual({
+      enforced: true,
+      agentId: "agt_valid",
+      policyHash: "sha256:test",
+    });
+  }, 30_000);
+
+  it("enforces cumulative maxSteps before a later provider iteration", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "agent-governance-exec-route-"));
+    try {
+      const governanceService = createAgentGovernanceService({
+        dataDir,
+        env: {
+          AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: "agent-exec-route-test-secret-0123456789",
+          PME_ENTERPRISE_PLATFORM_TENANT_ID: "tenant_a",
+        },
+      });
+      const identity = {
+        tenantId: "tenant_a",
+        userId: "user_a",
+        role: "admin",
+        permissions: ["*"],
+      };
+      const agent = await governanceService.generateAgent({
+        name: "single-step",
+        task: "answer once",
+        requestedTools: [],
+        ttlSeconds: 3600,
+        parentAgentId: null,
+        instanceRules: { limits: { maxSteps: 1 } },
+      }, identity);
+      const application = {
+        ...createApplication(),
+        agentGovernance: {
+          service: governanceService,
+          toolProxy: createAgentGovernanceToolProxy({ service: governanceService }),
+        },
+      };
+      const requestBody = {
+        goal: "Answer directly.",
+        agentId: agent.agentId,
+        toolMode: "none",
+        maxIterations: 1,
+      };
+      const first = createContext({ body: requestBody, application, enterpriseIdentity: identity });
+      await dispatchAgentExecRoutes(first);
+      expect(first.response.body.data.status).toBe("completed");
+
+      const second = createContext({ body: requestBody, application, enterpriseIdentity: identity });
+      await dispatchAgentExecRoutes(second);
+      expect(second.response.body.data.status).toBe("governance_denied");
+      expect((await governanceService.getUsage(agent.agentId)).steps).toBe(1);
+    } finally {
+      rmSync(dataDir, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it("aborts an in-flight provider run and waits for its execution lease during revocation", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "agent-governance-revoke-run-"));
+    try {
+      const governanceService = createAgentGovernanceService({
+        dataDir,
+        env: {
+          AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: "agent-revoke-run-test-secret-0123456789",
+          PME_ENTERPRISE_PLATFORM_TENANT_ID: "tenant_a",
+        },
+      });
+      const identity = {
+        tenantId: "tenant_a",
+        userId: "user_a",
+        role: "admin",
+        permissions: ["*"],
+      };
+      const agent = await governanceService.generateAgent({
+        name: "revoked-provider-run",
+        task: "wait for provider",
+        requestedTools: [],
+        ttlSeconds: 3600,
+        parentAgentId: null,
+      }, identity);
+      const application = {
+        ...createApplication(),
+        agentGovernance: {
+          service: governanceService,
+          toolProxy: createAgentGovernanceToolProxy({ service: governanceService }),
+          dataDir,
+        },
+      };
+      const provider = application.gatewayService.providerRegistry.get("local-fake-provider");
+      let signalProviderStarted;
+      const providerStarted = new Promise((resolve) => { signalProviderStarted = resolve; });
+      provider.generate = vi.fn(async (request) => {
+        signalProviderStarted();
+        await new Promise((resolve, reject) => {
+          if (request.execution?.signal?.aborted) {
+            reject(Object.assign(new Error("provider aborted"), { name: "AbortError", code: "ABORT_ERR" }));
+            return;
+          }
+          request.execution?.signal?.addEventListener("abort", () => {
+            reject(Object.assign(new Error("provider aborted"), { name: "AbortError", code: "ABORT_ERR" }));
+          }, { once: true });
+        });
+      });
+      const context = createContext({
+        application,
+        enterpriseIdentity: identity,
+        body: {
+          goal: "Wait until revoked.",
+          agentId: agent.agentId,
+          toolMode: "none",
+          maxIterations: 1,
+          timeoutMs: 10_000,
+        },
+      });
+
+      const run = dispatchAgentExecRoutes(context);
+      await providerStarted;
+      const revoke = governanceService.revokeAgent(agent.agentId, { cascade: true, reason: "operator stop" }, identity);
+      await Promise.all([run, revoke]);
+
+      expect(context.response.statusCode).toBe(200);
+      expect(context.response.body.data.status).toBe("cancelled");
+      expect(await governanceService.getAgent(agent.agentId, "tenant_a")).toMatchObject({ status: "REVOKED" });
+      expect(provider.generate).toHaveBeenCalledOnce();
+    } finally {
+      rmSync(dataDir, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it("rejects high-risk requests before provider execution when opt-in or durable effect infrastructure is missing", async () => {
+    const identity = {
+      tenantId: "tenant_a",
+      userId: "user_a",
+      role: "admin",
+      permissions: ["*"],
+    };
+    for (const scenario of [
+      {
+        highRiskTools: [],
+        externalEffectGate: null,
+        expectedStatus: 403,
+        expectedCode: "AGENT_EXEC_HIGH_RISK_TOOL_DISABLED",
+      },
+      {
+        highRiskTools: ["git_push"],
+        externalEffectGate: {
+          status: { enabled: false, durable: false },
+          checkHealth: vi.fn(async () => ({ available: false })),
+        },
+        expectedStatus: 503,
+        expectedCode: "AGENT_EXEC_EXTERNAL_EFFECT_GATE_REQUIRED",
+      },
+    ]) {
+      const base = createApplication();
+      const provider = base.gatewayService.providerRegistry.get("local-fake-provider");
+      const generate = vi.spyOn(provider, "generate");
+      const release = vi.fn();
+      const application = {
+        ...base,
+        externalEffectGate: scenario.externalEffectGate,
+        agentGovernance: {
+          highRiskTools: scenario.highRiskTools,
+          dataDir: join(tmpdir(), "agent-governance-preflight"),
+          toolProxy: { enforce: vi.fn() },
+          service: {
+            reserveUsage: vi.fn(async () => ({ allowed: true })),
+            authorizeAgentExecution: vi.fn(async () => ({
+              policy: {
+                policyHash: `sha256:${"a".repeat(64)}`,
+                limits: { maxSteps: 1, maxRuntimeSeconds: 30 },
+                grantedTools: ["git_push"],
+                toolDecisions: { git_push: "require_approval" },
+              },
+              executionLease: {
+                signal: new AbortController().signal,
+                fingerprint: "b".repeat(64),
+                assertActive: vi.fn(async () => true),
+                release,
+              },
+            })),
+          },
+        },
+      };
+      const context = createContext({
+        application,
+        enterpriseIdentity: identity,
+        body: {
+          goal: "Attempt a governed push.",
+          agentId: "agt_valid",
+          toolAllowlist: ["git_push"],
+          maxIterations: 1,
+        },
+      });
+      await dispatchAgentExecRoutes(context);
+      expect(context.response.statusCode).toBe(scenario.expectedStatus);
+      expect(context.response.body.error.code).toBe(scenario.expectedCode);
+      expect(generate).not.toHaveBeenCalled();
+      expect(release).toHaveBeenCalledOnce();
+    }
   });
 });

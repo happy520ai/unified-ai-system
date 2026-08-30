@@ -4,7 +4,7 @@ Connect Codex and other MCP hosts to the credential-free Unified AI System
 preview over stdio or MCP Streamable HTTP.
 
 The server starts an isolated local gateway automatically, pins it to the
-deterministic fake provider, exposes governed tools, and removes the gateway when
+deterministic fake provider, exposes authenticated permission-scoped tools, and removes the gateway when
 the MCP session ends. It does not enable or authorize real provider calls.
 
 ## Tools
@@ -20,11 +20,13 @@ the MCP session ends. It does not enable or authorize real provider calls.
 | `knowledge_retrieve` | Search the local knowledge base by keyword. |
 | `workflow_health` | Inspect the governed workflow subsystem. |
 | `workflow_actions` | List workflow action definitions. |
-| `workflow_run` | Execute a safe three-step local workflow and write a controlled artifact. |
+| `workflow_run` | Execute a three-step local workflow and atomically publish a tenant-partitioned artifact. Managed mode injects a dedicated `file_write` Agent; external governed gateways require `agentId`. |
 | `workforce_health` | Inspect the workforce subsystem. |
 | `workforce_agents` | List workforce agent descriptors. |
 
-All inspection tools are read-only. The chat tool checks the gateway safety
+All inspection tools are read-only. `workflow_run` is the sole local write tool;
+it never overwrites an existing path and is routed through Agent Governance when
+the connected Gateway enables that control plane. The chat tool checks the gateway safety
 state before every request and fails closed unless `realProviderEnabled` is
 exactly `false` and the response proves `executionMode: "fake"`.
 

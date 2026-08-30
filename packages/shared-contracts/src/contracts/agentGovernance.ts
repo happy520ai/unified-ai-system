@@ -111,6 +111,8 @@ export type PolicyType =
 export interface PolicyLimits {
   maxGenerationDepth?: number;
   maxChildrenPerAgent?: number;
+  /** Maximum number of role workers in one governed Workforce plan. */
+  maxWorkforceRoles?: number;
   maxRuntimeSeconds?: number;
   maxSteps?: number;
   maxToolCalls?: number;
@@ -163,6 +165,20 @@ export interface PolicyMandatoryRules {
   selfPolicyModification?: "allow" | "deny";
   gatewayBypass?: "allow" | "deny";
   permissionExpansion?: "allow" | "deny";
+}
+
+/**
+ * Fully materialized mandatory assertions carried by every compiled policy.
+ * Dangerous capabilities default to deny; callers must not infer permissive
+ * behavior from an omitted policy-layer field.
+ */
+export interface EffectivePolicyMandatoryRules {
+  auditRequired: boolean;
+  credentialsExposedToAgent: boolean;
+  crossTenantAccess: "allow" | "deny";
+  selfPolicyModification: "allow" | "deny";
+  gatewayBypass: "allow" | "deny";
+  permissionExpansion: "allow" | "deny";
 }
 
 /** Structured content of one policy layer version. */
@@ -236,6 +252,7 @@ export interface EffectiveAgentPolicy {
   riskLevel: RiskLevel;
   toolDecisions: Record<string, AgentToolDecision>;
   grantedTools: string[];
+  mandatory: EffectivePolicyMandatoryRules;
   limits: PolicyLimits;
   requirements: PolicySafetyRequirements;
   permissions: PolicyPermissions;
@@ -244,6 +261,16 @@ export interface EffectiveAgentPolicy {
   lineage: PolicyBinding[];
   policyHash: string;
   compiledAt: string;
+}
+
+/**
+ * Server-derived ceiling for what the authenticated creator may delegate.
+ * This value must come from trusted identity/authorization state, never from
+ * an Agent draft or request body. A null value means no delegable tools.
+ */
+export interface AgentCreatorEntitlements {
+  allowedTools: string[];
+  permissions: PolicyPermissions;
 }
 
 /**
@@ -307,7 +334,98 @@ export interface AgentUsageCounters {
 // ---------------------------------------------------------------------------
 
 /** Approval lifecycle states. */
-export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED" | "EXPIRED";
+export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED" | "EXPIRED" | "CONSUMED";
+
+/**
+ * Server-produced, allowlisted information an operator may safely inspect
+ * before approving an external effect. Raw transport URLs and credentials
+ * remain inside the authenticated encrypted execution envelope. Any external
+ * text that will actually be published must be present here in full.
+ */
+export interface AgentToolApprovalReview {
+  schemaVersion: 1;
+  reviewable: boolean;
+  effectType: string;
+  policyHash: string;
+  unavailableReason?: string;
+  repository?: {
+    displayName: string;
+    fingerprint: string;
+  };
+  remote?: {
+    name: string;
+    target: string;
+    urlFingerprint: string;
+  };
+  source?: {
+    branch: string;
+    commit: string;
+    /** Required for PR reviews: the remote head observed during review. */
+    remoteCommit?: string;
+  };
+  destination?: {
+    branch: string;
+  };
+  options?: {
+    setUpstream: boolean;
+    forceMode: "none";
+  };
+  pullRequest?: {
+    repository: string;
+    headBranch: string;
+    baseBranch: string;
+    title: string;
+    /** Complete bounded Markdown body that will be sent to the remote service. */
+    body: string;
+    bodyHash: string;
+    bodyBytes: number;
+    draft: boolean;
+  };
+  mcp?: {
+    serverId: string;
+    toolName: string;
+    target: string;
+    targetFingerprint: string;
+    argumentsHash: string;
+    argumentsBytes: number;
+    externalEffectRequired: boolean;
+    reviewedArguments: Record<string, string | number | boolean | null>;
+    omittedArgumentKeys: string[];
+  };
+  forge?: {
+    /** Complete bounded operator-visible goal; secret-like text is unreviewable. */
+    goal: string;
+    goalDigest: string;
+    goalBytes: number;
+    optionsHash: string;
+    options: {
+      enableCodeIntel: false;
+      useRefiner?: boolean;
+      maxConcurrent?: number;
+      budget?: {
+        maxTokens?: number;
+        maxCost?: number;
+        maxMinutes?: number;
+      };
+      checkpointAfter?: string[];
+    };
+  };
+  workforce?: {
+    /** Complete bounded operator-visible goal; unsafe or secret-like text is unreviewable. */
+    goal: string;
+    goalDigest: string;
+    goalBytes: number;
+    planId: string;
+    planDigest: string;
+    autonomyMode: string;
+    requiredScopes: string[];
+    optionsHash: string;
+    options: {
+      selectedRoleCount: number | null;
+      templateSelected: boolean;
+    };
+  };
+}
 
 /**
  * Approval request for a require_approval decision. The arguments hash
@@ -322,8 +440,12 @@ export interface AgentToolApprovalRecord {
   status: ApprovalStatus;
   requestedAt: string;
   expiresAt: string;
+  review: AgentToolApprovalReview;
   decidedAt?: string;
   decidedBy?: string;
+  /** One-shot execution consumption metadata. */
+  consumedAt?: string;
+  consumedByExecutionId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -332,6 +454,7 @@ export interface AgentToolApprovalRecord {
 
 /** Agent governance audit event types. */
 export type AgentGovernanceEventType =
+  | "AUDIT_CHECKPOINT"
   | "AGENT_DRAFT_CREATED"
   | "AGENT_CLASSIFIED"
   | "POLICY_VALIDATED"
@@ -343,11 +466,28 @@ export type AgentGovernanceEventType =
   | "TOOL_DENIED"
   | "APPROVAL_REQUESTED"
   | "APPROVAL_APPROVED"
+  | "APPROVAL_CONSUMED"
   | "APPROVAL_REJECTED"
   | "AGENT_EXPIRED"
   | "AGENT_REVOKED"
   | "POLICY_RECOMPILED"
   | "POLICY_SIGNATURE_FAILED";
+
+/** Visible continuity and retention status for one signed audit rotation. */
+export interface AgentGovernanceAuditCheckpoint {
+  schemaVersion: 1;
+  segmentId: string;
+  rotationReason: "max_records" | "archive_retention" | "archive_capacity" | "legacy_migration";
+  previousLogDigest: string;
+  previousHeadHash: string;
+  archiveSegmentCount: number;
+  archivedRecordCount: number;
+  archivedBytes: number;
+  /** Detailed events removed by configured retention/capacity limits. */
+  compactedRecordCount: number;
+  /** True when at least one detailed event is no longer locally readable. */
+  truncated: boolean;
+}
 
 /** One append-only audit event (redacted arguments only). */
 export interface AgentGovernanceAuditEvent {
@@ -362,5 +502,6 @@ export interface AgentGovernanceAuditEvent {
   policyHash?: string;
   previousPolicyHash?: string;
   timestamp: string;
+  checkpoint?: AgentGovernanceAuditCheckpoint;
   metadata?: ContractMetadata;
 }

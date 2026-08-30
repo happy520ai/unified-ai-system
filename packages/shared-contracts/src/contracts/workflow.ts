@@ -11,6 +11,8 @@ export interface WorkflowActionDescriptor {
 }
 
 export interface WorkflowRequest {
+  /** Required by /workflow/run when Agent Governance is enabled. */
+  agentId?: string;
   context?: RequestContext;
   workflowId?: string;
   goal?: string;
@@ -36,6 +38,8 @@ export interface WorkflowSafetySummary {
   networkAutomation: false;
   allowedActions: string[];
   outputScope: ".data/workflows";
+  tenantIsolation?: "server-owned-sha256-partition";
+  publication?: "exclusive-atomic-no-overwrite";
 }
 
 export interface WorkflowPlanResponse {

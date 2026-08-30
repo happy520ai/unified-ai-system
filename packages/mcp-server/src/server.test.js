@@ -123,6 +123,19 @@ test("stdio server exposes safe tools and cleans up its managed gateway", async 
       );
       assert.equal(result.ok, true, `${name} should succeed`);
     }
+
+    const workflow = parseToolResult(
+      await client.callTool({
+        name: "workflow_run",
+        arguments: {
+          goal: "Create one managed MCP workflow report",
+          artifactName: "managed-mcp-report.md",
+        },
+      }),
+    );
+    assert.equal(workflow.ok, true, JSON.stringify(workflow));
+    assert.equal(workflow.result.data.artifact.fileName, "managed-mcp-report.md");
+    assert.match(workflow.result.data.artifact.absolutePath, /workflow-artifacts/u);
   } finally {
     await client.close();
   }

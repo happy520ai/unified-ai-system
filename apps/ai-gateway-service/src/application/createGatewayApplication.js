@@ -1,5 +1,5 @@
-import { lstatSync } from "node:fs";
-import { dirname, isAbsolute, join, parse, resolve, sep } from "node:path";
+import { lstatSync, realpathSync } from "node:fs";
+import { dirname, isAbsolute, join, parse, relative, resolve, sep } from "node:path";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { loadRuntimeConfig } from "@unified-ai-system/shared-config";
@@ -115,6 +115,7 @@ export function createGatewayApplicationForLocalClientFixtureTests(env = {}) {
 }
 
 function createGatewayApplicationInternal(env, fixtureCapability) {
+  const agentExecWorkingDirectory = resolveAgentExecWorkingDirectory(env);
   const localClientFixtureReceiptClosure =
     fixtureCapability === LOCAL_CLIENT_FIXTURE_RECEIPT_CLOSURE_CAPABILITY;
   const parsedLocalClientOnboardingConfiguration = resolveLocalClientOnboardingConfiguration(env);
@@ -214,10 +215,11 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
     env,
     realProviderEnabled: config.aiGatewayService.realProviderEnabled,
   });
+  const agentGovernanceRuntime = resolveAgentGovernanceRuntimeConfiguration(env);
   const externalEffectEnabled = resolveExternalEffectEnabled(
     env,
     parsedLocalClientOnboardingConfiguration.enabled,
-  );
+  ) || agentGovernanceRuntime.highRiskTools.length > 0;
   const externalEffectGate = createExternalEffectGate({ env, enabled: externalEffectEnabled });
   const providerStatementReconciliationService = createProviderStatementReconciliationService({
     requestLogger,
@@ -301,13 +303,40 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
   // Agent 治理控制平面：生成→校验→编译→登记→逐调用 Tool Proxy 强制。
   // 无 agentGovernance 身份的 legacy 调用方不受影响；
   // AI_GATEWAY_AGENT_GOVERNANCE_ENABLED=false 可整体关闭。
-  const agentGovernanceEnabled = String(env.AI_GATEWAY_AGENT_GOVERNANCE_ENABLED ?? "").toLowerCase() !== "false";
+  const agentGovernanceEnabled = agentGovernanceRuntime.enabled;
   let agentGovernance = null;
   if (agentGovernanceEnabled) {
-    const agentGovernanceService = createAgentGovernanceService({ env });
+    const agentGovernanceDataDir = env.AI_GATEWAY_AGENT_GOVERNANCE_DATA_DIR
+      ? (isAbsolute(env.AI_GATEWAY_AGENT_GOVERNANCE_DATA_DIR)
+        ? env.AI_GATEWAY_AGENT_GOVERNANCE_DATA_DIR
+        : resolve(repoRoot, env.AI_GATEWAY_AGENT_GOVERNANCE_DATA_DIR))
+      : resolve(repoRoot, ".data", "agent-governance");
+    const governancePathFromRepo = relative(repoRoot, agentGovernanceDataDir);
+    const governanceInsideRepo = governancePathFromRepo === ""
+      || (!governancePathFromRepo.startsWith(`..${sep}`) && governancePathFromRepo !== ".." && !isAbsolute(governancePathFromRepo));
+    const approvedRuntimeDataRoot = resolve(repoRoot, ".data");
+    const governancePathFromRuntimeData = relative(approvedRuntimeDataRoot, agentGovernanceDataDir);
+    const insideApprovedRuntimeData = governancePathFromRuntimeData === ""
+      || (!governancePathFromRuntimeData.startsWith(`..${sep}`)
+        && governancePathFromRuntimeData !== ".."
+        && !isAbsolute(governancePathFromRuntimeData));
+    if (governanceInsideRepo && !insideApprovedRuntimeData) {
+      const error = new Error(
+        "Agent Governance state inside the repository must remain under the protected .data directory.",
+      );
+      error.code = "AGENT_GOVERNANCE_DATA_DIR_UNSAFE";
+      error.category = "configuration";
+      throw error;
+    }
+    const agentGovernanceService = createAgentGovernanceService({
+      env,
+      dataDir: agentGovernanceDataDir,
+    });
     agentGovernance = Object.freeze({
       service: agentGovernanceService,
       toolProxy: createAgentGovernanceToolProxy({ service: agentGovernanceService }),
+      dataDir: agentGovernanceDataDir,
+      highRiskTools: agentGovernanceRuntime.highRiskTools,
     });
   }
   const enterpriseOpsService = createEnterpriseOpsService({
@@ -832,6 +861,7 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
 
   return {
     agentGovernance,
+    agentExecWorkingDirectory,
     auditHashChain: enterpriseGovernanceService.getAuditHashChain(),
     capabilityRouterService,
     contentGuardrails,
@@ -1033,6 +1063,76 @@ function resolveExternalEffectEnabled(env, localClientOnboardingEnabled = false)
     || Boolean(String(env.FEISHU_WEBHOOK_URL ?? "").trim())
     || Boolean(String(env.WECOM_WEBHOOK_URL ?? "").trim())
     || hasConfiguredMcpUpstreams(env.MCP_UPSTREAM_SERVERS_JSON);
+}
+
+const SUPPORTED_AGENT_GOVERNANCE_HIGH_RISK_TOOLS = new Set(["git_push", "git_create_pr"]);
+
+function resolveAgentGovernanceRuntimeConfiguration(env) {
+  const setting = String(env.AI_GATEWAY_AGENT_GOVERNANCE_ENABLED ?? "").trim().toLowerCase();
+  if (setting && setting !== "true" && setting !== "false") {
+    const error = new Error("AI_GATEWAY_AGENT_GOVERNANCE_ENABLED must be true or false when configured.");
+    error.code = "AGENT_GOVERNANCE_CONFIGURATION_INVALID";
+    error.category = "configuration";
+    throw error;
+  }
+  const multiRaw = String(env.AI_GATEWAY_MULTI_INSTANCE ?? "").trim().toLowerCase();
+  if (multiRaw && !new Set(["true", "1", "false", "0"]).has(multiRaw)) {
+    const error = new Error("AI_GATEWAY_MULTI_INSTANCE must be true or false when configured.");
+    error.code = "AGENT_GOVERNANCE_CONFIGURATION_INVALID";
+    error.category = "configuration";
+    throw error;
+  }
+  const multiInstance = multiRaw === "true" || multiRaw === "1";
+  // Governance changes the contract of execution-bearing routes (Agent Exec,
+  // reverse MCP, controlled Workforce and Forge). Keep it an explicit opt-in
+  // so an upgrade cannot silently turn existing legacy callers into governed
+  // callers that suddenly require a server-issued agentId.
+  const enabled = setting === "true";
+  const configuredTools = String(env.AI_GATEWAY_AGENT_GOVERNANCE_HIGH_RISK_TOOLS ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const highRiskTools = Object.freeze(Array.from(new Set(configuredTools)));
+  const unknown = highRiskTools.filter((toolName) => !SUPPORTED_AGENT_GOVERNANCE_HIGH_RISK_TOOLS.has(toolName));
+  if (unknown.length > 0) {
+    const error = new Error(`Unsupported Agent Governance high-risk tool(s): ${unknown.join(", ")}.`);
+    error.code = "AGENT_GOVERNANCE_HIGH_RISK_TOOL_UNSUPPORTED";
+    error.category = "configuration";
+    throw error;
+  }
+  if (highRiskTools.length > 0 && !enabled) {
+    const error = new Error("High-risk Agent tools require Agent Governance to be enabled.");
+    error.code = "AGENT_GOVERNANCE_HIGH_RISK_REQUIRES_GOVERNANCE";
+    error.category = "configuration";
+    throw error;
+  }
+  if (enabled && multiInstance) {
+    const error = new Error(
+      "Agent Governance requires a transactional shared-state backend before multi-instance mode can be enabled.",
+    );
+    error.code = "AGENT_GOVERNANCE_MULTI_INSTANCE_UNSUPPORTED";
+    error.category = "configuration";
+    throw error;
+  }
+  return Object.freeze({ enabled, multiInstance, highRiskTools });
+}
+
+function resolveAgentExecWorkingDirectory(env) {
+  const configured = String(env.AI_GATEWAY_AGENT_EXEC_WORKING_DIRECTORY ?? "").trim();
+  const candidate = configured
+    ? (isAbsolute(configured) ? configured : resolve(repoRoot, configured))
+    : repoRoot;
+  try {
+    const stats = lstatSync(candidate);
+    if (!stats.isDirectory()) throw new Error("not a directory");
+    return realpathSync.native(candidate);
+  } catch (cause) {
+    const error = new Error("AI_GATEWAY_AGENT_EXEC_WORKING_DIRECTORY must resolve to an existing directory.");
+    error.code = "AGENT_EXEC_WORKING_DIRECTORY_INVALID";
+    error.category = "configuration";
+    error.cause = cause;
+    throw error;
+  }
 }
 
 function toLocalClientIdempotencyReadinessStatus(coordinator) {

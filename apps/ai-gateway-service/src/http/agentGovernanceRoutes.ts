@@ -15,7 +15,7 @@ import type { AgentGovernanceService } from "../agent-governance/agentGovernance
 interface AgentGovernanceDispatchContext {
   request: IncomingMessage & {
     method?: string;
-    enterpriseIdentity?: { tenantId?: string; userId?: string; role?: string };
+    enterpriseIdentity?: { tenantId?: string; userId?: string; role?: string; permissions?: string[] };
   };
   response: ServerResponse;
   startedAt: number;
@@ -65,6 +65,7 @@ export async function dispatchAgentGovernanceRoutes(context: AgentGovernanceDisp
     tenantId,
     userId,
     role: identity?.role,
+    permissions: Array.isArray(identity?.permissions) ? [...identity.permissions] : [],
     requestId: context.requestId,
   };
 
@@ -194,14 +195,65 @@ export async function dispatchAgentGovernanceRoutes(context: AgentGovernanceDisp
         return ROUTE_NOT_HANDLED;
     }
   } catch (caught) {
-    const error = caught as { name?: string; statusCode?: number; message?: string; errors?: unknown };
-    writeServiceLog?.("agent_governance_route_failed", { path: url.pathname, code: error?.name });
-    writeJson(response, error?.statusCode ?? 400, createErrorEnvelope(
-      error?.name ?? "AGENT_GOVERNANCE_ROUTE_FAILED",
-      typeof error?.message === "string" ? error.message : "Agent governance route failed.",
-      { startedAt, category: "validation", details: error?.errors },
+    const error = normalizeGovernanceRouteError(caught);
+    writeServiceLog?.("agent_governance_route_failed", {
+      path: url.pathname,
+      code: error.code,
+      statusCode: error.statusCode,
+      category: error.category,
+    });
+    writeJson(response, error.statusCode, createErrorEnvelope(
+      error.code,
+      error.message,
+      { startedAt, category: error.category, retryable: error.retryable, details: error.details },
     ));
   }
+}
+
+type NormalizedGovernanceRouteError = {
+  code: string;
+  message: string;
+  statusCode: number;
+  category: "validation" | "authorization" | "not_found" | "conflict" | "availability" | "integrity";
+  retryable: boolean;
+  details?: unknown;
+};
+
+function normalizeGovernanceRouteError(caught: unknown): NormalizedGovernanceRouteError {
+  const error = caught && typeof caught === "object"
+    ? caught as Record<string, unknown>
+    : {};
+  const name = typeof error.name === "string" ? error.name : "";
+  const explicitCode = typeof error.code === "string" ? error.code : "";
+  const code = explicitCode || name || "AGENT_GOVERNANCE_ROUTE_FAILED";
+  const explicitStatus = Number.isInteger(error.statusCode) ? Number(error.statusCode) : null;
+  let statusCode = explicitStatus && explicitStatus >= 400 && explicitStatus <= 599 ? explicitStatus : 400;
+  if (explicitStatus === null) {
+    if (/NotFound$/u.test(name) || /(?:^|_)NOT_FOUND$/u.test(code)) statusCode = 404;
+    else if (/Already|Conflict|Stale|Immutable|EpochChanged|DrainTimeout|StateChanged/u.test(name)
+      || /(?:CONFLICT|STALE|ALREADY|IMMUTABLE|DRAIN_TIMEOUT|STATE_CHANGED|JOURNAL_CHANGED)/u.test(code)) statusCode = 409;
+    else if (/(?:RECOVERY_REQUIRED|MIGRATION_REQUIRED|UNAVAILABLE)/u.test(code)) statusCode = 503;
+    else if (/Integrity|Corrupt|TransactionFailed/u.test(name)
+      || /(?:INTEGRITY|CORRUPT|TRANSACTION_FAILED)/u.test(code)) statusCode = 500;
+  }
+  const category = statusCode === 404 ? "not_found"
+    : statusCode === 409 ? "conflict"
+      : statusCode === 401 || statusCode === 403 ? "authorization"
+        : statusCode === 503 ? "availability"
+          : statusCode >= 500 ? "integrity"
+            : "validation";
+  const details = error.errors ?? (error.rolledBack !== undefined ? {
+    rolledBack: error.rolledBack,
+    failClosedAgentIds: Array.isArray(error.failClosedAgentIds) ? error.failClosedAgentIds : [],
+  } : undefined);
+  return {
+    code,
+    message: typeof error.message === "string" ? error.message : "Agent governance route failed.",
+    statusCode,
+    category,
+    retryable: statusCode === 503,
+    ...(details === undefined ? {} : { details }),
+  };
 }
 
 function requireIdentity(ctx: { tenantId?: string; userId?: string }): asserts ctx is { tenantId: string; userId: string } {

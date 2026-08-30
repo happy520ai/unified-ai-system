@@ -9,6 +9,7 @@ import { spawn } from "node:child_process";
 import { fetchWithAgent } from "../http/connectionPool.js";
 import { resolveSafeOutboundUrl } from "../security/outboundUrlPolicy.ts";
 import { createRestrictedChildEnvironment } from "../security/childProcessEnvironmentPolicy.ts";
+import { throwIfExecutionAborted } from "@unified-ai-system/shared-utils";
 
 export interface McpUpstreamHttpConfig {
   transport: "http";
@@ -88,12 +89,16 @@ export function createHttpMcpUpstream(config: McpUpstreamHttpConfig, options: {
   let sessionId: string | null = null;
   let initialized = false;
 
-  async function post(body: Record<string, unknown>): Promise<Record<string, unknown>> {
+  async function post(body: Record<string, unknown>, signal?: AbortSignal): Promise<Record<string, unknown>> {
+    throwIfExecutionAborted(signal);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(new Error(`MCP upstream ${config.id} timed out after ${timeoutMs}ms`)), timeoutMs);
     timer.unref?.();
     try {
       const destination = await resolveSafeOutboundUrl(config.url);
+      const effectiveSignal = signal
+        ? AbortSignal.any([controller.signal, signal])
+        : controller.signal;
       const init = {
         method: "POST",
         headers: {
@@ -103,7 +108,7 @@ export function createHttpMcpUpstream(config: McpUpstreamHttpConfig, options: {
           ...(sessionId ? { "mcp-session-id": sessionId } : {}),
         },
         body: JSON.stringify(body),
-        signal: controller.signal,
+        signal: effectiveSignal,
       };
       const response = fetchImpl
         ? await fetchImpl(destination.url, init)
@@ -133,17 +138,17 @@ export function createHttpMcpUpstream(config: McpUpstreamHttpConfig, options: {
     }
   }
 
-  async function ensureInitialized() {
+  async function ensureInitialized(signal?: AbortSignal) {
     if (initialized) return;
     const response = await post(createRequest("initialize", {
       protocolVersion: PROTOCOL_VERSION,
       capabilities: {},
       clientInfo: { name: "unified-ai-gateway", version: "0.5.0" },
-    }));
+    }), signal);
     if (response.error) {
       throw new Error(`MCP upstream ${config.id} initialize failed: ${JSON.stringify(response.error).slice(0, 300)}`);
     }
-    await post(createRequest("notifications/initialized"));
+    await post(createRequest("notifications/initialized"), signal);
     initialized = true;
   }
 
@@ -159,9 +164,14 @@ export function createHttpMcpUpstream(config: McpUpstreamHttpConfig, options: {
       const tools = (response.result as { tools?: unknown } | undefined)?.tools;
       return Array.isArray(tools) ? tools.filter((tool) => tool && typeof tool === "object") : [];
     },
-    async callTool(name: string, args: Record<string, unknown>): Promise<McpCallResult> {
-      await ensureInitialized();
-      const response = await post(createRequest("tools/call", { name, arguments: args }));
+    async callTool(
+      name: string,
+      args: Record<string, unknown>,
+      execution: { signal?: AbortSignal } = {},
+    ): Promise<McpCallResult> {
+      await ensureInitialized(execution.signal);
+      throwIfExecutionAborted(execution.signal);
+      const response = await post(createRequest("tools/call", { name, arguments: args }), execution.signal);
       if (response.error) {
         throw new Error(`MCP upstream ${config.id} tools/call failed: ${JSON.stringify(response.error).slice(0, 300)}`);
       }
@@ -244,41 +254,61 @@ export function createStdioMcpUpstream(config: McpUpstreamStdioConfig, options: 
     spawned.stdin!.write(`${JSON.stringify(body)}\n`);
   }
 
-  function request(method: string, params?: Record<string, unknown>): Promise<Record<string, unknown>> {
+  function request(
+    method: string,
+    params?: Record<string, unknown>,
+    signal?: AbortSignal,
+  ): Promise<Record<string, unknown>> {
+    try {
+      throwIfExecutionAborted(signal);
+    } catch (error) {
+      return Promise.reject(error);
+    }
     const message = createRequest(method, params);
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
+      let settled = false;
+      const cleanup = () => {
+        clearTimeout(timer);
+        signal?.removeEventListener("abort", onAbort);
         pending.delete(Number(message.id));
-        reject(new Error(`MCP stdio upstream ${config.id} timed out after ${timeoutMs}ms`));
+      };
+      const settleReject = (error: unknown) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(error instanceof Error ? error : new Error(String(error)));
+      };
+      const onAbort = () => settleReject(signal?.reason ?? new Error("MCP stdio request aborted."));
+      const timer = setTimeout(() => {
+        settleReject(new Error(`MCP stdio upstream ${config.id} timed out after ${timeoutMs}ms`));
       }, timeoutMs);
       timer.unref?.();
       pending.set(Number(message.id), {
         resolve: (response) => {
-          clearTimeout(timer);
+          if (settled) return;
+          settled = true;
+          cleanup();
           resolve(response);
         },
-        reject: (error) => {
-          clearTimeout(timer);
-          reject(error);
-        },
+        reject: settleReject,
       });
+      signal?.addEventListener("abort", onAbort, { once: true });
       try {
+        throwIfExecutionAborted(signal);
         send(message);
       } catch (error) {
-        clearTimeout(timer);
-        pending.delete(Number(message.id));
-        reject(error instanceof Error ? error : new Error(String(error)));
+        settleReject(error);
       }
     });
   }
 
-  async function ensureInitialized() {
+  async function ensureInitialized(signal?: AbortSignal) {
     if (initialized) return;
     const response = await request("initialize", {
       protocolVersion: PROTOCOL_VERSION,
       capabilities: {},
       clientInfo: { name: "unified-ai-gateway", version: "0.5.0" },
-    });
+    }, signal);
     if (response.error) {
       throw new Error(`MCP stdio upstream ${config.id} initialize failed: ${JSON.stringify(response.error).slice(0, 300)}`);
     }
@@ -298,9 +328,14 @@ export function createStdioMcpUpstream(config: McpUpstreamStdioConfig, options: 
       const tools = (response.result as { tools?: unknown } | undefined)?.tools;
       return Array.isArray(tools) ? tools.filter((tool) => tool && typeof tool === "object") : [];
     },
-    async callTool(name: string, args: Record<string, unknown>): Promise<McpCallResult> {
-      await ensureInitialized();
-      const response = await request("tools/call", { name, arguments: args });
+    async callTool(
+      name: string,
+      args: Record<string, unknown>,
+      execution: { signal?: AbortSignal } = {},
+    ): Promise<McpCallResult> {
+      await ensureInitialized(execution.signal);
+      throwIfExecutionAborted(execution.signal);
+      const response = await request("tools/call", { name, arguments: args }, execution.signal);
       if (response.error) {
         throw new Error(`MCP stdio upstream ${config.id} tools/call failed: ${JSON.stringify(response.error).slice(0, 300)}`);
       }

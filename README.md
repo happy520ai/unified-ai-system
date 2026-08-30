@@ -32,7 +32,7 @@
 <p align="center">
   <img
     src="docs/assets/readme-hero.png"
-    alt="Unified AI System — self-hosted AI gateway with 12 governed MCP tools, four release gates, 23 defended attack cases, and zero credentials to start"
+    alt="Unified AI System — self-hosted AI gateway with 12 bounded MCP tools, four release gates, 23 defended attack cases, and zero credentials to start"
     width="100%"
   />
 </p>
@@ -71,7 +71,7 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.6.0 pn
 The evidence confirms that the original request was preserved, the result is
 deterministic, and `providerCalled=false`. Codex, VS Code, Claude Code, Gemini
 CLI, OpenCode, Cursor, Cline, Continue, and generic stdio clients can reach the
-same gateway through twelve governed MCP tools. The source build also provides a
+same gateway through twelve authenticated, permission-scoped MCP tools. The source build also provides a
 protocol-tested MCP Streamable HTTP endpoint for clients that connect by URL.
 
 Useful in a real workflow? [Star the repository](https://github.com/happy520ai/unified-ai-system) or [share one reproducible result](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml&title=%5BUsage%20Report%5D%20Quickstart).
@@ -85,7 +85,7 @@ Useful in a real workflow? [Star the repository](https://github.com/happy520ai/u
     width="100%"
   />
   <br />
-  <sub>Clients keep their native protocols; the gateway adds keys, budgets, cache, and audit. Twelve governed MCP tools are inspectable from any MCP client.</sub>
+  <sub>Clients keep their native protocols; the gateway adds keys, budgets, cache, and audit. Twelve bounded MCP tools are inspectable; controlled writes additionally require Agent Governance when enabled.</sub>
 </p>
 
 ## Choose Your First Path
@@ -129,7 +129,7 @@ fake-provider-first, so you can try every feature with zero credentials:
 | Operations overview API (terminal-first) | `GET /api/overview` returns a compact JSON snapshot (provider mode, health, readiness, request stats, circuit state) behind `dashboard:read` — a lightweight companion to `/metrics` for CLI and dashboard tooling. The gateway serves no browser page; the public-clone gate keeps it terminal-first. | [Observability](docs/observability-export.md) |
 | Guardrails — deterministic & local | Input/output scans: pasted secrets block, PII redacts, injection phrasings warn, banned terms and size limits enforce — no cloud tier, no extra credentials, <0.2 ms measured overhead, runtime-configurable per rule. | [Guardrails](docs/guardrails.md) |
 | Reverse MCP governance | Aggregate upstream MCP servers (Streamable HTTP and stdio) behind one authenticated, audited, allow-listed surface — plus **REST→MCP**: any OpenAPI 3 spec becomes governed MCP tools. | [Reverse MCP governance](docs/reverse-mcp-governance.md) |
-| Agent governance control plane | Governed agent lifecycle with deterministic policy compilation: classification with tool-risk backfill, versioned immutable policy layers, signed per-agent effective policies, per-call Tool Proxy enforcement, hash-locked approvals, expiry and cascade revocation — child permissions are always a subset of parent permissions. | [Agent governance](docs/agent-governance.md) |
+| Agent governance control plane | Explicit opt-in for server-bound `/agent-exec`, reverse-MCP, controlled `/workforce/execute`, and per-action `/forge/orchestrate`, with deterministic policies, signed state, reviewable top-level approvals, dual fences, rollback detection and cascade revocation. Forge action decisions are currently allow/deny-only; Workforce `run-local`/A2A and standalone Forge remain explicit boundaries. | [Agent governance](docs/agent-governance.md) |
 | Observability | Chat-specific Prometheus metrics on `/metrics` — tokens per model, cache hit rates, TTFT histograms, virtual-key rejections, guardrail findings — plus an opt-in Langfuse export and a per-key spend report API/CLI. | [Observability](docs/observability-export.md) |
 | Vector retrieval | A credential-free deterministic embedding provider and the SQLite vector store activate `mode: "vector"` RAG with strict tenant isolation. | [Providers & knowledge](docs/providers.md) |
 | Provider governance | A three-gate whitelist matrix for real providers, a runtime credential store (locally permissioned file; virtual keys and user tokens are stored SHA-256-hashed, provider runtime credentials in cleartext for local execution — see the honest-boundaries note), request cost guards, circuit breakers, and fallback chains. | [Provider enablement](docs/real-provider-enablement.md) |

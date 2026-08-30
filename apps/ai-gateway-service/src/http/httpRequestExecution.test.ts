@@ -56,6 +56,44 @@ describe("HTTP request execution scope", () => {
     scope.cleanup();
   });
 
+  it("reconciles a disconnect that happened before lifecycle listeners were registered", () => {
+    const transport = createTransport();
+    transport.request.aborted = true;
+    const onClientDisconnect = vi.fn();
+
+    const scope = createHttpRequestExecutionScope({
+      ...transport,
+      timeoutMs: 10_000,
+      onClientDisconnect,
+    });
+
+    expect(scope.context.signal.reason).toMatchObject({
+      code: EXECUTION_ABORT_CODES.CLIENT_DISCONNECTED,
+      details: { phase: "request-aborted" },
+    });
+    expect(onClientDisconnect).toHaveBeenCalledOnce();
+    scope.cleanup();
+  });
+
+  it("reconciles an already-destroyed response before starting execution", () => {
+    const transport = createTransport();
+    transport.response.destroyed = true;
+    const onClientDisconnect = vi.fn();
+
+    const scope = createHttpRequestExecutionScope({
+      ...transport,
+      timeoutMs: 10_000,
+      onClientDisconnect,
+    });
+
+    expect(scope.context.signal.reason).toMatchObject({
+      code: EXECUTION_ABORT_CODES.CLIENT_DISCONNECTED,
+      details: { phase: "response-closed" },
+    });
+    expect(onClientDisconnect).toHaveBeenCalledOnce();
+    scope.cleanup();
+  });
+
   it("cleans up a normally finished response without aborting it", () => {
     vi.useFakeTimers();
     try {
@@ -111,6 +149,29 @@ describe("HTTP request execution scope", () => {
     await expect(bound.executeProviderOperation({})).resolves.toMatchObject({
       providerDispatchInvocation: 3,
     });
+    scope.cleanup();
+  });
+
+  it("combines a route-owned execution signal with the outer HTTP lifecycle signal", async () => {
+    const transport = createTransport();
+    const scope = createHttpRequestExecutionScope({ ...transport, timeoutMs: 10_000 });
+    const routeController = new AbortController();
+    let receivedSignal: AbortSignal | undefined;
+    const execute = vi.fn(async (_input: unknown, execution?: { signal?: AbortSignal }) => {
+      receivedSignal = execution?.signal;
+      await new Promise((resolve, reject) => {
+        if (receivedSignal?.aborted) return reject(receivedSignal.reason);
+        receivedSignal?.addEventListener("abort", () => reject(receivedSignal?.reason), { once: true });
+      });
+    });
+    const bound = bindGatewayExecution({ execute }, scope.context);
+    const running = bound.execute({}, { signal: routeController.signal });
+    await vi.waitFor(() => expect(receivedSignal).toBeDefined());
+
+    routeController.abort(Object.assign(new Error("route deadline"), { code: "ROUTE_DEADLINE" }));
+    await expect(running).rejects.toMatchObject({ code: "ROUTE_DEADLINE" });
+    expect(receivedSignal).not.toBe(scope.context.signal);
+    expect(receivedSignal?.aborted).toBe(true);
     scope.cleanup();
   });
 

@@ -9,7 +9,9 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import type {
   AgentPolicyManifest,
+  AgentRegistryRecord,
   EffectiveAgentPolicy,
+  PolicyLayerContent,
 } from "@unified-ai-system/shared-contracts";
 
 const POLICY_HASH_PREFIX = "sha256";
@@ -43,21 +45,17 @@ export function computePolicyHash(policy: PolicyWithoutHash): string {
   return `${POLICY_HASH_PREFIX}:${sha256Hex(stableStringify(policy))}`;
 }
 
-/** Identity hash over the immutable registry fields of an agent. */
-export function computeAgentHash(agent: {
-  agentId: string;
-  name: string;
-  purpose: string;
-  tenantId: string;
-  ownerUserId: string;
-  parentAgentId: string | null;
-  generationDepth: number;
-  classification: { family: string; domain: string; subclass: string };
-  traits: string[];
-  riskLevel: string;
-  status: string;
-  expiresAt: string;
-}): string {
+/** Hash of an immutable policy-layer content document. */
+export function computePolicyContentHash(content: PolicyLayerContent): string {
+  return `${POLICY_HASH_PREFIX}:${sha256Hex(stableStringify(content))}`;
+}
+
+/**
+ * Hash over the complete persisted registry record. Binding every field is
+ * intentional: tenant, ancestry, grants, policy linkage and lifecycle state
+ * are all authorization-relevant and must not be mutable without re-signing.
+ */
+export function computeAgentHash(agent: AgentRegistryRecord): string {
   return `${POLICY_HASH_PREFIX}:${sha256Hex(stableStringify(agent))}`;
 }
 
@@ -70,6 +68,15 @@ function hmacHex(secret: string | Uint8Array, input: string): string {
   return createHmac("sha256", secret).update(input, "utf8").digest("hex");
 }
 
+function isNonEmptySecret(secret: unknown): secret is string | Uint8Array {
+  return (typeof secret === "string" && secret.length > 0)
+    || (secret instanceof Uint8Array && secret.byteLength > 0);
+}
+
+function isSha256Digest(value: unknown): value is string {
+  return typeof value === "string" && /^sha256:[a-f0-9]{64}$/u.test(value);
+}
+
 export function buildManifest(input: {
   agentId: string;
   agentHash: string;
@@ -77,6 +84,16 @@ export function buildManifest(input: {
   compiledAt: string;
   secret: string | Uint8Array;
 }): AgentPolicyManifest {
+  if (!isNonEmptySecret(input.secret)) throw new TypeError("Manifest secret must not be empty.");
+  if (typeof input.agentId !== "string" || input.agentId.trim() === "") {
+    throw new TypeError("Manifest agentId must be a non-empty string.");
+  }
+  if (!isSha256Digest(input.agentHash) || !isSha256Digest(input.policyHash)) {
+    throw new TypeError("Manifest hashes must be canonical SHA-256 digests.");
+  }
+  if (typeof input.compiledAt !== "string" || !Number.isFinite(Date.parse(input.compiledAt))) {
+    throw new TypeError("Manifest compiledAt must be a valid ISO timestamp.");
+  }
   return {
     agentId: input.agentId,
     agentHash: input.agentHash,
@@ -90,10 +107,11 @@ function signManifestInput(agentHash: string, policyHash: string, secret: string
   return `${SIGNATURE_PREFIX}:${hmacHex(secret, `${MANIFEST_SIGNATURE_DOMAIN}\n${agentHash}:${policyHash}`)}`;
 }
 
-function safeEqualHex(left: string, right: string): boolean {
+function safeEqualHex(left: unknown, right: unknown): boolean {
+  if (typeof left !== "string" || typeof right !== "string") return false;
   const leftHex = left.replace(/^hmac-sha256:/u, "");
   const rightHex = right.replace(/^hmac-sha256:/u, "");
-  if (leftHex.length !== rightHex.length || leftHex.length !== 64) return false;
+  if (!/^[a-f0-9]{64}$/u.test(leftHex) || !/^[a-f0-9]{64}$/u.test(rightHex)) return false;
   try {
     return timingSafeEqual(Buffer.from(leftHex, "hex"), Buffer.from(rightHex, "hex"));
   } catch {
@@ -103,12 +121,21 @@ function safeEqualHex(left: string, right: string): boolean {
 
 /** Constant-time manifest signature verification. */
 export function verifyManifestSignature(
-  manifest: AgentPolicyManifest,
+  manifest: AgentPolicyManifest | unknown,
   secret: string | Uint8Array,
 ): boolean {
-  if (!manifest || typeof manifest !== "object") return false;
-  const expected = signManifestInput(manifest.agentHash, manifest.policyHash, secret);
-  return safeEqualHex(manifest.signature ?? "", expected);
+  if (!manifest || typeof manifest !== "object" || !isNonEmptySecret(secret)) return false;
+  const candidate = manifest as Record<string, unknown>;
+  if (!isSha256Digest(candidate.agentHash) || !isSha256Digest(candidate.policyHash)) return false;
+  if (typeof candidate.signature !== "string" || !/^hmac-sha256:[a-f0-9]{64}$/u.test(candidate.signature)) {
+    return false;
+  }
+  try {
+    const expected = signManifestInput(candidate.agentHash, candidate.policyHash, secret);
+    return safeEqualHex(candidate.signature, expected);
+  } catch {
+    return false;
+  }
 }
 
 export interface EffectivePolicyIntegrityResult {
@@ -123,9 +150,10 @@ export interface EffectivePolicyIntegrityResult {
  * mismatch means the policy bytes were tampered with after compilation.
  */
 export function verifyEffectivePolicyIntegrity(
-  policy: EffectiveAgentPolicy,
-  manifest: AgentPolicyManifest,
+  policy: EffectiveAgentPolicy | unknown,
+  manifest: AgentPolicyManifest | unknown,
   secret: string | Uint8Array,
+  currentAgent: AgentRegistryRecord | null | undefined,
 ): EffectivePolicyIntegrityResult {
   if (!policy || typeof policy !== "object") {
     return { ok: false, reason: "POLICY_MISSING" };
@@ -133,21 +161,45 @@ export function verifyEffectivePolicyIntegrity(
   if (!manifest || typeof manifest !== "object") {
     return { ok: false, reason: "MANIFEST_MISSING" };
   }
-  if (manifest.agentId !== policy.agentId) {
+  if (!currentAgent || typeof currentAgent !== "object") {
+    return { ok: false, reason: "CURRENT_AGENT_REQUIRED" };
+  }
+  const typedPolicy = policy as EffectiveAgentPolicy;
+  const typedManifest = manifest as AgentPolicyManifest;
+  if (typedManifest.agentId !== typedPolicy.agentId) {
     return { ok: false, reason: "MANIFEST_AGENT_MISMATCH" };
   }
-  const { policyHash: _storedHash, ...policyContent } = policy;
-  const recomputed = computePolicyHash(policyContent as PolicyWithoutHash);
-  if (recomputed !== policy.policyHash) {
+  if (currentAgent.agentId !== typedPolicy.agentId) {
+    return { ok: false, reason: "REGISTRY_AGENT_MISMATCH" };
+  }
+  if (currentAgent.status !== "ACTIVE") {
+    return { ok: false, reason: "AGENT_NOT_ACTIVE" };
+  }
+  let recomputed: string;
+  let currentAgentHash: string;
+  try {
+    const { policyHash: _storedHash, ...policyContent } = typedPolicy;
+    recomputed = computePolicyHash(policyContent as PolicyWithoutHash);
+    currentAgentHash = computeAgentHash(currentAgent);
+  } catch {
+    return { ok: false, reason: "INTEGRITY_INPUT_MALFORMED" };
+  }
+  if (recomputed !== typedPolicy.policyHash) {
     return { ok: false, reason: "POLICY_HASH_MISMATCH" };
   }
-  if (manifest.policyHash !== policy.policyHash) {
+  if (typedManifest.policyHash !== typedPolicy.policyHash) {
     return { ok: false, reason: "MANIFEST_HASH_MISMATCH" };
   }
-  if (manifest.compiledAt !== policy.compiledAt) {
+  if (currentAgent.policyHash !== typedPolicy.policyHash) {
+    return { ok: false, reason: "REGISTRY_POLICY_HASH_MISMATCH" };
+  }
+  if (typedManifest.agentHash !== currentAgentHash) {
+    return { ok: false, reason: "MANIFEST_AGENT_HASH_MISMATCH" };
+  }
+  if (typedManifest.compiledAt !== typedPolicy.compiledAt) {
     return { ok: false, reason: "MANIFEST_COMPILED_AT_MISMATCH" };
   }
-  if (!verifyManifestSignature(manifest, secret)) {
+  if (!verifyManifestSignature(typedManifest, secret)) {
     return { ok: false, reason: "MANIFEST_SIGNATURE_INVALID" };
   }
   return { ok: true };

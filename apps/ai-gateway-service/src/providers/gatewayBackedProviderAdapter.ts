@@ -103,6 +103,9 @@ export function createGatewayBackedProviderAdapter({
       }, providerRequest?.execution ?? {});
 
       if (!result?.success) throw createGatewayExecutionError(result);
+      const finishReason = result.data?.finishReason === "tool_call"
+        ? "tool_calls"
+        : result.data?.finishReason;
       return {
         text: result.data?.message?.content ?? result.data?.text ?? result.data?.outputText ?? "",
         message: result.data?.message ?? {
@@ -110,9 +113,10 @@ export function createGatewayBackedProviderAdapter({
           content: result.data?.text ?? result.data?.outputText ?? "",
         },
         usage: result.data?.usage ?? {},
+        toolCalls: Array.isArray(result.data?.toolCalls) ? result.data.toolCalls : [],
         latencyMs: result.data?.metadata?.latencyMs,
         raw: result.data?.metadata?.rawProviderMeta ?? {
-          finishReason: result.data?.finishReason,
+          finishReason,
         },
       };
     },

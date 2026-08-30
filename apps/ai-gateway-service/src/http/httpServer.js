@@ -1,6 +1,7 @@
 import {
   createServer,
 } from "node:http";
+import { acquireGovernanceOwnerLease } from "../agent-governance/governanceOwnerLease.ts";
 import {
   createErrorEnvelope,
   createOkEnvelope,
@@ -182,7 +183,7 @@ import {
   dispatchHttpRouteGroups,
 } from "./httpRouteDispatch.js";
 import { dispatchPromptEnhancementRoutes } from "./promptEnhancementRoutes.js";
-import { dispatchAgentExecRoutes } from "./agentExecRoutes.js";
+import { AGENT_EXEC_LIMITS, dispatchAgentExecRoutes } from "./agentExecRoutes.js";
 import { dispatchAgentGovernanceRoutes } from "./agentGovernanceRoutes.ts";
 import { createA2AGateway } from "./a2aGateway.js";
 import { dispatchA2ARoutes } from "./a2aRoutes.js";
@@ -215,6 +216,7 @@ import { bindGatewayExecution, createHttpRequestExecutionScope } from "./httpReq
 import { createRequestIdentityResolver, parseTrustedProxyCidrs } from "./requestIdentity.ts";
 import { shouldRejectUnmappedRoute } from "./runtimeRouteAccessManifest.ts";
 import { isLoopbackAddress } from "../security/networkBindingPolicy.ts";
+import { createRouteConcurrencyAdmission } from "./routeConcurrencyAdmission.ts";
 
 const logger = createLogger({ app: "ai-gateway-service", level: "info" });
 const writeServiceLog = (event, details = {}) => logger.info(event, details);
@@ -287,12 +289,27 @@ const CIRCUIT_BYPASS_ROUTES = Object.freeze(new Set(
 ));
 
 export function createGatewayHttpServer(application) {
+  const governanceOwnerLease = application.agentGovernance
+    ? acquireGovernanceOwnerLease({ dataDir: application.agentGovernance.dataDir })
+    : null;
+  try {
+    return createGatewayHttpServerWithOwnerLease(application, governanceOwnerLease);
+  } catch (error) {
+    governanceOwnerLease?.release();
+    throw error;
+  }
+}
+
+function createGatewayHttpServerWithOwnerLease(application, governanceOwnerLease) {
   const { capabilityRouterService, codexExecCrsRuntimeCandidate, enterpriseGovernanceService, enterpriseOpsService, fiveCapabilityActivationService, gatewayService, knowledgeService, modelImportService, modelLibraryStore, providerConfigRoutes, runtimeCredentialStore, userExperienceService, workforceService, workflowService } = application;
   const { localClientManagementService } = application;
   const approvalStore = createApprovalStore();
   const fileContextStore = createFileContextStore();
   const phase319LocalOperation = createPhase319LocalOperationService();
   const requestConfig = application.runtimeEnv ?? process.env;
+  const routeConcurrencyAdmission = createRouteConcurrencyAdmission({
+    rawConfig: requestConfig.AI_GATEWAY_ROUTE_CONCURRENCY_LIMITS,
+  });
   const rateLimiter = createRouteAwareRateLimiter(requestConfig);
   const authRateLimiter = createAuthRateLimiter();
   const authRequestIdentityResolver = createRequestIdentityResolver({
@@ -642,6 +659,7 @@ export function createGatewayHttpServer(application) {
     resilienceMetrics.recordRequestStarted(inFlightRequests.size);
 
     const pathname = url.pathname;
+    const controlPathname = pathname.replace(/\/+$/u, "") || "/";
     const isStreamingRoute = pathname.endsWith("/stream")
       || pathname === "/v1/chat/completions"
       || isAnthropicMessagesRoute(pathname)
@@ -686,10 +704,14 @@ export function createGatewayHttpServer(application) {
       return;
     }
 
-    const requestTimeout = Math.max(
-      isStreamingRoute ? streamingRequestTimeoutMs : requestTimeoutMs,
-      1_000,
-    );
+    // Agent Exec carries its own caller-selected wall-clock deadline. Give the
+    // HTTP transport a bounded grace window beyond the largest accepted Agent
+    // deadline; the route also combines this transport signal with its own
+    // timer, so disconnects still cancel immediately.
+    const routeTimeoutMs = pathname === "/agent-exec/run"
+      ? Math.max(requestTimeoutMs, AGENT_EXEC_LIMITS.maxTimeoutMs + 5_000)
+      : isStreamingRoute ? streamingRequestTimeoutMs : requestTimeoutMs;
+    const requestTimeout = Math.max(routeTimeoutMs, 1_000);
     const requestExecutionScope = createHttpRequestExecutionScope({
       request,
       response,
@@ -740,6 +762,9 @@ export function createGatewayHttpServer(application) {
     const routeRateLimiter = rateLimiter;
 
     try {
+      if (isAgentGovernanceRuntimePath(controlPathname)) {
+        governanceOwnerLease?.assertHeld();
+      }
       // Rate limiting
       const rateLimitResult = await routeRateLimiter.apply(request, response);
       if (rateLimitResult) {
@@ -791,7 +816,7 @@ export function createGatewayHttpServer(application) {
             allowed: false,
             code: platformControlPlaneDecision.code,
             statusCode: 403,
-            message: "Global provider and model mutations require the configured platform tenant.",
+            message: "Global control-plane access requires the configured platform tenant.",
           }
         : baseEnterpriseDecision;
       const managedProtocolPrincipal = application.localClientProtocolPrincipalResolver?.resolve?.(
@@ -990,7 +1015,34 @@ export function createGatewayHttpServer(application) {
         });
       }
 
-      const routeResult = await httpTrace.run(() => dispatchHttpRouteGroups(HTTP_ROUTE_GROUPS, {
+      const routeConcurrencyLease = routeConcurrencyAdmission.tryAcquire(
+        controlPathname,
+        request.enterpriseIdentity?.tenantId,
+      );
+      if (!routeConcurrencyLease.allowed) {
+        response.setHeader("Retry-After", "1");
+        response.setHeader("X-Concurrency-Route", routeConcurrencyLease.pattern);
+        writeJson(response, 503, createErrorEnvelope(
+          "route_concurrency_limited",
+          "This expensive route has reached its bounded concurrency limit.",
+          {
+            startedAt,
+            category: "capacity",
+            retryable: true,
+            details: {
+              route: routeConcurrencyLease.pattern,
+              activeGlobal: routeConcurrencyLease.activeGlobal,
+              activeTenant: routeConcurrencyLease.activeTenant,
+              ...routeConcurrencyLease.limits,
+            },
+          },
+        ));
+        markRequestSuccess({ recordServerFailure: false, recordCircuitOutcome: false });
+        return;
+      }
+      let routeResult;
+      try {
+        routeResult = await httpTrace.run(() => dispatchHttpRouteGroups(HTTP_ROUTE_GROUPS, {
           ...HTTP_ROUTE_DEPENDENCIES,
           application,
           request,
@@ -1027,6 +1079,9 @@ export function createGatewayHttpServer(application) {
           idempotencyCoordinator,
           gatewayLifecycle,
         }));
+      } finally {
+        routeConcurrencyLease.release();
+      }
       if (routeResult !== ROUTE_NOT_HANDLED) {
         markRequestSuccess();
         return;
@@ -1099,6 +1154,7 @@ export function createGatewayHttpServer(application) {
   wsServer.attach(server);
   let shutdownResourcesPromise;
   server.gatewayLifecycle = gatewayLifecycle;
+  server.agentGovernanceOwnerLease = governanceOwnerLease;
   server.closeRealtimeConnections = () => wsServer.close(1001, "Gateway shutting down");
   server.shutdownResources = () => {
     shutdownResourcesPromise ??= (async () => {
@@ -1148,6 +1204,11 @@ export function createGatewayHttpServer(application) {
       for (const result of results) {
         if (result.status === "rejected") failures.push(result.reason);
       }
+      try {
+        governanceOwnerLease?.release();
+      } catch (error) {
+        failures.push(error);
+      }
       if (failures.length > 0) {
         throw new AggregateError(failures, "One or more gateway resources failed to close.");
       }
@@ -1164,6 +1225,18 @@ export function createGatewayHttpServer(application) {
     });
   });
   return server;
+}
+
+function isAgentGovernanceRuntimePath(pathname) {
+  return pathname === "/agent-exec/run"
+    || pathname === "/mcp/call"
+    || pathname === "/workforce/execute"
+    || pathname === "/forge/orchestrate"
+    || pathname === "/workflow/run"
+    || pathname.startsWith("/v1/agents/")
+    || pathname.startsWith("/v1/approvals/")
+    || pathname.startsWith("/v1/policies/")
+    || pathname === "/v1/governance/stats";
 }
 
 function isManagedLocalClientProtocolRoute(method, pathname) {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   evaluatePlatformControlPlaneAccess,
+  isPlatformControlPlaneAccess,
   isPlatformControlPlaneMutation,
   resolvePlatformTenantId,
 } from "./platformControlPlanePolicy.ts";
@@ -13,6 +14,8 @@ describe("platform control-plane policy", () => {
     ["POST", "/models/import/confirm"],
     ["POST", "/model-library/refresh"],
     ["POST", "/real-capabilities/activate-five"],
+    ["POST", "/v1/policies/create"],
+    ["POST", "/v1/policies/activate"],
     ["DELETE", "/providers/acme"],
   ])("classifies global mutation %s %s", (method, pathname) => {
     expect(isPlatformControlPlaneMutation(method, pathname)).toBe(true);
@@ -25,6 +28,20 @@ describe("platform control-plane policy", () => {
     ["PUT", "/enterprise/guardrails"],
   ])("does not capture tenant-local or read request %s %s", (method, pathname) => {
     expect(isPlatformControlPlaneMutation(method, pathname)).toBe(false);
+  });
+
+  it.each([
+    ["GET", "/v1/policies/list"],
+    ["GET", "/v1/governance/stats"],
+    ["POST", "/v1/policies/create"],
+  ])("protects global governance access %s %s", (method, pathname) => {
+    expect(isPlatformControlPlaneAccess(method, pathname)).toBe(true);
+    expect(evaluatePlatformControlPlaneAccess({
+      method,
+      pathname,
+      identity: { tenantId: "tenant-b" },
+      env: { PME_ENTERPRISE_PLATFORM_TENANT_ID: "platform" },
+    })).toMatchObject({ required: true, allowed: false, code: "platform_tenant_mismatch" });
   });
 
   it("uses the explicit platform tenant before the authentication tenant", () => {

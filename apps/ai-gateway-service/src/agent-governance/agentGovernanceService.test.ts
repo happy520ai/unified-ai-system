@@ -1,3 +1,4 @@
+// @test-isolation process
 /**
  * Agent governance runtime tests — service, proxy and registry seam.
  *
@@ -13,21 +14,48 @@ import { mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createAgentGovernanceService } from "./agentGovernanceService.ts";
+import {
+  createAgentGovernanceService,
+  type PolicyActivationCommitStage,
+} from "./agentGovernanceService.ts";
+import { createAgentFileStore } from "./agentFileStore.ts";
+import { createGovernanceAuditLog } from "./governanceAuditLog.ts";
 import { createAgentGovernanceToolProxy } from "./toolProxy.ts";
 import { createAgentToolRegistry } from "../claude-code-patterns/toolRegistryEngine.js";
 
 const T0 = "2026-08-30T10:00:00.000Z";
 const SECRET = "unit-test-governance-secret-0123456789";
-const CTX = { tenantId: "tenant_a", userId: "user_1" };
+const CTX = { tenantId: "tenant_a", userId: "user_1", role: "admin", permissions: ["*"] };
+
+function gitPushReviewContext(branch = "main") {
+  return {
+    approvalReview: {
+      schemaVersion: 1 as const,
+      reviewable: true,
+      effectType: "git:push",
+      repository: { displayName: "test-repo", fingerprint: `sha256:${"a".repeat(64)}` },
+      remote: { name: "origin", target: "example/test-repo", urlFingerprint: `sha256:${"b".repeat(64)}` },
+      source: { branch, commit: "c".repeat(40) },
+      destination: { branch },
+      options: { setUpstream: false, forceMode: "none" as const },
+    },
+  };
+}
 
 let dataDir: string;
 let clockIso = T0;
 
 function newService() {
+  return newServiceFor(dataDir);
+}
+
+function newServiceFor(directory: string) {
   return createAgentGovernanceService({
-    env: { AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: SECRET },
-    dataDir,
+    env: {
+      AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: SECRET,
+      PME_ENTERPRISE_PLATFORM_TENANT_ID: CTX.tenantId,
+    },
+    dataDir: directory,
     now: () => clockIso,
   });
 }
@@ -98,6 +126,47 @@ describe("agent generation flow", () => {
       policyKey: "root-policy", version: 1, policyType: "root", scopeKey: "global", content: {},
     }, CTX)).rejects.toThrow(/immutable/);
   });
+
+  it("binds execution to the Agent owner and a verified ACTIVE manifest", async () => {
+    const service = newService();
+    const agent = await generateExecutionAgent("owned-execution");
+    const authorized = await service.authorizeAgentExecution(agent.agentId, CTX);
+    expect(authorized.record.ownerUserId).toBe(CTX.userId);
+    expect(authorized.policy.policyHash).toBe(agent.policyHash);
+    authorized.executionLease.release();
+
+    await expect(service.authorizeAgentExecution(agent.agentId, {
+      tenantId: CTX.tenantId,
+      userId: "different_user",
+      role: "operator",
+      permissions: ["workflow:run"],
+    })).rejects.toMatchObject({ code: "AGENT_EXECUTION_OWNER_REQUIRED", statusCode: 403 });
+  });
+
+  it("does not let workflow:run self-classification grant git writes or code execution", async () => {
+    const service = newService();
+    const agent = await service.generateAgent({
+      name: "self-classified-executor",
+      task: "try privileged tools",
+      requestedTools: ["git_branch", "type_check"],
+      ttlSeconds: 3600,
+      parentAgentId: null,
+      classification: { family: "execution", domain: "general", subclass: "executor" },
+      proposedTraits: ["write_capable", "code_execution"],
+      proposedRiskLevel: "critical",
+    }, {
+      tenantId: CTX.tenantId,
+      userId: "operator_only",
+      role: "operator",
+      permissions: ["workflow:run"],
+    });
+    expect(agent.grantedTools).toEqual([]);
+    const effective = await service.getEffectivePolicy(agent.agentId, CTX.tenantId);
+    expect(effective?.permissions.canWrite).toBe(false);
+    expect(effective?.permissions.canExecuteCode).toBe(false);
+    expect(effective?.toolDecisions.git_branch ?? "deny").toBe("deny");
+    expect(effective?.toolDecisions.type_check ?? "deny").toBe("deny");
+  });
 });
 
 describe("tool proxy enforcement", () => {
@@ -109,6 +178,7 @@ describe("tool proxy enforcement", () => {
       context: { agentId: agent.agentId, tenantId: "tenant_a" },
       toolName: "git_push",
       params: { remote: "origin", branch: "main" },
+      resourceContext: gitPushReviewContext(),
     });
     expect(verdict.outcome).toBe("approval_required");
     expect(verdict.approvalId).toBeTruthy();
@@ -132,6 +202,7 @@ describe("tool proxy enforcement", () => {
       context: { agentId: agent.agentId, tenantId: "tenant_a" },
       toolName: "git_push",
       params: original,
+      resourceContext: gitPushReviewContext(),
     });
     expect(first.outcome).toBe("approval_required");
     await service.decideApproval(first.approvalId as string, "approve", CTX);
@@ -140,13 +211,24 @@ describe("tool proxy enforcement", () => {
       context: { agentId: agent.agentId, tenantId: "tenant_a" },
       toolName: "git_push",
       params: { branch: "main", remote: "origin" },
+      resourceContext: gitPushReviewContext(),
     });
     expect(same.outcome).toBe("allow");
+
+    const repeated = await proxy.enforce({
+      context: { agentId: agent.agentId, tenantId: "tenant_a" },
+      toolName: "git_push",
+      params: { branch: "main", remote: "origin" },
+      resourceContext: gitPushReviewContext(),
+    });
+    expect(repeated.outcome).toBe("approval_required");
+    expect(repeated.approvalId).not.toBe(first.approvalId);
 
     const changed = await proxy.enforce({
       context: { agentId: agent.agentId, tenantId: "tenant_a" },
       toolName: "git_push",
       params: { remote: "origin", branch: "develop" },
+      resourceContext: gitPushReviewContext("develop"),
     });
     expect(changed.outcome).toBe("approval_required");
     expect(changed.approvalId).not.toBe(first.approvalId);
@@ -163,6 +245,42 @@ describe("tool proxy enforcement", () => {
     expect(await service.loadVerifiedPolicy(agent.agentId)).toBeNull();
     const audit = await service.readAudit(agent.agentId, "tenant_a", 10);
     expect(audit.some((event) => event.eventType === "POLICY_SIGNATURE_FAILED")).toBe(true);
+  });
+
+  it("rejects registry tenant/status tampering even when policy bytes are unchanged", async () => {
+    const isolatedDir = mkdtempSync(join(tmpdir(), "agent-governance-registry-tamper-"));
+    try {
+      const service = newServiceFor(isolatedDir);
+      const agent = await service.generateAgent({
+        name: "registry-tamper",
+        task: "执行代码修改任务",
+        requestedTools: ["file_read", "file_write", "git_commit", "git_push"],
+        ttlSeconds: 3600,
+        parentAgentId: null,
+        proposedTraits: ["write_capable", "subagent_creator"],
+        proposedRiskLevel: "medium",
+      }, CTX);
+      await service.revokeAgent(agent.agentId, { reason: "test", cascade: true }, CTX);
+
+      const registryPath = join(isolatedDir, "agents.json");
+      const registry = JSON.parse(readFileSync(registryPath, "utf8"));
+      registry.agents[agent.agentId].status = "ACTIVE";
+      registry.agents[agent.agentId].tenantId = "tenant_b";
+      writeFileSync(registryPath, JSON.stringify(registry, null, 2));
+
+      const restarted = newServiceFor(isolatedDir);
+      const proxy = createAgentGovernanceToolProxy({ service: restarted });
+      await expect(proxy.enforce({
+        context: { agentId: agent.agentId, tenantId: "tenant_b" },
+        toolName: "file_read",
+        params: { path: "README.md" },
+      })).rejects.toMatchObject({ name: "GovernanceStateIntegrityError" });
+      await expect(restarted.getAgent(agent.agentId, "tenant_b")).rejects.toMatchObject({
+        name: "GovernanceStateIntegrityError",
+      });
+    } finally {
+      rmSync(isolatedDir, { recursive: true, force: true });
+    }
   });
 
   it("12-runtime. Agent 过期后禁止调用", async () => {
@@ -200,6 +318,22 @@ describe("tool proxy enforcement", () => {
     expect(second.outcome).toBe("deny");
     expect(second.code).toBe("TOOL_CALL_LIMIT_REACHED");
   });
+
+  it("reserves maxToolCalls atomically under concurrent proxy calls", async () => {
+    const service = newService();
+    const proxy = createAgentGovernanceToolProxy({ service });
+    const agent = await generateExecutionAgent("concurrent-cap", {
+      instanceRules: { limits: { maxToolCalls: 1 } },
+    });
+    const verdicts = await Promise.all(Array.from({ length: 16 }, (_, index) => proxy.enforce({
+      context: { agentId: agent.agentId, tenantId: "tenant_a" },
+      toolName: "file_read",
+      params: { path: `${index}.txt` },
+    })));
+    expect(verdicts.filter((verdict) => verdict.outcome === "allow")).toHaveLength(1);
+    expect(verdicts.filter((verdict) => verdict.code === "TOOL_CALL_LIMIT_REACHED")).toHaveLength(15);
+    expect((await service.getUsage(agent.agentId)).toolCalls).toBe(1);
+  });
 });
 
 describe("sub-agents and cascade revocation", () => {
@@ -222,7 +356,7 @@ describe("sub-agents and cascade revocation", () => {
       parentAgentId: parent.agentId,
       // Children inherit the parent's risk labels — external_communication
       // comes from the parent's git_push entitlement and may not be dropped.
-      proposedTraits: ["write_capable", "subagent_creator", "external_communication"],
+      proposedTraits: ["write_capable", "external_communication"],
       proposedRiskLevel: "low",
     }, CTX);
     return { service, parent, child };
@@ -233,7 +367,7 @@ describe("sub-agents and cascade revocation", () => {
     const parent = await service.generateAgent({
       name: "reader",
       task: "只读",
-      requestedTools: ["file_read"],
+      requestedTools: ["file_read", "file_write"],
       ttlSeconds: 3600,
       parentAgentId: null,
       proposedTraits: ["write_capable", "subagent_creator"],
@@ -242,10 +376,10 @@ describe("sub-agents and cascade revocation", () => {
     await expect(service.generateAgent({
       name: "greedy-child",
       task: "越权",
-      requestedTools: ["file_read", "shell_exec"],
+      requestedTools: ["file_read", "file_write", "shell_exec"],
       ttlSeconds: 1800,
       parentAgentId: parent.agentId,
-      proposedTraits: ["write_capable", "subagent_creator"],
+      proposedTraits: ["write_capable"],
       proposedRiskLevel: "low",
     }, CTX)).rejects.toThrow(/PARENT_TOOL_SUBSET_VIOLATION/);
   });
@@ -265,9 +399,456 @@ describe("sub-agents and cascade revocation", () => {
     expect(verdict.outcome).toBe("deny");
     expect(verdict.code).toBe("AGENT_REVOKED");
   });
+
+  it("atomically enforces maxChildrenPerAgent under concurrent generation", async () => {
+    const service = newService();
+    const parent = await service.generateAgent({
+      name: "single-child-parent",
+      task: "delegate one child",
+      requestedTools: ["file_read", "file_write"],
+      ttlSeconds: 3600,
+      parentAgentId: null,
+      proposedTraits: ["write_capable", "subagent_creator"],
+      proposedRiskLevel: "medium",
+      instanceRules: { limits: { maxChildrenPerAgent: 1 } },
+    }, CTX);
+    const createChild = (name: string) => service.generateAgent({
+      name,
+      task: "read one file",
+      requestedTools: ["file_read"],
+      ttlSeconds: 1800,
+      parentAgentId: parent.agentId,
+      proposedTraits: ["write_capable"],
+      proposedRiskLevel: "medium",
+    }, CTX);
+    const results = await Promise.allSettled([createChild("child-a"), createChild("child-b")]);
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    const rejected = results.find((result) => result.status === "rejected");
+    expect(rejected).toMatchObject({
+      status: "rejected",
+      reason: expect.objectContaining({ message: expect.stringContaining("PARENT_CHILDREN_LIMIT_EXCEEDED") }),
+    });
+  });
+
+  it("fences new tool executions and waits for an in-flight lease before revocation", async () => {
+    const service = newService();
+    const agent = await generateExecutionAgent("lease-revocation");
+    const lease = await service.acquireToolExecutionLease({
+      agentId: agent.agentId,
+      tenantId: CTX.tenantId,
+      policyHash: agent.policyHash,
+    });
+    expect(lease).not.toBeNull();
+
+    let revoked = false;
+    const revokePromise = service.revokeAgent(agent.agentId, { reason: "fence", cascade: true }, CTX)
+      .then((result) => { revoked = true; return result; });
+    let fenced = false;
+    for (let attempt = 0; attempt < 50 && !fenced; attempt += 1) {
+      await new Promise((resolve) => setImmediate(resolve));
+      const candidate = await service.acquireToolExecutionLease({
+        agentId: agent.agentId,
+        tenantId: CTX.tenantId,
+        policyHash: agent.policyHash,
+      });
+      fenced = candidate === null;
+      candidate?.release();
+    }
+    expect(revoked).toBe(false);
+    expect(fenced).toBe(true);
+
+    lease?.release();
+    await expect(revokePromise).resolves.toMatchObject({ revoked: [agent.agentId] });
+    expect((await service.getAgent(agent.agentId, CTX.tenantId))?.status).toBe("REVOKED");
+  });
 });
 
 describe("policy activation recompilation", () => {
+  it("rejects global policy mutation from a non-platform tenant even for admin", async () => {
+    const service = newService();
+    await expect(service.createPolicyVersion({
+      policyKey: "tenant-b-attempt",
+      version: 1,
+      policyType: "tenant",
+      scopeKey: "tenant_b",
+      content: {},
+    }, {
+      tenantId: "tenant_b",
+      userId: "tenant_b_admin",
+      role: "admin",
+      permissions: ["*"],
+    })).rejects.toMatchObject({ code: "PLATFORM_TENANT_REQUIRED", statusCode: 403 });
+  });
+
+  it("fences in-flight tool leases before activating a stricter matching policy", async () => {
+    const service = newService();
+    const agent = await service.generateAgent({
+      name: "activation-lease",
+      task: "read",
+      requestedTools: ["file_read"],
+      ttlSeconds: 3600,
+      parentAgentId: null,
+    }, CTX);
+    const lease = await service.acquireToolExecutionLease({
+      agentId: agent.agentId,
+      tenantId: CTX.tenantId,
+      policyHash: agent.policyHash,
+    });
+    await service.createPolicyVersion({
+      policyKey: "activation-lease-subclass",
+      version: 1,
+      policyType: "subclass",
+      scopeKey: "activation-lease",
+      content: { toolRules: { file_read: "deny" } },
+    }, CTX);
+    let completed = false;
+    const activation = service.activatePolicyVersion("activation-lease-subclass", 1, CTX)
+      .then((result) => { completed = true; return result; });
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(completed).toBe(false);
+    lease?.release();
+    await expect(activation).resolves.toMatchObject({
+      affected: expect.arrayContaining([expect.objectContaining({ agentId: agent.agentId })]),
+    });
+    const policy = await service.getEffectivePolicy(agent.agentId, CTX.tenantId);
+    expect(policy?.toolDecisions.file_read).toBe("deny");
+    const nextLease = await service.acquireToolExecutionLease({
+      agentId: agent.agentId,
+      tenantId: CTX.tenantId,
+      policyHash: policy!.policyHash,
+    });
+    expect(nextLease).not.toBeNull();
+    nextLease?.release();
+  });
+
+  it("serializes generation behind an in-progress activation so a stricter stack cannot be missed", async () => {
+    const service = newService();
+    const existing = await service.generateAgent({
+      name: "activation-generation-race",
+      task: "read",
+      requestedTools: ["file_read"],
+      ttlSeconds: 3600,
+      parentAgentId: null,
+    }, CTX);
+    const lease = await service.acquireToolExecutionLease({
+      agentId: existing.agentId,
+      tenantId: CTX.tenantId,
+      policyHash: existing.policyHash,
+    });
+    await service.createPolicyVersion({
+      policyKey: "activation-generation-race-subclass",
+      version: 1,
+      policyType: "subclass",
+      scopeKey: "activation-generation-race",
+      content: { toolRules: { file_read: "deny" } },
+    }, CTX);
+
+    const activation = service.activatePolicyVersion("activation-generation-race-subclass", 1, CTX);
+    await new Promise((resolve) => setImmediate(resolve));
+    let generationSettled = false;
+    const generation = service.generateAgent({
+      name: "activation-generation-race",
+      task: "read after activation",
+      requestedTools: ["file_read"],
+      ttlSeconds: 3600,
+      parentAgentId: null,
+    }, CTX).then((result) => {
+      generationSettled = true;
+      return result;
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(generationSettled).toBe(false);
+
+    lease?.release();
+    await activation;
+    const generated = await generation;
+    const policy = await service.getEffectivePolicy(generated.agentId, CTX.tenantId);
+    expect(policy?.toolDecisions.file_read).toBe("deny");
+    expect(generated.grantedTools).not.toContain("file_read");
+  });
+
+  for (const crashStage of [
+    "after-journal",
+    "after-fence",
+    "after-agent-bundle",
+    "after-agent-registry",
+    "after-catalog",
+    "after-audit",
+  ] as const satisfies readonly PolicyActivationCommitStage[]) {
+    it(`recovers a simulated process crash at ${crashStage} before exposing service state`, async () => {
+      const root = mkdtempSync(join(tmpdir(), `agent-governance-crash-${crashStage}-`));
+      try {
+        const name = `crash-${crashStage}`;
+        let injected = false;
+        const crashing = createAgentGovernanceService({
+          env: {
+            AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: SECRET,
+            PME_ENTERPRISE_PLATFORM_TENANT_ID: CTX.tenantId,
+          },
+          dataDir: root,
+          now: () => clockIso,
+          activationFaultInjector(stage) {
+            if (!injected && stage === crashStage) {
+              injected = true;
+              throw Object.assign(new Error(`simulated crash at ${stage}`), {
+                code: "POLICY_ACTIVATION_CRASH_SIMULATION",
+              });
+            }
+          },
+        });
+        const agent = await crashing.generateAgent({
+          name,
+          task: "read",
+          requestedTools: ["file_read"],
+          ttlSeconds: 3600,
+          parentAgentId: null,
+        }, CTX);
+        const policyKey = `${name}-subclass`;
+        await crashing.createPolicyVersion({
+          policyKey,
+          version: 1,
+          policyType: "subclass",
+          scopeKey: name,
+          content: { toolRules: { file_read: "deny" } },
+        }, CTX);
+
+        await expect(crashing.activatePolicyVersion(policyKey, 1, CTX)).rejects.toMatchObject({
+          code: "POLICY_ACTIVATION_CRASH_SIMULATION",
+        });
+        expect(existsSync(join(root, "policy-activation.journal.json"))).toBe(true);
+        const rawCatalog = JSON.parse(readFileSync(join(root, "policies.json"), "utf8"));
+        const rawRegistry = JSON.parse(readFileSync(join(root, "agents.json"), "utf8"));
+        if (crashStage === "after-catalog" || crashStage === "after-audit") {
+          expect(rawCatalog.activeByPolicyKey[policyKey]).toBe(1);
+          // The unsafe state (new catalog + old ACTIVE Agent) is impossible:
+          // catalog is committed only after every registry record is stricter.
+          expect(rawRegistry.agents[agent.agentId].policyHash).not.toBe(agent.policyHash);
+        } else {
+          expect(rawCatalog.activeByPolicyKey[policyKey]).toBeUndefined();
+        }
+
+        const restarted = createAgentGovernanceService({
+          env: {
+            AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: SECRET,
+            PME_ENTERPRISE_PLATFORM_TENANT_ID: CTX.tenantId,
+          },
+          dataDir: root,
+          now: () => clockIso,
+        });
+        const recoveredRecord = await restarted.getAgent(agent.agentId, CTX.tenantId);
+        const recoveredPolicy = await restarted.getEffectivePolicy(agent.agentId, CTX.tenantId);
+        expect(recoveredRecord?.status).toBe("ACTIVE");
+        expect(recoveredRecord?.policyHash).not.toBe(agent.policyHash);
+        expect(recoveredPolicy?.toolDecisions.file_read).toBe("deny");
+        expect((await restarted.listPolicies()).find((item) => item.policyKey === policyKey && item.status === "active")?.version)
+          .toBe(1);
+        expect(existsSync(join(root, "policy-activation.journal.json"))).toBe(false);
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    });
+  }
+
+  it("rolls catalog and Agent state back when Agent bundle commit fails once", async () => {
+    const root = mkdtempSync(join(tmpdir(), "agent-governance-activation-bundle-"));
+    try {
+      const backingFiles = createAgentFileStore({ dataDir: root });
+      let failNextBundle = false;
+      const service = createAgentGovernanceService({
+        env: {
+          AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: SECRET,
+          PME_ENTERPRISE_PLATFORM_TENANT_ID: CTX.tenantId,
+        },
+        dataDir: root,
+        now: () => clockIso,
+        stores: {
+          files: {
+            ...backingFiles,
+            async writeAgentBundle(input) {
+              if (failNextBundle) {
+                failNextBundle = false;
+                throw new Error("injected Agent bundle commit failure");
+              }
+              await backingFiles.writeAgentBundle(input);
+            },
+          },
+        },
+      });
+      const agent = await service.generateAgent({
+        name: "bundle-rollback",
+        task: "read",
+        requestedTools: ["file_read"],
+        ttlSeconds: 3600,
+        parentAgentId: null,
+      }, CTX);
+      await service.createPolicyVersion({
+        policyKey: "bundle-rollback-subclass",
+        version: 1,
+        policyType: "subclass",
+        scopeKey: "bundle-rollback",
+        content: { toolRules: { file_read: "deny" } },
+      }, CTX);
+      failNextBundle = true;
+
+      await expect(service.activatePolicyVersion("bundle-rollback-subclass", 1, CTX)).rejects.toMatchObject({
+        name: "PolicyActivationTransactionFailed",
+        code: "POLICY_ACTIVATION_TRANSACTION_FAILED",
+        rolledBack: true,
+        rollbackErrors: [],
+      });
+      expect((await service.listPolicies()).find((item) => item.policyKey === "bundle-rollback-subclass")?.status)
+        .toBe("draft");
+      expect((await service.getAgent(agent.agentId, CTX.tenantId))?.status).toBe("ACTIVE");
+      expect((await service.getEffectivePolicy(agent.agentId, CTX.tenantId))?.policyHash).toBe(agent.policyHash);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("rolls catalog and Agent state back when the activation audit fails", async () => {
+    const root = mkdtempSync(join(tmpdir(), "agent-governance-activation-audit-"));
+    try {
+      const backingAudit = createGovernanceAuditLog({
+        logPath: join(root, "audit-events.jsonl"),
+        secret: SECRET,
+      });
+      let failRecompileAudit = false;
+      const service = createAgentGovernanceService({
+        env: {
+          AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: SECRET,
+          PME_ENTERPRISE_PLATFORM_TENANT_ID: CTX.tenantId,
+        },
+        dataDir: root,
+        now: () => clockIso,
+        stores: {
+          auditLog: {
+            ...backingAudit,
+            async record(event) {
+              if (failRecompileAudit && event.eventType === "POLICY_RECOMPILED") {
+                failRecompileAudit = false;
+                throw new Error("injected activation audit failure");
+              }
+              await backingAudit.record(event);
+            },
+          },
+        },
+      });
+      const agent = await service.generateAgent({
+        name: "audit-rollback",
+        task: "read",
+        requestedTools: ["file_read"],
+        ttlSeconds: 3600,
+        parentAgentId: null,
+      }, CTX);
+      await service.createPolicyVersion({
+        policyKey: "audit-rollback-subclass",
+        version: 1,
+        policyType: "subclass",
+        scopeKey: "audit-rollback",
+        content: { toolRules: { file_read: "deny" } },
+      }, CTX);
+      failRecompileAudit = true;
+
+      await expect(service.activatePolicyVersion("audit-rollback-subclass", 1, CTX)).rejects.toMatchObject({
+        name: "PolicyActivationTransactionFailed",
+        rolledBack: true,
+      });
+      expect((await service.listPolicies()).find((item) => item.policyKey === "audit-rollback-subclass")?.status)
+        .toBe("draft");
+      expect((await service.getAgent(agent.agentId, CTX.tenantId))?.status).toBe("ACTIVE");
+      expect((await service.getEffectivePolicy(agent.agentId, CTX.tenantId))?.policyHash).toBe(agent.policyHash);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("persists FAILED and retains the execution fence when rollback storage is unavailable", async () => {
+    const root = mkdtempSync(join(tmpdir(), "agent-governance-activation-failed-"));
+    try {
+      const backingFiles = createAgentFileStore({ dataDir: root });
+      let rejectBundleWrites = false;
+      const service = createAgentGovernanceService({
+        env: {
+          AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: SECRET,
+          PME_ENTERPRISE_PLATFORM_TENANT_ID: CTX.tenantId,
+        },
+        dataDir: root,
+        now: () => clockIso,
+        stores: {
+          files: {
+            ...backingFiles,
+            async writeAgentBundle(input) {
+              if (rejectBundleWrites) throw new Error("injected persistent bundle failure");
+              await backingFiles.writeAgentBundle(input);
+            },
+          },
+        },
+      });
+      const agent = await service.generateAgent({
+        name: "fail-closed-recovery",
+        task: "read",
+        requestedTools: ["file_read"],
+        ttlSeconds: 3600,
+        parentAgentId: null,
+      }, CTX);
+      await service.createPolicyVersion({
+        policyKey: "fail-closed-recovery-subclass",
+        version: 1,
+        policyType: "subclass",
+        scopeKey: "fail-closed-recovery",
+        content: { toolRules: { file_read: "deny" } },
+      }, CTX);
+      rejectBundleWrites = true;
+
+      await expect(service.activatePolicyVersion("fail-closed-recovery-subclass", 1, CTX)).rejects.toMatchObject({
+        name: "PolicyActivationTransactionFailed",
+        rolledBack: false,
+        failClosedAgentIds: [agent.agentId],
+      });
+      const failedRegistry = JSON.parse(readFileSync(join(root, "agents.json"), "utf8"));
+      expect(failedRegistry.agents[agent.agentId].status).toBe("FAILED");
+      const replayableRollingBackJournal = readFileSync(
+        join(root, "policy-activation.journal.json"),
+        "utf8",
+      );
+      await expect(service.getAgent(agent.agentId, CTX.tenantId)).rejects.toThrow(/persistent bundle failure/u);
+
+      // Once storage is repaired, the first operation on a restarted service
+      // consumes the retained rolling-back WAL before exposing any state.
+      rejectBundleWrites = false;
+      const restarted = createAgentGovernanceService({
+        env: {
+          AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: SECRET,
+          PME_ENTERPRISE_PLATFORM_TENANT_ID: CTX.tenantId,
+        },
+        dataDir: root,
+        now: () => clockIso,
+      });
+      expect((await restarted.getAgent(agent.agentId, CTX.tenantId))?.status).toBe("ACTIVE");
+      expect((await restarted.getEffectivePolicy(agent.agentId, CTX.tenantId))?.policyHash).toBe(agent.policyHash);
+
+      await restarted.activatePolicyVersion("fail-closed-recovery-subclass", 1, CTX);
+      const tightened = await restarted.getEffectivePolicy(agent.agentId, CTX.tenantId);
+      expect(tightened?.toolDecisions.file_read).toBe("deny");
+      writeFileSync(join(root, "policy-activation.journal.json"), replayableRollingBackJournal, "utf8");
+      const replayAttempt = createAgentGovernanceService({
+        env: {
+          AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: SECRET,
+          PME_ENTERPRISE_PLATFORM_TENANT_ID: CTX.tenantId,
+        },
+        dataDir: root,
+        now: () => clockIso,
+      });
+      await expect(replayAttempt.listPolicies()).rejects.toMatchObject({
+        code: "POLICY_ACTIVATION_RECOVERY_REQUIRED",
+      });
+      const afterReplay = JSON.parse(readFileSync(join(root, "policies.json"), "utf8"));
+      expect(afterReplay.activeByPolicyKey["fail-closed-recovery-subclass"]).toBe(1);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("19/20/21-runtime. 严格版自动收紧、宽松版不扩权、审计记录新旧哈希", async () => {
     const service = newService();
     const agent = await generateExecutionAgent("recompile-target");
@@ -276,11 +857,11 @@ describe("policy activation recompilation", () => {
 
     await service.createPolicyVersion({
       policyKey: "execution-family",
-      version: 2,
+      version: 3,
       policyType: "family",
       scopeKey: "execution",
       content: {
-        capabilityCeiling: ["file_read", "file_glob", "grep_search", "file_write", "file_edit", "file_insert", "git_status", "git_diff", "git_log", "git_branch", "git_commit", "git_push", "git_create_pr", "shell_exec"],
+        capabilityCeiling: ["file_read", "glob", "grep", "file_write", "file_edit", "file_insert", "git_status", "git_diff", "git_log", "git_branch", "git_commit", "git_push", "git_create_pr", "shell_exec"],
         toolRules: {
           "shell_exec": "deny",
           "code_run": "deny",
@@ -289,9 +870,15 @@ describe("policy activation recompilation", () => {
           "file_write": "require_approval",
         },
         limits: { maxSteps: 20, maxToolCalls: 30, maxRuntimeSeconds: 240 },
+        permissions: {
+          canCreateChildren: true,
+          canWrite: true,
+          canSendExternalMessage: true,
+          canExecuteCode: false,
+        },
       },
     }, CTX);
-    const stricter = await service.activatePolicyVersion("execution-family", 2, CTX);
+    const stricter = await service.activatePolicyVersion("execution-family", 3, CTX);
     expect(stricter.affected.some((item) => item.agentId === agent.agentId)).toBe(true);
 
     const after = await service.getEffectivePolicy(agent.agentId, "tenant_a");
@@ -303,8 +890,8 @@ describe("policy activation recompilation", () => {
     expect(recompiled?.previousPolicyHash).toBe(before?.policyHash);
     expect(recompiled?.policyHash).toBe(after?.policyHash);
 
-    // Loosening back to v1 must not re-expand the agent.
-    const loose = await service.activatePolicyVersion("execution-family", 1, CTX);
+    // Loosening back to built-in v2 must not re-expand the agent.
+    const loose = await service.activatePolicyVersion("execution-family", 2, CTX);
     const loosened = loose.affected.find((item) => item.agentId === agent.agentId);
     expect(loosened?.clamped).toBeGreaterThan(0);
     const finalPolicy = await service.getEffectivePolicy(agent.agentId, "tenant_a");
@@ -353,6 +940,7 @@ describe("per-call audit events (mandatory test 15)", () => {
       context: { agentId: agent.agentId, tenantId: "tenant_a" },
       toolName: "git_push",
       params: { remote: "origin", branch: "main" },
+      resourceContext: gitPushReviewContext(),
     });
     expect(gated.outcome).toBe("approval_required");
     events = await service.readAudit(agent.agentId, "tenant_a", 50);
@@ -365,6 +953,7 @@ describe("per-call audit events (mandatory test 15)", () => {
       context: { agentId: agent.agentId, tenantId: "tenant_a" },
       toolName: "git_push",
       params: { remote: "origin", branch: "main" },
+      resourceContext: gitPushReviewContext(),
     });
     expect(approvedRun.outcome).toBe("allow");
     events = await service.readAudit(agent.agentId, "tenant_a", 50);
@@ -385,6 +974,48 @@ describe("per-call audit events (mandatory test 15)", () => {
 });
 
 describe("registry seam", () => {
+  it("uses the effective governance grant as the authoritative permission for a real built-in tool", async () => {
+    const service = newService();
+    const agent = await service.generateAgent({
+      name: "real-file-reader",
+      task: "read the public README",
+      requestedTools: ["file_read"],
+      ttlSeconds: 3600,
+      parentAgentId: null,
+    }, CTX);
+    const registry = createAgentToolRegistry({
+      workingDirectory: process.cwd(),
+      governanceRequired: true,
+      governanceToolProxy: createAgentGovernanceToolProxy({ service }),
+    });
+    const result = await registry.executeTool("file_read", { file_path: "README.md", limit: 3 }, {
+      agentGovernance: { agentId: agent.agentId, tenantId: CTX.tenantId, requestId: "real-read" },
+    }) as { status?: string; content?: string };
+    expect(result.status).toBe("success");
+    expect(result.content).toContain("#");
+  });
+
+  it("canonicalizes equivalent file path aliases before denied-resource enforcement", async () => {
+    const service = newService();
+    const agent = await service.generateAgent({
+      name: "denied-read-alias",
+      task: "must not read denied resource",
+      requestedTools: ["file_read"],
+      ttlSeconds: 3600,
+      parentAgentId: null,
+      instanceRules: { dataRules: { deniedResources: ["README.md"] } },
+    }, CTX);
+    const registry = createAgentToolRegistry({
+      workingDirectory: process.cwd(),
+      governanceRequired: true,
+      governanceToolProxy: createAgentGovernanceToolProxy({ service }),
+    });
+    const result = await registry.executeTool("file_read", { file_path: "./README.md", limit: 1 }, {
+      agentGovernance: { agentId: agent.agentId, tenantId: CTX.tenantId, requestId: "denied-alias" },
+    }) as { status?: string; code?: string };
+    expect(result).toMatchObject({ status: "denied", code: "TOOL_SCOPE_DENIED" });
+  });
+
   it("governed identity routes every call through the Tool Proxy", async () => {
     const service = newService();
     const agent = await generateExecutionAgent("seam");
@@ -421,5 +1052,56 @@ describe("registry seam", () => {
     // permission-declaring tools; that is the pre-existing behavior.
     expect(legacy.status).toBe("denied");
     expect(legacy.code).toBe("TOOL_PERMISSION_CHECKER_REQUIRED");
+  });
+});
+
+describe("new policy layer activation", () => {
+  it("assembles and recompiles a canonical tenant layer without crossing tenants", async () => {
+    const service = newService();
+    const tenantB = {
+      tenantId: "tenant_b",
+      userId: "tenant_b_operator",
+      role: "operator",
+      permissions: ["workflow:run"],
+    };
+    const agent = await service.generateAgent({
+      name: "tenant-b-reader",
+      task: "read",
+      requestedTools: ["file_read"],
+      ttlSeconds: 3600,
+      parentAgentId: null,
+    }, tenantB);
+    await service.createPolicyVersion({
+      policyKey: "tenant:tenant_b",
+      version: 1,
+      policyType: "tenant",
+      scopeKey: "tenant_b",
+      content: { toolRules: { file_read: "deny" } },
+    }, CTX);
+    const activated = await service.activatePolicyVersion("tenant:tenant_b", 1, CTX);
+    expect(activated.affected.some((item) => item.agentId === agent.agentId)).toBe(true);
+    expect((await service.getEffectivePolicy(agent.agentId, "tenant_b"))?.toolDecisions.file_read).toBe("deny");
+  });
+
+  it("applies a newly introduced matching domain layer to existing ACTIVE Agents", async () => {
+    const service = newService();
+    const agent = await service.generateAgent({
+      name: "domain-existing",
+      task: "read a report",
+      requestedTools: ["file_read"],
+      ttlSeconds: 3600,
+      parentAgentId: null,
+    }, CTX);
+    expect((await service.getEffectivePolicy(agent.agentId, CTX.tenantId))?.toolDecisions.file_read).toBe("allow");
+    await service.createPolicyVersion({
+      policyKey: "general-domain",
+      version: 1,
+      policyType: "domain",
+      scopeKey: "general",
+      content: { toolRules: { file_read: "deny" } },
+    }, CTX);
+    const activated = await service.activatePolicyVersion("general-domain", 1, CTX);
+    expect(activated.affected.some((item) => item.agentId === agent.agentId)).toBe(true);
+    expect((await service.getEffectivePolicy(agent.agentId, CTX.tenantId))?.toolDecisions.file_read).toBe("deny");
   });
 });

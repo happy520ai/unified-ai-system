@@ -45,16 +45,21 @@ export function evaluateResourceScope(
     }
   }
 
-  for (const [dimension, value] of Object.entries(request.resourceKeys ?? {})) {
-    const allowedSet = scope.allowedResourceSets?.[dimension];
-    if (Array.isArray(allowedSet) && !allowedSet.includes(value)) {
+  for (const [dimension, allowedSet] of Object.entries(scope.allowedResourceSets ?? {})) {
+    const value = request.resourceKeys?.[dimension];
+    if (typeof value !== "string" || value === "") {
+      return { allowed: false, reason: `RESOURCE_KEY_REQUIRED:${dimension}` };
+    }
+    if (!Array.isArray(allowedSet) || !allowedSet.includes(value)) {
       return { allowed: false, reason: `RESOURCE_OUT_OF_SCOPE:${dimension}` };
     }
   }
 
-  for (const [dimension, value] of Object.entries(request.rangeValues ?? {})) {
-    const range = scope.resourceRanges?.[dimension];
-    if (!range) continue;
+  for (const [dimension, range] of Object.entries(scope.resourceRanges ?? {})) {
+    const value = request.rangeValues?.[dimension];
+    if (typeof value !== "string" || value === "") {
+      return { allowed: false, reason: `RESOURCE_RANGE_VALUE_REQUIRED:${dimension}` };
+    }
     if (typeof range.from === "string" && value < range.from) {
       return { allowed: false, reason: `RESOURCE_RANGE_OUT_OF_SCOPE:${dimension}` };
     }
@@ -65,7 +70,13 @@ export function evaluateResourceScope(
 
   const deniedResources = scope.deniedResources ?? [];
   if (deniedResources.length > 0) {
-    const hit = (request.resources ?? []).find((resource) => deniedResources.includes(resource));
+    if (!Array.isArray(request.resources) || request.resources.length === 0) {
+      return { allowed: false, reason: "RESOURCE_IDENTIFIERS_REQUIRED" };
+    }
+    const deniedComparable = new Set(deniedResources.map(normalizeResourceIdentifier));
+    const hit = (request.resources ?? []).find((resource) => (
+      deniedComparable.has(normalizeResourceIdentifier(resource))
+    ));
     if (hit !== undefined) {
       return { allowed: false, reason: `RESOURCE_DENIED:${hit}` };
     }
@@ -80,6 +91,18 @@ export function evaluateResourceScope(
   }
 
   return { allowed: true };
+}
+
+function normalizeResourceIdentifier(value: string): string {
+  const trimmed = String(value ?? "").trim();
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol === "http:" || url.protocol === "https:") return url.href;
+  } catch {
+    // Non-URL resources use portable path/id normalization below.
+  }
+  const normalized = trimmed.replace(/\\/gu, "/").replace(/^\.\//u, "");
+  return process.platform === "win32" ? normalized.toLowerCase() : normalized;
 }
 
 /** Usage ceiling check: a call that would exceed a cap is rejected. */

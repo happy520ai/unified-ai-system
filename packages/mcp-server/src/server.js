@@ -401,6 +401,12 @@ export function createUnifiedAiMcpServer(runtime, options = {}) {
       description:
         "Execute the 3-step local workflow: retrieve knowledge, compose a Markdown report, and write a controlled artifact. Does not call any provider.",
       inputSchema: z.object({
+        agentId: z
+          .string()
+          .trim()
+          .regex(/^agt_[A-Za-z0-9_-]{1,128}$/u)
+          .optional()
+          .describe("Required when the Gateway has Agent Governance enabled"),
         goal: z
           .string()
           .trim()
@@ -434,9 +440,11 @@ export function createUnifiedAiMcpServer(runtime, options = {}) {
         openWorldHint: false,
       },
     },
-    async ({ goal, query, topK, artifactName }) => {
+    async ({ agentId, goal, query, topK, artifactName }) => {
       try {
+        const effectiveAgentId = agentId ?? runtime.managedWorkflowAgentId;
         const response = await client.workflowRun({
+          ...(effectiveAgentId ? { agentId: effectiveAgentId } : {}),
           goal,
           ...(query ? { query } : {}),
           ...(topK ? { topK } : {}),

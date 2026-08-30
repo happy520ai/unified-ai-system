@@ -24,6 +24,17 @@ const DEFAULT_ROUTE_LIMITS = Object.freeze({
   "/workforce/execute/status": { windowMs: 60_000, maxRequests: 120 },
   "/workforce/run-local": { windowMs: 60_000, maxRequests: 10 },
 
+  // Agent-governed execution and control-plane mutations. These are bounded
+  // independently from the global fallback because they can hold provider,
+  // filesystem, DAG, policy-compilation, or durable-state resources.
+  "/agent-exec/run": { windowMs: 60_000, maxRequests: 10 },
+  "/forge/orchestrate": { windowMs: 60_000, maxRequests: 5 },
+  "/mcp/call": { windowMs: 60_000, maxRequests: 30 },
+  "/workflow/run": { windowMs: 60_000, maxRequests: 20 },
+  "/v1/agents/generate": { windowMs: 60_000, maxRequests: 20 },
+  "/v1/policies/create": { windowMs: 60_000, maxRequests: 10 },
+  "/v1/policies/activate": { windowMs: 60_000, maxRequests: 5 },
+
   // Model import — moderate (may call external APIs)
   "/models/import": { windowMs: 60_000, maxRequests: 15 },
 

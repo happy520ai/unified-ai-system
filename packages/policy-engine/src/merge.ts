@@ -14,17 +14,21 @@
  */
 
 import type {
+  EffectivePolicyMandatoryRules,
   PolicyLayerContent,
   PolicyLimits,
+  PolicyMandatoryRules,
   PolicyPermissions,
   PolicyResourceRange,
   PolicyResourceScope,
   PolicySafetyRequirements,
 } from "@unified-ai-system/shared-contracts";
+import { isSafeToolName } from "./decisionAlgebra.ts";
 
 const LIMIT_KEYS = [
   "maxGenerationDepth",
   "maxChildrenPerAgent",
+  "maxWorkforceRoles",
   "maxRuntimeSeconds",
   "maxSteps",
   "maxToolCalls",
@@ -49,7 +53,9 @@ export function mergeLimits(layers: Array<PolicyLimits | undefined | null>): Pol
 
 /** Lifetimes merge by taking the earliest expiry; null means unconstrained. */
 export function earliestExpiry(dates: Array<string | undefined | null>): string | null {
-  const valid = dates.filter((value): value is string => typeof value === "string" && value.trim() !== "");
+  const valid = dates
+    .filter((value): value is string => typeof value === "string" && Number.isFinite(Date.parse(value)))
+    .map((value) => new Date(value).toISOString());
   if (valid.length === 0) return null;
   return valid.reduce((earliest, current) => (current < earliest ? current : earliest));
 }
@@ -106,7 +112,7 @@ function orMerge(values: Array<boolean | undefined | null>): boolean | undefined
 
 function andMerge(values: Array<boolean | undefined | null>): boolean | undefined {
   const expressed = values.filter((value): value is boolean => typeof value === "boolean");
-  if (expressed.length === 0) return undefined;
+  if (expressed.length === 0) return false;
   return expressed.every((value) => value === true);
 }
 
@@ -123,7 +129,10 @@ export function mergeSafetyRequirements(
   };
 }
 
-/** Permission booleans merge with AND; absent expression is neutral. */
+/**
+ * Permission booleans merge with AND across expressed layers. If no layer
+ * grants a permission, the materialized effective value is false.
+ */
 export function mergePermissions(
   layers: Array<PolicyPermissions | undefined | null>,
 ): PolicyPermissions {
@@ -132,6 +141,37 @@ export function mergePermissions(
     canWrite: andMerge(layers.map((layer) => layer?.canWrite)),
     canSendExternalMessage: andMerge(layers.map((layer) => layer?.canSendExternalMessage)),
     canExecuteCode: andMerge(layers.map((layer) => layer?.canExecuteCode)),
+  };
+}
+
+function denyWins(
+  values: Array<"allow" | "deny" | undefined | null>,
+): "allow" | "deny" {
+  const expressed = values.filter(
+    (value): value is "allow" | "deny" => value === "allow" || value === "deny",
+  );
+  if (expressed.length === 0 || expressed.some((value) => value === "deny")) return "deny";
+  return "allow";
+}
+
+/**
+ * Mandatory assertions are materialized into a closed effective snapshot.
+ * Deny wins for escape hatches; credentials are hidden unless every
+ * expressing layer explicitly says otherwise; auditing defaults on.
+ */
+export function mergeMandatoryRules(
+  layers: Array<PolicyMandatoryRules | EffectivePolicyMandatoryRules | undefined | null>,
+): EffectivePolicyMandatoryRules {
+  const auditValues = layers
+    .map((layer) => layer?.auditRequired)
+    .filter((value): value is boolean => typeof value === "boolean");
+  return {
+    auditRequired: auditValues.length === 0 || auditValues.some((value) => value === true),
+    credentialsExposedToAgent: false,
+    crossTenantAccess: denyWins(layers.map((layer) => layer?.crossTenantAccess)),
+    selfPolicyModification: denyWins(layers.map((layer) => layer?.selfPolicyModification)),
+    gatewayBypass: denyWins(layers.map((layer) => layer?.gatewayBypass)),
+    permissionExpansion: denyWins(layers.map((layer) => layer?.permissionExpansion)),
   };
 }
 
@@ -154,7 +194,9 @@ function collectKeys(sources: Array<Record<string, unknown> | undefined | null>)
   const keys = new Set<string>();
   for (const source of sources) {
     if (source && typeof source === "object") {
-      for (const key of Object.keys(source)) keys.add(key);
+      for (const key of Object.keys(source)) {
+        if (isSafeToolName(key)) keys.add(key);
+      }
     }
   }
   return Array.from(keys).sort();
@@ -170,9 +212,12 @@ export function mergeResourceScopes(
 
   const resourceSetKeys = collectKeys(layers.map((layer) => layer?.allowedResourceSets));
   if (resourceSetKeys.length > 0) {
-    const allowedResourceSets: Record<string, string[]> = {};
+    const allowedResourceSets = Object.create(null) as Record<string, string[]>;
     for (const key of resourceSetKeys) {
-      const intersection = intersectStringSets(layers.map((layer) => layer?.allowedResourceSets?.[key]));
+      const intersection = intersectStringSets(layers.map((layer) => {
+        const sets = layer?.allowedResourceSets;
+        return sets && Object.hasOwn(sets, key) ? sets[key] : undefined;
+      }));
       if (intersection !== null) allowedResourceSets[key] = intersection;
     }
     if (Object.keys(allowedResourceSets).length > 0) merged.allowedResourceSets = allowedResourceSets;
@@ -180,9 +225,12 @@ export function mergeResourceScopes(
 
   const rangeKeys = collectKeys(layers.map((layer) => layer?.resourceRanges));
   if (rangeKeys.length > 0) {
-    const resourceRanges: Record<string, PolicyResourceRange> = {};
+    const resourceRanges = Object.create(null) as Record<string, PolicyResourceRange>;
     for (const key of rangeKeys) {
-      const range = intersectRanges(layers.map((layer) => layer?.resourceRanges?.[key]), key);
+      const range = intersectRanges(layers.map((layer) => {
+        const ranges = layer?.resourceRanges;
+        return ranges && Object.hasOwn(ranges, key) ? ranges[key] : undefined;
+      }), key);
       if (range !== undefined) resourceRanges[key] = range;
     }
     if (Object.keys(resourceRanges).length > 0) merged.resourceRanges = resourceRanges;

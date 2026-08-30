@@ -201,10 +201,13 @@ describe("Batch13 Fix7: workforceControlledExecutor timeout", () => {
     assert.ok(window.includes("quiescenceUncertain"), "unconfirmed termination must fail closed");
   });
 
-  it("uses timeoutMs and a stable timeout error code", () => {
+  it("uses the policy-clamped timeout and a stable timeout error code", () => {
     const raceIdx = src.indexOf("allRoleResults = await Promise.race");
     const window = src.slice(raceIdx, raceIdx + 800);
-    assert.ok(window.includes("timeoutMs"), "should use timeoutMs variable");
+    assert.ok(
+      window.includes("effectiveTimeoutMs") || window.includes("timeoutMs"),
+      "should use the effective timeout variable",
+    );
     assert.ok(window.includes("WORKFORCE_EXECUTION_TIMEOUT"), "should expose a stable timeout code");
   });
 });

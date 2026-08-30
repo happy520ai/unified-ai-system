@@ -12,7 +12,9 @@ export {
   DEFAULT_TOOL_DECISION,
   atLeastAsStrict,
   decisionStrictness,
+  getEffectiveToolDecision,
   isAgentToolDecision,
+  isSafeToolName,
   mergeDecisions,
 } from "./decisionAlgebra.ts";
 export {
@@ -31,6 +33,7 @@ export {
   intersectCapabilities,
   intersectStringSets,
   mergeLimits,
+  mergeMandatoryRules,
   mergePermissions,
   mergeResourceScopes,
   mergeSafetyRequirements,
@@ -50,10 +53,15 @@ export type {
 export {
   compileEffectivePolicy,
   isPolicyExpired,
+  PolicyCompilationError,
   recompileWithoutExpansion,
+  validatePolicyLayerContent,
+  validatePolicyLayerStack,
 } from "./compiler.ts";
 export type {
   CompileEffectivePolicyInput,
+  PolicyLayerValidationError,
+  PolicyLayerValidationResult,
   RecompileClamp,
   RecompileResult,
 } from "./compiler.ts";
@@ -61,6 +69,7 @@ export {
   buildManifest,
   computeAgentHash,
   computeArgumentsHash,
+  computePolicyContentHash,
   computePolicyHash,
   sha256Hex,
   stableStringify,

@@ -1,8 +1,10 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { once } from "node:events";
+import { mkdtempSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
-import { dirname, resolve } from "node:path";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   createManagedGatewayEnvironment,
@@ -62,6 +64,34 @@ async function verifyAuthenticatedSession(baseUrl, requestHeaders) {
   if ((body?.data ?? body)?.authenticated !== true) {
     throw new Error("Gateway authentication check did not return an authenticated session.");
   }
+}
+
+async function createManagedWorkflowAgent(baseUrl, requestHeaders) {
+  const response = await fetch(`${baseUrl}/v1/agents/generate`, {
+    method: "POST",
+    headers: {
+      ...requestHeaders,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      name: "managed-mcp-workflow",
+      task: "Write tenant-partitioned controlled local workflow artifacts",
+      requestedTools: ["file_write"],
+      ttlSeconds: 60 * 60 * 24 * 30,
+      parentAgentId: null,
+      classification: { family: "execution", domain: "workflow", subclass: "writer" },
+      proposedTraits: ["write_capable"],
+      proposedRiskLevel: "medium",
+    }),
+    redirect: "error",
+    signal: AbortSignal.timeout(15_000),
+  });
+  const body = await response.json();
+  const agentId = body?.data?.agentId;
+  if (!response.ok || typeof agentId !== "string" || !/^agt_[A-Za-z0-9_-]{1,128}$/u.test(agentId)) {
+    throw new Error(`Managed MCP workflow Agent creation failed with HTTP ${response.status}.`);
+  }
+  return agentId;
 }
 
 function assertFakeProviderRuntime(healthEnvelope) {
@@ -189,49 +219,73 @@ export async function createGatewayRuntime(options = {}) {
   // the window elapsed and all authenticated tools became unusable.
   const authExpiresAt = null;
   const requestHeaders = Object.freeze({ Authorization: `Bearer ${authToken}` });
+  const governanceDataDir = mkdtempSync(join(tmpdir(), "unified-ai-mcp-governance-"));
+  const governanceHmacKey = randomBytes(32).toString("base64url");
+  let governanceStateCleaned = false;
+  const cleanupGovernanceState = () => {
+    if (governanceStateCleaned) return;
+    rmSync(governanceDataDir, {
+      recursive: true,
+      force: true,
+      maxRetries: 3,
+      retryDelay: 50,
+    });
+    governanceStateCleaned = true;
+  };
   const inheritedTestRuntime = env.NODE_ENV === "test"
     || env.VITEST === "true"
     || Boolean(env.NODE_TEST_CONTEXT);
   let stdout = "";
   let stderr = "";
   let rawStderr = "";
-  const child = (options.spawnProcess ?? spawn)(
-    process.execPath,
-    [serviceEntrypoint],
-    {
-      cwd: repoRoot,
-      windowsHide: true,
-      env: createManagedGatewayEnvironment(env, {
-        ...(inheritedTestRuntime ? { NODE_ENV: "test" } : {}),
-        AI_GATEWAY_SERVICE_HOST: "127.0.0.1",
-        AI_GATEWAY_SERVICE_PORT: String(port),
-        AI_GATEWAY_PROVIDER_MODE: "fake",
-        AI_GATEWAY_REAL_PROVIDER_ENABLED: "false",
-        AI_GATEWAY_ROUTE_MODE: "registry-default",
-        AI_GATEWAY_DEFAULT_PROVIDER: "local-fake-provider",
-        AI_GATEWAY_DEFAULT_MODEL: "local-fake-model",
-        AI_GATEWAY_ENABLED_PROVIDERS:
-          "local-fake-provider,backup-fake-provider",
-        PME_ENTERPRISE_AUTH_ENABLED: "true",
-        PME_AUTH_TOKEN: "",
-        PME_ENTERPRISE_USERS_JSON: JSON.stringify([{
-          token: authToken,
-          userId: "managed-mcp",
-          tenantId: "managed-mcp",
-          role: "operator",
-          permissions: [
-            "session:read",
-            "dashboard:read",
-            "chat:use",
-            "knowledge:read",
-            "workflow:run",
-          ],
-          expiresAt: authExpiresAt,
-        }]),
-      }),
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
+  let child;
+  try {
+    child = (options.spawnProcess ?? spawn)(
+      process.execPath,
+      [serviceEntrypoint],
+      {
+        cwd: repoRoot,
+        windowsHide: true,
+        env: createManagedGatewayEnvironment(env, {
+          ...(inheritedTestRuntime ? { NODE_ENV: "test" } : {}),
+          AI_GATEWAY_SERVICE_HOST: "127.0.0.1",
+          AI_GATEWAY_SERVICE_PORT: String(port),
+          AI_GATEWAY_PROVIDER_MODE: "fake",
+          AI_GATEWAY_REAL_PROVIDER_ENABLED: "false",
+          AI_GATEWAY_ROUTE_MODE: "registry-default",
+          AI_GATEWAY_DEFAULT_PROVIDER: "local-fake-provider",
+          AI_GATEWAY_DEFAULT_MODEL: "local-fake-model",
+          AI_GATEWAY_ENABLED_PROVIDERS:
+            "local-fake-provider,backup-fake-provider",
+          AI_GATEWAY_AGENT_GOVERNANCE_ENABLED: "true",
+          AI_GATEWAY_AGENT_GOVERNANCE_DATA_DIR: governanceDataDir,
+          AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: governanceHmacKey,
+          WORKFLOW_OUTPUT_DIR: join(governanceDataDir, "workflow-artifacts"),
+          PME_ENTERPRISE_AUTH_ENABLED: "true",
+          PME_AUTH_TOKEN: "",
+          PME_ENTERPRISE_USERS_JSON: JSON.stringify([{
+            token: authToken,
+            userId: "managed-mcp",
+            tenantId: "managed-mcp",
+            role: "operator",
+            permissions: [
+              "session:read",
+              "dashboard:read",
+              "chat:use",
+              "knowledge:read",
+              "workflow:run",
+              "agent:write",
+            ],
+            expiresAt: authExpiresAt,
+          }]),
+        }),
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+  } catch (error) {
+    cleanupGovernanceState();
+    throw error;
+  }
 
   child.stdout?.setEncoding("utf8");
   child.stderr?.setEncoding("utf8");
@@ -245,12 +299,17 @@ export async function createGatewayRuntime(options = {}) {
 
   try {
     const health = await waitForReady(baseUrl, child, requestHeaders);
+    const managedWorkflowAgentId = await createManagedWorkflowAgent(baseUrl, requestHeaders);
     return createAuthenticatedRuntime({
       baseUrl,
       managed: true,
       health,
+      managedWorkflowAgentId,
       child,
-      stop: () => stopChild(child),
+      stop: async () => {
+        await stopChild(child);
+        cleanupGovernanceState();
+      },
       killNow: () => {
         if (child.exitCode === null) child.kill("SIGTERM");
       },
@@ -258,6 +317,11 @@ export async function createGatewayRuntime(options = {}) {
     }, authToken, "ephemeral-managed");
   } catch (error) {
     await stopChild(child);
+    try {
+      cleanupGovernanceState();
+    } catch {
+      error.message = `${error.message}\nManaged governance state cleanup also failed.`;
+    }
     const outputTail = `${stdout}\n${stderr}`.trim().slice(-2_000);
     if (outputTail) {
       error.message = `${error.message}\nGateway output:\n${outputTail}`;
