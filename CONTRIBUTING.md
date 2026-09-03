@@ -102,6 +102,22 @@ testing pattern, and review checklist.
   [Language Selection Playbook](/docs/language-selection-playbook.md), including
   workload profile, at least one alternative language review, and rollback impact.
 
+## Permanent Vision Invariants
+
+The [vision document](VISION.md) contains one permanent invariant section,
+"The Principle of Simplicity" (with its Chinese counterpart
+"设计哲学：三易"). It codifies the repository's simplicity philosophy and
+does not evolve with practice.
+
+- Do not reword, move, or remove that section in a pull request.
+- `pnpm check:vision-invariants` runs as part of `pnpm check` and will fail
+  if any required fragment of the section is missing or altered.
+- Changing it requires an explicit decision of the repository owner,
+  recorded in the changelog, together with a deliberate update of the
+  guard in `tools/check-vision-invariants.mjs`.
+- Evolving simplicity rules for day-to-day work belong in
+  [AGENTS.md](AGENTS.md) and this document, not in the invariant section.
+
 ## Required Checks
 
 Run all four checks before opening a pull request:
