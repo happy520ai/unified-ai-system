@@ -69,7 +69,7 @@
   },
   "devDependencies": {
     "@a2a-js/sdk": "1.0.1",
-    "@anthropic-ai/sdk": "0.116.0",
+    "@anthropic-ai/sdk": "0.120.0",
     "@types/node": "^22.10.0",
     "@types/pg": "8.23.1",
     "@types/ws": "8.18.1",

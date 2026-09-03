@@ -1624,7 +1624,7 @@ try {
       anthropicSdkExample.exitCode === 0
       && anthropicSdkExample.body?.ok === true
       && anthropicSdkExample.body?.client === "@anthropic-ai/sdk"
-      && anthropicSdkExample.body?.sdkVersion === "0.116.0"
+      && anthropicSdkExample.body?.sdkVersion === "0.120.0"
       && anthropicSdkExample.body?.model === "local-fake-model"
       && anthropicSdkExample.body?.executionMode === "fake"
       && Object.values(anthropicSdkExample.body?.checks ?? {}).every(Boolean)
