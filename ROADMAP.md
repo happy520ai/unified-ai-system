@@ -1,25 +1,76 @@
 # Roadmap
 
-Unified AI System is building an open, local-first control plane for models,
-agents, knowledge, tools, and governed automation.
+Unified AI System is a **governed AI client & agent gateway**: one
+self-hosted surface that issues virtual keys and budgets, governs local AI
+clients (Claude Code, Cursor, Codex, Cline), aggregates MCP tool traffic,
+and keeps provider calls explicit and audited.
 
 This roadmap describes direction, not a promise of dates. Items move forward
 when implementation, tests, documentation, and relevant independent evidence
 support them.
 
-## Now: Public Preview
+## Now: v0.7.0 — Focus, Console, External Evidence
 
-- Credential-free local startup through the deterministic fake provider
-- Terminal CLI for demo, startup, status, chat, and environment diagnostics
-- Codex-ready stdio MCP server with fake-provider-only chat and read-only
-  gateway, knowledge, workflow, and workforce inspection
-- Unified chat, streaming, routing, health, and diagnostics
-- Provider adapters with explicit real-provider opt-in
-- Agent, workforce, knowledge, context, and governance modules
-- Shared contracts and SDK foundations
-- Multi-architecture container publishing
-- Clean-clone, repository hygiene, and runtime CI gates
-- Public contribution and community workflows
+v0.7.0 is a deliberately narrow release. It accepts no new capability
+surface; it closes what v0.6.0 already promises and removes friction for
+evaluators:
+
+1. **Operations overview API** at `GET /api/overview` — a compact JSON
+   snapshot (provider mode, health, readiness, request stats, circuit
+   state) for CLI and dashboard tooling. The gateway stays terminal-first:
+   no browser console page is served, because the public-clone gate pins
+   `GET /ui` and `GET /console` to 404 (see Not Doing).
+2. **Close the v0.6.0 self-declared release gates** for the local client
+   intelligence gateway: real-client atomic receipt certification and the
+   PostgreSQL mode for route-plan/claim/feedback/outbox state.
+3. **Honest naming**: the opt-in cache similarity layer and the embedding
+   provider are described as lexical/approximate, not semantic, unless a
+   real semantic model is attached via the HTTP embedding hook.
+4. **Independent verification on-ramps**: an external audit kit, CI
+   dependency vulnerability scanning, published SBOM artifacts, and private
+   vulnerability reporting.
+
+Anything not on this list waits. New top-level capability directories are
+frozen until v0.7.0 ships.
+
+## Repository Focus Boundaries
+
+The public product is the gateway stack: `apps/ai-gateway-service`,
+`apps/agent-console`, `packages/mcp-server`, `packages/mcp-service`, and the
+`packages/shared-*` foundation.
+
+The following packages are **labs**: `forge-core`, `taiji-beidou-engine`,
+`workforce-scheduler`, `workforce-contracts`, `position-library`,
+`employee-brain-adapter`, `web-agent`, `codex-context-gateway`,
+`context-codec-core`, `im-connector-feishu`, and `im-connector-wecom`.
+Labs packages are experimental owner-vision subsystems. They stay
+compile-clean and tested, but they are not product claims, do not appear in
+the public architecture narrative, and are excluded from release notes.
+If a labs package still has no gateway-runtime import by v0.8.0, moving it
+out of this repository is the default decision (owner call, separate PR,
+per the subtraction ledger discipline).
+
+Zero-reference dependencies were pruned from the gateway manifest
+(`im-connector-*`); `shared-sdk` stays because test code imports it. Do not
+reintroduce pruned packages without a source import.
+
+## Not Doing
+
+Explicit non-goals, recorded so they are re-decided deliberately instead of
+drifting in:
+
+- A browser console or dashboard page. The public-clone gate pins `GET /ui`
+  and `GET /console` to 404; serving a browser page would require an explicit
+  owner revision of that terminal-first invariant, not a drift-in feature.
+- A browser chat UI. CLI, API, and MCP remain the interaction surfaces.
+- A token resale/billing platform (payment gateways, top-ups, resale
+  pricing). Spend reporting stays an internal cost-evidence feature.
+- Built-in high-availability orchestration (quorum election, external HA
+  control). The repository ships drills and PostgreSQL state modes, and
+  states their limits honestly.
+- Real provider calls by default, or silent provider behavior of any kind.
+- Production-readiness, L5-autonomy, or AGI claims without independent,
+  reproducible evidence.
 
 ## Next: A Dependable Developer Platform
 

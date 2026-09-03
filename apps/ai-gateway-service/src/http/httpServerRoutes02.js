@@ -37,6 +37,32 @@ export async function dispatchHttpRoutes02(context) {
     return;
   }
 
+  // Compact JSON snapshot for terminal-first operations tooling. It reuses
+  // the same health/readiness/stats sources as /metrics without the
+  // Prometheus text payload, so long-running dashboards and CLI status
+  // commands stay cheap. No browser page is served: the public-clone gate
+  // pins GET /ui and GET /console to 404, and a console page would need an
+  // explicit owner revision of that terminal-first invariant.
+  if (request.method === "GET" && url.pathname === "/api/overview") {
+    const runtimeConfig = application?.gatewayService?.runtimeConfig ?? null;
+    const healthSnapshot = createHealth(application);
+    const readinessSnapshot = createSetupReadiness(application);
+    const stats = await (application?.requestLogger?.getStats?.({
+      tenantId: request.enterpriseIdentity?.tenantId ?? "default",
+    }) ?? {});
+    const resilienceSnapshot = resilienceMetrics?.snapshot?.() ?? {};
+    writeJson(response, 200, createOkEnvelope({
+      providerMode: runtimeConfig?.providerMode ?? null,
+      realProviderEnabled: runtimeConfig?.realProviderEnabled === true,
+      health: { status: healthSnapshot?.status ?? null },
+      readiness: { status: readinessSnapshot?.status ?? null },
+      totalRequests: stats.totalRequests ?? resilienceSnapshot.totalRequests ?? 0,
+      currentInFlight: resilienceSnapshot.currentInFlight ?? 0,
+      gatewayErrorCircuitState: resilienceSnapshot.gatewayErrorCircuitState ?? "unknown",
+    }, { startedAt }));
+    return;
+  }
+
   if (request.method === "GET" && url.pathname === "/auth/status") {
     writeJson(
       response,

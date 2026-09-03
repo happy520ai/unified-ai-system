@@ -89,12 +89,6 @@ importers:
       '@unified-ai-system/forge-core':
         specifier: workspace:*
         version: link:../../packages/forge-core
-      '@unified-ai-system/im-connector-feishu':
-        specifier: workspace:*
-        version: link:../../packages/im-connector-feishu
-      '@unified-ai-system/im-connector-wecom':
-        specifier: workspace:*
-        version: link:../../packages/im-connector-wecom
       '@unified-ai-system/shared-config':
         specifier: workspace:*
         version: link:../../packages/shared-config

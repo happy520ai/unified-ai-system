@@ -1,0 +1,49 @@
+name: Security Scan
+
+# Advisory dependency-vulnerability scanning and SBOM generation.
+# Blocking CI on these scans starts only after the first triage baseline
+# exists (ROADMAP v0.7.0, item 4); until then findings are visible
+# artifacts, not release gates.
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-vulnerability-scan:
+    name: OSV dependency scan (advisory)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      # The v2.5.1 GitHub action ships as reusable workflows / a metadata-only
+      # root action.yml, so install the pinned release binary directly.
+      # Version and SHA256 are pinned from the official v2.5.1 release assets.
+      - name: Install pinned osv-scanner v2.5.1
+        run: |
+          curl -sSL -o /usr/local/bin/osv-scanner "https://github.com/google/osv-scanner/releases/download/v2.5.1/osv-scanner_linux_amd64"
+          echo "f9f25499a2c8cc367b3af45df2ea7eeca7fbccceab9c35079968f4b3652194be  /usr/local/bin/osv-scanner" | sha256sum -c -
+          chmod +x /usr/local/bin/osv-scanner
+          osv-scanner --version
+      - name: Scan repository for known vulnerabilities
+        # Advisory until the first triage baseline exists; see the header.
+        continue-on-error: true
+        run: osv-scanner --recursive ./
+
+  sbom:
+    name: SPDX SBOM artifact
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Generate SPDX JSON SBOM
+        uses: anchore/sbom-action@006b7ce8314066bdf1765b4500370d40fa6917a3 # v0.24.2
+        with:
+          format: spdx-json
+          artifact-name: unified-ai-system-sbom.spdx.json

@@ -530,6 +530,7 @@ export function resolvePermission(method, pathname) {
 
 const EXACT_ROUTE_PERMISSIONS = Object.freeze({
   "GET /ws/info": "dashboard:read",
+  "GET /api/overview": "dashboard:read",
   "POST /knowledge/delete": "knowledge:write",
   "POST /agent-runner/intent-approval-preview": "workflow:run",
   "POST /agent-runner/local-operation": "workflow:run",
