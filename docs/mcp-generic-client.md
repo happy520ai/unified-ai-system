@@ -17,7 +17,7 @@ Add this server entry to the MCP host configuration:
         "run",
         "--rm",
         "-i",
-        "ghcr.io/happy520ai/unified-ai-system/mcp-server:0.6.0"
+        "ghcr.io/happy520ai/unified-ai-system/mcp-server:0.7.0"
       ]
     }
   }
@@ -60,7 +60,7 @@ is removed when the MCP process exits. To inspect or remove a leftover
 container manually, run:
 
 ```bash
-docker ps -a --filter "ancestor=ghcr.io/happy520ai/unified-ai-system/mcp-server:0.6.0"
+docker ps -a --filter "ancestor=ghcr.io/happy520ai/unified-ai-system/mcp-server:0.7.0"
 docker rm -f <container-id>
 ```
 

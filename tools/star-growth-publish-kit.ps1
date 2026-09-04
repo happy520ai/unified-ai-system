@@ -1,6 +1,6 @@
 param(
     [string]$RepoUrl = "https://github.com/happy520ai/unified-ai-system",
-    [string]$DemoCommand = 'docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.6.0 pnpm gateway demo "Build a small API for my team" --enhance --profile coding',
+    [string]$DemoCommand = 'docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.7.0 pnpm gateway demo "Build a small API for my team" --enhance --profile coding',
     [string]$IssueTemplate = "https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml",
     [string]$OutputFile = ".tmp/growth/star-growth-publish-output.md"
 )

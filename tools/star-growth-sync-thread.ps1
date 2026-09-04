@@ -7,7 +7,7 @@ $ErrorActionPreference = "Stop"
 $repo = $Repo
 $issue = $IssueNumber
 $managedCommentMarker = '<!-- unified-ai-system-growth-thread -->'
-$demoCommand = 'docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.6.0 pnpm gateway demo "Build a small API for my team" --enhance --profile coding'
+$demoCommand = 'docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.7.0 pnpm gateway demo "Build a small API for my team" --enhance --profile coding'
 $evidenceCommand = 'pnpm gateway demo "Build a small API for my team" --enhance --profile coding --evidence'
 
 function Test-GhAvailable {

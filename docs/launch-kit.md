@@ -57,7 +57,7 @@ Suggested first message:
 Could you run this once and tell me whether the output is useful on your OS?
 It needs no API key and exits after the local verification:
 
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.6.0 pnpm gateway demo "Build a small API for my team" --enhance --profile coding --evidence
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.7.0 pnpm gateway demo "Build a small API for my team" --enhance --profile coding --evidence
 
 I am looking for one real result, not a promotional repost.
 ```

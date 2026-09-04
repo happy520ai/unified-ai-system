@@ -7,6 +7,7 @@ open a public issue for a suspected security problem.
 
 | Version | Security fixes |
 | --- | --- |
+| `0.7.x` | Supported |
 | `0.6.x` | Supported |
 | `0.5.x` | Supported |
 | `0.4.x` | Critical fixes only |
