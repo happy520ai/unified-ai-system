@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createTaskClaimLeaseManager } from "./taskClaimLease.ts";
 import { TaskQueueManager, TASK_STATUS } from "./taskQueueManager.js";
@@ -117,6 +117,48 @@ describe("claim-enforced task queue", () => {
 });
 
 describe("dependency-aware workforce execution", () => {
+  it("keeps governed Agent identity separate from role identity and proves both external-effect fences", async () => {
+    const { queue } = await queueFixture();
+    const task = await queue.enqueue({
+      planId: "plan-double-fence",
+      title: "CEO task",
+      payload: { roleId: "ceo" },
+    });
+    const fenceOrder: string[] = [];
+    const assertTaskClaimActive = queue.assertTaskClaimActive.bind(queue);
+    vi.spyOn(queue, "assertTaskClaimActive").mockImplementation(async (...args: any[]) => {
+      fenceOrder.push("task-claim");
+      return assertTaskClaimActive(...args);
+    });
+    const agentFence = vi.fn(async () => {
+      fenceOrder.push("agent-run");
+      return true;
+    });
+
+    await executeWorkforceDag({
+      tasks: [{ queueTaskId: task.taskId, roleId: "ceo" }],
+      taskQueue: queue,
+      context: { governedAgentId: "agt_root_1" },
+      agentExecutionFence: { fingerprint: "run-fingerprint", assertActive: agentFence },
+      executeRole: async (roleId, context) => {
+        expect(roleId).toBe("ceo");
+        expect(context.roleId).toBe("ceo");
+        expect(context.governedAgentId).toBe("agt_root_1");
+        expect(context.agentId).toBeUndefined();
+        const fence = context.externalEffectFence as {
+          agentRunFingerprint: string;
+          assertActive(phase: "commit"): Promise<unknown>;
+        };
+        expect(fence.agentRunFingerprint).toBe("run-fingerprint");
+        await fence.assertActive("commit");
+        return { ok: true };
+      },
+    });
+
+    expect(fenceOrder).toEqual(["task-claim", "agent-run"]);
+    expect(agentFence).toHaveBeenCalledWith("commit");
+  });
+
   it("uses bounded parallel waves while preserving dependencies and fenced completion", async () => {
     const { queue, queueFile } = await queueFixture();
     const plan = createWorkforcePlan({ goal: "Build a resilient gateway feature" });

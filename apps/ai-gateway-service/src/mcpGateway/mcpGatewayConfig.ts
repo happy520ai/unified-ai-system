@@ -9,6 +9,8 @@ interface McpGovernancePolicy {
   readOnlyTools?: string[];
   allowedTenants?: string[];
   allowedRoles?: string[];
+  /** Operator-declared, per-tool top-level scalar fields safe to show in approval review. */
+  approvalReviewFields?: Record<string, string[]>;
   description?: string;
   baseUrl?: string;
   specUrl?: string;
@@ -42,11 +44,15 @@ export function parseMcpRegistry(raw: unknown): { configs: McpGovernedServerConf
   for (const entry of parsed) {
     if (!entry || typeof entry !== "object") continue;
     const candidate = entry as Partial<McpGovernedServerConfig>;
+    const id = typeof candidate.id === "string" ? candidate.id.trim() : "";
     const allowedTools = normalizePolicyList(candidate.allowedTools);
     const readOnlyTools = normalizePolicyList(candidate.readOnlyTools);
     const allowedTenants = normalizePolicyList(candidate.allowedTenants);
     const allowedRoles = normalizePolicyList(candidate.allowedRoles);
-    const id = typeof candidate.id === "string" ? candidate.id.trim() : "";
+    const approvalReviewFields = normalizeApprovalReviewFields(candidate.approvalReviewFields);
+    if (approvalReviewFields.error) {
+      return { configs: [], error: `MCP upstream '${id || "<invalid>"}' ${approvalReviewFields.error}` };
+    }
     if (!id || !/^[a-z0-9][a-z0-9-]{0,63}$/i.test(id)) {
       return { configs: [], error: `MCP upstream id '${id}' is invalid (expected [a-z0-9-], max 64 chars).` };
     }
@@ -58,7 +64,7 @@ export function parseMcpRegistry(raw: unknown): { configs: McpGovernedServerConf
         return { configs: [], error: `MCP upstream '${id}' requires an https url.` };
       }
       configs.push(withPolicy({ transport: "http" as const, id, url: candidate.url }, candidate, {
-        allowedTools, readOnlyTools, allowedTenants, allowedRoles,
+        allowedTools, readOnlyTools, allowedTenants, allowedRoles, approvalReviewFields: approvalReviewFields.value,
       }));
       continue;
     }
@@ -73,7 +79,9 @@ export function parseMcpRegistry(raw: unknown): { configs: McpGovernedServerConf
         ...(Array.isArray(candidate.args) ? { args: candidate.args } : {}),
         ...(candidate.env && typeof candidate.env === "object" ? { env: candidate.env } : {}),
         ...(candidate.cwd ? { cwd: candidate.cwd } : {}),
-      }, candidate, { allowedTools, readOnlyTools, allowedTenants, allowedRoles }));
+      }, candidate, {
+        allowedTools, readOnlyTools, allowedTenants, allowedRoles, approvalReviewFields: approvalReviewFields.value,
+      }));
       continue;
     }
     if (candidate.transport === "openapi") {
@@ -91,7 +99,9 @@ export function parseMcpRegistry(raw: unknown): { configs: McpGovernedServerConf
         baseUrl: candidate.baseUrl,
         ...(typeof specUrl === "string" ? { specUrl } : {}),
         ...(spec && typeof spec === "object" ? { spec } : {}),
-      }, candidate, { allowedTools, readOnlyTools, allowedTenants, allowedRoles }));
+      }, candidate, {
+        allowedTools, readOnlyTools, allowedTenants, allowedRoles, approvalReviewFields: approvalReviewFields.value,
+      }));
       continue;
     }
     return { configs: [], error: `MCP upstream '${id}' has an unsupported transport.` };
@@ -118,6 +128,41 @@ function normalizePolicyList(value: unknown): string[] | undefined {
   return normalized.length > 0 ? normalized : undefined;
 }
 
+const SAFE_REVIEW_FIELD = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/u;
+const FORBIDDEN_REVIEW_FIELD = /secret|token|password|authorization|credential|key|cookie|session|bearer/iu;
+const FORBIDDEN_OBJECT_FIELD = new Set(["__proto__", "prototype", "constructor"]);
+
+function normalizeApprovalReviewFields(value: unknown): {
+  value?: Record<string, string[]>;
+  error?: string;
+} {
+  if (value === undefined) return {};
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { error: "approvalReviewFields must be an object keyed by exact tool name." };
+  }
+  const entries = Object.entries(value as Record<string, unknown>);
+  if (entries.length > 128) return { error: "approvalReviewFields exceeds 128 tools." };
+  const normalized: Record<string, string[]> = Object.create(null);
+  for (const [toolName, fields] of entries) {
+    if (!toolName || toolName.length > 256 || /[\u0000-\u001f\u007f*]/u.test(toolName)) {
+      return { error: "approvalReviewFields contains an invalid exact tool name." };
+    }
+    if (!Array.isArray(fields) || fields.length === 0 || fields.length > 32) {
+      return { error: `approvalReviewFields.${toolName} must contain 1 to 32 field names.` };
+    }
+    const safeFields = [...new Set(fields.map((field) => typeof field === "string" ? field.trim() : ""))];
+    if (safeFields.length === 0 || safeFields.some((field) => (
+      !SAFE_REVIEW_FIELD.test(field)
+      || FORBIDDEN_REVIEW_FIELD.test(field)
+      || FORBIDDEN_OBJECT_FIELD.has(field)
+    ))) {
+      return { error: `approvalReviewFields.${toolName} contains an unsafe field name.` };
+    }
+    normalized[toolName] = safeFields;
+  }
+  return Object.keys(normalized).length > 0 ? { value: normalized } : {};
+}
+
 function withPolicy<T extends Record<string, unknown>>(
   base: T,
   candidate: Partial<McpGovernedServerConfig>,
@@ -126,6 +171,7 @@ function withPolicy<T extends Record<string, unknown>>(
     readOnlyTools?: string[];
     allowedTenants?: string[];
     allowedRoles?: string[];
+    approvalReviewFields?: Record<string, string[]>;
   },
 ) {
   return {
@@ -135,6 +181,7 @@ function withPolicy<T extends Record<string, unknown>>(
     ...(policy.readOnlyTools ? { readOnlyTools: policy.readOnlyTools } : {}),
     ...(policy.allowedTenants ? { allowedTenants: policy.allowedTenants } : {}),
     ...(policy.allowedRoles ? { allowedRoles: policy.allowedRoles } : {}),
+    ...(policy.approvalReviewFields ? { approvalReviewFields: policy.approvalReviewFields } : {}),
     ...(candidate.description ? { description: candidate.description } : {}),
   } as T & McpGovernancePolicy;
 }

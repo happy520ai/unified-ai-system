@@ -41,11 +41,105 @@ export { AUTONOMY_MODES };
 
 const DEFAULT_MAX_CONCURRENT_AGENTS = 3;
 const DEFAULT_EXECUTION_TIMEOUT_MS = 300_000; // 5 minutes
+const GOVERNED_MAX_CONCURRENT_AGENTS = 8;
 
 function readBoundedInteger(value, fallback, minimum, maximum) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < minimum) return fallback;
   return Math.min(maximum, Math.floor(parsed));
+}
+
+function normalizeGovernedExecution(value) {
+  if (value === undefined || value === null) return null;
+  const valid = value && typeof value === "object"
+    && value.context && typeof value.context.agentId === "string"
+    && value.policy && typeof value.policy === "object"
+    && value.executionLease?.signal
+    && typeof value.executionLease.assertActive === "function"
+    && (value.remainingSteps === null
+      || (Number.isSafeInteger(value.remainingSteps) && value.remainingSteps >= 0))
+    && typeof value.reserveStep === "function";
+  if (!valid) {
+    throw Object.assign(new Error("A verified Agent Governance execution context is required."), {
+      code: "WORKFORCE_GOVERNANCE_CONTEXT_INVALID",
+      statusCode: 403,
+    });
+  }
+  return value;
+}
+
+function combineWorkforceExecutionSignals(...candidates) {
+  const signals = candidates.filter((signal) => signal
+    && typeof signal.addEventListener === "function"
+    && typeof signal.aborted === "boolean");
+  if (signals.length === 0) return null;
+  if (signals.length === 1) return signals[0];
+  return AbortSignal.any(signals);
+}
+
+function throwIfWorkforceExecutionAborted(signal) {
+  if (!signal?.aborted) return;
+  if (signal.reason instanceof Error) throw signal.reason;
+  throw Object.assign(new Error("Workforce execution was cancelled."), {
+    code: "WORKFORCE_EXECUTION_CANCELLED",
+    statusCode: 499,
+  });
+}
+
+function applyGovernedWorkforceBounds({ policy, timeoutMs, maxConcurrent, roleCount, remainingSteps }) {
+  if (!policy) return { timeoutMs, maxConcurrent };
+  const maxRuntimeSeconds = policy.limits?.maxRuntimeSeconds;
+  const maxSteps = policy.limits?.maxSteps;
+  const maxWorkforceRoles = policy.limits?.maxWorkforceRoles;
+  if ((typeof maxRuntimeSeconds === "number" && maxRuntimeSeconds <= 0)
+    || (typeof maxSteps === "number" && maxSteps < 1)
+    || (typeof maxWorkforceRoles === "number" && maxWorkforceRoles < 1)) {
+    throw Object.assign(new Error("The Agent policy does not permit a Workforce role execution."), {
+      code: "AGENT_GOVERNANCE_WORKFORCE_LIMIT_REACHED",
+      statusCode: 403,
+    });
+  }
+  if (typeof maxWorkforceRoles === "number" && roleCount > Math.floor(maxWorkforceRoles)) {
+    throw Object.assign(new Error("The Workforce plan exceeds the Agent policy role ceiling."), {
+      code: "AGENT_GOVERNANCE_WORKFORCE_ROLE_LIMIT_REACHED",
+      statusCode: 403,
+      details: { roleCount, maxWorkforceRoles: Math.floor(maxWorkforceRoles) },
+    });
+  }
+  const stepCeiling = remainingSteps === null || remainingSteps === undefined
+    ? (typeof maxSteps === "number" ? Math.floor(maxSteps) : null)
+    : remainingSteps;
+  if (typeof stepCeiling === "number" && roleCount > stepCeiling) {
+    throw Object.assign(new Error("The Workforce plan exceeds the Agent policy remaining step ceiling."), {
+      code: "STEP_LIMIT_REACHED",
+      statusCode: 403,
+      details: { roleCount, remainingSteps: stepCeiling },
+    });
+  }
+  const timeoutCeiling = typeof maxRuntimeSeconds === "number"
+    ? Math.max(1, Math.floor(maxRuntimeSeconds * 1000))
+    : timeoutMs;
+  const concurrencyCeilings = [maxConcurrent, GOVERNED_MAX_CONCURRENT_AGENTS];
+  if (typeof maxSteps === "number") concurrencyCeilings.push(Math.max(1, Math.floor(maxSteps)));
+  if (typeof maxWorkforceRoles === "number") {
+    concurrencyCeilings.push(Math.max(1, Math.floor(maxWorkforceRoles)));
+  }
+  return {
+    timeoutMs: Math.min(timeoutMs, timeoutCeiling),
+    maxConcurrent: Math.min(...concurrencyCeilings),
+  };
+}
+
+async function reserveGovernedRoleStep(governedExecution) {
+  if (!governedExecution) return;
+  await governedExecution.executionLease.assertActive("reserve");
+  const reservation = await governedExecution.reserveStep();
+  if (!reservation?.allowed) {
+    throw Object.assign(new Error("The governed Agent has no remaining Workforce execution steps."), {
+      code: reservation?.reason ?? "STEP_LIMIT_REACHED",
+      statusCode: 403,
+    });
+  }
 }
 
 /**
@@ -66,6 +160,7 @@ function readBoundedInteger(value, fallback, minimum, maximum) {
  * @param {object} [options.executionLifecycle] — injected lifecycle backend
  * @param {object} [options.approvalGate] — injected approval backend
  * @param {object} [options.executionControl] — injected shared approval/lifecycle backend
+ * @param {object} [options.taskQueueManager] — injected claim-enforcing task queue
  * @param {object} [options.evidenceCapture] — injected evidence backend
  */
 export function createControlledExecutor(options = {}) {
@@ -273,15 +368,32 @@ export function createControlledExecutor(options = {}) {
      * @param {object} input — { goal, selectedRoles?, selectedTemplate?, context?, userId?,
      *                          autonomyMode?, verify?, operationType? }
      */
-    async execute(input = {}) {
+    async execute(input = {}, executionOptions = {}) {
       const startedAt = new Date();
       const { plan, autonomyMode: mode, descriptor } = await prepareExecution(input);
+      const governedExecution = normalizeGovernedExecution(executionOptions.agentGovernance);
+      const executionSignal = combineWorkforceExecutionSignals(
+        executionOptions.signal,
+        governedExecution?.executionLease.signal,
+      );
+      throwIfWorkforceExecutionAborted(executionSignal);
+      const governedBounds = applyGovernedWorkforceBounds({
+        policy: governedExecution?.policy,
+        timeoutMs,
+        maxConcurrent,
+        roleCount: Array.isArray(plan.taskBreakdown) ? plan.taskBreakdown.length : 0,
+        remainingSteps: governedExecution?.remainingSteps,
+      });
+      const effectiveTimeoutMs = governedBounds.timeoutMs;
+      const effectiveMaxConcurrent = governedBounds.maxConcurrent;
       const planId = descriptor.planId;
       const userId = typeof input.userId === "string" ? input.userId.trim() : "";
       const tenantId = typeof input.tenantId === "string" && input.tenantId.trim()
         ? input.tenantId.trim()
         : "default";
       let executionScopeId = createScopedExecutionId(tenantId, userId || "anonymous", planId, "request");
+      await governedExecution?.executionLease.assertActive("reserve");
+      throwIfWorkforceExecutionAborted(executionSignal);
       let preScan;
       try {
         preScan = await runPreExecutionSecurityCheck(securityCheckpoint, {
@@ -296,6 +408,7 @@ export function createControlledExecutor(options = {}) {
         return createBlockedResult(plan, planId, "security_pre_scan_blocked",
           `Pre-execution security scan blocked: ${(preScan.findings ?? []).join(", ")}`);
       }
+      throwIfWorkforceExecutionAborted(executionSignal);
 
       if (mode === AUTONOMY_MODES.DRY_RUN || dryRun) {
         const approvalCheck = { approved: false };
@@ -308,6 +421,15 @@ export function createControlledExecutor(options = {}) {
       if (!userId) {
         return createBlockedResult(plan, planId, "execution_identity_required",
           "Real workforce execution requires an authenticated identity.", { approval: descriptor });
+      }
+      if (governedExecution
+        && (mode === AUTONOMY_MODES.SANDBOX_MERGE || mode === AUTONOMY_MODES.SANDBOX_MERGE_AUTO)) {
+        throw Object.assign(new Error(
+          "Governed Workforce sandbox-merge modes remain disabled until every commit and merge sink can prove the Agent run fence immediately before effect.",
+        ), {
+          code: "WORKFORCE_GOVERNED_SANDBOX_MODE_UNSUPPORTED",
+          statusCode: 403,
+        });
       }
 
       const approvalCheck = await approvalGate.consume({
@@ -323,6 +445,7 @@ export function createControlledExecutor(options = {}) {
             approval: { ...descriptor, decisionCode: approvalCheck.code },
           });
       }
+      throwIfWorkforceExecutionAborted(executionSignal);
       executionScopeId = createScopedExecutionId(
         tenantId,
         userId,
@@ -347,6 +470,7 @@ export function createControlledExecutor(options = {}) {
         return createBlockedResult(plan, planId, "workspace_dirty",
           `Workspace is not clean: ${workspaceCheck.reason ?? "uncommitted changes detected"}`);
       }
+      throwIfWorkforceExecutionAborted(executionSignal);
 
       // --- Step 5: Worktree isolation ---
       let worktreeRecord = null;
@@ -366,6 +490,7 @@ export function createControlledExecutor(options = {}) {
       }
 
       try {
+      throwIfWorkforceExecutionAborted(executionSignal);
       // --- Step 6: Initialize lifecycle ---
       await lifecycle.initialize(executionScopeId, {
         publicPlanId: planId,
@@ -398,7 +523,11 @@ export function createControlledExecutor(options = {}) {
       // --- Step 8: Execute roles with concurrency cap ---
       const roleResults = {};
       const executionErrors = [];
-      const context = { plan, priorOutputs: {} };
+      const context = {
+        plan,
+        priorOutputs: {},
+        ...(governedExecution ? { governedAgentId: governedExecution.context.agentId } : {}),
+      };
       let executionGraph = null;
       let forgeExecuted = false;
       let requestedFinalStatus = null;
@@ -406,6 +535,15 @@ export function createControlledExecutor(options = {}) {
       try {
         let _timeoutTimer;
         const abortController = new AbortController();
+        const abortFromExecution = () => abortController.abort(
+          executionSignal?.reason instanceof Error
+            ? executionSignal.reason
+            : Object.assign(new Error("The governed Agent execution lease was revoked."), {
+                code: "AGENT_EXECUTION_FENCED",
+              }),
+        );
+        if (executionSignal?.aborted) abortFromExecution();
+        else executionSignal?.addEventListener?.("abort", abortFromExecution, { once: true });
         const lifecycleMonitor = startLifecycleMonitor({
           lifecycle,
           executionId: executionScopeId,
@@ -419,15 +557,18 @@ export function createControlledExecutor(options = {}) {
             dependsOnRoleIds: task.dependsOnRoleIds,
           })),
           taskQueue,
-          maxConcurrent,
-          claimTtlMs: Math.min(24 * 60 * 60_000, timeoutMs + 30_000),
+          maxConcurrent: effectiveMaxConcurrent,
+          claimTtlMs: Math.min(24 * 60 * 60_000, effectiveTimeoutMs + 30_000),
           signal: abortController.signal,
           abortDrainTimeoutMs,
+          agentExecutionFence: governedExecution?.executionLease,
           context,
           executeRole: async (roleId, roleContext) => {
+            await reserveGovernedRoleStep(governedExecution);
+            await roleContext?.externalEffectFence?.assertActive?.("commit");
             const capture = evidenceCapture.startCapture?.({
               planId: executionScopeId,
-              agentId: roleId,
+              agentId: governedExecution?.context.agentId ?? roleId,
               role: roleId,
               goal: plan.goal,
               context: {
@@ -474,11 +615,11 @@ export function createControlledExecutor(options = {}) {
               executionPromise,
               new Promise((_, reject) => {
                 _timeoutTimer = setTimeout(() => {
-                  const timeoutError = new Error(`Workforce execution timed out after ${timeoutMs}ms`);
+                  const timeoutError = new Error(`Workforce execution timed out after ${effectiveTimeoutMs}ms`);
                   timeoutError.code = "WORKFORCE_EXECUTION_TIMEOUT";
                   abortController.abort(timeoutError);
                   reject(timeoutError);
-                }, timeoutMs);
+                }, effectiveTimeoutMs);
               }),
             ]);
           } catch (error) {
@@ -487,6 +628,7 @@ export function createControlledExecutor(options = {}) {
         } finally {
           clearTimeout(_timeoutTimer);
           lifecycleMonitor.stop();
+          executionSignal?.removeEventListener?.("abort", abortFromExecution);
           if (executionPromise) {
             try {
               await executionPromise;
@@ -508,7 +650,9 @@ export function createControlledExecutor(options = {}) {
           roleResults[roleId] = result;
         }
       } catch (err) {
-        if (err?.code === "WORKFORCE_EXECUTION_CANCELLED") requestedFinalStatus = "cancelled";
+        if (executionSignal?.aborted || err?.code === "WORKFORCE_EXECUTION_CANCELLED") {
+          requestedFinalStatus = "cancelled";
+        }
         if (err?.details?.quiescenceUncertain === true) {
           worktreeCleanupAllowed = false;
           executionErrors.push("execution_quiescence_unconfirmed");

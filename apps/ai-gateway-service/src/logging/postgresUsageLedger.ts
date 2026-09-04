@@ -50,6 +50,9 @@ type UsageRow = {
   usage_attempt_id: string | null;
   usage_event_type: string | null;
   tenant_id: string;
+  agent_id: string | null;
+  agent_run_id: string | null;
+  agent_policy_hash: string | null;
   method: string | null;
   path: string | null;
   status_code: string | number | null;
@@ -83,6 +86,7 @@ const LOCK_NAMESPACE = 1_431_193_303;
 const CAPACITY_LOCK_KEY = 1_768_841_301;
 const INITIALIZE_LOCK_KEY = 1_768_841_302;
 const MAX_QUERY_RECORDS = 10_000;
+const MAX_STATS_SCAN_RECORDS = MAX_QUERY_RECORDS + 1;
 
 const INITIALIZE_SQL = `/* usage-ledger:init */
   CREATE TABLE IF NOT EXISTS ${TABLE} (
@@ -97,6 +101,9 @@ const INITIALIZE_SQL = `/* usage-ledger:init */
       usage_event_type IN ('attempt-started', 'attempt-completed', 'attempt-failed')
     ),
     tenant_id TEXT NOT NULL,
+    agent_id TEXT,
+    agent_run_id TEXT,
+    agent_policy_hash VARCHAR(71),
     method TEXT,
     path TEXT,
     status_code INTEGER,
@@ -121,11 +128,18 @@ const INITIALIZE_SQL = `/* usage-ledger:init */
     PRIMARY KEY (namespace, id),
     UNIQUE (namespace, record_key)
   );
+  ALTER TABLE ${TABLE} ADD COLUMN IF NOT EXISTS agent_id TEXT;
+  ALTER TABLE ${TABLE} ADD COLUMN IF NOT EXISTS agent_run_id TEXT;
+  ALTER TABLE ${TABLE} ADD COLUMN IF NOT EXISTS agent_policy_hash VARCHAR(71);
+  ALTER TABLE ${TABLE} ALTER COLUMN agent_policy_hash TYPE VARCHAR(71);
   CREATE INDEX IF NOT EXISTS ai_gateway_usage_tenant_time_idx
     ON ${TABLE} (namespace, tenant_id, event_timestamp DESC, id DESC);
   CREATE INDEX IF NOT EXISTS ai_gateway_usage_attempt_idx
     ON ${TABLE} (namespace, usage_attempt_id)
     WHERE usage_attempt_id IS NOT NULL;
+  CREATE INDEX IF NOT EXISTS ai_gateway_usage_agent_time_idx
+    ON ${TABLE} (namespace, tenant_id, agent_id, event_timestamp DESC, id DESC)
+    WHERE agent_id IS NOT NULL;
   CREATE INDEX IF NOT EXISTS ai_gateway_usage_retention_idx
     ON ${TABLE} (ingested_at);
   CREATE TABLE IF NOT EXISTS ${COUNT_TABLE} (
@@ -143,7 +157,8 @@ const INITIALIZE_SQL = `/* usage-ledger:init */
 const SELECT_FIELDS = `
   id,
   floor(EXTRACT(EPOCH FROM event_timestamp) * 1000)::bigint AS event_timestamp_ms,
-  usage_attempt_id, usage_event_type, tenant_id, method, path, status_code,
+  usage_attempt_id, usage_event_type, tenant_id, agent_id, agent_run_id,
+  agent_policy_hash, method, path, status_code,
   latency_ms, provider, model, input_tokens, output_tokens, total_tokens,
   estimated_cost_usd, cost_source, cost_estimate_available, cache_hit,
   fallback_used, fallback_from, shadow, provider_call_attempted, billable,
@@ -248,16 +263,17 @@ export function createPostgresUsageLedger(rawOptions: PostgresUsageLedgerOptions
         await client.query(`/* usage-ledger:insert */
           INSERT INTO ${TABLE} (
             namespace, id, record_key, record_fingerprint, event_timestamp,
-            usage_attempt_id, usage_event_type, tenant_id, method, path,
-            status_code, latency_ms, provider, model, input_tokens,
+            usage_attempt_id, usage_event_type, tenant_id, agent_id,
+            agent_run_id, agent_policy_hash, method, path, status_code,
+            latency_ms, provider, model, input_tokens,
             output_tokens, total_tokens, estimated_cost_usd, cost_source,
             cost_estimate_available, cache_hit, fallback_used, fallback_from,
             shadow, provider_call_attempted, billable, error_text, trace_id
           ) VALUES (
             $1, $2::uuid, $3, $4, to_timestamp($5::double precision / 1000),
-            $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::bigint,
-            $16::bigint, $17::bigint, $18::numeric, $19, $20, $21, $22, $23,
-            $24, $25, $26, $27, $28
+            $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17,
+            $18::bigint, $19::bigint, $20::bigint, $21::numeric, $22, $23,
+            $24, $25, $26, $27, $28, $29, $30, $31
           )
         `, recordToValues(options.namespace, record));
         await client.query(`/* usage-ledger:counter-increment */
@@ -306,6 +322,8 @@ export function createPostgresUsageLedger(rawOptions: PostgresUsageLedgerOptions
           clauses.push(clause.replace("?", `$${values.length}`));
         };
         if (filter.tenantId) add("tenant_id = ?", boundedText(filter.tenantId, 256));
+        if (filter.agentId) add("agent_id = ?", boundedAgentId(filter.agentId));
+        if (filter.agentRunId) add("agent_run_id = ?", boundedAgentRunId(filter.agentRunId));
         if (filter.since) add("event_timestamp >= to_timestamp(?::double precision / 1000)", filter.since);
         if (filter.until) add("event_timestamp <= to_timestamp(?::double precision / 1000)", filter.until);
         if (filter.provider) add("provider = ?", boundedText(filter.provider, 256));
@@ -314,7 +332,7 @@ export function createPostgresUsageLedger(rawOptions: PostgresUsageLedgerOptions
         if (filter.minLatency) add("latency_ms >= ?", filter.minLatency);
         if (filter.maxLatency) add("latency_ms <= ?", filter.maxLatency);
         if (filter.cacheHit !== undefined) add("cache_hit = ?", filter.cacheHit);
-        const limit = clampInteger(filter.limit, 100, 1, MAX_QUERY_RECORDS);
+        const limit = clampInteger(filter.limit, 100, 1, MAX_STATS_SCAN_RECORDS);
         const offset = clampInteger(filter.offset, 0, 0, MAX_QUERY_RECORDS);
         values.push(limit, offset);
         const result = await pool.query<UsageRow>(`/* usage-ledger:query */
@@ -337,8 +355,16 @@ export function createPostgresUsageLedger(rawOptions: PostgresUsageLedgerOptions
     },
 
     async getStats(filter: RequestLogQuery = {}): Promise<RequestLogStats> {
-      const records = await this.query({ ...filter, limit: MAX_QUERY_RECORDS, offset: 0 });
-      return calculateStats(records);
+      const scanned = await this.query({ ...filter, limit: MAX_STATS_SCAN_RECORDS, offset: 0 });
+      const truncated = scanned.length > MAX_QUERY_RECORDS;
+      const records = scanned.slice(0, MAX_QUERY_RECORDS);
+      return calculateStats(records, {
+        partial: truncated,
+        truncated,
+        recordsConsidered: records.length,
+        recordLimit: MAX_QUERY_RECORDS,
+        scope: "retained-postgres-window",
+      });
     },
 
     getHealth() {
@@ -477,6 +503,9 @@ function normalizeRecord(
     usageAttemptId,
     usageEventType,
     tenantId: sanitizeLogText(entry.tenantId ?? "default", 256),
+    agentId: optionalAgentId(entry.agentId),
+    agentRunId: optionalAgentRunId(entry.agentRunId),
+    agentPolicyHash: optionalDigest(entry.agentPolicyHash),
     method: optionalText(entry.method, 16),
     path: optionalText(entry.path, 2048),
     statusCode: finiteNumber(entry.statusCode),
@@ -529,6 +558,9 @@ function recordToValues(namespace: string, record: NormalizedRecord): unknown[] 
     record.usageAttemptId ?? null,
     record.usageEventType ?? null,
     record.tenantId,
+    record.agentId ?? null,
+    record.agentRunId ?? null,
+    record.agentPolicyHash ?? null,
     record.method ?? null,
     record.path ?? null,
     record.statusCode ?? null,
@@ -559,6 +591,9 @@ function rowToRecord(row: UsageRow): RequestLogRecord {
     usageAttemptId: row.usage_attempt_id ?? undefined,
     usageEventType: normalizeEventType(row.usage_event_type),
     tenantId: row.tenant_id,
+    agentId: row.agent_id ?? undefined,
+    agentRunId: row.agent_run_id ?? undefined,
+    agentPolicyHash: row.agent_policy_hash ?? undefined,
     method: row.method ?? undefined,
     path: row.path ?? undefined,
     statusCode: nullableNumber(row.status_code),
@@ -582,7 +617,10 @@ function rowToRecord(row: UsageRow): RequestLogRecord {
   };
 }
 
-function calculateStats(records: RequestLogRecord[]): RequestLogStats {
+function calculateStats(
+  records: RequestLogRecord[],
+  completeness: Pick<RequestLogStats, "partial" | "truncated" | "recordsConsidered" | "recordLimit" | "scope">,
+): RequestLogStats {
   const terminalRecords = records.filter((record) => record.usageEventType !== "attempt-started");
   const terminalAttemptIds = new Set(
     terminalRecords.map((record) => record.usageAttemptId).filter(Boolean),
@@ -605,6 +643,8 @@ function calculateStats(records: RequestLogRecord[]): RequestLogStats {
       fallbackRate: 0,
       byProvider: {},
       byModel: {},
+      byAgent: {},
+      ...completeness,
     };
   }
   const totalRequests = terminalRecords.length;
@@ -619,6 +659,7 @@ function calculateStats(records: RequestLogRecord[]): RequestLogStats {
   const fallbacks = terminalRecords.filter((record) => record.fallbackUsed).length;
   const byProvider: RequestLogStats["byProvider"] = {};
   const byModel: RequestLogStats["byModel"] = {};
+  const byAgent: NonNullable<RequestLogStats["byAgent"]> = {};
   for (const record of terminalRecords) {
     const provider = record.provider || "unknown";
     byProvider[provider] ??= { count: 0, tokens: 0, cost: 0, errors: 0 };
@@ -631,6 +672,13 @@ function calculateStats(records: RequestLogRecord[]): RequestLogStats {
     byModel[model].count += 1;
     byModel[model].tokens += record.totalTokens;
     byModel[model].cost += record.estimatedCostUsd;
+    if (record.agentId) {
+      byAgent[record.agentId] ??= { count: 0, tokens: 0, cost: 0, errors: 0 };
+      byAgent[record.agentId].count += 1;
+      byAgent[record.agentId].tokens += record.totalTokens;
+      byAgent[record.agentId].cost += record.estimatedCostUsd;
+      if ((record.statusCode ?? 0) >= 400) byAgent[record.agentId].errors += 1;
+    }
   }
   return {
     totalRequests,
@@ -644,6 +692,8 @@ function calculateStats(records: RequestLogRecord[]): RequestLogStats {
     fallbackRate: fallbacks / totalRequests,
     byProvider,
     byModel,
+    byAgent,
+    ...completeness,
   };
 }
 
@@ -712,6 +762,37 @@ function boundedText(value: unknown, maxLength: number): string {
 function optionalText(value: unknown, maxLength: number): string | undefined {
   if (value === undefined || value === null || value === "") return undefined;
   return boundedText(value, maxLength);
+}
+
+function boundedAgentId(value: unknown): string {
+  const normalized = String(value ?? "").trim();
+  if (!/^agt_[A-Za-z0-9_-]{1,128}$/u.test(normalized)) {
+    throw usageLedgerError("USAGE_LEDGER_AGENT_FILTER_INVALID", "The Agent usage filter is invalid.");
+  }
+  return normalized;
+}
+
+function boundedAgentRunId(value: unknown): string {
+  const normalized = String(value ?? "").trim();
+  if (!/^agr_[A-Za-z0-9_-]{1,128}$/u.test(normalized)) {
+    throw usageLedgerError("USAGE_LEDGER_AGENT_FILTER_INVALID", "The Agent run usage filter is invalid.");
+  }
+  return normalized;
+}
+
+function optionalAgentId(value: unknown): string | undefined {
+  const normalized = String(value ?? "").trim();
+  return /^agt_[A-Za-z0-9_-]{1,128}$/u.test(normalized) ? normalized : undefined;
+}
+
+function optionalAgentRunId(value: unknown): string | undefined {
+  const normalized = String(value ?? "").trim();
+  return /^agr_[A-Za-z0-9_-]{1,128}$/u.test(normalized) ? normalized : undefined;
+}
+
+function optionalDigest(value: unknown): string | undefined {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return /^sha256:[a-f0-9]{64}$/u.test(normalized) ? normalized : undefined;
 }
 
 function finiteNumber(value: unknown): number | undefined {

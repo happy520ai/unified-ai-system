@@ -4,6 +4,27 @@
  */
 
 import { callLLMWithUsage } from '../llm-client.js';
+import { isForgeAbortError, throwIfForgeAborted } from './base-action-exec.js';
+
+function waitForRetry(delay, signal) {
+  if (!signal) return new Promise((resolve) => setTimeout(resolve, delay));
+  throwIfForgeAborted(signal);
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, delay);
+    const onAbort = () => {
+      clearTimeout(timer);
+      try {
+        throwIfForgeAborted(signal);
+      } catch (error) {
+        reject(error);
+      }
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+}
 
 /**
  * Call the LLM with caching and token tracking.
@@ -16,7 +37,8 @@ import { callLLMWithUsage } from '../llm-client.js';
  * @returns {Promise<string>} — the LLM response text
  */
 export async function callLLM(systemPrompt, userPrompt, maxTokens = 8192, opts = {}, params) {
-  const { llmCache, logger, tokenUsage } = params;
+  const { llmCache, logger, tokenUsage, signal } = params;
+  throwIfForgeAborted(signal);
   if (llmCache) {
     const cached = llmCache.get(systemPrompt, userPrompt, opts);
     if (cached.hit) {
@@ -30,7 +52,13 @@ export async function callLLM(systemPrompt, userPrompt, maxTokens = 8192, opts =
       return cached.text;
     }
   }
-  const result = await callLLMWithUsage(systemPrompt, userPrompt, { temperature: 0.1, maxTokens, ...opts });
+  const result = await callLLMWithUsage(systemPrompt, userPrompt, {
+    temperature: 0.1,
+    maxTokens,
+    ...opts,
+    ...(signal ? { signal } : {}),
+  });
+  throwIfForgeAborted(signal);
   if (result.usage && tokenUsage) {
     tokenUsage.inputTokens += result.usage.inputTokens || 0;
     tokenUsage.outputTokens += result.usage.outputTokens || 0;
@@ -51,16 +79,18 @@ export async function callLLM(systemPrompt, userPrompt, maxTokens = 8192, opts =
  * @param {number} maxAttempts
  */
 export async function callLLMWithRetry(systemPrompt, prompt, maxTokens = 8192, opts = {}, params, maxAttempts = 3) {
-  const { logger } = params;
+  const { logger, signal } = params;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    throwIfForgeAborted(signal);
     try {
       return await callLLM(systemPrompt, prompt, maxTokens, opts, params);
     } catch (err) {
+      if (isForgeAbortError(err, signal)) throw err;
       const isTransient = err.message.includes('fetch failed') || err.message.includes('ECONNREFUSED') || err.message.includes('network') || err.message.includes('ETIMEDOUT') || err.message.includes('timeout');
       if (attempt < maxAttempts - 1 && isTransient) {
         const delay = 2000 * (attempt + 1);
         logger.info(`LLM call failed (attempt ${attempt + 1}/${maxAttempts}): ${err.message}. Retrying in ${delay}ms...`);
-        await new Promise(r => setTimeout(r, delay));
+        await waitForRetry(delay, signal);
       } else { throw err; }
     }
   }

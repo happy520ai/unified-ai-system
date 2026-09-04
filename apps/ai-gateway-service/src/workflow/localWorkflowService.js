@@ -1,8 +1,8 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { createHash } from "node:crypto";
+import { chmod, link, lstat, mkdir, open, realpath, unlink } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
 import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createRequestId } from "@unified-ai-system/shared-utils";
+import { createRequestId, throwIfExecutionAborted } from "@unified-ai-system/shared-utils";
 
 const PHASE = "phase-30a-local-workflow-automation";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -86,6 +86,8 @@ export function createLocalWorkflowService({ knowledgeService, env = {}, outputD
   }
 
   async function run(request = {}, requestContext = {}) {
+    throwIfExecutionAborted(requestContext.signal);
+    const tenantId = requireTenantId(requestContext);
     const workflowPlan = plan(request);
     const startedAt = Date.now();
     const retrieve = await knowledgeService.retrieve({
@@ -103,12 +105,15 @@ export function createLocalWorkflowService({ knowledgeService, env = {}, outputD
         caller: "local-workflow",
       },
     }, requestContext);
+    throwIfExecutionAborted(requestContext.signal);
     const report = composeReport({ plan: workflowPlan, retrieve });
     const artifact = await writeManagedArtifact({
-      outputDir: managedOutputDir,
+      rootDir: managedOutputDir,
+      outputDir: resolve(managedOutputDir, tenantPartition(tenantId)),
       workflowId: workflowPlan.workflowId,
       requestedName: request.artifactName,
       report,
+      signal: requestContext.signal,
     });
 
     return {
@@ -186,6 +191,8 @@ function createSafetySummary() {
     networkAutomation: false,
     allowedActions: ACTIONS.map((action) => action.actionId),
     outputScope: ".data/workflows",
+    tenantIsolation: "server-owned-sha256-partition",
+    publication: "exclusive-atomic-no-overwrite",
   };
 }
 
@@ -262,12 +269,50 @@ function composeReport({ plan, retrieve }) {
   ].join("\n");
 }
 
-async function writeManagedArtifact({ outputDir, workflowId, requestedName, report }) {
-  await mkdir(outputDir, { recursive: true });
-  const fileName = createSafeArtifactName(requestedName ?? `${workflowId}.md`);
-  const filePath = resolve(outputDir, fileName);
-  assertInsideDirectory(filePath, outputDir);
-  await writeFile(filePath, report, "utf8");
+async function writeManagedArtifact({ rootDir, outputDir, workflowId, requestedName, report, signal }) {
+  throwIfExecutionAborted(signal);
+  const directoryGuard = await ensureSafeWorkflowDirectory(rootDir, outputDir);
+  const requestedFileName = createSafeArtifactName(requestedName ?? `${workflowId}.md`);
+  const stagingPath = resolve(outputDir, `.${randomUUID()}.workflow.tmp`);
+  assertInsideDirectory(stagingPath, outputDir);
+  const staging = await open(stagingPath, "wx", 0o600);
+  const stagingIdentity = await staging.stat({ bigint: true });
+  let fileName;
+  let filePath;
+  try {
+    await staging.writeFile(report, "utf8");
+    await staging.sync();
+    await assertSafeStagingPath(stagingPath, stagingIdentity, directoryGuard.tenant.realPath);
+    for (let version = 1; version <= 100; version += 1) {
+      throwIfExecutionAborted(signal);
+      await assertDirectoryIdentity(rootDir, directoryGuard.root);
+      await assertDirectoryIdentity(outputDir, directoryGuard.tenant);
+      await assertSafeStagingPath(stagingPath, stagingIdentity, directoryGuard.tenant.realPath);
+      const candidateName = versionedArtifactName(requestedFileName, version);
+      const candidatePath = resolve(outputDir, candidateName);
+      assertInsideDirectory(candidatePath, outputDir);
+      try {
+        // link() publishes the completed inode atomically and fails if the
+        // destination is any existing file, directory, symlink, or hardlink.
+        await link(stagingPath, candidatePath);
+        fileName = candidateName;
+        filePath = candidatePath;
+        break;
+      } catch (error) {
+        if (error?.code !== "EEXIST") throw error;
+      }
+    }
+  } finally {
+    await staging.close().catch(() => {});
+    await unlink(stagingPath).catch(() => {});
+  }
+  if (!fileName || !filePath) {
+    const error = new Error("Workflow artifact version capacity is exhausted for the requested name.");
+    error.code = "WORKFLOW_ARTIFACT_VERSION_EXHAUSTED";
+    error.category = "conflict";
+    error.statusCode = 409;
+    throw error;
+  }
 
   return {
     fileName,
@@ -276,6 +321,86 @@ async function writeManagedArtifact({ outputDir, workflowId, requestedName, repo
     bytes: Buffer.byteLength(report, "utf8"),
     sha256: createHash("sha256").update(report).digest("hex"),
   };
+}
+
+async function ensureSafeWorkflowDirectory(rootDir, tenantDir) {
+  assertInsideDirectory(tenantDir, rootDir);
+  await mkdir(rootDir, { recursive: true, mode: 0o700 });
+  const root = await captureDirectoryIdentity(rootDir);
+  await chmod(rootDir, 0o700).catch(() => {});
+  const tenantRelative = relative(rootDir, tenantDir);
+  if (!tenantRelative || tenantRelative.split(/[\\/]+/u).filter(Boolean).length !== 1) {
+    throw unsafeWorkflowPathError();
+  }
+  try {
+    await mkdir(tenantDir, { mode: 0o700 });
+  } catch (error) {
+    if (error?.code !== "EEXIST") throw error;
+  }
+  const tenant = await captureDirectoryIdentity(tenantDir);
+  await chmod(tenantDir, 0o700).catch(() => {});
+  assertInsideDirectory(tenant.realPath, root.realPath);
+  if (resolve(tenant.realPath, "..") !== root.realPath) throw unsafeWorkflowPathError();
+  return { root, tenant };
+}
+
+async function captureDirectoryIdentity(directoryPath) {
+  const stat = await lstat(directoryPath, { bigint: true }).catch(() => {
+    throw unsafeWorkflowPathError();
+  });
+  if (!stat.isDirectory() || stat.isSymbolicLink()) throw unsafeWorkflowPathError();
+  const realPath = resolve(await realpath(directoryPath));
+  return { realPath, dev: stat.dev, ino: stat.ino };
+}
+
+async function assertDirectoryIdentity(directoryPath, expected) {
+  const current = await captureDirectoryIdentity(directoryPath);
+  if (current.realPath !== expected.realPath || current.dev !== expected.dev || current.ino !== expected.ino) {
+    throw unsafeWorkflowPathError();
+  }
+}
+
+async function assertSafeStagingPath(stagingPath, expected, realTenantDir) {
+  const stat = await lstat(stagingPath, { bigint: true }).catch(() => {
+    throw unsafeWorkflowPathError();
+  });
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.dev !== expected.dev || stat.ino !== expected.ino) {
+    throw unsafeWorkflowPathError();
+  }
+  const canonical = resolve(await realpath(stagingPath));
+  assertInsideDirectory(canonical, realTenantDir);
+}
+
+function unsafeWorkflowPathError() {
+  const error = new Error("Workflow output directories and staging files must be real, unchanged, non-link paths.");
+  error.code = "WORKFLOW_OUTPUT_PATH_UNSAFE";
+  error.category = "security";
+  error.statusCode = 409;
+  return error;
+}
+
+function requireTenantId(requestContext) {
+  const tenantId = typeof requestContext?.tenantId === "string"
+    ? requestContext.tenantId.trim()
+    : "";
+  if (!tenantId) {
+    const error = new Error("Workflow execution requires an authenticated server-owned tenant context.");
+    error.code = "WORKFLOW_TENANT_CONTEXT_REQUIRED";
+    error.category = "auth";
+    error.statusCode = 403;
+    throw error;
+  }
+  return tenantId;
+}
+
+function tenantPartition(tenantId) {
+  return `tenant-${createHash("sha256").update(tenantId, "utf8").digest("hex").slice(0, 24)}`;
+}
+
+function versionedArtifactName(fileName, version) {
+  if (version === 1) return fileName;
+  const stem = fileName.toLowerCase().endsWith(".md") ? fileName.slice(0, -3) : fileName;
+  return `${stem}-${version}.md`;
 }
 
 function createSafeArtifactName(value) {

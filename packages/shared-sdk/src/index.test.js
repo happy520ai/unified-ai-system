@@ -933,6 +933,65 @@ test("exposes the local-client control-plane and governed execution paths", asyn
   }
 });
 
+test("exposes the Agent Governance lifecycle through canonical gateway paths", async () => {
+  const observed = [];
+  const { server, baseUrl } = await startServer(async (request, response) => {
+    let body = "";
+    for await (const chunk of request) body += chunk;
+    observed.push({ method: request.method, url: request.url, body: body ? JSON.parse(body) : null });
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify({ status: "success", data: {} }));
+  });
+
+  try {
+    const client = createGatewayClient({ baseUrl });
+    await client.agentGovernanceStats();
+    await client.generateGovernedAgent({
+      name: "sdk-agent",
+      task: "read one report",
+      requestedTools: ["file_read"],
+      ttlSeconds: 3600,
+    });
+    await client.governedAgents();
+    await client.governedAgent("agt_sdk");
+    await client.governedAgentPolicy("agt_sdk");
+    await client.governedAgentAudit("agt_sdk");
+    await client.runGovernedAgent("agt_sdk", { goal: "read", toolMode: "none" });
+    await client.revokeGovernedAgent("agt_sdk", { reason: "done", cascade: true });
+    await client.governedApprovals("agt_sdk");
+    await client.decideGovernedApproval("apr_sdk", "approve");
+    await client.governancePolicies();
+    await client.createGovernancePolicy({
+      policyKey: "tenant:tenant-a",
+      version: 2,
+      policyType: "tenant",
+      scopeKey: "tenant-a",
+      content: {},
+    });
+    await client.activateGovernancePolicy("tenant:tenant-a", 2);
+
+    assert.deepEqual(observed.map(({ method, url }) => ({ method, url })), [
+      { method: "GET", url: "/v1/governance/stats" },
+      { method: "POST", url: "/v1/agents/generate" },
+      { method: "GET", url: "/v1/agents" },
+      { method: "GET", url: "/v1/agents/agt_sdk" },
+      { method: "GET", url: "/v1/agents/agt_sdk/effective-policy" },
+      { method: "GET", url: "/v1/agents/agt_sdk/audit" },
+      { method: "POST", url: "/v1/agents/agt_sdk/run" },
+      { method: "POST", url: "/v1/agents/agt_sdk/revoke" },
+      { method: "GET", url: "/v1/approvals?agentId=agt_sdk" },
+      { method: "POST", url: "/v1/approvals/apr_sdk/approve" },
+      { method: "GET", url: "/v1/policies" },
+      { method: "POST", url: "/v1/policies" },
+      { method: "POST", url: "/v1/policies/tenant%3Atenant-a/2/activate" },
+    ]);
+    assert.deepEqual(observed[6].body, { goal: "read", toolMode: "none" });
+    assert.deepEqual(observed[9].body, {});
+  } finally {
+    await closeServer(server);
+  }
+});
+
 test("inspects one local client through a bounded registry-list helper", async () => {
   const observed = [];
   const target = {

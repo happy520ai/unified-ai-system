@@ -76,7 +76,7 @@ describe('GatewayLifecycle', () => {
       '/health/check': { json: { status: 'ok' } },
       '/setup/readiness': { json: { ready: true } },
       '/providers/runtime-credential': { json: { success: true } },
-      '/models/import/preview': { json: { data: { models: [], status: 'ready' } } },
+      '/models/import/preview': { json: { data: { models: [], status: 'ready', apiKeyRef: 'model-import-ref' } } },
       '/models/import/confirm': { json: { success: true } },
       '/config/runtime': { json: { providerMode: 'fake' } },
       '/providers': { json: { data: { providers: [] } } },
@@ -96,7 +96,7 @@ describe('GatewayLifecycle', () => {
     await gw.selectModel({
       providerId: 'openai',
       modelId: 'gpt-test',
-      apiKey: 'test-provider-key',
+      apiKeyRef: 'model-import-ref',
     });
 
     assert.equal(mockFetch.calls.length, 7);
@@ -204,6 +204,7 @@ describe('GatewayLifecycle', () => {
                 { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
               ],
               providerId: 'openai',
+              apiKeyRef: 'model-import-ref',
               status: 'ready',
             },
           },
@@ -215,6 +216,7 @@ describe('GatewayLifecycle', () => {
 
       assert.equal(result.models.length, 2);
       assert.equal(result.providerId, 'openai');
+      assert.equal(result.apiKeyRef, 'model-import-ref');
       assert.equal(result.needsSelection, false);
     });
 
@@ -247,12 +249,20 @@ describe('GatewayLifecycle', () => {
       const result = await gw.selectModel({
         providerId: 'openai',
         modelId: 'gpt-4o',
-        apiKey: 'sk-test-key',
+        apiKeyRef: 'model-import-ref',
       });
 
       assert.equal(result.success, true);
       assert.equal(gw.selectedProvider, 'openai');
       assert.equal(gw.selectedModel, 'gpt-4o');
+      const body = JSON.parse(mockFetch.calls[0].opts.body);
+      assert.deepEqual(body, {
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        apiKeyRef: 'model-import-ref',
+      });
+      assert.equal('apiKey' in body, false);
+      assert.equal('baseUrl' in body, false);
     });
   });
 

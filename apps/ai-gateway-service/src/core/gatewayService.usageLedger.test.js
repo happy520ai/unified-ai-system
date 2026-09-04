@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { GatewayService } from "./gatewayService.js";
+import { AGENT_GOVERNANCE_EXECUTION_CONTEXT, GatewayService } from "./gatewayService.js";
 import { ProviderRegistry } from "../providers/providerRegistry.js";
 import { createFakeProvider } from "../providers/fakeProvider.js";
 
@@ -49,6 +49,42 @@ describe("GatewayService usage ledger", () => {
     const service = buildService();
     const result = await service.execute({ messages: [{ role: "user", content: "hello" }] });
     expect(result.success).toBe(true);
+  });
+
+  it("attributes usage only from the server-owned Agent symbol context", async () => {
+    const entries = [];
+    const service = buildService({ requestLogger: { log: (entry) => entries.push(entry) } });
+    const trusted = {
+      agentId: "agt_usage_context",
+      runId: "agr_usage_context_run",
+      policyHash: `sha256:${"b".repeat(64)}`,
+      tenantId: "tenant-a",
+      userId: "operator-a",
+    };
+    await service.execute({
+      messages: [{ role: "user", content: "trusted attribution" }],
+      enterpriseIdentity: { tenantId: "tenant-a", userId: "operator-a" },
+      [AGENT_GOVERNANCE_EXECUTION_CONTEXT]: trusted,
+    });
+    await service.execute({
+      messages: [{ role: "user", content: "caller spoof" }],
+      enterpriseIdentity: { tenantId: "tenant-a", userId: "operator-a" },
+      metadata: {
+        agentId: "agt_spoofed",
+        agentRunId: "agr_spoofed",
+        agentPolicyHash: `sha256:${"c".repeat(64)}`,
+      },
+    });
+
+    expect(entries[0]).toMatchObject({
+      agentId: trusted.agentId,
+      agentRunId: trusted.runId,
+      agentPolicyHash: trusted.policyHash,
+      tenantId: trusted.tenantId,
+    });
+    expect(entries[1]).not.toHaveProperty("agentId");
+    expect(entries[1]).not.toHaveProperty("agentRunId");
+    expect(entries[1]).not.toHaveProperty("agentPolicyHash");
   });
 
   it("fails open when the ledger throws", async () => {

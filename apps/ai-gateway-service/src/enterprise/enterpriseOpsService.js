@@ -11,6 +11,10 @@ import {
   isEnterpriseBackupProtectionError,
 } from "../security/enterpriseBackupProtection.ts";
 import { requireEnterpriseTenantId } from "./enterpriseTenantPolicy.ts";
+import {
+  createAgentGovernanceBackupExporter,
+  validateAgentGovernanceBackupExport,
+} from "./agentGovernanceBackupExport.ts";
 
 const DEFAULT_BACKUP_DIR = ".data/enterprise/backups";
 const DEFAULT_CHECKPOINT_DIR = ".data/enterprise/backup-checkpoints";
@@ -18,10 +22,21 @@ const MAX_BACKUP_FILE_BYTES = 24 * 1024 * 1024;
 const MAX_CHECKPOINT_FILE_BYTES = 64 * 1024;
 const logger = createPinoLogger({ app: "enterpriseOpsService" });
 
-export function createEnterpriseOpsService({ env = {}, config, enterpriseGovernanceService, knowledgeInfra, knowledgeService } = {}) {
+export function createEnterpriseOpsService({
+  env = {},
+  config,
+  enterpriseGovernanceService,
+  knowledgeInfra,
+  knowledgeService,
+  agentGovernance = null,
+} = {}) {
   const backupDir = resolve(env.PME_ENTERPRISE_BACKUP_DIR ?? DEFAULT_BACKUP_DIR);
   const checkpointDir = resolve(env.PME_ENTERPRISE_BACKUP_CHECKPOINT_DIR ?? DEFAULT_CHECKPOINT_DIR);
   const backupSecurity = initializeBackupSecurity(env);
+  const agentGovernanceBackup = createAgentGovernanceBackupExporter({
+    governance: agentGovernance,
+    platformTenantId: env.PME_ENTERPRISE_PLATFORM_TENANT_ID ?? env.PME_AUTH_TENANT_ID ?? "default",
+  });
   const runBackupOperation = createSerialExecutor();
 
   const service = {
@@ -80,6 +95,23 @@ export function createEnterpriseOpsService({ env = {}, config, enterpriseGoverna
           details: backupSecurity.summary,
         }),
         createCheck({
+          id: "agent_governance_backup_export",
+          status: agentGovernance ? "warning" : "ready",
+          message: agentGovernance
+            ? "Agent Governance is covered by a verify-only consistency export; automatic restore remains disabled."
+            : "Agent Governance is disabled, so no governance state export is required.",
+          details: {
+            enabled: Boolean(agentGovernance),
+            mode: agentGovernance ? "read-only-consistency-export" : "disabled",
+            restoreMode: "verify-only",
+            restorable: false,
+            secretMaterialIncluded: false,
+            ownerLeaseIncluded: false,
+            transientWalIncluded: false,
+            sqliteDatabaseBytesIncluded: false,
+          },
+        }),
+        createCheck({
           id: "knowledge_persistence",
           status: knowledgeHealth.persistence?.durable ? "ready" : "warning",
           message: knowledgeHealth.persistence?.durable
@@ -111,6 +143,12 @@ export function createEnterpriseOpsService({ env = {}, config, enterpriseGoverna
           directory: backupDir,
           checkpointDirectory: checkpointDir,
           protection: backupSecurity.summary,
+          agentGovernance: {
+            enabled: Boolean(agentGovernance),
+            mode: agentGovernance ? "read-only-consistency-export" : "disabled",
+            restoreMode: "verify-only",
+            restorable: false,
+          },
         },
         checks,
         blockers,
@@ -256,7 +294,14 @@ export function createEnterpriseOpsService({ env = {}, config, enterpriseGoverna
           logger.warn({ err: error, event: "enterprise_backup_audit_parse_failed", tenantId },
             "Enterprise backup is continuing without parsed audit entries.");
         }
+        const agentGovernanceExport = await agentGovernanceBackup.exportSummary({ tenantId });
         const backupWarnings = auditParseStatus === "ready" ? [] : ["audit_export_json_invalid"];
+        if (agentGovernanceExport.enabled && !agentGovernanceExport.included) {
+          backupWarnings.push("agent_governance_export_requires_platform_tenant");
+        }
+        if (agentGovernanceExport.included && agentGovernanceExport.restorable === false) {
+          backupWarnings.push("agent_governance_restore_is_verify_only");
+        }
         const body = {
           type: ENTERPRISE_BACKUP_PAYLOAD_TYPE,
           version: ENTERPRISE_BACKUP_PAYLOAD_VERSION,
@@ -277,6 +322,7 @@ export function createEnterpriseOpsService({ env = {}, config, enterpriseGoverna
             entryCount: auditEntries.length,
             entries: auditEntries,
           },
+          agentGovernance: agentGovernanceExport,
           knowledge: {
             health: knowledgeService.getHealth(),
             infraReadiness: knowledgeInfra.getReadiness(),
@@ -306,7 +352,7 @@ export function createEnterpriseOpsService({ env = {}, config, enterpriseGoverna
         }
 
         return {
-          status: auditParseStatus === "ready" ? "ready" : "warning",
+          status: backupWarnings.length === 0 ? "ready" : "warning",
           mode: "enterprise-backup-encrypted-signed-envelope",
           backupId,
           backupPath,
@@ -323,6 +369,14 @@ export function createEnterpriseOpsService({ env = {}, config, enterpriseGoverna
           managedStoredUserCount: body.enterpriseUsers.storedUsers.length,
           auditEntryCount: auditEntries.length,
           knowledgeDocumentCount: body.knowledge.health.documentCount,
+          agentGovernance: {
+            enabled: agentGovernanceExport.enabled,
+            included: agentGovernanceExport.included,
+            mode: agentGovernanceExport.mode,
+            restoreMode: agentGovernanceExport.restoreMode,
+            restorable: agentGovernanceExport.restorable,
+            mutation: agentGovernanceExport.mutation,
+          },
         };
       });
     },
@@ -373,6 +427,24 @@ export function createEnterpriseOpsService({ env = {}, config, enterpriseGoverna
         warnings.push("backup_audit_entries_missing");
       }
 
+      let agentGovernanceValidation;
+      if (parsed.agentGovernance === undefined) {
+        agentGovernanceValidation = {
+          valid: true,
+          included: false,
+          restoreMode: "verify-only",
+          restorable: false,
+          mutation: "none",
+          blockers: [],
+          warnings: ["backup_agent_governance_summary_missing"],
+          componentCount: 0,
+        };
+      } else {
+        agentGovernanceValidation = validateAgentGovernanceBackupExport(parsed.agentGovernance);
+        if (!agentGovernanceValidation.valid) blockers.push("backup_agent_governance_summary_invalid");
+      }
+      warnings.push(...agentGovernanceValidation.warnings);
+
       let checkpoint;
       try {
         checkpoint = await readBackupCheckpoint({ checkpointDir, tenantId, protector });
@@ -394,6 +466,7 @@ export function createEnterpriseOpsService({ env = {}, config, enterpriseGoverna
         warnings,
         backup: parsed,
         opened,
+        agentGovernanceValidation,
       });
     },
   };
@@ -508,7 +581,7 @@ function createSecretPresence(value) {
   };
 }
 
-function createRestoreValidation({ backupPath, blockers, warnings, backup, opened }) {
+function createRestoreValidation({ backupPath, blockers, warnings, backup, opened, agentGovernanceValidation }) {
   return {
     status: blockers.length ? "blocked" : warnings.length ? "warning" : "ready",
     mode: "restore-validate-only-encrypted",
@@ -529,6 +602,23 @@ function createRestoreValidation({ backupPath, blockers, warnings, backup, opene
     storedUserCount: backup?.enterpriseUsers?.storedUsers?.length ?? 0,
     auditEntryCount: backup?.audit?.entries?.length ?? 0,
     knowledgeDocumentCount: backup?.knowledge?.health?.documentCount ?? 0,
+    agentGovernance: agentGovernanceValidation
+      ? {
+          valid: agentGovernanceValidation.valid,
+          included: agentGovernanceValidation.included,
+          restoreMode: "verify-only",
+          restorable: false,
+          mutation: "none",
+          componentCount: agentGovernanceValidation.componentCount,
+        }
+      : {
+          valid: false,
+          included: false,
+          restoreMode: "verify-only",
+          restorable: false,
+          mutation: "none",
+          componentCount: 0,
+        },
     tokenValuesExposed: false,
     blockers,
     warnings,

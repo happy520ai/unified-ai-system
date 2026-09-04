@@ -5,6 +5,8 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { existsSync, realpathSync } from "node:fs";
+import { dirname, relative, resolve, sep } from "node:path";
 import vm from "node:vm";
 import { buildTool, createToolUseContext } from "./toolCore.js";
 import { createBuiltInTools } from "./developerTools.js";
@@ -18,6 +20,13 @@ import {
   shouldRegisterAgentTool,
 } from "../security/agentToolExecutionPolicy.ts";
 import { createExternalEffectToolBoundary } from "../external-effects/externalEffectToolBoundary.ts";
+import { AGENT_GOVERNANCE_REDACTED_FIELDS } from "@unified-ai-system/shared-contracts";
+import { computeArgumentsHash } from "@unified-ai-system/policy-engine";
+import { isSafePublicObjectKey, redactSecretsInText } from "../security/secretSafety.js";
+import {
+  GOVERNED_GIT_ENVELOPE_KEY,
+  prepareGovernedApprovalParameters,
+} from "../agent-governance/governedGitApproval.ts";
 
 // Agent 定义结构: agentType, whenToUse, tools (allowlist), disallowedTools (denylist), permissionMode, model
 
@@ -29,9 +38,16 @@ import { createExternalEffectToolBoundary } from "../external-effects/externalEf
  * @param {number} [options.maxChainDepth] - 工具链最大深度 (default 5)
  * @param {string} [options.workingDirectory] - 工具文件系统边界
  * @param {boolean} [options.enableHighRiskTools] - 显式启用高风险工具
+ * @param {string[]} [options.highRiskToolAllowlist] - 精确启用的高风险工具名
  * @param {Object} [options.externalEffectGate] - Durable irreversible-effect gate
  * @param {Object} [options.externalEffectFence] - Trusted execution fence
  * @param {string} [options.externalEffectTenantId] - Server-derived tenant identity
+ * @param {Object} [options.governanceToolProxy] - Agent governance Tool Proxy;
+ *   enforced per call whenever the caller context carries agentGovernance identity
+ * @param {boolean} [options.governanceRequired] - Fail closed when a governed
+ *   registry call omits its server-bound agent identity.
+ * @param {string[]} [options.governanceProtectedPaths] - Absolute runtime
+ *   state roots that governed tools must never read or mutate.
  */
 export function createAgentToolRegistry(options = {}) {
   const {
@@ -40,10 +56,21 @@ export function createAgentToolRegistry(options = {}) {
     maxChainDepth = 5,
   } = options;
   const permissionCheckerConfigured = hasUsablePermissionChecker(permissionChecker);
-  const highRiskToolsEnabled = options.enableHighRiskTools === true && permissionCheckerConfigured;
+  const exactHighRiskTools = Array.isArray(options.highRiskToolAllowlist)
+    ? Object.freeze(Array.from(new Set(options.highRiskToolAllowlist.filter((name) => typeof name === "string"))))
+    : null;
+  const highRiskToolsEnabled = permissionCheckerConfigured
+    && (exactHighRiskTools ? exactHighRiskTools.length > 0 : options.enableHighRiskTools === true);
   const externalEffectGate = options.externalEffectGate;
   const externalEffectFence = options.externalEffectFence;
   const externalEffectTenantId = options.externalEffectTenantId;
+  const governanceToolProxy = options.governanceToolProxy ?? null;
+  const governanceRequired = options.governanceRequired === true;
+  if (governanceRequired && !governanceToolProxy) {
+    const error = new Error("A governance Tool Proxy is required for this agent tool registry.");
+    error.code = "AGENT_GOVERNANCE_PROXY_REQUIRED";
+    throw error;
+  }
 
   /** 已注册的工具映射 name -> tool */
   const tools = new Map();
@@ -72,6 +99,7 @@ export function createAgentToolRegistry(options = {}) {
     if (!shouldRegisterAgentTool({
       toolName: name,
       enableHighRiskTools: highRiskToolsEnabled,
+      highRiskToolAllowlist: exactHighRiskTools,
       permissionChecker,
     })) continue;
     tools.set(name, tool);
@@ -83,6 +111,7 @@ export function createAgentToolRegistry(options = {}) {
     if (!shouldRegisterAgentTool({
       toolName: gitTool.name,
       enableHighRiskTools: highRiskToolsEnabled,
+      highRiskToolAllowlist: exactHighRiskTools,
       permissionChecker,
     })) continue;
     tools.set(gitTool.name, gitTool);
@@ -137,73 +166,426 @@ export function createAgentToolRegistry(options = {}) {
     return availableTools;
   }
 
+  /** Dependency-free, bounded JSON Schema subset used at the execution edge. */
+  const JSON_SCHEMA_LIMITS = Object.freeze({
+    maxDepth: 16,
+    maxSchemaNodes: 2_048,
+    maxValueNodes: 2_048,
+    maxErrors: 32,
+    maxEnumValues: 256,
+    maxPatternLength: 512,
+    maxValidatedStringLength: 1_000_000,
+  });
+  const JSON_SCHEMA_TYPES = new Set([
+    "object", "array", "string", "number", "integer", "boolean", "null",
+  ]);
+  const JSON_NUMBER_TEXT = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/u;
+
   /**
-   * 验证输入参数是否符合工具的 inputSchema
-   * 简化版 JSON Schema 验证（无外部依赖）
-   */
-  /**
-   * 强转工具参数类型 — LLM 经常将数字/布尔值以字符串形式返回。
-   * 例如: "0" → 0, "true" → true, "100" → 100
+   * Preserve the legacy LLM convenience conversion, but only for direct
+   * top-level properties whose schema has one unambiguous scalar type. Nested
+   * values are never rewritten because approvals and resource scopes must bind
+   * the exact structure the model supplied.
    */
   function coerceParams(schema, params) {
-    if (!schema?.properties || !params || typeof params !== "object") return params;
-    const coerced = { ...params };
-    for (const [key, value] of Object.entries(coerced)) {
-      const prop = schema.properties[key];
-      if (!prop || value === undefined || value === null) continue;
-      if (prop.type === "integer" && typeof value === "string") {
-        const parsed = Number(value);
-        if (Number.isInteger(parsed)) coerced[key] = parsed;
-      } else if (prop.type === "number" && typeof value === "string") {
-        const parsed = Number(value);
-        if (!Number.isNaN(parsed)) coerced[key] = parsed;
-      } else if (prop.type === "boolean" && typeof value === "string") {
-        if (value === "true") coerced[key] = true;
-        else if (value === "false") coerced[key] = false;
+    if (!isPlainDataObject(schema?.properties) || !isPlainDataObject(params)) return params;
+    const coerced = {};
+    for (const [key, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(params))) {
+      if (!isSafeSchemaObjectKey(key) || !isPlainDataDescriptor(descriptor)) return params;
+      const value = descriptor.value;
+      const propertySchema = Object.hasOwn(schema.properties, key) ? schema.properties[key] : null;
+      let next = value;
+      if (isPlainDataObject(propertySchema) && typeof value === "string") {
+        if (propertySchema.type === "integer" && JSON_NUMBER_TEXT.test(value)) {
+          const parsed = Number(value);
+          if (Number.isSafeInteger(parsed)) next = parsed;
+        } else if (propertySchema.type === "number" && JSON_NUMBER_TEXT.test(value)) {
+          const parsed = Number(value);
+          if (Number.isFinite(parsed)) next = parsed;
+        } else if (propertySchema.type === "boolean") {
+          if (value === "true") next = true;
+          else if (value === "false") next = false;
+        }
       }
+      coerced[key] = next;
     }
     return coerced;
   }
 
   function validateInput(tool, params) {
     const schema = tool.inputSchema;
-    const errors = [];
-
-    // 检查 required 字段
-    if (schema.required) {
-      for (const field of schema.required) {
-        if (params[field] === undefined || params[field] === null) {
-          errors.push(`缺少必填参数: ${field}`);
-        }
-      }
-    }
-
-    // 检查类型（简化验证）
-    if (schema.properties) {
-      for (const [key, value] of Object.entries(params)) {
-        const prop = schema.properties[key];
-        if (!prop) {
-          if (schema.additionalProperties === false) {
-            errors.push(`未知参数: ${key}`);
-          }
-          continue;
-        }
-        if (prop.type === "string" && typeof value !== "string") {
-          errors.push(`参数 ${key} 应为字符串类型`);
-        }
-        if (prop.type === "integer" && (!Number.isInteger(value))) {
-          errors.push(`参数 ${key} 应为整数类型`);
-        }
-        if (prop.enum && !prop.enum.includes(value)) {
-          errors.push(`参数 ${key} 的值不在允许范围 [${prop.enum.join(", ")}] 内`);
-        }
-      }
-    }
-
-    return {
-      valid: errors.length === 0,
-      errors,
+    if (schema === undefined || schema === null) return { valid: true, errors: [], schemaInvalid: false };
+    const state = {
+      errors: [],
+      schemaInvalid: false,
+      schemaNodes: 0,
+      valueNodes: 0,
+      schemaAncestors: new WeakSet(),
+      valueAncestors: new WeakSet(),
+      patterns: new WeakMap(),
     };
+    inspectSchema(schema, "$schema", 0, state);
+    if (!state.schemaInvalid && state.errors.length < JSON_SCHEMA_LIMITS.maxErrors) {
+      validateSchemaValue(schema, params, "$", 0, state);
+    }
+    return {
+      valid: state.errors.length === 0,
+      errors: state.errors,
+      schemaInvalid: state.schemaInvalid,
+    };
+  }
+
+  function inspectSchema(schema, path, depth, state) {
+    if (!enterBoundedNode(state, "schema", path, depth)) return;
+    if (!isPlainDataObject(schema)) {
+      addValidationError(state, `${path}: schema must be a plain object`, true);
+      return;
+    }
+    if (state.schemaAncestors.has(schema)) {
+      addValidationError(state, `${path}: cyclic schema is forbidden`, true);
+      return;
+    }
+    state.schemaAncestors.add(schema);
+    try {
+      const types = schemaTypes(schema.type, path, state);
+      if (schema.enum !== undefined) inspectEnum(schema.enum, `${path}.enum`, depth + 1, state);
+      inspectNonNegativeIntegerKeyword(schema, "minLength", path, state);
+      inspectNonNegativeIntegerKeyword(schema, "maxLength", path, state);
+      inspectNonNegativeIntegerKeyword(schema, "minItems", path, state);
+      inspectNonNegativeIntegerKeyword(schema, "maxItems", path, state);
+      inspectFiniteNumberKeyword(schema, "minimum", path, state);
+      inspectFiniteNumberKeyword(schema, "maximum", path, state);
+      if (validComparableKeywords(schema.minLength, schema.maxLength) && schema.minLength > schema.maxLength) {
+        addValidationError(state, `${path}: minLength exceeds maxLength`, true);
+      }
+      if (validComparableKeywords(schema.minItems, schema.maxItems) && schema.minItems > schema.maxItems) {
+        addValidationError(state, `${path}: minItems exceeds maxItems`, true);
+      }
+      if (validComparableKeywords(schema.minimum, schema.maximum) && schema.minimum > schema.maximum) {
+        addValidationError(state, `${path}: minimum exceeds maximum`, true);
+      }
+      if (schema.pattern !== undefined) {
+        if (typeof schema.pattern !== "string" || schema.pattern.length > JSON_SCHEMA_LIMITS.maxPatternLength) {
+          addValidationError(state, `${path}: pattern must be a bounded string`, true);
+        } else {
+          try {
+            state.patterns.set(schema, new RegExp(schema.pattern, "u"));
+          } catch {
+            addValidationError(state, `${path}: pattern is not a valid regular expression`, true);
+          }
+        }
+      }
+      if (schema.required !== undefined) inspectRequired(schema.required, `${path}.required`, state);
+      if (schema.properties !== undefined) {
+        if (!isPlainDataObject(schema.properties)) {
+          addValidationError(state, `${path}.properties: must be a plain object`, true);
+        } else {
+          for (const [key, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(schema.properties))) {
+            if (!isSafeSchemaObjectKey(key) || !isPlainDataDescriptor(descriptor)) {
+              addValidationError(state, `${path}.properties: unsafe property key or accessor`, true);
+              continue;
+            }
+            inspectSchema(descriptor.value, `${path}.properties.${escapeSchemaPath(key)}`, depth + 1, state);
+            if (state.errors.length >= JSON_SCHEMA_LIMITS.maxErrors) break;
+          }
+        }
+      }
+      if (schema.items !== undefined) inspectSchema(schema.items, `${path}.items`, depth + 1, state);
+      if (schema.additionalProperties !== undefined
+        && schema.additionalProperties !== true && schema.additionalProperties !== false) {
+        inspectSchema(schema.additionalProperties, `${path}.additionalProperties`, depth + 1, state);
+      }
+      // A schema with object/array keywords and an explicitly incompatible
+      // scalar type is almost certainly a registration error; fail closed.
+      if (types && schema.properties !== undefined && !types.includes("object")) {
+        addValidationError(state, `${path}: properties requires object type`, true);
+      }
+      if (types && schema.items !== undefined && !types.includes("array")) {
+        addValidationError(state, `${path}: items requires array type`, true);
+      }
+    } finally {
+      state.schemaAncestors.delete(schema);
+    }
+  }
+
+  function validateSchemaValue(schema, value, path, depth, state) {
+    if (!enterBoundedNode(state, "value", path, depth)) return;
+    const types = schemaTypes(schema.type, "$schema", state, false);
+    if (types && !types.some((type) => valueMatchesType(value, type))) {
+      addValidationError(state, `${path}: expected ${types.join("|")}`);
+      return;
+    }
+    if (Array.isArray(schema.enum)
+      && !schema.enum.some((allowed) => jsonValuesEqual(allowed, value, 0, new WeakMap()))) {
+      addValidationError(state, `${path}: value is not in enum`);
+    }
+    if (typeof value === "string") {
+      if (value.length > JSON_SCHEMA_LIMITS.maxValidatedStringLength) {
+        addValidationError(state, `${path}: string exceeds validation capacity`);
+        return;
+      }
+      const length = Array.from(value).length;
+      if (Number.isSafeInteger(schema.minLength) && length < schema.minLength) {
+        addValidationError(state, `${path}: string is shorter than minLength`);
+      }
+      if (Number.isSafeInteger(schema.maxLength) && length > schema.maxLength) {
+        addValidationError(state, `${path}: string is longer than maxLength`);
+      }
+      const pattern = state.patterns.get(schema);
+      if (pattern && !pattern.test(value)) addValidationError(state, `${path}: string does not match pattern`);
+    }
+    if (typeof value === "number" && Number.isFinite(value)) {
+      if (typeof schema.minimum === "number" && value < schema.minimum) {
+        addValidationError(state, `${path}: number is below minimum`);
+      }
+      if (typeof schema.maximum === "number" && value > schema.maximum) {
+        addValidationError(state, `${path}: number is above maximum`);
+      }
+    }
+    if (Array.isArray(value)) {
+      if (!isPlainDataArray(value)) {
+        addValidationError(state, `${path}: array must contain only own JSON entries`);
+        return;
+      }
+      if (Number.isSafeInteger(schema.minItems) && value.length < schema.minItems) {
+        addValidationError(state, `${path}: array has fewer than minItems`);
+      }
+      if (Number.isSafeInteger(schema.maxItems) && value.length > schema.maxItems) {
+        addValidationError(state, `${path}: array has more than maxItems`);
+      }
+      if (state.valueAncestors.has(value)) {
+        addValidationError(state, `${path}: cyclic input is forbidden`);
+        return;
+      }
+      state.valueAncestors.add(value);
+      try {
+        if (isPlainDataObject(schema.items)) {
+          for (let index = 0; index < value.length; index += 1) {
+            validateSchemaValue(schema.items, value[index], `${path}[${index}]`, depth + 1, state);
+            if (state.errors.length >= JSON_SCHEMA_LIMITS.maxErrors) break;
+          }
+        }
+      } finally {
+        state.valueAncestors.delete(value);
+      }
+    } else if (value !== null && typeof value === "object") {
+      if (!isPlainDataObject(value)) {
+        addValidationError(state, `${path}: object must be plain JSON data`);
+        return;
+      }
+      if (state.valueAncestors.has(value)) {
+        addValidationError(state, `${path}: cyclic input is forbidden`);
+        return;
+      }
+      state.valueAncestors.add(value);
+      try {
+        const properties = isPlainDataObject(schema.properties) ? schema.properties : null;
+        if (Array.isArray(schema.required)) {
+          for (const key of schema.required) {
+            if (!Object.hasOwn(value, key)) addValidationError(state, `${path}: missing required property ${key}`);
+          }
+        }
+        for (const [key, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(value))) {
+          if (!isSafeSchemaObjectKey(key) || !isPlainDataDescriptor(descriptor)) {
+            addValidationError(state, `${path}: unsafe property key or accessor`);
+            continue;
+          }
+          const childPath = `${path}.${escapeSchemaPath(key)}`;
+          if (properties && Object.hasOwn(properties, key)) {
+            validateSchemaValue(properties[key], descriptor.value, childPath, depth + 1, state);
+          } else if (schema.additionalProperties === false) {
+            addValidationError(state, `${childPath}: additional property is forbidden`);
+          } else if (isPlainDataObject(schema.additionalProperties)) {
+            validateSchemaValue(schema.additionalProperties, descriptor.value, childPath, depth + 1, state);
+          }
+          if (state.errors.length >= JSON_SCHEMA_LIMITS.maxErrors) break;
+        }
+      } finally {
+        state.valueAncestors.delete(value);
+      }
+    }
+  }
+
+  function schemaTypes(type, path, state, report = true) {
+    if (type === undefined) return null;
+    const values = Array.isArray(type) ? type : [type];
+    if ((Array.isArray(type) && !isPlainDataArray(type))
+      || values.length === 0 || new Set(values).size !== values.length
+      || values.some((value) => typeof value !== "string" || !JSON_SCHEMA_TYPES.has(value))) {
+      if (report) addValidationError(state, `${path}: type is unsupported or malformed`, true);
+      return null;
+    }
+    return values;
+  }
+
+  function valueMatchesType(value, type) {
+    if (type === "null") return value === null;
+    if (type === "array") return Array.isArray(value);
+    if (type === "object") return value !== null && typeof value === "object" && !Array.isArray(value);
+    if (type === "integer") return Number.isSafeInteger(value);
+    if (type === "number") return typeof value === "number" && Number.isFinite(value);
+    return typeof value === type;
+  }
+
+  function inspectRequired(required, path, state) {
+    if (!isPlainDataArray(required) || new Set(required).size !== required.length
+      || required.some((key) => typeof key !== "string" || !isSafeSchemaObjectKey(key))) {
+      addValidationError(state, `${path}: required must contain unique safe property names`, true);
+    }
+  }
+
+  function inspectEnum(values, path, depth, state) {
+    if (!isPlainDataArray(values) || values.length === 0 || values.length > JSON_SCHEMA_LIMITS.maxEnumValues) {
+      addValidationError(state, `${path}: enum must be a bounded non-empty array`, true);
+      return;
+    }
+    for (let index = 0; index < values.length; index += 1) {
+      inspectJsonData(values[index], `${path}[${index}]`, depth, state, new WeakSet());
+      if (state.errors.length >= JSON_SCHEMA_LIMITS.maxErrors) break;
+    }
+  }
+
+  function inspectJsonData(value, path, depth, state, ancestors) {
+    if (!enterBoundedNode(state, "schema", path, depth)) return;
+    if (value === null || typeof value === "string" || typeof value === "boolean") return;
+    if (typeof value === "number") {
+      if (!Number.isFinite(value)) addValidationError(state, `${path}: enum number must be finite`, true);
+      return;
+    }
+    if (typeof value !== "object" || (!Array.isArray(value) && !isPlainDataObject(value))) {
+      addValidationError(state, `${path}: enum contains non-JSON data`, true);
+      return;
+    }
+    if (ancestors.has(value)) {
+      addValidationError(state, `${path}: enum contains a cycle`, true);
+      return;
+    }
+    ancestors.add(value);
+    try {
+      if (Array.isArray(value)) {
+        if (!isPlainDataArray(value)) addValidationError(state, `${path}: enum array is malformed`, true);
+        else {
+          for (let index = 0; index < value.length; index += 1) {
+            inspectJsonData(value[index], `${path}[${index}]`, depth + 1, state, ancestors);
+            if (state.errors.length >= JSON_SCHEMA_LIMITS.maxErrors) break;
+          }
+        }
+      } else {
+        for (const [key, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(value))) {
+          if (!isSafeSchemaObjectKey(key) || !isPlainDataDescriptor(descriptor)) {
+            addValidationError(state, `${path}: enum object has an unsafe key or accessor`, true);
+          } else {
+            inspectJsonData(descriptor.value, `${path}.${escapeSchemaPath(key)}`, depth + 1, state, ancestors);
+          }
+          if (state.errors.length >= JSON_SCHEMA_LIMITS.maxErrors) break;
+        }
+      }
+    } finally {
+      ancestors.delete(value);
+    }
+  }
+
+  function inspectNonNegativeIntegerKeyword(schema, key, path, state) {
+    if (schema[key] !== undefined && (!Number.isSafeInteger(schema[key]) || schema[key] < 0)) {
+      addValidationError(state, `${path}.${key}: must be a non-negative integer`, true);
+    }
+  }
+
+  function inspectFiniteNumberKeyword(schema, key, path, state) {
+    if (schema[key] !== undefined && (typeof schema[key] !== "number" || !Number.isFinite(schema[key]))) {
+      addValidationError(state, `${path}.${key}: must be a finite number`, true);
+    }
+  }
+
+  function validComparableKeywords(left, right) {
+    return typeof left === "number" && Number.isFinite(left)
+      && typeof right === "number" && Number.isFinite(right);
+  }
+
+  function enterBoundedNode(state, kind, path, depth) {
+    if (state.errors.length >= JSON_SCHEMA_LIMITS.maxErrors) return false;
+    if (depth > JSON_SCHEMA_LIMITS.maxDepth) {
+      addValidationError(state, `${path}: validation depth limit exceeded`, kind === "schema");
+      return false;
+    }
+    const key = kind === "schema" ? "schemaNodes" : "valueNodes";
+    state[key] += 1;
+    const limit = kind === "schema" ? JSON_SCHEMA_LIMITS.maxSchemaNodes : JSON_SCHEMA_LIMITS.maxValueNodes;
+    if (state[key] > limit) {
+      addValidationError(state, `${path}: validation node limit exceeded`, kind === "schema");
+      return false;
+    }
+    return true;
+  }
+
+  function addValidationError(state, message, schemaInvalid = false) {
+    if (schemaInvalid) state.schemaInvalid = true;
+    if (state.errors.length < JSON_SCHEMA_LIMITS.maxErrors) state.errors.push(message);
+  }
+
+  function isPlainDataObject(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) return false;
+    if (Object.getOwnPropertySymbols(value).length > 0) return false;
+    return Object.entries(Object.getOwnPropertyDescriptors(value)).every(([key, descriptor]) => (
+      isSafeSchemaObjectKey(key) && isPlainDataDescriptor(descriptor)
+    ));
+  }
+
+  function isPlainDataArray(value) {
+    if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) return false;
+    const ownKeys = Reflect.ownKeys(value);
+    if (ownKeys.some((key) => typeof key === "symbol")) return false;
+    const elementKeys = ownKeys.filter((key) => key !== "length");
+    if (elementKeys.length !== value.length) return false;
+    for (let index = 0; index < value.length; index += 1) {
+      if (!Object.hasOwn(value, index)) return false;
+      const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+      if (!isPlainDataDescriptor(descriptor)) return false;
+    }
+    return true;
+  }
+
+  function isPlainDataDescriptor(descriptor) {
+    return Boolean(descriptor) && descriptor.enumerable === true
+      && descriptor.get === undefined && descriptor.set === undefined
+      && Object.hasOwn(descriptor, "value");
+  }
+
+  function isSafeSchemaObjectKey(key) {
+    return typeof key === "string" && isSafePublicObjectKey(key)
+      && key !== "__proto__" && key !== "prototype" && key !== "constructor";
+  }
+
+  function escapeSchemaPath(key) {
+    return key.replaceAll("~", "~0").replaceAll(".", "~1");
+  }
+
+  function jsonValuesEqual(left, right, depth, seen) {
+    if (Object.is(left, right)) return true;
+    if (depth > JSON_SCHEMA_LIMITS.maxDepth || left === null || right === null
+      || typeof left !== "object" || typeof right !== "object") return false;
+    if (Array.isArray(left) || Array.isArray(right)) {
+      if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+      for (let index = 0; index < left.length; index += 1) {
+        if (!jsonValuesEqual(left[index], right[index], depth + 1, seen)) return false;
+      }
+      return true;
+    }
+    if (!isPlainDataObject(left) || !isPlainDataObject(right)) return false;
+    let rightSeen = seen.get(left);
+    if (!rightSeen) {
+      rightSeen = new WeakSet();
+      seen.set(left, rightSeen);
+    } else if (rightSeen.has(right)) {
+      return true;
+    }
+    rightSeen.add(right);
+    const leftKeys = Object.keys(left).sort();
+    const rightKeys = Object.keys(right).sort();
+    if (leftKeys.length !== rightKeys.length || leftKeys.some((key, index) => key !== rightKeys[index])) return false;
+    return leftKeys.every((key) => jsonValuesEqual(left[key], right[key], depth + 1, seen));
   }
 
   const registry = {
@@ -329,13 +711,148 @@ export function createAgentToolRegistry(options = {}) {
         return { status: "error", error: `工具 ${toolName} 未注册` };
       }
 
+      // Provider output is untrusted. A model may fabricate a call for a
+      // registered tool that was not exposed for this run, so the per-run
+      // allowlist must be enforced again at the execution boundary. The
+      // frozen array is carried by the trusted server context and inherited
+      // by nested callTool() invocations.
+      if (Array.isArray(contextOverride?.runAllowedTools)
+        && !contextOverride.runAllowedTools.includes(toolName)) {
+        const record = {
+          id: randomUUID(),
+          toolName,
+          params: sanitizeParams(params),
+          status: "denied",
+          reason: "The tool was not allowed for this agent run.",
+          timestamp: new Date().toISOString(),
+        };
+        executionLog.push(record);
+        capExecutionLog();
+        return {
+          status: "denied",
+          code: "TOOL_NOT_ALLOWED_FOR_RUN",
+          error: record.reason,
+        };
+      }
+
+      // Agent governance Tool Proxy — the per-call enforcement point.
+      // Runs before coercion so approval argument hashes lock exactly the
+      // arguments the agent sent. Legacy callers without governed
+      // identity are untouched.
+      if (governanceRequired && !contextOverride?.agentGovernance) {
+        const record = {
+          id: randomUUID(),
+          toolName,
+          params: sanitizeParams(params),
+          status: "denied",
+          reason: "A server-bound governed agent identity is required for every tool call.",
+          timestamp: new Date().toISOString(),
+        };
+        executionLog.push(record);
+        capExecutionLog();
+        return {
+          status: "denied",
+          code: "AGENT_GOVERNANCE_CONTEXT_REQUIRED",
+          error: record.reason,
+        };
+      }
+      let governancePolicy = null;
+      let governanceExecutionLease = null;
+
+      try {
       // 强转参数类型 (LLM 常将数字/布尔值以字符串形式返回)
-      const coercedParams = coerceParams(tool.inputSchema, params);
+      let coercedParams = coerceParams(tool.inputSchema, params);
 
       // 验证输入参数
       const validation = validateInput(tool, coercedParams);
       if (!validation.valid) {
-        return { status: "error", error: "参数验证失败", details: validation.errors };
+        return {
+          status: "error",
+          code: validation.schemaInvalid ? "TOOL_INPUT_SCHEMA_INVALID" : "TOOL_INPUT_VALIDATION_FAILED",
+          error: "参数验证失败",
+          details: validation.errors,
+        };
+      }
+
+      if (governanceToolProxy && contextOverride?.agentGovernance) {
+        const prepared = prepareGovernedApprovalParameters({
+          toolName,
+          params: coercedParams,
+          workingDirectory: options.workingDirectory || process.cwd(),
+        });
+        coercedParams = prepared.params;
+        const resourceContext = buildTrustedToolResourceContext({
+          toolName,
+          params: coercedParams,
+          workingDirectory: options.workingDirectory || process.cwd(),
+          protectedPaths: options.governanceProtectedPaths ?? [],
+        });
+        if (prepared.review) resourceContext.approvalReview = prepared.review;
+        if (resourceContext.protectedPathDenied) {
+          return {
+            status: "denied",
+            code: "AGENT_GOVERNANCE_PROTECTED_RESOURCE",
+            error: "The tool request targets protected Agent Governance runtime state.",
+          };
+        }
+        if (resourceContext.workspaceEscapeDenied) {
+          return {
+            status: "denied",
+            code: "AGENT_GOVERNANCE_WORKSPACE_ESCAPE",
+            error: "The governed tool request escapes its trusted workspace boundary.",
+          };
+        }
+        const verdict = await governanceToolProxy.enforce({
+          context: contextOverride.agentGovernance,
+          toolName,
+          params: coercedParams,
+          resourceContext,
+        });
+        if (verdict.outcome !== "allow") {
+          const record = {
+            id: randomUUID(),
+            toolName,
+            params: sanitizeParams(params),
+            status: "denied",
+            reason: verdict.reason ?? verdict.code ?? "Denied by the agent governance tool proxy.",
+            timestamp: new Date().toISOString(),
+          };
+          executionLog.push(record);
+          capExecutionLog();
+          return {
+            status: "denied",
+            code: verdict.code ?? "TOOL_GOVERNANCE_DENIED",
+            error: record.reason,
+            ...(verdict.approvalId ? { approvalId: verdict.approvalId } : {}),
+          };
+        }
+        governancePolicy = verdict.policy ?? null;
+        governanceExecutionLease = verdict.executionLease ?? null;
+        if (verdict.approvedParams !== undefined) {
+          if (!isPlainDataObject(verdict.approvedParams)) {
+            return {
+              status: "denied",
+              code: "APPROVED_TOOL_ARGUMENTS_INVALID",
+              error: "The authenticated approved tool arguments are malformed.",
+            };
+          }
+          const approvedForValidation = {};
+          for (const [key, descriptor] of Object.entries(
+            Object.getOwnPropertyDescriptors(verdict.approvedParams),
+          )) {
+            if (key !== GOVERNED_GIT_ENVELOPE_KEY) approvedForValidation[key] = descriptor.value;
+          }
+          delete approvedForValidation[GOVERNED_GIT_ENVELOPE_KEY];
+          const approvedValidation = validateInput(tool, approvedForValidation);
+          if (!approvedValidation.valid) {
+            return {
+              status: "denied",
+              code: "APPROVED_TOOL_ARGUMENTS_INVALID",
+              error: "The authenticated approved tool arguments no longer satisfy the tool schema.",
+            };
+          }
+          coercedParams = verdict.approvedParams;
+        }
       }
 
       // 创建执行上下文
@@ -345,6 +862,17 @@ export function createAgentToolRegistry(options = {}) {
         eventBus,
       });
       let context = { ...baseContext };
+      const permissionSatisfiedByGovernance = Boolean(
+        governancePolicy && contextOverride?.agentGovernance,
+      );
+      if (permissionSatisfiedByGovernance
+        && !governanceSatisfiesToolPermissions(tool, governancePolicy)) {
+        return {
+          status: "denied",
+          code: "AGENT_GOVERNANCE_PERMISSION_MISMATCH",
+          error: "The effective Agent policy does not satisfy the tool's registered permission contract.",
+        };
+      }
 
       // 检查工具链深度
       if (context._chainDepth > maxChainDepth) {
@@ -355,7 +883,9 @@ export function createAgentToolRegistry(options = {}) {
       }
 
       // 权限检查
-      if (tool.requiredPermissions.length > 0 && !permissionCheckerConfigured) {
+      if (tool.requiredPermissions.length > 0
+        && !permissionCheckerConfigured
+        && !permissionSatisfiedByGovernance) {
         const record = {
           id: randomUUID(),
           toolName,
@@ -372,7 +902,7 @@ export function createAgentToolRegistry(options = {}) {
           error: record.reason,
         };
       }
-      if (tool.requiredPermissions.length > 0) {
+      if (tool.requiredPermissions.length > 0 && !permissionSatisfiedByGovernance) {
         for (const perm of tool.requiredPermissions) {
           let permResult;
           try {
@@ -421,7 +951,9 @@ export function createAgentToolRegistry(options = {}) {
 
       // Permission-protected results are never shared through the registry
       // cache because its key intentionally has no caller/session identity.
-      const cacheEligible = tool.isReadOnly === true && tool.requiredPermissions.length === 0;
+      const cacheEligible = tool.isReadOnly === true
+        && tool.requiredPermissions.length === 0
+        && !contextOverride?.agentGovernance;
       const cachedResult = cacheEligible ? resultCache.get(toolName, coercedParams) : null;
       if (cachedResult !== null) {
         const cacheRecord = {
@@ -438,14 +970,16 @@ export function createAgentToolRegistry(options = {}) {
 
       // 执行工具
       const executionId = randomUUID();
+      const executionArgumentsHash = computeArgumentsHash(coercedParams);
       const startTime = Date.now();
+      let toolReturnedSuccessfulResult = false;
       try {
         // 发布执行开始事件
         if (eventBus) {
           eventBus.emit("tool.execution.started", {
             executionId,
             toolName,
-            params,
+            params: sanitizeParams(params),
             timestamp: new Date().toISOString(),
           });
         }
@@ -476,11 +1010,49 @@ export function createAgentToolRegistry(options = {}) {
             error: "The irreversible tool returned success without committing its external-effect fence.",
           };
         }
+        toolReturnedSuccessfulResult = isSuccessfulToolResult(result);
+        if (governancePolicy) {
+          if (typeof governanceToolProxy?.enforceResult === "function") {
+            const metered = await governanceToolProxy.enforceResult({
+              context: contextOverride.agentGovernance,
+              toolName,
+              policy: governancePolicy,
+              result,
+              descriptor: tool.source === "built-in" ? tool.resultRecordDescriptor : null,
+            });
+            if (!metered || typeof metered !== "object" || !Object.hasOwn(metered, "result")) {
+              throw Object.assign(new Error(
+                "The terminal tool-governance result is malformed.",
+              ), {
+                code: "TOOL_RESULT_GOVERNANCE_INVALID",
+              });
+            }
+            if (metered?.verdict === "replace"
+              && tool.isReadOnly !== true
+              && toolReturnedSuccessfulResult) {
+              throw Object.assign(new Error(
+                "A completed write could not return its terminal governed result.",
+              ), {
+                code: metered.code ?? "TOOL_RESULT_GOVERNANCE_REPLACED",
+              });
+            }
+            result = metered.result;
+          } else if (typeof governancePolicy.limits?.maxRecords === "number") {
+            result = {
+              status: "denied",
+              code: "RECORD_METER_UNAVAILABLE",
+              error: "The governed record-result meter is unavailable.",
+            };
+          }
+        }
         const durationMs = Date.now() - startTime;
 
         // 截断超长结果（借鉴 Claude Code 的 maxResultSizeChars 模式）
         if (typeof result === "string" && result.length > tool.maxResultSizeChars) {
           result = result.slice(0, tool.maxResultSizeChars) + "\n...(结果已截断)";
+        }
+        if (governancePolicy) {
+          result = redactGovernedToolResult(result, governancePolicy);
         }
 
         // Cache invalidation: when a write tool modifies a file, invalidate
@@ -516,12 +1088,18 @@ export function createAgentToolRegistry(options = {}) {
         return result;
       } catch (err) {
         const durationMs = Date.now() - startTime;
+        const safeError = redactGovernedString(err?.message ?? String(err));
+        const outcomeUnknown = (externalEffectBoundary.required
+          && externalEffectBoundary.isCommitted() === true)
+          || (tool.isReadOnly !== true && toolReturnedSuccessfulResult);
         const record = {
           id: executionId,
           toolName,
           params: sanitizeParams(params),
-          status: "error",
-          error: err.message,
+          status: outcomeUnknown ? "outcome_uncertain" : "error",
+          error: outcomeUnknown
+            ? "The external effect committed, but its terminal governance audit is incomplete; reconcile before retrying."
+            : safeError,
           durationMs,
           timestamp: new Date().toISOString(),
         };
@@ -532,7 +1110,43 @@ export function createAgentToolRegistry(options = {}) {
           eventBus.emit("tool.execution.failed", record);
         }
 
-        return { status: "error", error: err.message };
+        if (governancePolicy && typeof governanceToolProxy?.recordOutcome === "function") {
+          try {
+            await governanceToolProxy.recordOutcome({
+              context: contextOverride.agentGovernance,
+              toolName,
+              resultStatus: "error",
+              reason: safeError,
+            });
+          } catch {
+            // The original tool failure remains authoritative. A required
+            // pre-execution audit was already committed by Tool Proxy.
+          }
+        }
+
+        if (outcomeUnknown) {
+          return {
+            status: "error",
+            code: "TOOL_EXTERNAL_EFFECT_OUTCOME_UNCERTAIN",
+            error: record.error,
+            outcomeUnknown: true,
+            retrySafe: false,
+            reconciliation: {
+              required: true,
+              executionId,
+              ...(externalEffectBoundary.reconciliation ?? {
+                effectType: "local-tool-write",
+                toolName,
+                parametersHash: executionArgumentsHash,
+              }),
+            },
+          };
+        }
+
+        return { status: "error", error: safeError };
+      }
+      } finally {
+        governanceExecutionLease?.release?.();
       }
     },
 
@@ -557,6 +1171,9 @@ export function createAgentToolRegistry(options = {}) {
         maxChainDepth,
         permissionMode: permissionCheckerConfigured ? "configured" : "fail-closed",
         highRiskToolsEnabled,
+        highRiskToolAllowlist: exactHighRiskTools ? [...exactHighRiskTools] : null,
+        governanceToolProxyConfigured: Boolean(governanceToolProxy),
+        governanceRequired,
         externalEffectGateConfigured: Boolean(
           externalEffectGate && typeof externalEffectGate.reserve === "function",
         ),
@@ -602,22 +1219,230 @@ export function createAgentToolRegistry(options = {}) {
 // 辅助函数
 // ============================================================
 
+const GOVERNED_RESULT_MAX_DEPTH = 12;
+const GOVERNED_RESULT_MAX_NODES = 10_000;
+const GOVERNED_RESULT_DEPTH_OMITTED = "[output omitted: depth limit exceeded]";
+const GOVERNED_RESULT_BUDGET_OMITTED = "[output omitted: node budget exceeded]";
+const LOG_PARAMS_MAX_DEPTH = 8;
+const LOG_PARAMS_MAX_NODES = 2_000;
+const LOG_PARAMS_DEPTH_OMITTED = "[value omitted: depth limit exceeded]";
+const LOG_PARAMS_BUDGET_OMITTED = "[value omitted: node budget exceeded]";
+
+function redactGovernedToolResult(result, policy) {
+  const policyFields = Array.isArray(policy?.scope?.deniedOutputFields)
+    ? policy.scope.deniedOutputFields
+    : [];
+  const redactionRequired = policy?.requirements?.outputRedactionRequired === true
+    || policy?.mandatory?.credentialsExposedToAgent !== true;
+  const fields = new Set([
+    ...(redactionRequired ? AGENT_GOVERNANCE_REDACTED_FIELDS : []),
+    ...policyFields,
+  ].map((field) => String(field).toLowerCase()));
+  const seen = new WeakSet();
+  const budget = { nodes: 0 };
+  const visit = (value, depth) => {
+    if (budget.nodes >= GOVERNED_RESULT_MAX_NODES) return GOVERNED_RESULT_BUDGET_OMITTED;
+    budget.nodes += 1;
+    if (depth > GOVERNED_RESULT_MAX_DEPTH) return GOVERNED_RESULT_DEPTH_OMITTED;
+    if (typeof value === "string") return redactionRequired ? redactGovernedString(value) : value;
+    if (typeof value === "function") return "[callable output omitted]";
+    if (value === null || typeof value !== "object") return value;
+    if (Buffer.isBuffer(value)) return "[binary output omitted]";
+    if (seen.has(value)) return "[circular output omitted]";
+    seen.add(value);
+    if (Array.isArray(value)) {
+      const output = [];
+      for (const item of value) {
+        if (budget.nodes >= GOVERNED_RESULT_MAX_NODES) {
+          output.push(GOVERNED_RESULT_BUDGET_OMITTED);
+          break;
+        }
+        output.push(visit(item, depth + 1));
+      }
+      return output;
+    }
+    const output = Object.create(null);
+    let redactedKeyIndex = 0;
+    for (const key of Object.keys(value)) {
+      if (budget.nodes >= GOVERNED_RESULT_MAX_NODES) {
+        defineSanitizedProperty(output, "__truncated__", GOVERNED_RESULT_BUDGET_OMITTED);
+        break;
+      }
+      const property = Object.getOwnPropertyDescriptor(value, key);
+      if (!property || !("value" in property) || !isSafePublicObjectKey(key)) {
+        defineSanitizedProperty(output, `[redacted-key-${redactedKeyIndex}]`, "***REDACTED***");
+        redactedKeyIndex += 1;
+        budget.nodes += 1;
+        continue;
+      }
+      const nested = property.value;
+      const normalized = key.toLowerCase();
+      const redactedField = [...fields].some((field) => normalized.includes(field));
+      const sanitized = redactedField ? "***REDACTED***" : visit(nested, depth + 1);
+      if (redactedField) budget.nodes += 1;
+      defineSanitizedProperty(output, key, sanitized);
+    }
+    return output;
+  };
+  return visit(result, 0);
+}
+
+function buildTrustedToolResourceContext({ toolName, params, workingDirectory, protectedPaths }) {
+  const record = params && typeof params === "object" && !Array.isArray(params) ? params : {};
+  const resources = new Set();
+  const absoluteResources = [];
+  let root = resolve(workingDirectory);
+  try { root = realpathSync.native(root); } catch { /* The tool owns missing workspace errors. */ }
+  for (const key of ["file_path", "path", "root", "directory", "working_directory"]) {
+    const value = record[key];
+    if (typeof value !== "string" || value.trim() === "") continue;
+    const raw = value.replace(/\\/gu, "/").replace(/^\.\//u, "");
+    const lexical = resolve(root, value);
+    let canonical = lexical;
+    try {
+      canonical = existsSync(lexical)
+        ? realpathSync.native(lexical)
+        : resolve(realpathSync.native(dirname(lexical)), lexical.slice(dirname(lexical).length + 1));
+    } catch {
+      // Tool-specific validation will reject paths whose parent cannot be resolved.
+    }
+    const comparable = normalizeComparablePath(canonical);
+    absoluteResources.push(comparable);
+    resources.add(raw);
+    resources.add(relative(root, canonical).replace(/\\/gu, "/").replace(/^\.\//u, ""));
+    resources.add(comparable);
+  }
+  for (const key of ["url", "uri"]) {
+    const value = record[key];
+    if (typeof value !== "string" || value.trim() === "") continue;
+    resources.add(value);
+    try { resources.add(new URL(value).href); } catch { /* Tool validation owns malformed URLs. */ }
+  }
+  for (const value of Array.isArray(record.resources) ? record.resources : []) {
+    if (typeof value === "string" && value !== "") resources.add(value);
+  }
+  const protectedRoots = (Array.isArray(protectedPaths) ? protectedPaths : [])
+    .filter((value) => typeof value === "string" && value !== "")
+    .map((value) => normalizeComparablePath(resolve(value)));
+  const protectedPathDenied = absoluteResources.some((resource) => protectedRoots.some((protectedRoot) => (
+    resource === protectedRoot || resource.startsWith(`${protectedRoot}${sep}`)
+  )));
+  const comparableRoot = normalizeComparablePath(root);
+  const workspaceEscapeDenied = absoluteResources.some((resource) => (
+    resource !== comparableRoot && !resource.startsWith(`${comparableRoot}${sep}`)
+  ));
+  const outputFields = [record.outputFields, record.fields, record.select]
+    .flatMap((value) => Array.isArray(value) ? value : [])
+    .filter((value) => typeof value === "string" && value !== "");
+  return {
+    resources: [...resources],
+    outputFields,
+    protectedPathDenied,
+    workspaceEscapeDenied,
+    toolName,
+  };
+}
+
+function normalizeComparablePath(value) {
+  const normalized = resolve(value);
+  return process.platform === "win32" ? normalized.toLowerCase() : normalized;
+}
+
+function governanceSatisfiesToolPermissions(tool, policy) {
+  const permissions = policy?.permissions ?? {};
+  return (tool.requiredPermissions ?? []).every((permission) => {
+    switch (permission) {
+      case "file:read":
+      case "git:read":
+      case "lsp:read":
+        return true;
+      case "file:write":
+      case "git:write":
+        return permissions.canWrite === true;
+      case "network:fetch":
+      case "network:search":
+        return permissions.canSendExternalMessage === true;
+      case "git:remote":
+        return permissions.canWrite === true && permissions.canSendExternalMessage === true;
+      case "shell:exec":
+      case "code:run":
+        return permissions.canExecuteCode === true;
+      default:
+        return false;
+    }
+  });
+}
+
+function isSuccessfulToolResult(result) {
+  return !(result && typeof result === "object" && (
+    result.status === "error"
+    || result.status === "denied"
+    || result.success === false
+    || result.error === true
+    || typeof result.error === "string"
+  ));
+}
+
+function redactGovernedString(value) {
+  return redactSecretsInText(value)
+    .replace(/\b(Bearer)\s+[A-Za-z0-9._~+/-]{8,}/giu, "$1 ***REDACTED***")
+    .replace(/\b(password|token|secret|authorization|api[_-]?key)\s*[:=]\s*([^\s,;]+)/giu, "$1=***REDACTED***");
+}
+
 /**
  * 脱敏参数（记录日志时不暴露敏感信息）
  */
 export function sanitizeParams(params) {
   const sensitive = ["password", "token", "secret", "apiKey", "api_key", "authorization"];
-  const result = {};
-  for (const [key, value] of Object.entries(params)) {
-    if (sensitive.some((s) => key.toLowerCase().includes(s.toLowerCase()))) {
-      result[key] = "***REDACTED***";
-    } else if (typeof value === "string" && value.length > 500) {
-      result[key] = value.slice(0, 500) + "...(truncated)";
-    } else {
-      result[key] = value;
+  const omittedText = new Set(["body", "content"]);
+  const seen = new WeakSet();
+  const budget = { nodes: 0 };
+  const visit = (value, key, depth) => {
+    if (key === GOVERNED_GIT_ENVELOPE_KEY) return "[governance envelope omitted]";
+    if (budget.nodes >= LOG_PARAMS_MAX_NODES) return LOG_PARAMS_BUDGET_OMITTED;
+    budget.nodes += 1;
+    if (depth > LOG_PARAMS_MAX_DEPTH) return LOG_PARAMS_DEPTH_OMITTED;
+    if (sensitive.some((candidate) => key.toLowerCase().includes(candidate.toLowerCase()))) {
+      return "***REDACTED***";
     }
-  }
-  return result;
+    if (typeof value === "string") {
+      if (omittedText.has(key.toLowerCase())) return `[text omitted; ${Buffer.byteLength(value, "utf8")} bytes]`;
+      const redacted = redactGovernedString(value);
+      return redacted.length > 500 ? `${redacted.slice(0, 500)}...(truncated)` : redacted;
+    }
+    if (value === null || typeof value !== "object") return value;
+    if (seen.has(value)) return "[circular omitted]";
+    seen.add(value);
+    if (Array.isArray(value)) {
+      const output = [];
+      for (const item of value.slice(0, 100)) {
+        if (budget.nodes >= LOG_PARAMS_MAX_NODES) {
+          output.push(LOG_PARAMS_BUDGET_OMITTED);
+          break;
+        }
+        output.push(visit(item, "item", depth + 1));
+      }
+      return output;
+    }
+    const output = Object.create(null);
+    let redactedKeyIndex = 0;
+    for (const nestedKey of Object.keys(value)) {
+      if (budget.nodes >= LOG_PARAMS_MAX_NODES) {
+        defineSanitizedProperty(output, "__truncated__", LOG_PARAMS_BUDGET_OMITTED);
+        break;
+      }
+      const property = Object.getOwnPropertyDescriptor(value, nestedKey);
+      if (!property || !("value" in property) || !isSafePublicObjectKey(nestedKey)) {
+        defineSanitizedProperty(output, `[redacted-key-${redactedKeyIndex}]`, "***REDACTED***");
+        redactedKeyIndex += 1;
+        budget.nodes += 1;
+        continue;
+      }
+      defineSanitizedProperty(output, nestedKey, visit(property.value, nestedKey, depth + 1));
+    }
+    return output;
+  };
+  return visit(params, "params", 0);
 }
 
 /**
@@ -631,8 +1456,19 @@ export function summarizeResult(result) {
     return {
       type: "object",
       status: result.status || "unknown",
-      keys: Object.keys(result).slice(0, 10),
+      keys: Object.keys(result).slice(0, 10).map((key, index) => (
+        isSafePublicObjectKey(key) ? key : `[redacted-key-${index}]`
+      )),
     };
   }
   return { type: typeof result };
+}
+
+function defineSanitizedProperty(output, key, value) {
+  Object.defineProperty(output, key, {
+    value,
+    enumerable: true,
+    configurable: true,
+    writable: true,
+  });
 }

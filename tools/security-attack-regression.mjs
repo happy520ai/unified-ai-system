@@ -9,6 +9,9 @@ const env = {
   ...process.env,
   AI_GATEWAY_PROVIDER_MODE: "fake",
   AI_GATEWAY_REAL_PROVIDER_ENABLED: "false",
+  // This regression probes legacy MCP ACL/size defenses directly. Governed
+  // MCP behavior has separate route/service coverage with an explicit agentId.
+  AI_GATEWAY_AGENT_GOVERNANCE_ENABLED: "false",
   PME_AUTH_TOKEN: "admin-token-0123456789abcdef",
   PME_ENTERPRISE_USERS_JSON: JSON.stringify([
     { token: "tenant-a-admin-token", userId: "tenant-a-admin", tenantId: "tenant-a", role: "admin" },

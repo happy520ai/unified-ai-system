@@ -86,6 +86,7 @@ export function createAgenticLoop(options = {}) {
   const dynamicBudgetEnabled = options.dynamicBudgetEnabled ?? false;
   const promptOptimizeEnabled = options.promptOptimizeEnabled ?? true;
   const partialPreviewEnabled = options.partialPreviewEnabled ?? true;
+  const agentGovernanceRequired = options.agentGovernanceRequired === true;
 
   const toolRegistry = options.toolRegistry ?? createAgentToolRegistry({
     workingDirectory,
@@ -93,10 +94,23 @@ export function createAgenticLoop(options = {}) {
       ? { check: (action, context = {}) => options.permissionGate.check(action, { ...context, permissionMode }) }
       : null,
     enableHighRiskTools: options.enableHighRiskTools === true,
+    highRiskToolAllowlist: options.highRiskToolAllowlist,
     externalEffectGate: options.externalEffectGate,
     externalEffectFence: options.externalEffectFence,
     externalEffectTenantId: options.tenantId,
+    governanceToolProxy: options.governanceToolProxy ?? null,
+    governanceRequired: agentGovernanceRequired,
+    governanceProtectedPaths: options.governanceProtectedPaths ?? [],
   });
+  if (agentGovernanceRequired && options.toolRegistry) {
+    const registryHealth = typeof toolRegistry.getHealth === "function" ? toolRegistry.getHealth() : null;
+    if (registryHealth?.governanceToolProxyConfigured !== true
+      || registryHealth?.governanceRequired !== true) {
+      const error = new Error("A caller-supplied tool registry must enforce Agent Governance for this loop.");
+      error.code = "AGENT_GOVERNANCE_PROXY_REQUIRED";
+      throw error;
+    }
+  }
   if (options.mcpBridge) syncMcpToolsToRegistry(options.mcpBridge, toolRegistry);
 
   const autoContext = createAutoContext({ workingDirectory, maxFiles: options.maxContextFiles ?? 10 });
@@ -161,11 +175,22 @@ export function createAgenticLoop(options = {}) {
     const startedAt = Date.now();
     const goal = typeof input.goal === "string" ? input.goal : String(input.goal ?? "");
     if (!goal.trim()) return createErrorResult("AGENTIC_GOAL_EMPTY", "Goal is required and must be a non-empty string.");
+    // Governed identity flows per request into every tool call.
+    const governanceCallContext = input.agentGovernance ?? options.agentGovernance ?? null;
+    if (agentGovernanceRequired
+      && (!governanceCallContext
+        || typeof governanceCallContext.agentId !== "string"
+        || typeof governanceCallContext.tenantId !== "string")) {
+      const error = new Error("Governed agent execution requires server-bound agentId and tenantId.");
+      error.code = "AGENT_GOVERNANCE_CONTEXT_REQUIRED";
+      throw error;
+    }
 
     const enhancedPrompt = await enhancePrompt(systemPrompt, goal);
     const taskComplexity = analyzeComplexity(goal);
     const messages = buildInitialMessages(enhancedPrompt, goal, input.messages);
     const tools = getOpenAITools(toolRegistry, input.toolAllowlist);
+    const runAllowedTools = freezeRunToolAllowlist(input.toolAllowlist);
     const trace = [];
     const allToolResults = [];
     let totalUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
@@ -210,6 +235,20 @@ export function createAgenticLoop(options = {}) {
     // Main loop
     for (iteration = iteration > 0 ? iteration + 1 : 1; iteration <= effectiveMaxIterations; iteration++) {
       if (input.signal?.aborted) { status = "cancelled"; finalAnswer = `[Cancelled by user at iteration ${iteration}]`; trace.push({ iteration, type: "cancelled", message: "Loop cancelled by user via AbortSignal.", timestamp: new Date().toISOString() }); break; }
+      if (typeof options.beforeIteration === "function") {
+        let gate;
+        try {
+          gate = await options.beforeIteration({ iteration, sessionId });
+        } catch {
+          gate = { allowed: false, reason: "GOVERNANCE_STEP_RESERVATION_FAILED" };
+        }
+        if (!gate || gate.allowed !== true) {
+          status = "governance_denied";
+          finalAnswer = `[Agent governance denied iteration ${iteration}: ${gate?.reason ?? "STEP_LIMIT_REACHED"}]`;
+          trace.push({ iteration, type: "governance_denied", code: gate?.reason ?? "STEP_LIMIT_REACHED", timestamp: new Date().toISOString() });
+          break;
+        }
+      }
       const iterStartedAt = Date.now();
       compactIfNeeded(messages);
       const providerRequest = buildProviderRequest({ messages, tools, providerId: input.providerId, modelId: input.modelId, maxTokensPerTurn, signal: input.signal });
@@ -218,6 +257,12 @@ export function createAgenticLoop(options = {}) {
       let providerResponse;
       try { providerResponse = await withProviderTimeout(providerAdapter.generate(providerRequest)); }
       catch (error) {
+        if (input.signal?.aborted) {
+          status = "cancelled";
+          finalAnswer = `[Cancelled during provider execution at iteration ${iteration}]`;
+          trace.push({ iteration, type: "cancelled", message: "Loop cancelled during provider execution.", timestamp: new Date().toISOString() });
+          break;
+        }
         status = "error";
         trace.push({ iteration, type: "error", code: error?.code || "PROVIDER_ERROR", message: error instanceof Error ? error.message : "Provider call failed.", timestamp: new Date().toISOString() });
         return buildResult({ sessionId, goal, status, finalAnswer: finalAnswer || `Error at iteration ${iteration}: ${error.message}`, iterations: iteration, messages, trace, allToolResults, totalUsage, startedAt });
@@ -242,6 +287,9 @@ export function createAgenticLoop(options = {}) {
         const toolResults = await executeToolCalls(toolCalls, toolRegistry, {
           workingDirectory,
           sessionId,
+          ...(input.signal ? { signal: input.signal } : {}),
+          ...(runAllowedTools ? { runAllowedTools } : {}),
+          ...(governanceCallContext ? { agentGovernance: governanceCallContext } : {}),
         });
         await processToolResults(toolCalls, toolResults, messages, allToolResults, iteration, plan);
         trace.push({ iteration, type: "tool_results", results: toolResults.map((r) => ({ tool_call_id: r.tool_call_id, isError: r._meta?.isError, durationMs: r._meta?.durationMs })), timestamp: new Date().toISOString() });
@@ -275,11 +323,23 @@ export function createAgenticLoop(options = {}) {
     const sessionId = randomUUID(); const startedAt = Date.now();
     const goal = typeof input.goal === "string" ? input.goal : String(input.goal ?? "");
     if (!goal.trim()) { yield createStreamEvent("error", { code: "AGENTIC_GOAL_EMPTY", message: "Goal is required and must be a non-empty string." }); return; }
+    const governanceCallContext = input.agentGovernance ?? options.agentGovernance ?? null;
+    if (agentGovernanceRequired
+      && (!governanceCallContext
+        || typeof governanceCallContext.agentId !== "string"
+        || typeof governanceCallContext.tenantId !== "string")) {
+      yield createStreamEvent("error", {
+        code: "AGENT_GOVERNANCE_CONTEXT_REQUIRED",
+        message: "Governed agent execution requires server-bound agentId and tenantId.",
+      });
+      return;
+    }
 
     const enhancedStreamPrompt = await enhancePrompt(systemPrompt, goal);
     analyzeComplexity(goal);
     const messages = buildInitialMessages(enhancedStreamPrompt, goal, input.messages);
     const tools = getOpenAITools(toolRegistry, input.toolAllowlist);
+    const runAllowedTools = freezeRunToolAllowlist(input.toolAllowlist);
     const allToolResults = [];
     let totalUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
     let iteration = 0;
@@ -288,6 +348,21 @@ export function createAgenticLoop(options = {}) {
     for (iteration = 1; iteration <= maxIterations; iteration++) {
      try {
       if (input.signal?.aborted) { yield createStreamEvent("cancelled", { iteration, message: "Loop cancelled by user via AbortSignal." }); yield createStreamEvent("complete", { sessionId, finalAnswer: `[Cancelled by user at iteration ${iteration}]`, iterations: iteration, status: "cancelled", toolUsage: summarizeToolUsage(allToolResults), usage: totalUsage, durationMs: Date.now() - startedAt }); return; }
+      if (typeof options.beforeIteration === "function") {
+        let gate;
+        try {
+          gate = await options.beforeIteration({ iteration, sessionId });
+        } catch {
+          gate = { allowed: false, reason: "GOVERNANCE_STEP_RESERVATION_FAILED" };
+        }
+        if (!gate || gate.allowed !== true) {
+          yield createStreamEvent("error", {
+            code: gate?.reason ?? "STEP_LIMIT_REACHED",
+            message: "Agent governance denied the next execution step.",
+          });
+          return;
+        }
+      }
       yield createStreamEvent("iteration_start", { iteration, maxIterations });
       compactIfNeeded(messages);
       const providerRequest = buildProviderRequest({ messages, tools, providerId: input.providerId, modelId: input.modelId, maxTokensPerTurn, signal: input.signal });
@@ -295,7 +370,15 @@ export function createAgenticLoop(options = {}) {
 
       let providerResponse;
       try { providerResponse = await withProviderTimeout(providerAdapter.generate(providerRequest)); }
-      catch (error) { yield createStreamEvent("error", { code: error?.code || "PROVIDER_ERROR", message: error instanceof Error ? error.message : "Provider call failed.", recoverable: error?.retryable ?? false }); return; }
+      catch (error) {
+        if (input.signal?.aborted) {
+          yield createStreamEvent("cancelled", { iteration, message: "Loop cancelled during provider execution." });
+          yield createStreamEvent("complete", { sessionId, finalAnswer: `[Cancelled during provider execution at iteration ${iteration}]`, iterations: iteration, status: "cancelled", toolUsage: summarizeToolUsage(allToolResults), usage: totalUsage, durationMs: Date.now() - startedAt });
+          return;
+        }
+        yield createStreamEvent("error", { code: error?.code || "PROVIDER_ERROR", message: error instanceof Error ? error.message : "Provider call failed.", recoverable: error?.retryable ?? false });
+        return;
+      }
 
       if (providerResponse?.usage) {
         totalUsage.inputTokens += providerResponse.usage.inputTokens ?? 0; totalUsage.outputTokens += providerResponse.usage.outputTokens ?? 0; totalUsage.totalTokens += providerResponse.usage.totalTokens ?? 0;
@@ -314,6 +397,9 @@ export function createAgenticLoop(options = {}) {
         const toolResults = await executeToolCalls(toolCalls, toolRegistry, {
           workingDirectory,
           sessionId,
+          ...(input.signal ? { signal: input.signal } : {}),
+          ...(runAllowedTools ? { runAllowedTools } : {}),
+          ...(governanceCallContext ? { agentGovernance: governanceCallContext } : {}),
         });
         await processToolResults(toolCalls, toolResults, messages, allToolResults, iteration, null);
         for (const r of toolResults) yield createStreamEvent("tool_call_result", { tool_call_id: r.tool_call_id, tool: r._meta?.toolName, result: truncateForEvent(r.content), durationMs: r._meta?.durationMs, isError: r._meta?.isError });
@@ -353,9 +439,17 @@ export function createAgenticLoop(options = {}) {
       toolCount: toolRegistry.listTools().length,
       hasMcpBridge: Boolean(options.mcpBridge),
       highRiskToolsEnabled: options.enableHighRiskTools === true && Boolean(options.permissionGate),
+      highRiskToolAllowlist: Array.isArray(options.highRiskToolAllowlist)
+        ? [...options.highRiskToolAllowlist]
+        : null,
       hasAutoContext: true, hasProjectInstructions: true,
       hasSubagentDispatch: true, hasContextManager: true,
       hasSessionMemory: true, hasSessionStore: true, hasSmartModelRouter: true,
     }),
   };
+}
+
+function freezeRunToolAllowlist(value) {
+  if (!Array.isArray(value)) return null;
+  return Object.freeze(Array.from(new Set(value.filter((name) => typeof name === "string"))));
 }

@@ -16,7 +16,7 @@ import { join, relative, extname, resolve, sep } from "node:path";
 import { buildTool, createInputSchema } from "../claude-code-patterns/toolCore.js";
 
 const IGNORE_DIRS = new Set([
-  "node_modules", ".git", ".next", "dist", "build",
+  "node_modules", ".git", ".data", ".next", "dist", "build",
   ".cache", "__pycache__", "venv", ".venv", "coverage",
 ]);
 
@@ -127,6 +127,9 @@ function validatePathSecurity(searchPath, workingDirectory) {
   if (!resolved.startsWith(resolvedWorkdir + sep) && resolved !== resolvedWorkdir) {
     return { valid: false, error: "PATH_TRAVERSAL_BLOCKED" };
   }
+  if (relative(resolvedWorkdir, resolved).split(/[\\/]/u).includes(".data")) {
+    return { valid: false, error: "SENSITIVE_RUNTIME_DATA_BLOCKED" };
+  }
   return { valid: true, resolvedPath: resolved };
 }
 
@@ -170,6 +173,12 @@ Use this to find code patterns, function usages, imports, etc.`,
     ),
     requiredPermissions: ["file:read"],
     isReadOnly: true,
+    resultRecordDescriptor: {
+      kind: "record-array",
+      selector: ["matches"],
+      onLimitExceeded: "truncate",
+      itemKind: "object",
+    },
 
     async execute(params) {
       const {
@@ -208,8 +217,8 @@ Use this to find code patterns, function usages, imports, etc.`,
         if (!pathCheck.valid) {
           return {
             status: "error",
-            error: "Path traversal blocked: searchPath must stay within working directory",
-            code: "PATH_TRAVERSAL_BLOCKED",
+            error: `Search path blocked by security policy: ${pathCheck.error}`,
+            code: pathCheck.error,
           };
         }
       }

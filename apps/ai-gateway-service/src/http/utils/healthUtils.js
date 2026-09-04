@@ -2,6 +2,7 @@ import { listModelImportProviders } from "../../model-import/providerProbeRegist
 
 export function createHealth(application) {
   const realProviderEnabled = application.config.aiGatewayService.realProviderEnabled === true;
+  const agentGovernance = readAgentGovernanceHealth(application);
   const usageLedger = application.requestLogger?.getHealth?.() ?? {
     status: "disabled",
     persistence: "none",
@@ -77,6 +78,7 @@ export function createHealth(application) {
       && enterpriseReady
       && localClientFeedbackReady
       && managedProtocolReady
+      && agentGovernance.ready === true
       ? "ready"
       : "degraded",
     phase: "phase-7a-1-service-entry",
@@ -197,6 +199,7 @@ export function createHealth(application) {
     workflow: application.workflowService.getHealth(),
     workforce: application.workforceService.getHealth(),
     enterprise: enterpriseHealth,
+    agentGovernance,
     usageLedger: {
       ...usageLedger,
       requiredForRealProviders: realProviderEnabled,
@@ -236,10 +239,15 @@ export function createSetupReadiness(application) {
   const chatReady = providerDescriptors.length > 0 && health.status === "ready";
   const knowledgeReady = knowledgeHealth.status === "ready" || knowledgeHealth.ready === true;
   const workforceReady = workforceHealth.status === "ready" && workforceHealth.ready === true;
+  const agentGovernanceBlocksSetup = health.agentGovernance.enabled === true
+    && health.agentGovernance.ready !== true;
 
   return {
     phase: "phase-104a-first-run-setup",
-    status: "ready",
+    // Preserve the established first-run contract for optional/degraded
+    // dependencies. Agent Governance is different when explicitly enabled:
+    // its owner and integrity fences are mandatory execution prerequisites.
+    status: agentGovernanceBlocksSetup ? "degraded" : "ready",
     userMessage: "首次使用只需要按步骤完成健康检查、模型检测，然后就可以开始聊天；知识库和 Agent Workforce 可以按需打开。",
     steps: [
       {
@@ -248,6 +256,15 @@ export function createSetupReadiness(application) {
         status: health.status === "ready" ? "ready" : "needs_attention",
         ready: health.status === "ready",
         nextAction: "如果不是 ready，先运行 health / doctor / logs 查看服务状态。",
+      },
+      {
+        stepId: "agent-governance",
+        title: "Agent Governance 控制面",
+        status: health.agentGovernance.ready ? "ready" : "needs_attention",
+        ready: health.agentGovernance.ready,
+        nextAction: health.agentGovernance.enabled
+          ? "检查 owner lease、启动恢复和治理审计完整性。"
+          : "Agent Governance 未启用；启用后将自动纳入 readiness。",
       },
       {
         stepId: "model-import",
@@ -291,6 +308,7 @@ export function createSetupReadiness(application) {
         status: health.status,
         service: health.app,
       },
+      agentGovernance: health.agentGovernance,
       modelImport: {
         ready: modelImportReady,
         providerCatalogCount: providerCatalog.length,
@@ -330,4 +348,60 @@ export function createSetupReadiness(application) {
       projectFileWrites: false,
     },
   };
+}
+
+function readAgentGovernanceHealth(application) {
+  const snapshot = application?.agentGovernanceHealth?.snapshot?.();
+  if (snapshot && typeof snapshot === "object") {
+    return {
+      enabled: snapshot.enabled === true,
+      ready: snapshot.ready === true,
+      status: normalizeGovernanceHealthValue(snapshot.status, ["disabled", "initializing", "ready", "degraded"], "degraded"),
+      ownerLease: normalizeGovernanceHealthValue(snapshot.ownerLease, ["not_required", "held", "lost"], "lost"),
+      startupRecovery: normalizeGovernanceHealthValue(snapshot.startupRecovery, ["not_required", "pending", "ready", "failed"], "failed"),
+      stateIntegrity: normalizeGovernanceHealthValue(snapshot.stateIntegrity, ["not_required", "pending", "verified", "failed"], "failed"),
+      auditIntegrity: normalizeGovernanceHealthValue(snapshot.auditIntegrity, ["not_required", "pending", "verified", "failed"], "failed"),
+      failureCode: normalizeGovernanceHealthValue(snapshot.failureCode, [
+        "owner_lease_lost",
+        "startup_recovery_failed",
+        "state_integrity_failed",
+        "audit_integrity_failed",
+        "governance_health_unavailable",
+      ], null),
+      checkedAt: normalizeGovernanceCheckedAt(snapshot.checkedAt),
+    };
+  }
+  if (!application?.agentGovernance) {
+    return {
+      enabled: false,
+      ready: true,
+      status: "disabled",
+      ownerLease: "not_required",
+      startupRecovery: "not_required",
+      stateIntegrity: "not_required",
+      auditIntegrity: "not_required",
+      failureCode: null,
+      checkedAt: null,
+    };
+  }
+  return {
+    enabled: true,
+    ready: false,
+    status: "initializing",
+    ownerLease: "lost",
+    startupRecovery: "pending",
+    stateIntegrity: "pending",
+    auditIntegrity: "pending",
+    failureCode: "governance_health_unavailable",
+    checkedAt: null,
+  };
+}
+
+function normalizeGovernanceHealthValue(value, allowed, fallback) {
+  return allowed.includes(value) ? value : fallback;
+}
+
+function normalizeGovernanceCheckedAt(value) {
+  if (typeof value !== "string" || !Number.isFinite(Date.parse(value))) return null;
+  return new Date(value).toISOString();
 }

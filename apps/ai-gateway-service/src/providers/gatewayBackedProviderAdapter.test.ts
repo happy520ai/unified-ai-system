@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createGatewayBackedProviderAdapter } from "./gatewayBackedProviderAdapter.ts";
+import { AGENT_GOVERNANCE_EXECUTION_CONTEXT } from "../core/gatewayService.js";
 
 describe("gateway-backed internal provider adapter", () => {
   it("routes low-level provider input through a pinned governed gateway call", async () => {
@@ -21,6 +22,13 @@ describe("gateway-backed internal provider adapter", () => {
       providerId: "openai",
       modelId: "gpt-test",
       source: "agent-exec",
+      agentExecutionContext: {
+        agentId: "agt_adapter_test",
+        runId: "agr_adapter_run",
+        policyHash: `sha256:${"a".repeat(64)}`,
+        tenantId: "tenant-a",
+        userId: "operator-a",
+      },
     });
 
     const result = await adapter.generate({
@@ -37,7 +45,15 @@ describe("gateway-backed internal provider adapter", () => {
     expect(gatewayService.execute).toHaveBeenCalledWith(expect.objectContaining({
       taskType: "chat",
       providerId: "openai",
-      modelId: "gpt-test",
+      model: "gpt-test",
+      enterpriseIdentity: { tenantId: "tenant-a", userId: "operator-a" },
+      [AGENT_GOVERNANCE_EXECUTION_CONTEXT]: {
+        agentId: "agt_adapter_test",
+        runId: "agr_adapter_run",
+        policyHash: `sha256:${"a".repeat(64)}`,
+        tenantId: "tenant-a",
+        userId: "operator-a",
+      },
       tools: expect.any(Array),
       metadata: {
         source: "agent-exec",
@@ -85,5 +101,19 @@ describe("gateway-backed internal provider adapter", () => {
       target: { providerId: "other", modelId: "gpt-test" },
     })).rejects.toMatchObject({ code: "GATEWAY_BACKED_PROVIDER_TARGET_MISMATCH" });
     expect(gatewayService.execute).toHaveBeenCalledOnce();
+  });
+
+  it("rejects malformed server-owned Agent attribution", () => {
+    expect(() => createGatewayBackedProviderAdapter({
+      gatewayService: { execute: vi.fn() },
+      providerId: "openai",
+      agentExecutionContext: {
+        agentId: "caller-controlled",
+        runId: "agr_valid",
+        policyHash: `sha256:${"a".repeat(64)}`,
+        tenantId: "tenant-a",
+        userId: "operator-a",
+      },
+    })).toThrow(expect.objectContaining({ code: "GATEWAY_BACKED_PROVIDER_AGENT_CONTEXT_INVALID" }));
   });
 });

@@ -38,6 +38,7 @@ export function createExternalEffectToolBoundary({
       required: false,
       context,
       isCommitted: () => false,
+      reconciliation: null,
     };
   }
   if (!gate || typeof gate.reserve !== "function") {
@@ -95,6 +96,11 @@ export function createExternalEffectToolBoundary({
     required: true,
     context: guardedContext,
     isCommitted: () => committed,
+    reconciliation: Object.freeze({
+      effectType,
+      effectKeyHash: sha256(effectKey),
+      toolName,
+    }),
   };
 }
 
@@ -104,6 +110,7 @@ function denied(code: string, error: string) {
     denied: { code, error },
     context: {},
     isCommitted: () => false,
+    reconciliation: null,
   };
 }
 

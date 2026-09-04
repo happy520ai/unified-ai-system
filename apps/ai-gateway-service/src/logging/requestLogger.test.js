@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createRequestLogger } from "./requestLogger.js";
@@ -43,6 +43,9 @@ describe("requestLogger persistence", () => {
         providerCallAttempted: true,
         billable: true,
         traceId: "trace-1",
+        agentId: "agt_usage_agent",
+        agentRunId: "agr_usage_run",
+        agentPolicyHash: `sha256:${"a".repeat(64)}`,
       });
       logger.flush();
 
@@ -60,8 +63,23 @@ describe("requestLogger persistence", () => {
         shadow: true,
         providerCallAttempted: true,
         billable: true,
+        agentId: "agt_usage_agent",
+        agentRunId: "agr_usage_run",
+        agentPolicyHash: `sha256:${"a".repeat(64)}`,
       }));
+      expect(logger.query({ agentId: "agt_usage_agent" })).toHaveLength(1);
+      expect(logger.query({ agentId: "agt_other" })).toHaveLength(0);
+      expect(stats.byAgent).toEqual({
+        agt_usage_agent: { count: 1, tokens: 8, cost: 0.000016, errors: 0 },
+      });
       expect(stats.unknownCostRecords).toBe(0);
+      expect(stats).toMatchObject({
+        partial: false,
+        truncated: false,
+        recordsConsidered: 1,
+        recordLimit: 10000,
+        scope: "current-day-file-window",
+      });
 
       const health = logger.getHealth();
       expect(health.status).toBe("ready");
@@ -99,6 +117,45 @@ describe("requestLogger persistence", () => {
         consecutiveWriteFailures: 0,
         lastWriteSuccessAt: expect.any(String),
       }));
+      logger.close();
+    } finally {
+      rmSync(logDir, { recursive: true, force: true });
+    }
+  });
+
+  it("marks by-Agent statistics partial when the bounded file window truncates", () => {
+    const logDir = mkdtempSync(join(tmpdir(), "request-logger-truncated-stats-"));
+    try {
+      const logger = createRequestLogger({ logDir, enableBodyLogging: false });
+      logger.log({ tenantId: "tenant-a", agentId: "agt_truncated", totalTokens: 1 });
+      logger.flush();
+      const logFile = readdirSync(logDir).find((name) => name.endsWith(".jsonl"));
+      expect(logFile).toBeTruthy();
+      const baseTimestamp = Date.now();
+      const lines = Array.from({ length: 10_001 }, (_, index) => JSON.stringify({
+        id: `record-${index}`,
+        timestamp: baseTimestamp - index,
+        tenantId: "tenant-a",
+        agentId: "agt_truncated",
+        statusCode: 200,
+        latencyMs: 1,
+        totalTokens: 1,
+        estimatedCostUsd: 0,
+        costEstimateAvailable: true,
+      }));
+      writeFileSync(join(logDir, logFile), `${lines.join("\n")}\n`, "utf8");
+
+      expect(logger.getStats({ tenantId: "tenant-a", agentId: "agt_truncated" })).toMatchObject({
+        totalRequests: 10_000,
+        partial: true,
+        truncated: true,
+        recordsConsidered: 10_000,
+        recordLimit: 10_000,
+        scope: "current-day-file-window",
+        byAgent: {
+          agt_truncated: { count: 10_000, tokens: 10_000, cost: 0, errors: 0 },
+        },
+      });
       logger.close();
     } finally {
       rmSync(logDir, { recursive: true, force: true });

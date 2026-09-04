@@ -164,13 +164,24 @@ Rules:
 11. For multimodal tasks (generate-image, generate-embedding, generate-audio, generate-video, transcribe), use the matching agentRole. These tasks produce binary artifacts, not code edits. Include the prompt/text/input in the task prompt field and any model/size/voice preferences.
 12. For WEB AUTOMATION tasks (navigate websites, fill forms, click buttons, extract data from web pages, follow operation manuals), use type "web" or "scrape" with agentRole "web". Include the target URL in the task's prompt or a "url" field, and operation steps in the prompt. The web worker drives a real browser via Playwright + LLM.`;
 
-export async function compileGoal(store, { goalText, projectRoot }) {
+export async function compileGoal(store, {
+  goalText,
+  projectRoot,
+  skipCodebaseProbe = false,
+  signal,
+}) {
   const goalId = store.createGoal({ text: goalText, projectRoot, budget: { maxMinutes: 120 } });
   store.logEvent(goalId, null, 'goal_created', { text: goalText });
 
   // Step 1: Probe the codebase
-  console.log('[forge:compiler] Probing codebase...');
-  const { tree, keyFiles } = await probeCodebase(projectRoot);
+  if (skipCodebaseProbe) {
+    console.log('[forge:compiler] Governed mode: implicit codebase probe disabled; workers must use governed read actions.');
+  } else {
+    console.log('[forge:compiler] Probing codebase...');
+  }
+  const { tree, keyFiles } = skipCodebaseProbe
+    ? { tree: [], keyFiles: [] }
+    : await probeCodebase(projectRoot);
 
   // Step 2: Build the LLM prompt
   const preferredLanguage = inferLanguageFromText(goalText) || inferLanguageFromTree(tree);
@@ -179,10 +190,24 @@ export async function compileGoal(store, { goalText, projectRoot }) {
 
   // Step 3: Call LLM to decompose goal (with timeout)
   console.log('[forge:compiler] Decomposing goal via LLM...');
-  const llmResponse = await Promise.race([
-    callLLM(SYSTEM_PROMPT, userPrompt, { maxTokens: 16384, temperature: 0.1 }),
-    new Promise((_, reject) => setTimeout(() => reject(new Error("LLM call timed out after 120s")), 120_000)),
-  ]);
+  let timeoutId;
+  let llmResponse;
+  try {
+    const timeout = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error("LLM call timed out after 120s")), 120_000);
+      timeoutId.unref?.();
+    });
+    llmResponse = await Promise.race([
+      callLLM(SYSTEM_PROMPT, userPrompt, {
+        maxTokens: 16384,
+        temperature: 0.1,
+        ...(signal ? { signal } : {}),
+      }),
+      timeout,
+    ]);
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
+  }
 
   // Step 4: Parse the DAG
   let parsed;
@@ -191,7 +216,7 @@ export async function compileGoal(store, { goalText, projectRoot }) {
     console.log(`[forge:compiler] Response preview: ${llmResponse.slice(0, 500)}`);
 
     // Debug: dump full response for diagnosis (only when FORGE_DEBUG_LLM=true)
-    if (process.env.FORGE_DEBUG_LLM === "true") {
+    if (!skipCodebaseProbe && process.env.FORGE_DEBUG_LLM === "true") {
       try {
         const { writeFileSync } = await import('node:fs');
         writeFileSync('forge-llm-debug.json', llmResponse, 'utf-8');

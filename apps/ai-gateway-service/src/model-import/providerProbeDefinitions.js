@@ -24,6 +24,16 @@ export const PROVIDER_PROBES = {
     defaultCapabilities: ["chat", "summary"],
     providerGroup: "openai-compatible",
   },
+  bai: {
+    providerId: "bai",
+    displayName: "B.AI",
+    baseUrl: "https://api.b.ai/v1",
+    modelsPath: "/models",
+    auth: "bearer",
+    defaultCapabilities: ["chat", "summary"],
+    providerGroup: "openai-compatible",
+    fixedBaseUrl: true,
+  },
   dashscope: {
     providerId: "dashscope",
     displayName: "DashScope",
