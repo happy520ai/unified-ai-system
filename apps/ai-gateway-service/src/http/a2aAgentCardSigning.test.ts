@@ -1,8 +1,4 @@
-import {
-  createPublicKey,
-  generateKeyPairSync,
-  type JsonWebKey,
-} from "node:crypto";
+import { createPublicKey, generateKeyPairSync } from "node:crypto";
 import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -11,6 +7,7 @@ import {
   verifyAgentCardSignature,
 } from "@a2a-js/sdk";
 import { describe, expect, it } from "vitest";
+import { type JsonWebKey } from "./a2aAgentCardSigning.js";
 import {
   A2A_AGENT_CARD_PATH,
   A2A_JWKS_PATH,
