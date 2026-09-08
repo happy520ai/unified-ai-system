@@ -87,11 +87,13 @@ function sourceState(env) {
 }
 
 export function main() {
-  const runId = `${new Date().toISOString().replace(/[:.]/g, "-")}-${randomUUID()}`;
+  const startedAt = new Date().toISOString();
+  const runId = `${startedAt.replace(/[:.]/g, "-")}-${randomUUID()}`;
   const outputDir = join(REPO_ROOT, "apps/ai-gateway-service/evidence/windows-validation", runId);
   mkdirSync(outputDir, { recursive: true });
   const reportPath = join(outputDir, "result.json");
-  const report = { schemaVersion: 1, runId, startedAt: new Date().toISOString(), status: "failed",
+  const report = { schemaVersion: 2, profileId: "windows-local-v1", runId, startedAt, status: "failed",
+    cleanup: { confirmed: false },
     platform: process.platform, arch: process.arch, nodeVersion: process.version, vitestMaxWorkers: 2, source: null,
     stages: STAGE_IDS.map(id => ({ id, status: "not_run", reason: "prerequisites_not_completed", exitCode: null, counts: null })),
     coverage: { criticalJs: CRITICAL_JS_FILES, windowsTests: WINDOWS_TESTS,
@@ -149,6 +151,8 @@ export function main() {
       }
     }
     report.hasSkippedTests = report.stages.some(stage => (stage.counts?.skipped ?? 0) > 0);
+    report.cleanup.confirmed = Boolean(scratch) && report.scratchRetained !== true
+      && report.stages.every(stage => stage.cleanupUnconfirmed !== true);
     report.finishedAt = new Date().toISOString(); save();
   }
   process.stdout.write(`${JSON.stringify({ status: report.status, reportPath, source: report.source,

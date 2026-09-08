@@ -1,14 +1,16 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
 import {
   mkdir,
   mkdtemp,
   lstat,
+  link,
   readFile,
   readdir,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { createServer } from "node:http";
@@ -16,6 +18,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, parse, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { readVerificationSource, readWindowsVerificationHistory, summarizeWindowsVerification } from "./verificationHistory.ts";
 
 import {
   CliUsageError,
@@ -27,6 +30,151 @@ const currentDirectory = dirname(fileURLToPath(import.meta.url));
 const cliEntrypoint = resolve(currentDirectory, "cli.js");
 const repoRoot = resolve(currentDirectory, "../../..");
 const onboardingPlanId = `onboarding_${"a".repeat(64)}`;
+
+function verificationFixture(milliseconds = Date.now() - 10_000, head = "a".repeat(40)) {
+  const startedAt = new Date(milliseconds).toISOString();
+  const runId = `${startedAt.replace(/[:.]/g, "-")}-12345678-1234-4234-8234-123456789abc`;
+  const source = { head, worktree: "clean" };
+  return { schemaVersion: 2, profileId: "windows-local-v1", runId, source, sourceAfter: { ...source },
+    platform: "win32", arch: process.arch, nodeVersion: process.version, startedAt,
+    finishedAt: new Date(milliseconds + 1000).toISOString(), status: "passed", cleanup: { confirmed: true },
+    coverage: { realProviderCallsMade: false }, stages: ["critical-js", "typecheck", "mcp-management", "windows-client-boundaries"].map((id, index) =>
+      ({ id, status: "passed", reason: null, exitCode: 0, counts: index < 2 ? null : { total: 2, passed: 2, failed: 0, skipped: 0 } })) };
+}
+const verificationExpected = (head = "a".repeat(40)) => ({ source: { head, worktree: "clean" }, now: Date.now(),
+  platform: "win32", arch: process.arch, nodeVersion: process.version });
+async function verificationRoot(t) {
+  const root = await mkdtemp(join(tmpdir(), "uai-verification-reader-"));
+  t.after(async () => {
+    assert.ok(resolve(root).startsWith(`${resolve(tmpdir())}${process.platform === "win32" ? "\\" : "/"}`));
+    await rm(root, { recursive: true, force: true });
+  });
+  return root;
+}
+async function writeVerification(root, value, raw = JSON.stringify(value)) {
+  const directory = join(root, "apps/ai-gateway-service/evidence/windows-validation", value.runId);
+  await mkdir(directory, { recursive: true });
+  const path = join(directory, "result.json"); await writeFile(path, raw); return path;
+}
+
+test("verification history accepts only a current complete scope and whitelists displayed fields", () => {
+  const value = verificationFixture(); value.rawLog = "synthetic-private-log";
+  value.stages[0].extra = "synthetic-private-path";
+  const result = summarizeWindowsVerification(value, value.runId, verificationExpected());
+  assert.equal(result.assessment, "current_scoped_pass");
+  assert.doesNotMatch(JSON.stringify(result), /synthetic-private/);
+  value.status = "failed"; value.reason = "synthetic-private-reason";
+  assert.equal(summarizeWindowsVerification(value, value.runId, verificationExpected()).reason, "unrecognized_reason");
+});
+
+test("verification history never upgrades stale, dirty, foreign, interrupted, legacy or skipped records", () => {
+  const cases = [
+    [v => { v.finishedAt = undefined; }, "not_finished"],
+    [v => { v.sourceAfter.head = "b".repeat(40); }, "source_mismatch"],
+    [v => { v.source.worktree = "dirty"; }, "source_not_clean"],
+    [v => { v.nodeVersion = "v1.0.0"; }, "environment_mismatch"],
+    [v => { v.cleanup.confirmed = false; }, "cleanup_unconfirmed"],
+    [v => { v.schemaVersion = 1; delete v.cleanup; }, "cleanup_unconfirmed"],
+    [v => { v.stages[2].counts = { total: 2, passed: 1, failed: 0, skipped: 1 }; }, "tests_skipped"],
+    [v => { v.coverage.realProviderCallsMade = true; }, "execution_scope_unconfirmed"],
+    [v => { v.startedAt = "2026-99-09T01:00:00.000Z"; }, "schema_invalid"],
+    [v => { v.stages[2].counts.failed = 1; }, "schema_invalid"],
+  ];
+  for (const [change, expected] of cases) {
+    const value = verificationFixture(); change(value);
+    assert.equal(summarizeWindowsVerification(value, value.runId, verificationExpected()).assessment, expected);
+  }
+  const old = verificationFixture(Date.now() - 86_402_000);
+  assert.equal(summarizeWindowsVerification(old, old.runId, verificationExpected()).assessment, "stale");
+  const future = verificationFixture(Date.now() + 600_000);
+  assert.equal(summarizeWindowsVerification(future, future.runId, verificationExpected()).assessment, "future_timestamp");
+});
+
+test("verification history keeps first failure after a later pass and never selects an older pass over an invalid latest", async t => {
+  const root = await verificationRoot(t); const failed = verificationFixture(Date.now() - 30_000);
+  failed.status = "failed"; failed.stages[3].status = "failed"; failed.stages[3].exitCode = 1;
+  failed.stages[3].counts = { total: 2, passed: 1, failed: 1, skipped: 0 };
+  const passed = verificationFixture();
+  await writeVerification(root, failed); await writeVerification(root, passed);
+  const history = readWindowsVerificationHistory(root, verificationExpected());
+  assert.equal(history.ok, true); assert.deepEqual(history.runs.map(run => run.status), ["passed", "failed"]);
+  const newer = verificationFixture(Date.now() - 2000); await writeVerification(root, newer, "{incomplete");
+  const broken = readWindowsVerificationHistory(root, verificationExpected());
+  assert.equal(broken.ok, false); assert.equal(broken.latest.runId, newer.runId); assert.equal(broken.runs.length, 3);
+});
+
+test("verification history rejects hardlinks, directory links, oversized and invalid UTF-8 summaries", async t => {
+  const root = await verificationRoot(t); const value = verificationFixture();
+  const file = await writeVerification(root, value); const target = join(root, "owned-summary.json");
+  await link(file, target);
+  assert.equal(readWindowsVerificationHistory(root, verificationExpected()).ok, false);
+  await rm(target);
+  await writeFile(file, Buffer.alloc(262_145));
+  assert.equal(readWindowsVerificationHistory(root, verificationExpected()).ok, false);
+  await writeFile(file, Buffer.from([0xc3, 0x28]));
+  assert.equal(readWindowsVerificationHistory(root, verificationExpected()).ok, false);
+  const secondRoot = await verificationRoot(t); await mkdir(join(secondRoot, "apps"));
+  await symlink(join(root, "apps/ai-gateway-service"), join(secondRoot, "apps/ai-gateway-service"), process.platform === "win32" ? "junction" : "dir");
+  assert.equal(readWindowsVerificationHistory(secondRoot, verificationExpected()).status, "evidence_path_or_inventory_invalid");
+});
+
+test("verification history keeps missing and over-capacity evidence non-passing", async t => {
+  const root = await verificationRoot(t);
+  assert.equal(readWindowsVerificationHistory(root, verificationExpected()).status, "missing");
+  const directory = join(root, "apps/ai-gateway-service/evidence/windows-validation");
+  const base = Date.now() - 1000;
+  for (let i = 0; i < 101; i++) await mkdir(join(directory, verificationFixture(base - i).runId), { recursive: true });
+  const result = readWindowsVerificationHistory(root, verificationExpected());
+  assert.equal(result.ok, false); assert.equal(result.status, "evidence_path_or_inventory_invalid");
+});
+
+test("verification history rejects contradictory cleanup types and reasons instead of a false pass", () => {
+  const changes = [v => { v.scratchRetained = "true"; }, v => { v.stages[0].cleanupUnconfirmed = "true"; },
+    v => { v.reason = "temporary_cleanup_unconfirmed"; }, v => { v.stages[0].reason = "command_interrupted"; }];
+  for (const change of changes) {
+    const value = verificationFixture(); change(value);
+    assert.equal(summarizeWindowsVerification(value, value.runId, verificationExpected()).assessment, "schema_invalid");
+  }
+});
+
+test("verification history cannot promote an older pass by changing its directory timestamp", async t => {
+  const root = await verificationRoot(t);
+  const failed = verificationFixture(); failed.status = "failed"; failed.reason = "validation_incomplete";
+  await writeVerification(root, failed);
+  const old = verificationFixture(Date.now() - 30_000);
+  old.runId = `9999-99-99T99-99-99-999Z-12345678-1234-4234-8234-123456789abc`;
+  await writeVerification(root, old);
+  assert.equal(readWindowsVerificationHistory(root, verificationExpected()).ok, false);
+  const mismatch = verificationFixture();
+  mismatch.runId = verificationFixture(Date.now() + 60_000).runId;
+  assert.equal(summarizeWindowsVerification(mismatch, mismatch.runId, verificationExpected()).assessment, "schema_invalid");
+});
+
+test("verification history uses a clean owned Git checkout and the actual CLI without contacting a gateway", async t => {
+  const root = await verificationRoot(t);
+  const env = Object.fromEntries(Object.keys(process.env).filter(key => /^(PATH|SYSTEMROOT|WINDIR|COMSPEC|PATHEXT)$/i.test(key)).map(key => [key, process.env[key]]));
+  Object.assign(env, { GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: process.platform === "win32" ? "NUL" : "/dev/null" });
+  const git = args => {
+    const result = spawnSync("git", ["-c", "core.hooksPath=", "-c", "commit.gpgsign=false", ...args], { cwd: root, env, encoding: "utf8", windowsHide: true });
+    assert.equal(result.status, 0, result.stderr); return result.stdout.trim();
+  };
+  git(["-c", "init.templateDir=", "init"]);
+  await writeFile(join(root, ".gitignore"), "apps/ai-gateway-service/evidence/\n"); git(["add", ".gitignore"]);
+  git(["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-m", "owned fixture"]);
+  const source = readVerificationSource(root); assert.equal(source.worktree, "clean");
+  const value = verificationFixture(Date.now() - 10_000, source.head); await writeVerification(root, value);
+  let stdout = ""; let stderr = "";
+  const run = async args => { stdout = ""; stderr = ""; return runCli(args, { env: {}, verificationRepoRoot: root,
+    stdout: { isTTY: false, write: chunk => { stdout += chunk; } }, stderr: { write: chunk => { stderr += chunk; } } }); };
+  assert.equal(await run(["verification", "--json"]), process.platform === "win32" ? 0 : 2);
+  const result = JSON.parse(stdout); assert.equal(result.source.head, source.head);
+  assert.equal(result.runningDeploymentVerified, false); assert.equal(stderr, "");
+  await writeFile(join(root, "uncommitted.txt"), "owned change");
+  assert.equal(await run(["verification"]), 2); assert.match(stdout, /source_not_clean/);
+  assert.match(stdout, /Local unsigned summaries/);
+  assert.throws(() => parseCliArgs(["verification", "--url", "http://127.0.0.1:1"], {}), CliUsageError);
+  assert.throws(() => parseCliArgs(["verification", "../outside"], {}), CliUsageError);
+});
 
 test("parseCliArgs supports terminal commands and machine output", () => {
   const parsed = parseCliArgs(

@@ -14,6 +14,7 @@ import {
   resolve,
 } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readVerificationSource, readWindowsVerificationHistory } from "./verificationHistory.ts";
 
 import {
   createGatewayChatRequest,
@@ -52,6 +53,7 @@ const COMMANDS = new Set([
   "spend",
   "status",
   "version",
+  "verification",
   "workflow",
 ]);
 const WORKFLOW_OPERATIONS = new Set(["run", "list", "status", "recover"]);
@@ -784,6 +786,8 @@ export async function runCli(
         return await runStatus(options, output);
       case "doctor":
         return await runDoctor(options, runtime, output);
+      case "verification":
+        return runVerificationHistory(options, runtime, output);
       case "enhance":
         return await runEnhance(options, output, runtime.stdin ?? process.stdin);
       case "chat":
@@ -809,6 +813,31 @@ export async function runCli(
       stderr,
     });
   }
+}
+
+function runVerificationHistory(options, runtime, output) {
+  const root = runtime.verificationRepoRoot ?? repoRoot;
+  const source = readVerificationSource(root);
+  const result = readWindowsVerificationHistory(root, { source, now: Date.now(),
+    platform: process.platform, arch: process.arch, nodeVersion: process.version });
+  const sourceAfter = readVerificationSource(root);
+  if (source.head !== sourceAfter.head || source.worktree !== sourceAfter.worktree) {
+    result.ok = false; result.status = "source_changed_during_read";
+  }
+  if (options.json) output.write(`${JSON.stringify(result, null, 2)}\n`);
+  else {
+    output.write(`Local Windows verification: ${result.status}\nLocal checkout: ${source.head ?? "unknown"} (${source.worktree})\n`);
+    output.write("Local unsigned summaries; running deployment and release approval are not verified.\n");
+    for (const run of result.runs) {
+      output.write(`${run.runId}  ${run.status}  ${run.assessment}\n`);
+      for (const stage of run.stages ?? []) {
+        const count = stage.counts;
+        output.write(`  ${stage.id}: ${stage.status}${count ? ` (${count.passed} passed, ${count.failed} failed, ${count.skipped} skipped)` : ""}\n`);
+      }
+    }
+    output.write(`${result.nextAction}\n`);
+  }
+  return result.ok ? 0 : 2;
 }
 
 async function runEnhance(options, output, stdin) {
@@ -3753,6 +3782,7 @@ Commands:
   chat [prompt]    Send one chat request to a running gateway
   spend            Show per-key token spend and budget status
   doctor           Check the local toolchain and gateway connection
+  verification     Read local Windows verification summaries and retained failures
   help             Show this help
   version          Show the CLI version
 

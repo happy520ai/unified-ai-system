@@ -49,6 +49,31 @@ real Provider entitlements, establish HA/DR, or certify every supported runtime.
 Those results must remain separate. Use `pnpm test:verification-tools` to verify
 the binding checker and report-state contracts; these tests also run in `pnpm test`.
 
+Read the retained summaries with `pnpm gateway verification`, or add `--json` for
+machine-readable output. This command reads only the fixed Windows evidence
+directory; it does not run tests, contact the Gateway or inspect raw logs. Each
+run remains visible, newest first, including a failure followed by a later pass.
+It never substitutes an older success when the newest record is invalid or failed.
+
+A current scoped pass requires a clean matching local checkout before/after the
+run, this exact Windows/architecture/Node environment, a result less than 24 hours
+old, all four stages passed with no skipped tests, and explicit confirmed cleanup.
+The producer now writes schema version 2 with a profile ID and cleanup summary.
+Its directory ID binds the same start timestamp as the report; contradictory
+cleanup types or failure reasons cannot be accepted as a passing record.
+Older version 1 records remain readable but have unconfirmed cleanup and cannot
+produce a current pass. Missing, stale, interrupted, mismatched or unsafe records
+return exit 2. Only a current scoped pass returns 0; CLI usage errors retain their
+existing exit code. These local unsigned records do not attest the running server,
+prove publication or approve a release.
+
+The reader rejects links, oversized/nonregular files, invalid schemas and more
+than 100 run entries. It outputs only known summary fields and safe reason codes;
+arbitrary strings, log fields and paths inside a report are not displayed. Preserve
+the directory in protected archival storage if it reaches the bound; the command
+never deletes history. Its file identity checks detect observed replacement, but
+do not provide an atomic OS security boundary against a concurrent privileged writer.
+
 For a resource-constrained full-suite diagnostic, explicitly set
 `AI_GATEWAY_TEST_MAX_WORKERS=2` before `pnpm test`. Values 1-8 are accepted; invalid
 values fail configuration. The default remains the existing CPU-based 2-8 worker
@@ -62,7 +87,17 @@ Workload: local static analysis and reproducible test orchestration. Node.js ESM
 JavaScript follows the repository's `tools/*.mjs` policy and reuses installed
 TypeScript/Vitest, with no new dependency. TypeScript would require a separate
 tool compilation/loader boundary; PowerShell alone would duplicate the Linux
-binding check. Domain/operations scores: JS 5/5, TS 4/4, PowerShell 3/4. Runtime
-application code and public protocol behavior are unchanged. Rollback is these
+binding check. Domain/operations scores: JS 5/5, TS 4/4, PowerShell 3/4. Gateway
+request handling and public HTTP contracts remain unchanged. Rollback is these
 tooling/workflow/package-script changes; generated reports remain historical
 evidence, not a migration or production state store.
+
+The CLI summary reader uses TypeScript to check bounded JSON and filesystem
+states, with a small dispatch branch in the existing JS CLI. The root TypeScript
+check includes this console source so regular gates also check its types. For this workload,
+domain/maintenance/operations/safety/migration/ecosystem scores are TS
+5/5/5/5/5/5 (30), JS 5/4/5/3/5/5 (27), and a separate Python CLI
+3/3/2/4/2/3 (17). It adds no dependency, public HTTP route or persistent store.
+Rollback removes the CLI reader/dispatch and schema-2 producer additions; historical
+reports remain untouched. Reader regressions use synthetic summaries and owned
+temporary repositories; a fixture pass is not a real Windows validation run.
