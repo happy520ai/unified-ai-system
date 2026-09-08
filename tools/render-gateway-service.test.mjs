@@ -77,3 +77,55 @@ test("actual renderer CLI succeeds with an absent private env file and performs 
   assert.ok(result.stdout.includes(`--env-file=${missing}`));
   assert.match(result.stdout, /^\[Unit\]/);
 });
+
+const kubeOptions = { platform: "kubernetes", image: `ghcr.io/example/gateway@sha256:${"1".repeat(64)}`,
+  namespace: "uai-fixture", "storage-class": "fixture-csi", "storage-size": "5Gi" };
+
+test("Kubernetes output binds one writer to retained claims and references authentication without embedding it", () => {
+  const result = JSON.parse(renderGatewayService(kubeOptions));
+  assert.equal(result.kind, "List");
+  const claims = result.items.filter(item => item.kind === "PersistentVolumeClaim");
+  const deployment = result.items.find(item => item.kind === "Deployment");
+  const service = result.items.find(item => item.kind === "Service");
+  assert.equal(result.items.length, 4);
+  assert.equal(claims.length, 2);
+  assert.ok(claims.every(claim => claim.spec.accessModes.join() === "ReadWriteOncePod"));
+  assert.equal(deployment.spec.replicas, 1);
+  assert.deepEqual(deployment.spec.strategy, { type: "Recreate" });
+  const pod = deployment.spec.template.spec;
+  assert.deepEqual(pod.nodeSelector, { "kubernetes.io/os": "linux" });
+  assert.equal(pod.os.name, "linux");
+  assert.equal(pod.automountServiceAccountToken, false);
+  assert.equal(pod.securityContext.runAsUser, 1000);
+  for (const container of [...pod.initContainers, ...pod.containers]) {
+    assert.equal(container.image, kubeOptions.image);
+    assert.equal(container.securityContext.readOnlyRootFilesystem, true);
+    assert.equal(container.securityContext.allowPrivilegeEscalation, false);
+  }
+  const gateway = pod.containers[0];
+  const auth = gateway.env.find(entry => entry.name === "PME_AUTH_TOKEN");
+  assert.equal(auth.value, undefined);
+  assert.deepEqual(auth.valueFrom, { secretKeyRef: { name: "uai-gateway-auth", key: "PME_AUTH_TOKEN" } });
+  assert.equal(gateway.env.find(entry => entry.name === "AI_GATEWAY_REAL_PROVIDER_ENABLED").value, "false");
+  assert.equal(gateway.readinessProbe.httpGet.path, "/ready");
+  assert.equal(gateway.livenessProbe.httpGet.path, "/livez");
+  assert.equal(service.spec.type, "ClusterIP");
+  const claimNames = new Set(claims.map(claim => claim.metadata.name));
+  assert.ok(pod.volumes.filter(volume => volume.persistentVolumeClaim).every(volume => claimNames.has(volume.persistentVolumeClaim.claimName)));
+  assert.ok(gateway.volumeMounts.some(mount => mount.mountPath.endsWith("/evidence/response-cache") && mount.subPath === "response-cache"));
+  assert.ok(pod.initContainers[0].command.at(-1).includes("/state/response-cache"));
+  assert.ok(result.items.every(item => item.metadata.namespace === kubeOptions.namespace));
+  assert.deepEqual(deployment.spec.selector.matchLabels, deployment.spec.template.metadata.labels);
+  assert.deepEqual(service.spec.selector, deployment.spec.selector.matchLabels);
+});
+
+test("Kubernetes rejects mutable images, malformed storage and mixed native options", () => {
+  for (const change of [
+    { image: "ghcr.io/example/gateway:latest" }, { image: `https://user:pass@host/image@sha256:${"1".repeat(64)}` },
+    { namespace: "bad.namespace" }, { namespace: "../default" }, { namespace: "default\n" },
+    { "storage-class": "" }, { "storage-class": "a..b" }, { "storage-size": "0Gi" },
+    { "storage-size": "5Gi\n" }, { "storage-size": "1Ti" }, { node: "/usr/bin/node" },
+    { "private-env-file": "/private/gateway.env" }, { replicas: "2" },
+  ]) assert.throws(() => renderGatewayService({ ...kubeOptions, ...change }));
+  assert.throws(() => renderGatewayService({ ...linux, image: kubeOptions.image }));
+});

@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 import { posix, win32 } from "node:path";
 import { pathToFileURL } from "node:url";
+import { validateDigestReference } from "./verify-compose-release.mjs";
 
 const label = "io.github.happy520ai.unified-ai-system-gateway";
-const allowedOptions = new Set(["platform", "scope", "node", "install-root", "private-env-file", "user", "log-dir"]);
+const nativeOptions = ["platform", "scope", "node", "install-root", "private-env-file", "user", "log-dir"];
+const kubernetesOptions = ["platform", "image", "namespace", "storage-class", "storage-size"];
+const allowedOptions = new Set([...nativeOptions, ...kubernetesOptions]);
 const xml = (value) => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;")
   .replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&apos;");
 
@@ -33,6 +36,8 @@ function windowsArgument(value) {
 export function renderGatewayService(options) {
   check(options && Object.keys(options).every((key) => allowedOptions.has(key)), "Unsupported renderer option.");
   const platform = options.platform;
+  if (platform === "kubernetes") return renderKubernetesGateway(options);
+  check(Object.keys(options).every((key) => nativeOptions.includes(key)), "Kubernetes options cannot configure a native service.");
   check(["linux", "windows", "macos"].includes(platform), "platform must be linux, windows or macos.");
   const windows = platform === "windows";
   const paths = windows ? win32 : posix;
@@ -88,11 +93,67 @@ export function renderGatewayService(options) {
     "</dict></plist>", ""].join("\n");
 }
 
+function renderKubernetesGateway(options) {
+  check(Object.keys(options).every((key) => kubernetesOptions.includes(key)), "Native service options cannot configure Kubernetes.");
+  const image = options.image;
+  validateDigestReference(image);
+  const namespace = options.namespace;
+  const storageClassName = options["storage-class"];
+  const storage = options["storage-size"];
+  const dnsLabel = (value) => typeof value === "string" && value.length <= 63
+    && /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/u.test(value);
+  check(dnsLabel(namespace), "namespace must be an explicit DNS label of at most 63 characters.");
+  check(typeof storageClassName === "string" && storageClassName.length <= 253
+    && storageClassName.split(".").every(dnsLabel), "storage-class must name an explicit CSI class supporting ReadWriteOncePod.");
+  check(typeof storage === "string" && /^[1-9][0-9]{0,3}Gi$/u.test(storage), "storage-size must be an explicit whole Gi quantity from 1Gi through 9999Gi per claim.");
+  const labels = { "app.kubernetes.io/name": "uai-gateway" };
+  const metadata = (name) => ({ name, namespace, labels });
+  const protection = { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: ["ALL"] } };
+  const pvc = (name) => ({ apiVersion: "v1", kind: "PersistentVolumeClaim", metadata: metadata(name),
+    spec: { accessModes: ["ReadWriteOncePod"], storageClassName, resources: { requests: { storage } } } });
+  const httpProbe = (path, periodSeconds, failureThreshold) => ({ httpGet: { path, port: "http" }, periodSeconds, timeoutSeconds: 2, failureThreshold });
+  return `${JSON.stringify({ apiVersion: "v1", kind: "List", items: [
+    pvc("uai-gateway-data"), pvc("uai-gateway-service-data"),
+    { apiVersion: "apps/v1", kind: "Deployment", metadata: metadata("uai-gateway"), spec: {
+      replicas: 1, strategy: { type: "Recreate" }, revisionHistoryLimit: 2,
+      selector: { matchLabels: labels }, template: { metadata: { labels }, spec: {
+        nodeSelector: { "kubernetes.io/os": "linux" }, os: { name: "linux" },
+        automountServiceAccountToken: false, enableServiceLinks: false, terminationGracePeriodSeconds: 15,
+        securityContext: { runAsNonRoot: true, runAsUser: 1000, runAsGroup: 1000, fsGroup: 1000,
+          fsGroupChangePolicy: "OnRootMismatch", seccompProfile: { type: "RuntimeDefault" } },
+        initContainers: [{ name: "prepare-cache-directory", image, imagePullPolicy: "IfNotPresent",
+          command: ["node", "-e", "require('node:fs').mkdirSync('/state/response-cache',{recursive:true,mode:0o700})"],
+          securityContext: protection, resources: { requests: { cpu: "25m", memory: "32Mi" }, limits: { cpu: "250m", memory: "128Mi" } },
+          volumeMounts: [{ name: "service-data", mountPath: "/state" }] }],
+        containers: [{ name: "gateway", image, imagePullPolicy: "IfNotPresent", securityContext: protection,
+          ports: [{ name: "http", containerPort: 3100 }],
+          env: [
+            { name: "AI_GATEWAY_SERVICE_HOST", value: "0.0.0.0" }, { name: "AI_GATEWAY_SERVICE_PORT", value: "3100" },
+            { name: "AI_GATEWAY_PROVIDER_MODE", value: "fake" }, { name: "AI_GATEWAY_REAL_PROVIDER_ENABLED", value: "false" },
+            { name: "PME_ENTERPRISE_AUTH_ENABLED", value: "true" }, { name: "AI_GATEWAY_SHUTDOWN_TIMEOUT_MS", value: "10000" },
+            { name: "AI_GATEWAY_MODEL_LIBRARY_STATE_PATH", value: "/app/.data/model-library/state.json" },
+            { name: "PME_AUTH_TOKEN", valueFrom: { secretKeyRef: { name: "uai-gateway-auth", key: "PME_AUTH_TOKEN" } } },
+          ],
+          resources: { requests: { cpu: "100m", memory: "256Mi" }, limits: { cpu: "2", memory: "1Gi" } },
+          startupProbe: httpProbe("/ready", 5, 36), readinessProbe: httpProbe("/ready", 5, 3), livenessProbe: httpProbe("/livez", 10, 3),
+          volumeMounts: [{ name: "data", mountPath: "/app/.data" }, { name: "service-data", mountPath: "/app/apps/ai-gateway-service/.data" },
+            { name: "service-data", mountPath: "/app/apps/ai-gateway-service/evidence/response-cache", subPath: "response-cache" },
+            { name: "temporary", mountPath: "/tmp" }],
+        }],
+        volumes: [{ name: "data", persistentVolumeClaim: { claimName: "uai-gateway-data" } },
+          { name: "service-data", persistentVolumeClaim: { claimName: "uai-gateway-service-data" } },
+          { name: "temporary", emptyDir: { medium: "Memory", sizeLimit: "64Mi" } }],
+      } } } },
+    { apiVersion: "v1", kind: "Service", metadata: metadata("uai-gateway"),
+      spec: { type: "ClusterIP", selector: labels, ports: [{ name: "http", port: 3100, targetPort: "http" }] } },
+  ] }, null, 2)}\n`;
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     const argv = process.argv.slice(2);
     if (argv.length === 1 && argv[0] === "--help") {
-      process.stdout.write("Usage: node tools/render-gateway-service.mjs --platform linux|windows|macos --node ABSOLUTE_PATH --install-root FIXED_ABSOLUTE_PATH --private-env-file PRIVATE_ABSOLUTE_PATH [--scope user|system] [--user ACCOUNT] [--log-dir ABSOLUTE_PATH]\nPrints a service template only; does not read credentials, install or start anything.\n");
+      process.stdout.write("Usage: node tools/render-gateway-service.mjs --platform linux|windows|macos --node ABSOLUTE_PATH --install-root FIXED_ABSOLUTE_PATH --private-env-file PRIVATE_ABSOLUTE_PATH [--scope user|system] [--user ACCOUNT] [--log-dir ABSOLUTE_PATH]\nKubernetes: --platform kubernetes --image REPOSITORY@sha256:DIGEST --namespace NAME --storage-class CSI_CLASS --storage-size 5Gi\nPrints a service template only; does not read credentials, install or start anything.\n");
     } else {
       check(argv.length > 0 && argv.length % 2 === 0, "Expected --option value pairs.");
       const options = {};

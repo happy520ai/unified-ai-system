@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const profilePath = join(root, "deploy/compose.release.json");
@@ -14,7 +14,7 @@ function requireCondition(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-function validateDigestReference(value) {
+export function validateDigestReference(value) {
   const match = /^([^@\s]+)@sha256:([a-f0-9]{64})$/.exec(value);
   requireCondition(match && match[0] === value && value.length <= 320, "--image requires repository@sha256 followed by 64 lowercase hexadecimal characters.");
   const parts = match[1].split("/");
@@ -49,6 +49,7 @@ function checkModel(model, imageReference, port, normalized) {
   requireCondition(service.volumes?.length === 2 && service.volumes.every((volume) => volume.type === "volume" && ((volume.source === "gateway-data" && volume.target === "/app/.data") || (volume.source === "gateway-service-data" && volume.target === "/app/apps/ai-gateway-service/.data"))), "Normalized data mounts changed.");
 }
 
+if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
 try {
   const args = process.argv.slice(2);
   if (args.length === 1 && args[0] === "--help") {
@@ -104,4 +105,5 @@ try {
       process.exitCode = 1;
     }
   }
+}
 }
