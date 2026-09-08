@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { computeArgumentsHash, stableStringify } from "@unified-ai-system/policy-engine";
 import { createHash } from "node:crypto";
 import { createAgentApprovalStore } from "./agentApprovalStore.ts";
+import { freezeWorkforceRoleExecutionProfile } from "../workforce/workforceRoleExecutionProfile.ts";
 
 const REVIEW = {
   schemaVersion: 1 as const,
@@ -255,7 +256,7 @@ describe("agent governance approval store", () => {
     }
   });
 
-  it("binds a complete Workforce goal/plan review to one sealed retry", async () => {
+  it.each([false, true])("binds a complete Workforce goal/plan review to one sealed retry (role profile: %s)", async (includeProfile) => {
     const root = await mkdtemp(join(tmpdir(), "agent-governance-approval-workforce-"));
     try {
       const store = createAgentApprovalStore({
@@ -263,7 +264,18 @@ describe("agent governance approval store", () => {
         secret: "test-only-governance-secret-material",
       });
       const goal = "Execute the reviewed bounded workforce plan";
-      const reviewOptions = { selectedRoleCount: 2, templateSelected: true };
+      const profileInput = {
+        version: 1, mode: "gateway-llm-required", profileId: "workforce-fixture-v1",
+        maxTotalRequests: 2, maxConcurrentRoles: 2,
+        bindings: ["backend-engineer", "code-reviewer"].map((roleId) => ({
+          roleId, employeeId: `employee-${roleId}`, providerId: "fake", modelId: "fixture-model",
+          maxRequests: 1, maxInputTokens: 8192, maxOutputTokens: 2048, timeoutMs: 30000,
+        })),
+      };
+      const roleExecution = freezeWorkforceRoleExecutionProfile(profileInput);
+      const reviewOptions = { selectedRoleCount: 2, templateSelected: true,
+        ...(includeProfile ? { roleExecution } : {}),
+      };
       const args = {
         goal,
         goalDigest: createHash("sha256").update(goal, "utf8").digest("hex"),
@@ -300,13 +312,26 @@ describe("agent governance approval store", () => {
         arguments: args,
         review,
       });
+      const changedProfile = freezeWorkforceRoleExecutionProfile({ ...profileInput,
+        bindings: profileInput.bindings.map((binding) => ({ ...binding, modelId: "replacement-model" })),
+      });
+      const changedArgs = { ...args, options: { ...args.options, roleExecution: changedProfile } };
+      await expect(store.create({ agentId: "agt_workforce", tenantId: "tenant_a",
+        toolName: "workforce_execute", arguments: changedArgs, review,
+      })).rejects.toThrow("complete operator review");
       expect((await store.listPending())[0]?.review.workforce).toMatchObject({
         goal,
         planId: args.planId,
         requiredScopes: ["workforce:execute"],
       });
       await store.decide(pending.id, "approve", "operator");
-      await expect(store.consumeApproved({
+      await expect(store.consumeApproved({ approvalId: pending.id, agentId: "agt_workforce", tenantId: "tenant_a",
+        toolName: "workforce_execute", argumentsHash: computeArgumentsHash(changedArgs), policyHash: review.policyHash,
+        executionId: "workforce_changed_profile",
+      })).resolves.toBeNull();
+      const reopened = createAgentApprovalStore({ storePath: join(root, "approvals.json"),
+        secret: "test-only-governance-secret-material" });
+      await expect(reopened.consumeApproved({
         approvalId: pending.id,
         agentId: "agt_workforce",
         tenantId: "tenant_a",

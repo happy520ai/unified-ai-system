@@ -24,6 +24,7 @@ import type {
 import { stableStringify } from "@unified-ai-system/policy-engine";
 import { containsSensitivePublicationText, redactSecretsInText } from "../security/secretSafety.js";
 import { createGovernanceStateFileBinding } from "./governanceStateAnchor.ts";
+import { readFrozenWorkforceRoleExecutionProfile } from "../workforce/workforceRoleExecutionProfile.ts";
 
 const APPROVAL_KEY_INFO = "agent-governance-approval-args/v1";
 const DEFAULT_APPROVAL_TTL_SECONDS = 24 * 60 * 60;
@@ -880,7 +881,9 @@ function normalizeWorkforceOptions(value: unknown): NonNullable<AgentToolApprova
     throw corrupt("Workforce approval options are malformed.");
   }
   const source = value as Record<string, unknown>;
-  if (Object.keys(source).sort().join("\0") !== ["selectedRoleCount", "templateSelected"].sort().join("\0")
+  const hasRoleExecution = Object.hasOwn(source, "roleExecution");
+  const expectedKeys = ["selectedRoleCount", "templateSelected", ...(hasRoleExecution ? ["roleExecution"] : [])];
+  if (Object.keys(source).sort().join("\0") !== expectedKeys.sort().join("\0")
     || (source.selectedRoleCount !== null
       && (!Number.isSafeInteger(source.selectedRoleCount)
         || Number(source.selectedRoleCount) < 0 || Number(source.selectedRoleCount) > 128))
@@ -890,7 +893,13 @@ function normalizeWorkforceOptions(value: unknown): NonNullable<AgentToolApprova
   return {
     selectedRoleCount: source.selectedRoleCount === null ? null : Number(source.selectedRoleCount),
     templateSelected: source.templateSelected,
+    ...(hasRoleExecution ? { roleExecution: normalizeWorkforceRoleExecution(source.roleExecution) } : {}),
   };
+}
+
+function normalizeWorkforceRoleExecution(value: unknown) {
+  try { return readFrozenWorkforceRoleExecutionProfile(value); }
+  catch { throw corrupt("Workforce role execution profile does not match its complete reviewed contract."); }
 }
 
 function verifyReviewMatchesArguments(review: AgentToolApprovalReview, value: unknown): void {
@@ -950,6 +959,7 @@ function verifyWorkforceReviewMatchesArguments(review: AgentToolApprovalReview, 
     || workforce.optionsHash !== digestText(stableStringify({
       selectedRoleCount: options.selectedRoleCount,
       templateSelected: options.templateSelected,
+      ...(options.roleExecution ? { roleExecution: options.roleExecution } : {}),
     }))) {
     throw corrupt("Workforce approval arguments do not match the complete operator review.");
   }
@@ -960,8 +970,11 @@ function normalizeWorkforceArgumentOptions(value: unknown) {
     throw corrupt("Workforce approval argument options are malformed.");
   }
   const source = value as Record<string, unknown>;
+  const hasRoleExecution = Object.hasOwn(source, "roleExecution");
+  const expectedKeys = ["autonomyMode", "requiredScopes", "selectedRoleCount", "templateSelected",
+    ...(hasRoleExecution ? ["roleExecution"] : [])];
   if (Object.keys(source).sort().join("\0")
-      !== ["autonomyMode", "requiredScopes", "selectedRoleCount", "templateSelected"].sort().join("\0")
+      !== expectedKeys.sort().join("\0")
     || !boundedSafeText(source.autonomyMode, 64)
     || !Array.isArray(source.requiredScopes) || source.requiredScopes.length > 8
     || source.requiredScopes.some((scope) => typeof scope !== "string"
@@ -978,6 +991,7 @@ function normalizeWorkforceArgumentOptions(value: unknown) {
     requiredScopes: [...source.requiredScopes] as string[],
     selectedRoleCount: source.selectedRoleCount === null ? null : Number(source.selectedRoleCount),
     templateSelected: source.templateSelected,
+    ...(hasRoleExecution ? { roleExecution: normalizeWorkforceRoleExecution(source.roleExecution) } : {}),
   };
 }
 

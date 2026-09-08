@@ -1,5 +1,63 @@
 import type { ContractMetadata, RequestContext, ResultEnvelope } from "./common.js";
 
+/** Server-selected binding; none of these fields carry credential values. */
+export interface WorkforceRoleExecutionBinding {
+  readonly roleId: string;
+  readonly employeeId: string;
+  readonly providerId: string;
+  readonly modelId: string;
+  readonly maxRequests: number;
+  readonly maxInputTokens: number;
+  readonly maxOutputTokens: number;
+  readonly timeoutMs: number;
+}
+
+export interface WorkforceRoleExecutionProfileInput {
+  readonly version: 1;
+  readonly mode: "gateway-llm-required";
+  readonly profileId: string;
+  readonly maxTotalRequests: number;
+  readonly maxConcurrentRoles: number;
+  readonly bindings: readonly WorkforceRoleExecutionBinding[];
+}
+
+/** The full reviewed profile is retained alongside its canonical content hash. */
+export interface WorkforceRoleExecutionProfile extends WorkforceRoleExecutionProfileInput {
+  readonly profileHash: string;
+}
+
+/** A gateway-operation receipt, never a count of network retries or a vendor invoice. */
+export interface WorkforceRoleContributionReceipt {
+  readonly version: 1;
+  readonly level: "gateway-provider-operation";
+  readonly status: "succeeded" | "failed" | "blocked" | "cancelled" | "outcome_unknown";
+  readonly executionMode: "fake" | "real" | "unknown";
+  readonly gatewayRequestId: string | null;
+  readonly providerId: string | null;
+  readonly modelId: string | null;
+  readonly providerCallAttempted: boolean | null;
+  readonly inputTokens: number | null;
+  readonly outputTokens: number | null;
+  readonly totalTokens: number | null;
+  readonly estimatedCostUsd: number | null;
+  readonly errorCode: string | null;
+}
+
+export interface WorkforceRoleContribution {
+  readonly version: 1;
+  readonly employeeId: string;
+  readonly roleId: string;
+  readonly governedAgentId: string;
+  readonly agentRunId: string;
+  readonly executionId: string;
+  readonly taskId: string;
+  readonly planId: string;
+  readonly planDigest: string;
+  readonly profileHash: string;
+  readonly contributionText: string | null;
+  readonly receipt: WorkforceRoleContributionReceipt;
+}
+
 export type WorkforceMode = "deterministic-plan-preview";
 
 export interface WorkforceAgent {
