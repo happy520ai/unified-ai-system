@@ -1,0 +1,2 @@
+# Preserve the licensed upstream artifact byte-for-byte across Git checkouts.
+onet-31.0-occupation-data.json -text
