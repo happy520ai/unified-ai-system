@@ -352,8 +352,19 @@ export class HttpLLMProviderAdapter {
   }
 
   resolveRetryConfig() {
+    const maxRetries = this.options.maxRetries ?? this.modelConfig.maxRetries ?? DEFAULT_MAX_RETRIES;
+    // Historical HTTP adapter semantics: this is the total attempt count, including the first.
+    if (!Number.isSafeInteger(maxRetries) || maxRetries < 1) {
+      throw createProviderError({
+        code: `${this.errorPrefix}_RETRY_CONFIG_INVALID`,
+        type: "configuration",
+        message: "HTTP provider maxRetries must be a positive safe integer counting total attempts; use 1 for no retries.",
+        retryable: false,
+        details: { parameter: "maxRetries", minimum: 1, semantics: "total-attempts" },
+      });
+    }
     return {
-      maxRetries: this.options.maxRetries ?? this.modelConfig.maxRetries ?? DEFAULT_MAX_RETRIES,
+      maxRetries,
       baseDelayMs: this.options.retryBaseDelayMs ?? DEFAULT_RETRY_BASE_DELAY_MS,
       maxDelayMs: this.options.retryMaxDelayMs ?? DEFAULT_RETRY_MAX_DELAY_MS,
     };

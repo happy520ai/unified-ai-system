@@ -1,8 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import * as connectionPool from "../http/connectionPool.js";
 import {
   createHttpLLMProviderAdapter,
   tryPartialToolArgs,
 } from "./httpLlmProviderAdapter.js";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  connectionPool.destroyAllPools();
+});
 
 function createRequest() {
   return {
@@ -121,5 +127,87 @@ describe("http LLM provider adapter", () => {
       failedRequests: 0,
       retriedRequests: 0,
     });
+  });
+});
+
+function syntheticResponse(mode, status = 200) {
+  if (status !== 200) return new Response(JSON.stringify({ error: { message: "synthetic busy" } }), { status });
+  return mode === "stream"
+    ? new Response('data: {"choices":[{"delta":{"content":"fixture success"}}]}\n\ndata: [DONE]\n\n',
+      { headers: { "content-type": "text/event-stream" } })
+    : new Response(JSON.stringify({ choices: [{ message: { content: "fixture success" }, finish_reason: "stop" }] }));
+}
+
+async function invokeAdapter(adapter, mode) {
+  if (mode === "json") return (await adapter.generate(createRequest())).text;
+  let text = "";
+  for await (const chunk of adapter.generateStream(createRequest())) text += chunk.textDelta ?? "";
+  return text;
+}
+
+function retryFixture(mode, options = {}) {
+  const resolveOutboundUrl = vi.fn(async (url) => ({ url, lookup: () => { throw new Error("No DNS in fixture."); } }));
+  const transport = vi.spyOn(connectionPool, "fetchWithAgent").mockImplementation(async () => syntheticResponse(mode));
+  const adapter = createAdapter({ resolveOutboundUrl, ...options });
+  const delay = vi.spyOn(adapter, "_retryDelay").mockResolvedValue(undefined);
+  return { adapter, transport, delay, resolveOutboundUrl };
+}
+
+describe.each(["json", "stream"])("HTTP total-attempt configuration (%s)", (mode) => {
+  it.each([0, -1, 1.5, NaN, Infinity, -Infinity, Number.MAX_SAFE_INTEGER + 1, "2"])(
+    "rejects invalid maxRetries=%s before any provider dispatch", async (maxRetries) => {
+      const f = retryFixture(mode, { maxRetries });
+      await expect(invokeAdapter(f.adapter, mode)).rejects.toMatchObject({
+        code: "TEST_RETRY_CONFIG_INVALID", category: "provider", type: "configuration", retryable: false,
+      });
+      expect(f.transport).not.toHaveBeenCalled();
+      expect(f.resolveOutboundUrl).not.toHaveBeenCalled();
+      expect(f.delay).not.toHaveBeenCalled();
+      expect(f.adapter.health).toMatchObject({ totalRequests: 0, failedRequests: 0 });
+      expect(f.adapter.streamState).toBeNull();
+    },
+  );
+
+  it("validates a model's attempt limit when no option overrides it", async () => {
+    const f = retryFixture(mode, { maxRetries: undefined });
+    f.adapter.modelConfig.maxRetries = 0;
+    await expect(invokeAdapter(f.adapter, mode)).rejects.toMatchObject({ code: "TEST_RETRY_CONFIG_INVALID" });
+    expect(f.transport).not.toHaveBeenCalled();
+  });
+
+  it("returns the first success with one total attempt and no retry", async () => {
+    const f = retryFixture(mode, { maxRetries: 1 });
+    await expect(invokeAdapter(f.adapter, mode)).resolves.toBe("fixture success");
+    expect(f.transport).toHaveBeenCalledOnce();
+    expect(f.delay).not.toHaveBeenCalled();
+  });
+
+  it.each([1, 2, 3])("never exceeds the existing %s total-attempt budget", async (maxRetries) => {
+    const f = retryFixture(mode, { maxRetries });
+    f.transport.mockImplementation(async () => syntheticResponse(mode, 429));
+    await expect(invokeAdapter(f.adapter, mode)).rejects.toMatchObject({ code: "TEST_RATE_LIMIT" });
+    expect(f.transport).toHaveBeenCalledTimes(maxRetries);
+    expect(f.delay).toHaveBeenCalledTimes(maxRetries - 1);
+  });
+
+  it("can succeed on its second and final permitted attempt", async () => {
+    const f = retryFixture(mode, { maxRetries: 2 });
+    f.transport.mockImplementationOnce(async () => syntheticResponse(mode, 429));
+    await expect(invokeAdapter(f.adapter, mode)).resolves.toBe("fixture success");
+    expect(f.transport).toHaveBeenCalledTimes(2);
+    expect(f.delay).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    { source: "default", option: undefined, model: undefined, attempts: 3 },
+    { source: "model", option: undefined, model: 2, attempts: 2 },
+    { source: "option", option: 1, model: 2, attempts: 1 },
+  ])("preserves $source selection and its $attempts attempts", async ({ option, model, attempts }) => {
+    const f = retryFixture(mode, { maxRetries: option });
+    f.adapter.modelConfig.maxRetries = model;
+    f.transport.mockImplementation(async () => syntheticResponse(mode, 429));
+    await expect(invokeAdapter(f.adapter, mode)).rejects.toMatchObject({ code: "TEST_RATE_LIMIT" });
+    expect(f.transport).toHaveBeenCalledTimes(attempts);
+    expect(f.delay).toHaveBeenCalledTimes(attempts - 1);
   });
 });
