@@ -45,6 +45,7 @@ pnpm gateway enhance "Build a small API for my team" --profile coding --evidence
 pnpm gateway demo [prompt]    isolated credential-free proof
 pnpm gateway serve            start the local gateway
 pnpm gateway status           inspect health and chat readiness
+pnpm gateway control-center   inspect shared models, budget, tools, and clients
 pnpm gateway enhance [prompt] preview a structured prompt without a model call
 pnpm gateway chat [prompt]    send one request to a running gateway
 pnpm gateway spend            per-key token spend and budget status (--admin-key)
@@ -61,6 +62,44 @@ Use `--language auto`, `--language zh-CN`, or `--language en` to select the
 enhancement output language explicitly. `auto` follows the input language.
 
 `health` is an alias for `status`, and `start` is an alias for `serve`.
+
+## Local AI Control Center
+
+Use one read-only command to inspect whether the authenticated tenant has a
+ready gateway, model catalog, budget ledger, and at least two exact client MCP
+profiles:
+
+```bash
+# Prefer setting AGENT_CONSOLE_ADMIN_KEY in the environment.
+pnpm gateway control-center
+pnpm gateway control-center --json
+```
+
+The command performs no configuration writes and never calls a Provider. Its
+readiness contract and native-login boundary are documented in the
+[Local AI control center guide](local-ai-control-center.md).
+
+Use one reviewed, credential-free manifest to plan all three client profiles:
+
+```bash
+pnpm gateway control-center configure \
+  --manifest docs/examples/local-ai-control-center.json \
+  --json
+```
+
+Applying the manifest requires explicit confirmation and a caller-supplied
+idempotency prefix. Capture the JSON because it contains the redacted rollback
+receipts:
+
+```bash
+pnpm gateway control-center configure \
+  --manifest docs/examples/local-ai-control-center.json \
+  --apply --yes --idempotency-key personal-setup-001 --json
+```
+
+The CLI approves and applies each server-issued plan once, in manifest order.
+It stops on the first uncertain outcome and never retries or rolls back
+automatically. This sequence is intentionally not claimed as cross-file atomic.
 
 ## First Run
 

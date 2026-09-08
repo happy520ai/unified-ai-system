@@ -6,6 +6,7 @@ Public documentation is grouped by task so the repo stays easy to scan.
 
 - [Getting started](getting-started.md)
 - [Terminal CLI](cli.md)
+- [Local AI control center](local-ai-control-center.md)
 - [Natural-language prompt enhancement](prompt-enhancement.md)
 - [OpenAI-compatible API](openai-compatible-api.md)
 - [Secure inline image input](openai-inline-image-input.md)

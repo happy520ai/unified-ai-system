@@ -350,6 +350,326 @@ test("status reports gateway readiness as JSON", async (context) => {
   assert.equal(output.chatReady, true);
 });
 
+test("control-center reports one redacted view of shared models, budget, tools, and clients", async (context) => {
+  const gateway = await createMockGateway();
+  context.after(gateway.close);
+
+  const result = await runCliProcess([
+    "control-center",
+    "--json",
+    "--url",
+    gateway.url,
+    "--admin-key",
+    "uai-mock-admin-key",
+  ]);
+
+  assert.equal(result.code, 0, result.stderr);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.ok, true);
+  assert.equal(output.command, "control-center");
+  assert.equal(output.mode, "read-only");
+  assert.equal(output.writesPerformed, false);
+  assert.equal(output.gateway.chatReady, true);
+  assert.equal(output.shared.models.count, 1);
+  assert.deepEqual(output.shared.models.items, [{
+    id: "local-fake-model",
+    providerId: "local-fake-provider",
+    executionMode: "fake",
+  }]);
+  assert.equal(output.shared.budget.activeKeys, 1);
+  assert.equal(output.shared.budget.tokensUsed, 4200);
+  assert.equal(output.shared.tools.serverName, "unified-ai-system");
+  assert.equal(output.shared.tools.sharedByMultipleClients, true);
+  assert.equal(output.clients.onboarding.installedProfileCount, 3);
+  assert.deepEqual(
+    output.clients.onboarding.profiles.map(({ client, state }) => [client, state]),
+    [["claude-compatible", "exact"], ["cursor", "exact"], ["vscode", "exact"]],
+  );
+  assert.equal(output.assurance.nativeModelLoginRerouted, false);
+  assert.equal(output.assurance.realClientCertified, false);
+  assert.equal(gateway.lastModelsAuthorization, "Bearer uai-mock-admin-key");
+  assert.equal(gateway.lastSpendAuthorization, "Bearer uai-mock-admin-key");
+  assert.equal(gateway.lastClientsAuthorization, "Bearer uai-mock-admin-key");
+  assert.equal(gateway.lastOnboardingAuthorization, "Bearer uai-mock-admin-key");
+  assert.doesNotMatch(result.stdout, /uai-mock-admin-key/);
+});
+
+test("control-center returns setup actions when fewer than two client profiles are installed", async (context) => {
+  const gateway = await createMockGateway({
+    missingProfileIds: ["cursor-mcp-json", "vscode-mcp-json"],
+  });
+  context.after(gateway.close);
+
+  const result = await runCliProcess([
+    "center",
+    "--json",
+    "--url",
+    gateway.url,
+    "--admin-key",
+    "uai-mock-admin-key",
+  ]);
+
+  assert.equal(result.code, 1, result.stderr);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.ok, false);
+  assert.equal(output.shared.tools.sharedByMultipleClients, false);
+  assert.equal(output.clients.onboarding.installedProfileCount, 1);
+  assert.equal(output.nextActions.length, 1);
+  assert.match(output.nextActions[0], /control-center configure/);
+  assert.equal(output.writesPerformed, false);
+});
+
+test("control-center reports a safe failed surface, error code, and duration", async (context) => {
+  const gateway = await createMockGateway({ modelsHttpStatus: 503 });
+  context.after(gateway.close);
+  const result = await runCliProcess(["control-center", "--json", "--url", gateway.url, "--admin-key", "uai-mock-admin-key"]);
+  assert.equal(result.code, 1);
+  const output = JSON.parse(result.stderr);
+  assert.equal(output.kind, "required-surface");
+  assert.equal(output.surface, "models");
+  assert.equal(output.code, "CONTROL_CENTER_HTTP_503");
+  assert.equal(Number.isSafeInteger(output.durationMs), true);
+  assert.equal(output.durationMs >= 0, true);
+  assert.doesNotMatch(result.stderr, /private-failure-payload|uai-mock-admin-key/u);
+});
+
+test("control-center refuses to perform network I/O without an admin key", async () => {
+  const result = await runCliProcess([
+    "control-center",
+    "--url",
+    "http://127.0.0.1:43199",
+  ]);
+
+  assert.equal(result.code, 2);
+  assert.match(result.stderr, /admin key/i);
+  assert.doesNotMatch(result.stderr, /could not read all required gateway surfaces/i);
+});
+
+test("control-center rejects credentials embedded in the gateway URL", () => {
+  assert.throws(
+    () => parseCliArgs([
+      "control-center",
+      "--url",
+      "http://user:secret@127.0.0.1:3100",
+    ], { AGENT_CONSOLE_ADMIN_KEY: "uai-mock-admin-key" }),
+    (error) => error instanceof CliUsageError && error.message.includes("userinfo credentials"),
+  );
+});
+
+test("control-center configure plans every profile from one bounded manifest without client writes", async (context) => {
+  const gateway = await createMockGateway({
+    missingProfileIds: [
+      "claude-compatible-mcp-json",
+      "cursor-mcp-json",
+      "vscode-mcp-json",
+    ],
+  });
+  const root = await mkdtemp(join(tmpdir(), "uai-control-center-plan-"));
+  context.after(async () => {
+    await gateway.close();
+    await rm(root, { recursive: true, force: true });
+  });
+  await writeFile(
+    join(root, "control-center.json"),
+    JSON.stringify(controlCenterManifest(gateway.url)),
+    "utf8",
+  );
+
+  const result = await runCliProcess([
+    "control-center",
+    "configure",
+    "--manifest",
+    "control-center.json",
+    "--json",
+    "--url",
+    gateway.url,
+    "--admin-key",
+    "uai-mock-admin-key",
+  ], "", { cwd: root });
+
+  assert.equal(result.code, 0, result.stderr);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.status, "planned");
+  assert.equal(output.mode, "plan");
+  assert.equal(output.clientConfigWritesPerformed, false);
+  assert.equal(output.plans.length, 3);
+  assert.equal(output.completed.length, 0);
+  assert.equal(output.atomicAcrossClients, false);
+  assert.equal(gateway.controlCenterRequestCount("plan"), 3);
+  assert.equal(gateway.controlCenterMutationRequestCount, 0);
+});
+
+test("control-center configure applies one manifest with per-client approval, receipts, and verification", async (context) => {
+  const profiles = [
+    "claude-compatible-mcp-json",
+    "cursor-mcp-json",
+    "vscode-mcp-json",
+  ];
+  const gateway = await createMockGateway({ missingProfileIds: profiles });
+  const root = await mkdtemp(join(tmpdir(), "uai-control-center-apply-"));
+  context.after(async () => {
+    await gateway.close();
+    await rm(root, { recursive: true, force: true });
+  });
+  await writeFile(
+    join(root, "control-center.json"),
+    JSON.stringify(controlCenterManifest(gateway.url)),
+    "utf8",
+  );
+
+  const result = await runCliProcess([
+    "control-center",
+    "configure",
+    "--manifest",
+    "control-center.json",
+    "--apply",
+    "--yes",
+    "--idempotency-key",
+    "personal-setup-001",
+    "--json",
+    "--url",
+    gateway.url,
+    "--admin-key",
+    "uai-mock-admin-key",
+  ], "", { cwd: root });
+
+  assert.equal(result.code, 0, result.stderr);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.status, "completed");
+  assert.equal(output.clientConfigWritesPerformed, true);
+  assert.equal(output.completed.length, 3);
+  assert.equal(output.verification.installedProfileCount, 3);
+  assert.equal(output.retryAllowed, false);
+  assert.equal(output.atomicAcrossClients, false);
+  assert.equal(output.automaticRollbackPerformed, false);
+  assert.ok(output.completed.every((entry) => entry.receipt.redacted === true));
+  assert.equal(gateway.controlCenterRequestCount("approve"), 3);
+  assert.equal(gateway.controlCenterRequestCount("apply"), 3);
+  assert.deepEqual(gateway.controlCenterIdempotencyKeys, [
+    "personal-setup-001:approve:1",
+    "personal-setup-001:apply:1",
+    "personal-setup-001:approve:2",
+    "personal-setup-001:apply:2",
+    "personal-setup-001:approve:3",
+    "personal-setup-001:apply:3",
+  ]);
+  assert.doesNotMatch(result.stdout, /personal-setup-001/);
+});
+
+test("control-center configure stops on the first uncertain mutation and preserves completed receipts", async (context) => {
+  const profiles = [
+    "claude-compatible-mcp-json",
+    "cursor-mcp-json",
+    "vscode-mcp-json",
+  ];
+  const gateway = await createMockGateway({
+    missingProfileIds: profiles,
+    failApplyProfileId: "cursor-mcp-json",
+  });
+  const root = await mkdtemp(join(tmpdir(), "uai-control-center-partial-"));
+  context.after(async () => {
+    await gateway.close();
+    await rm(root, { recursive: true, force: true });
+  });
+  await writeFile(
+    join(root, "control-center.json"),
+    JSON.stringify(controlCenterManifest(gateway.url)),
+    "utf8",
+  );
+
+  const result = await runCliProcess([
+    "control-center",
+    "configure",
+    "--manifest",
+    "control-center.json",
+    "--apply",
+    "--yes",
+    "--idempotency-key",
+    "personal-setup-002",
+    "--json",
+    "--url",
+    gateway.url,
+    "--admin-key",
+    "uai-mock-admin-key",
+  ], "", { cwd: root });
+
+  assert.equal(result.code, 1, result.stderr);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.status, "partial");
+  assert.equal(output.completed.length, 1);
+  assert.equal(output.completed[0].profileId, "claude-compatible-mcp-json");
+  assert.equal(output.completed[0].receipt.redacted, true);
+  assert.equal(output.failure.profileId, "cursor-mcp-json");
+  assert.equal(output.failure.status, "unknown-reconcile-required");
+  assert.equal(output.failure.retryAllowed, false);
+  assert.equal(output.automaticRollbackPerformed, false);
+  assert.equal(gateway.controlCenterRequestCount("apply"), 2);
+  assert.equal(gateway.controlCenterRequestCount("rollback"), 0);
+});
+
+test("control-center does not claim no client writes when the first apply commits but loses its receipt", async (context) => {
+  const profiles = ["claude-compatible-mcp-json", "cursor-mcp-json", "vscode-mcp-json"];
+  const gateway = await createMockGateway({ missingProfileIds: profiles, failApplyProfileId: profiles[0], commitBeforeFailedApply: true });
+  const root = await mkdtemp(join(tmpdir(), "uai-control-center-unknown-"));
+  context.after(async () => { await gateway.close(); await rm(root, { recursive: true, force: true }); });
+  await writeFile(join(root, "control-center.json"), JSON.stringify(controlCenterManifest(gateway.url)), "utf8");
+  const result = await runCliProcess([
+    "control-center", "configure", "--manifest", "control-center.json", "--apply", "--yes",
+    "--idempotency-key", "unknown-first-apply", "--json", "--url", gateway.url, "--admin-key", "uai-mock-admin-key",
+  ], "", { cwd: root });
+  assert.equal(result.code, 1, result.stderr);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.completed.length, 0);
+  assert.equal(output.verification.profiles[0].installed, true);
+  assert.equal(output.clientConfigWritesPerformed, null);
+  assert.equal(output.clientConfigOutcomeUnknown, true);
+  assert.equal(output.status, "unknown-reconcile-required");
+  assert.equal(output.failure.operation, "apply");
+  assert.equal(output.retryAllowed, false);
+  assert.equal(output.automaticRollbackPerformed, false);
+  assert.equal(gateway.controlCenterRequestCount("apply"), 1);
+  assert.equal(gateway.controlCenterRequestCount("rollback"), 0);
+});
+
+test("control-center configure rejects unsafe manifests and incomplete mutation authority before I/O", async (context) => {
+  const gateway = await createMockGateway();
+  const root = await mkdtemp(join(tmpdir(), "uai-control-center-invalid-"));
+  context.after(async () => {
+    await gateway.close();
+    await rm(root, { recursive: true, force: true });
+  });
+  await writeFile(join(root, "one-client.json"), JSON.stringify({
+    ...controlCenterManifest(gateway.url),
+    profiles: ["cursor-mcp-json"],
+  }), "utf8");
+
+  const invalid = await runCliProcess([
+    "control-center",
+    "configure",
+    "--manifest",
+    "one-client.json",
+    "--json",
+    "--url",
+    gateway.url,
+    "--admin-key",
+    "uai-mock-admin-key",
+  ], "", { cwd: root });
+  assert.equal(invalid.code, 2);
+  assert.equal(gateway.controlCenterRequestCount(), 0);
+
+  assert.throws(
+    () => parseCliArgs([
+      "control-center",
+      "configure",
+      "--manifest",
+      "control-center.json",
+      "--apply",
+      "--yes",
+    ], { AGENT_CONSOLE_ADMIN_KEY: "uai-mock-admin-key" }),
+    (error) => error instanceof CliUsageError && error.message.includes("idempotency-key"),
+  );
+});
+
 test("spend reports per-key token spend with an admin key", async (context) => {
   const gateway = await createMockGateway();
   context.after(gateway.close);
@@ -1791,8 +2111,43 @@ async function createMockGateway(options = {}) {
   let lastSpendAuthorization = null;
   let lastClientsAuthorization = null;
   let lastOnboardingAuthorization = null;
+  let lastModelsAuthorization = null;
   const realProviderEnabled = options.realProviderEnabled === true;
+  const profileIds = [
+    "claude-compatible-mcp-json",
+    "cursor-mcp-json",
+    "vscode-mcp-json",
+  ];
+  const installedProfiles = new Set(
+    profileIds.filter((profileId) => !new Set(options.missingProfileIds ?? []).has(profileId)),
+  );
+  const plansById = new Map();
+  const controlCenterRequests = [];
   const server = createServer(async (request, response) => {
+    if (request.method === "GET" && request.url === "/v1/models") {
+      lastModelsAuthorization = request.headers.authorization ?? null;
+      if (options.modelsHttpStatus) {
+        return writeJson(response, options.modelsHttpStatus, { error: { code: "UPSTREAM_UNAVAILABLE", message: "private-failure-payload" } });
+      }
+      if (request.headers.authorization !== "Bearer uai-mock-admin-key") {
+        return writeJson(response, 401, {
+          error: { code: "UNAUTHENTICATED" },
+        });
+      }
+      return writeJson(response, 200, {
+        object: "list",
+        data: [{
+          id: "local-fake-model",
+          object: "model",
+          owned_by: "local-fake-provider",
+          unified_ai: {
+            provider_id: "local-fake-provider",
+            execution_mode: "fake",
+          },
+        }],
+      });
+    }
+
     if (request.method === "GET" && request.url === "/enterprise/spend-report") {
       lastSpendAuthorization = request.headers.authorization ?? null;
       if (request.headers.authorization !== "Bearer uai-mock-admin-key") {
@@ -1916,6 +2271,137 @@ async function createMockGateway(options = {}) {
           onboardingProfile("cursor-mcp-json", "cursor"),
           onboardingProfile("vscode-mcp-json", "vscode"),
         ],
+      });
+    }
+
+    const onboardingVerifyMatch = /^\/local-clients\/onboarding\/profiles\/([^/]+)\/verify$/u.exec(
+      request.url ?? "",
+    );
+    if (request.method === "GET" && onboardingVerifyMatch) {
+      lastOnboardingAuthorization = request.headers.authorization ?? null;
+      if (request.headers.authorization !== "Bearer uai-mock-admin-key") {
+        return writeJson(response, 401, {
+          status: "error",
+          error: { code: "UNAUTHENTICATED" },
+        });
+      }
+      const profileId = decodeURIComponent(onboardingVerifyMatch[1]);
+      return writeJson(response, 200, {
+        status: "ok",
+        data: onboardingVerification(profileId, installedProfiles.has(profileId)),
+      });
+    }
+
+    if (request.method === "POST" && request.url === "/local-clients/onboarding/plans") {
+      const body = await readJsonBody(request);
+      controlCenterRequests.push({
+        operation: "plan",
+        authorization: request.headers.authorization ?? null,
+        idempotencyKey: request.headers["idempotency-key"] ?? null,
+        body,
+      });
+      if (request.headers.authorization !== "Bearer uai-mock-admin-key") {
+        return writeJson(response, 401, {
+          status: "error",
+          error: { code: "UNAUTHENTICATED" },
+        });
+      }
+      const profileIndex = profileIds.indexOf(body.profileId);
+      if (profileIndex === -1 || body.action !== "enable") {
+        return writeJson(response, 400, {
+          status: "error",
+          error: { code: "LOCAL_CLIENT_ONBOARDING_REQUEST_INVALID" },
+        });
+      }
+      const planId = `onboarding_${String(profileIndex + 1).repeat(64)}`;
+      plansById.set(planId, body.profileId);
+      const now = Date.now();
+      return writeJson(response, 200, {
+        status: "ok",
+        data: {
+          apiVersion: "local-client-governed-onboarding-api-v1",
+          planVersion: "local-client-governed-onboarding-plan-v1",
+          planId,
+          profileId: body.profileId,
+          action: "enable",
+          createdAtMs: now,
+          expiresAtMs: now + 300_000,
+          writesPerformed: false,
+          redacted: true,
+        },
+      });
+    }
+
+    const controlCenterMutationMatch = /^\/local-clients\/onboarding\/(approve|apply|rollback)$/u.exec(
+      request.url ?? "",
+    );
+    if (request.method === "POST" && controlCenterMutationMatch) {
+      const operation = controlCenterMutationMatch[1];
+      const body = await readJsonBody(request);
+      const profileId = plansById.get(body.planId);
+      controlCenterRequests.push({
+        operation,
+        authorization: request.headers.authorization ?? null,
+        idempotencyKey: request.headers["idempotency-key"] ?? null,
+        body,
+        profileId,
+      });
+      if (request.headers.authorization !== "Bearer uai-mock-admin-key" || !profileId) {
+        return writeJson(response, 401, {
+          status: "error",
+          error: { code: "UNAUTHENTICATED" },
+        });
+      }
+      if (operation === "approve") {
+        const now = Date.now();
+        return writeJson(response, 200, {
+          status: "ok",
+          data: {
+            apiVersion: "local-client-governed-onboarding-api-v1",
+            operation: "approve",
+            status: "approved",
+            approvalId: `approval_${profileIds.indexOf(profileId) + 1}`,
+            planId: body.planId,
+            approvedAt: new Date(now).toISOString(),
+            expiresAt: new Date(now + 300_000).toISOString(),
+            writesPerformed: false,
+            redacted: true,
+          },
+        });
+      }
+      if (operation === "apply" && options.failApplyProfileId === profileId) {
+        if (options.commitBeforeFailedApply) installedProfiles.add(profileId);
+        return writeJson(response, 503, {
+          status: "error",
+          error: {
+            code: "LOCAL_CLIENT_ONBOARDING_OUTCOME_UNKNOWN",
+            message: "private mutation detail must not be returned",
+          },
+        });
+      }
+      if (operation === "apply") installedProfiles.add(profileId);
+      return writeJson(response, 200, {
+        status: "ok",
+        data: {
+          accepted: true,
+          status: "completed",
+          statusCode: 200,
+          idempotencyStatus: "created",
+          replayed: false,
+          replayable: true,
+          operationInvoked: true,
+          retryAllowed: false,
+          result: {
+            apiVersion: "local-client-governed-onboarding-api-v1",
+            operation,
+            profileId,
+            action: operation === "apply" ? "enable" : operation,
+            planId: body.planId,
+            status: "completed",
+            receipt: onboardingApplyReceipt(profileId),
+            redacted: true,
+          },
+        },
       });
     }
 
@@ -2057,6 +2543,22 @@ async function createMockGateway(options = {}) {
     get lastOnboardingAuthorization() {
       return lastOnboardingAuthorization;
     },
+    get lastModelsAuthorization() {
+      return lastModelsAuthorization;
+    },
+    get controlCenterMutationRequestCount() {
+      return controlCenterRequests.filter(({ operation }) => operation !== "plan").length;
+    },
+    get controlCenterIdempotencyKeys() {
+      return controlCenterRequests
+        .map(({ idempotencyKey }) => idempotencyKey)
+        .filter(Boolean);
+    },
+    controlCenterRequestCount(operation) {
+      return operation === undefined
+        ? controlCenterRequests.length
+        : controlCenterRequests.filter((entry) => entry.operation === operation).length;
+    },
     close: () =>
       new Promise((resolvePromise, reject) => {
         server.close((error) => {
@@ -2079,6 +2581,18 @@ function onboardingProfile(profileId, client) {
     supportedActions: ["enable", "disable"],
     certificationStatus: "fixture-tested-not-real-client-certified",
     redacted: true,
+  };
+}
+
+function controlCenterManifest(gatewayUrl) {
+  return {
+    schema: "unified-ai-system/local-ai-control-center/v1",
+    gatewayUrl,
+    profiles: [
+      "claude-compatible-mcp-json",
+      "cursor-mcp-json",
+      "vscode-mcp-json",
+    ],
   };
 }
 
@@ -2581,24 +3095,24 @@ function writeOnboardingMockError(response, options, operation) {
   return true;
 }
 
-function onboardingVerification(profileId) {
+function onboardingVerification(profileId, installed = true) {
   return {
     profileId,
-    installed: true,
-    state: "exact",
+    installed,
+    state: installed ? "exact" : "absent",
     format: "json-only",
     certificationStatus: "fixture-tested-not-real-client-certified",
     redacted: true,
   };
 }
 
-function onboardingApplyReceipt() {
+function onboardingApplyReceipt(profileId = "cursor-mcp-json") {
   const transactionPlanId = "b".repeat(64);
   return {
     receiptVersion: "local-client-onboarding-receipt-v1",
-    profileId: "cursor-mcp-json",
+    profileId,
     action: "enable",
-    planId: `onboard:cursor-mcp-json:${transactionPlanId}`,
+    planId: `onboard:${profileId}:${transactionPlanId}`,
     transaction: {
       receiptVersion: "local-client-config-receipt-v1",
       transactionId: `tx_${"c".repeat(64)}`,

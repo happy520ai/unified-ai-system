@@ -67,22 +67,28 @@ The tenant header is not required — the key's own tenant is used.
 | Pre-request check | Before the provider call, the gateway estimates input tokens and rejects with HTTP 429 `VIRTUAL_KEY_BUDGET_EXHAUSTED` if the estimate would exceed the remaining budget. |
 | Post-request record | Actual total tokens are recorded after success (upstream usage when available, conservative estimates otherwise). Streaming records from the final stream event, falling back to input estimate + output text estimate. |
 | Cache interactions | Response-cache hits still consume budget (they are real requests); replayed usage comes from the cached payload. |
+| Native idempotency | Replaying a completed non-streaming `/chat` request under its original idempotency key does not consume another request admission or token charge; concurrent duplicates share the same execution. This remains true when the key's budget is later exhausted. |
 | Rate limit | Optional per-key requests-per-minute fixed window; rejects with 429 `VIRTUAL_KEY_RATE_LIMITED`. |
 | Soft budget | When usage crosses `softThreshold` (default 0.8) a `openai_chat_virtual_key_soft_budget` service log event is emitted once per crossing. |
-| Scope (v1) | Enforcement covers `POST /v1/chat/completions` and its aliases (streaming and non-streaming). Other routes authenticate the key but do not yet attribute spend. |
+| Scope (v1) | Enforcement covers `POST /v1/chat/completions` and its aliases (streaming and non-streaming), plus non-streaming native `POST /chat` used by the MCP `gateway_chat` tool. Other routes authenticate the key but do not yet attribute spend. |
 
-Fail-open note: if the key store is unavailable at request time, requests
-fail open to normal execution (authentication has already succeeded); usage
-accounting resumes when the store recovers.
+Native `/chat` fails closed with HTTP 503 `VIRTUAL_KEY_ACCOUNTING_UNAVAILABLE`
+if an authenticated virtual-key request has no accounting manager. The existing
+compatibility-lane helper still fails open when its manager is absent. These
+different wiring boundaries must not be described as one global guarantee.
 
 ## Storage and boundaries
 
 - Keys are stored as SHA-256 hashes in `.data/enterprise/api-keys.json`
   (mode 0600, atomic writes, configurable via `PME_API_KEY_STORE_PATH`);
   plaintext values exist only in the one-time creation response.
-- Usage counters persist across restarts (in the same file); `lastUsedAt` is
-  memory-only to avoid per-request disk writes.
+- Key-management operations persist the current record snapshot, but live
+  request/token counter changes are not durably flushed for every request.
+  A process restart can therefore reload an older usage snapshot; this code does
+  not establish restart-safe budget enforcement. `lastUsedAt` is memory-only.
 - Revoked keys are dropped from the store on next restart; revocation takes
   effect immediately in memory.
-- Rate-limit windows are per-process (single gateway instance); budget
-  windows are wall-clock derived and restart-safe.
+- Rate-limit windows are per-process (single gateway instance); budget windows
+  are wall-clock derived. The shared control-center smoke proves three MCP
+  sessions accounting against one live gateway, not durable cross-restart or
+  distributed budget enforcement.

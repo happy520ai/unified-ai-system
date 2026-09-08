@@ -1,0 +1,9 @@
+{
+  "schema": "unified-ai-system/local-ai-control-center/v1",
+  "gatewayUrl": "http://127.0.0.1:3100",
+  "profiles": [
+    "claude-compatible-mcp-json",
+    "cursor-mcp-json",
+    "vscode-mcp-json"
+  ]
+}

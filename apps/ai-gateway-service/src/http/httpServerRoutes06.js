@@ -12,8 +12,10 @@ import { resolveProviderDispatchHttpStatus } from "./providerDispatchHttpStatus.
 import {
   applyManagedLocalClientProviderRoute,
   authenticateManagedLocalClientProtocolRequest,
+  recordVirtualKeyUsage,
   resolveManagedLocalClientProviderRoute,
 } from "./openAiCompatibilityRoutes.js";
+import { estimateTextTokens, estimateTokens } from "../cost/tokenEstimator.js";
 
 export async function dispatchHttpRoutes06(context) {
   const {
@@ -514,7 +516,23 @@ export async function dispatchHttpRoutes06(context) {
             }
           : body,
         operation: async () => {
+          // The shared manager owns budget policy. Native /chat performs its
+          // admission only for a new execution, never for an idempotent replay.
+          const budgetRejection = authorizeNativeChatVirtualKeyUsage({
+            enterpriseGovernanceService, request, gatewayInput, writeServiceLog,
+            startedAt, createErrorEnvelope, path: url.pathname,
+          });
+          if (budgetRejection) return budgetRejection;
           let executionResult = await gatewayService.execute(gatewayInput);
+          if (executionResult.success) {
+            recordVirtualKeyUsage({
+              enterpriseGovernanceService,
+              request,
+              writeServiceLog,
+              tokens: resolveNativeChatUsageTokens(gatewayInput, executionResult),
+              path: url.pathname,
+            });
+          }
           if (promptEnhancement) {
             executionResult = {
               ...executionResult,
@@ -623,5 +641,36 @@ function decorateStreamEvent(event, promptEnhancement) {
       ...(event.meta ?? {}),
       promptEnhancement,
     },
+  };
+}
+
+function resolveNativeChatUsageTokens(gatewayInput, result) {
+  const reportedTotal = Number(result?.data?.usage?.totalTokens);
+  if (Number.isSafeInteger(reportedTotal) && reportedTotal > 0) return reportedTotal;
+  const outputText = result?.data?.message?.content
+    ?? result?.data?.outputText
+    ?? result?.data?.text
+    ?? "";
+  return estimateTokens(gatewayInput).estimatedInputTokens + estimateTextTokens(outputText);
+}
+
+function authorizeNativeChatVirtualKeyUsage({ enterpriseGovernanceService, request, gatewayInput, writeServiceLog, startedAt, createErrorEnvelope, path }) {
+  const keyId = request.enterpriseIdentity?.apiKeyFingerprint;
+  if (!keyId) return null;
+  const manager = enterpriseGovernanceService?.getApiKeyManager?.();
+  if (typeof manager?.authorizeUsage !== "function" || typeof manager?.recordUsage !== "function") {
+    return {
+      statusCode: 503,
+      payload: createErrorEnvelope("VIRTUAL_KEY_ACCOUNTING_UNAVAILABLE", "Virtual key accounting is unavailable.", { startedAt, category: "internal", retryable: false }),
+    };
+  }
+  const decision = manager.authorizeUsage({ keyId, estimatedTokens: estimateTokens(gatewayInput).estimatedInputTokens });
+  if (decision.allowed) return null;
+  writeServiceLog?.("virtual_key_rejected", { path, code: decision.code, keyFingerprint: keyId, durationMs: Date.now() - startedAt });
+  return {
+    statusCode: 429,
+    payload: createErrorEnvelope(decision.code, decision.code === "VIRTUAL_KEY_RATE_LIMITED"
+      ? "Virtual key request rate limit exceeded; retry later."
+      : "Virtual key token budget exhausted for the current window.", { startedAt, category: "rate_limit", retryable: false }),
   };
 }
