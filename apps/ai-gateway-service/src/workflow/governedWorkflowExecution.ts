@@ -14,7 +14,9 @@ type WorkflowIdentity = {
 };
 
 type WorkflowService = {
-  run(request: Record<string, unknown>, context: Record<string, unknown>): Promise<Record<string, unknown>>;
+  run(request: Record<string, unknown>, context: Record<string, unknown>): Promise<object>;
+  markGovernanceUncertain?(workflowId: unknown, context: Record<string, unknown>): void | Promise<void>;
+  confirmGovernanceComplete?(workflowId: unknown, context: Record<string, unknown>, deliveredResult: object): void | Promise<void>;
 };
 
 export async function executeGovernedWorkflowRun(input: {
@@ -77,11 +79,13 @@ export async function executeGovernedWorkflowRun(input: {
     }
 
     const { agentId: _callerAgentId, ...workflowBody } = input.body;
-    completedResult = await input.workflowService.run(workflowBody, {
+    completedResult = { ...await input.workflowService.run(workflowBody, {
       ...input.requestContext,
       tenantId: identity.tenantId,
+      userId: identity.userId,
+      workflowGovernancePending: true,
       signal: executionSignal,
-    });
+    }) };
     const metered = await input.governance.toolProxy.enforceResult({
       context: {
         agentId,
@@ -122,6 +126,20 @@ export async function executeGovernedWorkflowRun(input: {
     releaseError ??= error;
   }
 
+  if (completedResult && !primaryError && !releaseError) {
+    try {
+      await input.workflowService.confirmGovernanceComplete?.(completedResult.workflowId, {
+        tenantId: identity.tenantId, userId: identity.userId,
+      }, output!);
+    } catch (error) { primaryError = error; }
+  }
+  if (completedResult && (primaryError || releaseError)) {
+    try {
+      await input.workflowService.markGovernanceUncertain?.(completedResult.workflowId, {
+        tenantId: identity.tenantId, userId: identity.userId,
+      });
+    } catch { /* The original governance failure remains an unknown outcome. */ }
+  }
   if (primaryError) {
     throw completedResult
       ? createWorkflowOutcomeUncertainError(completedResult, primaryError)
@@ -223,6 +241,7 @@ function createWorkflowOutcomeUncertainError(result: Record<string, unknown>, ca
     outcomeUnknown: true,
     details: {
       outcomeUnknown: true,
+      workflowId: result.workflowId,
       artifactSha256: typeof artifact.sha256 === "string" ? artifact.sha256 : null,
       artifactFileName: typeof artifact.fileName === "string" ? artifact.fileName : null,
       reconciliation: "Inspect the tenant-partitioned workflow artifact before any operator-authorized retry.",

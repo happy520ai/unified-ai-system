@@ -94,3 +94,33 @@ export interface WorkflowRunResponse {
 
 export type WorkflowPlanResult = ResultEnvelope<WorkflowPlanResponse>;
 export type WorkflowRunResult = ResultEnvelope<WorkflowRunResponse>;
+
+/** The stored outcome is historical. Recovery checks the original publication
+ * identity; an unknown publication is never automatically dispatched again. */
+export type WorkflowRunStatus = "running" | "prepared" | "publishing" | "completed" | "failed" | "cancelled" | "interrupted" | "unknown";
+
+export interface WorkflowRunInspection {
+  workflowId: string;
+  status: WorkflowRunStatus;
+  stage: WorkflowActionDescriptor["actionId"];
+  attempt: number;
+  request: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+  leaseExpiresAt: string | null;
+  canResume: boolean;
+  resumeAction: "run-safe-remaining-stages" | "recheck-governance-only" | null;
+  outcomeUnknown: boolean;
+  error: { code: string; attempt: number; at: string } | null;
+  history: Array<{ code: string; attempt: number; at: string }>;
+  reconciliation: { status: "verified" | "unresolved"; at: string } | null;
+  result?: WorkflowRunResponse;
+  persistence: {
+    storageMode: "single-host-sqlite";
+    automaticRedispatch: false;
+    artifactInspection: "recorded-outcome";
+  };
+}
+
+export type WorkflowRunInspectionResult = ResultEnvelope<WorkflowRunInspection>;
+export type WorkflowRunListResult = ResultEnvelope<{ runs: WorkflowRunInspection[] }>;

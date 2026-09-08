@@ -1,6 +1,7 @@
 export const UNKNOWN_ROUTE_PERMISSION = "route:unknown";
 
 const RUNTIME_ROUTE_PERMISSION_OVERRIDES = new Map<string, string>([
+  ["GET /workflow/runs", "workflow:run"],
   ["DELETE /providers/runtime-credential", "provider:write"],
   ["GET /workbench/feature-status", "dashboard:read"],
   ["GET /approvals", "workflow:run"],
@@ -64,6 +65,11 @@ export function resolveRuntimeRoutePermissionOverride(method: unknown, pathname:
   const normalizedPath = normalizePath(pathname);
   const exactPermission = RUNTIME_ROUTE_PERMISSION_OVERRIDES.get(`${normalizedMethod} ${normalizedPath}`);
   if (exactPermission) return exactPermission;
+
+  if ((normalizedMethod === "GET" && /^\/workflow\/runs\/[^/]+$/.test(normalizedPath))
+    || (normalizedMethod === "POST" && /^\/workflow\/runs\/[^/]+\/recover$/.test(normalizedPath))) {
+    return "workflow:run";
+  }
 
   if (
     normalizedMethod === "POST"
