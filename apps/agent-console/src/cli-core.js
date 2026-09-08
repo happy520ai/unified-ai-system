@@ -47,10 +47,25 @@ const COMMANDS = new Set([
   "enhance",
   "forge",
   "help",
+  "providers",
   "serve",
   "spend",
   "status",
   "version",
+  "workflow",
+]);
+const WORKFLOW_OPERATIONS = new Set(["run", "list", "status", "recover"]);
+const WORKFLOW_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$/u;
+const WORKFLOW_STATUSES = new Set(["running", "prepared", "publishing", "completed", "failed", "cancelled", "interrupted", "unknown"]);
+const WORKFLOW_ERROR_CODES = new Set([
+  "APPROVAL_REVIEW_UNAVAILABLE",
+  "TOOL_APPROVAL_REQUIRED", "AGENT_NOT_FOUND", "AGENT_EXPIRED", "AGENT_EXECUTION_FENCED",
+  "WORKFLOW_INPUT_CONFLICT", "WORKFLOW_NOT_FOUND", "WORKFLOW_BUSY", "WORKFLOW_OUTCOME_UNKNOWN", "WORKFLOW_AGENT_ID_REQUIRED",
+  "WORKFLOW_CLAIM_EXPIRED", "WORKFLOW_RUN_CANCELLED", "WORKFLOW_RUN_INTERRUPTED", "WORKFLOW_EXECUTION_FAILED",
+  "WORKFLOW_STATE_INVALID", "WORKFLOW_STATE_UNAVAILABLE", "WORKFLOW_STATE_MISSING", "WORKFLOW_STATE_INITIALIZING",
+  "WORKFLOW_STATE_PERMISSION_DENIED", "WORKFLOW_STORAGE_FULL", "WORKFLOW_STAGING_CAPACITY", "WORKFLOW_STAGING_CLEANUP_REQUIRED",
+  "WORKFLOW_RECORD_TOO_LARGE", "WORKFLOW_OUTPUT_PATH_UNSAFE", "WORKFLOW_STAGED_CONTENT_CHANGED", "WORKFLOW_ARTIFACT_OUTCOME_UNCERTAIN",
+  "WORKFLOW_ARTIFACT_RECONCILIATION_REQUIRED", "WORKFLOW_POST_WRITE_GOVERNANCE_PENDING", "WORKFLOW_POST_WRITE_GOVERNANCE_UNCERTAIN",
 ]);
 const AGENT_GOVERNANCE_SUBCOMMANDS = new Set([
   "status",
@@ -345,6 +360,8 @@ export function parseCliArgs(
     onboardingReceiptFile: null,
     idempotencyKey: null,
     confirmed: false,
+    workflowId: null,
+    workflowArtifactName: null,
     lifecycleClientId: null,
     lifecycleDisplayName: null,
     lifecycleCapabilities: [],
@@ -432,6 +449,11 @@ export function parseCliArgs(
     }
     if (flag === "--manifest") {
       options.controlCenterManifestFile = readFlagValue(argv, index, flag, inlineValue);
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--workflow-id" || flag === "--artifact-name") {
+      options[flag === "--workflow-id" ? "workflowId" : "workflowArtifactName"] = readFlagValue(argv, index, flag, inlineValue);
       if (inlineValue === null) index += 1;
       continue;
     }
@@ -740,6 +762,9 @@ export async function runCli(
         return await runServe(options, runtime, output);
       case "agents":
         return await runAgents(options, output);
+      case "workflow":
+      case "providers":
+        return await runWorkflowOrCredentialCommand(options, output);
       case "status":
         return await runStatus(options, output);
       case "doctor":
@@ -922,6 +947,118 @@ async function runServe(options, runtime, output) {
     },
     { forwardSignals: true },
   );
+}
+
+async function runWorkflowOrCredentialCommand(options, output) {
+  const operation = options.positionals[0];
+  const credential = options.command === "providers";
+  const mutation = credential || operation === "run" || operation === "recover";
+  const target = credential ? { providerId: options.agentProviderId } : { workflowId: options.workflowId };
+  const client = createGatewayClient({ baseUrl: options.url, timeoutMs: options.timeoutMs, headers: { authorization: `Bearer ${options.adminKey}` } });
+  try {
+    let data;
+    if (credential) {
+      data = projectCredentialClear(unwrapEnvelope(await client.clearRuntimeProviderCredential(target)), target.providerId);
+    } else if (operation === "run") {
+      data = projectWorkflowCompletion(unwrapEnvelope(await client.workflowRun({
+        workflowId: options.workflowId, goal: options.agentGoal, agentId: options.agentId,
+        ...(options.workflowArtifactName === null ? {} : { artifactName: options.workflowArtifactName }),
+      })), options.workflowId);
+    } else if (operation === "list") {
+      const result = unwrapEnvelope(await client.workflowRuns({ limit: options.lifecycleLimit ?? 50 }));
+      if (!isPlainRecord(result) || !Array.isArray(result.runs) || result.runs.length > (options.lifecycleLimit ?? 50)) throw new Error("invalid workflow list");
+      data = { runs: result.runs.map(row => projectWorkflowInspection(row)) };
+    } else {
+      const result = operation === "status" ? await client.workflowRunStatus(options.workflowId) : await client.recoverWorkflowRun(options.workflowId);
+      data = projectWorkflowInspection(unwrapEnvelope(result), options.workflowId);
+    }
+    const ok = credential || !mutation || data.status === "completed";
+    const nextAction = credential
+      ? "Scope: this runtime credential store. Environment/configuration credentials may still apply; upstream keys, in-flight requests and other processes are unchanged."
+      : workflowNextAction(operation, data, options.workflowId);
+    const result = { ok, command: options.command, operation, ...target, retryAllowed: false, data, nextAction };
+    if (options.json) output.write(`${JSON.stringify(result, null, 2)}\n`);
+    else {
+      const rows = credential
+        ? [`Provider ${data.providerId}: ${data.removed ? "runtime credential removed" : "no runtime override was present"}`]
+        : operation === "list" ? [`Workflows: ${data.runs.length}`, ...data.runs.map(row => `${row.workflowId}: ${row.status} / ${row.stage}`)]
+          : [`Workflow ${data.workflowId}: ${data.status}`, ...(data.stage ? [`Stage: ${data.stage}`] : []), ...(data.artifact ? [`Artifact: ${data.artifact.fileName} (sha256 ${data.artifact.sha256})`] : [])];
+      output.write(`${rows.join("\n")}\n${nextAction}\n`);
+    }
+    return ok ? 0 : 1;
+  } catch (error) {
+    const payload = isPlainRecord(error?.responseBody?.error) ? error.responseBody.error : {};
+    const details = isPlainRecord(payload.details) ? payload.details : {};
+    const code = payload.code;
+    const notStarted = credential && code === "provider_runtime_credential_clear_audit_unavailable" && details.operationStarted === false;
+    const uncertain = mutation && !notStarted && (code === "WORKFLOW_OUTCOME_UNKNOWN" || code === "WORKFLOW_ARTIFACT_OUTCOME_UNCERTAIN"
+      || !Number.isInteger(error?.statusCode) || error.statusCode >= 500);
+    let receipt;
+    if (credential && code === "provider_runtime_credential_clear_result_audit_unconfirmed" && details.operationCommitted === true) {
+      try { receipt = projectCredentialClear(details, target.providerId); } catch { /* An invalid receipt cannot prove completion. */ }
+    }
+    const failure = { ok: false, command: options.command, operation, ...target, retryAllowed: false,
+      status: uncertain ? "unknown-reconcile-required" : "rejected",
+      code: !credential && WORKFLOW_ERROR_CODES.has(code) ? code : credential ? notStarted ? "CREDENTIAL_CLEAR_NOT_STARTED" : uncertain ? "CREDENTIAL_CLEAR_OUTCOME_UNKNOWN" : "CREDENTIAL_CLEAR_REJECTED"
+        : uncertain ? "WORKFLOW_OUTCOME_UNKNOWN" : "WORKFLOW_REQUEST_REJECTED",
+      ...(receipt ? { receipt } : {}),
+      nextAction: !credential && operation === "run" && code === "APPROVAL_REVIEW_UNAVAILABLE"
+        ? "The gateway has no safe approval review for this workflow policy. Keep the approval requirement; do not fabricate approval or retry automatically."
+        : !credential && operation === "run" && code === "TOOL_APPROVAL_REQUIRED"
+        ? "Use agents approvals --agent-id " + options.agentId + "; review the exact file_write request, then repeat the original workflow request and ID."
+        : !credential && operation === "run" && (code === "AGENT_NOT_FOUND" || code === "AGENT_EXPIRED" || code === "AGENT_EXECUTION_FENCED")
+          ? "Inspect agents show --agent-id " + options.agentId + " and obtain valid current authorization before repeating this workflow ID."
+          : credential ? "Inspect /providers and the audit trail before another clear; do not clear a replacement credential automatically."
+        : options.workflowId ? `Inspect workflow status --workflow-id ${options.workflowId}; preserve this ID and the original input.` : "Check gateway authentication and workflow history availability.",
+    };
+    output.writeError(options.json ? `${JSON.stringify(failure, null, 2)}\n`
+      : `${failure.code}: ${failure.status}\n${credential ? `Provider: ${target.providerId}` : `Workflow: ${target.workflowId ?? "history"}`}\n${failure.nextAction}\n`);
+    return 1;
+  }
+}
+
+function projectWorkflowCompletion(value, expectedId) {
+  if (!isPlainRecord(value) || value.workflowId !== expectedId || value.status !== "completed") throw new Error("invalid workflow result");
+  const artifact = value.artifact;
+  if (!isPlainRecord(artifact) || !/^[A-Za-z0-9._-]{1,100}\.md$/iu.test(artifact.fileName ?? "")
+    || !/^[a-f0-9]{64}$/u.test(artifact.sha256 ?? "") || !Number.isSafeInteger(artifact.bytes) || artifact.bytes < 0) throw new Error("invalid workflow artifact");
+  return { workflowId: expectedId, status: "completed", artifact: { fileName: artifact.fileName, bytes: artifact.bytes, sha256: artifact.sha256 } };
+}
+
+function projectWorkflowInspection(value, expectedId = null) {
+  if (!isPlainRecord(value) || !WORKFLOW_ID_PATTERN.test(value.workflowId ?? "") || expectedId !== null && value.workflowId !== expectedId
+    || !WORKFLOW_STATUSES.has(value.status) || !new Set(["knowledge.retrieve", "report.compose", "artifact.write"]).has(value.stage)
+    || !Number.isSafeInteger(value.attempt) || value.attempt < 1 || typeof value.canResume !== "boolean" || typeof value.outcomeUnknown !== "boolean"
+    || !new Set([null, "run-safe-remaining-stages", "recheck-governance-only"]).has(value.resumeAction)
+    || value.canResume !== (value.resumeAction !== null) || value.persistence?.automaticRedispatch !== false
+    || value.persistence?.storageMode !== "single-host-sqlite"
+    || value.status === "completed" && (value.canResume || value.outcomeUnknown)
+    || value.status === "completed" && expectedId !== null && !value.result
+    || value.outcomeUnknown && !new Set(["publishing", "unknown"]).has(value.status)
+    || value.resumeAction === "recheck-governance-only" && !value.outcomeUnknown) throw new Error("invalid workflow inspection");
+  return {
+    workflowId: value.workflowId, status: value.status, stage: value.stage, attempt: value.attempt,
+    canResume: value.canResume, resumeAction: value.resumeAction, outcomeUnknown: value.outcomeUnknown,
+    errorCode: WORKFLOW_ERROR_CODES.has(value.error?.code) ? value.error.code : value.error ? "WORKFLOW_EXECUTION_FAILED" : null,
+    ...(value.result && value.status === "completed" ? { artifact: projectWorkflowCompletion(value.result, value.workflowId).artifact } : {}),
+  };
+}
+
+function projectCredentialClear(value, providerId) {
+  if (!isPlainRecord(value) || value.providerId !== providerId || typeof value.removed !== "boolean"
+    || value.scope !== "runtime-credential-store" || value.appliesTo !== "subsequent-credential-lookups"
+    || ["inFlightRequestsCancelled", "providerKeyRevoked", "otherCredentialSourcesModified", "otherProcessesInvalidated"].some(key => value[key] !== false)) throw new Error("invalid clear receipt");
+  return { providerId, removed: value.removed, scope: value.scope, appliesTo: value.appliesTo,
+    inFlightRequestsCancelled: false, providerKeyRevoked: false, otherCredentialSourcesModified: false, otherProcessesInvalidated: false };
+}
+
+function workflowNextAction(operation, data, workflowId) {
+  if (operation === "list") return "Use workflow status with the recorded ID. No workflow was resumed.";
+  if (data.status === "completed") return "Recorded completion; repeat this ID only with the original input. Later user edits are preserved.";
+  if (data.resumeAction === "recheck-governance-only") return "Artifact reconciled. Explicitly rerun the original request with current Agent authorization to finish result governance only.";
+  if (data.resumeAction === "run-safe-remaining-stages") return "Review the failure, then explicitly rerun the original request and ID to continue safe stages.";
+  return data.outcomeUnknown ? `Run workflow recover --workflow-id ${workflowId}; no automatic retry or new ID.`
+    : `Use workflow status --workflow-id ${workflowId}; the current execution claim may still be active.`;
 }
 
 async function runAgents(options, output) {
@@ -3533,6 +3670,8 @@ Usage:
   pnpm gateway <command> [options]
 
 Commands:
+  workflow <operation> Persisted workflow run, list, status, or recover
+  providers clear-credential  Clear one Provider runtime override by explicit ID
   agents <operation> Governed Agent status, lifecycle, execution, and approvals
                      status, list, show, generate, run, revoke, approvals, approve, reject
   clients [operation]
@@ -3560,13 +3699,13 @@ Options:
   --profile <name>            auto, general, coding, analysis, writing, research, planning
   --language <name>           auto, zh-CN, en (for prompt enhancement)
   --allow-real-provider       Authorize one chat command to use a real provider
-  --admin-key <uai-…>         Admin virtual key (control center/clients/onboarding/spend)
+  --admin-key <uai-…>         Scoped gateway key for authenticated operator commands
   --manifest <json>           Bounded control-center desired-state manifest
   --client-id <id>            Bounded lifecycle client identifier
   --display-name <name>       Safe display name for register
   --capability <id>           Repeatable list filter or register capability
   --include-disabled          Include disabled clients in list
-  --limit <n>                 Registry page size, 1-100
+  --limit <n>                 Client/workflow list size, 1-100
   --offset <n>                Registry page offset
   --apply                     Apply discover/smart-manage or a control-center manifest
   --max-processes <n>         System discovery bound, 1-10000
@@ -3586,14 +3725,16 @@ Options:
   --approval-id <appr_...>    Server-issued Agent approval identifier
   --name <name>               Agent name for agents generate
   --task <text>               Agent task for agents generate
-  --goal <text>               Execution goal for agents run
+  --goal <text>               Goal for agents run or workflow run
+  --workflow-id <id>          Stable workflow ID; required for run/status/recover
+  --artifact-name <name>      Optional Markdown filename for workflow run
   --tool <name>               Repeatable requested/run tool identifier
   --ttl-seconds <n>           Agent lifetime, 1-2592000 seconds
   --parent-agent-id <agt_...> Optional parent for agents generate
   --max-iterations <n>        Agent run iteration bound, 1-25
   --run-timeout-ms <n>        Agent wall-clock bound, 1000-120000ms (transport adds 5s)
   --tool-mode <mode>          none or readonly
-  --provider-id <id>          Explicit Agent run provider
+  --provider-id <id>          Agent provider or providers clear-credential target
   --model-id <id>             Explicit Agent run model
   --cascade                   Revoke the Agent and descendants
   --profile-id <id>           Onboarding profile for inspect, verify, or plan
@@ -3617,6 +3758,11 @@ Examples:
   pnpm gateway status
   # First set AGENT_CONSOLE_ADMIN_KEY in the environment; do not put it in argv.
   pnpm gateway agents status
+  pnpm gateway workflow run --workflow-id report-001 --agent-id agt_<id> --goal "Prepare a local report"
+  pnpm gateway workflow list --limit 50
+  pnpm gateway workflow status --workflow-id report-001
+  pnpm gateway workflow recover --workflow-id report-001
+  pnpm gateway providers clear-credential --provider-id bai
   pnpm gateway agents list
   pnpm gateway agents generate --name report-reader --task "Read the report" --tool file_read --yes
   pnpm gateway agents run --agent-id agt_<id> --goal "Read README" --tool file_read --yes
@@ -3650,6 +3796,10 @@ Pipe input:
   Get-Content .\\request.txt -Raw | pnpm gateway enhance --profile planning
 
 Safety:
+  Workflow run requires a stable ID and a server-issued Agent with the existing file_write authorization.
+  Workflow recovery reconciles the recorded artifact; it never automatically resumes a run.
+  Provider clearing removes only the runtime override; environment keys, upstream keys, in-flight requests and other processes remain separate.
+  These explicit workflow/provider commands use the supplied ID as intent and add no --yes requirement.
   chat refuses to send when a real provider may be active unless
   --allow-real-provider is supplied explicitly.
   clients discover and smart-manage are dry-run unless --apply --yes is explicit.
@@ -3689,7 +3839,7 @@ function validateOptions(options) {
   }
 
   if (
-    !["chat", "demo", "enhance", "clients", "clients-onboarding", "control-center", "agents", "forge"].includes(options.command)
+    !["chat", "demo", "enhance", "clients", "clients-onboarding", "control-center", "agents", "forge", "workflow", "providers"].includes(options.command)
     && (options.prompt !== null || options.positionals.length > 0)
   ) {
     throw new CliUsageError(
@@ -3725,7 +3875,7 @@ function validateOptions(options) {
   if (options.command !== "control-center" && options.controlCenterManifestFile !== null) {
     throw new CliUsageError("--manifest is only valid with control-center configure.");
   }
-  const lifecycleOptionsUsed = localClientLifecycleOptionsUsed(options);
+  const lifecycleOptionsUsed = localClientLifecycleOptionsUsed(options.command === "workflow" ? { ...options, lifecycleLimit: null } : options);
   const controlCenterApplyOnly = options.command === "control-center"
     && options.lifecycleApply
     && !localClientLifecycleOptionsUsedExcludingApply(options);
@@ -3734,7 +3884,8 @@ function validateOptions(options) {
       "Local-client lifecycle options are only valid with the clients command.",
     );
   }
-  const agentOptionsUsed = agentGovernanceOptionsUsed(options);
+  const agentOptionsUsed = agentGovernanceOptionsUsed(options.command === "workflow" ? { ...options, agentId: null, agentGoal: null }
+    : options.command === "providers" ? { ...options, agentProviderId: null } : options);
   if (options.command !== "agents" && agentOptionsUsed) {
     throw new CliUsageError("Agent Governance options are only valid with the agents command.");
   }
@@ -3759,6 +3910,10 @@ function validateOptions(options) {
   if (options.command === "control-center") {
     validateControlCenterOptions(options);
   }
+  if (!new Set(["workflow"]).has(options.command) && (options.workflowId !== null || options.workflowArtifactName !== null)) {
+    throw new CliUsageError("--workflow-id and --artifact-name are only valid with workflow.");
+  }
+  if (options.command === "workflow" || options.command === "providers") validateWorkflowOrCredentialOptions(options);
   if (options.allowRealProvider && options.command !== "chat"
     && !(options.command === "agents" && options.positionals[0] === "run")) {
     throw new CliUsageError(
@@ -3809,7 +3964,7 @@ function validateOptions(options) {
   }
   if (
     (options.urlProvided || options.timeoutProvided)
-    && !["agents", "chat", "clients", "clients-onboarding", "control-center", "doctor", "enhance", "forge", "spend", "status"].includes(options.command)
+    && !["agents", "chat", "clients", "clients-onboarding", "control-center", "doctor", "enhance", "forge", "spend", "status", "workflow", "providers"].includes(options.command)
   ) {
     throw new CliUsageError(
       "--url and --timeout are only valid with networked gateway commands.",
@@ -3819,22 +3974,54 @@ function validateOptions(options) {
     throw new CliUsageError("--json is not supported by serve.");
   }
 
-  if (["agents", "chat", "clients", "clients-onboarding", "control-center", "doctor", "enhance", "forge", "spend", "status"].includes(options.command)) {
+  if (["agents", "chat", "clients", "clients-onboarding", "control-center", "doctor", "enhance", "forge", "spend", "status", "workflow", "providers"].includes(options.command)) {
     let parsedUrl;
     try {
       parsedUrl = new URL(options.url);
     } catch {
+      if (options.command === "workflow" || options.command === "providers") throw new CliUsageError("Invalid gateway URL.");
       throw new CliUsageError(`Invalid gateway URL: ${options.url}`);
     }
     if (!["http:", "https:"].includes(parsedUrl.protocol)) {
       throw new CliUsageError("Gateway URL must use http or https.");
     }
     if (
-      options.command === "control-center"
+      new Set(["control-center", "workflow", "providers"]).has(options.command)
       && (parsedUrl.username.length > 0 || parsedUrl.password.length > 0)
     ) {
-      throw new CliUsageError("The control-center gateway URL must not contain userinfo credentials.");
+      throw new CliUsageError(options.command === "control-center"
+        ? "The control-center gateway URL must not contain userinfo credentials."
+        : "The gateway URL must not contain userinfo credentials.");
     }
+  }
+}
+
+function validateWorkflowOrCredentialOptions(options) {
+  if (!options.adminKey) throw new CliUsageError("A scoped gateway key is required; use AGENT_CONSOLE_ADMIN_KEY or --admin-key.");
+  if (options.prompt !== null || options.positionals.length !== 1) throw new CliUsageError("Provide exactly one workflow/provider operation.");
+  if (options.command === "providers") {
+    if (options.positionals[0] !== "clear-credential" || !/^[a-z][a-z0-9._-]{0,127}$/u.test(options.agentProviderId ?? "")) {
+      throw new CliUsageError("providers clear-credential requires one canonical --provider-id.");
+    }
+    return;
+  }
+  const operation = options.positionals[0];
+  if (!WORKFLOW_OPERATIONS.has(operation)) throw new CliUsageError("workflow supports run, list, status, and recover.");
+  if (operation === "list") {
+    if (options.workflowId !== null) throw new CliUsageError("workflow list does not accept --workflow-id.");
+  } else if (!WORKFLOW_ID_PATTERN.test(options.workflowId ?? "")) {
+    throw new CliUsageError("A stable --workflow-id (1–160 portable characters) is required; retries must retain it.");
+  }
+  if (operation !== "list" && options.lifecycleLimit !== null) throw new CliUsageError("--limit is only valid with workflow list.");
+  if (operation === "run") {
+    if (!AGENT_ID_PATTERN.test(options.agentId ?? "") || typeof options.agentGoal !== "string" || !options.agentGoal.trim()) {
+      throw new CliUsageError("workflow run requires --goal and a server-issued --agent-id with file_write authorization.");
+    }
+    if (options.workflowArtifactName !== null && !/^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/u.test(options.workflowArtifactName)) {
+      throw new CliUsageError("--artifact-name must be a bounded filename, not a path.");
+    }
+  } else if (options.agentId !== null || options.agentGoal !== null || options.workflowArtifactName !== null) {
+    throw new CliUsageError("--goal, --agent-id and --artifact-name are only valid with workflow run.");
   }
 }
 

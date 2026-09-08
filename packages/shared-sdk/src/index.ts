@@ -69,6 +69,8 @@ import type {
   WorkflowPlanResult,
   WorkflowRequest,
   WorkflowRunResult,
+  WorkflowRunInspectionResult,
+  WorkflowRunListResult,
   ActivateGovernancePolicyResult,
   AgentGovernanceStatsResult,
   CreateGovernancePolicyRequest,
@@ -106,6 +108,10 @@ import type {
 } from "@unified-ai-system/shared-contracts";
 
 export type {
+  WorkflowRunInspection,
+  WorkflowRunInspectionResult,
+  WorkflowRunListResult,
+  WorkflowRunStatus,
   ClearRuntimeProviderCredentialRequest,
   ClearRuntimeProviderCredentialResult,
   GatewayHealth,
@@ -442,6 +448,9 @@ export interface GatewayClient {
   workflowActions(): Promise<ResultEnvelope<Record<string, unknown>>>;
   workflowPlan(request: WorkflowRequest): Promise<WorkflowPlanResult>;
   workflowRun(request: WorkflowRequest): Promise<WorkflowRunResult>;
+  workflowRuns(options?: { limit?: number }): Promise<WorkflowRunListResult>;
+  workflowRunStatus(workflowId: string): Promise<WorkflowRunInspectionResult>;
+  recoverWorkflowRun(workflowId: string): Promise<WorkflowRunInspectionResult>;
   workforceHealth(): Promise<WorkforceHealthResult>;
   workforceAgents(): Promise<WorkforceAgentsResult>;
   workforcePlan(request: WorkforcePlanRequest): Promise<WorkforcePlanResult>;

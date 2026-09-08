@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import {
   mkdir,
   mkdtemp,
+  lstat,
+  readFile,
+  readdir,
   rm,
   writeFile,
 } from "node:fs/promises";
@@ -1928,6 +1932,239 @@ test("doctor treats an offline gateway as optional", async () => {
   assert.equal(output.gateway.reachable, false);
   assert.equal(output.nextAction, "pnpm gateway serve");
 });
+
+test("CLI workflow uses a real governed gateway, durable artifact receipts and an honest approval boundary", { timeout: 60_000 }, async (context) => {
+  // This integration must never load a user's model-library runtime state.
+  await assert.rejects(lstat(join(repoRoot, "apps/ai-gateway-service/evidence/phase-312a-model-library-state.json")), { code: "ENOENT" });
+  const [{ createGatewayApplication }, { createGatewayHttpServer }] = await Promise.all([
+    import("../../ai-gateway-service/src/application/createGatewayApplication.js"),
+    import("../../ai-gateway-service/src/http/httpServer.js"),
+  ]);
+  const root = await mkdtemp(join(tmpdir(), "cli-real-workflow-"));
+  const outputDir = join(root, "artifacts");
+  const token = "cli-workflow-integration-fixture-token";
+  const identity = { tenantId: "cli-workflow-tenant", userId: "cli-workflow-owner", role: "admin", permissions: ["*"] };
+  let server;
+  context.after(async () => {
+    if (server) {
+      await new Promise(resolveClose => { server.close(() => resolveClose()); server.closeAllConnections(); });
+      await server.shutdownResources?.();
+    }
+    assert.ok(resolve(root).startsWith(resolve(tmpdir()) + (process.platform === "win32" ? "\\" : "/")));
+    await rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+  });
+  const application = createGatewayApplication({
+    NODE_ENV: "test", AI_GATEWAY_PROVIDER_MODE: "fake", AI_GATEWAY_REAL_PROVIDER_ENABLED: "false",
+    PME_RUNTIME_CREDENTIAL_STORE_MODE: "memory", KNOWLEDGE_STORAGE_MODE: "memory",
+    AI_GATEWAY_AGENT_GOVERNANCE_ENABLED: "true", AI_GATEWAY_AGENT_GOVERNANCE_DATA_DIR: join(root, "governance"),
+    AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: "cli-workflow-governance-fixture-key-0123456789",
+    WORKFLOW_OUTPUT_DIR: outputDir, WORKFORCE_PLAN_STORE_PATH: join(root, "workforce-plans.json"), WORKFORCE_EXECUTION_DIR: join(root, "workforce"),
+    AI_GATEWAY_USAGE_LOG_DIR: join(root, "usage"), PME_ENTERPRISE_AUTH_ENABLED: "true",
+    PME_AUTH_TOKEN: token, PME_AUTH_USER_ID: identity.userId, PME_AUTH_TENANT_ID: identity.tenantId,
+    PME_AUTH_ROLE: identity.role, PME_ENTERPRISE_PLATFORM_TENANT_ID: identity.tenantId,
+    PME_ENTERPRISE_USER_STORE_PATH: join(root, "users.json"), PME_API_KEY_STORE_PATH: join(root, "keys.json"),
+    PME_AUDIT_LOG_PATH: join(root, "audit.jsonl"), PME_AUDIT_CHAIN_PATH: join(root, "audit.chain.jsonl"),
+    AI_GATEWAY_RATE_LIMIT_WHITELIST: "127.0.0.1",
+  });
+  server = createGatewayHttpServer(application);
+  const agent = await application.agentGovernance.service.generateAgent({
+    name: "cli-workflow-writer", task: "write a controlled local report", requestedTools: ["file_write"], ttlSeconds: 3600, parentAgentId: null,
+  }, identity);
+  server.listen(0, "127.0.0.1"); await once(server, "listening");
+  const url = "http://127.0.0.1:" + server.address().port;
+  const common = ["--admin-key", token, "--url", url, "--json"];
+  const runArgs = ["workflow", "run", "--workflow-id", "cli-real-report", "--goal", "Explain the local gateway", "--agent-id", agent.agentId, "--artifact-name", "cli-report.md"];
+  const run = await runCliProcess([...runArgs, ...common]);
+  assert.equal(run.code, 0, run.stderr);
+  const completion = JSON.parse(run.stdout).data;
+  const stored = application.workflowService.getRun("cli-real-report", identity);
+  assert.equal(stored.status, "completed"); assert.equal(stored.canResume, false); assert.equal(stored.resumeAction, null);
+  assert.equal(completion.artifact.fileName, "cli-report.md");
+  assert.ok(resolve(stored.result.artifact.absolutePath).startsWith(resolve(outputDir) + (process.platform === "win32" ? "\\" : "/")));
+  const report = await readFile(stored.result.artifact.absolutePath);
+  assert.equal(completion.artifact.bytes, report.length);
+  assert.equal(completion.artifact.sha256, createHash("sha256").update(report).digest("hex"));
+  for (const operation of ["status", "recover"]) {
+    const result = await runCliProcess(["workflow", operation, "--workflow-id", "cli-real-report", ...common]);
+    assert.equal(result.code, 0, result.stderr); assert.equal(JSON.parse(result.stdout).data.status, "completed");
+  }
+  const listed = await runCliProcess(["workflow", "list", ...common]);
+  assert.equal(listed.code, 0, listed.stderr);
+  assert.equal(JSON.parse(listed.stdout).data.runs[0].workflowId, "cli-real-report");
+
+  // Activate a restrictive policy BEFORE issuing a fresh Agent. Reconfiguring
+  // the already-run Agent introduced a separate execution fence in the first run.
+  // This workflow lacks a safe file_write review DTO and must fail closed.
+  await application.agentGovernance.service.createPolicyVersion({
+    policyKey: "task:workflow-review", version: 1, policyType: "task", scopeKey: "workflow-review",
+    content: { toolRules: { file_write: "require_approval" } },
+  }, identity);
+  await application.agentGovernance.service.activatePolicyVersion("task:workflow-review", 1, identity);
+  const restrictedAgent = await application.agentGovernance.service.generateAgent({
+    name: "approval-required-workflow", task: "write a controlled local report", requestedTools: ["file_write"],
+    ttlSeconds: 3600, parentAgentId: null, taskPolicyKeys: ["workflow-review"],
+  }, identity);
+  assert.equal((await application.agentGovernance.service.getEffectivePolicy(restrictedAgent.agentId, identity.tenantId)).toolDecisions.file_write, "require_approval");
+  const denied = await runCliProcess(["workflow", "run", "--workflow-id", "approval-blocked-report", "--goal", "Explain the local gateway", "--agent-id", restrictedAgent.agentId, ...common]);
+  assert.equal(denied.code, 1); const blocked = JSON.parse(denied.stderr);
+  assert.equal(blocked.code, "APPROVAL_REVIEW_UNAVAILABLE");
+  assert.match(blocked.nextAction, /Keep the approval requirement/);
+  assert.throws(() => application.workflowService.getRun("approval-blocked-report", identity), error => error.code === "WORKFLOW_NOT_FOUND");
+  const approvals = await runCliProcess(["agents", "approvals", "--agent-id", restrictedAgent.agentId, ...common]);
+  assert.equal(approvals.code, 0, approvals.stderr); assert.deepEqual(JSON.parse(approvals.stdout).data, []);
+  const artifacts = (await readdir(dirname(stored.result.artifact.absolutePath))).filter(name => name.endsWith(".md"));
+  assert.deepEqual(artifacts, ["cli-report.md"]);
+});
+
+test("workflow/provider commands use explicit identifiers without a new confirmation layer", () => {
+  const env = { AGENT_CONSOLE_ADMIN_KEY: "operator-fixture-key" };
+  const run = parseCliArgs(["--goal", "Local report", "workflow", "run", "--workflow-id", "report-001", "--agent-id", "agt_report"], env);
+  assert.equal(run.confirmed, false);
+  assert.equal(run.workflowId, "report-001");
+  assert.equal(parseCliArgs(["providers", "clear-credential", "--provider-id", "bai"], env).confirmed, false);
+  assert.throws(() => parseCliArgs(["providers", "clear-credential", "--provider-id", "bai"], {}), CliUsageError);
+  assert.throws(() => parseCliArgs(["workflow", "list"], {}), CliUsageError);
+  for (const args of [
+    ["workflow", "run", "--goal", "report", "--agent-id", "agt_report"],
+    ["workflow", "run", "--workflow-id", "report-001", "--goal", "report"],
+    ["workflow", "status", "--workflow-id", "../escape"],
+    ["workflow", "recover", "--workflow-id", "report-001", "--goal", "new input"],
+    ["workflow", "list", "--limit", "101"],
+    ["workflow", "run", "--workflow-id", "report-001", "--goal", "report", "--agent-id", "agt_report", "--provider-id", "bai"],
+    ["providers", "clear-credential", "--provider-id", "../bai"],
+    ["agents", "status", "--workflow-id", "report-001"],
+  ]) assert.throws(() => parseCliArgs(args, env), CliUsageError);
+});
+
+test("workflow run/list/status/recover use their SDK routes once and preserve recorded IDs", async (context) => {
+  const gateway = await createWorkflowOperatorFixture(); context.after(gateway.close);
+  const run = await runWorkflowOperatorFixture(["workflow", "run", "--workflow-id", "report-001", "--goal", "Local report", "--agent-id", "agt_report", "--artifact-name", "report.md"], gateway.url);
+  assert.equal(run.code, 0, run.stderr);
+  assert.deepEqual(gateway.requests[0].body, { workflowId: "report-001", goal: "Local report", agentId: "agt_report", artifactName: "report.md" });
+  assert.equal(gateway.requests[0].method, "POST");
+  assert.equal(gateway.requests[0].authorization, "Bearer operator-fixture-key");
+  assert.equal(JSON.parse(run.stdout).data.artifact.sha256, "a".repeat(64));
+  const list = await runWorkflowOperatorFixture(["workflow", "list", "--limit", "5"], gateway.url);
+  const status = await runWorkflowOperatorFixture(["workflow", "status", "--workflow-id", "report-001"], gateway.url);
+  const recover = await runWorkflowOperatorFixture(["workflow", "recover", "--workflow-id", "report-001"], gateway.url);
+  assert.deepEqual([list.code, status.code, recover.code], [0, 0, 0]);
+  assert.deepEqual(gateway.requests.map(row => [row.method, row.url]), [
+    ["POST", "/workflow/run"], ["GET", "/workflow/runs?limit=5"], ["GET", "/workflow/runs/report-001"], ["POST", "/workflow/runs/report-001/recover"],
+  ]);
+  assert.deepEqual(gateway.requests[3].body, {});
+  for (const result of [run, list, status, recover]) assert.doesNotMatch(result.stdout + result.stderr, /fixture-secret|private-path|owner-spoof/);
+});
+
+test("workflow unknown recovery reports the next action without automatically running again", async (context) => {
+  const gateway = await createWorkflowOperatorFixture({ inspection: { status: "unknown", canResume: true, resumeAction: "recheck-governance-only", outcomeUnknown: true } });
+  context.after(gateway.close);
+  const result = await runWorkflowOperatorFixture(["workflow", "recover", "--workflow-id", "report-001"], gateway.url);
+  assert.equal(result.code, 1);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.data.status, "unknown"); assert.equal(output.data.resumeAction, "recheck-governance-only");
+  assert.equal(output.retryAllowed, false); assert.match(output.nextAction, /result governance only/);
+  assert.equal(gateway.requests.length, 1);
+  assert.equal(gateway.requests[0].url, "/workflow/runs/report-001/recover");
+});
+
+test("workflow recovery does not mark a missing completion receipt as success", async (context) => {
+  const gateway = await createWorkflowOperatorFixture({ inspection: { result: null } }); context.after(gateway.close);
+  const result = await runWorkflowOperatorFixture(["workflow", "recover", "--workflow-id", "report-001"], gateway.url);
+  const failure = JSON.parse(result.stderr);
+  assert.equal(result.code, 1); assert.equal(failure.status, "unknown-reconcile-required");
+  assert.equal(failure.workflowId, "report-001"); assert.equal(gateway.requests.length, 1);
+});
+
+test("workflow admission directs a required approval to the existing Agent approval surface", async (context) => {
+  const gateway = await createWorkflowOperatorFixture({ status: 409, error: { code: "TOOL_APPROVAL_REQUIRED" } }); context.after(gateway.close);
+  const result = await runWorkflowOperatorFixture(["workflow", "run", "--workflow-id", "report-001", "--goal", "Local report", "--agent-id", "agt_report"], gateway.url);
+  const failure = JSON.parse(result.stderr);
+  assert.equal(result.code, 1); assert.equal(failure.code, "TOOL_APPROVAL_REQUIRED");
+  assert.match(failure.nextAction, /agents approvals --agent-id agt_report/);
+  assert.equal(failure.workflowId, "report-001"); assert.equal(gateway.requests.length, 1);
+});
+
+test("workflow failures retain the explicit ID, redact untrusted errors and never retry", async (context) => {
+  for (const options of [
+    { status: 503, error: { code: "WORKFLOW_STATE_UNAVAILABLE", message: "fixture-secret private-path", details: { workflowId: "owner-spoof" } } },
+    { disconnect: true }, { badCompletion: true },
+  ]) {
+    const gateway = await createWorkflowOperatorFixture(options); context.after(gateway.close);
+    const result = await runWorkflowOperatorFixture(["workflow", "run", "--workflow-id", "report-001", "--goal", "Local report", "--agent-id", "agt_report"], gateway.url);
+    assert.equal(result.code, 1);
+    const failure = JSON.parse(result.stderr);
+    assert.equal(failure.workflowId, "report-001"); assert.equal(failure.status, "unknown-reconcile-required");
+    assert.equal(failure.retryAllowed, false); assert.equal(gateway.requests.length, 1);
+    assert.doesNotMatch(result.stdout + result.stderr, /fixture-secret|private-path|owner-spoof/);
+  }
+});
+
+test("provider credential clearing reports exact store receipts and preserves uncertain committed outcomes", async (context) => {
+  for (const removed of [true, false]) {
+    const gateway = await createWorkflowOperatorFixture({ removed }); context.after(gateway.close);
+    const result = await runWorkflowOperatorFixture(["providers", "clear-credential", "--provider-id", "bai"], gateway.url);
+    assert.equal(result.code, 0, result.stderr); const output = JSON.parse(result.stdout);
+    assert.equal(output.data.removed, removed); assert.equal(output.data.providerKeyRevoked, false);
+    assert.match(output.nextAction, /Environment\/configuration credentials may still apply/);
+    assert.deepEqual(gateway.requests.map(row => [row.method, row.url, row.body]), [["DELETE", "/providers/runtime-credential", { providerId: "bai" }]]);
+  }
+  const gateway = await createWorkflowOperatorFixture({ status: 503, error: {
+    code: "provider_runtime_credential_clear_result_audit_unconfirmed", message: "fixture-secret private-path",
+    details: { ...workflowCredentialReceipt(true), operationCommitted: true, privatePath: "private-path" },
+  } }); context.after(gateway.close);
+  const result = await runWorkflowOperatorFixture(["providers", "clear-credential", "--provider-id", "bai"], gateway.url);
+  const failure = JSON.parse(result.stderr);
+  assert.equal(result.code, 1); assert.equal(failure.status, "unknown-reconcile-required"); assert.equal(failure.receipt.removed, true);
+  assert.equal(gateway.requests.length, 1); assert.doesNotMatch(result.stdout + result.stderr, /fixture-secret|private-path/);
+});
+
+test("credential clearing separates pre-effect rejection from an unconfirmed receipt", async (context) => {
+  for (const [options, status, code] of [
+    [{ status: 403, error: { code: "private-path", message: "fixture-secret" } }, "rejected", "CREDENTIAL_CLEAR_REJECTED"],
+    [{ status: 503, error: { code: "provider_runtime_credential_clear_audit_unavailable", details: { operationStarted: false } } }, "rejected", "CREDENTIAL_CLEAR_NOT_STARTED"],
+    [{ removed: "unconfirmed" }, "unknown-reconcile-required", "CREDENTIAL_CLEAR_OUTCOME_UNKNOWN"],
+  ]) {
+    const gateway = await createWorkflowOperatorFixture(options); context.after(gateway.close);
+    const result = await runWorkflowOperatorFixture(["providers", "clear-credential", "--provider-id", "bai"], gateway.url);
+    const failure = JSON.parse(result.stderr);
+    assert.equal(result.code, 1); assert.equal(failure.status, status); assert.equal(failure.code, code);
+    assert.equal(failure.providerId, "bai"); assert.equal(failure.retryAllowed, false);
+    assert.equal(gateway.requests.length, 1); assert.doesNotMatch(result.stderr, /fixture-secret|private-path/);
+  }
+});
+
+async function runWorkflowOperatorFixture(args, url) {
+  let stdout = ""; let stderr = "";
+  const code = await runCli([...args, "--url", url, "--json"], {
+    env: { AGENT_CONSOLE_ADMIN_KEY: "operator-fixture-key" },
+    stdout: { isTTY: false, write: value => { stdout += value; } }, stderr: { write: value => { stderr += value; } },
+  });
+  return { code, stdout, stderr };
+}
+function workflowCredentialReceipt(removed) {
+  return { providerId: "bai", removed, scope: "runtime-credential-store", appliesTo: "subsequent-credential-lookups",
+    inFlightRequestsCancelled: false, providerKeyRevoked: false, otherCredentialSourcesModified: false, otherProcessesInvalidated: false };
+}
+async function createWorkflowOperatorFixture(options = {}) {
+  const requests = [];
+  const completion = { workflowId: "report-001", status: "completed", artifact: { fileName: "report.md", bytes: 12, sha256: "a".repeat(64), absolutePath: "private-path" }, secret: "fixture-secret" };
+  const server = createServer(async (request, response) => {
+    const body = await readJsonBody(request);
+    requests.push({ method: request.method, url: request.url, body, authorization: request.headers.authorization });
+    if (options.disconnect) { request.socket.destroy(); return; }
+    if (options.status) { writeJson(response, options.status, { error: options.error }); return; }
+    const inspection = { workflowId: "report-001", status: "completed", stage: "artifact.write", attempt: 1,
+      canResume: false, resumeAction: null, outcomeUnknown: false, error: null, result: completion,
+      persistence: { storageMode: "single-host-sqlite", automaticRedispatch: false }, privatePath: "private-path", ...options.inspection };
+    const data = request.method === "DELETE" ? { ...workflowCredentialReceipt(options.removed ?? true), secret: "fixture-secret" }
+      : request.url === "/workflow/run" ? options.badCompletion ? { ...completion, workflowId: "owner-spoof" } : completion
+        : request.url.startsWith("/workflow/runs?") ? { runs: [inspection] } : inspection;
+    writeJson(response, 200, { data });
+  });
+  server.listen(0, "127.0.0.1"); await once(server, "listening");
+  return { url: `http://127.0.0.1:${server.address().port}`, requests,
+    close: () => new Promise(resolveClose => { server.close(() => resolveClose()); server.closeAllConnections(); }) };
+}
 
 async function createAgentGovernanceMockGateway(options = {}) {
   const requests = [];

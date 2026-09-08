@@ -511,6 +511,13 @@ async function createLocalClientReceiptlessReconciliationResponse(options, state
   }
 }
 
+function requireWorkflowRunId(value) {
+  if (typeof value !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$/.test(value)) {
+    throw createGatewayProtocolError("Workflow ID must be a bounded portable identifier.");
+  }
+  return value;
+}
+
 export function createGatewayClient(options = {}) {
   const baseUrl = normalizeBaseUrl(options.baseUrl);
   const headers = options.headers ?? {};
@@ -1066,6 +1073,24 @@ export function createGatewayClient(options = {}) {
         body: request,
         headers,
         timeoutMs,
+        redirect: "error",
+      });
+    },
+    workflowRuns(options = {}) {
+      if (!options || typeof options !== "object" || Array.isArray(options)
+        || Object.keys(options).some(key => key !== "limit")
+        || options.limit !== undefined && (!Number.isInteger(options.limit) || options.limit < 1 || options.limit > 100)) {
+        throw createGatewayProtocolError("Workflow list accepts only a limit between 1 and 100.");
+      }
+      return requestJson({ path: `/workflow/runs?limit=${options.limit ?? 50}`, redirect: "error" });
+    },
+    workflowRunStatus(workflowId) {
+      return requestJson({ path: `/workflow/runs/${encodeURIComponent(requireWorkflowRunId(workflowId))}`, redirect: "error" });
+    },
+    recoverWorkflowRun(workflowId) {
+      return requestJson({
+        path: `/workflow/runs/${encodeURIComponent(requireWorkflowRunId(workflowId))}/recover`,
+        method: "POST", body: {}, redirect: "error",
       });
     },
     workforceHealth() {

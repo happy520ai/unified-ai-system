@@ -615,6 +615,55 @@ async function closeServer(server) {
   }
 }
 
+test("workflow history SDK methods preserve identity headers, stable IDs and caller cancellation", async () => {
+  const requests = [];
+  const { server, baseUrl } = await startServer(async (request, response) => {
+    let body = ""; for await (const chunk of request) body += chunk;
+    requests.push({ method: request.method, url: request.url, authorization: request.headers.authorization, body: body ? JSON.parse(body) : null });
+    response.setHeader("content-type", "application/json");
+    response.end(JSON.stringify({ data: { workflowId: "workflow-1", status: "unknown", canResume: false } }));
+  });
+  const controller = new AbortController();
+  const client = createGatewayClient({ baseUrl, headers: { authorization: "Bearer sdk-workflow-fixture" }, signal: controller.signal });
+  try {
+    await client.workflowRun({ workflowId: "workflow-1", goal: "local report", agentId: "agt_report" });
+    await client.workflowRuns({ limit: 7 });
+    await client.workflowRunStatus("workflow-1");
+    const recovered = await client.recoverWorkflowRun("workflow-1");
+    assert.equal(recovered.data.status, "unknown");
+    assert.deepEqual(requests, [
+      { method: "POST", url: "/workflow/run", authorization: "Bearer sdk-workflow-fixture", body: { workflowId: "workflow-1", goal: "local report", agentId: "agt_report" } },
+      { method: "GET", url: "/workflow/runs?limit=7", authorization: "Bearer sdk-workflow-fixture", body: null },
+      { method: "GET", url: "/workflow/runs/workflow-1", authorization: "Bearer sdk-workflow-fixture", body: null },
+      { method: "POST", url: "/workflow/runs/workflow-1/recover", authorization: "Bearer sdk-workflow-fixture", body: {} },
+    ]);
+    for (const id of [null, "", "../escape", "has/slash", "x".repeat(161)]) {
+      assert.throws(() => client.workflowRunStatus(id), GatewayClientError);
+      assert.throws(() => client.recoverWorkflowRun(id), GatewayClientError);
+    }
+    for (const options of [null, { limit: 0 }, { limit: 101 }, { limit: 1.5 }, { tenantId: "spoof" }]) {
+      assert.throws(() => client.workflowRuns(options), GatewayClientError);
+    }
+    controller.abort();
+    await assert.rejects(client.workflowRunStatus("workflow-1"), GatewayClientAbortError);
+    assert.equal(requests.length, 4);
+  } finally { await closeServer(server); }
+});
+
+test("workflow run and recovery refuse redirects without another request or automatic resume", async () => {
+  const requests = [];
+  const { server, baseUrl } = await startServer((request, response) => {
+    requests.push(request.url);
+    response.writeHead(307, { location: "/unexpected-redirect" }); response.end();
+  });
+  const client = createGatewayClient({ baseUrl });
+  try {
+    await assert.rejects(client.recoverWorkflowRun("workflow-1"), error => error instanceof GatewayClientError && error.retryable === false);
+    await assert.rejects(client.workflowRun({ workflowId: "workflow-1", goal: "local report" }), error => error instanceof GatewayClientError && error.retryable === false);
+    assert.deepEqual(requests, ["/workflow/runs/workflow-1/recover", "/workflow/run"]);
+  } finally { await closeServer(server); }
+});
+
 test("validates and normalizes the gateway base URL", () => {
   assert.throws(
     () => createGatewayClient(),
