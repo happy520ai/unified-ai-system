@@ -1,4 +1,5 @@
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
+import { clearRuntimeProviderCredential } from "../providers/clearRuntimeProviderCredential.ts";
 
 export async function dispatchHttpRoutes04(context) {
   const {
@@ -72,6 +73,29 @@ export async function dispatchHttpRoutes04(context) {
           details: sanitizeCredentialErrorDetails(error?.details),
         }),
       );
+    }
+    return;
+  }
+
+  if (request.method === "DELETE" && url.pathname === "/providers/runtime-credential") {
+    let body;
+    try {
+      body = await readJson(request);
+    } catch (error) {
+      const oversized = error?.code === "request_payload_too_large" && error?.statusCode === 413;
+      writeJson(response, oversized ? 413 : 400, createErrorEnvelope(
+        oversized ? "request_payload_too_large" : "provider_runtime_credential_clear_invalid_json",
+        oversized ? "Credential clearing request body is too large." : "Credential clearing requires a valid JSON body.",
+        { startedAt, category: "validation", retryable: false },
+      ));
+      return;
+    }
+    try {
+      const result = await clearRuntimeProviderCredential(application, body, request.enterpriseIdentity);
+      writeJson(response, 200, createOkEnvelope(result, { startedAt }));
+    } catch (error) {
+      writeJson(response, error.statusCode ?? 503, createErrorEnvelope(error.code,
+        error.message, { startedAt, category: error.category, retryable: false, details: error.details }));
     }
     return;
   }

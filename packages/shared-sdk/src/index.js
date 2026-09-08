@@ -548,6 +548,17 @@ export function createGatewayClient(options = {}) {
         timeoutMs,
       });
     },
+    clearRuntimeProviderCredential(request) {
+      if (!request || typeof request !== "object" || Array.isArray(request)
+        || Object.keys(request).length !== 1 || typeof request.providerId !== "string"
+        || !/^[a-z][a-z0-9._-]{0,127}$/.test(request.providerId)) {
+        throw createGatewayProtocolError("Credential clearing requires exactly one canonical providerId.");
+      }
+      return requestJson({
+        path: "/providers/runtime-credential", method: "DELETE", body: { providerId: request.providerId },
+        redirect: "error",
+      });
+    },
     localClients(options = {}) {
       const query = new URLSearchParams();
       if (options.includeDisabled === true) query.set("includeDisabled", "true");
@@ -2214,12 +2225,14 @@ async function requestJsonImpl({
   headers,
   signal,
   timeoutMs,
+  redirect = /** @type {"follow" | "error" | "manual"} */ ("follow"),
 }) {
   const requestController = createRequestController({ signal, timeoutMs });
 
   try {
     const response = await fetch(`${baseUrl}${path}`, {
       method,
+      redirect,
       headers: {
         "content-type": "application/json",
         ...headers,

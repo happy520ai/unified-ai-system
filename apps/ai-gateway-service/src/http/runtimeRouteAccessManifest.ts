@@ -1,6 +1,7 @@
 export const UNKNOWN_ROUTE_PERMISSION = "route:unknown";
 
 const RUNTIME_ROUTE_PERMISSION_OVERRIDES = new Map<string, string>([
+  ["DELETE /providers/runtime-credential", "provider:write"],
   ["GET /workbench/feature-status", "dashboard:read"],
   ["GET /approvals", "workflow:run"],
   ["GET /plugin-registry", "provider:read"],

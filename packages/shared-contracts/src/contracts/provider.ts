@@ -43,3 +43,19 @@ export interface ProviderDescriptor {
   priority?: number;
   metadata?: ContractMetadata;
 }
+
+export interface ClearRuntimeProviderCredentialRequest {
+  providerId: string;
+}
+
+/** Store-operation receipt; it does not disable or revoke the upstream provider. */
+export interface ClearRuntimeProviderCredentialResult {
+  providerId: string;
+  removed: boolean;
+  scope: "runtime-credential-store";
+  appliesTo: "subsequent-credential-lookups";
+  inFlightRequestsCancelled: false;
+  providerKeyRevoked: false;
+  otherCredentialSourcesModified: false;
+  otherProcessesInvalidated: false;
+}

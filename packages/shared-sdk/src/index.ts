@@ -1,4 +1,6 @@
 import type {
+  ClearRuntimeProviderCredentialRequest,
+  ClearRuntimeProviderCredentialResult,
   ContractMetadata,
   GatewayChatRequest,
   GatewayChatResult,
@@ -104,6 +106,8 @@ import type {
 } from "@unified-ai-system/shared-contracts";
 
 export type {
+  ClearRuntimeProviderCredentialRequest,
+  ClearRuntimeProviderCredentialResult,
   GatewayHealth,
   LocalClientExecutionReceiptJournalStatus,
   LocalClientExecutionReceiptRecoveryStatus,
@@ -347,6 +351,7 @@ export interface GatewayClient {
   readonly baseUrl: string;
   health(): Promise<ResultEnvelope<GatewayHealth>>;
   setupReadiness(): Promise<ResultEnvelope<SetupReadinessResult>>;
+  clearRuntimeProviderCredential(request: ClearRuntimeProviderCredentialRequest): Promise<ResultEnvelope<ClearRuntimeProviderCredentialResult>>;
   localClientsStatus(): Promise<ResultEnvelope<LocalClientStatusResult>>;
   localClients(options?: {
     includeDisabled?: boolean;
