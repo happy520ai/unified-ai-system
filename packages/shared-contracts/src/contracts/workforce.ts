@@ -266,10 +266,12 @@ export interface WorkforcePlanState {
     nextDecision: string;
   };
   workflowRunHandoff: {
-    status: "disabled";
+    status: "module-only";
     lifecycleStatus: "handoff-disabled";
-    implemented: false;
+    implemented: true;
+    runtimeConnected: false;
     enabled: false;
+    enabledByDefault: false;
     reason: string;
   };
 }

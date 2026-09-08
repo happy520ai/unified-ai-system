@@ -1,12 +1,33 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { EventEmitter } from "node:events";
 import { createGatewayLifecycle } from "./gatewayLifecycle.ts";
-import { createGatewayShutdownController, readBoundedDuration } from "./gatewayShutdown.ts";
+import { bindManagedGatewayParent, createGatewayShutdownController, readBoundedDuration } from "./gatewayShutdown.ts";
 
 afterEach(() => {
   vi.useRealTimers();
 });
 
 describe("gateway shutdown controller", () => {
+  it("drains a managed gateway when its owner's IPC connection closes", () => {
+    const parent = Object.assign(new EventEmitter(), { connected: true });
+    const shutdown = vi.fn(() => true);
+    expect(bindManagedGatewayParent(parent, { shutdown })).toBe(true);
+    parent.emit("disconnect");
+    parent.emit("disconnect");
+    expect(shutdown).toHaveBeenCalledTimes(1);
+    expect(shutdown).toHaveBeenCalledWith("managed_parent_disconnected", 0);
+  });
+
+  it("prevents a managed listener from starting after an early or missing IPC owner", () => {
+    for (const connected of [false, undefined]) {
+      const parent = Object.assign(new EventEmitter(), { connected });
+      const shutdown = vi.fn(() => true);
+      expect(bindManagedGatewayParent(parent, { shutdown })).toBe(false);
+      expect(shutdown).toHaveBeenCalledTimes(1);
+      expect(shutdown).toHaveBeenCalledWith("managed_parent_disconnected", 0);
+    }
+  });
+
   it("marks draining, waits for propagation, then closes resources and exits cleanly", async () => {
     vi.useFakeTimers();
     const lifecycle = createGatewayLifecycle();

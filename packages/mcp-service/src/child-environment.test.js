@@ -56,3 +56,11 @@ test("supervisor stderr redaction covers labeled, bearer, URL, known-token, and 
   }
   assert.match(output, /\[REDACTED/);
 });
+
+test("administration token never reaches the child through ambient or explicit environment", () => {
+  for (const name of ["MCP_SERVICE_HEALTH_ADMIN_TOKEN", "mcp_service_health_admin_token"]) {
+    assert.deepEqual(createSupervisorChildEnvironment({ [name]: "ambient-admin" }, {
+      [name]: "explicit-admin", MCP_SUPERVISED: "1",
+    }), { MCP_SUPERVISED: "1" });
+  }
+});

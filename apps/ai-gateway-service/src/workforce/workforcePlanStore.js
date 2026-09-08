@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import { normalizeWorkflowHandoffPreviewState } from "./workflowRunHandoff.js";
 import {
   DEFAULT_STORE_PATH,
   STORE_VERSION,
@@ -80,6 +81,11 @@ const storeMutationQueues = new Map();
 function sealTaskPackage(taskPackage) {
   const sealed = sealWorkforcePreviewSafety(taskPackage);
   sealed.exportableJson = sealWorkforcePreviewSafety(sealed.exportableJson || {});
+  for (const view of [sealed, sealed.exportableJson]) {
+    if (view.planState && typeof view.planState === "object") {
+      view.planState = normalizeWorkflowHandoffPreviewState(view.planState);
+    }
+  }
   sealed.markdown = formatTaskPackageMarkdown({
     plan: sealed,
     planId: sealed.planId,

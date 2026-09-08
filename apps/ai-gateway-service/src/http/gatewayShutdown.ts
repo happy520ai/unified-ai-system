@@ -29,6 +29,19 @@ export type GatewayShutdownController = {
   isShuttingDown(): boolean;
 };
 
+export function bindManagedGatewayParent(
+  parent: { connected?: boolean; once(event: "disconnect", listener: () => void): unknown },
+  controller: Pick<GatewayShutdownController, "shutdown">,
+): boolean {
+  const ownerLost = () => { controller.shutdown("managed_parent_disconnected", 0); };
+  if (!parent.connected) {
+    ownerLost();
+    return false;
+  }
+  parent.once("disconnect", ownerLost);
+  return true;
+}
+
 export function createGatewayShutdownController(options: GatewayShutdownOptions): GatewayShutdownController {
   let shuttingDown = false;
 

@@ -89,11 +89,50 @@ verbose log lines (including child-process SIGTERM/EXIT detail).
 
 - `GET /healthz` - liveness; returns 200 if the daemon itself is up.
 - `GET /readyz` - readiness; returns 200 only when the MCP child is running.
-- `GET /status` - full state JSON: pid, uptime, restartCount, lastExit, last stderr tail.
-- `GET /logs?limit=N` - last N bytes of the child stderr tail.
-- `POST /shutdown` - drains the daemon gracefully and exits.
+- `GET /status` - public service/version, running, uptimeMs, and restartCount only;
+  diagnostic errors and stderr are excluded.
+- `GET /logs?limit=N` - authenticated child stderr tail, at most N characters
+  (default 8000; one integer from 1 to 64000).
+- `POST /shutdown` - authenticated, once-only request to drain and exit the daemon.
 
-All interfaces bind to `127.0.0.1` only.
+All interfaces bind to `127.0.0.1` only. Other `MCP_SERVICE_HEALTH_HOST` values,
+including `localhost`, `::1`, and `0.0.0.0`, are rejected before startup.
+
+### Administration token lifecycle
+
+Health probes remain available without a token. HTTP logs and shutdown are
+disabled (503) unless the daemon receives `MCP_SERVICE_HEALTH_ADMIN_TOKEN`.
+Use a dedicated random token generated from at least 32 random bytes; the
+accepted encoding is 32-256 ASCII letters, digits, `.`, `_`, `~`, `+`, `/`, or `-`.
+Admin requests require exactly one `Authorization: Bearer <token>` header;
+wrong/missing/duplicate credentials return 401. Query parameters are not credentials.
+Do not reuse a gateway or Provider credential.
+
+For a foreground PowerShell session, generate and inject a token without printing
+it or putting it in command-line arguments:
+
+```powershell
+$env:MCP_SERVICE_HEALTH_ADMIN_TOKEN = node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))'
+try {
+  node packages/mcp-service/bin/start-service.js --daemon --repo-root . --log-file .data/mcp-service.log
+} finally {
+  Remove-Item Env:MCP_SERVICE_HEALTH_ADMIN_TOKEN -ErrorAction SilentlyContinue
+}
+```
+
+Provision the same token to an authorized HTTP client through its protected
+environment/secret mechanism, never URLs, logs, shared files, or committed config.
+The daemon keeps its authentication digest in memory and does not pass the admin
+token to the supervised child, including explicit child environment overrides.
+
+The installer does not persist or inject this token into Task Scheduler, systemd,
+or launchd. Default installed services therefore keep HTTP administration disabled;
+OS service-manager status/stop commands remain available. Administrators enabling
+HTTP management must provision the daemon's environment using their platform's
+protected service configuration. Rotate by stopping the service with its service
+manager (or Ctrl+C for foreground mode), replacing both daemon/client tokens, and
+restarting. Old tokens then return 401. HTTP `/shutdown` is not a permanent service
+stop: auto-restart policies, including systemd `Restart=always`, may relaunch it.
 
 ## Verification
 

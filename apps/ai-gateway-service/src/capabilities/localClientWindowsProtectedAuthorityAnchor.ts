@@ -25,7 +25,7 @@ export const LOCAL_CLIENT_WINDOWS_PROTECTED_AUTHORITY_BOUNDARIES = Object.freeze
   hklmView: "registry64" as const,
 });
 
-export type LocalClientWindowsAuthorityOperation = "inspect" | "prepare-next" | "finalize";
+export type LocalClientWindowsAuthorityOperation = "inspect" | "prepare-next" | "finalize" | "enroll-baseline";
 
 export interface LocalClientWindowsAuthorityCheckpointState {
   readonly currentGeneration: number;
@@ -102,6 +102,10 @@ export interface LocalClientWindowsAuthorityBrokerResponse {
 }
 
 export interface LocalClientWindowsAuthorityPrivilegedBrokerPort {
+  /** Optional so existing read/advance brokers remain usable without enrollment support. */
+  enrollBaseline?(
+    request: LocalClientWindowsAuthorityBrokerRequest,
+  ): Promise<LocalClientWindowsAuthorityBrokerResponse>;
   inspect(
     request: LocalClientWindowsAuthorityBrokerRequest,
   ): Promise<LocalClientWindowsAuthorityBrokerResponse>;
@@ -188,6 +192,7 @@ export type LocalClientWindowsAuthorityErrorCode =
   | "LOCAL_CLIENT_WINDOWS_AUTHORITY_ROLLBACK_DETECTED"
   | "LOCAL_CLIENT_WINDOWS_AUTHORITY_GENERATION_MISMATCH"
   | "LOCAL_CLIENT_WINDOWS_AUTHORITY_DIGEST_MISMATCH"
+  | "LOCAL_CLIENT_WINDOWS_AUTHORITY_BASELINE_MISMATCH"
   | "LOCAL_CLIENT_WINDOWS_AUTHORITY_PENDING_RECOVERY_REQUIRED"
   | "LOCAL_CLIENT_WINDOWS_AUTHORITY_NO_PENDING_GENERATION"
   | "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_WRITE_FAILED"
@@ -314,6 +319,30 @@ export class LocalClientWindowsProtectedAuthorityAnchor {
       );
     }
     return Object.freeze({ generation: expectedGeneration, digest: expectedDigest });
+  }
+
+  /** Explicitly enroll an operator-approved baseline. Inspection/startup never calls this. */
+  async enrollBaseline(digest: string): Promise<LocalClientWindowsProtectedAuthorityStatus> {
+    this.#assertOpen();
+    const configuration = this.#requireConfiguration();
+    const expectedDigest = assertDigest(digest);
+    const current = await this.#inspectStrict();
+    if (current.checkpoint.pendingGeneration !== null) throw pendingError();
+    if (current.checkpoint.currentGeneration !== 0
+      && !(current.checkpoint.currentGeneration === 1 && safeDigestEqual(current.checkpoint.currentDigest, expectedDigest))) {
+      throw authorityError("LOCAL_CLIENT_WINDOWS_AUTHORITY_BASELINE_MISMATCH",
+        "Baseline enrollment cannot replace an established or different protected checkpoint.", "integrity", 409);
+    }
+    if (!configuration.broker?.enrollBaseline) throw unavailableError("BROKER_UNAVAILABLE");
+    const request = this.#createRequest({ operation: "enroll-baseline", expectedCurrentGeneration: 0,
+      expectedCurrentDigest: null, nextGeneration: 1, nextDigest: expectedDigest });
+    let response: LocalClientWindowsAuthorityBrokerResponse;
+    try { response = await configuration.broker.enrollBaseline(request); } catch { throw brokerWriteError(); }
+    const inspected = await this.#validateMutationResponse(request, response);
+    if (inspected.checkpoint.currentGeneration !== 1 || !safeDigestEqual(inspected.checkpoint.currentDigest, expectedDigest)
+      || inspected.checkpoint.pendingGeneration !== null || inspected.checkpoint.pendingDigest !== null
+      || inspected.status.state !== "ready") throw attestationError("CHECKPOINT_DIVERGED");
+    return inspected.status;
   }
 
   async prepareNext(
@@ -693,7 +722,7 @@ function validateResponseShape(response: unknown): asserts response is LocalClie
   ], "ATTESTATION_INVALID");
   if (
     response.brokerVersion !== LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_VERSION
-    || !new Set(["inspect", "prepare-next", "finalize"]).has(String(response.operation ?? ""))
+    || !new Set(["inspect", "prepare-next", "finalize", "enroll-baseline"]).has(String(response.operation ?? ""))
     || typeof response.nonce !== "string"
     || !NONCE_PATTERN.test(response.nonce)
     || typeof response.responseHmacSha256 !== "string"
@@ -1041,7 +1070,8 @@ function validBroker(value: unknown): value is LocalClientWindowsAuthorityPrivil
   const candidate = value as Partial<LocalClientWindowsAuthorityPrivilegedBrokerPort>;
   return typeof candidate.inspect === "function"
     && typeof candidate.prepareNext === "function"
-    && typeof candidate.finalize === "function";
+    && typeof candidate.finalize === "function"
+    && (candidate.enrollBaseline === undefined || typeof candidate.enrollBaseline === "function");
 }
 
 function cloneKey(value: unknown): Buffer {

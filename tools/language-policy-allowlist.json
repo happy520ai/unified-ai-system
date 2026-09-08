@@ -131,6 +131,20 @@
       "migrationPlan": "Before v0.6.0 and no later than 2026-10-31, happy520ai will migrate the 17 runtime modules first in ownership order (enterprise, provider/gateway, Forge sandbox, MCP child boundaries, response/routing, workforce), then convert their 21 colocated tests and remove this exact file-set exception.",
       "pr": "https://github.com/happy520ai/unified-ai-system/pull/115",
       "notes": "Exact files only. New JavaScript files remain blocked; this exception is not evidence of TypeScript completion or production readiness."
+    },
+    {
+      "type": "fileSet",
+      "value": "t-002-windows-native-authority",
+      "files": [
+        "apps/ai-gateway-service/src/native/localClientWindowsAuthorityNative.cpp",
+        "apps/ai-gateway-service/src/native/localClientWindowsAuthorityService.cpp"
+      ],
+      "justification": "T-002 requires actual Windows token, ACL, SCM, Registry64 and handle-safe filesystem APIs unavailable in the existing TypeScript runtime. Only these native primitives and the fixed service host use C++; HMAC, checkpoint and business protocols remain TypeScript.",
+      "owner": "local-client-management",
+      "removalBy": "2026-12-08",
+      "migrationPlan": "Remove these exact native files and this exception when the optional Windows authority is withdrawn. At the 2026-12-08 compatibility review, retain only measured Win32 primitives that still lack a TypeScript facility; protocol and coordination logic must stay TypeScript. Renewal requires the recorded native validation evidence.",
+      "issueId": "T-002",
+      "notes": "Source/build authorization only. No service deployment or protection-readiness claim follows from this exception."
     }
   ]
 }

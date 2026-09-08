@@ -7,7 +7,6 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, realpathSync } from "node:fs";
 import { dirname, relative, resolve, sep } from "node:path";
-import vm from "node:vm";
 import { buildTool, createToolUseContext } from "./toolCore.js";
 import { createBuiltInTools } from "./developerTools.js";
 import { createGitTools } from "../tools/gitTools.js";
@@ -39,6 +38,7 @@ import {
  * @param {string} [options.workingDirectory] - 工具文件系统边界
  * @param {boolean} [options.enableHighRiskTools] - 显式启用高风险工具
  * @param {string[]} [options.highRiskToolAllowlist] - 精确启用的高风险工具名
+ * @param {import('./codeRunIsolation.ts').CodeRunIsolationOptions} [options.codeRunIsolation] - Server-owned container configuration
  * @param {Object} [options.externalEffectGate] - Durable irreversible-effect gate
  * @param {Object} [options.externalEffectFence] - Trusted execution fence
  * @param {string} [options.externalEffectTenantId] - Server-derived tenant identity
@@ -94,7 +94,7 @@ export function createAgentToolRegistry(options = {}) {
   const resultCache = createToolResultCache();
 
   // 注册所有内置工具（传入 workingDirectory 确保文件操作正确解析路径）
-  const builtInTools = createBuiltInTools(options.workingDirectory || process.cwd());
+  const builtInTools = createBuiltInTools(options.workingDirectory || process.cwd(), options.codeRunIsolation);
   for (const [name, tool] of Object.entries(builtInTools)) {
     if (!shouldRegisterAgentTool({
       toolName: name,
@@ -596,6 +596,12 @@ export function createAgentToolRegistry(options = {}) {
      * @returns {Object} 注册结果
      */
     registerTool(toolDef) {
+      const name = toolDef?.name;
+      if (typeof name === "string" && name.normalize("NFKC").toLowerCase().replace(/[-_\s\p{Cf}]/gu, "") === "coderun") {
+        return { status: "error", code: "TOOL_BUILTIN_OVERRIDE_BLOCKED", error: "code_run is reserved for the isolated built-in tool." };
+      }
+      // Snapshot identity once so validation and insertion cannot observe different names.
+      toolDef = { ...toolDef, name };
       if (
         typeof toolDef?.name !== "string"
         || !toolDef.name.trim()

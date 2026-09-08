@@ -507,22 +507,23 @@ fingerprint, or derived key.
   before/after reads, and an external anchor advancement for every mutation;
   configuration flags or a `rollbackResistant` boolean cannot manufacture its
   evidence. The gateway exposes the unsatisfied native blockers in local-client
-  status and keeps real-provider managed dispatch closed. A check-only
-  provisioning plan exists, but
-  there is still no native Windows OS-port adapter, authenticated IPC transport,
-  installed service SID, protected key provisioning, actual ACL/HKLM mutation,
-  operational replay-checkpoint coordinator, clean-machine proof, or power-loss drill.
-  Its assurance remains `same-user-resistant-if-provisioned`,
+  status and keeps real-provider managed dispatch closed. An optional native
+  receipt/workcopy package now implements the Windows OS port, authenticated
+  local IPC, demand-start service installer and dedicated DPAPI key provisioning.
+  Its build and read-only checks are separate from installation and real service
+  validation. The default PoP runtime still lacks its bound replay-checkpoint
+  coordinator and native evidence adapter; clean-machine and power-loss proof
+  also remain open.
+  The default PoP runtime's assurance remains `same-user-resistant-if-provisioned`,
   `not-admin-resistant`, and `not-provisioner`, not deployed rollback resistance.
 
 Additional lossless adapters for clients that require JSONC/YAML/TOML or other
 formats, MCP/A2A client-principal dispatch binding, real-client adapter
 certification, OS/service-account isolation and an independently protected
 monotonic revocation anchor, a distributed PoP replay guard, async PostgreSQL
-readiness, real-client atomic receipt/reconciliation implementation and
-certification, distributed
-route-plan/claim/feedback/outbox state, native
-Windows broker deployment, full public-clone evidence, long-run soak, and
+readiness, real-client atomic receipt/reconciliation certification, distributed
+route-plan/claim/feedback/outbox state, production
+Windows broker deployment certification, full public-clone evidence, long-run soak, and
 clean-VM certification remain release gates. Current SQLite stores,
 authenticated registry, durable PoP replay guard, feedback outbox, and
 scheduler are explicitly single-host authority boundaries.
@@ -556,7 +557,213 @@ The initial service and adapter registry are now strict TypeScript. The migratio
 uses neither `ts-nocheck` nor a language-policy exception; shared public DTOs are
 imported from `packages/shared-contracts`.
 
+## Bounded editor receiver module
+
+`localClientLoopbackReceiver.ts` implements the receiving side of the existing
+loopback v2 protocol and reuses the client receipt journal. It is an opt-in module;
+the application does not install an editor extension or start this receiver.
+`apps/agent-console/src/editor/localClientEditorAction.ts` accepts the actual
+VS Code-compatible API and one explicitly bound workspace/file. It validates the
+original content, clean document state, canonical path, and single file link before
+using WorkspaceEdit and document.save. Incoming actions cannot choose a path or
+invoke a shell, model, provider, or arbitrary editor command.
+
+Cancellation before effect claim records failed-before-effect. Save failures and
+crashes after effect claim remain unknown and cannot authorize another edit.
+Concurrent duplicates are rejected before preparing the active owner's intent.
+Closing stops admission and waits for existing handlers to finish before erasing
+the shared secret; callers must keep the journal open until close resolves.
+The editor buffer is checked again after asynchronous disk reads and immediately
+before applyEdit to preserve edits that arrive during validation.
+Completed receipts survive a journal reopen, but editor saves and journal writes
+do not share an atomic transaction. This module supplies no Windows identity
+broker, protected snapshot anchor, secret provisioning, or readiness override.
+The formal governed execution entry remains blocked until its existing
+requirements are actually satisfied. Component tests and a native editor API
+exercise are not clean-VM certification or production deployment.
+
+Language Selection: TypeScript keeps the receiver and editor port checked by the
+existing toolchain (type safety 5/5, ecosystem fit 5/5); JavaScript would remove
+those interface checks, and another runtime would require an unnecessary bridge.
+The five implementation/test files exceed 500 added lines because both receiving
+transport and editor API boundaries lacked implementations and need rejection,
+cancellation, unknown-outcome, and restart tests. Existing wire signing and SQLite
+journals are reused; no dependency, shared contract, or database schema is added.
+Rollback removes these opt-in modules and the application-private codec export;
+no default runtime registration or client configuration needs migration.
+
 ## Required verification sequence
+
+### Governed workcopies
+
+The optional workcopy path stores one bounded resource's encrypted content and
+execution-bound completion state in one SQLite transaction. It reuses existing
+dispatch-intent validation and SDK receipt signing. A reopened session fences
+unfinished older operations; committed records remain immutable and capacity
+fails closed without evicting evidence. Only those persisted committed records
+can produce a native receipt. Matching current text alone cannot do so.
+
+The console's `localClientWorkcopyEditor.ts` registers a `uai-workcopy` filesystem
+provider when explicitly instantiated. The editor uses its actual document/edit/
+save API, while the provider admits only an armed operation's exact approved
+bytes. Completed resources retain a read-only view. Ordinary `file://` saving
+keeps its separate unknown-outcome/no-redispatch semantics; workcopies do not
+make editor buffers, extension events, formatters or arbitrary files atomic.
+
+`recordNativeCompleted` projects an already committed native receipt into an
+existing effect-started client journal row after full signature and binding
+checks. Reconciliation authenticates its query before native lookup and never
+calls prepare, applyEdit or save. No native return value, module capability flag
+or configuration boolean independently enables formal execution readiness.
+
+This backend requires a runtime with `DatabaseSync.enableDefensive`; Node 25.8.1
+has been tested. Node 22.23.2 runs the explicit unavailable-backend refusal check
+and skips native transaction assertions. Those skips are not feature acceptance.
+The constructor refuses that runtime before creating persistent state.
+
+Language Selection: this is Node/SQLite and editor API orchestration, so it uses
+the existing TypeScript toolchain and shared SDK. TypeScript retains typed ports
+and no runtime bridge (safety 5/5, ecosystem 5/5); JavaScript loses those checks
+(3/5, 5/5), while a new runtime requires a bridge without a demonstrated benefit
+(4/5, 2/5). The added encrypted state structure is necessary to commit content
+and execution attribution together; a sidecar receipt cannot close that window.
+Storage, editor, receiving/recovery boundaries and direct tests span eight code/
+test files plus this runbook and exceed 500 lines. No external dependency, public
+wire schema or default application registration is added. Rollback disables the
+optional provider/receiver binding and preserves its database; ordinary-file and
+default gateway operation do not require a migration.
+
+Storage transactions, actual process-termination tests, modelled editor API tests
+and a packaged VSIX are distinct evidence layers. Bounded runs in both VS Code
+and Cursor have now exercised actual document/edit/save callbacks, duplicate
+suppression, recovery after an owned backend-process crash without repeating an
+edit, exact content rollback, request cancellation and receiver revocation before
+effects. These runs used disposable stores without a protected authority binding.
+Native identity, persistent business-key provisioning, protected snapshot anchors
+in that same execution chain, and formal execution readiness remain separate
+requirements for that composed deployment.
+
+### Protected receipt checkpoint coordination
+
+An explicitly configured receipt journal can coordinate its authenticated logical
+state with an independent Windows authority slot. Baseline enrollment is a
+separate operation: ordinary construction, reads and dispatch never enroll or
+reset a slot. A signed checkpoint generation and digest live in the same SQLite
+transaction as the journal rows. The coordinator serializes admitted operations,
+holds the write lock during authority preparation, and releases a result only
+after SQLite commit and authority finalization. It does not retain a replay queue.
+
+Recovery accepts no operation callback. If the committed local generation matches
+the authority's pending target, recovery may finalize that exact checkpoint.
+A local base with a pending target, a divergent file/HKLM pair, or a restored old
+database fails closed and requires explicit recovery investigation. It never
+repeats an editor save or interprets missing evidence as permission to dispatch.
+Closing drains admitted operations before the journal or its keys are closed.
+
+The Windows broker supports independently bound slots beneath its fixed storage
+root and explicit zero-to-one baseline enrollment. The legacy slot remains the
+default for existing callers. Slot paths are included in existing signed request,
+file and response bindings; nonce replay protection remains service-wide.
+These modules do not install a service, provision secrets, or attest native ACLs.
+The diagnostic checkpoint state does not change execution-readiness flags.
+
+Language Selection: TypeScript reuses the existing asynchronous broker and journal
+interfaces (domain fit 5/5, maintenance 5/5, safety 5/5); JavaScript scores 5/5,
+4/5, 3/5 for the same criteria, and a separate runtime scores 2/5, 2/5, 4/5
+because it adds another protocol boundary. Seven implementation/test files plus
+this runbook and a small signed checkpoint table are necessary to cover slot
+binding, enrollment and SQLite/authority crash windows; the batch exceeds 500
+lines but adds no dependency or generic redo subsystem. Rollback disables the
+opt-in binding and preserves the checkpointed database and authority. Opening a
+checkpointed journal without its authority is rejected; rollback must not erase
+or silently downgrade its protection history.
+
+The workcopy store uses the same coordinator for its authenticated logical state,
+including content, completion records and the session epoch. Its document and
+operation methods are asynchronous so they can wait for authority confirmation.
+Opening a protected store does not change that epoch or abandon operations before
+authority verification. Explicit recovery only finalizes an already committed
+target; the next admitted operation starts and fences the new session. Existing
+editor ports await these calls, and shutdown drains them before erasing keys.
+The checkpoint diagnostic remains distinct from native OS protection/readiness.
+
+### Optional Windows authority package
+
+The native package contains five runtime files and two license notices. The
+TypeScript worker reuses the broker's HMAC and transition rules. A C++ Node-API
+module supplies Win32 token, ACL, Registry64 and handle-bound filesystem calls;
+the C++ SCM host owns the fixed local named pipe and one bounded Node worker per
+request. The actual pipe token is passed over private worker stdin, and the client
+checks the pipe server PID against SCM. Requests cannot supply a token handle,
+command, executable or arbitrary filesystem target.
+
+Six fixed runtime slots cover gateway journal, client journal and workcopy for
+VS Code and Cursor. Six separate `validation-*` slots support one-use native
+verification without enrolling or consuming those runtime baselines. The package
+contains exactly these twelve slots; it offers no arbitrary namespace or reset.
+Nonces persist under the authority with a capacity of 4096 and no
+automatic eviction. A dedicated authority HMAC key is protected with DPAPI and
+private ACLs. Its explicit bootstrap endpoint delivers that key in memory only
+after caller-token and all-slot protection checks; it never includes SQLite row,
+workcopy encryption, Provider or OAuth keys. The ordinary caller retains read
+access to anchor files for independent local verification. Private key, nonce and
+ownership files remain unreadable to that caller.
+
+`tools/build-local-client-windows-authority.mjs` uses an installed x64 MSVC/Windows
+SDK/Node header toolchain and the existing Rolldown dependency. It performs no
+installation or dependency download. A separately supplied, verified Node 25.8.1
+license notice accompanies the bundled Node binary. The installer defaults to
+`--check-only`; application requires elevation, `--apply`, `--yes`, and the exact
+reviewed `--expected-manifest-sha256`. It copies from pinned, hashed source handles
+into the fixed protected ProgramData subtree and registers a demand-start service.
+It does not start that service or enroll a positive checkpoint automatically.
+
+Rollback first verifies the installation id, root identity, package hashes and
+service configuration. It removes only matching code/service objects and retains
+all checkpoint, nonce, DPAPI, bootstrap and ownership state, including partial
+installation state. It never resets an accepted generation. A conflicting
+installation or an untrusted ancestor prevents application. An inheritable
+CREATOR OWNER placeholder is recognized only on the checked Software ancestor;
+actual user write grants, OWNER RIGHTS and owned-subtree ACL requirements remain
+strict. This follows the [Windows inheritance model](https://learn.microsoft.com/en-us/windows/win32/secauthz/well-known-sids).
+
+The bounded validation sequence installs and explicitly starts the demand-start
+service, uses only the six validation slots, then stops the service and performs
+rollback check-only. On one authorized Windows host, this sequence passed with
+actual service attestation, receipt readback across verification-worker restart,
+duplicate rejection, cancellation before effect, exact content restoration and
+rejection of older SQLite snapshots. The six runtime slots remained at zero;
+the service was left stopped with manual start and all authority state retained.
+This does not verify real editor callbacks, the complete governed HTTP flow,
+SCM restart, clean-machine recovery or administrator resistance. Actual removal
+is deferred until editor acceptance or an explicit cleanup request. The one-use
+driver keeps independent SQLite keys in memory only; its completed validation
+state is not a persistent runtime key-provisioning solution.
+
+Language Selection: the native workload is Windows security descriptor/token/SCM
+access unavailable directly in the installed Node runtime. Protocol and SQLite
+coordination stay TypeScript. The following are engineering scores, not benchmarks:
+
+| Criterion | C++ for Win32 only | TypeScript alone | C# with installed .NET 6 |
+| --- | ---: | ---: | ---: |
+| Domain fit | 5 | 1 | 5 |
+| Maintenance | 3 | 5 | 3 |
+| Operability | 4 | 3 | 1 |
+| Safety | 4 | 3 | 4 |
+| Migration cost | 4 | 2 | 2 |
+| Existing ecosystem | 4 | 5 | 2 |
+| Total | 24 | 19 | 17 |
+
+The measured inputs are the installed compiler/SDK and successful strict native
+build and read-only API probes. Node-API avoids a private V8 ABI. The two C++ files
+have an exact, expiring language-policy exception; broad path exceptions cannot
+admit C++. Native/worker/installer, tests, build tooling and this language gate
+span more than eight files and 500 lines because all are needed for a reviewable
+privileged installation boundary. No general plugin framework or new runtime
+dependency is introduced. Disabling the optional package and retaining authority
+state is the rollback boundary. Installation and any further system validation
+require explicit scoped authorization; the bounded result above does not certify
+other installations or extend the default PoP runtime's evidence.
 
 1. Run the focused client service and HTTP tests without `tasklist`, `ps`, real
    providers, or real adapters.

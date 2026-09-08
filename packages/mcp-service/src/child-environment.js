@@ -44,6 +44,7 @@ export function createSupervisorChildEnvironment(source = {}, explicit = {}) {
     childEnv[key] = value;
   }
   for (const [key, value] of Object.entries(explicit)) {
+    if (key.toUpperCase() === "MCP_SERVICE_HEALTH_ADMIN_TOKEN") continue;
     if (typeof value === "string") childEnv[key] = value;
   }
   return childEnv;

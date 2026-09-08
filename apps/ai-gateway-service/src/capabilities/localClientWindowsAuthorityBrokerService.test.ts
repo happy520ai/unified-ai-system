@@ -127,6 +127,115 @@ describe("LocalClientWindowsAuthorityBrokerService", () => {
     expect(osPort.claimedNonces).toEqual(new Set([request.nonce]));
   });
 
+  it("derives independent restricted anchor slots while preserving the legacy target", () => {
+    const slots = ["vscode-gateway-journal", "vscode-client-journal", "vscode-workcopy",
+      "cursor-gateway-journal", "cursor-client-journal", "cursor-workcopy"];
+    for (const anchorId of slots) {
+      const plan = createLocalClientWindowsAuthorityProvisioningPlan(PROGRAM_DATA, [], { anchorId });
+      expect(plan.storage.anchorPath).toBe(`${PROGRAM_DATA}\\${LOCAL_CLIENT_WINDOWS_AUTHORITY_PROGRAM_DATA_SUBPATH}\\anchors\\${anchorId}\\authority.json`);
+      expect(plan.registry.keyPath).toBe(`${LOCAL_CLIENT_WINDOWS_AUTHORITY_HKLM_KEY}\\Anchors\\${anchorId}`);
+      expect(plan).toMatchObject({ mode: "check-only", mutatesSystem: false, applyAuthorized: false });
+    }
+    for (const anchorId of ["", "../other", "a\\b", "Upper", "a.b", "con", "nul", "com1", "x".repeat(65)]) {
+      expect(() => createLocalClientWindowsAuthorityProvisioningPlan(PROGRAM_DATA, [], { anchorId })).toThrow();
+      expect(() => createHarness(checkpoint(0, null), anchorId)).toThrow();
+    }
+  });
+
+  it("enrolls a zero checkpoint once and requires a fresh nonce for exact baseline replay", async () => {
+    const zero = checkpoint(0, null);
+    const { broker, osPort } = createHarness(zero);
+    const request = createRequest(broker.target, "enroll-baseline", zero, 1001,
+      { nextGeneration: 1, nextDigest: DIGEST_ONE });
+    await expect(broker.enrollBaseline(request)).resolves.toMatchObject({ fileCheckpoint: checkpoint(1, DIGEST_ONE) });
+    await expect(broker.enrollBaseline(request)).rejects.toMatchObject({
+      code: "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_NONCE_REPLAYED",
+    });
+    await expect(broker.enrollBaseline(createRequest(broker.target, "enroll-baseline", zero, 1002,
+      { nextGeneration: 1, nextDigest: DIGEST_ONE }))).resolves.toMatchObject({ fileCheckpoint: checkpoint(1, DIGEST_ONE) });
+    expect(osPort.operations.filter((entry) => entry === "write-file-atomic")).toHaveLength(1);
+    expect(osPort.operations.filter((entry) => entry === "write-hklm64")).toHaveLength(1);
+  });
+
+  it.each([
+    checkpoint(1, DIGEST_TWO), checkpoint(2, DIGEST_ONE),
+    checkpoint(0, null, 1, DIGEST_ONE), checkpoint(1, DIGEST_ONE, 2, DIGEST_TWO),
+  ])("does not replace a positive or pending baseline: %j", async (state) => {
+    const { broker, osPort } = createHarness(state);
+    await expect(broker.enrollBaseline(createRequest(broker.target, "enroll-baseline", checkpoint(0, null), 1003,
+      { nextGeneration: 1, nextDigest: DIGEST_ONE }))).rejects.toThrow();
+    expect(osPort.operations).not.toContain("write-file-atomic");
+    expect(osPort.operations).not.toContain("write-hklm64");
+  });
+
+  it("keeps ordinary zero-generation advancement forbidden and authenticates enrollment before OS access", async () => {
+    const { broker, osPort } = createHarness(checkpoint(0, null));
+    const request = createRequest(broker.target, "enroll-baseline", checkpoint(0, null), 1004,
+      { nextGeneration: 1, nextDigest: DIGEST_ONE });
+    await expect(broker.enrollBaseline({ ...request, requestHmacSha256: "0".repeat(64) })).rejects.toThrow();
+    await expect(broker.prepareNext(createRequest(broker.target, "prepare-next", checkpoint(0, null), 1005,
+      { nextGeneration: 1, nextDigest: DIGEST_ONE }))).rejects.toThrow();
+    await expect(broker.enrollBaseline(createRequest(broker.target, "enroll-baseline", checkpoint(1, DIGEST_ONE), 1006,
+      { nextGeneration: 2, nextDigest: DIGEST_TWO }))).rejects.toThrow();
+    expect(osPort.operations).toEqual([]);
+  });
+
+  it("retains divergence after a partial baseline enrollment instead of enrolling again", async () => {
+    const zero = checkpoint(0, null);
+    const { broker, osPort } = createHarness(zero);
+    osPort.failNextHklmWrite = true;
+    await expect(broker.enrollBaseline(createRequest(broker.target, "enroll-baseline", zero, 1007,
+      { nextGeneration: 1, nextDigest: DIGEST_ONE }))).rejects.toMatchObject({
+      code: "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_WRITE_INCOMPLETE",
+    });
+    await expect(broker.enrollBaseline(createRequest(broker.target, "enroll-baseline", zero, 1008,
+      { nextGeneration: 1, nextDigest: DIGEST_ONE }))).rejects.toMatchObject({
+      code: "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_CHECKPOINT_DIVERGED",
+    });
+    expect(osPort.fileState()).toEqual(checkpoint(1, DIGEST_ONE));
+    expect(osPort.hklmCheckpoint).toEqual(zero);
+  });
+
+  it.each(["missing", "forged", "user-writable"])("does not enroll a %s authority baseline", async (condition) => {
+    const osPort = new FakeWindowsAuthorityOsPort();
+    const broker = new LocalClientWindowsAuthorityBrokerService({ programDataBasePath: PROGRAM_DATA,
+      hostId: HOST_ID, currentUserSid: CURRENT_USER_SID, integrityKey: KEY, osPort });
+    if (condition !== "missing") osPort.seed(broker.target, checkpoint(0, null));
+    if (condition === "forged") osPort.tamperFileHmac();
+    if (condition === "user-writable") osPort.aclOverride = { ...safeAcl(), registryCurrentUserCanWrite: true };
+    await expect(broker.enrollBaseline(createRequest(broker.target, "enroll-baseline", checkpoint(0, null), 1009,
+      { nextGeneration: 1, nextDigest: DIGEST_ONE }))).rejects.toThrow();
+    expect(osPort.operations).not.toContain("write-file-atomic");
+    expect(osPort.operations).not.toContain("write-hklm64");
+  });
+
+  it("isolates slot checkpoints and rejects cross-slot bindings and service-wide nonce replay", async () => {
+    const osPort = new FakeWindowsAuthorityOsPort();
+    const createSlot = (anchorId: string) => {
+      const broker = new LocalClientWindowsAuthorityBrokerService({
+        programDataBasePath: PROGRAM_DATA, hostId: HOST_ID, currentUserSid: CURRENT_USER_SID,
+        integrityKey: KEY, osPort, anchorId,
+      });
+      osPort.seed(broker.target, checkpoint(0, null));
+      return broker;
+    };
+    const vscode = createSlot("vscode-workcopy"), cursor = createSlot("cursor-workcopy");
+    await vscode.enrollBaseline(createRequest(vscode.target, "enroll-baseline", checkpoint(0, null), 2001,
+      { nextGeneration: 1, nextDigest: DIGEST_ONE }));
+    await cursor.enrollBaseline(createRequest(cursor.target, "enroll-baseline", checkpoint(0, null), 2002,
+      { nextGeneration: 1, nextDigest: DIGEST_TWO }));
+    await vscode.prepareNext(createRequest(vscode.target, "prepare-next", checkpoint(1, DIGEST_ONE), 2003,
+      { nextGeneration: 2, nextDigest: DIGEST_TWO }));
+    expect(osPort.fileState(vscode.target)).toEqual(checkpoint(1, DIGEST_ONE, 2, DIGEST_TWO));
+    expect(osPort.fileState(cursor.target)).toEqual(checkpoint(1, DIGEST_TWO));
+    await expect(cursor.inspect(createRequest(vscode.target, "inspect", checkpoint(1, DIGEST_ONE, 2, DIGEST_TWO), 2004)))
+      .rejects.toMatchObject({ code: "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_REQUEST_BINDING_MISMATCH" });
+    await expect(cursor.inspect(createRequest(cursor.target, "inspect", checkpoint(1, DIGEST_TWO), 2001)))
+      .rejects.toMatchObject({ code: "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_NONCE_REPLAYED" });
+    await expect(cursor.inspect(createRequest(cursor.target, "inspect", checkpoint(1, DIGEST_TWO), 2005)))
+      .resolves.toMatchObject({ fileCheckpoint: checkpoint(1, DIGEST_TWO) });
+  });
+
   it("performs exact protected-file plus HKLM prepare/finalize transitions", async () => {
     const initial = checkpoint(1, DIGEST_ONE);
     const { broker, osPort } = createHarness(initial);
@@ -364,7 +473,7 @@ describe("LocalClientWindowsAuthorityBrokerService", () => {
   });
 });
 
-function createHarness(initialState: LocalClientWindowsAuthorityCheckpointState) {
+function createHarness(initialState: LocalClientWindowsAuthorityCheckpointState, anchorId?: string) {
   const osPort = new FakeWindowsAuthorityOsPort();
   const broker = new LocalClientWindowsAuthorityBrokerService({
     programDataBasePath: PROGRAM_DATA,
@@ -372,6 +481,7 @@ function createHarness(initialState: LocalClientWindowsAuthorityCheckpointState)
     currentUserSid: CURRENT_USER_SID,
     integrityKey: KEY,
     osPort,
+    ...(anchorId === undefined ? {} : { anchorId }),
   });
   osPort.seed(broker.target, initialState);
   return { broker, osPort };
@@ -435,7 +545,7 @@ function signedFile(
   });
 }
 
-function safeAcl(): LocalClientWindowsAuthorityAclFacts {
+function safeAcl(hklmKeyPath: string = LOCAL_CLIENT_WINDOWS_AUTHORITY_HKLM_KEY): LocalClientWindowsAuthorityAclFacts {
   const writers = [
     ADMINISTRATORS_SID,
     SYSTEM_SID,
@@ -458,7 +568,7 @@ function safeAcl(): LocalClientWindowsAuthorityAclFacts {
     registryInheritedWriteSids: [],
     registryCurrentUserCanWrite: false,
     hklmHive: "HKLM" as const,
-    hklmKeyPath: LOCAL_CLIENT_WINDOWS_AUTHORITY_HKLM_KEY,
+    hklmKeyPath,
     hklmView: "registry64" as const,
   });
 }
@@ -469,32 +579,35 @@ class FakeWindowsAuthorityOsPort implements WindowsAuthorityOsPort {
   identityOverride: Partial<WindowsAuthorityRuntimeIdentity> = {};
   aclOverride: LocalClientWindowsAuthorityAclFacts | null = null;
   failNextHklmWrite = false;
-  hklmCheckpoint: LocalClientWindowsAuthorityCheckpointState = checkpoint(0, null);
-  #fileCheckpoint!: LocalClientWindowsAuthorityFileCheckpoint;
+  #target!: WindowsAuthorityStorageTarget;
+  readonly #files = new Map<string, LocalClientWindowsAuthorityFileCheckpoint>();
+  readonly #registry = new Map<string, LocalClientWindowsAuthorityCheckpointState>();
   #tail: Promise<void> = Promise.resolve();
+
+  get hklmCheckpoint() { return this.#registry.get(this.#target.hklmKeyPath)!; }
+  set hklmCheckpoint(value: LocalClientWindowsAuthorityCheckpointState) { this.#registry.set(this.#target.hklmKeyPath, value); }
 
   seed(
     target: WindowsAuthorityStorageTarget,
     state: LocalClientWindowsAuthorityCheckpointState,
   ): void {
-    this.#fileCheckpoint = signedFile(target, state);
-    this.hklmCheckpoint = state;
+    this.#target = target;
+    this.#files.set(target.anchorPath, signedFile(target, state));
+    this.#registry.set(target.hklmKeyPath, state);
   }
 
-  fileState(): LocalClientWindowsAuthorityCheckpointState {
+  fileState(target = this.#target): LocalClientWindowsAuthorityCheckpointState {
+    const file = this.#files.get(target.anchorPath)!;
     return checkpoint(
-      this.#fileCheckpoint.currentGeneration,
-      this.#fileCheckpoint.currentDigest,
-      this.#fileCheckpoint.pendingGeneration,
-      this.#fileCheckpoint.pendingDigest,
+      file.currentGeneration, file.currentDigest, file.pendingGeneration, file.pendingDigest,
     );
   }
 
   tamperFileHmac(): void {
-    this.#fileCheckpoint = Object.freeze({
-      ...this.#fileCheckpoint,
+    this.#files.set(this.#target.anchorPath, Object.freeze({
+      ...this.#files.get(this.#target.anchorPath)!,
       hmacSha256: "0".repeat(64),
-    });
+    }));
   }
 
   async runExclusive<T>(
@@ -531,29 +644,29 @@ class FakeWindowsAuthorityOsPort implements WindowsAuthorityOsPort {
   }
 
   async readProtectedFileCheckpoint(
-    _target: WindowsAuthorityStorageTarget,
+    target: WindowsAuthorityStorageTarget,
   ): Promise<unknown> {
     this.operations.push("read-file");
-    return this.#fileCheckpoint;
+    return this.#files.get(target.anchorPath);
   }
 
   async writeProtectedFileCheckpointAtomically(
-    _target: WindowsAuthorityStorageTarget,
+    target: WindowsAuthorityStorageTarget,
     checkpointValue: LocalClientWindowsAuthorityFileCheckpoint,
   ): Promise<void> {
     this.operations.push("write-file-atomic");
-    this.#fileCheckpoint = checkpointValue;
+    this.#files.set(target.anchorPath, checkpointValue);
   }
 
   async readHklmCheckpoint64(
-    _target: WindowsAuthorityStorageTarget,
+    target: WindowsAuthorityStorageTarget,
   ): Promise<unknown> {
     this.operations.push("read-hklm64");
-    return this.hklmCheckpoint;
+    return this.#registry.get(target.hklmKeyPath);
   }
 
   async writeHklmCheckpoint64(
-    _target: WindowsAuthorityStorageTarget,
+    target: WindowsAuthorityStorageTarget,
     checkpointValue: LocalClientWindowsAuthorityCheckpointState,
   ): Promise<void> {
     this.operations.push("write-hklm64");
@@ -561,11 +674,11 @@ class FakeWindowsAuthorityOsPort implements WindowsAuthorityOsPort {
       this.failNextHklmWrite = false;
       throw new Error("fixture HKLM failure");
     }
-    this.hklmCheckpoint = checkpointValue;
+    this.#registry.set(target.hklmKeyPath, checkpointValue);
   }
 
-  async inspectAclFacts(_target: WindowsAuthorityStorageTarget): Promise<unknown> {
+  async inspectAclFacts(target: WindowsAuthorityStorageTarget): Promise<unknown> {
     this.operations.push("acl");
-    return this.aclOverride ?? safeAcl();
+    return this.aclOverride ?? safeAcl(target.hklmKeyPath);
   }
 }

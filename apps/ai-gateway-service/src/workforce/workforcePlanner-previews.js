@@ -1,5 +1,7 @@
 import { createClarificationAnswers } from "./workforcePlanner-core.js";
 
+import { normalizeWorkflowHandoffPreviewState } from "./workflowRunHandoff.js";
+
 export function createConsensusPreview(goal) {
   return [
     {
@@ -123,7 +125,7 @@ export function createLifecyclePreview(clarificationAnswers = []) {
 
 export function createPlanState({ clarificationAnswers = [] } = {}) {
   const hasAnswers = createClarificationAnswers(clarificationAnswers).length > 0;
-  return {
+  return normalizeWorkflowHandoffPreviewState({
     current: hasAnswers ? "clarified" : "export_ready",
     lifecycleStatus: hasAnswers ? "clarified" : "draft",
     lifecycleStatuses: ["draft", "clarified", "saved", "exported", "handoff-disabled"],
@@ -137,20 +139,12 @@ export function createPlanState({ clarificationAnswers = [] } = {}) {
         : "Clarification and consensus are ready for human review; execution remains disabled.",
       blockers: [
         "Real Agent execution is not enabled.",
-        "Workflow run handoff is not implemented.",
+        "Workflow run handoff is not connected to this preview.",
         "Worktree creation is not allowed in this phase.",
       ],
       nextDecision: "Review the preview package and approve a later explicit implementation phase.",
     },
-    workflowRunHandoff: {
-      status: "implemented-explicit-invocation",
-      lifecycleStatus: "handoff-available",
-      implemented: true,
-      enabled: false,
-      enabledByDefault: false,
-      reason: "Handoff is implemented (workflowRunHandoff.js) but runs only on explicit invocation with a valid single-use task claim token; previews never trigger it.",
-    },
-  };
+  });
 }
 
 export function createReviewPackagePreview(plan) {
@@ -357,4 +351,3 @@ export function createWorkforceHudPreview({
     },
   };
 }
-

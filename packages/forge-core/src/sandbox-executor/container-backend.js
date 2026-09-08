@@ -98,6 +98,10 @@ export function runContainerEngineProcess(executable, args, options = {}) {
     env = buildHostToolEnvironment(),
   } = options;
 
+  if (signal?.aborted) {
+    return Promise.resolve({ exitCode: -1, stdout: '', stderr: '', timedOut: false, aborted: true, truncated: false });
+  }
+
   return new Promise((resolvePromise) => {
     let settled = false;
     let timedOut = false;
@@ -325,6 +329,7 @@ export class ContainerSandboxBackend {
       throw makeError('SANDBOX_COMMAND_INVALID', 'command must be a non-empty string');
     }
     if (command.includes('\0')) throw makeError('SANDBOX_COMMAND_INVALID', 'command contains a null byte');
+    if (options.signal?.aborted) throw makeError('SANDBOX_ABORTED', 'execution was cancelled before creation');
 
     await this.attest();
     const workspaceInfo = await this.#resolveWorkspace(options.workspace);
@@ -349,6 +354,7 @@ export class ContainerSandboxBackend {
       '--label', 'forge.sandbox.managed=true',
       '--label', `forge.sandbox.lease=${name}`,
       '--network', networkAccess ? 'bridge' : 'none',
+      '--log-driver', 'none',
       '--read-only', '--user', '65532:65532',
       '--cap-drop', 'ALL',
       '--security-opt', 'no-new-privileges',
@@ -367,16 +373,19 @@ export class ContainerSandboxBackend {
     for (const [key, value] of Object.entries(env)) createArgs.push('--env', `${key}=${value}`);
     createArgs.push(this.#image, '/bin/sh', '-c', command);
 
-    let created = false;
+    let createAttempted = false;
+    let executionError = null;
     let cleanupUncertain = false;
     let startResult = null;
     let state = null;
     try {
+      if (options.signal?.aborted) throw makeError('SANDBOX_ABORTED', 'execution was cancelled before creation');
+      createAttempted = true;
       const createResult = await this.#cli(createArgs, { timeoutMs: 30_000, maxOutputBytes });
       if (createResult.exitCode !== 0 || !/^[a-f0-9]{12,64}$/i.test(createResult.stdout.trim())) {
         throw makeError('SANDBOX_CREATE_FAILED', (createResult.stderr || createResult.stdout || 'container create failed').trim());
       }
-      created = true;
+      if (options.signal?.aborted) throw makeError('SANDBOX_ABORTED', 'execution was cancelled during creation');
 
       startResult = await this.#cli(['start', '--attach', name], {
         timeoutMs,
@@ -394,24 +403,38 @@ export class ContainerSandboxBackend {
       if (inspectResult.exitCode === 0) {
         try { state = JSON.parse(inspectResult.stdout.trim()); } catch { state = null; }
       }
+    } catch (error) {
+      executionError = error;
     } finally {
-      if (created) {
-        const removeResult = await this.#cli(['rm', '--force', name], {
-          timeoutMs: 10_000,
-          maxOutputBytes: 64_000,
-        });
-        cleanupUncertain = removeResult.exitCode !== 0;
+      // A failed/timed-out create response does not prove the daemon did not
+      // create the named container. Always attempt removal after admission.
+      if (createAttempted) {
+        try {
+          const removeResult = await this.#cli(['rm', '--force', name], {
+            timeoutMs: 10_000,
+            maxOutputBytes: 64_000,
+          });
+          cleanupUncertain = removeResult.exitCode !== 0;
+        } catch {
+          cleanupUncertain = true;
+        }
       }
+    }
+    if (executionError) {
+      executionError.cleanupUncertain = cleanupUncertain;
+      throw executionError;
     }
 
     const timedOut = startResult?.timedOut === true;
     const aborted = startResult?.aborted === true;
     const oomKilled = state?.OOMKilled === true;
-    const killed = timedOut || aborted || oomKilled || cleanupUncertain;
+    const stateUnverified = state?.Running !== false || !Number.isInteger(state?.ExitCode);
+    const killed = timedOut || aborted || oomKilled || cleanupUncertain || stateUnverified;
     const killReason = timedOut ? `timeout (${timeoutMs}ms)`
       : aborted ? 'aborted'
         : oomKilled ? 'memory limit exceeded'
           : cleanupUncertain ? 'container cleanup uncertain'
+            : stateUnverified ? 'container state unverified'
             : null;
 
     const observedExitCode = Number.isInteger(state?.ExitCode) ? state.ExitCode : (startResult?.exitCode ?? -1);
@@ -425,6 +448,7 @@ export class ContainerSandboxBackend {
       peakMemoryMB: 0,
       oomKilled,
       cleanupUncertain,
+      truncated: startResult?.truncated === true,
       backend: 'container',
       isolation: await this.attest(),
     };

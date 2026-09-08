@@ -74,7 +74,7 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.6.0 pn
 证据会确认原始请求被保留、结果具有确定性，并显示
 `providerCalled=false`。Codex、VS Code、Claude Code、Gemini CLI、OpenCode、
 Cursor、Cline、Continue 和通用 stdio 客户端都可以通过同一个网关
-访问十二个受治理 MCP 工具。
+访问受治理 MCP 工具。当前源码提供 15 个工具；已安装镜像的工具清单应在连接后检查。
 
 在真实工作流中有帮助？欢迎[给仓库点 Star](https://github.com/happy520ai/unified-ai-system)，或[分享一条可复现结果](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml&title=%5BUsage%20Report%5D%20Quickstart)。
 
@@ -87,7 +87,7 @@ Cursor、Cline、Continue 和通用 stdio 客户端都可以通过同一个网�
     width="100%"
   />
   <br />
-  <sub>客户端保持原生协议；网关统一加上 key、预算、缓存与审计。12 个受治理 MCP 工具可被任意 MCP 客户端检查。</sub>
+  <sub>客户端保持原生协议；网关统一加上 key、预算、缓存与审计。受治理工具清单可由 MCP 客户端检查。</sub>
 </p>
 
 ## 选择入口
@@ -96,7 +96,7 @@ Cursor、Cline、Continue 和通用 stdio 客户端都可以通过同一个网�
 | --- | --- | --- |
 | 安装前先体验 | [在线 Prompt Lab](https://happy520ai.github.io/unified-ai-system/#enhance) | 无需账号或 API Key 的本地确定性预览。 |
 | 验证已发布运行时 | [60 秒 Docker 体验](README.zh-CN.md#60-秒体验) | 可见证据、自动清理的 fake provider 一次性运行。 |
-| 接入智能体客户端 | [Codex 与 MCP 快速开始](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html) | 固定版本 MCP 容器与 12 个可检查工具。 |
+| 接入智能体客户端 | [Codex 与 MCP 快速开始](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html) | 固定版本 MCP 容器，连接后检查其工具清单。 |
 | 选择客户端路径 | [MCP 客户端兼容性矩阵](docs/mcp-client-compatibility.zh-CN.md) | 安装命令、首次检查和明确的证据边界。 |
 | 集成到应用 | [自然语言提示词增强指南](https://happy520ai.github.io/unified-ai-system/prompt-enhancement.zh-CN.html) | CLI、HTTP、SDK、curl、Python 和 JavaScript 路径。 |
 | 保留现有 OpenAI 客户端 | [OpenAI 兼容 API](docs/openai-compatible-api.zh-CN.md) | 把 `baseURL` 指向 `/v1`，使用 Chat Completions、函数工具、Responses、流式响应和模型发现。 |
@@ -131,7 +131,7 @@ Cursor、Cline、Continue 和通用 stdio 客户端都可以通过同一个网�
 | 可观测性 | `/metrics` 暴露 chat 专属 Prometheus 指标——分模型 token、缓存命中率、TTFT 直方图、虚拟 key 拒绝、**真实 p50/p95/p99 延迟分位数**——外加可选 Langfuse 导出与按 key 花费报表（API/CLI）。 | [可观测性](docs/observability-export.md) |
 | 向量检索 + 热路径 RAG | 零凭证确定性 embedding（可插拔 HTTP 真实 embedding）+ SQLite 向量库激活 `mode: "vector"` 检索；`unified_ai.rag` 在 `/v1/chat/completions` 上按请求注入带来源的知识上下文。 | [Provider 与知识库](docs/providers.md) |
 | 流量治理 | 运营可配的**加权分流**与**影子流量**（`AI_GATEWAY_WEIGHTED_ROUTES_JSON`）：影子调用独立进入成本账本；真实 provider 影子还要求 `AI_GATEWAY_SHADOW_REAL_PROVIDER_ENABLED=true`。 | [多进程部署](docs/multi-process-deployment.md) |
-| Provider 治理 | 真实 provider 三道门白名单矩阵、运行时凭证库（SHA-256 落存 + file 金库解析）、请求成本守卫、熔断器、fallback 链。 | [真实 provider 启用](docs/real-provider-enablement.md) |
+| Provider 治理 | 真实 provider 三道门白名单矩阵；运行时凭据默认仅在内存，可显式启用 AES-256-GCM 加密文件/SQLite 持久化并单独保护主密钥；虚拟 key 与用户 token 使用哈希存储；请求成本守卫、熔断器和 fallback 链。 | [真实 provider 启用](docs/real-provider-enablement.md) |
 | 本地客户端智能网关 | 租户隔离清单、服务端绑定的每客户端 PoP（可选单机持久防重放）、策略固定的 OpenAI/Anthropic/Gemini/原生 chat fake-provider 调度、仅 dry-run 自动治理、回执反馈持久 outbox 与聚合层恰好一次学习、不可逆撤销，以及 Claude-compatible、Cursor、VS Code JSON 事务接入。无凭据 fixture 已通过；真客户端/真 Provider 认证、分布式状态、外部防回滚锚和已部署 Windows 受保护权威仍是发布门。 | [设计与证据边界](docs/local-client-intelligence-gateway.md) |
 | 企业身份与供给 | **OIDC SSO**（授权码+PKCE+JWKS 验签，登录即发 API token）与 **SCIM 2.0** 用户供给（Bearer 鉴权，create/get/list/patch/deactivate）；RBAC、审计哈希链租户隔离，16+ 项攻击安全回归守护。 | [安全演练](tools/security-attack-regression.mjs) |
 | 本地计费台账 | 客户/用量/开票/作废/收款登记的 JSONL 台账（未接支付网关：票据如实标注为对账单，非法律发票）。 | [花费报表](docs/spend-reporting.md) |
@@ -267,7 +267,7 @@ codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified
 ```
 
 重启 Codex 后运行 `/mcp` 检查连接，再参考 [Codex MCP 60 秒快速开始](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html)。
-项目提供十二个工具，包括健康检查、自然语言增强、聊天、知识、工作流和 workforce 能力。
+当前源码提供 15 个工具，包括健康检查、Agent 治理查询、自然语言增强、聊天、知识、工作流和 workforce 能力。镜像标签与工作树是不同对象，安装后应检查实际工具清单。
 
 需要通过 URL 接入的 MCP 客户端，可以使用源码提供的仅本机监听 Streamable HTTP 入口：
 
@@ -402,7 +402,7 @@ Get-Content .\request.txt -Raw |
 ## 项目链接
 
 - [官方 MCP Registry 条目](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.6.0)
-- [Release v0.5.0](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.6.0)
+- [Release v0.6.0](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.6.0)
 - [Codex MCP Server README](packages/mcp-server/README.md)
 - [Roadmap](ROADMAP.md)
 - [Vision](VISION.md)

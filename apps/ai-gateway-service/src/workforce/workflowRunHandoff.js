@@ -5,6 +5,30 @@
 // 生命周期上。缺令牌、令牌无效、或执行被取消都会如实返回；没有任何
 // “占位成功”。默认仍需显式调用（governance：不改变任何默认行为）。
 
+// This library exists, but the application uses workforceControlledExecutor;
+// no production route currently constructs this separate handoff factory.
+export function normalizeWorkflowHandoffPreviewState(state = {}) {
+  const reason = "Workflow run handoff has a library implementation but is not connected to production routes; this preview never executes it.";
+  const hud = state.hud && typeof state.hud === "object" ? state.hud : null;
+  return {
+    ...state,
+    ...(hud ? { hud: {
+      ...hud,
+      blockers: (Array.isArray(hud.blockers) ? hud.blockers : []).map((message) =>
+        typeof message === "string" && /workflow run handoff/i.test(message) ? reason : message),
+    } } : {}),
+    workflowRunHandoff: {
+      status: "module-only",
+      lifecycleStatus: "handoff-disabled",
+      implemented: true,
+      runtimeConnected: false,
+      enabled: false,
+      enabledByDefault: false,
+      reason,
+    },
+  };
+}
+
 export function createWorkflowRunHandoff({
   workflowService,
   claimTokens,

@@ -82,9 +82,46 @@ describe("LocalClientWindowsProtectedAuthorityAnchor", () => {
     await expect(anchor.prepareNext(1, DIGEST_TWO)).rejects.toMatchObject({
       code: "LOCAL_CLIENT_WINDOWS_AUTHORITY_UNAVAILABLE",
     });
+    await expect(anchor.enrollBaseline(DIGEST_ONE)).rejects.toMatchObject({
+      code: "LOCAL_CLIENT_WINDOWS_AUTHORITY_UNAVAILABLE",
+    });
   });
 
   describeWindowsAnchorFlows("broker-attested win32 flows", () => {
+    it("explicitly enrolls an authenticated zero baseline and retries only the exact generation-one digest", async () => {
+      const broker = new FakeBroker(createConfiguration({ broker: undefined }), checkpoint(0, null));
+      await broker.persistFile();
+      const anchor = createAnchor(broker);
+      await expect(anchor.inspect()).resolves.toMatchObject({ available: false, state: "uninitialized" });
+      await expect(anchor.prepareNext(0, DIGEST_ONE)).rejects.toThrow();
+      await expect(anchor.enrollBaseline(DIGEST_ONE)).resolves.toMatchObject({
+        state: "ready", currentGeneration: 1, currentDigest: DIGEST_ONE, pendingGeneration: null,
+      });
+      await expect(anchor.enrollBaseline(DIGEST_ONE)).resolves.toMatchObject({ currentGeneration: 1 });
+      await expect(anchor.enrollBaseline(DIGEST_TWO)).rejects.toThrow();
+      expect(broker.operations.filter((value) => value === "enroll-baseline")).toHaveLength(2);
+      await expect(anchor.assertCurrent(1, DIGEST_ONE)).resolves.toMatchObject({ generation: 1 });
+    });
+
+    it.each([checkpoint(0, null, 1, DIGEST_ONE), checkpoint(1, DIGEST_ONE, 2, DIGEST_TWO), checkpoint(2, DIGEST_ONE)])(
+      "does not re-enroll pending or advanced authority: %j", async (state) => {
+        const broker = new FakeBroker(createConfiguration({ broker: undefined }), state);
+        await broker.persistFile();
+        await expect(createAnchor(broker).enrollBaseline(DIGEST_ONE)).rejects.toThrow();
+        expect(broker.operations).toEqual(["inspect"]);
+      },
+    );
+
+    it("keeps legacy broker ports inspectable while rejecting unsupported explicit enrollment", async () => {
+      const broker = new FakeBroker(createConfiguration({ broker: undefined }), checkpoint(0, null));
+      await broker.persistFile();
+      const legacy = { inspect: broker.inspect.bind(broker), prepareNext: broker.prepareNext.bind(broker), finalize: broker.finalize.bind(broker) };
+      const anchor = createAnchor(legacy);
+      await expect(anchor.inspect()).resolves.toMatchObject({ state: "uninitialized" });
+      await expect(anchor.enrollBaseline(DIGEST_ONE)).rejects.toThrow();
+      expect(broker.operations).not.toContain("enroll-baseline");
+    });
+
       it("completes a broker-only two-phase advance and rejects an older generation", async () => {
       const broker = new FakeBroker(
         createConfiguration({ broker: undefined }),
@@ -398,6 +435,21 @@ class FakeBroker implements LocalClientWindowsAuthorityPrivilegedBrokerPort {
       request.nextDigest,
     );
     await this.persistFile();
+    return this.#response(request);
+  }
+
+  async enrollBaseline(request: LocalClientWindowsAuthorityBrokerRequest): Promise<LocalClientWindowsAuthorityBrokerResponse> {
+    this.#verifyRequest(request, "enroll-baseline");
+    this.operations.push("enroll-baseline");
+    if (request.expectedCurrentGeneration !== 0 || request.expectedCurrentDigest !== null
+      || request.nextGeneration !== 1 || request.nextDigest === null || this.#state.pendingGeneration !== null
+      || !(this.#state.currentGeneration === 0 || (this.#state.currentGeneration === 1 && this.#state.currentDigest === request.nextDigest))) {
+      throw new Error("invalid enrollment request");
+    }
+    if (this.#state.currentGeneration === 0) {
+      this.#state = checkpoint(1, request.nextDigest);
+      await this.persistFile();
+    }
     return this.#response(request);
   }
 

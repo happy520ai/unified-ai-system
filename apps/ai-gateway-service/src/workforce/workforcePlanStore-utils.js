@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { STORE_VERSION } from "./workforcePlanStore-constants.js";
+import { normalizeWorkflowHandoffPreviewState } from "./workflowRunHandoff.js";
 
 export function redactSecrets(value) {
   if (typeof value === "string") {
@@ -269,7 +270,7 @@ export function updatePlanStateCurrent(planState, state) {
   const lifecycleStatus = ["draft", "clarified", "saved", "exported", "handoff-disabled"].includes(state)
     ? state
     : (state === "consensus_ready" ? "clarified" : "saved");
-  return {
+  return normalizeWorkflowHandoffPreviewState({
     ...(planState || {}),
     current,
     lifecycleStatus,
@@ -277,14 +278,7 @@ export function updatePlanStateCurrent(planState, state) {
     states: ["draft", "clarified", "consensus_ready", "export_ready", "archived"],
     previewOnly: true,
     drivesExecution: false,
-    workflowRunHandoff: {
-      status: "disabled",
-      lifecycleStatus: "handoff-disabled",
-      implemented: false,
-      enabled: false,
-      reason: "Phase140A persists lifecycle preview state only and does not call POST /workflow/run.",
-    },
-  };
+  });
 }
 
 export function toPlanSummary(plan) {

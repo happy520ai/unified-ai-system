@@ -76,7 +76,7 @@ export interface LocalClientWindowsAuthorityProvisioningPlan {
   }>;
   readonly registry: Readonly<{
     hive: "HKLM";
-    keyPath: typeof LOCAL_CLIENT_WINDOWS_AUTHORITY_HKLM_KEY;
+    keyPath: string;
     view: "registry64";
   }>;
   readonly guard: Readonly<{
@@ -93,7 +93,7 @@ export interface WindowsAuthorityStorageTarget {
   readonly programDataBasePath: string;
   readonly programDataRoot: string;
   readonly anchorPath: string;
-  readonly hklmKeyPath: typeof LOCAL_CLIENT_WINDOWS_AUTHORITY_HKLM_KEY;
+  readonly hklmKeyPath: string;
   readonly hklmView: "registry64";
 }
 
@@ -147,6 +147,8 @@ export interface WindowsAuthorityOsPort {
 
 export interface LocalClientWindowsAuthorityBrokerServiceOptions {
   readonly programDataBasePath: string;
+  /** Omission preserves the legacy registry slot. Named slots are independently bound. */
+  readonly anchorId?: string;
   readonly hostId: string;
   readonly currentUserSid: string;
   readonly integrityKey: Uint8Array;
@@ -244,8 +246,10 @@ export function resolveLocalClientWindowsAuthorityProvisioningMode(
 export function createLocalClientWindowsAuthorityProvisioningPlan(
   programDataBasePath: string,
   argv: readonly string[] = [],
+  options: Readonly<{ anchorId?: string }> = {},
 ): LocalClientWindowsAuthorityProvisioningPlan {
-  const target = createStorageTarget(programDataBasePath);
+  assertExactDataRecord(options, isPlainDataRecord(options) && Object.hasOwn(options, "anchorId") ? ["anchorId"] : [], configurationError);
+  const target = createStorageTarget(programDataBasePath, options.anchorId);
   const mode = resolveLocalClientWindowsAuthorityProvisioningMode(argv);
   return Object.freeze({
     planVersion: "local-client-windows-authority-provisioning-plan-v1" as const,
@@ -268,7 +272,7 @@ export function createLocalClientWindowsAuthorityProvisioningPlan(
     }),
     registry: Object.freeze({
       hive: "HKLM" as const,
-      keyPath: LOCAL_CLIENT_WINDOWS_AUTHORITY_HKLM_KEY,
+      keyPath: target.hklmKeyPath,
       view: "registry64" as const,
     }),
     guard: Object.freeze({
@@ -285,6 +289,8 @@ export function createLocalClientWindowsAuthorityProvisioningPlan(
       "Persist nonce claims under the protected authority and serialize with the fixed global lock.",
       "Provision the 32-64 byte integrity key with a Windows protected-secret facility; never place it in the plan or command line.",
       "Initialize the protected file and HKLM to the same signed zero-generation checkpoint.",
+      "Keep the fixed authority root and all anchor-slot parents non-writable by ordinary callers.",
+      "Enroll a measured generation-one baseline only through an explicitly authorized enrollment call; never infer it during inspection or startup.",
     ]),
     boundaries: LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_BOUNDARIES,
   });
@@ -317,6 +323,13 @@ implements LocalClientWindowsAuthorityPrivilegedBrokerPort {
     request: LocalClientWindowsAuthorityBrokerRequest,
   ): Promise<LocalClientWindowsAuthorityBrokerResponse> {
     return this.#execute(request, "prepare-next");
+  }
+
+  /** Explicit baseline enrollment; neither inspect nor ordinary advancement can initialize authority. */
+  async enrollBaseline(
+    request: LocalClientWindowsAuthorityBrokerRequest,
+  ): Promise<LocalClientWindowsAuthorityBrokerResponse> {
+    return this.#execute(request, "enroll-baseline");
   }
 
   async finalize(
@@ -358,7 +371,10 @@ implements LocalClientWindowsAuthorityPrivilegedBrokerPort {
           const beforeAcl = await this.#readAndValidateAcl();
           let after = before;
           let responseAcl = beforeAcl;
-          if (operation === "prepare-next") {
+          if (operation === "enroll-baseline" && before.state.currentGeneration === 0) {
+            after = await this.#writeTransition(createFinalizedState(request));
+            responseAcl = await this.#readAndValidateAcl();
+          } else if (operation === "prepare-next") {
             after = await this.#writeTransition(createPreparedState(request));
             responseAcl = await this.#readAndValidateAcl();
           } else if (operation === "finalize") {
@@ -507,8 +523,9 @@ function normalizeConfiguration(
     "currentUserSid",
     "integrityKey",
     "osPort",
+    ...(isPlainDataRecord(options) && Object.hasOwn(options, "anchorId") ? ["anchorId"] : []),
   ], configurationError);
-  const target = createStorageTarget(options.programDataBasePath);
+  const target = createStorageTarget(options.programDataBasePath, options.anchorId);
   const hostId = boundedText(options.hostId, 256);
   const currentUserSid = normalizeSid(options.currentUserSid, configurationError);
   if (ALLOWED_AUTHORITY_SIDS.has(currentUserSid) || BROAD_WRITE_SIDS.has(currentUserSid)) {
@@ -533,10 +550,13 @@ function normalizeConfiguration(
   });
 }
 
-function createStorageTarget(programDataBasePath: unknown): WindowsAuthorityStorageTarget {
+function createStorageTarget(programDataBasePath: unknown, anchorId?: unknown): WindowsAuthorityStorageTarget {
   const base = assertLocalWindowsPath(programDataBasePath);
   if (win32.basename(base).toLowerCase() !== "programdata") throw configurationError();
-  const programDataRoot = win32.join(base, LOCAL_CLIENT_WINDOWS_AUTHORITY_PROGRAM_DATA_SUBPATH);
+  if (anchorId !== undefined && (typeof anchorId !== "string" || !/^[a-z][a-z0-9-]{0,63}$/u.test(anchorId)
+    || /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/u.test(anchorId))) throw configurationError();
+  const authorityRoot = win32.join(base, LOCAL_CLIENT_WINDOWS_AUTHORITY_PROGRAM_DATA_SUBPATH);
+  const programDataRoot = anchorId === undefined ? authorityRoot : win32.join(authorityRoot, "anchors", anchorId as string);
   const anchorPath = win32.join(programDataRoot, LOCAL_CLIENT_WINDOWS_AUTHORITY_ANCHOR_FILE_NAME);
   return Object.freeze({
     serviceName: LOCAL_CLIENT_WINDOWS_AUTHORITY_SERVICE_NAME,
@@ -544,7 +564,7 @@ function createStorageTarget(programDataBasePath: unknown): WindowsAuthorityStor
     programDataBasePath: base,
     programDataRoot,
     anchorPath,
-    hklmKeyPath: LOCAL_CLIENT_WINDOWS_AUTHORITY_HKLM_KEY,
+    hklmKeyPath: anchorId === undefined ? LOCAL_CLIENT_WINDOWS_AUTHORITY_HKLM_KEY : `${LOCAL_CLIENT_WINDOWS_AUTHORITY_HKLM_KEY}\\Anchors\\${anchorId}`,
     hklmView: "registry64" as const,
   });
 }
@@ -585,7 +605,7 @@ function validateRequest(
     || raw.currentUserSid !== configuration.currentUserSid
     || raw.anchorPath !== configuration.target.anchorPath
     || raw.programDataRoot !== configuration.target.programDataRoot
-    || raw.hklmKeyPath !== LOCAL_CLIENT_WINDOWS_AUTHORITY_HKLM_KEY
+    || raw.hklmKeyPath !== configuration.target.hklmKeyPath
     || raw.hklmView !== "registry64"
   ) throw requestBindingMismatchError();
   const expectedCurrentGeneration = normalizeRequestGeneration(
@@ -602,10 +622,10 @@ function validateRequest(
     || (nextGeneration === null) !== (nextDigest === null)
     || (nextGeneration !== null && nextGeneration !== expectedCurrentGeneration + 1)
   ) throw requestInvalidError();
-  if (
-    operation !== "inspect"
-    && (expectedCurrentGeneration === 0 || nextGeneration === null || nextDigest === null)
-  ) throw requestInvalidError();
+  if (operation === "enroll-baseline") {
+    if (expectedCurrentGeneration !== 0 || nextGeneration !== 1 || nextDigest === null) throw requestInvalidError();
+  } else if (operation !== "inspect"
+    && (expectedCurrentGeneration === 0 || nextGeneration === null || nextDigest === null)) throw requestInvalidError();
   const unsigned = {
     requestVersion: LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_VERSION,
     operation,
@@ -615,7 +635,7 @@ function validateRequest(
     currentUserSid: configuration.currentUserSid,
     anchorPath: configuration.target.anchorPath,
     programDataRoot: configuration.target.programDataRoot,
-    hklmKeyPath: LOCAL_CLIENT_WINDOWS_AUTHORITY_HKLM_KEY,
+    hklmKeyPath: configuration.target.hklmKeyPath,
     hklmView: "registry64" as const,
     expectedCurrentGeneration,
     expectedCurrentDigest,
@@ -636,6 +656,11 @@ function assertRequestExpectation(
   request: LocalClientWindowsAuthorityBrokerRequest,
   state: LocalClientWindowsAuthorityCheckpointState,
 ): void {
+  if (request.operation === "enroll-baseline") {
+    if (state.pendingGeneration !== null || state.pendingDigest !== null) throw pendingRecoveryError();
+    if (state.currentGeneration === 0 || (state.currentGeneration === 1 && safeDigestEqual(state.currentDigest, request.nextDigest))) return;
+    throw expectationMismatchError();
+  }
   if (
     request.expectedCurrentGeneration !== state.currentGeneration
     || !nullableDigestEqual(request.expectedCurrentDigest, state.currentDigest)
@@ -710,7 +735,7 @@ function validateFileCheckpoint(
     || raw.hostId !== configuration.hostId
     || raw.serviceSid !== LOCAL_CLIENT_WINDOWS_AUTHORITY_SERVICE_SID
     || raw.anchorPath !== configuration.target.anchorPath
-    || raw.hklmKeyPath !== LOCAL_CLIENT_WINDOWS_AUTHORITY_HKLM_KEY
+    || raw.hklmKeyPath !== configuration.target.hklmKeyPath
     || raw.hklmView !== "registry64"
     || typeof raw.hmacSha256 !== "string"
     || !SHA256_PATTERN.test(raw.hmacSha256)
@@ -721,7 +746,7 @@ function validateFileCheckpoint(
     hostId: configuration.hostId,
     serviceSid: LOCAL_CLIENT_WINDOWS_AUTHORITY_SERVICE_SID,
     anchorPath: configuration.target.anchorPath,
-    hklmKeyPath: LOCAL_CLIENT_WINDOWS_AUTHORITY_HKLM_KEY,
+    hklmKeyPath: configuration.target.hklmKeyPath,
     hklmView: "registry64" as const,
     ...state,
   };
@@ -742,7 +767,7 @@ function createSignedFileCheckpoint(
     hostId: configuration.hostId,
     serviceSid: LOCAL_CLIENT_WINDOWS_AUTHORITY_SERVICE_SID,
     anchorPath: configuration.target.anchorPath,
-    hklmKeyPath: LOCAL_CLIENT_WINDOWS_AUTHORITY_HKLM_KEY,
+    hklmKeyPath: configuration.target.hklmKeyPath,
     hklmView: "registry64" as const,
     ...state,
   };
@@ -814,7 +839,7 @@ function validateAclFacts(
     || raw.currentUserSid !== configuration.currentUserSid
     || raw.serviceSid !== LOCAL_CLIENT_WINDOWS_AUTHORITY_SERVICE_SID
     || raw.hklmHive !== "HKLM"
-    || raw.hklmKeyPath !== LOCAL_CLIENT_WINDOWS_AUTHORITY_HKLM_KEY
+    || raw.hklmKeyPath !== configuration.target.hklmKeyPath
     || raw.hklmView !== "registry64"
     || raw.rootCurrentUserCanWrite !== false
     || raw.fileCurrentUserCanWrite !== false
@@ -862,7 +887,7 @@ function validateAclFacts(
     registryInheritedWriteSids,
     registryCurrentUserCanWrite: false,
     hklmHive: "HKLM" as const,
-    hklmKeyPath: LOCAL_CLIENT_WINDOWS_AUTHORITY_HKLM_KEY,
+    hklmKeyPath: configuration.target.hklmKeyPath,
     hklmView: "registry64" as const,
   });
 }
@@ -882,7 +907,7 @@ function createResponse(
     serviceSid: LOCAL_CLIENT_WINDOWS_AUTHORITY_SERVICE_SID,
     anchorPath: configuration.target.anchorPath,
     programDataRoot: configuration.target.programDataRoot,
-    hklmKeyPath: LOCAL_CLIENT_WINDOWS_AUTHORITY_HKLM_KEY,
+    hklmKeyPath: configuration.target.hklmKeyPath,
     hklmView: "registry64" as const,
     fileCheckpoint: snapshot.state,
     hklmCheckpoint: snapshot.state,
