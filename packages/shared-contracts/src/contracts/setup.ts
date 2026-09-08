@@ -19,11 +19,12 @@ export interface SetupReadinessArea {
 
 export interface SetupReadinessResult {
   phase: "phase-104a-first-run-setup";
-  status: "ready" | "needs_attention";
+  status: "ready" | "needs_attention" | "degraded";
   userMessage: string;
   steps: SetupReadinessStep[];
   readiness: {
     health: SetupReadinessArea;
+    agentGovernance?: SetupReadinessArea;
     modelImport: SetupReadinessArea;
     chat: SetupReadinessArea;
     knowledge: SetupReadinessArea;
