@@ -55,6 +55,7 @@ export async function dispatchHttpRoutes02(context) {
     writeJson(response, 200, createOkEnvelope({
       providerMode: runtimeConfig?.providerMode ?? null,
       realProviderEnabled: runtimeConfig?.realProviderEnabled === true,
+      buildIdentity: healthSnapshot?.buildIdentity,
       health: { status: healthSnapshot?.status ?? null },
       readiness: { status: readinessSnapshot?.status ?? null },
       totalRequests: stats.totalRequests ?? resilienceSnapshot.totalRequests ?? 0,

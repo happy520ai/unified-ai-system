@@ -1,4 +1,5 @@
 import { listModelImportProviders } from "../../model-import/providerProbeRegistry.js";
+import { getRuntimeBuildIdentity } from "../../application/runtimeBuildIdentity.ts";
 
 export function createHealth(application) {
   const realProviderEnabled = application.config.aiGatewayService.realProviderEnabled === true;
@@ -74,6 +75,7 @@ export function createHealth(application) {
     || managedProtocolDispatch.ready === true;
   return {
     app: "ai-gateway-service",
+    buildIdentity: getRuntimeBuildIdentity(),
     status: usageLedgerReady
       && enterpriseReady
       && localClientFeedbackReady

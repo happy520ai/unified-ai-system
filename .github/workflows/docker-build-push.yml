@@ -77,11 +77,18 @@ jobs:
             --security-opt no-new-privileges
             --tmpfs /tmp:rw,noexec,nosuid,size=64m
           )
-          docker build --tag unified-ai-system-smoke .
+          docker build --build-arg UAI_DECLARED_REVISION="${GITHUB_SHA}" --tag unified-ai-system-smoke .
           docker build \
             --target mcp \
+            --build-arg UAI_DECLARED_REVISION="${GITHUB_SHA}" \
             --tag unified-ai-system-mcp-smoke \
             .
+          docker run --rm "${hardened_run_args[@]}" unified-ai-system-smoke \
+            node tools/build-runtime-identity.mjs --verify --expect-revision "${GITHUB_SHA}" \
+            | tee .tmp/docker-smoke-gateway-identity.json
+          docker run --rm "${hardened_run_args[@]}" unified-ai-system-mcp-smoke \
+            node tools/build-runtime-identity.mjs --verify --expect-revision "${GITHUB_SHA}" \
+            | tee .tmp/docker-smoke-mcp-identity.json
           docker run --rm "${hardened_run_args[@]}" \
             --env AI_GATEWAY_PROVIDER_MODE=fake \
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
@@ -238,6 +245,8 @@ jobs:
           context: .
           file: ./Dockerfile
           target: gateway
+          build-args: |
+            UAI_DECLARED_REVISION=${{ github.sha }}
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push != 'false') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -253,6 +262,8 @@ jobs:
           context: .
           file: ./Dockerfile
           target: mcp
+          build-args: |
+            UAI_DECLARED_REVISION=${{ github.sha }}
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push != 'false') }}
           tags: ${{ steps.mcp-meta.outputs.tags }}
           labels: ${{ steps.mcp-meta.outputs.labels }}
@@ -324,6 +335,23 @@ jobs:
           }
           pull_with_retry "${image}"
           pull_with_retry "${mcp_image}"
+          docker run --rm "${hardened_run_args[@]}" "${image}" \
+            node tools/build-runtime-identity.mjs --verify --expect-revision "${GITHUB_SHA}" \
+            | tee .tmp/docker-published-gateway-identity.json
+          docker run --rm "${hardened_run_args[@]}" "${mcp_image}" \
+            node tools/build-runtime-identity.mjs --verify --expect-revision "${GITHUB_SHA}" \
+            | tee .tmp/docker-published-mcp-identity.json
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          for (const target of ["gateway", "mcp"]) {
+            const local = JSON.parse(readFileSync(".tmp/docker-smoke-" + target + "-identity.json", "utf8")).identity;
+            const published = JSON.parse(readFileSync(".tmp/docker-published-" + target + "-identity.json", "utf8")).identity;
+            for (const field of ["sourceScope", "packageVersion", "declaredRevision", "sourceDigest", "lockfileDigest", "sourceFileCount"]) {
+              if (local[field] !== published[field]) throw new Error("Published runtime source identity differs from the checked local build.");
+            }
+          }
+          console.log("Published runtime source identities match the checked local builds.");
+          NODE
           # 直接以 node 调用 CLI：pnpm run 的 verify-deps 检查在非 root 的
           # /app 下会偶发触发重装/清库；镜像内依赖已由 frozen-lockfile 锁定。
           docker run --rm "${hardened_run_args[@]}" \
@@ -446,6 +474,8 @@ jobs:
           name: docker-smoke-evidence
           path: |
             .tmp/docker-smoke-gateway-demo.json
+            .tmp/docker-smoke-gateway-identity.json
+            .tmp/docker-smoke-mcp-identity.json
             .tmp/docker-smoke-piped-demo.json
             .tmp/docker-smoke-container-evidence.json
             .tmp/docker-smoke-mcp-smoke.json
@@ -461,6 +491,8 @@ jobs:
           name: docker-published-evidence
           path: |
             .tmp/docker-published-gateway-demo.json
+            .tmp/docker-published-gateway-identity.json
+            .tmp/docker-published-mcp-identity.json
             .tmp/docker-published-mcp-smoke.json
             .tmp/docker-published-tools-mcp-smoke.json
             .tmp/docker-published-openai-sdk-chat.log
