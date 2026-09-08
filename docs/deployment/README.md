@@ -5,6 +5,19 @@ image digest, a loopback-only port, the existing two data volumes and the local
 fake provider. It is a standalone release profile: do not combine it with the
 development `docker-compose.yml`, which has a source build and optional `.env`.
 
+The Docker publishing workflow checks out its exact event commit and runs
+`pnpm check`, `pnpm test`, `pnpm check:public` and `pnpm verify:public-clone`
+in the same job before container smoke tests, registry login and image pushes.
+Each gate must succeed; a failure stops the subsequent publishing steps. This
+applies to branch/tag triggers and manual runs, including build-only runs.
+For a manual run, `push=false` also disables registry authentication and tagged
+MCP Registry publication; local build and verification still run.
+The separate `ci.yml` includes additional PostgreSQL and quality checks; this
+workflow does not imply that those independent jobs passed. Record the hosted
+workflow run, commit, measured build identity and resulting image digest when
+selecting a release. Editing or locally parsing this workflow is not evidence of
+a hosted run or publication.
+
 ## Validate a release profile
 
 Use Node.js and Docker Compose v2. Obtain the Gateway image digest from a verified
@@ -102,9 +115,10 @@ current developing checkout. Full logs and artifact digests remain in the local
 deployment validation record. Native Linux systemd, macOS service operation, ARM64,
 Kubernetes and cross-host recovery still need their own runtime evidence.
 Existing `deploy/install-mcp-service*` scripts supervise MCP, not the Gateway HTTP
-server. Gateway service templates and a single-active-replica Kubernetes/PVC
-profile are remaining deployment work; Kubernetes support must not be inferred
-from this Compose file.
+server. [Native Gateway service templates](native-services.md) and an opt-in
+[single-active-replica Kubernetes/PVC profile](kubernetes.md) are available;
+their definition checks and Kubernetes schema validation are separate from
+installed-service, storage and cluster runtime verification.
 
 ## Language Selection
 
