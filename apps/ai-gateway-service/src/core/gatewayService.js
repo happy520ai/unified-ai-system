@@ -156,6 +156,9 @@ export class GatewayService {
   }
 
   async *executeStream(input, execution = {}) {
+    if (execution.workforceDispatchFence !== undefined) {
+      throw workforceDispatchError("WORKFORCE_PROVIDER_STREAM_UNSUPPORTED");
+    }
     const startedAt = Date.now();
     let request;
     let selection;
@@ -374,6 +377,9 @@ export class GatewayService {
   }
 
   async executeProviderOperation(input, execution = {}) {
+    if (execution.workforceDispatchFence !== undefined) {
+      throw workforceDispatchError("WORKFORCE_PROVIDER_OPERATION_UNSUPPORTED");
+    }
     const operation = normalizeProviderOperation(input);
     const startedAt = Date.now();
     const requestId = String(
@@ -503,6 +509,9 @@ export class GatewayService {
       let usageAttemptId = null;
 
       try {
+        if (execution.workforceDispatchFence !== undefined) {
+          await assertWorkforceProviderAttempt(execution, attemptSelection.selected.target, "reserve");
+        }
         if (this.runtimeConfig.modelAccessEnforce) {
           this.#enforceModelAccess(request, attemptSelection);
         }
@@ -525,6 +534,9 @@ export class GatewayService {
           startedAt,
           shadow: execution.shadow === true,
         });
+        const workforceFence = execution.workforceDispatchFence === undefined ? null
+          : await assertWorkforceProviderAttempt(execution, attemptSelection.selected.target, "commit");
+        if (workforceFence && attemptSelection.selected.providerType === "fake") workforceFence.onDispatch();
         writeGatewayLog("provider_call_start", {
           requestId: request.context.requestId,
           traceId: request.context.traceId,
@@ -1058,6 +1070,31 @@ function readAgentGovernanceExecutionContext(request) {
     || !/^agr_[A-Za-z0-9_-]{1,128}$/u.test(String(context.runId ?? ""))
     || !/^sha256:[a-f0-9]{64}$/u.test(String(context.policyHash ?? ""))) return null;
   return context;
+}
+
+async function assertWorkforceProviderAttempt(execution, target, phase) {
+  const fence = execution?.workforceDispatchFence;
+  if (fence === undefined) return null;
+  if (!fence || typeof fence.assertActive !== "function" || typeof fence.onDispatch !== "function"
+    || execution.shadow === true || fence.providerId !== target?.providerId || fence.modelId !== target?.modelId) {
+    throw workforceDispatchError("WORKFORCE_PROVIDER_DISPATCH_DENIED");
+  }
+  try {
+    await fence.assertActive(phase);
+    throwIfExecutionAborted(execution.signal);
+  } catch (error) {
+    const cancellation = findExecutionAbortError(error, execution.signal);
+    if (cancellation) throw cancellation;
+    if (error?.category === "provider" && String(error.code).startsWith("WORKFORCE_")) throw error;
+    throw workforceDispatchError("WORKFORCE_PROVIDER_DISPATCH_DENIED");
+  }
+  return fence;
+}
+
+function workforceDispatchError(code) {
+  return Object.assign(new Error("The Workforce binding does not authorize this Provider dispatch."), {
+    code, category: "provider", type: "authorization", retryable: false,
+  });
 }
 
 function assertManagedLocalClientProviderAttempt(request, target) {

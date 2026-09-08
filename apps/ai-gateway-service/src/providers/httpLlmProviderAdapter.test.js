@@ -211,3 +211,32 @@ describe.each(["json", "stream"])("HTTP total-attempt configuration (%s)", (mode
     expect(f.delay).toHaveBeenCalledTimes(attempts - 1);
   });
 });
+
+describe("Workforce fence at the final HTTP transport boundary", () => {
+  it("rejects a claim revoked while DNS resolution was pending", async () => {
+    const f = retryFixture("json");
+    let active = true;
+    const fence = { providerId: "test", modelId: "test-model", onDispatch: vi.fn(),
+      assertActive: vi.fn(async () => { if (!active) throw new Error("synthetic revoked claim"); }),
+    };
+    f.resolveOutboundUrl.mockImplementationOnce(async (url) => { active = false; return { url }; });
+    await expect(f.adapter.generate({ ...createRequest(), execution: { workforceDispatchFence: fence } }))
+      .rejects.toMatchObject({ code: "WORKFORCE_PROVIDER_DISPATCH_DENIED", retryable: false });
+    expect(f.transport).not.toHaveBeenCalled();
+    expect(fence.onDispatch).not.toHaveBeenCalled();
+  });
+
+  it("rechecks the claim after retry delay and records only the actual first attempt", async () => {
+    const f = retryFixture("json", { maxRetries: 2 });
+    let active = true;
+    const fence = { providerId: "test", modelId: "test-model", onDispatch: vi.fn(),
+      assertActive: vi.fn(async () => { if (!active) throw new Error("synthetic revoked claim"); }),
+    };
+    f.transport.mockImplementationOnce(async () => syntheticResponse("json", 429));
+    f.delay.mockImplementationOnce(async () => { active = false; });
+    await expect(f.adapter.generate({ ...createRequest(), execution: { workforceDispatchFence: fence } }))
+      .rejects.toMatchObject({ code: "WORKFORCE_PROVIDER_DISPATCH_DENIED", retryable: false });
+    expect(f.transport).toHaveBeenCalledOnce();
+    expect(fence.onDispatch).toHaveBeenCalledOnce();
+  });
+});
