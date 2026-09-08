@@ -13,7 +13,7 @@ import {
 } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, parse, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
@@ -699,6 +699,16 @@ test("control-center configure rejects unsafe manifests and incomplete mutation 
     "uai-mock-admin-key",
   ], "", { cwd: root });
   assert.equal(invalid.code, 2);
+  assert.equal(gateway.controlCenterRequestCount(), 0);
+
+  await writeFile(join(root, "jsonc-v1.json"), JSON.stringify({
+    ...controlCenterManifest(gateway.url), profiles: ["cursor-mcp-json", "vscode-mcp-jsonc-v1"],
+  }));
+  const unchangedV1 = await runCliProcess([
+    "control-center", "configure", "--manifest", "jsonc-v1.json", "--json", "--url", gateway.url,
+    "--admin-key", "uai-mock-admin-key",
+  ], "", { cwd: root });
+  assert.equal(unchangedV1.code, 2);
   assert.equal(gateway.controlCenterRequestCount(), 0);
 
   assert.throws(
@@ -2081,6 +2091,168 @@ test("CLI workflow requests a real approval and publishes the exact reviewed art
   assert.deepEqual(await application.agentGovernance.service.listApprovals(restrictedAgent.agentId, identity.tenantId), []);
   const artifacts = (await readdir(dirname(stored.result.artifact.absolutePath))).filter(name => name.endsWith(".md"));
   assert.deepEqual(artifacts.sort(), ["cli-report.md", "reviewed-report.md"]);
+});
+
+
+test("CLI JSONC onboarding uses real approval, durable replay, exact rollback and explicit recovery", { timeout: 60_000 }, async (context) => {
+  const [{ createGatewayApplication }, { createGatewayHttpServer }] = await Promise.all([
+    import("../../ai-gateway-service/src/application/createGatewayApplication.js"),
+    import("../../ai-gateway-service/src/http/httpServer.js"),
+  ]);
+  const root = await mkdtemp(join(tmpdir(), "cli-real-jsonc-onboarding-"));
+  const targetPath = join(root, "vscode-fixture", "mcp.jsonc");
+  const backupDir = join(root, "config-backups");
+  const journalPath = join(root, "config-state", "journal.json");
+  const original = Buffer.from('\ufeff{\r\n // JSONC original comment\r\n "servers": {"unmanaged" : {"args":["literal",],},}, /* footer */\r\n}');
+  await mkdir(dirname(targetPath), { recursive: true });
+  await writeFile(targetPath, original);
+  const token = "cli-jsonc-integration-fixture-token";
+  const profileId = "vscode-mcp-jsonc-v1";
+  const config = {
+    version: 2, ownerTenantId: "cli-jsonc-tenant",
+    profiles: [{ profileId, paths: { targetPath, allowedRoot: root, backupDir, journalPath, maxBytes: 65536, maxTransactions: 16 } }],
+    serverDefinition: { transport: "stdio", command: join(root, "bin", "node.exe"), args: [join(root, "gateway-entry.mjs")], cwd: root },
+  };
+  const env = {
+    NODE_ENV: "test", AI_GATEWAY_PROVIDER_MODE: "fake", AI_GATEWAY_REAL_PROVIDER_ENABLED: "false",
+    PME_RUNTIME_CREDENTIAL_STORE_MODE: "memory", KNOWLEDGE_STORAGE_MODE: "memory",
+    AI_GATEWAY_MODEL_LIBRARY_STATE_PATH: join(root, "model-library.json"),
+    WORKFLOW_OUTPUT_DIR: join(root, "artifacts"), WORKFORCE_PLAN_STORE_PATH: join(root, "workforce-plans.json"), WORKFORCE_EXECUTION_DIR: join(root, "workforce"),
+    AI_GATEWAY_USAGE_LOG_DIR: join(root, "usage"), PME_ENTERPRISE_AUTH_ENABLED: "true",
+    PME_AUTH_TOKEN: token, PME_AUTH_USER_ID: "cli-jsonc-owner", PME_AUTH_TENANT_ID: config.ownerTenantId,
+    PME_AUTH_ROLE: "admin", PME_ENTERPRISE_PLATFORM_TENANT_ID: config.ownerTenantId,
+    PME_ENTERPRISE_USER_STORE_PATH: join(root, "users.json"), PME_API_KEY_STORE_PATH: join(root, "keys.json"),
+    PME_AUDIT_LOG_PATH: join(root, "audit.jsonl"), PME_AUDIT_CHAIN_PATH: join(root, "audit.chain.jsonl"),
+    AI_GATEWAY_RATE_LIMIT_WHITELIST: "127.0.0.1",
+    AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_ENABLED: "true", AI_GATEWAY_LOCAL_CLIENT_HOST_ID: "cli-jsonc-test-host",
+    AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_CONFIG_JSON: JSON.stringify(config),
+    AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_RECEIPT_AUTHORITY_SQLITE_PATH: join(root, "receipt-authority.sqlite"),
+    AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_RECEIPT_AUTHORITY_NAMESPACE: "cli-jsonc-test",
+    AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_RECEIPT_AUTHORITY_TTL_MS: "2592000000",
+    AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_RECEIPT_AUTHORITY_LEASE_TTL_MS: "600000",
+    AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_ROOT_SECRET_REF: "env_key_name:CLI_JSONC_TEST_ROOT_SECRET",
+    CLI_JSONC_TEST_ROOT_SECRET: "hex:" + "9c".repeat(32),
+    AI_GATEWAY_LOCAL_CLIENT_REGISTRY_PATH: join(root, "client-registry.json"),
+    AI_GATEWAY_LOCAL_CLIENT_EXECUTION_LOG_PATH: join(root, "client-execution.jsonl"),
+    AI_GATEWAY_LOCAL_CLIENT_CONTROL_STORE_MODE: "local", AI_GATEWAY_LOCAL_CLIENT_EXECUTION_CONTROL_DIR: join(root, "control"),
+    AI_GATEWAY_IDEMPOTENCY_STORE_MODE: "sqlite", AI_GATEWAY_IDEMPOTENCY_SQLITE_PATH: join(root, "idempotency.sqlite"),
+    AI_GATEWAY_IDEMPOTENCY_HMAC_SECRET: "cli-jsonc-idempotency-fixture".padEnd(64, "x"),
+    AI_GATEWAY_EXTERNAL_EFFECT_STORE_MODE: "sqlite", AI_GATEWAY_EXTERNAL_EFFECT_SQLITE_PATH: join(root, "external-effects.sqlite"),
+    AI_GATEWAY_EXTERNAL_EFFECT_HMAC_SECRET: "cli-jsonc-external-fixture".padEnd(64, "x"),
+    AI_GATEWAY_EXTERNAL_EFFECT_CENTRAL_REQUIRED: "false",
+  };
+  let server;
+  let application;
+  let url;
+  async function stop() {
+    if (!server) return;
+    await new Promise(resolveClose => { server.close(() => resolveClose()); server.closeAllConnections(); });
+    await server.shutdownResources?.();
+    server = null;
+  }
+  async function start() {
+    application = createGatewayApplication(env);
+    server = createGatewayHttpServer(application);
+    server.listen(0, "127.0.0.1"); await once(server, "listening");
+    url = "http://127.0.0.1:" + server.address().port;
+  }
+  async function invoke(args) {
+    const result = await runCliProcess(["clients-onboarding", ...args, "--admin-key", token, "--url", url, "--json"], "", { cwd: root });
+    assert.equal(result.code, 0, result.stderr);
+    assert.doesNotMatch(result.stdout, /JSONC original comment|gateway-entry\.mjs|cli-jsonc-integration-fixture-token/);
+    return JSON.parse(result.stdout);
+  }
+  const mutate = (operation, planId, idempotencyKey) => invoke([operation, "--plan-id", planId, "--yes", "--idempotency-key", idempotencyKey]);
+  context.after(async () => {
+    await stop();
+    assert.ok(resolve(root).startsWith(resolve(tmpdir()) + (process.platform === "win32" ? "\\" : "/")));
+    await rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+  });
+  // The v2 selection must pass through the same application path-isolation graph.
+  const conflictConfig = structuredClone(config);
+  conflictConfig.profiles[0].paths.targetPath = env.AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_RECEIPT_AUTHORITY_SQLITE_PATH;
+  assert.throws(() => createGatewayApplication({ ...env, AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_CONFIG_JSON: JSON.stringify(conflictConfig) }),
+    error => error?.code === "LOCAL_CLIENT_ONBOARDING_PATH_CONFLICT");
+  for (const parent of [dirname(targetPath), parse(targetPath).root,
+    ...(process.platform === "win32" ? [dirname(targetPath).toUpperCase() + "\\"] : [])]) {
+    const containedConfig = structuredClone(config);
+    containedConfig.profiles[0].paths.backupDir = parent;
+    assert.throws(() => createGatewayApplication({ ...env, AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_CONFIG_JSON: JSON.stringify(containedConfig) }),
+      error => error?.code === "LOCAL_CLIENT_ONBOARDING_PATH_CONFLICT");
+  }
+  await start();
+  assert.equal(application.localClientGovernedOnboardingStatus.configurationVersion, 2);
+  const profiles = await invoke(["profiles"]);
+  assert.deepEqual(profiles.data.profiles.map(({ profileId, format }) => ({ profileId, format })), [{ profileId, format: "jsonc" }]);
+  const inspect = await invoke(["inspect", "--profile-id", profileId]);
+  assert.equal(inspect.data.installation.state, "absent");
+  const plan = await invoke(["plan", "--profile-id", profileId, "--action", "enable"]);
+  const planId = plan.data.planId;
+  assert.deepEqual(await readFile(targetPath), original);
+  const unapproved = await runCliProcess(["clients-onboarding", "apply", "--plan-id", planId, "--yes", "--idempotency-key", "jsonc-unapproved", "--admin-key", token, "--url", url, "--json"], "", { cwd: root });
+  assert.equal(unapproved.code, 1);
+  assert.deepEqual(await readFile(targetPath), original);
+  await mutate("approve", planId, "jsonc-approve");
+  const applied = await mutate("apply", planId, "jsonc-apply");
+  const receipt = applied.data.result.receipt;
+  assert.equal(receipt.profileId, profileId); assert.equal(receipt.format, "jsonc");
+  const enabled = await readFile(targetPath);
+  assert.ok(enabled.toString().includes('"unmanaged" : {"args":["literal",],}'));
+  assert.ok(enabled.toString().includes("// JSONC original comment\r\n"));
+  assert.equal(createHash("sha256").update(enabled).digest("hex"), receipt.transaction.afterSha256);
+  const enabledIdentity = await lstat(targetPath);
+  await mutate("apply", planId, "jsonc-apply");
+  assert.equal((await lstat(targetPath)).ino, enabledIdentity.ino);
+  assert.equal((await invoke(["verify", "--profile-id", profileId])).data.state, "exact");
+  await stop(); await start();
+  assert.equal((await mutate("apply", planId, "jsonc-apply")).data.replayed, true);
+  await writeFile(join(root, "receipt.json"), JSON.stringify(receipt));
+  const rollbackPlan = await invoke(["plan", "--profile-id", profileId, "--action", "rollback", "--receipt-file", "receipt.json"]);
+  await mutate("approve", rollbackPlan.data.planId, "jsonc-rollback-approve");
+  const rolledBack = await mutate("rollback", rollbackPlan.data.planId, "jsonc-rollback");
+  assert.equal(rolledBack.data.result.receipt.format, "jsonc");
+  assert.deepEqual(await readFile(targetPath), original);
+  const restoredIdentity = await lstat(targetPath);
+  await mutate("rollback", rollbackPlan.data.planId, "jsonc-rollback");
+  assert.equal((await lstat(targetPath)).ino, restoredIdentity.ino);
+  assert.deepEqual(await readFile(targetPath), original);
+
+  // Authored pending-journal fixture verifies the real HTTP recovery path; it is not a process-kill claim.
+  const secondPlan = await invoke(["plan", "--profile-id", profileId, "--action", "enable"]);
+  await mutate("approve", secondPlan.data.planId, "jsonc-recovery-enable-approve");
+  const secondApply = await mutate("apply", secondPlan.data.planId, "jsonc-recovery-enable");
+  const recoveryBefore = await readFile(targetPath);
+  await stop();
+  const journal = JSON.parse(await readFile(journalPath, "utf8"));
+  const entry = journal.entries.find(item => item.transactionId === secondApply.data.result.receipt.transaction.transactionId);
+  assert.ok(entry);
+  Object.assign(entry, { status: "pending", afterIdentityFingerprint: null, committedAtMs: null, receiptDigest: null, rolledBackAtMs: null, rollbackReceiptDigest: null });
+  await writeFile(journalPath, JSON.stringify(journal));
+  await start();
+  assert.equal((await invoke(["inspect", "--profile-id", profileId])).data.recoveryRequired, true);
+  const recoveryPlan = await invoke(["plan", "--profile-id", profileId, "--action", "recover"]);
+  await mutate("approve", recoveryPlan.data.planId, "jsonc-recovery-approve");
+  const recovered = await mutate("recover", recoveryPlan.data.planId, "jsonc-recover");
+  assert.equal(recovered.data.result.receipt.format, "jsonc");
+  assert.deepEqual(await readFile(targetPath), recoveryBefore);
+  await mutate("recover", recoveryPlan.data.planId, "jsonc-recover");
+  assert.equal((await invoke(["inspect", "--profile-id", profileId])).data.recoveryRequired, false);
+  for (const missing of ["claude", "cursor", "vscode-backups"]) await assert.rejects(lstat(join(root, missing)), { code: "ENOENT" });
+});
+
+test("CLI JSONC profile refuses a JSON-only verification or rollback receipt", async (context) => {
+  const profileId = "vscode-mcp-jsonc-v1";
+  assert.equal(parseCliArgs(["clients-onboarding", "verify", "--profile-id", profileId], {}).onboardingProfileId, profileId);
+  const gateway = await createOnboardingMockGateway(); context.after(gateway.close);
+  const verification = await runCliProcess(["clients-onboarding", "verify", "--profile-id", profileId, "--json", "--url", gateway.url]);
+  assert.equal(verification.code, 1);
+  assert.equal(gateway.requestCount("verify"), 1);
+  const root = await mkdtemp(join(tmpdir(), "cli-jsonc-wrong-receipt-"));
+  context.after(() => rm(root, { recursive: true, force: true }));
+  await writeFile(join(root, "receipt.json"), JSON.stringify(onboardingApplyReceipt(profileId)));
+  const rollback = await runCliProcess(["clients-onboarding", "plan", "--profile-id", profileId, "--action", "rollback", "--receipt-file", "receipt.json", "--json", "--url", gateway.url], "", { cwd: root });
+  assert.equal(rollback.code, 2);
+  assert.equal(gateway.requestCount("plan"), 0);
 });
 
 test("workflow/provider commands use explicit identifiers without a new confirmation layer", () => {

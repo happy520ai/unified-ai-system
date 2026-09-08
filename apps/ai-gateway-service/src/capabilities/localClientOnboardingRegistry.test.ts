@@ -11,6 +11,7 @@ import {
   createLocalClientOnboardingRegistry,
   type LocalClientOnboardingProfileId,
   type LocalClientOnboardingRegistry,
+  type LocalClientOnboardingRegistryV1Options,
   type LocalClientOnboardingRegistryOptions,
 } from "./localClientOnboardingRegistry.ts";
 
@@ -42,7 +43,7 @@ const PROFILE_CASES = [
 describe("LocalClientOnboardingRegistry", () => {
   let root = "";
   let registry: LocalClientOnboardingRegistry;
-  let registryOptions: LocalClientOnboardingRegistryOptions;
+  let registryOptions: LocalClientOnboardingRegistryV1Options;
   let targets: Record<(typeof PROFILE_CASES)[number]["targetKey"], string>;
 
   beforeEach(async () => {
@@ -375,12 +376,83 @@ describe("LocalClientOnboardingRegistry", () => {
     await expect(registry.apply("onboard:vscode-mcp-json:not-a-plan"))
       .rejects.toMatchObject({ code: "LOCAL_CLIENT_ONBOARDING_PLAN_UNKNOWN" });
   });
+
+  it("selects one explicit JSONC profile across inspect, enable, verify, disable, restart and exact rollback", async () => {
+    const original = Buffer.from('\ufeff{\r\n // retained JSONC fixture\r\n "servers": { "other" : {"args":["a",],}, }, /* end */\r\n}');
+    await registry.close();
+    const legacyBefore = await Promise.all([readFile(targets.claude), readFile(targets.cursor)]);
+    await writeFile(targets.vscode, original);
+    const profileId = LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.vscodeJsonc;
+    const options: LocalClientOnboardingRegistryOptions = {
+      version: 2,
+      profiles: [{ profileId, paths: registryOptions.profiles.vscode }],
+      serverDefinition: registryOptions.serverDefinition,
+      backupEncryptionKey: Buffer.alloc(32, 0x61),
+    };
+    registry = await createLocalClientOnboardingRegistry(options);
+    expect(registry.listProfiles()).toEqual([expect.objectContaining({ profileId, format: "jsonc", client: "vscode" })]);
+    await expect(registry.inspect(LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.cursor)).rejects.toMatchObject({ code: "LOCAL_CLIENT_ONBOARDING_PROFILE_UNKNOWN" });
+    await expect(registry.inspect(profileId)).resolves.toMatchObject({ installation: { state: "absent", format: "jsonc" } });
+    const plan = await registry.plan(profileId, "enable");
+    expect(plan.format).toBe("jsonc");
+    const applied = await registry.apply(plan.planId);
+    const enabled = await readFile(targets.vscode);
+    expect(applied.format).toBe("jsonc");
+    expect(enabled.toString()).toContain('"other" : {"args":["a",],}');
+    expect(enabled.toString()).toContain("// retained JSONC fixture\r\n");
+    await expect(registry.verifyInstalled(profileId)).resolves.toMatchObject({ state: "exact", format: "jsonc" });
+    await expect(registry.rollback({ ...applied, format: "json-only" })).rejects.toMatchObject({ code: "LOCAL_CLIENT_ONBOARDING_RECEIPT_INVALID" });
+    expect(await readFile(targets.vscode)).toEqual(enabled);
+    const disablePlan = await registry.plan(profileId, "disable");
+    const disabled = await registry.apply(disablePlan.planId);
+    await expect(registry.verifyInstalled(profileId)).resolves.toMatchObject({ state: "absent", format: "jsonc" });
+    const disabledReceipt = await registry.rollback(disabled);
+    expect(disabledReceipt.format).toBe("jsonc");
+    expect(await readFile(targets.vscode)).toEqual(enabled);
+    // A restored file has a new identity; use the fresh apply flow's receipt for restart rollback.
+    const reDisable = await registry.apply((await registry.plan(profileId, "disable")).planId);
+    await registry.close();
+    registry = await createLocalClientOnboardingRegistry(options);
+    await registry.rollback(reDisable);
+    expect(await readFile(targets.vscode)).toEqual(enabled);
+    await registry.close();
+    // Independent lifecycle proves the original BOM, comments and whitespace survive encrypted restart rollback.
+    await writeFile(targets.vscode, original);
+    const freshOptions: LocalClientOnboardingRegistryOptions = {
+      ...options,
+      profiles: [{ profileId, paths: { ...registryOptions.profiles.vscode, backupDir: join(root, "jsonc-fresh-backups"), journalPath: join(root, "jsonc-fresh-journal.json") } }],
+    };
+    registry = await createLocalClientOnboardingRegistry(freshOptions);
+    const freshReceipt = await registry.apply((await registry.plan(profileId, "enable")).planId);
+    await registry.close();
+    registry = await createLocalClientOnboardingRegistry(freshOptions);
+    expect((await registry.rollback(freshReceipt)).format).toBe("jsonc");
+    expect(await readFile(targets.vscode)).toEqual(original);
+    expect(await Promise.all([readFile(targets.claude), readFile(targets.cursor)])).toEqual(legacyBefore);
+    assertRedacted([plan, applied, disabledReceipt, registry.listProfiles()], root, ...Object.values(targets));
+  });
+
+  it("rejects unknown, duplicate or absent selected JSONC profiles before opening storage", async () => {
+    const profileId = LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.vscodeJsonc;
+    const selected = { profileId, paths: registryOptions.profiles.vscode };
+    const base = { version: 2, serverDefinition: registryOptions.serverDefinition };
+    for (const profiles of [[], [selected, selected], [{ ...selected, profileId: "vscode-auto" }], [{ ...selected, format: "jsonc" }]]) {
+      await expect(createLocalClientOnboardingRegistry({ ...base, profiles } as never)).rejects.toMatchObject({ code: "LOCAL_CLIENT_ONBOARDING_CONFIGURATION_INVALID" });
+    }
+    const original = await readFile(targets.vscode);
+    await writeFile(targets.vscode, '{"servers":{},"ser\\u0076ers":{}}');
+    const jsoncRegistry = await createLocalClientOnboardingRegistry({ ...base, version: 2, profiles: [selected] });
+    await expect(jsoncRegistry.inspect(profileId)).rejects.toMatchObject({ code: "LOCAL_CLIENT_ONBOARDING_CONFIG_INVALID" });
+    await expect(jsoncRegistry.plan(profileId, "enable")).rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_JSON_INVALID" });
+    await jsoncRegistry.close();
+    await writeFile(targets.vscode, original);
+  });
 });
 
 function createOptions(
   root: string,
   targets: Record<(typeof PROFILE_CASES)[number]["targetKey"], string>,
-): LocalClientOnboardingRegistryOptions {
+): LocalClientOnboardingRegistryV1Options {
   const paths = (name: string, targetPath: string) => ({
     targetPath,
     allowedRoot: root,

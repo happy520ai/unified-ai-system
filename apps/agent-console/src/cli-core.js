@@ -217,18 +217,28 @@ const LOCAL_CLIENT_ONBOARDING_PROFILE_DEFINITIONS = Object.freeze([
     client: "claude-compatible",
     label: "Claude-compatible",
     containerKey: "mcpServers",
+    format: "json-only",
   }),
   Object.freeze({
     profileId: "cursor-mcp-json",
     client: "cursor",
     label: "Cursor",
     containerKey: "mcpServers",
+    format: "json-only",
   }),
   Object.freeze({
     profileId: "vscode-mcp-json",
     client: "vscode",
     label: "VS Code",
     containerKey: "servers",
+    format: "json-only",
+  }),
+  Object.freeze({
+    profileId: "vscode-mcp-jsonc-v1",
+    client: "vscode",
+    label: "VS Code JSONC",
+    containerKey: "servers",
+    format: "jsonc",
   }),
 ]);
 const SAFE_LOCAL_CLIENT_ONBOARDING_ERROR_CODES = new Set([
@@ -267,6 +277,9 @@ const UNKNOWN_LOCAL_CLIENT_ONBOARDING_ERROR_CODES = new Set([
 const LOCAL_CLIENT_ONBOARDING_PROFILE_IDS = new Set(
   LOCAL_CLIENT_ONBOARDING_PROFILE_DEFINITIONS.map(({ profileId }) => profileId),
 );
+function localClientOnboardingProfileFormat(profileId) {
+  return LOCAL_CLIENT_ONBOARDING_PROFILE_DEFINITIONS.find((profile) => profile.profileId === profileId)?.format;
+}
 const LOCAL_CLIENT_ONBOARDING_RECEIPT_MAX_BYTES = 64 * 1024;
 const LOCAL_CLIENT_ONBOARDING_PLAN_ID_PATTERN = /^onboarding_[a-f0-9]{64}$/u;
 const LOCAL_CLIENT_ONBOARDING_REGISTRY_PLAN_ID_PATTERN = /^onboard:[a-z0-9-]+:[a-f0-9]{64}$/u;
@@ -1782,9 +1795,9 @@ function readControlCenterManifest({ path, root, expectedGatewayUrl }) {
     || typeof value.gatewayUrl !== "string"
     || !Array.isArray(value.profiles)
     || value.profiles.length < 2
-    || value.profiles.length > LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.size
+    || value.profiles.length > 3
     || new Set(value.profiles).size !== value.profiles.length
-    || value.profiles.some((profileId) => !LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.has(profileId))
+    || value.profiles.some((profileId) => localClientOnboardingProfileFormat(profileId) !== "json-only")
   ) {
     throw new CliUsageError(
       "Control-center manifest must use the exact v1 schema and select two or three unique supported profiles.",
@@ -3163,7 +3176,7 @@ function projectLocalClientOnboardingVerification(value, expectedProfileId) {
     || typeof value.installed !== "boolean"
     || !new Set(["exact", "absent", "different"]).has(value.state)
     || value.installed !== (value.state === "exact")
-    || value.format !== "json-only"
+    || value.format !== localClientOnboardingProfileFormat(expectedProfileId)
     || value.certificationStatus !== LOCAL_CLIENT_ONBOARDING_CERTIFICATION
     || value.redacted !== true
   ) {
@@ -3173,7 +3186,7 @@ function projectLocalClientOnboardingVerification(value, expectedProfileId) {
     profileId: expectedProfileId,
     installed: value.installed,
     state: value.state,
-    format: "json-only",
+    format: value.format,
     certificationStatus: LOCAL_CLIENT_ONBOARDING_CERTIFICATION,
     redacted: true,
   });
@@ -3304,7 +3317,7 @@ function projectLocalClientOnboardingReceiptSummary(value, operation, expectedPr
   if (
     !isPlainRecord(value)
     || value.profileId !== expectedProfileId
-    || value.format !== "json-only"
+    || value.format !== localClientOnboardingProfileFormat(expectedProfileId)
     || value.certificationStatus !== LOCAL_CLIENT_ONBOARDING_CERTIFICATION
     || value.redacted !== true
   ) {
@@ -3335,7 +3348,7 @@ function projectLocalClientOnboardingReceiptSummary(value, operation, expectedPr
         }
       : { recoveryVersion: value.recoveryVersion }),
     profileId: value.profileId,
-    format: "json-only",
+    format: value.format,
     certificationStatus: LOCAL_CLIENT_ONBOARDING_CERTIFICATION,
     redacted: true,
   });
@@ -3436,7 +3449,7 @@ function projectLocalClientOnboardingApplyReceipt(value, expectedProfileId) {
     || !new Set(["enable", "disable"]).has(value.action)
     || !LOCAL_CLIENT_ONBOARDING_REGISTRY_PLAN_ID_PATTERN.test(value.planId)
     || !SHA256_PATTERN.test(value.receiptDigest)
-    || value.format !== "json-only"
+    || value.format !== localClientOnboardingProfileFormat(expectedProfileId)
     || value.certificationStatus !== LOCAL_CLIENT_ONBOARDING_CERTIFICATION
     || value.redacted !== true
     || !hasExactKeys(value.transaction, transactionKeys)
@@ -3467,7 +3480,7 @@ function projectLocalClientOnboardingApplyReceipt(value, expectedProfileId) {
       receiptDigest: value.transaction.receiptDigest,
     }),
     receiptDigest: value.receiptDigest,
-    format: "json-only",
+    format: value.format,
     certificationStatus: LOCAL_CLIENT_ONBOARDING_CERTIFICATION,
     redacted: true,
   });
@@ -3608,7 +3621,7 @@ function projectLocalClientOnboardingProfiles(value, expectedProfileIds = null) 
       ? value.profiles
       : [];
   const definitions = expectedProfileIds === null
-    ? LOCAL_CLIENT_ONBOARDING_PROFILE_DEFINITIONS
+    ? LOCAL_CLIENT_ONBOARDING_PROFILE_DEFINITIONS.filter((definition) => rawProfiles.some((profile) => profile?.profileId === definition.profileId))
     : LOCAL_CLIENT_ONBOARDING_PROFILE_DEFINITIONS.filter((definition) => (
         expectedProfileIds.includes(definition.profileId)
       ));
@@ -3626,7 +3639,7 @@ function projectLocalClientOnboardingProfiles(value, expectedProfileIds = null) 
     if (
       !profile
       || profile.client !== definition.client
-      || profile.format !== "json-only"
+      || profile.format !== definition.format
       || profile.containerKey !== definition.containerKey
       || profile.serverName !== "unified-ai-system"
       || profile.transport !== "stdio"
@@ -3668,13 +3681,13 @@ function renderLocalClientOnboarding(onboarding, output) {
       output.muted("inspection only; no config changed"),
     ];
   }
-  const labelsByClient = new Map(
-    LOCAL_CLIENT_ONBOARDING_PROFILE_DEFINITIONS.map((definition) => [definition.client, definition.label]),
+  const labelsByProfile = new Map(
+    LOCAL_CLIENT_ONBOARDING_PROFILE_DEFINITIONS.map((definition) => [definition.profileId, definition.label]),
   );
   return [
     output.bold("Supported onboarding profiles"),
     ...onboarding.profiles.map((profile) => (
-      `  - ${labelsByClient.get(profile.client)}: ${profile.profileId} (${profile.backupProtection} backup)`
+      `  - ${labelsByProfile.get(profile.profileId)}: ${profile.profileId} (${profile.backupProtection} backup)`
     )),
     `Certification: ${onboarding.certificationStatus}`,
     output.muted("inspection only; no config changed"),
@@ -4464,7 +4477,7 @@ function validateLocalClientOnboardingOptions(options) {
   if (needsProfile) {
     if (!LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.has(options.onboardingProfileId)) {
       throw new CliUsageError(
-        "--profile-id must be claude-compatible-mcp-json, cursor-mcp-json, or vscode-mcp-json.",
+        "--profile-id must be claude-compatible-mcp-json, cursor-mcp-json, vscode-mcp-json, or vscode-mcp-jsonc-v1.",
       );
     }
   } else if (options.onboardingProfileId !== null) {

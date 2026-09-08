@@ -27,12 +27,16 @@ import {
   sep,
 } from "node:path";
 import { platform } from "node:os";
+import { LOCAL_CLIENT_JSONC_CODEC_VERSION, parseLocalClientJsoncObject, editLocalClientJsoncObject } from "./localClientConfigJsonc.ts";
 
 export const LOCAL_CLIENT_CONFIG_PLAN_VERSION = "local-client-config-plan-v1" as const;
 export const LOCAL_CLIENT_CONFIG_RECEIPT_VERSION = "local-client-config-receipt-v1" as const;
 export const LOCAL_CLIENT_CONFIG_ROLLBACK_RECEIPT_VERSION = "local-client-config-rollback-receipt-v1" as const;
 export const LOCAL_CLIENT_CONFIG_RECOVERY_RECEIPT_VERSION = "local-client-config-recovery-receipt-v1" as const;
 export const LOCAL_CLIENT_CONFIG_JOURNAL_VERSION = "local-client-config-journal-v2" as const;
+export const LOCAL_CLIENT_CONFIG_JSONC_JOURNAL_VERSION = "local-client-config-journal-jsonc-v1" as const;
+export type LocalClientConfigFormat = "json-only" | "jsonc";
+type JournalVersion = typeof LOCAL_CLIENT_CONFIG_JOURNAL_VERSION | typeof LOCAL_CLIENT_CONFIG_JSONC_JOURNAL_VERSION;
 export const LOCAL_CLIENT_CONFIG_BACKUP_ENVELOPE_VERSION = "local-client-config-backup-aes-256-gcm-v1" as const;
 
 const LOCK_VERSION = "local-client-config-lock-v1" as const;
@@ -80,6 +84,7 @@ export type LocalClientConfigOperation =
   }>;
 
 export interface LocalClientConfigTransactionOptions {
+  readonly format?: LocalClientConfigFormat;
   readonly targetPath: string;
   readonly allowedRoot: string;
   readonly backupDir: string;
@@ -146,7 +151,7 @@ export interface LocalClientConfigRecoveryReceipt {
 
 export interface LocalClientConfigTransactionStatus {
   readonly available: boolean;
-  readonly format: "json-only";
+  readonly format: LocalClientConfigFormat;
   readonly targetFingerprint: string;
   readonly recoveryRequired: boolean;
   readonly journalCorrupt: boolean;
@@ -156,7 +161,7 @@ export interface LocalClientConfigTransactionStatus {
   readonly committedRetentionMs: number;
   readonly backupProtection: "aes-256-gcm" | "0600-plaintext";
   readonly boundaries: Readonly<{
-    jsoncSupported: false;
+    jsoncSupported: boolean;
     yamlSupported: false;
     rawPathsExposed: false;
     rawValuesExposed: false;
@@ -252,7 +257,7 @@ type JournalEntry = {
 };
 
 type Journal = {
-  journalVersion: typeof LOCAL_CLIENT_CONFIG_JOURNAL_VERSION;
+  journalVersion: JournalVersion;
   sequence: number;
   lastObservedAtMs: number;
   entries: JournalEntry[];
@@ -277,11 +282,12 @@ const BOUNDARIES = Object.freeze({
 });
 
 /**
- * Transaction engine for one code-bound, plain JSON object file. JSONC and
- * YAML are intentionally unsupported; adapters for those formats need their
- * own structured parser and lossless writer before they may use this boundary.
+ * Transaction engine for one code-bound JSON or explicitly selected JSONC file.
+ * JSONC uses a strict local lossless codec; the filesystem effect boundary is shared.
  */
 export class LocalClientConfigTransactionEngine {
+  readonly #format: LocalClientConfigFormat;
+  readonly #journalVersion: JournalVersion;
   readonly #targetPath: string;
   readonly #allowedRoot: string;
   readonly #backupDir: string;
@@ -294,7 +300,7 @@ export class LocalClientConfigTransactionEngine {
   readonly #backupEncryptionKey: Buffer | null;
   readonly #clock: () => number;
   readonly #plans = new Map<string, InternalPlan>();
-  #journal: Journal = createEmptyJournal();
+  #journal: Journal;
   #journalCorrupt = false;
   #recoveryRequired = false;
   #closed = false;
@@ -310,13 +316,19 @@ export class LocalClientConfigTransactionEngine {
       "committedRetentionMs",
       "backupEncryptionKey",
       "clock",
+      "format",
     ], new Set([
       "maxBytes",
       "maxTransactions",
       "committedRetentionMs",
       "backupEncryptionKey",
       "clock",
+      "format",
     ]), configurationError);
+    if (options.format !== undefined && options.format !== "json-only" && options.format !== "jsonc") throw configurationError();
+    this.#format = options.format ?? "json-only";
+    this.#journalVersion = this.#format === "jsonc" ? LOCAL_CLIENT_CONFIG_JSONC_JOURNAL_VERSION : LOCAL_CLIENT_CONFIG_JOURNAL_VERSION;
+    this.#journal = createEmptyJournal(this.#journalVersion);
     this.#targetPath = assertAbsolutePath(options.targetPath);
     this.#allowedRoot = assertAbsolutePath(options.allowedRoot);
     this.#backupDir = assertAbsolutePath(options.backupDir);
@@ -337,7 +349,9 @@ export class LocalClientConfigTransactionEngine {
     );
     if (options.clock !== undefined && typeof options.clock !== "function") throw configurationError();
     this.#clock = options.clock ?? Date.now;
-    this.#targetFingerprint = sha256Text(normalizePathForFingerprint(this.#targetPath));
+    const normalizedTarget = normalizePathForFingerprint(this.#targetPath);
+    this.#targetFingerprint = sha256Text(this.#format === "jsonc"
+      ? JSON.stringify([LOCAL_CLIENT_JSONC_CODEC_VERSION, normalizedTarget]) : normalizedTarget);
     assertBoundPaths({
       allowedRoot: this.#allowedRoot,
       targetPath: this.#targetPath,
@@ -365,7 +379,7 @@ export class LocalClientConfigTransactionEngine {
       .map((entry) => entry.transactionId);
     return Object.freeze({
       available: !this.#closed,
-      format: "json-only",
+      format: this.#format,
       targetFingerprint: this.#targetFingerprint,
       recoveryRequired: this.#recoveryRequired,
       journalCorrupt: this.#journalCorrupt,
@@ -374,7 +388,7 @@ export class LocalClientConfigTransactionEngine {
       maxTransactions: this.#maxTransactions,
       committedRetentionMs: this.#committedRetentionMs,
       backupProtection: this.#backupEncryptionKey === null ? "0600-plaintext" : "aes-256-gcm",
-      boundaries: BOUNDARIES,
+      boundaries: this.#format === "jsonc" ? Object.freeze({ ...BOUNDARIES, jsoncSupported: true }) : BOUNDARIES,
     });
   }
 
@@ -403,9 +417,19 @@ export class LocalClientConfigTransactionEngine {
     const operations = normalizeOperations(input.operations, this.#maxBytes);
     await this.#assertSafeTopology({ requireTarget: true });
     const snapshot = await readBoundTarget(this.#targetPath, this.#allowedRoot, this.#maxBytes);
-    const root = parsePlainJsonObject(snapshot.bytes, this.#maxBytes);
-    const updated = applyOperations(root, operations);
-    const afterBytes = serializeLikeOriginal(updated, snapshot.bytes);
+    let afterBytes: Buffer;
+    if (this.#format === "jsonc") {
+      try {
+        const root = parseLocalClientJsoncObject(snapshot.bytes, this.#maxBytes);
+        afterBytes = editLocalClientJsoncObject(snapshot.bytes, operations, applyOperations(root, operations), this.#maxBytes);
+      } catch (error) {
+        if (error instanceof LocalClientConfigTransactionError) throw error;
+        throw jsonError();
+      }
+    } else {
+      const root = parsePlainJsonObject(snapshot.bytes, this.#maxBytes);
+      afterBytes = serializeLikeOriginal(applyOperations(root, operations), snapshot.bytes);
+    }
     if (afterBytes.byteLength > this.#maxBytes) throw tooLargeError();
     const beforeSha256 = sha256Bytes(snapshot.bytes);
     const afterSha256 = sha256Bytes(afterBytes);
@@ -739,7 +763,7 @@ export class LocalClientConfigTransactionEngine {
         throw error;
       });
       if (!journalStat) {
-        this.#journal = createEmptyJournal();
+        this.#journal = createEmptyJournal(this.#journalVersion);
         this.#recoveryRequired = false;
         return;
       }
@@ -747,7 +771,7 @@ export class LocalClientConfigTransactionEngine {
         throw journalCorruptError();
       }
       const raw = await readFile(this.#journalPath, "utf8");
-      this.#journal = parseJournal(raw, this.#maxTransactions);
+      this.#journal = parseJournal(raw, this.#maxTransactions, this.#journalVersion);
       if (this.#journal.entries.some((entry) => (
         !safeSha256Equal(entry.targetFingerprint, this.#targetFingerprint)
       ))) {
@@ -757,7 +781,7 @@ export class LocalClientConfigTransactionEngine {
         entry.status === "pending" || entry.status === "rollback-pending"
       ));
     } catch (error) {
-      this.#journal = createEmptyJournal();
+      this.#journal = createEmptyJournal(this.#journalVersion);
       this.#journalCorrupt = true;
       this.#recoveryRequired = true;
       if (error instanceof LocalClientConfigTransactionError) return;
@@ -792,7 +816,7 @@ export class LocalClientConfigTransactionEngine {
     }
     let persisted: Journal;
     try {
-      persisted = parseJournal(await readFile(this.#journalPath, "utf8"), this.#maxTransactions);
+      persisted = parseJournal(await readFile(this.#journalPath, "utf8"), this.#maxTransactions, this.#journalVersion);
     } catch {
       throw cleanupError();
     }
@@ -1052,9 +1076,9 @@ export async function createLocalClientConfigTransactionEngine(
   return LocalClientConfigTransactionEngine.open(options);
 }
 
-function createEmptyJournal(): Journal {
+function createEmptyJournal(journalVersion: JournalVersion): Journal {
   return {
-    journalVersion: LOCAL_CLIENT_CONFIG_JOURNAL_VERSION,
+    journalVersion,
     sequence: 0,
     lastObservedAtMs: 0,
     entries: [],
@@ -1063,7 +1087,7 @@ function createEmptyJournal(): Journal {
 
 function cloneJournal(journal: Journal): Journal {
   return {
-    journalVersion: LOCAL_CLIENT_CONFIG_JOURNAL_VERSION,
+    journalVersion: journal.journalVersion,
     sequence: journal.sequence,
     lastObservedAtMs: journal.lastObservedAtMs,
     entries: journal.entries.map((entry) => ({ ...entry })),
@@ -1604,7 +1628,7 @@ function fingerprintIdentity(identity: FileIdentity): string {
   ]));
 }
 
-function parseJournal(raw: string, maxTransactions: number): Journal {
+function parseJournal(raw: string, maxTransactions: number, journalVersion: JournalVersion): Journal {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -1613,7 +1637,7 @@ function parseJournal(raw: string, maxTransactions: number): Journal {
   }
   if (
     !hasExactKeys(parsed, ["journalVersion", "sequence", "lastObservedAtMs", "entries"])
-    || parsed.journalVersion !== LOCAL_CLIENT_CONFIG_JOURNAL_VERSION
+    || parsed.journalVersion !== journalVersion
     || !Number.isSafeInteger(parsed.sequence)
     || Number(parsed.sequence) < 0
     || !Number.isSafeInteger(parsed.lastObservedAtMs)
@@ -1630,7 +1654,7 @@ function parseJournal(raw: string, maxTransactions: number): Journal {
     seen.add(entry.transactionId);
   }
   return {
-    journalVersion: LOCAL_CLIENT_CONFIG_JOURNAL_VERSION,
+    journalVersion,
     sequence: Number(parsed.sequence),
     lastObservedAtMs: Number(parsed.lastObservedAtMs),
     entries,

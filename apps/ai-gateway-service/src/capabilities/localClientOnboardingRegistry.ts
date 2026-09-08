@@ -1,9 +1,11 @@
 import { createHash } from "node:crypto";
 import { lstat, readFile, realpath } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
+import { parseLocalClientJsoncObject } from "./localClientConfigJsonc.ts";
 
 import {
   createLocalClientConfigTransactionEngine,
+  type LocalClientConfigFormat,
   type LocalClientConfigJsonValue,
   type LocalClientConfigReceipt,
   type LocalClientConfigRecoveryReceipt,
@@ -24,6 +26,7 @@ export const LOCAL_CLIENT_ONBOARDING_PROFILE_IDS = Object.freeze({
   claudeCompatible: "claude-compatible-mcp-json" as const,
   cursor: "cursor-mcp-json" as const,
   vscode: "vscode-mcp-json" as const,
+  vscodeJsonc: "vscode-mcp-jsonc-v1" as const,
 });
 
 export type LocalClientOnboardingProfileId =
@@ -49,7 +52,8 @@ export interface UnifiedAiMcpServerDefinition {
   readonly env?: Readonly<Record<string, string>>;
 }
 
-export interface LocalClientOnboardingRegistryOptions {
+export interface LocalClientOnboardingRegistryV1Options {
+  readonly version?: 1;
   readonly profiles: Readonly<{
     claudeCompatible: LocalClientOnboardingBoundPaths;
     cursor: LocalClientOnboardingBoundPaths;
@@ -60,10 +64,22 @@ export interface LocalClientOnboardingRegistryOptions {
   readonly backupEncryptionKey?: Uint8Array;
 }
 
+export interface LocalClientOnboardingSelectedProfile {
+  readonly profileId: LocalClientOnboardingProfileId;
+  readonly paths: LocalClientOnboardingBoundPaths;
+}
+
+export interface LocalClientOnboardingRegistryV2Options extends Pick<LocalClientOnboardingRegistryV1Options, "serverDefinition" | "committedRetentionMs" | "backupEncryptionKey"> {
+  readonly version: 2;
+  readonly profiles: readonly LocalClientOnboardingSelectedProfile[];
+}
+
+export type LocalClientOnboardingRegistryOptions = LocalClientOnboardingRegistryV1Options | LocalClientOnboardingRegistryV2Options;
+
 export interface LocalClientOnboardingProfileSummary {
   readonly profileId: LocalClientOnboardingProfileId;
   readonly client: LocalClientOnboardingClient;
-  readonly format: "json-only";
+  readonly format: LocalClientConfigFormat;
   readonly containerKey: "mcpServers" | "servers";
   readonly serverName: typeof LOCAL_CLIENT_ONBOARDING_SERVER_NAME;
   readonly transport: "stdio";
@@ -77,7 +93,7 @@ export interface LocalClientOnboardingVerification {
   readonly profileId: LocalClientOnboardingProfileId;
   readonly installed: boolean;
   readonly state: "exact" | "absent" | "different";
-  readonly format: "json-only";
+  readonly format: LocalClientConfigFormat;
   readonly certificationStatus: typeof LOCAL_CLIENT_ONBOARDING_CERTIFICATION_STATUS;
   readonly redacted: true;
 }
@@ -102,7 +118,7 @@ export interface LocalClientOnboardingPlan {
   readonly createdAtMs: number;
   readonly expiresAtMs: number;
   readonly writesPerformed: false;
-  readonly format: "json-only";
+  readonly format: LocalClientConfigFormat;
   readonly certificationStatus: typeof LOCAL_CLIENT_ONBOARDING_CERTIFICATION_STATUS;
   readonly redacted: true;
 }
@@ -114,7 +130,7 @@ export interface LocalClientOnboardingReceipt {
   readonly planId: string;
   readonly transaction: LocalClientConfigReceipt;
   readonly receiptDigest: string;
-  readonly format: "json-only";
+  readonly format: LocalClientConfigFormat;
   readonly certificationStatus: typeof LOCAL_CLIENT_ONBOARDING_CERTIFICATION_STATUS;
   readonly redacted: true;
 }
@@ -125,7 +141,7 @@ export interface LocalClientOnboardingRollbackReceipt {
   readonly action: LocalClientOnboardingAction;
   readonly planId: string;
   readonly transaction: LocalClientConfigRollbackReceipt;
-  readonly format: "json-only";
+  readonly format: LocalClientConfigFormat;
   readonly certificationStatus: typeof LOCAL_CLIENT_ONBOARDING_CERTIFICATION_STATUS;
   readonly redacted: true;
 }
@@ -134,7 +150,7 @@ export interface LocalClientOnboardingRecoveryReceipt {
   readonly recoveryVersion: typeof LOCAL_CLIENT_ONBOARDING_RECOVERY_VERSION;
   readonly profileId: LocalClientOnboardingProfileId;
   readonly transaction: LocalClientConfigRecoveryReceipt;
-  readonly format: "json-only";
+  readonly format: LocalClientConfigFormat;
   readonly certificationStatus: typeof LOCAL_CLIENT_ONBOARDING_CERTIFICATION_STATUS;
   readonly redacted: true;
 }
@@ -209,20 +225,36 @@ const PROFILE_DEFINITIONS = Object.freeze([
     profileId: LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.claudeCompatible,
     client: "claude-compatible" as const,
     containerKey: "mcpServers" as const,
+    format: "json-only" as const,
   }),
   Object.freeze({
     optionKey: "cursor" as const,
     profileId: LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.cursor,
     client: "cursor" as const,
     containerKey: "mcpServers" as const,
+    format: "json-only" as const,
   }),
   Object.freeze({
     optionKey: "vscode" as const,
     profileId: LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.vscode,
     client: "vscode" as const,
     containerKey: "servers" as const,
+    format: "json-only" as const,
+  }),
+  Object.freeze({
+    optionKey: "vscodeJsonc" as const,
+    profileId: LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.vscodeJsonc,
+    client: "vscode" as const,
+    containerKey: "servers" as const,
+    format: "jsonc" as const,
   }),
 ] as const);
+
+type SelectedProfile = Readonly<{ definition: typeof PROFILE_DEFINITIONS[number]; paths: LocalClientOnboardingBoundPaths }>;
+
+export function getLocalClientOnboardingProfileFormat(profileId: unknown): LocalClientConfigFormat | undefined {
+  return PROFILE_DEFINITIONS.find((definition) => definition.profileId === profileId)?.format;
+}
 
 export class LocalClientOnboardingRegistry {
   readonly #profiles: ReadonlyMap<LocalClientOnboardingProfileId, ProfileRecord>;
@@ -234,14 +266,13 @@ export class LocalClientOnboardingRegistry {
   }
 
   static async open(options: LocalClientOnboardingRegistryOptions): Promise<LocalClientOnboardingRegistry> {
-    assertRegistryOptions(options);
+    const selected = assertRegistryOptions(options);
     const serverDefinition = normalizeServerDefinition(options.serverDefinition);
-    await assertDistinctProfileStorage(options.profiles);
+    await assertDistinctProfileStorage(selected);
     const profiles = new Map<LocalClientOnboardingProfileId, ProfileRecord>();
     try {
-      for (const definition of PROFILE_DEFINITIONS) {
-        const paths = options.profiles[definition.optionKey];
-        const engine = await createLocalClientConfigTransactionEngine(toTransactionOptions(paths, options));
+      for (const { definition, paths } of selected) {
+        const engine = await createLocalClientConfigTransactionEngine({ ...toTransactionOptions(paths, options), format: definition.format });
         const summary = createProfileSummary(definition, engine.getStatus().backupProtection);
         const maxBytes = boundedInteger(paths.maxBytes, DEFAULT_MAX_BYTES, 256, HARD_MAX_BYTES);
         profiles.set(definition.profileId, Object.freeze({
@@ -261,7 +292,7 @@ export class LocalClientOnboardingRegistry {
   }
 
   listProfiles(): readonly LocalClientOnboardingProfileSummary[] {
-    return Object.freeze(PROFILE_DEFINITIONS.map((definition) => this.#profile(definition.profileId).summary));
+    return Object.freeze([...this.#profiles.values()].map((profile) => profile.summary));
   }
 
   async close(): Promise<void> {
@@ -321,7 +352,7 @@ export class LocalClientOnboardingRegistry {
       createdAtMs: transactionPlan.createdAtMs,
       expiresAtMs: transactionPlan.expiresAtMs,
       writesPerformed: false as const,
-      format: "json-only" as const,
+      format: profile.summary.format,
       certificationStatus: LOCAL_CLIENT_ONBOARDING_CERTIFICATION_STATUS,
       redacted: true as const,
     });
@@ -357,7 +388,7 @@ export class LocalClientOnboardingRegistry {
       planId,
       transaction: freezeTransactionReceipt(transaction),
       receiptDigest,
-      format: "json-only" as const,
+      format: profile.summary.format,
       certificationStatus: LOCAL_CLIENT_ONBOARDING_CERTIFICATION_STATUS,
       redacted: true as const,
     });
@@ -379,7 +410,7 @@ export class LocalClientOnboardingRegistry {
       action: normalized.action,
       planId: normalized.planId,
       transaction: Object.freeze({ ...transaction }),
-      format: "json-only" as const,
+      format: profile.summary.format,
       certificationStatus: LOCAL_CLIENT_ONBOARDING_CERTIFICATION_STATUS,
       redacted: true as const,
     });
@@ -400,7 +431,7 @@ export class LocalClientOnboardingRegistry {
       recoveryVersion: LOCAL_CLIENT_ONBOARDING_RECOVERY_VERSION,
       profileId,
       transaction: freezeRecoveryReceipt(transaction),
-      format: "json-only" as const,
+      format: profile.summary.format,
       certificationStatus: LOCAL_CLIENT_ONBOARDING_CERTIFICATION_STATUS,
       redacted: true as const,
     });
@@ -426,6 +457,7 @@ export class LocalClientOnboardingRegistry {
       profile.targetPath,
       profile.allowedRoot,
       profile.maxBytes,
+      profile.summary.format,
     );
     const container = root[profile.summary.containerKey];
     let state: LocalClientOnboardingVerification["state"];
@@ -444,7 +476,7 @@ export class LocalClientOnboardingRegistry {
       profileId: profile.summary.profileId,
       installed: state === "exact",
       state,
-      format: "json-only" as const,
+      format: profile.summary.format,
       certificationStatus: LOCAL_CLIENT_ONBOARDING_CERTIFICATION_STATUS,
       redacted: true as const,
     });
@@ -464,7 +496,7 @@ function createProfileSummary(
   return Object.freeze({
     profileId: definition.profileId,
     client: definition.client,
-    format: "json-only" as const,
+    format: definition.format,
     containerKey: definition.containerKey,
     serverName: LOCAL_CLIENT_ONBOARDING_SERVER_NAME,
     transport: "stdio" as const,
@@ -520,23 +552,42 @@ function normalizeServerDefinition(value: UnifiedAiMcpServerDefinition): Normali
   });
 }
 
-function assertRegistryOptions(options: LocalClientOnboardingRegistryOptions): void {
+function assertRegistryOptions(options: LocalClientOnboardingRegistryOptions): readonly SelectedProfile[] {
   assertExactObject(
     options,
-    ["profiles", "serverDefinition", "committedRetentionMs", "backupEncryptionKey"],
-    new Set(["committedRetentionMs", "backupEncryptionKey"]),
+    ["version", "profiles", "serverDefinition", "committedRetentionMs", "backupEncryptionKey"],
+    new Set(["version", "committedRetentionMs", "backupEncryptionKey"]),
   );
-  assertExactObject(options.profiles, ["claudeCompatible", "cursor", "vscode"], new Set());
-  for (const definition of PROFILE_DEFINITIONS) {
-    assertPathOptions(options.profiles[definition.optionKey]);
+  const selected: SelectedProfile[] = [];
+  if (options.version === 2) {
+    if (!Array.isArray(options.profiles) || options.profiles.length < 1 || options.profiles.length > PROFILE_DEFINITIONS.length) throw configurationError();
+    const seen = new Set<LocalClientOnboardingProfileId>();
+    for (const entry of options.profiles) {
+      assertExactObject(entry, ["profileId", "paths"], new Set());
+      const definition = PROFILE_DEFINITIONS.find((item) => item.profileId === entry.profileId);
+      if (!definition || seen.has(definition.profileId)) throw configurationError();
+      seen.add(definition.profileId);
+      assertPathOptions(entry.paths);
+      selected.push({ definition, paths: entry.paths });
+    }
+  } else {
+    if (options.version !== undefined && options.version !== 1) throw configurationError();
+    assertExactObject(options.profiles, ["claudeCompatible", "cursor", "vscode"], new Set());
+    for (const definition of PROFILE_DEFINITIONS) {
+      if (definition.optionKey === "vscodeJsonc") continue;
+      const paths = options.profiles[definition.optionKey];
+      assertPathOptions(paths);
+      selected.push({ definition, paths });
+    }
   }
   if (
     options.backupEncryptionKey !== undefined
     && (!(options.backupEncryptionKey instanceof Uint8Array) || options.backupEncryptionKey.byteLength !== 32)
   ) throw configurationError();
+  return selected;
 }
 
-function assertPathOptions(value: LocalClientOnboardingBoundPaths): void {
+function assertPathOptions(value: unknown): asserts value is LocalClientOnboardingBoundPaths {
   assertExactObject(
     value,
     ["targetPath", "allowedRoot", "backupDir", "journalPath", "maxBytes", "maxTransactions", "clock"],
@@ -554,10 +605,9 @@ function assertPathOptions(value: LocalClientOnboardingBoundPaths): void {
 }
 
 async function assertDistinctProfileStorage(
-  profiles: LocalClientOnboardingRegistryOptions["profiles"],
+  profiles: readonly SelectedProfile[],
 ): Promise<void> {
-  const storage = PROFILE_DEFINITIONS.flatMap((definition) => {
-    const profile = profiles[definition.optionKey];
+  const storage = profiles.flatMap(({ definition, paths: profile }) => {
     return [
       { profileId: definition.profileId, role: "target" as const, path: profile.targetPath },
       { profileId: definition.profileId, role: "backup" as const, path: profile.backupDir },
@@ -584,8 +634,8 @@ async function assertDistinctProfileStorage(
   }
 
   try {
-    const targets = await Promise.all(PROFILE_DEFINITIONS.map(async (definition) => {
-      const targetPath = profiles[definition.optionKey].targetPath;
+    const targets = await Promise.all(profiles.map(async ({ paths }) => {
+      const targetPath = paths.targetPath;
       const [resolvedTarget, stat] = await Promise.all([
         realpath(targetPath),
         lstat(targetPath, { bigint: true }),
@@ -652,6 +702,7 @@ async function readBoundJsonObject(
   targetPath: string,
   allowedRoot: string,
   maxBytes: number,
+  format: LocalClientConfigFormat,
 ): Promise<Record<string, unknown>> {
   try {
     const [rootStat, targetBefore] = await Promise.all([lstat(allowedRoot), lstat(targetPath)]);
@@ -677,7 +728,7 @@ async function readBoundJsonObject(
       || targetBefore.mtimeMs !== targetAfter.mtimeMs
       || bytes.byteLength !== targetAfter.size
     ) throw configInvalidError();
-    const parsed: unknown = JSON.parse(bytes.toString("utf8"));
+    const parsed: unknown = format === "jsonc" ? parseLocalClientJsoncObject(bytes, maxBytes) : JSON.parse(bytes.toString("utf8"));
     if (!isPlainRecord(parsed)) throw configInvalidError();
     return parsed;
   } catch (error) {
@@ -732,7 +783,7 @@ function validateOnboardingReceipt(value: unknown): LocalClientOnboardingReceipt
   );
   if (
     value.receiptVersion !== LOCAL_CLIENT_ONBOARDING_RECEIPT_VERSION
-    || value.format !== "json-only"
+    || value.format !== getLocalClientOnboardingProfileFormat(value.profileId)
     || value.certificationStatus !== LOCAL_CLIENT_ONBOARDING_CERTIFICATION_STATUS
     || value.redacted !== true
     || !isProfileId(value.profileId)

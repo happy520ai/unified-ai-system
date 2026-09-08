@@ -716,6 +716,100 @@ describe("local client JSON config transaction engine", () => {
       code: "LOCAL_CLIENT_CONFIG_JOURNAL_CAPACITY",
     });
   });
+
+  it("applies JSONC with bound hashes and encrypted backup then rolls back exact bytes after restart", async () => {
+    const original = Buffer.from('\ufeff{\r\n // private-original-note\r\n "servers": {"other" : [1e2,],}, /* keep */\r\n}');
+    await writeFile(targetPath, original);
+    const options = { format: "jsonc", backupEncryptionKey: Buffer.alloc(32, 0x65) };
+    const engine = await openEngine(options);
+    expect(engine.getStatus()).toMatchObject({ format: "jsonc", boundaries: { jsoncSupported: true } });
+    const plan = await engine.plan({ operations: [{ op: "set", path: ["servers", "unified-ai-system"], value: { type: "stdio", command: "node", args: [] } }] });
+    expect(await readFile(targetPath)).toEqual(original);
+    expect(await exists(journalPath)).toBe(false);
+    const receipt = await engine.apply({ planId: plan.planId });
+    const modified = await readFile(targetPath);
+    expect(sha256(modified)).toBe(plan.afterSha256);
+    expect(receipt.beforeSha256).toBe(sha256(original));
+    expect(modified.toString()).toContain('"other" : [1e2,]');
+    expect(modified.toString()).toContain("// private-original-note\r\n");
+    const journal = await readJournal(journalPath);
+    expect(journal.journalVersion).toBe("local-client-config-journal-jsonc-v1");
+    const encrypted = await readFile(join(backupDir, journal.entries[0].backupFileName), "utf8");
+    expect(JSON.parse(encrypted).algorithm).toBe("aes-256-gcm");
+    expect(encrypted).not.toContain("private-original-note");
+    await engine.close();
+    const restarted = await openEngine(options);
+    clockMs += 1;
+    await restarted.rollback({ receipt });
+    expect(await readFile(targetPath)).toEqual(original);
+    await expect(restarted.rollback({ receipt })).rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_RECEIPT_INVALID" });
+    await restarted.close();
+  });
+
+  it("domain-separates JSONC plans and refuses interpreting either format's journal as the other", async () => {
+    const legacy = await openEngine();
+    const jsonc = await openEngine({ format: "jsonc" });
+    const operation = { operations: [{ op: "set" as const, path: ["managed"], value: true }] };
+    const oldPlan = await legacy.plan(operation);
+    const newPlan = await jsonc.plan(operation);
+    expect(newPlan.targetFingerprint).not.toBe(oldPlan.targetFingerprint);
+    expect(newPlan.planId).not.toBe(oldPlan.planId);
+    await jsonc.apply({ planId: newPlan.planId });
+    const beforeJournal = await readFile(journalPath);
+    const beforeTarget = await readFile(targetPath);
+    const wrongReader = await openEngine();
+    expect(wrongReader.getStatus()).toMatchObject({ journalCorrupt: true, recoveryRequired: true });
+    await expect(legacy.apply({ planId: oldPlan.planId })).rejects.toBeDefined();
+    expect(await readFile(journalPath)).toEqual(beforeJournal);
+    expect(await readFile(targetPath)).toEqual(beforeTarget);
+    await Promise.all([legacy.close(), jsonc.close(), wrongReader.close()]);
+    const legacyJournalPath = join(root, "legacy-journal.json");
+    const legacyWriter = await openEngine({ journalPath: legacyJournalPath });
+    const anotherPlan = await legacyWriter.plan({ operations: [{ op: "set", path: ["legacy"], value: true }] });
+    await legacyWriter.apply({ planId: anotherPlan.planId });
+    const wrongJsoncReader = await openEngine({ format: "jsonc", journalPath: legacyJournalPath });
+    expect(wrongJsoncReader.getStatus()).toMatchObject({ journalCorrupt: true, recoveryRequired: true });
+    await Promise.all([legacyWriter.close(), wrongJsoncReader.close()]);
+  });
+
+  it("recovers JSONC pending publication using encrypted original bytes and retains exact rollback", async () => {
+    const original = Buffer.from('{ /* retained */ "servers":{}, "unmanaged" : 1e2, }\r\n');
+    await writeFile(targetPath, original);
+    const options = { format: "jsonc", backupEncryptionKey: Buffer.alloc(32, 0x66) };
+    const engine = await openEngine(options);
+    const plan = await engine.plan({ operations: [{ op: "set", path: ["servers", "unified-ai-system"], value: {} }] });
+    const receipt = await engine.apply({ planId: plan.planId });
+    const journal = await readJournal(journalPath);
+    makeApplyPending(journal.entries[0]);
+    await writeJournal(journalPath, journal);
+    await engine.close();
+    const restarted = await openEngine(options);
+    expect(restarted.getStatus().recoveryRequired).toBe(true);
+    const recovery = await restarted.recover({ transactionId: receipt.transactionId });
+    expect(recovery).toMatchObject({ resolution: "apply-committed", currentSha256: plan.afterSha256 });
+    expect(recovery.applyReceipt).not.toBeNull();
+    await restarted.rollback({ receipt: recovery.applyReceipt! });
+    expect(await readFile(targetPath)).toEqual(original);
+    await restarted.close();
+  });
+
+  it("rejects ambiguous JSONC before backups and detects exact target replacement after a valid plan", async () => {
+    const engine = await openEngine({ format: "jsonc" });
+    await writeFile(targetPath, '{"servers":{},"ser\\u0076ers":{}}');
+    await expect(engine.plan({ operations: [{ op: "set", path: ["managed"], value: true }] }))
+      .rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_JSON_INVALID" });
+    expect(await exists(backupDir)).toBe(false);
+    expect(await exists(journalPath)).toBe(false);
+    const original = Buffer.from('{ /* preserved */ "servers":{}, }');
+    await writeFile(targetPath, original);
+    const plan = await engine.plan({ operations: [{ op: "set", path: ["managed"], value: true }] });
+    await rm(targetPath);
+    await writeFile(targetPath, original);
+    await expect(engine.apply({ planId: plan.planId })).rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_TARGET_CHANGED" });
+    expect(await readFile(targetPath)).toEqual(original);
+    expect(await exists(backupDir)).toBe(false);
+    await engine.close();
+  });
 });
 
 function fixtureConfig(): string {

@@ -3888,7 +3888,10 @@ function validateLocalClientOnboardingGovernanceConfiguration(env, configuration
   const onboardingRootKey = materializeLocalClientOnboardingRootKey(env);
   onboardingRootKey.fill(0);
   const allStorePaths = governancePaths.map((path) => path.toLowerCase());
-  for (const profile of Object.values(configuration.registryOptions.profiles)) {
+  const profiles = configuration.registryOptions.version === 2
+    ? configuration.registryOptions.profiles.map((entry) => entry.paths)
+    : Object.values(configuration.registryOptions.profiles);
+  for (const profile of profiles) {
     const targetPath = resolve(profile.targetPath).toLowerCase();
     const journalPath = resolve(profile.journalPath).toLowerCase();
     const backupDir = resolve(profile.backupDir).toLowerCase();
@@ -3911,7 +3914,10 @@ function assertLocalClientOnboardingPathGraph(configuration, governancePaths) {
     localClientOnboardingPathFact(path, `governance:${index}`)
   ));
   const backupDirectories = [];
-  for (const [profileName, profile] of Object.entries(configuration.registryOptions.profiles)) {
+  const profiles = configuration.registryOptions.version === 2
+    ? configuration.registryOptions.profiles.map((entry) => [entry.profileId, entry.paths])
+    : Object.entries(configuration.registryOptions.profiles);
+  for (const [profileName, profile] of profiles) {
     exclusiveFiles.push(
       localClientOnboardingPathFact(profile.targetPath, `${profileName}:target`),
       localClientOnboardingPathFact(profile.journalPath, `${profileName}:journal`),
@@ -4014,8 +4020,8 @@ function sameLocalClientOnboardingPathFact(left, right) {
 }
 
 function localClientOnboardingPathContains(parentPath, candidatePath) {
-  const suffix = candidatePath.slice(parentPath.length);
-  return suffix.startsWith(sep);
+  const prefix = parentPath.endsWith(sep) ? parentPath : `${parentPath}${sep}`;
+  return candidatePath.startsWith(prefix);
 }
 
 function readStrictLocalClientOnboardingBoolean(value, fallback) {

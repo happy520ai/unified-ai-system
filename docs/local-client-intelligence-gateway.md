@@ -273,9 +273,10 @@ fail-closed execution foundation. The current safe boundary is:
   approve, execute, status, and cancel routes. Shared contracts and SDK methods
   cover those routes, and governed execution requires an explicit
   `Idempotency-Key` header;
-- governed named-client onboarding now composes the JSON transaction engine for
-  three code-registered profiles: Claude-compatible and Cursor use
-  `mcpServers`, while VS Code uses `servers` with an explicit stdio type. It is
+- governed named-client onboarding composes one transaction engine for the
+  three original JSON-only profiles plus explicit `vscode-mcp-jsonc-v1`.
+  Claude-compatible and Cursor use `mcpServers`; both VS Code profiles use
+  `servers` with an explicit stdio type. It is
   default-off and lazy; startup validates only the versioned operator
   configuration and does not discover, open, create, or change a client file.
   Protected list/inspect/verify/plan/approve/apply/rollback/recover routes,
@@ -285,9 +286,10 @@ fail-closed execution foundation. The current safe boundary is:
   Plans and results expose hashes and opaque identifiers only. Apply preserves
   unrelated JSON fields, replay performs no second write, rollback restores the
   exact prior bytes, and an uncertain post-commit outcome requires explicit
-  reconciliation. The profiles remain `json-only` and
-  `fixture-tested-not-real-client-certified`;
-  the versioned server configuration binds all three host-level profiles to one
+  reconciliation. The original profiles remain `json-only`; the explicit JSONC
+  profile also preserves comments and unmodified source bytes. Every profile
+  remains `fixture-tested-not-real-client-certified`. Configuration v1 binds all
+  three original profiles, while v2 binds only its selected known profiles to one
   exact owner tenant, and every read, plan, approval, mutation, recovery, and
   verification request is rejected before file initialization when the
   authenticated tenant differs. The owner identifier is never returned;
@@ -344,7 +346,7 @@ fail-closed execution foundation. The current safe boundary is:
   Endpoint, client identity, manifest digest, and a dedicated hex secret must all
   validate before the adapter is added; the secret is absent from descriptors
   and status output;
-- a reusable JSON-only client configuration transaction engine now provides
+- a reusable JSON/explicit JSONC client configuration transaction engine provides
   redacted content-addressed dry-runs, safe set/delete paths, prototype-pollution
   rejection, cross-process locks, precondition hashes, fsynced backups and
   journals, atomic replacement, exact byte rollback, and explicit crash
@@ -358,9 +360,8 @@ fail-closed execution foundation. The current safe boundary is:
   committed backups expire with the receipt-authority TTL, while pending or
   ambiguous entries are never pruned. Canonical path, cross-role containment,
   symlink/junction, and existing target file-identity collisions are rejected
-  before independent locks can govern the same storage. It deliberately does
-  not claim JSONC/YAML support. The three MCP
-  profiles above are its first governed adapters; arbitrary paths, commands,
+  before independent locks can govern the same storage. YAML and TOML remain
+  unsupported. The four code-registered MCP profiles above use this boundary; arbitrary paths, commands,
   args, cwd, environment values, scopes, and digests cannot be supplied through
   an HTTP request;
   application startup also builds a role-aware path graph covering governance
@@ -517,8 +518,8 @@ fingerprint, or derived key.
   The default PoP runtime's assurance remains `same-user-resistant-if-provisioned`,
   `not-admin-resistant`, and `not-provisioner`, not deployed rollback resistance.
 
-Additional lossless adapters for clients that require JSONC/YAML/TOML or other
-formats, MCP/A2A client-principal dispatch binding, real-client adapter
+Additional lossless adapters for YAML/TOML, other client-specific JSONC shapes
+and other formats, MCP/A2A client-principal dispatch binding, real-client adapter
 certification, OS/service-account isolation and an independently protected
 monotonic revocation anchor, a distributed PoP replay guard, async PostgreSQL
 readiness, real-client atomic receipt/reconciliation certification, distributed
@@ -527,6 +528,101 @@ Windows broker deployment certification, full public-clone evidence, long-run so
 clean-VM certification remain release gates. Current SQLite stores,
 authenticated registry, durable PoP replay guard, feedback outbox, and
 scheduler are explicitly single-host authority boundaries.
+
+## Explicit lossless VS Code JSONC onboarding
+
+The optional profile `vscode-mcp-jsonc-v1` uses `jsonc` and the known
+`servers.unified-ai-system` stdio entry. It uses Microsoft's pinned
+[`jsonc-parser` 3.3.1](https://github.com/microsoft/node-jsonc-parser)
+scanner/tree offsets. The editor does not use whole-document formatting or
+`modify`: those operations can remove comments around a replaced property.
+The [VS Code MCP configuration reference](https://code.visualstudio.com/docs/agents/reference/mcp-configuration)
+defines the target shape; these tests do not certify a running VS Code client.
+
+Configuration v1 retains its three required named profiles and its existing
+JSON-only behavior and status shape. An explicit configuration v2 selects 1–4
+unique known profiles; absent profiles are never discovered or initialized:
+
+```json
+{
+  "version": 2,
+  "ownerTenantId": "operator-tenant",
+  "profiles": [{
+    "profileId": "vscode-mcp-jsonc-v1",
+    "paths": {
+      "targetPath": "E:/Example/clients/vscode/mcp.jsonc",
+      "allowedRoot": "E:/Example/clients",
+      "backupDir": "E:/Example/clients/managed-backups",
+      "journalPath": "E:/Example/clients/managed-state/journal.json"
+    }
+  }],
+  "serverDefinition": {
+    "transport": "stdio",
+    "command": "E:/Example/runtime/node.exe",
+    "args": ["E:/Example/gateway/mcp-entry.mjs"]
+  }
+}
+```
+
+This is the value for `AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_CONFIG_JSON`,
+alongside the existing explicit enablement, owner authentication, durable
+idempotency/external-effect/receipt stores and credential-reference prerequisites.
+Startup configuration is strict JSON, including for v2; comments and trailing
+commas are accepted only in the selected JSONC target file. Configuration v2
+reports the actual profile count, unique clients and `formats`. No extension
+guessing or request-supplied parser/target is supported.
+
+The JSONC codec preserves UTF-8 BOM, CRLF/LF, final-newline state, every original
+comment lexeme, whitespace and every token outside the managed property. It
+removes only scanner-proven syntax from that property's value (or the property
+and one separator on disable). Comments inside a replaced/deleted value remain
+in their original order; after replacing a whole object they can appear beside
+the new value rather than inside it. Newly owned content is compact JSON.
+Missing containers are inserted at an AST boundary. Each edit is strictly
+reparsed and compared with the transaction evaluator's complete expected object.
+Duplicate decoded keys (including escaped aliases), prototype keys, invalid
+UTF-8, nonfinite numbers, unknown syntax and exceeded byte/depth/node budgets
+reject before backup creation. Original JSON-only parsing remains unchanged.
+
+The versioned JSONC codec domain-separates the target fingerprint. Existing plan
+hashes, encrypted-backup AAD and transaction receipts therefore bind the codec,
+path, exact before/after bytes and identity. The onboarding profile ID and full
+receipt fingerprint bind the same format through approval, durable replay and
+one-time rollback authority; JSON-only receipts are rejected on the JSONC
+profile and the reverse. JSONC uses `local-client-config-journal-jsonc-v1`;
+the original JSON-only journal version is unchanged. Neither engine may open
+the other's journal, even when a target happens to contain plain JSON.
+
+Use the existing `clients-onboarding` profiles/inspect/verify/plan/approve/apply/
+rollback/recover commands and `--profile-id vscode-mcp-jsonc-v1`. The same explicit
+approval and idempotency requirements apply. Rollback restores the encrypted
+original bytes, including comments and formatting, with the existing identity
+checks. Replaying a completed request never performs a second file mutation.
+The existing `control-center configure` v1 bulk manifest retains its two/three
+JSON-only profile contract; use `clients-onboarding` for the JSONC profile.
+
+Downgrade requires preserving the JSONC journal, encrypted backups and receipt
+authority until a compatible gateway can finish recovery/rollback; do not reset
+or relabel those files to make an older reader accept them. No database table,
+HTTP route, SDK operation, long-running service or native-client installation is
+added. The 21-file change follows the existing closed profile/format checks
+through each owner, plus fixes application path containment so equal-length
+sibling directories are accepted and actual descendants still reject.
+
+Language Selection: bounded parsing/editing and typed profile/receipt projection
+use TypeScript with the existing Node transaction engine. A handwritten parser
+would add unsupported syntax ambiguity; a separate Go/Rust process would add a
+filesystem/credential boundary without a measured benefit. Existing JavaScript
+CLI/composition adapters receive only the required profile/path projections.
+The pinned MIT parser has no runtime dependencies. No JSON-only migration or
+new transaction implementation is introduced.
+
+Validation covers pure source-range preservation, real temporary-file effects,
+encrypted restart rollback, durable receipt/idempotency replay, owner/format
+rejection and actual HTTP/CLI approval. An authored pending-journal fixture
+exercises explicit recovery and is not evidence of a real process kill or power
+loss. These fixtures do not prove native client loading, real Provider calls,
+clean-machine installation, production durability, YAML or TOML support.
 
 ## Language Selection
 

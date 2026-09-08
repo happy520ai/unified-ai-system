@@ -2,7 +2,7 @@ import {
   createLocalClientGovernedOnboardingApi,
   type LocalClientGovernedOnboardingDependencies,
 } from "./localClientGovernedOnboardingApi.ts";
-import type { ResolvedLocalClientOnboardingConfiguration } from "./localClientOnboardingConfig.ts";
+import type { LocalClientOnboardingConfigurationStatus, ResolvedLocalClientOnboardingConfiguration } from "./localClientOnboardingConfig.ts";
 import {
   createLocalClientOnboardingRegistry,
   type LocalClientOnboardingRegistry,
@@ -32,22 +32,8 @@ export interface LocalClientGovernedOnboardingRuntimeOptions {
 export type LocalClientGovernedOnboardingRuntime = Readonly<{
   api: LocalClientGovernedOnboardingApi;
   initialize(): Promise<void>;
-  getStatus(): Readonly<{
-    enabled: boolean;
+  getStatus(): Readonly<LocalClientOnboardingConfigurationStatus & {
     initializationState: LocalClientOnboardingInitializationState;
-    configurationVersion: 1;
-    configuredProfileCount: 0 | 3;
-    clients: readonly ["claude-compatible", "cursor", "vscode"];
-    format: "json-only";
-    certificationStatus: "fixture-tested-not-real-client-certified";
-    requiresExplicitApproval: true;
-    requiresDurableIdempotency: true;
-    requiresDurableExternalEffectFence: true;
-    requiresDurableReceiptAuthority: true;
-    automaticDiscoveryOrMutation: false;
-    sensitiveConfigurationRedacted: true;
-    tenantOwned: true;
-    backupProtection: "aes-256-gcm";
   }>;
   close(): Promise<void>;
 }>;

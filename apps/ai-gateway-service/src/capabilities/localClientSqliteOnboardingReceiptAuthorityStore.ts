@@ -34,7 +34,8 @@ export const LOCAL_CLIENT_SQLITE_ONBOARDING_RECEIPT_AUTHORITY_BOUNDARIES = Objec
 export type LocalClientOnboardingReceiptProfileId =
   | "claude-compatible-mcp-json"
   | "cursor-mcp-json"
-  | "vscode-mcp-json";
+  | "vscode-mcp-json"
+  | "vscode-mcp-jsonc-v1";
 export type LocalClientOnboardingAppliedAction = "enable" | "disable";
 export type LocalClientOnboardingReceiptAuthorityStatus =
   | "applied"
@@ -316,6 +317,7 @@ const PROFILE_IDS = new Set<LocalClientOnboardingReceiptProfileId>([
   "claude-compatible-mcp-json",
   "cursor-mcp-json",
   "vscode-mcp-json",
+  "vscode-mcp-jsonc-v1",
 ]);
 const ACTIONS = new Set<LocalClientOnboardingAppliedAction>(["enable", "disable"]);
 const STATUSES = new Set<LocalClientOnboardingReceiptAuthorityStatus>([

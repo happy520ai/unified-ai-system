@@ -1,6 +1,6 @@
-import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, realpath, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { resolveLocalClientOnboardingConfiguration } from "./localClientOnboardingConfig.ts";
@@ -10,11 +10,15 @@ const temporaryRoots: string[] = [];
 
 afterEach(async () => {
   const { rm } = await import("node:fs/promises");
-  await Promise.all(temporaryRoots.splice(0).map((path) => rm(path, { recursive: true, force: true })));
+  await Promise.all(temporaryRoots.splice(0).map(async (path) => {
+    expect(await realpath(path)).toBe(path);
+    expect(dirname(path)).toBe(await realpath(tmpdir()));
+    await rm(path, { recursive: true, force: true });
+  }));
 });
 
 async function enabledConfiguration() {
-  const root = await mkdtemp(resolve(tmpdir(), "local-client-onboarding-runtime-"));
+  const root = await mkdtemp(resolve(await realpath(tmpdir()), "local-client-onboarding-runtime-"));
   temporaryRoots.push(root);
   const profile = async (name: string) => {
     const directory = resolve(root, name);
@@ -46,6 +50,7 @@ async function enabledConfiguration() {
     }),
   });
   if (!configuration.enabled) throw new Error("expected enabled configuration");
+  if (configuration.registryOptions.version === 2) throw new Error("expected legacy registry options");
   return Object.freeze({
     ...configuration,
     registryOptions: Object.freeze({
@@ -54,6 +59,26 @@ async function enabledConfiguration() {
       committedRetentionMs: 30 * 24 * 60 * 60_000,
     }),
   });
+}
+
+async function selectedConfiguration() {
+  const root = await mkdtemp(resolve(await realpath(tmpdir()), "local-client-onboarding-runtime-v2-"));
+  temporaryRoots.push(root);
+  const targetPath = resolve(root, "mcp.json");
+  const original = '{\r\n  // selected profile only\r\n  "servers": {},\r\n  "unmanaged": true,\r\n}\r\n';
+  await writeFile(targetPath, original, "utf8");
+  const configuration = resolveLocalClientOnboardingConfiguration({
+    AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_ENABLED: "true",
+    AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_CONFIG_JSON: JSON.stringify({ version: 2, ownerTenantId: "tenant-a",
+      profiles: [{ profileId: "vscode-mcp-jsonc-v1", paths: { targetPath, allowedRoot: root,
+        backupDir: resolve(root, "backup"), journalPath: resolve(root, "journal.json") } }],
+      serverDefinition: { transport: "stdio", command: process.execPath, args: [resolve(root, "server.mjs")] },
+    }),
+  });
+  if (!configuration.enabled || configuration.registryOptions.version !== 2) throw new Error("expected v2 registry options");
+  return { root, targetPath, original, configuration: Object.freeze({ ...configuration,
+    registryOptions: Object.freeze({ ...configuration.registryOptions, backupEncryptionKey: Buffer.alloc(32, 0x4a),
+      committedRetentionMs: 30 * 24 * 60 * 60_000 }) }) };
 }
 
 function dependencies() {
@@ -88,6 +113,43 @@ function dependencies() {
 }
 
 describe("createLocalClientGovernedOnboardingRuntime", () => {
+  it("initializes only selected v2 JSONC profiles and preserves actual redacted status", async () => {
+    const fixture = await selectedConfiguration();
+    const dependencySet = dependencies();
+    const runtime = createLocalClientGovernedOnboardingRuntime({ configuration: fixture.configuration, ...dependencySet });
+    try {
+      expect(runtime.getStatus()).toMatchObject({ initializationState: "not-started", configurationVersion: 2,
+        configuredProfileCount: 1, clients: ["vscode"], formats: ["jsonc"] });
+      expect(runtime.getStatus()).not.toHaveProperty("format");
+      const profiles = await runtime.api.list({ tenantId: "tenant-a", subjectId: "operator-a" });
+      expect(profiles).toHaveLength(1);
+      expect(profiles[0]).toMatchObject({ profileId: "vscode-mcp-jsonc-v1", client: "vscode", format: "jsonc" });
+      await expect(runtime.api.inspect({ tenantId: "tenant-a", subjectId: "operator-a", profileId: "vscode-mcp-jsonc-v1" }))
+        .resolves.toMatchObject({ installation: { installed: false, format: "jsonc" }, journalCorrupt: false });
+      expect(runtime.getStatus().initializationState).toBe("ready");
+      expect(await readFile(fixture.targetPath, "utf8")).toBe(fixture.original);
+      const createdNames = await readdir(fixture.root);
+      for (const unselectedName of ["claude", "cursor", "vscode"]) expect(createdNames).not.toContain(unselectedName);
+      expect(JSON.stringify(runtime.getStatus())).not.toContain(fixture.root);
+      expect(dependencySet.approvalGate.consume).not.toHaveBeenCalled();
+      expect(dependencySet.externalEffectGate.reserve).not.toHaveBeenCalled();
+    } finally { await runtime.close(); }
+  });
+
+  it("enforces v2 tenant ownership before lazy profile I/O and zeroizes the selected source key on close", async () => {
+    const fixture = await selectedConfiguration();
+    const key = fixture.configuration.registryOptions.backupEncryptionKey;
+    const before = await readdir(fixture.root);
+    const runtime = createLocalClientGovernedOnboardingRuntime({ configuration: fixture.configuration, ...dependencies() });
+    await expect(runtime.api.list({ tenantId: "tenant-b", subjectId: "operator-b" })).rejects.toMatchObject({ code: "LOCAL_CLIENT_ONBOARDING_TENANT_FORBIDDEN" });
+    expect(runtime.getStatus().initializationState).toBe("not-started");
+    expect(await readdir(fixture.root)).toEqual(before);
+    await runtime.close();
+    expect([...key]).toEqual(new Array(32).fill(0));
+    expect(runtime.getStatus()).toMatchObject({ configurationVersion: 2, configuredProfileCount: 1,
+      clients: ["vscode"], formats: ["jsonc"], initializationState: "closed" });
+  });
+
   it("keeps disabled onboarding inert and redacted", async () => {
     const runtime = createLocalClientGovernedOnboardingRuntime({
       configuration: resolveLocalClientOnboardingConfiguration({}),
