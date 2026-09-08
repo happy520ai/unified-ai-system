@@ -16,6 +16,7 @@ import test from "node:test";
 import {
   CliUsageError,
   parseCliArgs,
+  runCli,
 } from "./cli-core.js";
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
@@ -1505,6 +1506,91 @@ test("chat blocks a real-provider runtime until explicitly authorized", async (c
   assert.equal(output.realProviderAuthorized, true);
   assert.equal(output.executionMode, "real");
 });
+
+test("doctor enforces the package engine boundaries", async (context) => {
+  const cases = [
+    { name: "Node 20 is unsupported", nodeVersion: "20.19.0", pnpmVersion: "11.19.0", nodePassed: false, pnpmPassed: true },
+    { name: "Node below the minimum patch is unsupported", nodeVersion: "22.17.0", pnpmVersion: "11.19.0", nodePassed: false, pnpmPassed: true },
+    { name: "the minimum toolchain is supported", nodeVersion: "22.18.0", pnpmVersion: "11.19.0", nodePassed: true, pnpmPassed: true },
+    { name: "pnpm 9 is unsupported", nodeVersion: "22.18.0", pnpmVersion: "9.15.0", nodePassed: true, pnpmPassed: false },
+    { name: "pnpm below the minimum minor is unsupported", nodeVersion: "22.18.0", pnpmVersion: "11.18.9", nodePassed: true, pnpmPassed: false },
+    { name: "pnpm 12 is unsupported", nodeVersion: "22.18.0", pnpmVersion: "12.0.0", nodePassed: true, pnpmPassed: false },
+    { name: "later supported stable versions work", nodeVersion: "25.8.1", pnpmVersion: "11.20.0", nodePassed: true, pnpmPassed: true },
+    { name: "unknown Node version fails closed", nodeVersion: "unknown", pnpmVersion: "11.19.0", nodePassed: false, pnpmPassed: true },
+    { name: "unknown pnpm version fails closed", nodeVersion: "22.18.0", pnpmVersion: "11.invalid", nodePassed: true, pnpmPassed: false },
+    { name: "pnpm prerelease is not a supported stable release", nodeVersion: "22.18.0", pnpmVersion: "11.19.0-beta.1", nodePassed: true, pnpmPassed: false },
+  ];
+  for (const fixture of cases) {
+    await context.test(fixture.name, async () => {
+      const { code, payload } = await runDoctorFixture(fixture);
+      assert.equal(payload.checks.find((check) => check.id === "node").passed, fixture.nodePassed);
+      assert.equal(payload.checks.find((check) => check.id === "pnpm").passed, fixture.pnpmPassed);
+      assert.equal(payload.ok, fixture.nodePassed && fixture.pnpmPassed);
+      assert.equal(code, payload.ok ? 0 : 1);
+      assert.equal(payload.gateway.reachable, false);
+    });
+  }
+});
+
+test("doctor exposes engine requirements and rejects a missing pnpm executable", async () => {
+  const { code, payload } = await runDoctorFixture({ nodeVersion: "22.18.0", pnpmVersion: "", pnpmStatus: 1 });
+  assert.equal(code, 1);
+  const nodeCheck = payload.checks.find((check) => check.id === "node");
+  const pnpmCheck = payload.checks.find((check) => check.id === "pnpm");
+  assert.equal(nodeCheck.required, ">=22.18.0");
+  assert.equal(pnpmCheck.required, ">=11.19.0 <12");
+  assert.equal(pnpmCheck.passed, false);
+  assert.match(pnpmCheck.detail, /not found on PATH/u);
+});
+
+test("doctor human output explains required versions", async () => {
+  const { code, stdout } = await runDoctorFixture({ nodeVersion: "22.17.0", pnpmVersion: "12.0.0", json: false });
+  assert.equal(code, 1);
+  assert.match(stdout, /Node\.js 22\.17\.0 \(requires >=22\.18\.0\)/u);
+  assert.match(stdout, /pnpm 12\.0\.0 \(requires >=11\.19\.0 <12\)/u);
+});
+
+test("doctor fails closed for missing or unsupported engine declarations", async (context) => {
+  for (const engines of [{}, { node: "", pnpm: "" }, { node: "^22.18.0", pnpm: ">=11.19.0 || <12" }]) {
+    await context.test(JSON.stringify(engines), async () => {
+      const { code, payload } = await runDoctorFixture({ nodeVersion: "22.18.0", pnpmVersion: "11.19.0", engineRequirements: engines });
+      assert.equal(code, 1);
+      assert.equal(payload.ok, false);
+      assert.equal(payload.checks.find((check) => check.id === "node").passed, false);
+      assert.equal(payload.checks.find((check) => check.id === "pnpm").passed, false);
+    });
+  }
+});
+
+test("doctor reads changed requirements rather than keeping old hard-coded minimums", async () => {
+  const { code, payload } = await runDoctorFixture({ nodeVersion: "22.18.0", pnpmVersion: "11.19.0", engineRequirements: { node: ">=25.8.1", pnpm: ">=11.20.0 <12" } });
+  assert.equal(code, 1);
+  assert.equal(payload.checks.find((check) => check.id === "node").required, ">=25.8.1");
+  assert.equal(payload.checks.find((check) => check.id === "node").passed, false);
+  assert.equal(payload.checks.find((check) => check.id === "pnpm").passed, false);
+});
+
+async function runDoctorFixture({ nodeVersion, pnpmVersion, pnpmStatus = 0, json = true, engineRequirements }) {
+  let stdout = "";
+  let stderr = "";
+  let spawnCount = 0;
+  const code = await runCli([
+    "doctor", ...(json ? ["--json"] : []), "--url", "http://127.0.0.1:9", "--timeout", "1",
+  ], {
+    env: {},
+    nodeVersion,
+    engineRequirements,
+    stdout: { isTTY: false, write(chunk) { stdout += chunk; } },
+    stderr: { write(chunk) { stderr += chunk; } },
+    spawnSynchronous() {
+      spawnCount += 1;
+      return { status: pnpmStatus, stdout: pnpmVersion };
+    },
+  });
+  assert.equal(stderr, "");
+  assert.equal(spawnCount, 1);
+  return { code, stdout, payload: json ? JSON.parse(stdout) : null };
+}
 
 test("doctor treats an offline gateway as optional", async () => {
   const result = await runCliProcess([

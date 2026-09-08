@@ -449,7 +449,7 @@ export function createHttpServerCapabilityRoutes(ctx) {
       phase: "Phase318A",
       health: createHealth(application),
       doctor: {
-        command: "cmd /c pnpm doctor:phase13a",
+        command: "pnpm gateway doctor --json",
         executed: false,
         status: "not_run",
         note: "UI 只读显示 doctor 命令边界，不自动执行。",

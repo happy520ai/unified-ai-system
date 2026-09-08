@@ -1235,7 +1235,10 @@ async function runStatus(options, output) {
 }
 
 async function runDoctor(options, runtime, output) {
-  const nodeMajor = Number(process.versions.node.split(".")[0]);
+  const nodeVersion = runtime.nodeVersion ?? process.versions.node;
+  const engineRequirements = runtime.engineRequirements ?? rootPackage.engines;
+  const nodeRequirement = engineRequirements?.node ?? null;
+  const pnpmRequirement = engineRequirements?.pnpm ?? null;
   const pnpmInvocation =
     process.platform === "win32"
       ? {
@@ -1257,20 +1260,21 @@ async function runDoctor(options, runtime, output) {
     },
   );
   const pnpmVersion = String(pnpmCheck.stdout ?? "").trim();
-  const pnpmMajor = Number(pnpmVersion.split(".")[0]);
   const checks = [
     {
       id: "node",
-      passed: Number.isFinite(nodeMajor) && nodeMajor >= 20,
-      detail: `Node.js ${process.versions.node}`,
+      passed: matchesDoctorEngine(nodeVersion, nodeRequirement),
+      required: nodeRequirement,
+      detail: `Node.js ${nodeVersion} (requires ${nodeRequirement ?? "a declared package engine"})`,
     },
     {
       id: "pnpm",
-      passed: pnpmCheck.status === 0 && Number.isFinite(pnpmMajor) && pnpmMajor >= 9,
+      passed: pnpmCheck.status === 0 && matchesDoctorEngine(pnpmVersion, pnpmRequirement),
+      required: pnpmRequirement,
       detail:
         pnpmCheck.status === 0
-          ? `pnpm ${pnpmVersion}`
-          : "pnpm was not found on PATH",
+          ? `pnpm ${pnpmVersion || "unknown"} (requires ${pnpmRequirement ?? "a declared package engine"})`
+          : `pnpm was not found on PATH (requires ${pnpmRequirement ?? "a declared package engine"})`,
     },
     {
       id: "workspace",
@@ -1323,6 +1327,26 @@ async function runDoctor(options, runtime, output) {
   }
 
   return result.ok ? 0 : 1;
+}
+
+function matchesDoctorEngine(version, requirement) {
+  if (typeof version !== "string" || typeof requirement !== "string" || !requirement.trim()) return false;
+  const actualMatch = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/u.exec(version);
+  if (!actualMatch) return false;
+  const actual = actualMatch.slice(1, 4).map(Number);
+  if (!actual.every(Number.isSafeInteger)) return false;
+
+  // The package declares stable-version >= / < bounds joined by spaces.
+  // Unknown range syntax must fail rather than silently accepting a runtime.
+  return requirement.trim().split(/\s+/u).every((clause) => {
+    const bound = /^(>=|<)(0|[1-9]\d*)(?:\.(0|[1-9]\d*))?(?:\.(0|[1-9]\d*))?$/u.exec(clause);
+    if (!bound) return false;
+    const expected = bound.slice(2, 5).map((part) => Number(part ?? 0));
+    if (!expected.every(Number.isSafeInteger)) return false;
+    const differing = actual.findIndex((part, index) => part !== expected[index]);
+    const comparison = differing === -1 ? 0 : Math.sign(actual[differing] - expected[differing]);
+    return bound[1] === ">=" ? comparison >= 0 : comparison < 0;
+  });
 }
 
 async function runChat(options, output, stdin) {
