@@ -22,7 +22,8 @@ function unitFilePath(scope, user = os.userInfo().username) {
   return resolve(home, ".config/systemd/user", SERVICE_NAME);
 }
 
-export function buildSystemdUnit({ command, args, description, workingDir, env }) {
+export function buildSystemdUnit({ command, args, description, workingDir, env, scope = "user" }) {
+  if (!["user", "system"].includes(scope)) throw new Error("systemd scope must be user or system.");
   const lines = [
     "[Unit]",
     "Description=" + (description ?? "Unified AI System MCP Service"),
@@ -35,8 +36,8 @@ export function buildSystemdUnit({ command, args, description, workingDir, env }
     "Restart=always",
     "RestartSec=5",
     "StandardInput=null",
-    "StandardOutput=append:/var/log/unified-ai-system-mcp.out.log",
-    "StandardError=append:/var/log/unified-ai-system-mcp.err.log",
+    "StandardOutput=journal",
+    "StandardError=journal",
     "TimeoutStopSec=15",
     "KillMode=mixed",
     "KillSignal=SIGTERM",
@@ -46,7 +47,7 @@ export function buildSystemdUnit({ command, args, description, workingDir, env }
       lines.push(`Environment="${k}=${String(v).replace(/"/g, '\\"')}"`);
     }
   }
-  lines.push("", "[Install]", "WantedBy=multi-user.target");
+  lines.push("", "[Install]", `WantedBy=${scope === "user" ? "default.target" : "multi-user.target"}`);
   return lines.join("\n");
 }
 
@@ -64,6 +65,7 @@ export async function installSystemdService(options = {}) {
     description: options.description,
     workingDir: options.workingDir,
     env: options.env,
+    scope,
   });
   writeFileSync(filePath, unit, "utf8");
 

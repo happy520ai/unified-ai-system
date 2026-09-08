@@ -203,6 +203,7 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
   const modelLibraryStore = createModelLibraryStore({
     env,
     runtimeCredentialStore,
+    storagePath: env.AI_GATEWAY_MODEL_LIBRARY_STATE_PATH,
   });
   const providerKeyConfigStore = createProviderKeyConfigStore({
     env,

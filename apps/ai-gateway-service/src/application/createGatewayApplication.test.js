@@ -9,9 +9,9 @@ import { setRuntimeProviderCredential } from "../http/utils/phaseModelUtils.js";
 import { createFakeProvider } from "../providers/fakeProvider.js";
 import { createNvidiaUnifiedClient } from "../providers/nvidia/nvidiaUnifiedClient.js";
 import { ProviderRegistry } from "../providers/providerRegistry.js";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, parse } from "node:path";
+import { dirname, join, parse } from "node:path";
 import { LocalClientSqliteFeedbackDedupStore } from "../capabilities/localClientSqliteFeedbackDedupStore.ts";
 import { LocalClientSqliteOnboardingReceiptAuthorityStore } from "../capabilities/localClientSqliteOnboardingReceiptAuthorityStore.ts";
 
@@ -171,6 +171,44 @@ describe("gateway-application", () => {
     expect(app.gatewayService.runtimeConfig.costGuardEnforce).toBe(true);
     expect(app.gatewayService.runtimeConfig.shadowRealProviderEnabled).toBe(false);
     expect(app.gatewayService.runtimeConfig.shadowTimeoutMs).toBe(30_000);
+  });
+
+  it("keeps the legacy model-library default and explicitly persists/reloads an external state path", async () => {
+    const legacyPath = app.modelLibraryStore.storagePath;
+    expect(legacyPath.endsWith(join("apps", "ai-gateway-service", "evidence", "phase-312a-model-library-state.json"))).toBe(true);
+    const root = mkdtempSync(join(realpathSync(tmpdir()), "uai-native-model-state-"));
+    const applications = [];
+    try {
+      const env = {
+        AI_GATEWAY_MODEL_LIBRARY_STATE_PATH: join(root, "model-library.json"),
+        AI_GATEWAY_AGENT_GOVERNANCE_ENABLED: "false",
+        AI_GATEWAY_LOCAL_CLIENT_REGISTRY_PATH: join(root, "clients.json"),
+        AI_GATEWAY_LOCAL_CLIENT_EXECUTION_LOG_PATH: join(root, "client-execution.jsonl"),
+        AI_GATEWAY_LOCAL_CLIENT_DISCOVERY_HINTS_PATH: join(root, "discovery.json"),
+        AI_GATEWAY_LOCAL_CLIENT_EXECUTION_CONTROL_DIR: join(root, "client-control"),
+        AI_GATEWAY_USAGE_LOG_DIR: join(root, "usage"),
+        WORKFORCE_EXECUTION_DIR: join(root, "workforce"), WORKFLOW_OUTPUT_DIR: join(root, "workflows"),
+        PME_API_KEY_STORE_PATH: join(root, "api-keys.json"), PME_ENTERPRISE_USER_STORE_PATH: join(root, "users.json"),
+        PME_AUDIT_LOG_PATH: join(root, "audit.jsonl"), PME_RUNTIME_CREDENTIAL_STORE_MODE: "memory",
+        KNOWLEDGE_STORAGE_MODE: "memory",
+      };
+      const first = createGatewayApplication(env); applications.push(first);
+      expect(first.modelLibraryStore.storagePath).toBe(env.AI_GATEWAY_MODEL_LIBRARY_STATE_PATH);
+      expect(existsSync(env.AI_GATEWAY_MODEL_LIBRARY_STATE_PATH)).toBe(false);
+      first.modelLibraryStore.recordProviderTest({ providerId: "fake", success: true, code: "synthetic-path-check", realExternalCall: false });
+      const second = createGatewayApplication(env); applications.push(second);
+      expect(second.modelLibraryStore.getState().providerStatus.fake.lastTestResult).toMatchObject({ code: "synthetic-path-check", realExternalCall: false });
+      expect(app.modelLibraryStore.storagePath).toBe(legacyPath);
+    } finally {
+      for (const application of applications) {
+        await application.requestLogger.close();
+        await application.providerDispatchGate.close();
+        await application.externalEffectGate.close();
+      }
+      expect(realpathSync(root)).toBe(root);
+      expect(dirname(root)).toBe(realpathSync(tmpdir()));
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("uses the safe shadow timeout default for an empty environment value", () => {
