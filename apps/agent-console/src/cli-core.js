@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   existsSync,
   lstatSync,
@@ -66,6 +66,8 @@ const WORKFLOW_ERROR_CODES = new Set([
   "WORKFLOW_STATE_PERMISSION_DENIED", "WORKFLOW_STORAGE_FULL", "WORKFLOW_STAGING_CAPACITY", "WORKFLOW_STAGING_CLEANUP_REQUIRED",
   "WORKFLOW_RECORD_TOO_LARGE", "WORKFLOW_OUTPUT_PATH_UNSAFE", "WORKFLOW_STAGED_CONTENT_CHANGED", "WORKFLOW_ARTIFACT_OUTCOME_UNCERTAIN",
   "WORKFLOW_ARTIFACT_RECONCILIATION_REQUIRED", "WORKFLOW_POST_WRITE_GOVERNANCE_PENDING", "WORKFLOW_POST_WRITE_GOVERNANCE_UNCERTAIN",
+  "WORKFLOW_TARGET_OCCUPIED", "WORKFLOW_TARGET_CHANGED", "WORKFLOW_ORIGINAL_AUTHORIZATION_UNVERIFIED",
+  "WORKFLOW_APPROVED_MATERIAL_MISMATCH", "WORKFLOW_GOVERNANCE_SUBJECT_MISMATCH", "TOOL_SCOPE_DENIED", "TOOL_DENIED_BY_POLICY",
 ]);
 const AGENT_GOVERNANCE_SUBCOMMANDS = new Set([
   "status",
@@ -1002,6 +1004,7 @@ async function runWorkflowOrCredentialCommand(options, output) {
       code: !credential && WORKFLOW_ERROR_CODES.has(code) ? code : credential ? notStarted ? "CREDENTIAL_CLEAR_NOT_STARTED" : uncertain ? "CREDENTIAL_CLEAR_OUTCOME_UNKNOWN" : "CREDENTIAL_CLEAR_REJECTED"
         : uncertain ? "WORKFLOW_OUTCOME_UNKNOWN" : "WORKFLOW_REQUEST_REJECTED",
       ...(receipt ? { receipt } : {}),
+      ...(!credential && code === "TOOL_APPROVAL_REQUIRED" && /^appr_[A-Za-z0-9_-]{1,128}$/u.test(details.approvalId ?? "") ? { approvalId: details.approvalId } : {}),
       nextAction: !credential && operation === "run" && code === "APPROVAL_REVIEW_UNAVAILABLE"
         ? "The gateway has no safe approval review for this workflow policy. Keep the approval requirement; do not fabricate approval or retry automatically."
         : !credential && operation === "run" && code === "TOOL_APPROVAL_REQUIRED"
@@ -1260,6 +1263,10 @@ function formatSafeRecord(value) {
 
 function formatSafeReview(value) {
   if (!isPlainRecord(value)) return "unavailable";
+  if (value.effectType === "workflow:artifact-write" && value.reviewable === true && isPlainRecord(value.workflow)) {
+    const { content, ...binding } = value.workflow;
+    return `${safeTerminalText(JSON.stringify({ ...binding, policyHash: value.policyHash }), 4_000)}\nComplete Markdown content:\n${safeTerminalBlock(content, 16_000)}\nEnd of complete Markdown content.`;
+  }
   try {
     return safeTerminalText(JSON.stringify(value), 4_000);
   } catch {
@@ -1283,7 +1290,18 @@ function projectAgentApproval(value) {
   ]) {
     if (typeof value[key] === "string") output[key] = value[key].slice(0, 4_000);
   }
-  if (value.review !== undefined) output.review = sanitizeAgentReview(value.review);
+  if (value.review !== undefined) {
+    if (value.review?.effectType === "workflow:artifact-write" && value.review.reviewable === true) {
+      const content = value.review.workflow?.content;
+      if (typeof content !== "string" || content.length > 16_000 || Buffer.byteLength(content, "utf8") > 65_536
+        || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(content)
+        || value.review.workflow.contentBytes !== Buffer.byteLength(content, "utf8")
+        || value.review.workflow.contentHash !== `sha256:${createHash("sha256").update(content, "utf8").digest("hex")}`) {
+        throw new Error("invalid or incomplete workflow approval review");
+      }
+    }
+    output.review = sanitizeAgentReview(value.review);
+  }
   return Object.freeze(output);
 }
 

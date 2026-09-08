@@ -218,7 +218,7 @@ export function createAgentApprovalStore(options: {
         const requestedAt = now();
         const argumentsHash = argumentsHashOf(input.arguments);
         const review = normalizeApprovalReview(input.review);
-        verifyReviewMatchesArguments(review, input.arguments);
+        verifyReviewMatchesArguments(review, input.arguments, input.toolName);
         const matchingPending = [...records.values()].find((candidate) => (
           candidate.status === "PENDING" && candidate.expiresAt > requestedAt
           && candidate.agentId === input.agentId && candidate.tenantId === input.tenantId
@@ -512,7 +512,7 @@ function parseApprovalsFile(raw: string, key: Buffer): ApprovalsFile {
     if (!argumentsHashMatches(record.argumentsHash, argumentsHashOf(args))) {
       throw corrupt(`Approval ${id} arguments hash does not match its authenticated payload.`);
     }
-    verifyReviewMatchesArguments(record.review, args);
+    verifyReviewMatchesArguments(record.review, args, record.toolName);
     approvals[id] = record;
   }
   return { ...data, approvals };
@@ -560,7 +560,7 @@ function verifyRecoveredArguments(record: StoredApprovalRecord, key: Buffer): un
   if (!argumentsHashMatches(record.argumentsHash, argumentsHashOf(args))) {
     throw corrupt("Approval arguments do not match their authenticated hash.");
   }
-  verifyReviewMatchesArguments(record.review, args);
+  verifyReviewMatchesArguments(record.review, args, record.toolName);
   return args;
 }
 
@@ -570,6 +570,7 @@ const KNOWN_REVIEWABLE_EFFECTS = new Set([
   "mcp:upstream-tool-call",
   "forge:orchestrate",
   "workforce:execute",
+  "workflow:artifact-write",
 ]);
 
 function normalizeApprovalReview(input: unknown): AgentToolApprovalReview {
@@ -597,6 +598,7 @@ function normalizeApprovalReview(input: unknown): AgentToolApprovalReview {
   if (source.effectType === "mcp:upstream-tool-call") return normalizeMcpApprovalReview(source);
   if (source.effectType === "forge:orchestrate") return normalizeForgeApprovalReview(source);
   if (source.effectType === "workforce:execute") return normalizeWorkforceApprovalReview(source);
+  if (source.effectType === "workflow:artifact-write") return normalizeWorkflowApprovalReview(source);
   assertGitReviewKeys(source as unknown as Record<string, unknown>, source.effectType, true);
   const repository = normalizeRepository(source.repository);
   const remote = normalizeRemote(source.remote);
@@ -902,7 +904,64 @@ function normalizeWorkforceRoleExecution(value: unknown) {
   catch { throw corrupt("Workforce role execution profile does not match its complete reviewed contract."); }
 }
 
-function verifyReviewMatchesArguments(review: AgentToolApprovalReview, value: unknown): void {
+export function isSafeWorkflowArtifactContent(value: unknown): value is string {
+  return typeof value === "string" && value.length <= 16_000
+    && Buffer.byteLength(value, "utf8") <= 65_536
+    && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(value)
+    && isSafePublishedText(value);
+}
+
+export function workflowArtifactApprovalArguments(workflow: NonNullable<AgentToolApprovalReview["workflow"]>) {
+  return {
+    workflow_effect: "workflow:artifact-write/v1",
+    workflow_id: workflow.workflowId,
+    input_sha256: workflow.inputHash.slice(7),
+    subject_sha256: workflow.subjectFingerprint.slice(7),
+    root_sha256: workflow.target.rootFingerprint.slice(7),
+    target_sha256: workflow.target.fingerprint.slice(7),
+    file_path: `.data/workflows/${workflow.target.tenantPartition}/${workflow.target.fileName}`,
+    content_sha256: workflow.contentHash.slice(7),
+    content_bytes: workflow.contentBytes,
+  };
+}
+
+function normalizeWorkflowApprovalReview(source: AgentToolApprovalReview): AgentToolApprovalReview {
+  assertExactKeys(source as unknown as Record<string, unknown>,
+    ["schemaVersion", "reviewable", "effectType", "policyHash", "workflow"], false, "Workflow review contains an unsupported field.");
+  const workflow = asPlainRecord(source.workflow, "Workflow review");
+  assertExactKeys(workflow, ["workflowId", "inputHash", "subjectFingerprint", "target", "content", "contentHash", "contentBytes", "writeMode"],
+    false, "Workflow review is incomplete or contains an unsupported field.");
+  const target = asPlainRecord(workflow.target, "Workflow target");
+  assertExactKeys(target, ["scope", "tenantPartition", "fileName", "rootFingerprint", "fingerprint"], false,
+    "Workflow target review is incomplete or contains an unsupported field.");
+  const sha = (value: unknown) => typeof value === "string" && /^sha256:[a-f0-9]{64}$/u.test(value);
+  if (typeof workflow.workflowId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$/u.test(workflow.workflowId)
+    || !sha(workflow.inputHash) || !sha(workflow.subjectFingerprint) || !sha(target.rootFingerprint) || !sha(target.fingerprint)
+    || target.scope !== "managed-workflow-output"
+    || typeof target.tenantPartition !== "string" || !/^tenant-[a-f0-9]{24}$/u.test(target.tenantPartition)
+    || typeof target.fileName !== "string" || !/^[A-Za-z0-9._-]{1,100}\.md$/iu.test(target.fileName)
+    || !isSafeWorkflowArtifactContent(workflow.content) || workflow.contentHash !== digestText(workflow.content)
+    || workflow.contentBytes !== Buffer.byteLength(workflow.content, "utf8")
+    || workflow.writeMode !== "exclusive-no-overwrite") {
+    throw corrupt("Workflow approval content, identity, or target is malformed or unsafe.");
+  }
+  return { schemaVersion: 1, reviewable: true, effectType: source.effectType, policyHash: source.policyHash,
+    workflow: { workflowId: workflow.workflowId, inputHash: workflow.inputHash as string,
+      subjectFingerprint: workflow.subjectFingerprint as string,
+      target: { scope: "managed-workflow-output", tenantPartition: target.tenantPartition, fileName: target.fileName,
+        rootFingerprint: target.rootFingerprint as string, fingerprint: target.fingerprint as string },
+      content: workflow.content, contentHash: workflow.contentHash as string, contentBytes: workflow.contentBytes as number,
+      writeMode: "exclusive-no-overwrite" } };
+}
+
+function verifyReviewMatchesArguments(review: AgentToolApprovalReview, value: unknown, toolName: string): void {
+  if (review.effectType === "workflow:artifact-write") {
+    if (toolName !== "file_write" || !review.workflow
+      || stableStringify(value) !== stableStringify(workflowArtifactApprovalArguments(review.workflow))) {
+      throw corrupt("Workflow approval arguments do not match the complete operator review.");
+    }
+    return;
+  }
   if (review.effectType === "mcp:upstream-tool-call") {
     verifyMcpReviewMatchesArguments(review, value);
     return;

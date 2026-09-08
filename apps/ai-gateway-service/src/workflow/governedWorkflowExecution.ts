@@ -1,5 +1,10 @@
 import { createHash } from "node:crypto";
 import { throwIfExecutionAborted } from "@unified-ai-system/shared-utils";
+import type { AgentToolApprovalReview, EffectiveAgentPolicy } from "@unified-ai-system/shared-contracts";
+import { stableStringify } from "@unified-ai-system/policy-engine";
+import { isSafeWorkflowArtifactContent, workflowArtifactApprovalArguments } from "../agent-governance/agentApprovalStore.ts";
+import { computeArgumentsHash, effectiveGovernedToolDecision, evaluateGovernedToolScope } from "../agent-governance/toolProxy.ts";
+import type { WorkflowExecutionCallbacks, WorkflowPublicationMaterial } from "./durableWorkflowRunStore.ts";
 
 import type { AgentGovernanceService } from "../agent-governance/agentGovernanceService.ts";
 import type {
@@ -14,7 +19,7 @@ type WorkflowIdentity = {
 };
 
 type WorkflowService = {
-  run(request: Record<string, unknown>, context: Record<string, unknown>): Promise<object>;
+  run(request: Record<string, unknown>, context: Record<string, unknown>, callbacks?: WorkflowExecutionCallbacks): Promise<object>;
   markGovernanceUncertain?(workflowId: unknown, context: Record<string, unknown>): void | Promise<void>;
   confirmGovernanceComplete?(workflowId: unknown, context: Record<string, unknown>, deliveredResult: object): void | Promise<void>;
 };
@@ -39,53 +44,83 @@ export async function executeGovernedWorkflowRun(input: {
   });
   const runSignal = combineSignals(input.signal, authorization.executionLease.signal);
   let toolLease: ToolProxyVerdict["executionLease"] | null = null;
+  const releaseToolLease = () => { toolLease?.release(); };
   let completedResult: Record<string, unknown> | null = null;
   let output: Record<string, unknown> | undefined;
   let primaryError: unknown;
   let releaseError: unknown;
+  let resultPolicy: EffectiveAgentPolicy | null = null;
+  let replayed = false;
+  let needsConfirmation = false;
+  const callContext = { agentId, tenantId: identity.tenantId, userId: identity.userId,
+    ...(input.requestId ? { requestId: input.requestId } : {}) };
+  const assertActive = async () => {
+    throwIfExecutionAborted(combineSignals(runSignal, toolLease?.signal));
+    await authorization.executionLease.assertActive();
+    throwIfExecutionAborted(combineSignals(runSignal, toolLease?.signal));
+  };
 
   try {
-    throwIfExecutionAborted(runSignal);
-    const target = buildWorkflowTarget(identity.tenantId, input.body);
-    const verdict = await input.governance.toolProxy.enforce({
-      context: {
-        agentId,
-        tenantId: identity.tenantId,
-        userId: identity.userId,
-        ...(input.requestId ? { requestId: input.requestId } : {}),
-      },
-      toolName: "file_write",
-      params: {
-        file_path: target.logicalPath,
-        content_sha256: target.goalDigest,
-      },
-      resourceContext: {
-        resourceKeys: {
-          workflowTenant: target.tenantDigest,
-          workflowArtifact: target.artifactDigest,
-        },
-        resources: [target.logicalPath],
-      },
-    });
-    toolLease = verdict.executionLease ?? null;
-    const executionSignal = combineSignals(runSignal, toolLease?.signal);
-    throwIfExecutionAborted(executionSignal);
-    if (verdict.outcome !== "allow" || !verdict.policy || !toolLease) {
-      throw workflowError(
-        verdict.code ?? "WORKFLOW_AGENT_GOVERNANCE_DENIED",
-        verdict.reason ?? "Agent Governance denied the controlled workflow artifact write.",
-        verdict.outcome === "approval_required" ? 409 : 403,
-      );
-    }
-
+    await assertActive();
+    assertWorkflowDecision(authorization.policy);
     const { agentId: _callerAgentId, ...workflowBody } = input.body;
     completedResult = { ...await input.workflowService.run(workflowBody, {
       ...input.requestContext,
       tenantId: identity.tenantId,
       userId: identity.userId,
       workflowGovernancePending: true,
-      signal: executionSignal,
+      signal: runSignal,
+    }, {
+      beforePublish: async (material) => {
+        if (resultPolicy) throw workflowError("WORKFLOW_GOVERNANCE_CALLBACK_REUSED", "A workflow admission cannot authorize another publication.", 403);
+        await assertActive();
+        const { workflow, params, resourceContext } = describeWorkflowPublication(material, identity);
+        const safe = isSafeWorkflowArtifactContent(material.content);
+        const review: Omit<AgentToolApprovalReview, "policyHash"> = safe
+          ? { schemaVersion: 1, reviewable: true, effectType: "workflow:artifact-write", workflow }
+          : { schemaVersion: 1, reviewable: false, effectType: "workflow:artifact-write",
+            unavailableReason: "The complete prepared Markdown is unsafe or exceeds the bounded operator review." };
+        const verdict = await input.governance.toolProxy.enforce({ context: callContext, toolName: "file_write", params,
+          resourceContext: { ...resourceContext, approvalReview: review } });
+        toolLease = verdict.executionLease ?? null;
+        await assertActive();
+        if (verdict.outcome !== "allow" || !verdict.policy || !toolLease) {
+          throw Object.assign(workflowError(verdict.code ?? "WORKFLOW_AGENT_GOVERNANCE_DENIED",
+            verdict.reason ?? "Agent Governance denied the controlled workflow artifact write.", verdict.outcome === "approval_required" ? 409 : 403),
+          { details: { ...(verdict.approvalId ? { approvalId: verdict.approvalId } : {}), workflowId: material.workflowId } });
+        }
+        const decision = effectiveGovernedToolDecision(verdict.policy, "file_write");
+        if (decision === "deny" || decision === "require_approval" && (!verdict.approvalId || !safe
+          || stableStringify(verdict.approvedParams) !== stableStringify(params)
+          || stableStringify(verdict.approvalReview) !== stableStringify({ ...review, policyHash: verdict.policy.policyHash }))) {
+          throw workflowError("WORKFLOW_APPROVED_MATERIAL_MISMATCH", "Approved workflow material does not match the frozen target and content.", 403);
+        }
+        resultPolicy = verdict.policy; needsConfirmation = true;
+        return { assertActive, authorization: { version: 1, agentId, policyHash: verdict.policy.policyHash,
+          subjectFingerprint: material.subjectFingerprint, workflowId: material.workflowId, inputHash: material.inputHash,
+          argumentsHash: computeArgumentsHash(params), contentHash: material.contentHash, contentBytes: material.contentBytes,
+          targetFingerprint: material.target.fingerprint, decision, approvalId: verdict.approvalId ?? null } };
+      },
+      beforeReplay: async (material) => {
+        await assertActive();
+        const { params, resourceContext } = describeWorkflowPublication({ ...material, content: null }, identity);
+        const receipt = material.authorization;
+        if (material.governancePending && !receipt || receipt && (receipt.agentId !== agentId
+          || receipt.argumentsHash !== computeArgumentsHash(params))) {
+          throw workflowError("WORKFLOW_ORIGINAL_AUTHORIZATION_UNVERIFIED", "The original publication authorization does not match this workflow receipt.", 409);
+        }
+        assertWorkflowDecision(authorization.policy);
+        const scope = evaluateGovernedToolScope(authorization.policy, identity.tenantId, params, resourceContext);
+        if (!scope.allowed) throw workflowError("TOOL_SCOPE_DENIED", scope.reason ?? "The current policy cannot return this workflow receipt.", 403);
+        const reservation = await input.governance.service.reserveUsage(agentId, authorization.policy.limits, {});
+        if (!reservation.allowed) throw workflowError(reservation.reason ?? "USAGE_LIMIT_REACHED", "Current Agent limits do not permit this receipt.", 403);
+        await input.governance.service.emitAudit({ eventType: "TOOL_REQUESTED", ...callContext, toolName: "workflow_receipt",
+          reason: "WORKFLOW_RECEIPT_REPLAY: no new publication or approval consumption", argumentsRedacted: true });
+        replayed = true; needsConfirmation = material.governancePending; resultPolicy = authorization.policy;
+      },
     }) };
+    if (!resultPolicy) throw workflowError("WORKFLOW_GOVERNANCE_CALLBACK_REQUIRED", "Workflow execution bypassed its server-created publication or receipt check.", 503);
+    await assertActive();
     const metered = await input.governance.toolProxy.enforceResult({
       context: {
         agentId,
@@ -93,8 +128,8 @@ export async function executeGovernedWorkflowRun(input: {
         userId: identity.userId,
         ...(input.requestId ? { requestId: input.requestId } : {}),
       },
-      toolName: "file_write",
-      policy: verdict.policy,
+      toolName: replayed ? "workflow_receipt" : "file_write",
+      policy: resultPolicy,
       result: completedResult,
       descriptor: {
         kind: "record-array",
@@ -111,12 +146,13 @@ export async function executeGovernedWorkflowRun(input: {
       );
     }
     output = metered.result as Record<string, unknown>;
+    await assertActive();
   } catch (error) {
     primaryError = error;
   }
 
   try {
-    toolLease?.release();
+    releaseToolLease();
   } catch (error) {
     releaseError = error;
   }
@@ -126,14 +162,14 @@ export async function executeGovernedWorkflowRun(input: {
     releaseError ??= error;
   }
 
-  if (completedResult && !primaryError && !releaseError) {
+  if (completedResult && needsConfirmation && !primaryError && !releaseError) {
     try {
       await input.workflowService.confirmGovernanceComplete?.(completedResult.workflowId, {
         tenantId: identity.tenantId, userId: identity.userId,
       }, output!);
     } catch (error) { primaryError = error; }
   }
-  if (completedResult && (primaryError || releaseError)) {
+  if (completedResult && needsConfirmation && (primaryError || releaseError)) {
     try {
       await input.workflowService.markGovernanceUncertain?.(completedResult.workflowId, {
         tenantId: identity.tenantId, userId: identity.userId,
@@ -141,12 +177,12 @@ export async function executeGovernedWorkflowRun(input: {
     } catch { /* The original governance failure remains an unknown outcome. */ }
   }
   if (primaryError) {
-    throw completedResult
+    throw completedResult && needsConfirmation
       ? createWorkflowOutcomeUncertainError(completedResult, primaryError)
       : primaryError;
   }
   if (releaseError) {
-    throw completedResult
+    throw completedResult && needsConfirmation
       ? createWorkflowOutcomeUncertainError(completedResult, releaseError)
       : releaseError;
   }
@@ -187,22 +223,29 @@ function requireWorkflowAgentId(value: unknown) {
   return agentId;
 }
 
-function buildWorkflowTarget(tenantId: string, body: Record<string, unknown>) {
-  const tenantDigest = digest(tenantId).slice(0, 24);
-  const goal = typeof body.goal === "string"
-    ? body.goal
-    : typeof body.prompt === "string"
-      ? body.prompt
-      : typeof body.query === "string" ? body.query : "";
-  const goalDigest = digest(goal);
-  const requestedName = typeof body.artifactName === "string" ? body.artifactName : "server-generated";
-  const artifactDigest = digest(requestedName).slice(0, 24);
-  return {
-    tenantDigest,
-    goalDigest,
-    artifactDigest,
-    logicalPath: `.data/workflows/tenant-${tenantDigest}/artifact-${artifactDigest}.md`,
+function assertWorkflowDecision(policy: EffectiveAgentPolicy) {
+  if (effectiveGovernedToolDecision(policy, "file_write") === "deny") {
+    throw workflowError("TOOL_DENIED_BY_POLICY", "The current policy does not grant the controlled workflow artifact operation.", 403);
+  }
+}
+
+function describeWorkflowPublication(material: WorkflowPublicationMaterial, identity: { tenantId: string; userId: string }) {
+  if (material.subjectFingerprint !== digest(JSON.stringify(["workflow-owner-v1", identity.tenantId, identity.userId]))
+    || material.tenantPartition !== `tenant-${digest(identity.tenantId).slice(0, 24)}`) {
+    throw workflowError("WORKFLOW_GOVERNANCE_SUBJECT_MISMATCH", "Prepared workflow ownership does not match authenticated server identity.", 403);
+  }
+  const workflow: NonNullable<AgentToolApprovalReview["workflow"]> = {
+    workflowId: material.workflowId, inputHash: `sha256:${material.inputHash}`, subjectFingerprint: `sha256:${material.subjectFingerprint}`,
+    target: { scope: "managed-workflow-output", tenantPartition: material.tenantPartition, fileName: material.target.fileName,
+      rootFingerprint: `sha256:${material.target.rootFingerprint}`, fingerprint: `sha256:${material.target.fingerprint}` },
+    content: material.content ?? "", contentHash: `sha256:${material.contentHash}`, contentBytes: material.contentBytes,
+    writeMode: "exclusive-no-overwrite",
   };
+  const params = workflowArtifactApprovalArguments(workflow);
+  return { workflow, params, resourceContext: {
+    resourceKeys: { workflowTenant: digest(identity.tenantId).slice(0, 24), workflowArtifact: digest(material.requestedName).slice(0, 24) },
+    resources: [params.file_path],
+  } };
 }
 
 function digest(value: string) {

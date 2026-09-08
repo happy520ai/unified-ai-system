@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { computeArgumentsHash, stableStringify } from "@unified-ai-system/policy-engine";
 import { createHash } from "node:crypto";
-import { createAgentApprovalStore } from "./agentApprovalStore.ts";
+import { createAgentApprovalStore, workflowArtifactApprovalArguments } from "./agentApprovalStore.ts";
 import { freezeWorkforceRoleExecutionProfile } from "../workforce/workforceRoleExecutionProfile.ts";
 
 const REVIEW = {
@@ -19,7 +19,91 @@ const REVIEW = {
   options: { setUpstream: false, forceMode: "none" as const },
 };
 
+function workflowReview(content = "# Exact workflow report\nOnly these bytes are approved.\n") {
+  return { schemaVersion: 1 as const, reviewable: true, effectType: "workflow:artifact-write", policyHash: REVIEW.policyHash,
+    workflow: { workflowId: "reviewed-workflow", inputHash: `sha256:${"1".repeat(64)}`, subjectFingerprint: `sha256:${"2".repeat(64)}`,
+      target: { scope: "managed-workflow-output" as const, tenantPartition: `tenant-${"3".repeat(24)}`, fileName: "reviewed.md",
+        rootFingerprint: `sha256:${"4".repeat(64)}`, fingerprint: `sha256:${"5".repeat(64)}` },
+      content, contentHash: `sha256:${createHash("sha256").update(content).digest("hex")}`, contentBytes: Buffer.byteLength(content),
+      writeMode: "exclusive-no-overwrite" as const } };
+}
+
 describe("agent governance approval store", () => {
+  it("never consumes a rejected or expired workflow approval", async () => {
+    const root = await mkdtemp(join(tmpdir(), "agent-workflow-approval-lifetime-"));
+    let now = "2026-09-08T10:00:00.000Z";
+    try {
+      const store = createAgentApprovalStore({ storePath: join(root, "approvals.json"), secret: "workflow-approval-store-test-only-material", now: () => now });
+      const review = workflowReview(); const args = workflowArtifactApprovalArguments(review.workflow);
+      const input = { agentId: "agt_workflow", tenantId: "tenant_a", toolName: "file_write", arguments: args, review, ttlSeconds: 1 };
+      const consume = { agentId: input.agentId, tenantId: input.tenantId, toolName: input.toolName, argumentsHash: computeArgumentsHash(args), policyHash: review.policyHash, executionId: "execution" };
+      const rejected = await store.create(input); await store.decide(rejected.id, "reject", "operator");
+      expect(await store.consumeApproved({ ...consume, approvalId: rejected.id })).toBeNull();
+      const approved = await store.create(input); await store.decide(approved.id, "approve", "operator");
+      now = "2026-09-08T10:00:02.000Z";
+      expect(await store.consumeApproved({ ...consume, approvalId: approved.id })).toBeNull();
+      expect(await store.expireStale(now)).toBe(1); expect((await store.get(approved.id))?.status).toBe("EXPIRED");
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
+  it("seals the complete workflow subject, input, target and content across restart and one-shot consumption", async () => {
+    const root = await mkdtemp(join(tmpdir(), "agent-workflow-approval-seal-"));
+    try {
+      const options = { storePath: join(root, "approvals.json"), secret: "workflow-approval-store-test-only-material" };
+      const review = workflowReview(); const args = workflowArtifactApprovalArguments(review.workflow);
+      const store = createAgentApprovalStore(options);
+      const pending = await store.create({ agentId: "agt_workflow", tenantId: "tenant_a", toolName: "file_write", arguments: args, review });
+      await store.decide(pending.id, "approve", "operator");
+      const restarted = createAgentApprovalStore(options);
+      const consume = { approvalId: pending.id, agentId: "agt_workflow", tenantId: "tenant_a", toolName: "file_write",
+        argumentsHash: computeArgumentsHash(args), policyHash: review.policyHash, executionId: "workflow_execution" };
+      for (const field of Object.keys(args)) {
+        const changed = { ...args, [field]: field === "content_bytes" ? args.content_bytes + 1 : String(args[field as keyof typeof args]) + "changed" };
+        expect(await restarted.consumeApproved({ ...consume, argumentsHash: computeArgumentsHash(changed) })).toBeNull();
+      }
+      for (const mismatch of [{ agentId: "agt_other" }, { tenantId: "tenant_other" }, { toolName: "file_read" }, { policyHash: `sha256:${"9".repeat(64)}` }]) {
+        expect(await restarted.consumeApproved({ ...consume, ...mismatch })).toBeNull();
+      }
+      expect((await restarted.get(pending.id))?.status).toBe("APPROVED");
+      await expect(restarted.consumeApproved(consume)).resolves.toMatchObject({ args, review });
+      expect(await restarted.consumeApproved(consume)).toBeNull();
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
+  it("rejects incomplete, unsafe or mismatched workflow reviews and unknown envelope fields", async () => {
+    const root = await mkdtemp(join(tmpdir(), "agent-workflow-approval-review-"));
+    try {
+      const store = createAgentApprovalStore({ storePath: join(root, "approvals.json"), secret: "workflow-approval-store-test-only-material" });
+      const review = workflowReview(); const args = workflowArtifactApprovalArguments(review.workflow);
+      const base = { agentId: "agt_workflow", tenantId: "tenant_a", toolName: "file_write", arguments: args, review };
+      for (const invalid of [
+        { ...base, toolName: "file_read" }, { ...base, arguments: { ...args, ignoredOverride: true } },
+        { ...base, review: { ...review, ignoredOverride: true } },
+        { ...base, review: { ...review, workflow: { ...review.workflow, ignoredOverride: true } } },
+        { ...base, review: { ...review, workflow: { ...review.workflow, target: { ...review.workflow.target, fileName: "different.md" } } } },
+        { ...base, review: { ...review, workflow: { ...review.workflow, inputHash: `sha256:${"8".repeat(64)}` } } },
+        { ...base, review: { ...review, workflow: { ...review.workflow, subjectFingerprint: `sha256:${"8".repeat(64)}` } } },
+        ...["password=synthetic-test-secret", "unsafe\u001b[2Jcontrol", "a".repeat(16_001)].map(content => {
+          const unsafeReview = workflowReview(content); return { ...base, review: unsafeReview, arguments: workflowArtifactApprovalArguments(unsafeReview.workflow) };
+        }),
+      ]) await expect(store.create(invalid)).rejects.toMatchObject({ name: "GovernanceApprovalStoreCorrupt" });
+      expect(await store.listPending()).toEqual([]);
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
+  it("fails closed when a persisted workflow's operator review is changed before reopen", async () => {
+    const root = await mkdtemp(join(tmpdir(), "agent-workflow-approval-tamper-"));
+    try {
+      const options = { storePath: join(root, "approvals.json"), secret: "workflow-approval-store-test-only-material" };
+      const review = workflowReview(); const store = createAgentApprovalStore(options);
+      const pending = await store.create({ agentId: "agt_workflow", tenantId: "tenant_a", toolName: "file_write", arguments: workflowArtifactApprovalArguments(review.workflow), review });
+      const persisted = JSON.parse(await readFile(options.storePath, "utf8"));
+      persisted.approvals[pending.id].review.workflow.target.fileName = "substituted.md";
+      await writeFile(options.storePath, JSON.stringify(persisted));
+      await expect(createAgentApprovalStore(options).get(pending.id)).rejects.toMatchObject({ name: "GovernanceStateIntegrityError" });
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
   it("coalesces identical pending approvals and enforces a per-Agent pending cap", async () => {
     const root = await mkdtemp(join(tmpdir(), "agent-governance-approval-coalesce-"));
     try {

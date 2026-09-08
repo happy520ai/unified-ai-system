@@ -257,10 +257,7 @@ export function createAgentGovernanceToolProxy(options: {
         return observe(await denyAudited("AGENT_EXPIRED", "Agent policy has expired."));
       }
 
-      const configuredDecision = getEffectiveToolDecision(policy, toolName);
-      const decision = configuredDecision === "allow" && policy.requirements.approvalRequired === true
-        ? "require_approval"
-        : configuredDecision;
+      const decision = effectiveGovernedToolDecision(policy, toolName);
       if (decision === "deny") {
         return observe(await denyAudited("TOOL_DENIED_BY_POLICY", `Tool ${toolName} is not granted by the effective policy.`));
       }
@@ -268,10 +265,7 @@ export function createAgentGovernanceToolProxy(options: {
       const sandboxRequired = policy.requirements.sandboxRequired === true;
       const requiredSandboxIsolation = requiredSandboxIsolationForTool(toolName);
 
-      const scopeCheck = evaluateResourceScope(
-        policy.scope,
-        buildScopeCheckRequest(context.tenantId, params, policy.scope, resourceContext),
-      );
+      const scopeCheck = evaluateGovernedToolScope(policy, context.tenantId, params, resourceContext);
       if (!scopeCheck.allowed) {
         return observe(await denyAudited("TOOL_SCOPE_DENIED", scopeCheck.reason ?? "Tool call is out of the policy scope."));
       }
@@ -558,6 +552,21 @@ function defineSanitizedProperty(output: Record<string, unknown>, key: string, v
 }
 
 export { computeArgumentsHash };
+
+/** Shared by effect admission and workflow receipt checks. Callers must first
+ * obtain this policy through the Governance service's verified run admission. */
+export function effectiveGovernedToolDecision(policy: EffectiveAgentPolicy, toolName: string) {
+  const configured = getEffectiveToolDecision(policy, toolName);
+  return configured === "allow" && policy.requirements.approvalRequired === true
+    ? "require_approval" : configured;
+}
+
+export function evaluateGovernedToolScope(
+  policy: EffectiveAgentPolicy, tenantId: string, params: unknown,
+  resourceContext?: Parameters<AgentGovernanceToolProxy["enforce"]>[0]["resourceContext"],
+) {
+  return evaluateResourceScope(policy.scope, buildScopeCheckRequest(tenantId, params, policy.scope, resourceContext));
+}
 
 function buildScopeCheckRequest(
   tenantId: string,

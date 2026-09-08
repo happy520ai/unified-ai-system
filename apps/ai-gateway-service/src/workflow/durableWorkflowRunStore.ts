@@ -13,12 +13,29 @@ export type WorkflowScope = { tenantId?: unknown; userId?: unknown; tenantScopeI
 export type WorkflowDraft = {
   stagingName: string; device: string; inode: string; birthtime: string; bytes: number; sha256: string;
   requestedName: string; result: Omit<WorkflowRunResponse, "artifact">;
+  target?: WorkflowPublicationTarget;
+};
+export type WorkflowPublicationTarget = { fileName: string; rootFingerprint: string; tenantFingerprint: string; fingerprint: string };
+export type WorkflowPublicationAuthorization = {
+  version: 1; agentId: string; policyHash: string; subjectFingerprint: string; workflowId: string; inputHash: string;
+  argumentsHash: string; contentHash: string; contentBytes: number; targetFingerprint: string;
+  decision: "allow" | "require_approval"; approvalId: string | null;
+};
+export type WorkflowPublicationMaterial = {
+  workflowId: string; inputHash: string; subjectFingerprint: string; tenantPartition: string; requestedName: string;
+  target: WorkflowPublicationTarget; contentHash: string; contentBytes: number; content: string | null;
+};
+export type WorkflowExecutionCallbacks = {
+  beforePublish(material: WorkflowPublicationMaterial): Promise<{ authorization: WorkflowPublicationAuthorization; assertActive(): Promise<unknown> }>;
+  beforeReplay(material: Omit<WorkflowPublicationMaterial, "content"> & {
+    authorization?: WorkflowPublicationAuthorization; governancePending: boolean;
+  }): Promise<void>;
 };
 type StoredRun = {
-  version: 1; workflowId: string; scopeKey: string; inputSha256: string; request: Json;
+  version: 1 | 2; workflowId: string; scopeKey: string; inputSha256: string; request: Json;
   status: WorkflowRunStatus; stage: "knowledge.retrieve" | "report.compose" | "artifact.write";
   attempt: number; claimId: string; leaseUntil: number; createdAt: number; updatedAt: number;
-  draft: WorkflowDraft | null; publication: { fileName: string } | null; result: WorkflowRunResponse | null;
+  draft: WorkflowDraft | null; publication: { fileName: string; authorization?: WorkflowPublicationAuthorization } | null; result: WorkflowRunResponse | null;
   governancePending: boolean; recoveryVerified: boolean; reconciliation: { status: "verified" | "unresolved"; at: string } | null;
   error: { code: string; attempt: number; at: string } | null;
   history: Array<{ code: string; attempt: number; at: string }>;
@@ -80,7 +97,7 @@ export class DurableWorkflowRunStore {
       if (previous) {
         if (previous.inputSha256 !== inputSha256) throw workflowStateError("INPUT_CONFLICT", "This workflow ID already belongs to different input.");
         if (previous.status === "completed") return { key, claimId: previous.claimId, record: previous, replayed: true };
-        if (previous.governancePending && previous.recoveryVerified && previous.result && scope.workflowGovernancePending === true) {
+        if (canRecheckGovernance(previous) && previous.result && scope.workflowGovernancePending === true) {
           // Only the existing governed wrapper may replay the stored response
           // after explicit reconciliation. No claim is renewed and no action runs.
           return { key, claimId: previous.claimId, record: previous, replayed: true };
@@ -134,12 +151,29 @@ export class DurableWorkflowRunStore {
     });
   }
 
-  intendPublication(claim: WorkflowClaim, fileName: string): void {
+  bindPublicationTarget(claim: WorkflowClaim, target: WorkflowPublicationTarget): WorkflowPublicationTarget {
+    validateTarget(target);
+    return this.#write(db => {
+      const record = this.#owned(db, claim);
+      if (!record.draft || record.publication || record.status !== "prepared") throw unknownOutcome(record.workflowId);
+      if (record.draft.target && JSON.stringify(record.draft.target) !== JSON.stringify(target)) {
+        throw workflowStateError("TARGET_CHANGED", "The prepared workflow target cannot change after review binding.");
+      }
+      // Older readers reject v2 instead of ignoring its frozen-target contract.
+      record.version = 2; record.draft.target = { ...target }; this.#save(db, claim.key, record);
+      return { ...target };
+    });
+  }
+
+  intendPublication(claim: WorkflowClaim, fileName: string, authorization?: WorkflowPublicationAuthorization): void {
     assertFileName(fileName);
     this.#write(db => {
       const record = this.#owned(db, claim);
       if (!record.draft || record.status !== "prepared" || record.publication) throw unknownOutcome(record.workflowId);
-      record.publication = { fileName }; record.status = "publishing";
+      if (record.governancePending && !authorization) throw workflowStateError("ORIGINAL_AUTHORIZATION_UNVERIFIED", "Publication requires the original governed authorization receipt.");
+      if (authorization) validateAuthorization(authorization, record);
+      if (record.draft.target && record.draft.target.fileName !== fileName) throw invalidState();
+      record.publication = { fileName, ...(authorization ? { authorization: { ...authorization } } : {}) }; record.status = "publishing";
       this.#save(db, claim.key, record);
     });
   }
@@ -176,7 +210,8 @@ export class DurableWorkflowRunStore {
       record.status = record.publication ? "unknown" : cancelled ? "cancelled" : "failed";
       record.leaseUntil = 0;
       const code = (error as { code?: unknown })?.code;
-      this.#recordError(record, cancelled ? "WORKFLOW_RUN_CANCELLED" : typeof code === "string" && /^WORKFLOW_[A-Z_]+$/.test(code) ? code : "WORKFLOW_EXECUTION_FAILED");
+      this.#recordError(record, cancelled ? "WORKFLOW_RUN_CANCELLED" : typeof code === "string"
+        && (/^WORKFLOW_[A-Z_]+$/.test(code) || ["TOOL_APPROVAL_REQUIRED", "APPROVAL_REVIEW_UNAVAILABLE"].includes(code)) ? code : "WORKFLOW_EXECUTION_FAILED");
       if ((error as { cleanupError?: unknown })?.cleanupError) this.#recordError(record, "WORKFLOW_STAGING_CLEANUP_REQUIRED");
       this.#save(db, claim.key, record);
     });
@@ -198,6 +233,9 @@ export class DurableWorkflowRunStore {
     this.#write(db => {
       const record = this.#read(db, key);
       if (!record || !record.result || record.reconciliation?.status !== "verified") throw unknownOutcome(String(workflowId));
+      if (record.governancePending && !record.publication?.authorization) {
+        throw workflowStateError("ORIGINAL_AUTHORIZATION_UNVERIFIED", "The original publication authorization remains unverified.");
+      }
       const safeResult = deliveredResult as WorkflowRunResponse;
       if (safeResult.workflowId !== record.workflowId || safeResult.status !== "completed" || safeResult.artifact?.sha256 !== record.result.artifact.sha256) throw invalidState();
       // History must expose the metered/delivered response, never the fuller
@@ -248,10 +286,13 @@ export class DurableWorkflowRunStore {
       }
       const result = record.draft ? await reconcile(record.draft, record.publication.fileName) : null;
       record.leaseUntil = 0;
-      record.recoveryVerified = Boolean(result);
+      record.recoveryVerified = Boolean(result) && (!record.governancePending || Boolean(record.publication.authorization));
       record.reconciliation = { status: result ? "verified" : "unresolved", at: new Date(this.#now()).toISOString() };
       if (result && !record.governancePending) { record.status = "completed"; record.result = result; record.error = null; }
-      else if (result) { record.status = "unknown"; record.result = result; }
+      else if (result) {
+        record.status = "unknown"; record.result = result;
+        if (!record.publication.authorization) this.#recordError(record, "WORKFLOW_ORIGINAL_AUTHORIZATION_UNVERIFIED");
+      }
       else { record.status = "unknown"; this.#recordError(record, "WORKFLOW_ARTIFACT_RECONCILIATION_REQUIRED"); }
       this.#save(db, key, record);
       return this.#project(record);
@@ -274,8 +315,8 @@ export class DurableWorkflowRunStore {
       workflowId: record.workflowId, status: record.status, stage: record.stage, attempt: record.attempt,
       request: record.request, createdAt: new Date(record.createdAt).toISOString(), updatedAt: new Date(record.updatedAt).toISOString(),
       leaseExpiresAt: record.leaseUntil ? new Date(record.leaseUntil).toISOString() : null,
-      canResume: Boolean(record.governancePending && record.recoveryVerified) || !record.publication && record.status !== "completed" && record.leaseUntil <= this.#now(),
-      resumeAction: record.governancePending && record.recoveryVerified ? "recheck-governance-only" : !record.publication && record.status !== "completed" && record.leaseUntil <= this.#now() ? "run-safe-remaining-stages" : null,
+      canResume: canRecheckGovernance(record) || !record.publication && record.status !== "completed" && record.leaseUntil <= this.#now(),
+      resumeAction: canRecheckGovernance(record) ? "recheck-governance-only" : !record.publication && record.status !== "completed" && record.leaseUntil <= this.#now() ? "run-safe-remaining-stages" : null,
       outcomeUnknown: Boolean(record.publication && record.status !== "completed"),
       error: record.error, history: record.history, reconciliation: record.reconciliation,
       ...(includeResult && record.result && !record.governancePending ? { result: record.result } : {}),
@@ -288,7 +329,7 @@ export class DurableWorkflowRunStore {
     if (typeof row.data !== "string" || Buffer.byteLength(row.data) > MAX_RECORD_BYTES || hash(row.data) !== row.digest) throw invalidState();
     let value: StoredRun;
     try { value = JSON.parse(row.data); } catch { throw invalidState(); }
-    if (value.version !== 1 || value.scopeKey !== row.scope_key || !STATES.has(value.status)
+    if (![1, 2].includes(value.version) || value.scopeKey !== row.scope_key || !STATES.has(value.status)
       || !value.request || typeof value.request !== "object" || Array.isArray(value.request)
       || hash(JSON.stringify(value.request)) !== value.inputSha256 || typeof value.governancePending !== "boolean" || typeof value.recoveryVerified !== "boolean"
       || hash(JSON.stringify([value.scopeKey, validateWorkflowId(value.workflowId)])) !== key
@@ -296,7 +337,11 @@ export class DurableWorkflowRunStore {
       || !Number.isFinite(value.createdAt) || !Number.isFinite(value.updatedAt) || !Array.isArray(value.history)
       || value.history.length > 64 || (value.status === "completed" && !value.result)) throw invalidState();
     if (value.draft) validateDraft(value.draft);
+    if (value.version === 2 && !value.draft?.target
+      || value.version === 1 && (value.draft?.target || value.publication?.authorization)) throw invalidState();
     if (value.publication) assertFileName(value.publication.fileName);
+    if (value.publication && value.draft?.target && value.publication.fileName !== value.draft.target.fileName) throw invalidState();
+    if (value.publication?.authorization) validateAuthorization(value.publication.authorization, value);
     if (value.result && (!value.draft || !value.publication || value.result.artifact?.sha256 !== value.draft.sha256
       || value.result.artifact?.fileName !== value.publication.fileName)) throw invalidState();
     return value;
@@ -402,6 +447,30 @@ function validateDraft(draft: WorkflowDraft): void {
     || !/^\d+$/.test(draft.device) || !/^\d+$/.test(draft.inode) || !/^\d+$/.test(draft.birthtime) || !/^[a-f0-9]{64}$/.test(draft.sha256)
     || !Number.isSafeInteger(draft.bytes) || draft.bytes < 0 || draft.bytes > MAX_RECORD_BYTES || !draft.result) throw invalidState();
   assertFileName(draft.requestedName);
+  if (draft.target) validateTarget(draft.target);
+}
+export function workflowTargetFingerprint(target: Omit<WorkflowPublicationTarget, "fingerprint">): string {
+  return hash(JSON.stringify(["workflow-target-v1", target.rootFingerprint, target.tenantFingerprint, target.fileName]));
+}
+function validateTarget(target: WorkflowPublicationTarget): void {
+  assertFileName(target.fileName);
+  if (!/^[a-f0-9]{64}$/.test(target.rootFingerprint) || !/^[a-f0-9]{64}$/.test(target.tenantFingerprint)
+    || target.fingerprint !== workflowTargetFingerprint(target)
+    || Object.keys(target).sort().join("\0") !== ["fileName", "fingerprint", "rootFingerprint", "tenantFingerprint"].join("\0")) throw invalidState();
+}
+function validateAuthorization(receipt: WorkflowPublicationAuthorization, record: StoredRun): void {
+  const draft = record.draft;
+  if (!receipt || receipt.version !== 1 || !draft?.target
+    || !/^agt_[A-Za-z0-9_-]{1,128}$/u.test(receipt.agentId) || !/^sha256:[a-f0-9]{64}$/u.test(receipt.policyHash)
+    || !/^sha256:[a-f0-9]{64}$/u.test(receipt.argumentsHash)
+    || receipt.workflowId !== record.workflowId || receipt.inputHash !== record.inputSha256 || receipt.subjectFingerprint !== record.scopeKey
+    || receipt.contentHash !== draft.sha256 || receipt.contentBytes !== draft.bytes || receipt.targetFingerprint !== draft.target.fingerprint
+    || !["allow", "require_approval"].includes(receipt.decision)
+    || (receipt.decision === "allow" ? receipt.approvalId !== null : typeof receipt.approvalId !== "string" || !/^appr_[A-Za-z0-9_-]{1,128}$/u.test(receipt.approvalId))
+    || Object.keys(receipt).sort().join("\0") !== ["version", "agentId", "policyHash", "subjectFingerprint", "workflowId", "inputHash", "argumentsHash", "contentHash", "contentBytes", "targetFingerprint", "decision", "approvalId"].sort().join("\0")) throw invalidState();
+}
+function canRecheckGovernance(record: StoredRun): boolean {
+  return record.governancePending && record.recoveryVerified && Boolean(record.publication?.authorization);
 }
 function assertFileName(name: unknown): asserts name is string {
   if (typeof name !== "string" || !/^[A-Za-z0-9._-]{1,100}\.md$/i.test(name)) throw invalidState();
@@ -484,9 +553,10 @@ export async function executeDurableWorkflow(input: {
   prepare: (claim: WorkflowClaim) => Promise<WorkflowDraft>;
   publish: (claim: WorkflowClaim, draft: WorkflowDraft) => Promise<WorkflowRunResponse>;
   discard: (draft: WorkflowDraft) => Promise<void>;
+  replay?: (claim: WorkflowClaim) => Promise<void>;
 }): Promise<WorkflowRunResponse> {
   const claim = input.store.claim(input.workflowId, input.request, input.scope);
-  if (claim.replayed) return claim.record.result!;
+  if (claim.replayed) { await input.replay?.(claim); return claim.record.result!; }
   try {
     let draft = claim.record.draft;
     if (!draft) {

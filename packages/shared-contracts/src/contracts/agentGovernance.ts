@@ -432,6 +432,23 @@ export interface AgentToolApprovalReview {
       roleExecution?: WorkforceRoleExecutionProfile;
     };
   };
+  workflow?: {
+    workflowId: string;
+    inputHash: string;
+    subjectFingerprint: string;
+    target: {
+      scope: "managed-workflow-output";
+      tenantPartition: string;
+      fileName: string;
+      rootFingerprint: string;
+      fingerprint: string;
+    };
+    /** Complete bounded UTF-8 Markdown. Unsafe or omitted text is unreviewable. */
+    content: string;
+    contentHash: string;
+    contentBytes: number;
+    writeMode: "exclusive-no-overwrite";
+  };
 }
 
 /**

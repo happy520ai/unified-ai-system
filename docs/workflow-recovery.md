@@ -56,9 +56,12 @@ recorded inode/device, length and hash. It never changes the target artifact.
 `meta.stagingCleanup` reports removal, absence, or preserved unknown identity.
 If the artifact was
 published but post-write Agent result governance did not finish, the run remains
-unknown with `resumeAction: "recheck-governance-only"`. Repeating the original
+unknown. A verified original publication authorization receipt is also required
+before `resumeAction: "recheck-governance-only"` is available. Repeating the original
 request through the governed run endpoint then reauthorizes and meters only the
-stored result; it does not repeat retrieval or file publication. The history API
+stored result; it does not repeat retrieval or file publication or consume a second
+write approval. A legacy unknown record without original authorization evidence
+remains uncertain even when its file fingerprint matches. The history API
 does not reveal the unmetered intermediate result. Completion is confirmed only
 after result governance and execution-lease release succeed.
 
@@ -72,6 +75,63 @@ After intent, ambiguous interruption stays unknown until reconciliation. Once a
 file operation has started, cancellation cannot safely undo it or authorize a
 second write.
 
+## Review and approve the exact artifact
+
+When the Agent policy requires approval for `file_write`, a run first prepares
+its bounded private draft under the authenticated workflow identity. Before
+publishing, the service freezes the exact available filename and the real root
+and tenant-directory identities. It then requests approval through the existing
+Agent approval system. `TOOL_APPROVAL_REQUIRED` returns the actual approval ID;
+the workflow history retains the draft and records that code. No final Markdown
+artifact is published while approval is pending.
+
+Use `pnpm gateway agents approvals --agent-id <agent-id>` to inspect the pending
+request, or add `--json`. The workflow review shows the complete Markdown,
+UTF-8 byte length and SHA-256, exact tenant partition and filename, controlled
+root and target fingerprints, workflow input fingerprint and initiating-owner
+fingerprint. Plain terminal output preserves the complete bounded content. The
+service cannot approve text with secret-like material or forbidden controls, or
+content exceeding 16,000 characters / 64 KiB; it returns
+`APPROVAL_REVIEW_UNAVAILABLE` and retains the original draft rather than trimming
+the text for approval.
+
+After reviewing, use the existing
+`pnpm gateway agents approve --approval-id <approval-id> --yes` command, then
+repeat the original workflow ID, input and Agent. The AES-GCM sealed arguments
+and authenticated review bind the exact input, owner, target, content and
+effective policy. Request IDs, claim IDs, lease instances and current timestamps
+are not part of retry matching. A restart or knowledge edit cannot regenerate
+the prepared content. Rejection or expiration never executes the old grant;
+another approval is requested only when the operator explicitly repeats the run.
+
+An occupied reviewed target produces `WORKFLOW_TARGET_OCCUPIED` and is
+preserved. The service does not silently select another version after review.
+Replacing a directory or staging inode, including a replacement with equal
+bytes, also stops publication. The writer rechecks the frozen filesystem
+identities and hash after the final asynchronous Agent authorization check,
+immediately before its final signal check and hardlink. These path and identity
+checks close the explicit authorization-await window; they are not a native,
+atomic filesystem namespace guarantee against arbitrary concurrent local actors.
+
+Approval consumption remains one-shot. Cancellation after consumption but before
+publication leaves the grant consumed, the draft retained, and no final artifact.
+An explicit retry needs a new approval of the same frozen material. A durable
+publication intent records the original actual authorization and, when required,
+the consumed approval ID before the file effect. An interrupted intent remains
+unknown until the recorded target can be reconciled; missing original evidence
+cannot be replaced by current permission or a caller-supplied recovery flag.
+
+Completed or reconciled receipt replay still validates current Agent ownership,
+the signed policy and ancestor chain, current tool denial and full resource
+scope, current usage limits and result governance. It uses a zero-increment
+usage reservation, so an existing receipt may be returned at the exact
+`maxToolCalls` limit without authorizing another write. Stricter current limits
+or scope can reject delivery. Receipt replay may update governance audit/usage
+state and finalize an already-reconciled journal record; it does not repeat the
+file effect or consume another write/sandbox grant. Its audit tool label is
+`workflow_receipt`. A failed delivery of an already-completed historical receipt
+does not downgrade that historical completion to a new unknown publication.
+
 ## Persistence and concurrency
 
 The journal is `workflow-runs.sqlite` under the existing `WORKFLOW_OUTPUT_DIR`
@@ -80,6 +140,18 @@ SQLite WAL, `synchronous=FULL`, a versioned application schema, bounded records,
 and operation-scoped connections. No service or background dispatcher is added.
 History reads do not initialize an absent store. Unknown or malformed existing
 state is preserved and rejected, not overwritten with an empty database.
+
+A record becomes format version 2 when its governed publication target is frozen.
+Version 2 binds the target and original authorization receipt without changing the
+SQLite table schema or adding a state file. Genuine legacy version 1 records are
+still readable; a new-format record cannot be relabeled version 1 while retaining
+the new fields. An explicit authorized run can bind a legacy prepared draft; no
+bulk or production migration/reset is performed. Older code rejects version 2
+records, and older approval readers reject the new `workflow:artifact-write`
+effect. Downgrading a gateway with this state therefore fails closed and is not
+a drop-in rollback. Preserve protected state and use a compatible reader or a
+forward correction; do not delete approvals, journals or staging to force a
+downgrade to start.
 
 An atomic, root-bound `.workflow-runs.initialization.json` marker is published
 before creating the database. An interrupted empty database can initialize only
@@ -166,13 +238,17 @@ does not open or modify any existing application database.
   and HTTP modules remain JavaScript to avoid an unrelated migration.
 - **Compatibility/rollback:** success payloads and unique-run behavior are
   retained; explicit repeated IDs now deduplicate or reject changed input.
-  History and recovery endpoints are additive. Preserve state during rollback.
+  History and recovery endpoints are additive. The bounded approval DTO and
+  version 2 target/authorization records have the downgrade boundary described
+  above. Preserve state during rollback.
 - **Policy impact:** tenant and owner come from server identity; Agent approvals,
   metering and lease release still gate governed runs. No Provider, deployment,
   native client configuration, external runner or cross-host behavior is added.
-- **Size rationale:** the eight files and more than 500 added lines are necessary
-  for the durable state/claim boundary, atomic file integration, authenticated
-  history routes, shared types, process-crash tests and this recovery contract.
+- **Size rationale:** the existing workflow, governance, shared-contract and CLI
+  owners each enforce a distinct boundary: durable claims/targets, exact review
+  sealing, current policy checks, controlled file publication and operator
+  delivery. Their focused, actual-governance and process-crash tests are necessary
+  to verify those boundaries and the recovery contract.
   There is no new dependency or reusable workflow framework.
 
 The language scores are engineering judgments, not performance measurements:

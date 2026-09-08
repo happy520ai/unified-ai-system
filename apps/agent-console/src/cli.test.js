@@ -1933,12 +1933,13 @@ test("doctor treats an offline gateway as optional", async () => {
   assert.equal(output.nextAction, "pnpm gateway serve");
 });
 
-test("CLI workflow uses a real governed gateway, durable artifact receipts and an honest approval boundary", { timeout: 60_000 }, async (context) => {
+test("CLI workflow requests a real approval and publishes the exact reviewed artifact once", { timeout: 60_000 }, async (context) => {
   // This integration must never load a user's model-library runtime state.
   await assert.rejects(lstat(join(repoRoot, "apps/ai-gateway-service/evidence/phase-312a-model-library-state.json")), { code: "ENOENT" });
-  const [{ createGatewayApplication }, { createGatewayHttpServer }] = await Promise.all([
+  const [{ createGatewayApplication }, { createGatewayHttpServer }, { createAgentApprovalStore }] = await Promise.all([
     import("../../ai-gateway-service/src/application/createGatewayApplication.js"),
     import("../../ai-gateway-service/src/http/httpServer.js"),
+    import("../../ai-gateway-service/src/agent-governance/agentApprovalStore.ts"),
   ]);
   const root = await mkdtemp(join(tmpdir(), "cli-real-workflow-"));
   const outputDir = join(root, "artifacts");
@@ -1994,7 +1995,6 @@ test("CLI workflow uses a real governed gateway, durable artifact receipts and a
 
   // Activate a restrictive policy BEFORE issuing a fresh Agent. Reconfiguring
   // the already-run Agent introduced a separate execution fence in the first run.
-  // This workflow lacks a safe file_write review DTO and must fail closed.
   await application.agentGovernance.service.createPolicyVersion({
     policyKey: "task:workflow-review", version: 1, policyType: "task", scopeKey: "workflow-review",
     content: { toolRules: { file_write: "require_approval" } },
@@ -2005,15 +2005,42 @@ test("CLI workflow uses a real governed gateway, durable artifact receipts and a
     ttlSeconds: 3600, parentAgentId: null, taskPolicyKeys: ["workflow-review"],
   }, identity);
   assert.equal((await application.agentGovernance.service.getEffectivePolicy(restrictedAgent.agentId, identity.tenantId)).toolDecisions.file_write, "require_approval");
-  const denied = await runCliProcess(["workflow", "run", "--workflow-id", "approval-blocked-report", "--goal", "Explain the local gateway", "--agent-id", restrictedAgent.agentId, ...common]);
-  assert.equal(denied.code, 1); const blocked = JSON.parse(denied.stderr);
-  assert.equal(blocked.code, "APPROVAL_REVIEW_UNAVAILABLE");
-  assert.match(blocked.nextAction, /Keep the approval requirement/);
-  assert.throws(() => application.workflowService.getRun("approval-blocked-report", identity), error => error.code === "WORKFLOW_NOT_FOUND");
+  const approvalRun = ["workflow", "run", "--workflow-id", "approval-reviewed-report", "--goal",
+    "Review the complete local artifact. ".repeat(70).trim(), "--artifact-name", "reviewed-report.md", "--agent-id", restrictedAgent.agentId, ...common];
+  const pending = await runCliProcess(approvalRun);
+  assert.equal(pending.code, 1); const blocked = JSON.parse(pending.stderr);
+  assert.equal(blocked.code, "TOOL_APPROVAL_REQUIRED"); assert.match(blocked.approvalId, /^appr_/);
+  assert.match(blocked.nextAction, /review the exact file_write request/);
+  assert.equal(application.workflowService.getRun("approval-reviewed-report", identity).error.code, "TOOL_APPROVAL_REQUIRED");
+  assert.deepEqual((await readdir(dirname(stored.result.artifact.absolutePath))).filter(name => name.endsWith(".md")), ["cli-report.md"]);
   const approvals = await runCliProcess(["agents", "approvals", "--agent-id", restrictedAgent.agentId, ...common]);
-  assert.equal(approvals.code, 0, approvals.stderr); assert.deepEqual(JSON.parse(approvals.stdout).data, []);
+  assert.equal(approvals.code, 0, approvals.stderr);
+  const approval = JSON.parse(approvals.stdout).data[0]; const reviewed = approval.review.workflow;
+  assert.equal(approval.id, blocked.approvalId); assert.equal(approval.status, "PENDING");
+  assert.equal(approval.review.effectType, "workflow:artifact-write"); assert.equal(reviewed.target.fileName, "reviewed-report.md");
+  assert.ok(reviewed.content.length > 4_000); assert.equal(reviewed.contentBytes, Buffer.byteLength(reviewed.content));
+  assert.equal(reviewed.contentHash, "sha256:" + createHash("sha256").update(reviewed.content).digest("hex"));
+  const plain = await runCliProcess(["agents", "approvals", "--agent-id", restrictedAgent.agentId, "--admin-key", token, "--url", url]);
+  assert.equal(plain.code, 0, plain.stderr); assert.ok(plain.stdout.includes(reviewed.content)); assert.match(plain.stdout, /End of complete Markdown content/);
+  const decision = await runCliProcess(["agents", "approve", "--approval-id", approval.id, "--yes", ...common]);
+  assert.equal(decision.code, 0, decision.stderr); assert.equal(JSON.parse(decision.stdout).data.status, "APPROVED");
+  const approvedRun = await runCliProcess(approvalRun);
+  assert.equal(approvedRun.code, 0, approvedRun.stderr);
+  const published = application.workflowService.getRun("approval-reviewed-report", identity);
+  assert.equal(await readFile(published.result.artifact.absolutePath, "utf8"), reviewed.content);
+  assert.equal(JSON.parse(approvedRun.stdout).data.artifact.sha256, reviewed.contentHash.slice(7));
+  const approvalReader = () => createAgentApprovalStore({ storePath: join(root, "governance", "approvals.json"), secret: "cli-workflow-governance-fixture-key-0123456789" });
+  assert.equal((await approvalReader().get(approval.id)).status, "CONSUMED");
+  const usage = await application.agentGovernance.service.getUsage(restrictedAgent.agentId);
+  const replay = await runCliProcess(approvalRun); assert.equal(replay.code, 0, replay.stderr);
+  assert.equal((await application.agentGovernance.service.getUsage(restrictedAgent.agentId)).toolCalls, usage.toolCalls);
+  assert.equal((await approvalReader().get(approval.id)).status, "CONSUMED");
+  const unsafe = await runCliProcess(["workflow", "run", "--workflow-id", "unsafe-review-report", "--goal", "password=synthetic-secret-value", "--agent-id", restrictedAgent.agentId, ...common]);
+  assert.equal(unsafe.code, 1); assert.equal(JSON.parse(unsafe.stderr).code, "APPROVAL_REVIEW_UNAVAILABLE");
+  assert.equal(application.workflowService.getRun("unsafe-review-report", identity).error.code, "APPROVAL_REVIEW_UNAVAILABLE");
+  assert.deepEqual(await application.agentGovernance.service.listApprovals(restrictedAgent.agentId, identity.tenantId), []);
   const artifacts = (await readdir(dirname(stored.result.artifact.absolutePath))).filter(name => name.endsWith(".md"));
-  assert.deepEqual(artifacts, ["cli-report.md"]);
+  assert.deepEqual(artifacts.sort(), ["cli-report.md", "reviewed-report.md"]);
 });
 
 test("workflow/provider commands use explicit identifiers without a new confirmation layer", () => {

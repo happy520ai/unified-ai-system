@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequestId, throwIfExecutionAborted } from "@unified-ai-system/shared-utils";
-import { DurableWorkflowRunStore, executeDurableWorkflow, validateWorkflowId, workflowStateError } from "./durableWorkflowRunStore.ts";
+import { DurableWorkflowRunStore, executeDurableWorkflow, validateWorkflowId, workflowStateError, workflowTargetFingerprint } from "./durableWorkflowRunStore.ts";
 
 const PHASE = "phase-30a-local-workflow-automation";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -90,8 +90,12 @@ export function createLocalWorkflowService({ knowledgeService, env = {}, outputD
     };
   }
 
-  async function run(request = {}, requestContext = {}) {
+  async function run(request = {}, requestContext = {}, callbacks) {
     throwIfExecutionAborted(requestContext.signal);
+    if (requestContext.workflowGovernancePending === true
+      && (typeof callbacks?.beforePublish !== "function" || typeof callbacks?.beforeReplay !== "function")) {
+      throw workflowStateError("GOVERNANCE_CALLBACK_REQUIRED", "Governed workflows require server-created publication and receipt checks.", 403);
+    }
     const tenantId = requireTenantId(requestContext);
     const workflowPlan = plan(request);
     const paths = { rootDir: managedOutputDir, outputDir: resolve(managedOutputDir, tenantPartition(tenantId)) };
@@ -148,8 +152,22 @@ export function createLocalWorkflowService({ knowledgeService, env = {}, outputD
         }
         return draft;
       },
-      publish: (claim, draft) => writeManagedArtifact({ ...paths, store: runStore, claim, draft, signal: requestContext.signal, hooks: workflowHooks }),
+      publish: (claim, draft) => writeManagedArtifact({ ...paths, store: runStore, claim, draft, signal: requestContext.signal, hooks: workflowHooks, callbacks }),
       discard: (draft) => discardStagedArtifact({ ...paths, draft }),
+      replay: callbacks ? async (claim) => {
+        const record = claim.record;
+        const directoryGuard = { root: await captureDirectoryIdentity(paths.rootDir), tenant: await captureDirectoryIdentity(paths.outputDir) };
+        if (resolve(directoryGuard.tenant.realPath, "..") !== directoryGuard.root.realPath || !record.draft || !record.publication || !record.result) {
+          throw workflowStateError("STATE_INVALID", "The workflow receipt has no complete durable publication record.");
+        }
+        const target = createPublicationTarget(directoryGuard, record.publication.fileName);
+        if (record.draft.target && target.fingerprint !== record.draft.target.fingerprint) {
+          throw workflowStateError("TARGET_CHANGED", "The original workflow publication directory identity changed.");
+        }
+        if (record.result.artifact.absolutePath !== resolve(paths.outputDir, target.fileName)) throw unsafeWorkflowPathError();
+        const { content: _content, ...material } = publicationMaterial(claim, record.draft, target, null, paths.outputDir);
+        await callbacks.beforeReplay({ ...material, authorization: record.publication.authorization, governancePending: record.governancePending });
+      } : undefined,
     });
   }
 
@@ -339,22 +357,52 @@ async function discardStagedArtifact({ rootDir, outputDir, draft, allowPartial =
   await unlink(path);
 }
 
-async function writeManagedArtifact({ rootDir, outputDir, store, claim, draft, signal, hooks }) {
+async function writeManagedArtifact({ rootDir, outputDir, store, claim, draft, signal, hooks, callbacks }) {
   const directoryGuard = await ensureSafeWorkflowDirectory(rootDir, outputDir);
   const stagingPath = resolve(outputDir, draft.stagingName);
   const stagingIdentity = { dev: BigInt(draft.device), ino: BigInt(draft.inode), birthtimeNs: BigInt(draft.birthtime) };
-  await hooks.beforeIntent?.();
+  await hooks.afterPrepared?.();
+  if (callbacks) {
+    if (draft.target) {
+      if (createPublicationTarget(directoryGuard, draft.target.fileName).fingerprint !== draft.target.fingerprint) {
+        throw workflowStateError("TARGET_CHANGED", "The prepared workflow publication directory identity changed.");
+      }
+    } else {
+      let selected;
+      for (let version = 1; version <= 100; version += 1) {
+        const name = versionedArtifactName(draft.requestedName, version);
+        try { await lstat(resolve(outputDir, name)); }
+        catch (error) { if (error?.code !== "ENOENT") throw error; selected = name; break; }
+      }
+      if (!selected) throw workflowStateError("ARTIFACT_VERSION_EXHAUSTED", "No free workflow artifact target is available.");
+      draft = { ...draft, target: store.bindPublicationTarget(claim, createPublicationTarget(directoryGuard, selected)) };
+    }
+  }
   for (let version = 1; version <= 100; version += 1) {
       throwIfExecutionAborted(signal);
       await assertDirectoryIdentity(rootDir, directoryGuard.root);
       await assertDirectoryIdentity(outputDir, directoryGuard.tenant);
       await assertSafeStagingPath(stagingPath, stagingIdentity, directoryGuard.tenant.realPath);
       if (!await matchesArtifact(stagingPath, draft)) throw workflowStateError("STAGED_CONTENT_CHANGED", "Prepared workflow content or file identity changed.");
-      const candidateName = versionedArtifactName(draft.requestedName, version);
+      const candidateName = draft.target?.fileName ?? versionedArtifactName(draft.requestedName, version);
       const candidatePath = resolve(outputDir, candidateName);
       assertInsideDirectory(candidatePath, outputDir);
+      let admission;
+      if (callbacks) {
+        // A fixed target collision is a known no-write result. Never spend an
+        // existing approval for a different version of the requested name.
+        try { await lstat(candidatePath); throw workflowStateError("TARGET_OCCUPIED", "The reviewed target now exists; it was preserved and no replacement target was selected."); }
+        catch (error) { if (error?.code !== "ENOENT") throw error; }
+        const content = await readPreparedReviewContent(stagingPath, draft);
+        admission = await callbacks.beforePublish(publicationMaterial(claim, draft, draft.target, content, outputDir));
+        await hooks.afterAdmission?.();
+        throwIfExecutionAborted(signal);
+        await admission.assertActive();
+      }
+      await hooks.beforeIntent?.();
+      throwIfExecutionAborted(signal);
       try {
-        store.intendPublication(claim, candidateName);
+        store.intendPublication(claim, candidateName, admission?.authorization);
         await hooks.afterIntent?.();
         const result = await store.publish(claim, async () => {
           throwIfExecutionAborted(signal);
@@ -362,6 +410,14 @@ async function writeManagedArtifact({ rootDir, outputDir, store, claim, draft, s
           await assertDirectoryIdentity(outputDir, directoryGuard.tenant);
           await assertSafeStagingPath(stagingPath, stagingIdentity, directoryGuard.tenant.realPath);
           if (!await matchesArtifact(stagingPath, draft)) throw workflowStateError("STAGED_CONTENT_CHANGED", "Prepared workflow content or file identity changed.");
+          await hooks.beforeLink?.();
+          if (admission) await admission.assertActive();
+          // Authorization may await another durable authority. Recheck the
+          // frozen filesystem identities after that await before using paths.
+          await assertDirectoryIdentity(rootDir, directoryGuard.root);
+          await assertDirectoryIdentity(outputDir, directoryGuard.tenant);
+          await assertSafeStagingPath(stagingPath, stagingIdentity, directoryGuard.tenant.realPath);
+          if (!await matchesArtifact(stagingPath, draft)) throw workflowStateError("STAGED_CONTENT_CHANGED", "Prepared workflow content or file identity changed during final authorization.");
           throwIfExecutionAborted(signal);
           // The store holds BEGIN IMMEDIATE across this exact effect and its
           // completion commit. Recovery cannot revoke this claim in between.
@@ -378,6 +434,7 @@ async function writeManagedArtifact({ rootDir, outputDir, store, claim, draft, s
       } catch (error) {
         if (error?.code !== "WORKFLOW_ARTIFACT_COLLISION") throw error;
         store.rejectCollision(claim);
+        if (callbacks) throw workflowStateError("TARGET_OCCUPIED", "The reviewed target was occupied concurrently; no alternate file was written.");
       }
   }
   const error = new Error("Workflow artifact version capacity is exhausted for the requested name.");
@@ -385,6 +442,30 @@ async function writeManagedArtifact({ rootDir, outputDir, store, claim, draft, s
   error.category = "conflict";
   error.statusCode = 409;
   throw error;
+}
+
+function createPublicationTarget(directoryGuard, fileName) {
+  const fingerprint = (identity) => createHash("sha256").update(JSON.stringify([
+    "workflow-directory-v1", identity.realPath, identity.dev.toString(), identity.ino.toString(), identity.birthtimeNs.toString(),
+  ])).digest("hex");
+  const target = { fileName, rootFingerprint: fingerprint(directoryGuard.root), tenantFingerprint: fingerprint(directoryGuard.tenant) };
+  return { ...target, fingerprint: workflowTargetFingerprint(target) };
+}
+
+function publicationMaterial(claim, draft, target, content, outputDir) {
+  return { workflowId: claim.record.workflowId, inputHash: claim.record.inputSha256, subjectFingerprint: claim.record.scopeKey,
+    tenantPartition: relative(resolve(outputDir, ".."), outputDir), requestedName: draft.requestedName, target,
+    contentHash: draft.sha256, contentBytes: draft.bytes, content };
+}
+
+async function readPreparedReviewContent(path, draft) {
+  if (draft.bytes > 65_536) return null;
+  const bytes = await matchesArtifact(path, draft, true);
+  if (!bytes) throw workflowStateError("STAGED_CONTENT_CHANGED", "The prepared artifact cannot be read from its recorded file identity.");
+  try {
+    const content = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    return content.length <= 16_000 ? content : null;
+  } catch { return null; }
 }
 
 async function reconcileManagedArtifact({ rootDir, outputDir, draft, fileName, cleanupStaging = false }) {
@@ -415,7 +496,7 @@ async function reconcileManagedArtifact({ rootDir, outputDir, draft, fileName, c
   return result;
 }
 
-async function matchesArtifact(path, draft) {
+async function matchesArtifact(path, draft, returnBytes = false) {
   let handle;
   try {
     const before = await lstat(path, { bigint: true });
@@ -435,8 +516,9 @@ async function matchesArtifact(path, draft) {
     }
     const bytes = buffer.subarray(0, length);
     const after = await lstat(path, { bigint: true });
-    return after.dev === before.dev && after.ino === before.ino && bytes.length === draft.bytes
-      && createHash("sha256").update(bytes).digest("hex") === draft.sha256;
+    const matches = after.dev === before.dev && after.ino === before.ino && after.birthtimeNs === before.birthtimeNs
+      && bytes.length === draft.bytes && createHash("sha256").update(bytes).digest("hex") === draft.sha256;
+    return matches ? returnBytes ? bytes : true : false;
   } catch (error) { if (["ENOENT", "EISDIR"].includes(error?.code)) return false; throw error; }
   finally { await handle?.close(); }
 }
@@ -475,12 +557,12 @@ async function captureDirectoryIdentity(directoryPath) {
   });
   if (!stat.isDirectory() || stat.isSymbolicLink()) throw unsafeWorkflowPathError();
   const realPath = resolve(await realpath(directoryPath));
-  return { realPath, dev: stat.dev, ino: stat.ino };
+  return { realPath, dev: stat.dev, ino: stat.ino, birthtimeNs: stat.birthtimeNs };
 }
 
 async function assertDirectoryIdentity(directoryPath, expected) {
   const current = await captureDirectoryIdentity(directoryPath);
-  if (current.realPath !== expected.realPath || current.dev !== expected.dev || current.ino !== expected.ino) {
+  if (current.realPath !== expected.realPath || current.dev !== expected.dev || current.ino !== expected.ino || current.birthtimeNs !== expected.birthtimeNs) {
     throw unsafeWorkflowPathError();
   }
 }
