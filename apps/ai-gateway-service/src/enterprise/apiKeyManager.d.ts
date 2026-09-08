@@ -27,6 +27,7 @@ export interface ApiKeyBudgetDescription {
   budgetEnabled: boolean;
   rateLimitEnabled: boolean;
   requestCount: number;
+  rateRequestCount?: number;
   limitTokens?: number;
   windowMs?: number;
   softThreshold?: number;

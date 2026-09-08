@@ -14,9 +14,14 @@
 import { createHash, randomBytes } from "node:crypto";
 import {
   existsSync,
+  closeSync,
+  fsyncSync,
+  lstatSync,
   mkdirSync,
+  openSync,
   readFileSync,
   renameSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -57,6 +62,7 @@ export function createApiKeyManager(options = {}) {
    * 内存存储：keyHash -> keyRecord（持久化时序列化全部字段，hash 落盘）
    */
   const keyStore = new Map();
+  let persistenceFailed = false;
 
   if (storePath) {
     for (const record of loadRecords(storePath)) {
@@ -127,6 +133,8 @@ export function createApiKeyManager(options = {}) {
         rateLimit: normalizedRateLimit,
         usageState: {
           windowIndex: -1,
+          rateWindowIndex: -1,
+          rateRequestCount: 0,
           tokensUsed: 0,
           requestCount: 0,
           lastRecordedAt: null,
@@ -134,7 +142,7 @@ export function createApiKeyManager(options = {}) {
       };
 
       keyStore.set(keyHash, record);
-      persistRecords(storePath, keyStore);
+      persistUsage();
 
       return {
         key: rawKey,
@@ -188,7 +196,7 @@ export function createApiKeyManager(options = {}) {
       }
 
       record.revoked = true;
-      persistRecords(storePath, keyStore);
+      persistUsage();
 
       return {
         revoked: true,
@@ -252,18 +260,24 @@ export function createApiKeyManager(options = {}) {
       if (!record || record.revoked || isExpired(record.expiresAt)) {
         return { allowed: false, code: "api_key_invalid", budget: null, rate: null };
       }
+      if (!Number.isFinite(estimatedTokens) || estimatedTokens < 0 || !Number.isSafeInteger(Math.ceil(estimatedTokens))) {
+        throw validationError("api_key_invalid_usage_tokens", "Estimated token usage must be finite and non-negative.");
+      }
+      // A failed post-call write retains the charged counters in this process.
+      // Flush that complete snapshot before admitting any more provider work.
+      if (persistenceFailed) persistUsage();
 
       if (record.rateLimit) {
         rolloverIfNeeded(record, now());
         const { requestsPerMinute } = record.rateLimit;
-        if (record.usageState.requestCount + 1 > requestsPerMinute) {
+        if (record.usageState.rateRequestCount + 1 > requestsPerMinute) {
           return {
             allowed: false,
             code: "VIRTUAL_KEY_RATE_LIMITED",
             budget: describeBudget(record),
             rate: {
               requestsPerMinute,
-              requestCount: record.usageState.requestCount,
+              requestCount: record.usageState.rateRequestCount,
               retryAfterMs: 60_000,
             },
           };
@@ -284,7 +298,13 @@ export function createApiKeyManager(options = {}) {
       }
 
       if (record.rateLimit || record.budget) {
+        if (!Number.isSafeInteger(record.usageState.requestCount + 1)
+          || (record.rateLimit && !Number.isSafeInteger(record.usageState.rateRequestCount + 1))) {
+          throw validationError("api_key_invalid_usage_tokens", "Request usage exceeds the supported integer range.");
+        }
         record.usageState.requestCount += 1;
+        if (record.rateLimit) record.usageState.rateRequestCount += 1;
+        persistUsage();
       }
 
       return {
@@ -308,17 +328,23 @@ export function createApiKeyManager(options = {}) {
       if (!record) {
         return { recorded: false, budget: null, softBudgetExceeded: false };
       }
+      if (!Number.isFinite(tokens) || tokens < 0 || !Number.isSafeInteger(Math.floor(tokens))) {
+        throw validationError("api_key_invalid_usage_tokens", "Recorded token usage must be finite and non-negative.");
+      }
 
       let softBudgetExceeded = false;
       if (record.budget) {
         rolloverIfNeeded(record, now());
         const before = record.usageState.tokensUsed;
-        record.usageState.tokensUsed = before + Math.max(0, Math.floor(tokens));
+        const total = before + Math.floor(tokens);
+        if (!Number.isSafeInteger(total)) throw validationError("api_key_invalid_usage_tokens", "Recorded token total exceeds the supported integer range.");
+        record.usageState.tokensUsed = total;
         const ratio = record.usageState.tokensUsed / record.budget.limitTokens;
         softBudgetExceeded = before / record.budget.limitTokens < record.budget.softThreshold
           && ratio >= record.budget.softThreshold;
       }
       record.usageState.lastRecordedAt = new Date(now()).toISOString();
+      persistUsage();
 
       return {
         recorded: true,
@@ -347,7 +373,7 @@ export function createApiKeyManager(options = {}) {
       const activeCount = records.filter((r) => !r.revoked && !isExpired(r.expiresAt)).length;
 
       return {
-        status: "ready",
+        status: persistenceFailed ? "degraded" : "ready",
         totalKeyCount: records.length,
         activeKeyCount: activeCount,
         revokedKeyCount: records.filter((r) => r.revoked).length,
@@ -357,11 +383,22 @@ export function createApiKeyManager(options = {}) {
         prefix: API_KEY_PREFIX,
         budgetEnabledKeyCount: records.filter((r) => r.budget).length,
         rateLimitEnabledKeyCount: records.filter((r) => r.rateLimit).length,
+        accountingErrorCode: persistenceFailed ? "VIRTUAL_KEY_ACCOUNTING_UNAVAILABLE" : null,
       };
     },
   };
 
   // ---- 内部辅助函数 ----
+
+  function persistUsage() {
+    try {
+      persistRecords(storePath, keyStore);
+      persistenceFailed = false;
+    } catch (cause) {
+      persistenceFailed = true;
+      throw accountingError(cause);
+    }
+  }
 
   /**
    * 根据多种标识方式查找 Key 记录
@@ -384,6 +421,12 @@ export function createApiKeyManager(options = {}) {
 
   function rolloverIfNeeded(record, timestamp) {
     if (!record.budget && !record.rateLimit) return;
+    const rateWindowIndex = Math.floor(timestamp / 60_000);
+    if (record.usageState.rateWindowIndex === undefined) {
+      // Carry old mixed-policy counts into this minute conservatively.
+      record.usageState.rateWindowIndex = record.budget ? rateWindowIndex : record.usageState.windowIndex;
+      record.usageState.rateRequestCount = record.usageState.requestCount;
+    }
     const windowMs = record.budget?.windowMs ?? 60_000;
     const windowIndex = Math.floor(timestamp / windowMs);
     if (record.usageState.windowIndex !== windowIndex) {
@@ -394,17 +437,22 @@ export function createApiKeyManager(options = {}) {
         requestCount: 0,
       };
     }
+    if (record.usageState.rateWindowIndex !== rateWindowIndex) {
+      record.usageState.rateWindowIndex = rateWindowIndex;
+      record.usageState.rateRequestCount = 0;
+    }
   }
 
   function describeBudget(record) {
+    rolloverIfNeeded(record, now());
     if (!record.budget) {
       return {
         budgetEnabled: false,
         rateLimitEnabled: Boolean(record.rateLimit),
         requestCount: record.usageState.requestCount,
+        rateRequestCount: record.rateLimit ? record.usageState.rateRequestCount : 0,
       };
     }
-    rolloverIfNeeded(record, now());
     const { limitTokens, windowMs, softThreshold } = record.budget;
     const windowIndex = record.usageState.windowIndex;
     return {
@@ -418,6 +466,7 @@ export function createApiKeyManager(options = {}) {
       softBudgetExceeded: record.usageState.tokensUsed / limitTokens >= softThreshold,
       rateLimitEnabled: Boolean(record.rateLimit),
       requestCount: record.usageState.requestCount,
+      rateRequestCount: record.rateLimit ? record.usageState.rateRequestCount : 0,
     };
   }
 }
@@ -428,11 +477,11 @@ function normalizeBudget(budget) {
     throw validationError("api_key_invalid_budget", "API key budget must be an object.");
   }
   const limitTokens = Math.floor(Number(budget.limitTokens));
-  if (!Number.isFinite(limitTokens) || limitTokens <= 0) {
+  if (!Number.isSafeInteger(limitTokens) || limitTokens <= 0) {
     throw validationError("api_key_invalid_budget_limit", "API key budget.limitTokens must be a positive integer.");
   }
   const windowMs = NAMED_WINDOWS[budget.window] ?? Math.floor(Number(budget.windowMs ?? (typeof budget.window === "number" ? budget.window : NaN)));
-  if (!Number.isFinite(windowMs) || windowMs <= 0) {
+  if (!Number.isSafeInteger(windowMs) || windowMs <= 0) {
     throw validationError("api_key_invalid_budget_window", 'API key budget.window must be "daily", "monthly", or a positive millisecond count.');
   }
   const softThresholdRaw = budget.softThreshold ?? DEFAULT_SOFT_THRESHOLD;
@@ -449,7 +498,7 @@ function normalizeRateLimit(rateLimit) {
     throw validationError("api_key_invalid_rate_limit", "API key rateLimit must be an object.");
   }
   const requestsPerMinute = Math.floor(Number(rateLimit.requestsPerMinute));
-  if (!Number.isFinite(requestsPerMinute) || requestsPerMinute <= 0) {
+  if (!Number.isSafeInteger(requestsPerMinute) || requestsPerMinute <= 0) {
     throw validationError("api_key_invalid_rate_limit_rpm", "API key rateLimit.requestsPerMinute must be a positive integer.");
   }
   return { requestsPerMinute };
@@ -463,16 +512,53 @@ function validationError(code, message) {
 }
 
 function loadRecords(storePath) {
-  if (!storePath || !existsSync(storePath)) return [];
+  if (!storePath) return [];
+  let identity;
   try {
+    identity = lstatSync(storePath);
+  } catch (cause) {
+    if (cause?.code === "ENOENT") return [];
+    throw accountingError(cause);
+  }
+  try {
+    if (identity.isSymbolicLink() || !identity.isFile()) throw new Error("Invalid virtual key store entry.");
     const parsed = JSON.parse(readFileSync(storePath, "utf8"));
     const keys = parsed?.keys;
-    if (!Array.isArray(keys)) return [];
-    return keys.filter((record) => record && typeof record.keyHash === "string" && !record.revoked);
-  } catch {
-    // 损坏的存储不能拖垮网关：忽略并从空集合开始
-    return [];
+    if (parsed?.version !== 1 || !Array.isArray(keys) || !keys.every(isStoredRecord)) {
+      throw new Error("Invalid virtual key store schema.");
+    }
+    if (new Set(keys.map((record) => record.keyFingerprint)).size !== keys.length) throw new Error("Ambiguous virtual key records.");
+    return keys.filter((record) => !record.revoked);
+  } catch (cause) {
+    throw accountingError(cause);
   }
+}
+
+function isStoredRecord(record) {
+  const usage = record?.usageState;
+  return record && /^[a-f0-9]{64}$/.test(record.keyHash)
+    && record.keyId === createFingerprint(record.keyHash) && record.keyFingerprint === record.keyId
+    && Object.hasOwn(ROLE_HIERARCHY, record.role) && typeof record.tenantId === "string"
+    && typeof record.createdAt === "string" && Number.isFinite(Date.parse(record.createdAt))
+    && typeof record.revoked === "boolean" && usage
+    && Number.isSafeInteger(usage.windowIndex) && usage.windowIndex >= -1
+    && Number.isSafeInteger(usage.tokensUsed) && usage.tokensUsed >= 0
+    && Number.isSafeInteger(usage.requestCount) && usage.requestCount >= 0
+    && (usage.rateWindowIndex === undefined || (Number.isSafeInteger(usage.rateWindowIndex) && usage.rateWindowIndex >= -1))
+    && (usage.rateWindowIndex === undefined || (Number.isSafeInteger(usage.rateRequestCount) && usage.rateRequestCount >= 0))
+    && (!record.budget || (Number.isSafeInteger(record.budget.limitTokens) && record.budget.limitTokens > 0
+      && Number.isSafeInteger(record.budget.windowMs) && record.budget.windowMs > 0
+      && Number.isFinite(record.budget.softThreshold) && record.budget.softThreshold > 0 && record.budget.softThreshold <= 1))
+    && (!record.rateLimit || (Number.isSafeInteger(record.rateLimit.requestsPerMinute) && record.rateLimit.requestsPerMinute > 0));
+}
+
+function accountingError(cause) {
+  const error = new Error("Virtual key accounting storage is unavailable; repair storage before further requests.", { cause });
+  error.code = "VIRTUAL_KEY_ACCOUNTING_UNAVAILABLE";
+  error.category = "internal";
+  error.statusCode = 503;
+  error.retryable = false;
+  return error;
 }
 
 function persistRecords(storePath, keyStore) {
@@ -482,10 +568,22 @@ function persistRecords(storePath, keyStore) {
     null,
     2,
   );
-  const tempPath = `${storePath}.tmp`;
+  const tempPath = `${storePath}.${randomBytes(12).toString("hex")}.tmp`;
   mkdirSync(dirname(storePath), { recursive: true });
-  writeFileSync(tempPath, `${payload}\n`, { encoding: "utf8", mode: 0o600 });
-  renameSync(tempPath, storePath);
+  let created = false;
+  let file;
+  try {
+    file = openSync(tempPath, "wx", 0o600);
+    created = true;
+    writeFileSync(file, `${payload}\n`, { encoding: "utf8" });
+    fsyncSync(file);
+    closeSync(file);
+    file = undefined;
+    renameSync(tempPath, storePath);
+  } finally {
+    if (file !== undefined) closeSync(file);
+    if (created && existsSync(tempPath)) unlinkSync(tempPath);
+  }
 }
 
 /**

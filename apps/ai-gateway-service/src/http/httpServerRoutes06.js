@@ -664,7 +664,15 @@ function authorizeNativeChatVirtualKeyUsage({ enterpriseGovernanceService, reque
       payload: createErrorEnvelope("VIRTUAL_KEY_ACCOUNTING_UNAVAILABLE", "Virtual key accounting is unavailable.", { startedAt, category: "internal", retryable: false }),
     };
   }
-  const decision = manager.authorizeUsage({ keyId, estimatedTokens: estimateTokens(gatewayInput).estimatedInputTokens });
+  let decision;
+  try {
+    decision = manager.authorizeUsage({ keyId, estimatedTokens: estimateTokens(gatewayInput).estimatedInputTokens });
+  } catch {
+    return {
+      statusCode: 503,
+      payload: createErrorEnvelope("VIRTUAL_KEY_ACCOUNTING_UNAVAILABLE", "Virtual key accounting is unavailable.", { startedAt, category: "internal", retryable: false }),
+    };
+  }
   if (decision.allowed) return null;
   writeServiceLog?.("virtual_key_rejected", { path, code: decision.code, keyFingerprint: keyId, durationMs: Date.now() - startedAt });
   return {

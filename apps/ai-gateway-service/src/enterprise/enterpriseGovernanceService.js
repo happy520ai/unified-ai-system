@@ -150,8 +150,9 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
     getHealth() {
       const centralAudit = centralAuditStore?.getHealth?.() ?? null;
       const centralAuditReady = !centralAuditStore || centralAudit?.status === "ready";
+      const apiKeys = apiKeyManager.getHealth();
       return {
-        status: centralAuditReady ? "ready" : "degraded",
+        status: centralAuditReady && apiKeys.status === "ready" ? "ready" : "degraded",
         mode: "local-enterprise-governance",
         authEnabled,
         unauthenticatedScope: authEnabled
@@ -170,7 +171,7 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
           path: userStorePath,
           storedUserCount: storedUsers.length,
         },
-        apiKeys: apiKeyManager.getHealth(),
+        apiKeys,
         audit: {
           mode: centralAuditStore ? "postgres-hmac-chain-plus-local-mirror" : "jsonl-file",
           path: auditPath,
@@ -193,8 +194,9 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
     },
 
     getPublicHealth() {
+      const centralAuditReady = !centralAuditStore || centralAuditStore.getHealth?.()?.status === "ready";
       return {
-        status: "ready",
+        status: centralAuditReady && apiKeyManager.getHealth().status === "ready" ? "ready" : "degraded",
         mode: "local-enterprise-governance",
         authEnabled,
         unauthenticatedScope: authEnabled

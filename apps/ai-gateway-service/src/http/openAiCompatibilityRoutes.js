@@ -2078,11 +2078,15 @@ export function applyVirtualKeyRequestGate({
   const fingerprint = request?.enterpriseIdentity?.apiKeyFingerprint;
   if (!fingerprint) return false;
   const manager = enterpriseGovernanceService?.getApiKeyManager?.();
-  // 接线缺失时 fail-open：虚拟 key 认证已由治理层完成，缺记账器不应阻断请求。
-  if (!manager) return false;
-
   const estimatedInputTokens = estimateTokens(gatewayInput).estimatedInputTokens;
-  const decision = manager.authorizeUsage({ keyId: fingerprint, estimatedTokens: estimatedInputTokens });
+  let decision;
+  try {
+    if (typeof manager?.authorizeUsage !== "function" || typeof manager?.recordUsage !== "function") throw new Error("Accounting unavailable.");
+    decision = manager.authorizeUsage({ keyId: fingerprint, estimatedTokens: estimatedInputTokens });
+  } catch {
+    writeJson(response, 503, errorFactory({ code: "VIRTUAL_KEY_ACCOUNTING_UNAVAILABLE", category: "internal", message: "Virtual key accounting is unavailable." }));
+    return true;
+  }
   if (decision.allowed) return false;
 
   writeServiceLog?.("virtual_key_rejected", {
@@ -2124,7 +2128,9 @@ export function recordVirtualKeyUsage({
       });
     }
   } catch {
-    // 记账失败不影响响应。
+    // Already completed provider work must not be replayed because accounting
+    // failed. The manager retains usage and blocks admissions until it flushes.
+    writeServiceLog?.("virtual_key_accounting_failed", { path, code: "VIRTUAL_KEY_ACCOUNTING_UNAVAILABLE", keyFingerprint: fingerprint });
   }
 }
 

@@ -252,6 +252,21 @@ describe("production POST /chat idempotency contract", () => {
       expect(execute).not.toHaveBeenCalled();
     } finally { context.idempotencyCoordinator.close(); }
   });
+
+  it("returns safe 503 without provider execution when admission storage fails", async () => {
+    const manager = createAccountingManager();
+    manager.authorizeUsage.mockImplementation(() => { throw new Error("synthetic-private-store-path"); });
+    const execute = vi.fn(async () => successfulBudgetResult());
+    const body = { messages: [{ role: "user", content: "blocked accounting" }] };
+    const context = createContext(execute, "budget-storage-failure", body, manager);
+    try {
+      await dispatchHttpRoutes06(context);
+      expect(context.response.statusCode).toBe(503);
+      expect((context.response.payload as { error: { code: string } }).error.code).toBe("VIRTUAL_KEY_ACCOUNTING_UNAVAILABLE");
+      expect(JSON.stringify(context.response.payload)).not.toContain("synthetic-private-store-path");
+      expect(execute).not.toHaveBeenCalled();
+    } finally { context.idempotencyCoordinator.close(); }
+  });
 });
 
 function successfulBudgetResult() {
