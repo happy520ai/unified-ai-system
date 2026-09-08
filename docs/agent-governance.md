@@ -803,6 +803,60 @@ is required to detect that physical-administration scenario.
 
 ## Language Selection
 
+### Explicit employee model contributions
+
+`AI_GATEWAY_WORKFORCE_ROLE_EXECUTION_PROFILE_JSON` is optional and absent by
+default. Setting it defines a server-owned `gateway-llm-required` profile;
+`WORKFORCE_EXECUTION_ENABLED=true`, authenticated HTTP identity, a current
+Agent lease, Tool Proxy approval and a matching one-time Workforce plan approval
+remain required to execute. Request JSON cannot define or replace this profile.
+The fixed employee bindings must use existing Workforce role IDs and include
+their dependencies. Only those roles run; optional request `selectedRoles` must
+match the server set exactly. Imported position catalogs are not enabled by this
+configuration and dynamic employee selection is a separate capability.
+
+The JSON profile contains `version: 1`, `mode: "gateway-llm-required"`, `profileId`,
+`maxTotalRequests`, `maxConcurrentRoles`, and `bindings`. Each binding contains
+`roleId`, `employeeId`, `providerId`, `modelId`, `maxRequests`, `maxInputTokens`,
+`maxOutputTokens`, and `timeoutMs`. A dependency-free `ceo` binding can authorize
+one contribution. The configured Provider/model must already be available in
+the existing gateway. The first runtime supports the fake Provider and the
+existing HTTP-LLM adapter with its final dispatch fence; it does not read native
+client credentials or make other Provider paths implicitly available.
+
+Both approval layers seal the complete profile and plan digest. Changing the
+model, employee, request count or token limits invalidates the old plan approval.
+`agents approvals` displays every binding and its actual bounds:
+
+- `maxRequests` and `maxTotalRequests` cap dispatch attempts, including retries.
+  Already dispatched or uncertain attempts are never refunded within a run.
+- `maxInputTokens` uses the gateway's input estimate before dispatch, followed
+  by validation when upstream usage is reported. `maxOutputTokens` is sent as an
+  upstream parameter and checked against reported output usage.
+- These token checks do not guarantee a prepaid token or invoice cap. A reported
+  overrun fails the contribution after consumption; it cannot undo those tokens.
+  Missing usage and unknown USD cost stay `null`, not zero or verified budget.
+- Timeout, Agent and task-claim checks reach the last controlled HTTP dispatch
+  point after DNS and on every retry. Cancellation drains active work before
+  terminal completion or reports an uncertain result.
+
+Each successful result contains a server-bound `workforceContribution` from
+`employee-brain-adapter`, plus its actual gateway-operation receipt. Empty
+responses, missing receipts, tool calls and Provider failures cannot become
+template successes in this mode. `roleExecution` reports dispatch counts and
+separates fake and real successful contributions. Preview/template mode remains
+separate; fake receipts and tests do not establish real Provider access, content
+quality or production evidence.
+
+The runtime adapter and binding contracts use TypeScript; existing JavaScript
+application, route, role executor and CLI files receive local connection and
+review changes. This reuses the existing GatewayService and employee package,
+without a new transport, dependency, credential store or background service.
+Rollback removes the optional profile configuration and restarts the runtime;
+old profile-bound approvals cannot authorize a different execution descriptor.
+
+### Existing policy runtime
+
 Workload: deterministic policy calculus (merge algebra, validation,
 compilation, hashing) plus gateway-runtime stores and enforcement.
 TypeScript was selected because the enforcement point

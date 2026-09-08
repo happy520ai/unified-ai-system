@@ -1263,6 +1263,22 @@ function formatSafeRecord(value) {
 
 function formatSafeReview(value) {
   if (!isPlainRecord(value)) return "unavailable";
+  if (value.effectType === "workforce:execute" && value.reviewable === true && value.workforce?.options?.roleExecution) {
+    const workforce = value.workforce;
+    const profile = workforce.options.roleExecution;
+    const text = (item) => safeTerminalText(item, 256);
+    return [
+      `Workforce goal: ${safeTerminalBlock(workforce.goal, 4_000)}`,
+      `Plan: ${text(workforce.planId)}; digest: ${text(workforce.planDigest)}; policy: ${text(value.policyHash)}`,
+      `Employee model execution: required; profile: ${text(profile.profileId)}; hash: ${text(profile.profileHash)}`,
+      `Request dispatch hard limit: ${profile.maxTotalRequests}; Concurrent roles: ${profile.maxConcurrentRoles}`,
+      "Input tokens use an estimate before dispatch and upstream usage validation after completion.",
+      "Output tokens use an upstream parameter limit and upstream usage validation after completion.",
+      "Token limits do not guarantee a prepaid cap. Unknown usage and USD cost remain null; consumed tokens cannot be undone.",
+      ...profile.bindings.map((binding) => `  ${text(binding.roleId)} / ${text(binding.employeeId)} -> ${text(binding.providerId)} / ${text(binding.modelId)}; `
+        + `requests<=${binding.maxRequests}; input estimate=${binding.maxInputTokens}; output parameter=${binding.maxOutputTokens}; timeout=${binding.timeoutMs}ms`),
+    ].join("\n");
+  }
   if (value.effectType === "workflow:artifact-write" && value.reviewable === true && isPlainRecord(value.workflow)) {
     const { content, ...binding } = value.workflow;
     return `${safeTerminalText(JSON.stringify({ ...binding, policyHash: value.policyHash }), 4_000)}\nComplete Markdown content:\n${safeTerminalBlock(content, 16_000)}\nEnd of complete Markdown content.`;
@@ -1301,6 +1317,24 @@ function projectAgentApproval(value) {
       }
     }
     output.review = sanitizeAgentReview(value.review);
+    const profile = value.review?.workforce?.options?.roleExecution;
+    if (value.review?.effectType === "workforce:execute" && value.review.reviewable === true && profile !== undefined) {
+      const bounded = (number, maximum) => Number.isSafeInteger(number) && number >= 1 && number <= maximum;
+      if (!isPlainRecord(profile) || profile.version !== 1 || profile.mode !== "gateway-llm-required"
+        || !Array.isArray(profile.bindings) || profile.bindings.length < 1 || profile.bindings.length > 128
+        || !bounded(profile.maxConcurrentRoles, Math.min(8, profile.bindings.length))
+        || !bounded(profile.maxTotalRequests, profile.bindings.length * 5)
+        || profile.bindings.some((binding) => !isPlainRecord(binding)
+          || !bounded(binding.maxRequests, 5) || !bounded(binding.maxInputTokens, 1_000_000)
+          || !bounded(binding.maxOutputTokens, 1_000_000) || !bounded(binding.timeoutMs, 3_600_000))) {
+        throw new Error("invalid or incomplete Workforce approval budget");
+      }
+      // Preserve only these validated numeric limits; the generic secret-key
+      // redactor must still hide credential or token strings in every review.
+      output.review.workforce.options.roleExecution.bindings = profile.bindings.map((binding) => ({
+        ...sanitizeAgentReview(binding), maxInputTokens: binding.maxInputTokens, maxOutputTokens: binding.maxOutputTokens,
+      }));
+    }
   }
   return Object.freeze(output);
 }

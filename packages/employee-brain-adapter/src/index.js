@@ -1,5 +1,6 @@
 export * from "./brainAdapterContract.js";
 export * from "./dryRunBrainAdapter.js";
+export * from "./runtimeGatewayBrainAdapter.ts";
 export * from "./gatewayBrainAdapterPreview.js";
 export * from "./modelBrainBindingPolicy.js";
 export * from "./credentialRefBoundary.js";

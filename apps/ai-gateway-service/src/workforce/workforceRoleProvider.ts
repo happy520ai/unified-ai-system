@@ -6,6 +6,7 @@ import { bindGatewayExecution, type GatewayExecutionContext } from "../http/http
 import type { GatewayWorkforceDispatchFence } from "../core/gatewayService.ts";
 import { createGatewayBackedProviderAdapter } from "../providers/gatewayBackedProviderAdapter.ts";
 import { HttpLLMProviderAdapter } from "../providers/httpLlmProviderAdapter.js";
+import { containsSensitivePublicationText } from "../security/secretSafety.js";
 import { readFrozenWorkforceRoleExecutionProfile } from "./workforceRoleExecutionProfile.ts";
 
 type GatewayPort = { execute(input: Record<string, unknown>, execution?: Record<string, unknown>): Promise<unknown> };
@@ -28,6 +29,18 @@ export function createWorkforceRoleProviderFactory(options: {
   const gatewayService = options.gatewayService;
   const providerRegistry = options.providerRegistry;
   const bindings = new Map(profile.bindings.map((binding) => [binding.roleId, binding]));
+  const resolveBinding = (roleId: string) => {
+    const binding = bindings.get(roleId);
+    if (!binding) throw roleError("WORKFORCE_ROLE_BINDING_INVALID");
+    const provider = providerRegistry.get(binding.providerId);
+    const descriptor = record(record(provider).descriptor);
+    const fake = record(descriptor.metadata).providerType === "fake";
+    if ((!fake && !(provider instanceof HttpLLMProviderAdapter)) || record(descriptor.metadata).dryRun === true
+      || !Array.isArray(descriptor.models) || !descriptor.models.some((model) => record(model).id === binding.modelId && record(model).enabled === true)) {
+      throw roleError("WORKFORCE_ROLE_PROVIDER_UNSUPPORTED");
+    }
+    return { binding, fake };
+  };
   return Object.freeze({
     profile,
     forRun(input: WorkforceRoleRunContext) {
@@ -62,18 +75,17 @@ export function createWorkforceRoleProviderFactory(options: {
         profile, executionId, planId,
         getReceipts: () => Object.freeze([...receipts]),
         getUsage: () => Object.freeze({ totalRequests, activeRoles }),
+        validateRoles(roleIds: string[]) {
+          for (const roleId of roleIds) {
+            const { fake } = resolveBinding(roleId);
+            if (!fake && !http.providerDispatchKeyHash) throw roleError("WORKFORCE_ROLE_DISPATCH_KEY_REQUIRED");
+          }
+        },
         createRoleAdapter(role: { roleId: string; taskId: string; signal: AbortSignal; taskFence: Fence }) {
           const binding = bindings.get(role.roleId);
           if (!binding || boundRoles.has(role.roleId) || typeof role.taskFence?.assertActive !== "function") throw roleError("WORKFORCE_ROLE_BINDING_INVALID");
           const taskId = identifier(role.taskId);
-          const provider = providerRegistry.get(binding.providerId);
-          const descriptor = record(record(provider).descriptor);
-          const fake = descriptor.metadata && record(descriptor.metadata).providerType === "fake";
-          if ((!fake && !(provider instanceof HttpLLMProviderAdapter))
-            || record(descriptor.metadata).dryRun === true
-            || !Array.isArray(descriptor.models) || !descriptor.models.some((model) => record(model).id === binding.modelId && record(model).enabled === true)) {
-            throw roleError("WORKFORCE_ROLE_PROVIDER_UNSUPPORTED");
-          }
+          const { fake } = resolveBinding(role.roleId);
           if (!fake && !http.providerDispatchKeyHash) throw roleError("WORKFORCE_ROLE_DISPATCH_KEY_REQUIRED");
           boundRoles.add(role.roleId);
           const taskFence = role.taskFence;
@@ -149,6 +161,7 @@ export function createWorkforceRoleProviderFactory(options: {
                   || Array.isArray(response.toolCalls) && response.toolCalls.length > 0
                   || receipt.inputTokens !== null && receipt.inputTokens > binding.maxInputTokens
                   || receipt.outputTokens !== null && receipt.outputTokens > binding.maxOutputTokens) throw roleError("WORKFORCE_ROLE_CONTRIBUTION_INVALID");
+                if (containsSensitivePublicationText(response.text)) throw roleError("WORKFORCE_ROLE_CONTRIBUTION_UNSAFE");
                 saveReceipt(receipt);
                 return { ...response, workforceReceipt: receipt };
               } catch (error) {
@@ -157,7 +170,7 @@ export function createWorkforceRoleProviderFactory(options: {
                 const knownHttpFailure = Number.isInteger(httpStatus) && httpStatus >= 400 && httpStatus <= 599;
                 const status = code === "WORKFORCE_ROLE_RECEIPT_UNCONFIRMED" ? "outcome_unknown"
                   : current.dispatches === 0 ? (control?.signal.aborted || signal.aborted ? "cancelled" : "blocked")
-                    : code === "WORKFORCE_ROLE_CONTRIBUTION_INVALID" || knownHttpFailure ? "failed" : "outcome_unknown";
+                    : ["WORKFORCE_ROLE_CONTRIBUTION_INVALID", "WORKFORCE_ROLE_CONTRIBUTION_UNSAFE"].includes(code) || knownHttpFailure ? "failed" : "outcome_unknown";
                 const receipt = projectReceipt(current.result, current.dispatches, status, code);
                 saveReceipt(receipt);
                 const failure = Object.assign(roleError(code), { workforceReceipt: receipt });

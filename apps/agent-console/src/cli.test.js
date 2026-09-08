@@ -283,6 +283,46 @@ test("agents uses canonical v1 routes with scoped authentication", async (contex
   });
 });
 
+test("agents approvals shows complete Workforce model bindings and the request versus token budget boundary", async (context) => {
+  const bindings = ["ceo", "pm", "architect", "frontend-engineer", "backend-engineer", "qa", "reviewer"].map((roleId, index) => ({
+    roleId, employeeId: `employee-${roleId}`, providerId: "approved-provider", modelId: `approved-model-${index}`,
+    maxRequests: 1, maxInputTokens: 8192, maxOutputTokens: 2048, timeoutMs: 30000,
+  }));
+  const review = { schemaVersion: 1, reviewable: true, effectType: "workforce:execute", policyHash: `sha256:${"a".repeat(64)}`,
+    workforce: { goal: "Review the actual employee contributions", planId: "plan-bounded", planDigest: `sha256:${"b".repeat(64)}`,
+      autonomyMode: "controlled-execution", options: { selectedRoleCount: 7, templateSelected: false,
+        roleExecution: { version: 1, mode: "gateway-llm-required", profileId: "reviewed-profile", profileHash: `sha256:${"c".repeat(64)}`,
+          maxTotalRequests: 7, maxConcurrentRoles: 2, bindings } } } };
+  const gateway = await createAgentGovernanceMockGateway({ approvalReview: review }); context.after(gateway.close);
+  const args = ["agents", "approvals", "--url", gateway.url];
+  const processOptions = { env: { AGENT_CONSOLE_ADMIN_KEY: "uai-mock-admin-key" } };
+  const plain = await runCliProcess(args, "", processOptions);
+  assert.equal(plain.code, 0, plain.stderr);
+  for (const binding of bindings) {
+    assert.ok(plain.stdout.includes(binding.employeeId)); assert.ok(plain.stdout.includes(binding.modelId));
+  }
+  assert.match(plain.stdout, /Request dispatch hard limit: 7/);
+  assert.match(plain.stdout, /Concurrent roles: 2/);
+  assert.match(plain.stdout, /input estimate=8192; output parameter=2048; timeout=30000ms/);
+  assert.match(plain.stdout, /upstream usage/); assert.match(plain.stdout, /Unknown usage and USD cost remain null/);
+  const json = await runCliProcess([...args, "--json"], "", processOptions);
+  assert.equal(json.code, 0, json.stderr);
+  assert.equal(JSON.parse(json.stdout).data[0].review.workforce.options.roleExecution.bindings[0].maxInputTokens, 8192);
+});
+
+test("agents approvals keeps template output compatible and rejects an unreadable Workforce token budget", async (context) => {
+  const ordinary = await createAgentGovernanceMockGateway(); context.after(ordinary.close);
+  const processOptions = { env: { AGENT_CONSOLE_ADMIN_KEY: "uai-mock-admin-key" } };
+  const original = await runCliProcess(["agents", "approvals", "--url", ordinary.url], "", processOptions);
+  assert.equal(original.code, 0); assert.match(original.stdout, /Publish the reviewed change/);
+  assert.doesNotMatch(original.stdout, /Request dispatch hard limit/);
+  const invalid = await createAgentGovernanceMockGateway({ approvalReview: { reviewable: true, effectType: "workforce:execute",
+    workforce: { options: { roleExecution: { bindings: [{ maxInputTokens: "sensitive-token-fixture", maxOutputTokens: 5 }] } } } } });
+  context.after(invalid.close);
+  const response = await runCliProcess(["agents", "approvals", "--url", invalid.url], "", processOptions);
+  assert.notEqual(response.code, 0); assert.doesNotMatch(response.stdout + response.stderr, /sensitive-token-fixture/);
+});
+
 test("agents run keeps transport alive beyond a shorter global timeout", async (context) => {
   const gateway = await createAgentGovernanceMockGateway({ runDelayMs: 350 });
   context.after(gateway.close);
@@ -2221,7 +2261,7 @@ async function createAgentGovernanceMockGateway(options = {}) {
     status: "PENDING",
     requestedAt: "2026-08-30T00:10:00.000Z",
     expiresAt: "2026-08-30T00:20:00.000Z",
-    review: {
+    review: options.approvalReview ?? {
       kind: "generic",
       summary: "Publish the reviewed change",
       authorization: "private authorization token-value",

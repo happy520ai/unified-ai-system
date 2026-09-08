@@ -88,7 +88,7 @@ export function buildLlmPromptForRole(roleId, goal, context = {}) {
   if (context.priorOutputs && Object.keys(context.priorOutputs).length > 0) {
     const priorSummary = Object.entries(context.priorOutputs)
       .map(([role, output]) => {
-        const summary = output?.summary || output?.roleMeta?.goal || "Completed analysis";
+        const summary = output?.workforceContribution?.contributionText || output?.summary || output?.roleMeta?.goal || "Completed analysis";
         return `[${role}]: ${summary}`;
       })
       .join("\n");
@@ -147,9 +147,11 @@ export function tryParseLlmOutput(text) {
  * @returns {Promise<object>} Role analysis result (with llmDriven flag)
  */
 export async function executeRoleWithLLM(roleId, goal, context = {}, providerAdapter = null, llmOptions = {}) {
-  const templateOutput = executeRoleByIdLocal(roleId, goal, context);
+  const required = llmOptions.requireRuntimeContribution === true;
+  const templateOutput = required ? null : executeRoleByIdLocal(roleId, goal, context);
 
   if (!providerAdapter || typeof providerAdapter.generate !== "function") {
+    if (required) throw Object.assign(new Error("A governed employee runtime is required."), { code: "WORKFORCE_ROLE_RUNTIME_REQUIRED" });
     return { ...templateOutput, llmDriven: false, llmFallback: "no_provider" };
   }
 
@@ -166,12 +168,12 @@ export async function executeRoleWithLLM(roleId, goal, context = {}, providerAda
         messages,
         options: {
           temperature: 0.3,
-          maxOutputTokens: llmOptions.maxTokens || 4096,
+          maxOutputTokens: required ? (llmOptions.maxTokens ?? providerAdapter.binding?.maxOutputTokens) : (llmOptions.maxTokens || 4096),
         },
       },
       target: {
-        providerId: llmOptions.providerId || "default",
-        modelId: llmOptions.model || "default",
+        providerId: required ? providerAdapter.binding?.providerId : (llmOptions.providerId || "default"),
+        modelId: required ? providerAdapter.binding?.modelId : (llmOptions.model || "default"),
       },
       execution: {
         signal: context?.signal,
@@ -180,6 +182,17 @@ export async function executeRoleWithLLM(roleId, goal, context = {}, providerAda
 
     const providerResponse = await providerAdapter.generate(providerRequest);
     const rawText = providerResponse?.text || "";
+    if (required) {
+      if (providerAdapter.runtimeBrainOperation !== true || !providerResponse?.workforceContribution
+        || providerResponse.workforceContribution.roleId !== roleId || !rawText.trim()) {
+        throw Object.assign(new Error("The employee runtime returned no verified contribution."), { code: "WORKFORCE_ROLE_CONTRIBUTION_INVALID" });
+      }
+      return {
+        roleMeta: { roleId, name: getRoleById(roleId)?.name ?? roleId }, llmDriven: true,
+        llmStructured: false, llmEnhancedText: rawText.slice(0, 5000),
+        workforceContribution: providerResponse.workforceContribution,
+      };
+    }
 
     const parsed = tryParseLlmOutput(rawText);
 
@@ -203,6 +216,7 @@ export async function executeRoleWithLLM(roleId, goal, context = {}, providerAda
       llmStructured: false,
     };
   } catch (err) {
+    if (required) throw err;
     if (context?.signal?.aborted) {
       throw context.signal.reason instanceof Error ? context.signal.reason : err;
     }

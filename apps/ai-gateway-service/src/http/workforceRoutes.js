@@ -262,6 +262,8 @@ export function createWorkforceRoutes(application, helpers) {
         completedResult = governedExecution
           ? await workforceExecutor.execute(effectiveInput, {
               signal: requestExecution?.signal ?? null,
+              requestExecution,
+              identity: req.enterpriseIdentity,
               agentGovernance: {
                 context: governedExecution.context,
                 policy: governedExecution.policy,
@@ -637,8 +639,10 @@ function createSafeWorkforceGovernanceParams(input, descriptor) {
     options: Object.freeze({
       autonomyMode: typeof descriptor?.autonomyMode === "string" ? descriptor.autonomyMode : "unknown",
       requiredScopes: Object.freeze(Array.isArray(descriptor?.requiredScopes) ? [...descriptor.requiredScopes] : []),
-      selectedRoleCount: Array.isArray(input?.selectedRoles) ? input.selectedRoles.length : null,
+      selectedRoleCount: descriptor.roleExecution ? descriptor.roleExecution.bindings.length
+        : Array.isArray(input?.selectedRoles) ? input.selectedRoles.length : null,
       templateSelected: typeof input?.selectedTemplate === "string" || typeof input?.templateId === "string",
+      ...(descriptor.roleExecution ? { roleExecution: descriptor.roleExecution } : {}),
     }),
   });
 }
@@ -661,6 +665,7 @@ function createWorkforceApprovalReview(input, descriptor, params) {
   const reviewOptions = Object.freeze({
     selectedRoleCount: params.options.selectedRoleCount,
     templateSelected: params.options.templateSelected,
+    ...(params.options.roleExecution ? { roleExecution: params.options.roleExecution } : {}),
   });
   return Object.freeze({
     schemaVersion: 1,

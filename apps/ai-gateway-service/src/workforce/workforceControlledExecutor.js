@@ -8,7 +8,8 @@
  * Default: dry-run mode (execution preview only).
  */
 
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { createRuntimeGatewayBrainAdapter } from "@unified-ai-system/employee-brain-adapter";
 
 import { createWorktreeIsolation } from "./worktreeIsolation.js";
 import { createWorkforceTaskQueueManager } from "./workforceTaskQueueFactory.ts";
@@ -24,6 +25,7 @@ import { createSandboxMergeExecutor, SANDBOX_MERGE_MODE } from "./sandboxMergeEx
 import { createDiagnosticReadChannel } from "./diagnosticReadChannel.js";
 import { AUTONOMY_MODES, DEFAULT_AUTONOMY_MODE, resolveAutonomyModeFrom } from "./autonomyModes.js";
 import { createWorkforceExecutionDescriptor } from "./workforceExecutionAuthorization.ts";
+import { readFrozenWorkforceRoleExecutionProfile } from "./workforceRoleExecutionProfile.ts";
 import { executeWorkforceDag } from "./workforceDagExecutor.ts";
 import { createAutonomyTierGovernor, TIERS as TIER_VALUES } from "./autonomyTierGovernor.js";
 import {
@@ -151,6 +153,7 @@ async function reserveGovernedRoleStep(governedExecution) {
  * @param {string} [options.executionDir] — base dir for lifecycle/evidence persistence
  * @param {object} [options.env] — environment variables (defaults to process.env)
  * @param {object} [options.providerAdapter] — governed provider adapter
+ * @param {ReturnType<typeof import("./workforceRoleProvider.ts").createWorkforceRoleProviderFactory> | null} [options.roleProviderFactory] — server-owned per-run role bindings
  * @param {object} [options.forgeService] — optional isolated-root-aware Forge adapter
  * @param {object} [options.sandboxMerger] — injected sandbox merge boundary
  * @param {object} [options.tierGovernor] — injected autonomy tier governor
@@ -170,6 +173,12 @@ export function createControlledExecutor(options = {}) {
   const executionEnabled = env.WORKFORCE_EXECUTION_ENABLED === "true";
   const dryRun = !executionEnabled || options.dryRun === true;
   const providerAdapter = options.providerAdapter ?? null;
+  const roleProviderFactory = options.roleProviderFactory ?? null;
+  const roleExecutionProfile = roleProviderFactory
+    ? readFrozenWorkforceRoleExecutionProfile(roleProviderFactory.profile) : null;
+  if (roleProviderFactory && (providerAdapter || typeof roleProviderFactory.forRun !== "function")) {
+    throw Object.assign(new Error("A single governed Workforce role factory is required."), { code: "WORKFORCE_ROLE_FACTORY_INVALID" });
+  }
   if (executionEnabled && providerAdapter && providerAdapter.governedProviderOperation !== true) {
     throw Object.assign(
       new Error("Workforce provider execution must re-enter the governed GatewayService provider-operation lane."),
@@ -287,9 +296,30 @@ export function createControlledExecutor(options = {}) {
   }
 
   async function prepareExecution(input = {}) {
-    const plan = createWorkforcePlan(input);
+    let plan = createWorkforcePlan(input);
     const autonomyMode = await resolveAutonomyModeAsync(input);
-    const descriptor = createWorkforceExecutionDescriptor({ input, plan, autonomyMode });
+    if (roleExecutionProfile) {
+      const selected = roleExecutionProfile.bindings.map((binding) => binding.roleId).sort();
+      if (input.selectedRoles !== undefined && (!Array.isArray(input.selectedRoles)
+        || JSON.stringify([...input.selectedRoles].sort()) !== JSON.stringify(selected))) {
+        throw Object.assign(new Error("Requested roles must exactly match the server execution profile."), {
+          code: "WORKFORCE_ROLE_BINDING_REQUIRED", statusCode: 409,
+        });
+      }
+      const tasks = plan.taskBreakdown.filter((task) => selected.includes(task.roleId));
+      if (tasks.length !== selected.length) throw Object.assign(new Error("The profile contains an unsupported Workforce role."), {
+        code: "WORKFORCE_ROLE_BINDING_REQUIRED", statusCode: 409,
+      });
+      if (tasks.some((task) => task.dependsOnRoleIds.some((dependency) => !selected.includes(dependency)))) {
+        throw Object.assign(new Error("The execution profile must include each selected role's dependencies."), {
+          code: "WORKFORCE_ROLE_DEPENDENCY_REQUIRED", statusCode: 409,
+        });
+      }
+      plan = { ...plan, selectedRoles: selected, taskBreakdown: tasks };
+    }
+    const descriptor = createWorkforceExecutionDescriptor({ input, plan, autonomyMode,
+      ...(roleExecutionProfile ? { roleExecution: roleExecutionProfile } : {}),
+    });
     return { plan, autonomyMode, descriptor };
   }
 
@@ -300,6 +330,7 @@ export function createControlledExecutor(options = {}) {
         mode: CONTROLLED_EXECUTION_MODE,
         executionEnabled,
         dryRun,
+        roleExecution: roleExecutionProfile,
         maxConcurrentAgents: maxConcurrent,
         timeoutMs,
         defaultAutonomyMode: DEFAULT_AUTONOMY_MODE,
@@ -385,7 +416,7 @@ export function createControlledExecutor(options = {}) {
         remainingSteps: governedExecution?.remainingSteps,
       });
       const effectiveTimeoutMs = governedBounds.timeoutMs;
-      const effectiveMaxConcurrent = governedBounds.maxConcurrent;
+      const effectiveMaxConcurrent = Math.min(governedBounds.maxConcurrent, roleExecutionProfile?.maxConcurrentRoles ?? Infinity);
       const planId = descriptor.planId;
       const userId = typeof input.userId === "string" ? input.userId.trim() : "";
       const tenantId = typeof input.tenantId === "string" && input.tenantId.trim()
@@ -422,6 +453,13 @@ export function createControlledExecutor(options = {}) {
         return createBlockedResult(plan, planId, "execution_identity_required",
           "Real workforce execution requires an authenticated identity.", { approval: descriptor });
       }
+      if (roleProviderFactory && (!governedExecution || !executionOptions.requestExecution || !executionOptions.identity
+        || executionOptions.identity.tenantId !== tenantId || executionOptions.identity.userId !== userId
+        || governedExecution.context.tenantId !== tenantId || governedExecution.context.userId !== userId)) {
+        throw Object.assign(new Error("Employee model execution requires authenticated HTTP and Agent execution capabilities."), {
+          code: "WORKFORCE_ROLE_GOVERNANCE_REQUIRED", statusCode: 403,
+        });
+      }
       if (governedExecution
         && (mode === AUTONOMY_MODES.SANDBOX_MERGE || mode === AUTONOMY_MODES.SANDBOX_MERGE_AUTO)) {
         throw Object.assign(new Error(
@@ -452,6 +490,15 @@ export function createControlledExecutor(options = {}) {
         planId,
         approvalCheck.approval?.approvalId ?? "approved",
       );
+      const agentRunId = roleProviderFactory ? `agr_${randomUUID()}` : null;
+      const roleProviderRun = roleProviderFactory?.forRun({
+        identity: executionOptions.identity, agentId: governedExecution.context.agentId,
+        agentRunId, policyHash: governedExecution.policy.policyHash,
+        executionId: executionScopeId, planId, planDigest: descriptor.planDigest,
+        profileHash: roleExecutionProfile.profileHash, requestExecution: executionOptions.requestExecution,
+        signal: executionSignal, agentFence: governedExecution.executionLease,
+      });
+      roleProviderRun?.validateRoles((plan.taskBreakdown ?? []).map((task) => task.roleId));
 
       if (mode === AUTONOMY_MODES.SANDBOX_MERGE || mode === AUTONOMY_MODES.SANDBOX_MERGE_AUTO) {
         return sandboxMerger.execute({
@@ -499,6 +546,7 @@ export function createControlledExecutor(options = {}) {
         subjectFingerprint: identityFingerprint(userId),
         worktreeId: worktreeRecord.worktreeId,
         roleCount: (plan.selectedRoles ?? []).length,
+        ...(agentRunId ? { agentRunId, profileHash: roleExecutionProfile.profileHash } : {}),
         startedAt: startedAt.toISOString(),
       });
       await lifecycle.start(executionScopeId);
@@ -531,6 +579,7 @@ export function createControlledExecutor(options = {}) {
       let executionGraph = null;
       let forgeExecuted = false;
       let requestedFinalStatus = null;
+      let legacyProviderCallsMade = false;
 
       try {
         let _timeoutTimer;
@@ -563,7 +612,7 @@ export function createControlledExecutor(options = {}) {
           abortDrainTimeoutMs,
           agentExecutionFence: governedExecution?.executionLease,
           context,
-          executeRole: async (roleId, roleContext) => {
+          executeRole: async (roleId, roleContext, task) => {
             await reserveGovernedRoleStep(governedExecution);
             await roleContext?.externalEffectFence?.assertActive?.("commit");
             const capture = evidenceCapture.startCapture?.({
@@ -577,8 +626,22 @@ export function createControlledExecutor(options = {}) {
               },
             });
             try {
-              const result = providerAdapter
-                ? await executeRoleWithLLM(roleId, plan.goal, roleContext, providerAdapter)
+              const roleAdapter = roleProviderRun ? createRuntimeGatewayBrainAdapter({
+                context: {
+                  employeeId: roleExecutionProfile.bindings.find((binding) => binding.roleId === roleId).employeeId,
+                  roleId, governedAgentId: governedExecution.context.agentId, agentRunId,
+                  executionId: executionScopeId, taskId: task.queueTaskId, planId,
+                  planDigest: descriptor.planDigest, profileHash: roleExecutionProfile.profileHash,
+                },
+                providerAdapter: roleProviderRun.createRoleAdapter({ roleId, taskId: task.queueTaskId,
+                  signal: roleContext.signal, taskFence: roleContext.externalEffectFence }),
+              }) : providerAdapter ? { ...providerAdapter, generate: (...args) => {
+                legacyProviderCallsMade = true;
+                return providerAdapter.generate(...args);
+              } } : null;
+              const result = roleAdapter
+                ? await executeRoleWithLLM(roleId, plan.goal, roleContext, roleAdapter,
+                  { requireRuntimeContribution: Boolean(roleProviderRun) })
                 : await createRoleExecutor(roleId).analyze(plan.goal, roleContext);
               if (capture) {
                 capture.setOutput({ summary: summarizeEvidenceOutput(result, logRedactor) });
@@ -755,6 +818,12 @@ export function createControlledExecutor(options = {}) {
         rolesExecuted: Object.keys(roleResults).length,
         totalRoles: tasks.length,
         roleResults,
+        ...(roleProviderRun ? { agentRunId, roleExecution: {
+          profile: roleExecutionProfile, receipts: roleProviderRun.getReceipts(),
+          requestsDispatched: roleProviderRun.getUsage().totalRequests,
+          realContributions: Object.values(roleResults).filter((result) => result.workforceContribution?.receipt.executionMode === "real").length,
+          fakeContributions: Object.values(roleResults).filter((result) => result.workforceContribution?.receipt.executionMode === "fake").length,
+        } } : {}),
         errors: executionErrors,
         security: {
           preScan: preScan.result,
@@ -772,7 +841,9 @@ export function createControlledExecutor(options = {}) {
         safety: {
           executionEnabled: true,
           dryRun: false,
-          providerCallsMade: Boolean(providerAdapter),
+          providerCallsMade: roleProviderRun
+            ? roleProviderRun.getReceipts().some(({ receipt }) => receipt.providerCallAttempted === true)
+            : legacyProviderCallsMade,
           secretValueExposed: postScan.result === "pass" ? false : null,
           secretScanPassed: postScan.result === "pass",
           projectFileWrites: forgeExecuted,

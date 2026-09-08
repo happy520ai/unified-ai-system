@@ -31,6 +31,7 @@ import {
 } from "./governedRecordMeter.ts";
 import { isSafePublicObjectKey, redactSecretsInText } from "../security/secretSafety.js";
 import { createToolRiskCatalog } from "./toolRiskCatalog.ts";
+import { readFrozenWorkforceRoleExecutionProfile } from "../workforce/workforceRoleExecutionProfile.ts";
 
 export interface AgentGovernanceCallContext {
   agentId: string;
@@ -435,7 +436,7 @@ export function createAgentGovernanceToolProxy(options: {
           // The result remains closed even if the supplemental audit fails.
         }
       }
-      const governedResult = redactGovernedResult(verdict.result, policy);
+      const governedResult = redactGovernedResult(verdict.result, policy, toolName);
       const resultStatus = classifyToolResultStatus(governedResult);
       try {
         await recordOutcome({
@@ -475,7 +476,7 @@ function toolResultReason(result: unknown): string {
   return String(record.code ?? record.error ?? record.status ?? "tool_result_failed");
 }
 
-function redactGovernedResult(result: unknown, policy: EffectiveAgentPolicy): unknown {
+function redactGovernedResult(result: unknown, policy: EffectiveAgentPolicy, toolName: string): unknown {
   const policyFields = Array.isArray(policy.scope?.deniedOutputFields)
     ? policy.scope.deniedOutputFields
     : [];
@@ -485,10 +486,11 @@ function redactGovernedResult(result: unknown, policy: EffectiveAgentPolicy): un
     ...(redactionRequired ? AGENT_GOVERNANCE_REDACTED_FIELDS : []),
     ...policyFields,
   ].map((field) => String(field).toLowerCase()));
+  const allowCounter = toolName === "workforce_execute" ? workforceCounterAllowance(result, policy.agentId) : () => false;
   const seen = new WeakSet<object>();
   const maximumNodes = 10_000;
   let visitedNodes = 0;
-  const visit = (value: unknown, depth: number): unknown => {
+  const visit = (value: unknown, depth: number, path: Array<string | number>): unknown => {
     visitedNodes += 1;
     if (visitedNodes > maximumNodes) return "[governed output node limit reached]";
     if (typeof value === "string") {
@@ -505,12 +507,13 @@ function redactGovernedResult(result: unknown, policy: EffectiveAgentPolicy): un
     seen.add(value);
     if (Array.isArray(value)) {
       const output: unknown[] = [];
+      let index = 0;
       for (const item of value) {
         if (visitedNodes >= maximumNodes) {
           output.push("[governed output node limit reached]");
           break;
         }
-        output.push(visit(item, depth + 1));
+        output.push(visit(item, depth + 1, [...path, index++]));
       }
       return output;
     }
@@ -530,16 +533,96 @@ function redactGovernedResult(result: unknown, policy: EffectiveAgentPolicy): un
       }
       const nested = property.value;
       const normalized = key.toLowerCase();
-      const redactedField = [...fields].some((field) => normalized.includes(field));
+      const policyDenied = policyFields.some((field) => normalized.includes(String(field).toLowerCase()));
+      const redactedField = policyDenied || ([...fields].some((field) => normalized.includes(field)) && !allowCounter(path, key, nested));
       const sanitized = redactedField
         ? "***REDACTED***"
-        : visit(nested, depth + 1);
+        : visit(nested, depth + 1, [...path, key]);
       if (redactedField) visitedNodes += 1;
       defineSanitizedProperty(output, key, sanitized);
     }
     return output;
   };
-  return visit(result, 0);
+  return visit(result, 0, []);
+}
+
+/** This preserves validated counters; it never manufactures a contribution or overrides policy exclusions. */
+function workforceCounterAllowance(result: unknown, agentId: string): (path: Array<string | number>, key: string, value: unknown) => boolean {
+  const deny = () => false;
+  if (ownData(result, "mode") !== "controlled-workforce-execution" || ownData(result, "phase") !== "PhaseC001"
+    || !/^agr_[A-Za-z0-9_-]{1,128}$/.test(String(ownData(result, "agentRunId")))) return deny;
+  const execution = ownData(result, "roleExecution");
+  const rawProfile = ownData(execution, "profile");
+  let profile;
+  try {
+    const source = ownSnapshot(rawProfile, ["version", "mode", "profileId", "maxTotalRequests", "maxConcurrentRoles", "bindings", "profileHash"]);
+    if (!Array.isArray(source.bindings) || source.bindings.length < 1 || source.bindings.length > 128) return deny;
+    const bindings = Array.from({ length: source.bindings.length }, (_, index) => ownSnapshot(ownData(source.bindings, String(index)),
+      ["roleId", "employeeId", "providerId", "modelId", "maxRequests", "maxInputTokens", "maxOutputTokens", "timeoutMs"]));
+    profile = readFrozenWorkforceRoleExecutionProfile({ ...source, bindings });
+  } catch { return deny; }
+  const bindings = new Map(profile.bindings.map((binding) => [binding.roleId, binding]));
+  return (path, key, value) => {
+    if (path.length !== 4) return false;
+    if (path[0] === "roleExecution" && path[1] === "profile" && path[2] === "bindings" && typeof path[3] === "number") {
+      const binding = profile.bindings[path[3]];
+      return Boolean(binding && (key === "maxInputTokens" || key === "maxOutputTokens") && binding[key] === value);
+    }
+    if (!["inputTokens", "outputTokens", "totalTokens"].includes(key)) return false;
+    let owner;
+    let binding;
+    if (path[0] === "roleExecution" && path[1] === "receipts" && typeof path[2] === "number" && path[3] === "receipt") {
+      owner = ownData(ownData(execution, "receipts"), String(path[2]));
+      binding = bindings.get(String(ownData(owner, "roleId")));
+    } else if (path[0] === "roleResults" && typeof path[1] === "string" && path[2] === "workforceContribution" && path[3] === "receipt") {
+      owner = ownData(ownData(ownData(result, "roleResults"), path[1]), "workforceContribution");
+      binding = bindings.get(path[1]);
+      if (ownData(owner, "version") !== 1 || ownData(owner, "roleId") !== path[1]
+        || ownData(owner, "governedAgentId") !== agentId || ownData(owner, "agentRunId") !== ownData(result, "agentRunId")
+        || ownData(owner, "executionId") !== ownData(result, "executionId") || ownData(owner, "planId") !== ownData(result, "planId")
+        || ownData(owner, "profileHash") !== profile.profileHash) return false;
+    } else return false;
+    if (!binding || ownData(owner, "employeeId") !== binding.employeeId || !counterIdentifier(ownData(owner, "taskId"))) return false;
+    const receipt = ownData(owner, "receipt");
+    try {
+      const data = ownSnapshot(receipt, ["version", "level", "status", "executionMode", "gatewayRequestId", "providerId", "modelId",
+        "providerCallAttempted", "inputTokens", "outputTokens", "totalTokens", "estimatedCostUsd", "errorCode"]);
+      return data.version === 1 && data.level === "gateway-provider-operation"
+        && ["succeeded", "failed", "blocked", "cancelled", "outcome_unknown"].includes(String(data.status))
+        && ["real", "fake", "unknown"].includes(String(data.executionMode))
+        && (data.gatewayRequestId === null || counterIdentifier(data.gatewayRequestId))
+        && (data.providerId === null || data.providerId === binding.providerId) && (data.modelId === null || data.modelId === binding.modelId)
+        && (data.providerCallAttempted === null || typeof data.providerCallAttempted === "boolean")
+        && (data.status !== "succeeded" || (data.executionMode !== "unknown" && counterIdentifier(data.gatewayRequestId)
+          && data.providerId === binding.providerId && data.modelId === binding.modelId && data.providerCallAttempted === true && data.errorCode === null))
+        && [data.inputTokens, data.outputTokens, data.totalTokens].every((item) => item === null || typeof item === "number" && Number.isSafeInteger(item) && item >= 0)
+        && (data.estimatedCostUsd === null || typeof data.estimatedCostUsd === "number" && Number.isFinite(data.estimatedCostUsd) && data.estimatedCostUsd >= 0)
+        && (data.errorCode === null || typeof data.errorCode === "string" && /^[A-Z][A-Z0-9_]{0,95}$/.test(data.errorCode))
+        && data[key] === value;
+    } catch { return false; }
+  };
+}
+
+function ownData(value: unknown, key: string): unknown {
+  if (!value || typeof value !== "object") return undefined;
+  const property = Object.getOwnPropertyDescriptor(value, key);
+  return property && "value" in property ? property.value : undefined;
+}
+
+function ownSnapshot(value: unknown, keys: string[]): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)
+    || Object.keys(value).length !== keys.length || Object.keys(value).some((key) => !keys.includes(key))) throw new Error("Invalid Workforce counter DTO.");
+  const snapshot: Record<string, unknown> = Object.create(null);
+  for (const key of keys) {
+    const property = Object.getOwnPropertyDescriptor(value, key);
+    if (!property || !("value" in property)) throw new Error("Invalid Workforce counter property.");
+    snapshot[key] = property.value;
+  }
+  return snapshot;
+}
+
+function counterIdentifier(value: unknown): boolean {
+  return typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$/.test(value);
 }
 
 function defineSanitizedProperty(output: Record<string, unknown>, key: string, value: unknown): void {

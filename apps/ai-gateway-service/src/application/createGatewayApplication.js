@@ -42,6 +42,8 @@ import {
 import { createLocalWorkflowService } from "../workflow/localWorkflowService.js";
 import { createWorkforceService } from "../workforce/workforceService.js";
 import { createControlledExecutor } from "../workforce/workforceControlledExecutor.js";
+import { createWorkforceRoleProviderFactory } from "../workforce/workforceRoleProvider.ts";
+import { freezeWorkforceRoleExecutionProfile } from "../workforce/workforceRoleExecutionProfile.ts";
 import { createUserExperienceService } from "../capabilities/userExperienceService.js";
 import { createCapabilityRouterService } from "../capabilities/capabilityRouterService.js";
 import { createEnterpriseGovernanceService } from "../enterprise/enterpriseGovernanceService.js";
@@ -124,6 +126,13 @@ export function createGatewayApplicationForLocalClientFixtureTests(env = {}) {
 }
 
 function createGatewayApplicationInternal(env, fixtureCapability) {
+  let workforceRoleExecutionProfile = null;
+  if (String(env.AI_GATEWAY_WORKFORCE_ROLE_EXECUTION_PROFILE_JSON ?? "").trim()) {
+    let profileInput;
+    try { profileInput = JSON.parse(env.AI_GATEWAY_WORKFORCE_ROLE_EXECUTION_PROFILE_JSON); }
+    catch { throw new Error("AI_GATEWAY_WORKFORCE_ROLE_EXECUTION_PROFILE_JSON must contain a valid execution profile."); }
+    workforceRoleExecutionProfile = freezeWorkforceRoleExecutionProfile(profileInput);
+  }
   const agentExecWorkingDirectory = resolveAgentExecWorkingDirectory(env);
   const localClientFixtureReceiptClosure =
     fixtureCapability === LOCAL_CLIENT_FIXTURE_RECEIPT_CLOSURE_CAPABILITY;
@@ -296,6 +305,9 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
     env,
     repoRoot,
     executionDir: env.WORKFORCE_EXECUTION_DIR,
+    roleProviderFactory: workforceRoleExecutionProfile ? createWorkforceRoleProviderFactory({
+      gatewayService, providerRegistry, profile: workforceRoleExecutionProfile,
+    }) : null,
   });
   const userExperienceService = createUserExperienceService({
     config,
