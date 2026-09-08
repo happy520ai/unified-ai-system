@@ -1,14 +1,13 @@
 /**
- * SQLite-vec Vector Store
- * Lightweight vector storage using better-sqlite3 with vec extension.
+ * Local SQLite vector storage with JavaScript cosine ranking.
+ * The legacy sqlite-vec identifier does not imply a native vec extension.
  * No external database required - works with local SQLite file.
  */
 
 import { existsSync, mkdirSync } from "node:fs";
-import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 
-const require = createRequire(import.meta.url);
 const DEFAULT_DB_PATH = ".data/knowledge/vectors.sqlite";
 const DEFAULT_DIMENSION = 384; // MiniLM-L6 default
 const DEFAULT_TOP_K = 5;
@@ -31,34 +30,31 @@ export function safeParseMetadata(value) {
  * @param {Object} options
  * @param {string} options.dbPath - Path to SQLite database file
  * @param {number} options.dimension - Vector dimension
- * @returns {Object} Vector store instance
  */
 export function createSqliteVecStore(options = {}) {
   const requestedDbPath = options.dbPath || DEFAULT_DB_PATH;
   const dbPath = requestedDbPath === ":memory:" ? requestedDbPath : resolve(requestedDbPath);
-  const dimension = options.dimension || DEFAULT_DIMENSION;
+  const dimension = options.dimension ?? DEFAULT_DIMENSION;
+  if (!Number.isSafeInteger(dimension) || dimension < 1 || dimension > 65_536) {
+    throw vectorError("DIMENSION_INVALID", "Vector dimension must be an integer from 1 to 65536.");
+  }
   let db = null;
 
   function ensureDb() {
     if (db) return db;
 
+    let candidate;
     try {
-      const loaded = require("better-sqlite3");
-      const Database = loaded.Database ?? loaded.default ?? loaded;
-      if (typeof Database !== "function") {
-        throw new TypeError("better-sqlite3 did not expose a database constructor.");
-      }
       const dir = dirname(dbPath);
       if (!existsSync(dir)) {
         mkdirSync(dir, { recursive: true });
       }
 
-      db = new Database(dbPath);
-      db.pragma("journal_mode = WAL");
-      db.pragma("synchronous = NORMAL");
+      candidate = new DatabaseSync(dbPath);
+      candidate.exec("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL;");
 
       // Create tables if not exist
-      db.exec(`
+      candidate.exec(`
         CREATE TABLE IF NOT EXISTS documents (
           id TEXT PRIMARY KEY,
           source_id TEXT,
@@ -79,12 +75,11 @@ export function createSqliteVecStore(options = {}) {
         CREATE INDEX IF NOT EXISTS idx_vectors_document ON vectors(document_id);
       `);
 
+      db = candidate;
       return db;
     } catch (error) {
-      if (error.code === "MODULE_NOT_FOUND") {
-        return null; // better-sqlite3 not installed
-      }
-      throw error;
+      candidate?.close();
+      throw vectorError("STORAGE_UNAVAILABLE", "Local vector storage could not be opened.", error);
     }
   }
 
@@ -109,11 +104,13 @@ export function createSqliteVecStore(options = {}) {
       id: "sqlite-vec",
       status: available ? "ready" : "unavailable",
       configured: available,
+      implementation: "node-sqlite-js-cosine",
+      nativeVectorExtension: false,
       dbPath,
       dimension,
       reason: available
-        ? "SQLite-vec vector store is ready for local vector storage."
-        : "better-sqlite3 is not installed. Run: npm install better-sqlite3",
+        ? "Local SQLite vector storage with JavaScript cosine ranking is ready."
+        : "Local vector storage is unavailable; check its configured path and permissions.",
     };
   }
 
@@ -128,11 +125,16 @@ export function createSqliteVecStore(options = {}) {
    * @param {Object} doc.metadata - Additional metadata
    */
   function upsertDocument(doc) {
+    validateDocument(doc);
     const database = ensureDb();
-    if (!database) throw new Error("SQLite-vec store not available");
+    transaction(database, () => writeDocument(database, doc));
+    return { id: doc.id, stored: true };
+  }
 
+  function writeDocument(database, doc) {
     const metadataStr = doc.metadata ? JSON.stringify(doc.metadata) : null;
-    const embeddingBuffer = Buffer.from(new Float32Array(doc.embedding).buffer);
+    const embeddingBuffer = Buffer.alloc(dimension * 4);
+    for (let index = 0; index < dimension; index++) embeddingBuffer.writeFloatLE(doc.embedding[index], index * 4);
 
     const upsertDoc = database.prepare(`
       INSERT OR REPLACE INTO documents (id, source_id, title, content, metadata)
@@ -144,14 +146,8 @@ export function createSqliteVecStore(options = {}) {
       VALUES (?, ?, ?)
     `);
 
-    const transaction = database.transaction(() => {
-      upsertDoc.run(doc.id, doc.sourceId || "default", doc.title || "", doc.content || "", metadataStr);
-      upsertVec.run(`vec-${doc.id}`, doc.id, embeddingBuffer);
-    });
-
-    transaction();
-
-    return { id: doc.id, stored: true };
+    upsertDoc.run(doc.id, doc.sourceId || "default", doc.title || "", doc.content || "", metadataStr);
+    upsertVec.run(`vec-${doc.id}`, doc.id, embeddingBuffer);
   }
 
   /**
@@ -159,33 +155,34 @@ export function createSqliteVecStore(options = {}) {
    * @param {Object[]} documents
    */
   function upsertDocuments(documents) {
+    if (!Array.isArray(documents)) throw vectorError("DOCUMENT_INVALID", "Vector documents must be an array.");
+    documents.forEach(validateDocument);
     const database = ensureDb();
-    if (!database) throw new Error("SQLite-vec store not available");
-
-    const results = [];
-    const transaction = database.transaction(() => {
-      for (const doc of documents) {
-        results.push(upsertDocument(doc));
-      }
+    transaction(database, () => {
+      for (const doc of documents) writeDocument(database, doc);
     });
-
-    transaction();
-    return results;
+    return documents.map(doc => ({ id: doc.id, stored: true }));
   }
 
   /**
    * Query similar vectors using cosine similarity.
    * @param {Float32Array|number[]} queryEmbedding
    * @param {Object} options
-   * @param {number} options.topK - Number of results
-   * @param {string[]} options.sourceIds - Filter by source IDs
-   * @returns {Object[]} Results with similarity scores
+   * @param {number} [options.topK] - Number of results
+   * @param {string[]} [options.sourceIds] - Filter by source IDs
+   * @param {string[]} [options.documentIds] - Trusted visible document IDs, before ranking
+   * @returns {{ documentId: string, sourceId: string, title: string, content: string, metadata: object, score: number, rank: number }[]} Results with similarity scores
    */
   function query(queryEmbedding, options = {}) {
+    validateVector(queryEmbedding);
     const database = ensureDb();
-    if (!database) throw new Error("SQLite-vec store not available");
-
-    const topK = options.topK || DEFAULT_TOP_K;
+    const topK = options.topK ?? DEFAULT_TOP_K;
+    if (!Number.isSafeInteger(topK) || topK < 1 || topK > 10_000) throw vectorError("QUERY_INVALID", "Vector topK must be an integer from 1 to 10000.");
+    for (const ids of [options.sourceIds, options.documentIds]) {
+      if (ids !== undefined && (!Array.isArray(ids) || !ids.every(id => typeof id === "string"))) throw vectorError("QUERY_INVALID", "Vector filters must be arrays of IDs.");
+    }
+    const allowed = options.documentIds === undefined ? null : new Set(options.documentIds);
+    if (allowed?.size === 0) return [];
     const sourceFilter = options.sourceIds?.length
       ? `AND d.source_id IN (${options.sourceIds.map(() => "?").join(",")})`
       : "";
@@ -200,8 +197,11 @@ export function createSqliteVecStore(options = {}) {
     `).all(...(options.sourceIds || []));
 
     const queryVec = new Float32Array(queryEmbedding);
-    const results = rows.map((row) => {
-      const docVec = new Float32Array(row.embedding.buffer, row.embedding.byteOffset, row.embedding.byteLength / 4);
+    const results = rows.filter(row => !allowed || allowed.has(row.document_id)).map((row) => {
+      if (!(row.embedding instanceof Uint8Array) || row.embedding.byteLength !== dimension * 4) throw vectorError("DIMENSION_MISMATCH", "Stored vector dimensions do not match the configured embedding model.");
+      const buffer = Buffer.from(row.embedding);
+      const docVec = Array.from({ length: dimension }, (_, index) => buffer.readFloatLE(index * 4));
+      validateVector(docVec);
       const similarity = cosineSimilarity(queryVec, docVec);
 
       return {
@@ -253,6 +253,18 @@ export function createSqliteVecStore(options = {}) {
     }
   }
 
+  function validateVector(vector) {
+    if ((!Array.isArray(vector) && !(vector instanceof Float32Array)) || vector.length !== dimension
+      || !Array.from(vector).every(value => typeof value === "number" && Number.isFinite(value) && Number.isFinite(Math.fround(value)))) {
+      throw vectorError("EMBEDDING_INVALID", "Embedding must contain the configured number of finite Float32 values.");
+    }
+  }
+
+  function validateDocument(doc) {
+    if (!doc || typeof doc.id !== "string" || doc.id.length === 0) throw vectorError("DOCUMENT_INVALID", "Vector documents require a non-empty ID.");
+    validateVector(doc.embedding);
+  }
+
   return {
     isAvailable,
     getReadiness,
@@ -263,6 +275,21 @@ export function createSqliteVecStore(options = {}) {
     getDocumentCount,
     close,
   };
+}
+
+function transaction(database, operation) {
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    operation();
+    database.exec("COMMIT");
+  } catch (error) {
+    try { database.exec("ROLLBACK"); } catch { /* Keep the original failure. */ }
+    throw vectorError("WRITE_FAILED", "Local vector storage could not commit the document batch.", error);
+  }
+}
+
+function vectorError(suffix, message, cause) {
+  return Object.assign(new Error(message, cause ? { cause } : undefined), { code: `KNOWLEDGE_VECTOR_${suffix}` });
 }
 
 /**
