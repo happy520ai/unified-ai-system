@@ -717,6 +717,97 @@ describe("local client JSON config transaction engine", () => {
     });
   });
 
+  it.each(["", '# retained\r\nmodel = "original-model"\r\n[mcp_servers.other]\r\ncommand = "unchanged"'])
+  ("applies TOML with format-bound encryption and exact restart rollback: %j", async (source) => {
+    const original = Buffer.from(source);
+    await writeFile(targetPath, original);
+    const options = { format: "toml", backupEncryptionKey: Buffer.alloc(32, 0x65) };
+    const engine = await openEngine(options);
+    const legacy = await openEngine();
+    const jsonc = await openEngine({ format: "jsonc" });
+    expect(new Set([engine, legacy, jsonc].map(item => item.getStatus().targetFingerprint)).size).toBe(3);
+    await Promise.all([legacy.close(), jsonc.close()]);
+    const plan = await engine.plan({ operations: [{ op: "set", path: ["mcp_servers", "unified-ai-system"], value: { command: "node", args: [] } }] });
+    expect(await readFile(targetPath)).toEqual(original);
+    expect(await exists(journalPath)).toBe(false);
+    const receipt = await engine.apply({ planId: plan.planId });
+    const enabled = await readFile(targetPath);
+    expect(enabled.toString()).toBe(source + (source ? '\r\n' : '') + '[mcp_servers."unified-ai-system"]' + (source ? '\r\n' : '\n') + 'command = "node"' + (source ? '\r\n' : '\n') + 'args = []');
+    expect(sha256(enabled)).toBe(plan.afterSha256);
+    const journal = await readJournal(journalPath);
+    expect(journal.journalVersion).toBe("local-client-config-journal-codex-toml-v1");
+    const backup = await readFile(join(backupDir, journal.entries[0].backupFileName), "utf8");
+    expect(JSON.parse(backup).algorithm).toBe("aes-256-gcm");
+    expect(backup).not.toContain("original-model");
+    await engine.close();
+    for (const format of ["json-only", "jsonc"]) {
+      const wrong = await openEngine({ format });
+      expect(wrong.getStatus()).toMatchObject({ journalCorrupt: true, recoveryRequired: true });
+      await wrong.close();
+    }
+    expect(await readJournal(journalPath)).toEqual(journal);
+    const wrongKey = await openEngine({ ...options, backupEncryptionKey: Buffer.alloc(32, 0x66) });
+    await expect(wrongKey.rollback({ receipt })).rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_BACKUP_INVALID" });
+    await wrongKey.close();
+    const restarted = await openEngine(options);
+    await expect(restarted.rollback({ receipt: { ...receipt, targetFingerprint: "0".repeat(64) } })).rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_RECEIPT_INVALID" });
+    await restarted.rollback({ receipt });
+    expect(await readFile(targetPath)).toEqual(original);
+    await expect(restarted.rollback({ receipt })).rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_RECEIPT_INVALID" });
+    await restarted.close();
+  });
+
+  it("recovers TOML pending publication and refuses to overwrite unknown target content", async () => {
+    const original = Buffer.from('# recovery original\nmodel = "preserved"\n');
+    await writeFile(targetPath, original);
+    const options = { format: "toml", backupEncryptionKey: Buffer.alloc(32, 0x66) };
+    const engine = await openEngine(options);
+    const plan = await engine.plan({ operations: [{ op: "set", path: ["mcp_servers", "unified-ai-system"], value: { command: "node" } }] });
+    const receipt = await engine.apply({ planId: plan.planId });
+    const enabled = await readFile(targetPath);
+    const journal = await readJournal(journalPath);
+    makeApplyPending(journal.entries[0]);
+    await writeJournal(journalPath, journal);
+    await engine.close();
+    const restarted = await openEngine(options);
+    expect(restarted.getStatus().recoveryRequired).toBe(true);
+    await writeFile(targetPath, '# externally replaced\nmodel = "unknown"\n');
+    const changed = await readFile(targetPath);
+    await expect(restarted.recover({ transactionId: receipt.transactionId })).rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_RECOVERY_AMBIGUOUS" });
+    expect(await readFile(targetPath)).toEqual(changed);
+    expect(await readJournal(journalPath)).toEqual(journal);
+    await writeFile(targetPath, enabled);
+    const recovered = await restarted.recover({ transactionId: receipt.transactionId });
+    expect(recovered).toMatchObject({ resolution: "apply-committed", currentSha256: plan.afterSha256 });
+    expect(await readFile(targetPath)).toEqual(enabled);
+    await restarted.rollback({ receipt: recovered.applyReceipt! });
+    expect(await readFile(targetPath)).toEqual(original);
+    await restarted.close();
+  });
+
+  it("rejects unsupported TOML operations and byte budgets before publication, then detects target identity changes", async () => {
+    await expect(openEngine({ format: "toml", maxBytes: 65_537 })).rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_CONFIGURATION_INVALID" });
+    const engine = await openEngine({ format: "toml" });
+    const operation = { operations: [{ op: "set" as const, path: ["mcp_servers", "unified-ai-system"], value: { command: "node" } }] };
+    for (const text of ['model = "a"\nmodel = "b"', '[mcp_servers.unified_ai_system]\ncommand = "legacy"', '[mcp_servers."unified-ai-system"]\nenv = {}']) {
+      await writeFile(targetPath, text);
+      await expect(engine.plan(operation)).rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_TOML_INVALID" });
+      expect(await exists(journalPath)).toBe(false);
+      expect(await exists(backupDir)).toBe(false);
+    }
+    await writeFile(targetPath, "#".repeat(65_537));
+    await expect(engine.plan(operation)).rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_TOO_LARGE" });
+    await writeFile(targetPath, 'model = "protected"\n');
+    await expect(engine.plan({ operations: [{ op: "set", path: ["model"], value: "rejected" }] })).rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_TOML_INVALID" });
+    const plan = await engine.plan(operation);
+    const original = await readFile(targetPath);
+    await rm(targetPath);
+    await writeFile(targetPath, original);
+    await expect(engine.apply({ planId: plan.planId })).rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_TARGET_CHANGED" });
+    expect(await readFile(targetPath)).toEqual(original);
+    await engine.close();
+  });
+
   it("applies JSONC with bound hashes and encrypted backup then rolls back exact bytes after restart", async () => {
     const original = Buffer.from('\ufeff{\r\n // private-original-note\r\n "servers": {"other" : [1e2,],}, /* keep */\r\n}');
     await writeFile(targetPath, original);

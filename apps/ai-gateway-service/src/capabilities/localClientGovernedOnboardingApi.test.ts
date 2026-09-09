@@ -557,8 +557,9 @@ describeDurableLocalClientSqlite("governed local-client onboarding API", () => {
     expect(rollbackPlan.scopes).toContain("local-client:onboarding:rollback");
   });
 
-  it.each([PROFILE_ID, LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.vscodeJsonc] as const)("replays %s apply after restart and authorizes exact rollback from durable receipt authority", async (profileId) => {
-    const targetPath = profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.vscodeJsonc ? paths.vscode.targetPath : paths.cursor.targetPath;
+  it.each([PROFILE_ID, LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.vscodeJsonc, LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.codexToml] as const)("replays %s apply after restart and authorizes exact rollback from durable receipt authority", async (profileId) => {
+    const targetPath = profileId === PROFILE_ID ? paths.cursor.targetPath : paths.vscode.targetPath;
+    if (profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.codexToml) await writeFile(targetPath, '# preserve API TOML\r\nmodel = "unchanged"\r\n');
     if (profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.vscodeJsonc) await writeFile(targetPath, '\ufeff{\r\n // preserve API JSONC\r\n "servers":{}, "unrelated" : [1e2,], }');
     const original = await readFile(targetPath);
     const idempotencyPath = join(root, "restart-idempotency.sqlite");
@@ -577,7 +578,8 @@ describeDurableLocalClientSqlite("governed local-client onboarding API", () => {
     const applied = await first.api.apply(request, port);
     expectCompleted(applied, false);
     const receipt = applied.result.receipt as LocalClientOnboardingReceipt;
-    expect(receipt.format).toBe(profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.vscodeJsonc ? "jsonc" : "json-only");
+    expect(receipt.format).toBe(profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.codexToml ? "toml" : profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.vscodeJsonc ? "jsonc" : "json-only");
+    if (receipt.format === "toml") expect((await readFile(targetPath)).toString()).toContain('# preserve API TOML\r\nmodel = "unchanged"\r\n');
     if (receipt.format === "jsonc") {
       expect(await first.api.list(IDENTITY_A)).toHaveLength(1);
       expect((await readFile(targetPath)).toString()).toContain('"unrelated" : [1e2,]');
@@ -819,12 +821,18 @@ describeDurableLocalClientSqlite("governed local-client onboarding API", () => {
     expect(replayHarness.registryPort.recover).not.toHaveBeenCalled();
   });
 
-  it("rejects a JSONC profile with JSON-only dependency projections before granting approval", async () => {
-    const profileId = LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.vscodeJsonc;
+  it.each([LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.vscodeJsonc, LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.codexToml])("rejects %s with JSON-only dependency projections before granting approval", async (profileId) => {
+    if (profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.codexToml) await writeFile(paths.vscode.targetPath, 'model = "original"\n');
     const registry = await createRegistry(paths, profileId);
     const harness = await createHarness({ registry });
     const before = await readFile(paths.vscode.targetPath);
     const summary = registry.listProfiles()[0]!;
+    if (profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.codexToml) {
+      for (const mismatch of [{ format: "jsonc" as const }, { client: "vscode" as const }, { containerKey: "servers" as const }]) {
+        harness.registryPort.listProfiles.mockReturnValueOnce([{ ...summary, ...mismatch }]);
+        await expect(harness.api.list(IDENTITY_A)).rejects.toMatchObject({ code: "LOCAL_CLIENT_ONBOARDING_API_DEPENDENCY_FAILED" });
+      }
+    }
     harness.registryPort.listProfiles.mockReturnValueOnce([{ ...summary, format: "json-only" }]);
     await expect(harness.api.list(IDENTITY_A)).rejects.toMatchObject({ code: "LOCAL_CLIENT_ONBOARDING_API_DEPENDENCY_FAILED" });
     const inspection = await registry.inspect(profileId);
@@ -841,8 +849,8 @@ describeDurableLocalClientSqlite("governed local-client onboarding API", () => {
     await registry.close();
   });
 
-  it("retains unknown when a JSONC apply dependency returns a mismatched format after the effect", async () => {
-    const profileId = LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.vscodeJsonc;
+  it.each([LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.vscodeJsonc, LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.codexToml])("retains unknown when %s apply dependency returns a mismatched format after the effect", async (profileId) => {
+    if (profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.codexToml) await writeFile(paths.vscode.targetPath, 'model = "original"\n');
     const registry = await createRegistry(paths, profileId);
     const harness = await createHarness({ registry, registryApply: async (planId) => ({ ...await registry.apply(planId), format: "json-only" }) });
     const plan = await planAndApprove(harness, "enable", profileId);
@@ -894,7 +902,7 @@ async function initializeProfileFiles(paths: ReturnType<typeof profilePaths>) {
 
 async function createRegistry(paths: ReturnType<typeof profilePaths>, profileId?: LocalClientOnboardingProfileId) {
   return createLocalClientOnboardingRegistry({
-    ...(profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.vscodeJsonc
+    ...((profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.vscodeJsonc || profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.codexToml)
       ? { version: 2 as const, profiles: [{ profileId, paths: paths.vscode }], backupEncryptionKey: Buffer.alloc(32, 0x6b) }
       : { profiles: paths }),
     serverDefinition: {

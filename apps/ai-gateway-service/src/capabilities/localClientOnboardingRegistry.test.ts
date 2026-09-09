@@ -377,37 +377,40 @@ describe("LocalClientOnboardingRegistry", () => {
       .rejects.toMatchObject({ code: "LOCAL_CLIENT_ONBOARDING_PLAN_UNKNOWN" });
   });
 
-  it("selects one explicit JSONC profile across inspect, enable, verify, disable, restart and exact rollback", async () => {
-    const original = Buffer.from('\ufeff{\r\n // retained JSONC fixture\r\n "servers": { "other" : {"args":["a",],}, }, /* end */\r\n}');
+  it.each(["jsonc", "toml"] as const)("selects one explicit %s profile across inspect, enable, verify, disable, restart and exact rollback", async (format) => {
+    const original = format === "toml" ? Buffer.from('# retained TOML fixture\r\nmodel = "preserved"\r\n[mcp_servers.other]\r\ncommand = "unchanged"') : Buffer.from('\ufeff{\r\n // retained JSONC fixture\r\n "servers": { "other" : {"args":["a",],}, }, /* end */\r\n}');
     await registry.close();
     const legacyBefore = await Promise.all([readFile(targets.claude), readFile(targets.cursor)]);
     await writeFile(targets.vscode, original);
-    const profileId = LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.vscodeJsonc;
+    const profileId = format === "toml" ? LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.codexToml : LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.vscodeJsonc;
     const options: LocalClientOnboardingRegistryOptions = {
       version: 2,
       profiles: [{ profileId, paths: registryOptions.profiles.vscode }],
-      serverDefinition: registryOptions.serverDefinition,
+      serverDefinition: format === "toml" ? { transport: "stdio", command: "node", args: ["gateway.mjs"] } : registryOptions.serverDefinition,
       backupEncryptionKey: Buffer.alloc(32, 0x61),
     };
     registry = await createLocalClientOnboardingRegistry(options);
-    expect(registry.listProfiles()).toEqual([expect.objectContaining({ profileId, format: "jsonc", client: "vscode" })]);
+    expect(registry.listProfiles()).toEqual([expect.objectContaining({ profileId, format, client: format === "toml" ? "codex" : "vscode" })]);
     await expect(registry.inspect(LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.cursor)).rejects.toMatchObject({ code: "LOCAL_CLIENT_ONBOARDING_PROFILE_UNKNOWN" });
-    await expect(registry.inspect(profileId)).resolves.toMatchObject({ installation: { state: "absent", format: "jsonc" } });
+    await expect(registry.inspect(profileId)).resolves.toMatchObject({ installation: { state: "absent", format } });
     const plan = await registry.plan(profileId, "enable");
-    expect(plan.format).toBe("jsonc");
+    expect(plan.format).toBe(format);
     const applied = await registry.apply(plan.planId);
     const enabled = await readFile(targets.vscode);
-    expect(applied.format).toBe("jsonc");
-    expect(enabled.toString()).toContain('"other" : {"args":["a",],}');
-    expect(enabled.toString()).toContain("// retained JSONC fixture\r\n");
-    await expect(registry.verifyInstalled(profileId)).resolves.toMatchObject({ state: "exact", format: "jsonc" });
+    expect(applied.format).toBe(format);
+    if (format === "toml") expect(enabled.toString()).toBe(original.toString() + '\r\n[mcp_servers."unified-ai-system"]\r\ncommand = "node"\r\nargs = ["gateway.mjs"]');
+    else {
+      expect(enabled.toString()).toContain('"other" : {"args":["a",],}');
+      expect(enabled.toString()).toContain("// retained JSONC fixture\r\n");
+    }
+    await expect(registry.verifyInstalled(profileId)).resolves.toMatchObject({ state: "exact", format });
     await expect(registry.rollback({ ...applied, format: "json-only" })).rejects.toMatchObject({ code: "LOCAL_CLIENT_ONBOARDING_RECEIPT_INVALID" });
     expect(await readFile(targets.vscode)).toEqual(enabled);
     const disablePlan = await registry.plan(profileId, "disable");
     const disabled = await registry.apply(disablePlan.planId);
-    await expect(registry.verifyInstalled(profileId)).resolves.toMatchObject({ state: "absent", format: "jsonc" });
+    await expect(registry.verifyInstalled(profileId)).resolves.toMatchObject({ state: "absent", format });
     const disabledReceipt = await registry.rollback(disabled);
-    expect(disabledReceipt.format).toBe("jsonc");
+    expect(disabledReceipt.format).toBe(format);
     expect(await readFile(targets.vscode)).toEqual(enabled);
     // A restored file has a new identity; use the fresh apply flow's receipt for restart rollback.
     const reDisable = await registry.apply((await registry.plan(profileId, "disable")).planId);
@@ -426,10 +429,19 @@ describe("LocalClientOnboardingRegistry", () => {
     const freshReceipt = await registry.apply((await registry.plan(profileId, "enable")).planId);
     await registry.close();
     registry = await createLocalClientOnboardingRegistry(freshOptions);
-    expect((await registry.rollback(freshReceipt)).format).toBe("jsonc");
+    expect((await registry.rollback(freshReceipt)).format).toBe(format);
     expect(await readFile(targets.vscode)).toEqual(original);
     expect(await Promise.all([readFile(targets.claude), readFile(targets.cursor)])).toEqual(legacyBefore);
     assertRedacted([plan, applied, disabledReceipt, registry.listProfiles()], root, ...Object.values(targets));
+  });
+
+  it("rejects Codex environment fields without opening a second profile or changing files", async () => {
+    const before = await Promise.all(Object.values(targets).map(path => readFile(path)));
+    await expect(createLocalClientOnboardingRegistry({ version: 2,
+      profiles: [{ profileId: LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.codexToml, paths: registryOptions.profiles.vscode }],
+      serverDefinition: { transport: "stdio", command: "node", args: [], env: {} },
+    })).rejects.toMatchObject({ code: "LOCAL_CLIENT_ONBOARDING_CONFIGURATION_INVALID" });
+    expect(await Promise.all(Object.values(targets).map(path => readFile(path)))).toEqual(before);
   });
 
   it("rejects unknown, duplicate or absent selected JSONC profiles before opening storage", async () => {

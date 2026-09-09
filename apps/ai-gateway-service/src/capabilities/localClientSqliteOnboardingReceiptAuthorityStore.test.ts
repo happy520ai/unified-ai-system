@@ -471,8 +471,8 @@ describeDurableLocalClientSqlite("LocalClientSqliteOnboardingReceiptAuthoritySto
     expect(INTEGRITY_KEY.equals(Buffer.alloc(32, 0x63))).toBe(true);
   });
 
-  it("persists the exact JSONC profile and receipt fingerprint across restart with one rollback claim", async () => {
-    const input = applied({ profileId: "vscode-mcp-jsonc-v1", receiptContentFingerprint: digest("jsonc-format-bound-receipt") });
+  it.each(["vscode-mcp-jsonc-v1", "codex-mcp-toml-v1"] as const)("persists the exact %s profile and receipt fingerprint across restart with one rollback claim", async (profileId) => {
+    const input = applied({ profileId, receiptContentFingerprint: digest("jsonc-format-bound-receipt") });
     const first = createStore();
     await first.recordApplied(input);
     await first.close();
@@ -486,7 +486,7 @@ describeDurableLocalClientSqlite("LocalClientSqliteOnboardingReceiptAuthoritySto
         .rejects.toMatchObject({ code: "LOCAL_CLIENT_ONBOARDING_RECEIPT_AUTHORITY_CONFLICT" });
     }
     const claim = await restarted.authorizeRollback(reference(input));
-    expect(claim).toMatchObject({ claimed: true, mutationDelta: { profileId: "vscode-mcp-jsonc-v1" } });
+    expect(claim).toMatchObject({ claimed: true, mutationDelta: { profileId } });
     if (!isClaimed(claim)) throw new Error("JSONC fixture did not claim rollback");
     await restarted.markRolledBack(claimReference(input, claim));
     await expect(restarted.authorizeRollback(reference(input))).resolves.toMatchObject({ claimed: false, replayed: true, mutationDelta: null });

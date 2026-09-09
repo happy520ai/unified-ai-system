@@ -622,21 +622,27 @@ encrypted restart rollback, durable receipt/idempotency replay, owner/format
 rejection and actual HTTP/CLI approval. An authored pending-journal fixture
 exercises explicit recovery and is not evidence of a real process kill or power
 loss. These fixtures do not prove native client loading, real Provider calls,
-clean-machine installation, production durability, YAML or TOML support.
+clean-machine installation, production durability or YAML support. Codex TOML
+uses the separate profile below.
 
-## Codex TOML source codec (integration pending)
+## Governed Codex TOML profile
 
-`localClientCodexToml.ts` provides a pure source codec for the proposed
-`codex-mcp-toml-v1` profile. It is not registered in onboarding, startup
-configuration, receipt contracts or CLI commands yet. It does not read a user's
-Codex configuration, change native login/model settings, start a client or write
-files. Full governed TOML onboarding and native-client certification remain
-separate work; JSON/JSONC profiles keep their existing behavior.
+`codex-mcp-toml-v1` is an explicitly selected onboarding configuration v2 profile
+with client `codex`, format `toml`, and container `mcp_servers`. Configuration v2
+accepts one to five known profiles; v1 retains its original three JSON profiles.
+Use the existing `clients-onboarding` CLI with `--profile-id codex-mcp-toml-v1`
+for inspect, plan, approval, apply, verify, receipt-bound rollback and recovery.
+The existing HTTP routes and shared SDK carry the same named profile. Targets
+must be explicitly bound server-side; there is no home/configuration discovery.
+The codec itself remains pure. The transaction engine performs the approved
+file effect; native login, model settings, Base URL and quota are outside the
+owned member. Native Codex loading/certification remains separate verification.
 
 The codec pins `toml-eslint-parser` 1.0.3 (MIT) and explicitly selects TOML 1.0;
 the parser's default 1.1 is not silently adopted. Its one runtime dependency is
 the locked `eslint-visitor-keys` 5.0.1 (Apache-2.0); no ESLint runner is added.
-Input is at most 64 KiB of valid UTF-8. This first profile rejects a BOM, dates,
+Input is at most 64 KiB of valid UTF-8, including the empty-file case. Larger
+configured limits fail closed. This first profile rejects a BOM, dates,
 nonfinite/unsafe numbers, duplicate or forbidden keys, and excessive nesting.
 It accepts one ordinary `mcp_servers."unified-ai-system"` table with only
 `command`, string `args`, and `cwd`; managed inline/dotted/array-table forms,
@@ -652,14 +658,34 @@ The codec snapshots input bytes and rejects accessor-bearing operation data.
 Parser failures expose a fixed error instead of source text. Parsing is bounded
 by input size and structural limits, without a claim of a formal CPU bound.
 
-Language Selection: TypeScript keeps this pure codec within the existing Node
-runtime and checked operation types. Domain/maintenance/operations/safety/
+The TOML codec version is part of the target fingerprint, which binds the plan,
+encrypted-backup AAD and receipt digest. Its journal version is
+`local-client-config-journal-codex-toml-v1`; JSON and JSONC readers reject that
+journal instead of resetting it. Owner checks, exact approval, durable
+idempotency, the external-effect reservation, file identity/lock, atomic replace
+and one-time receipt authority use the existing transaction path. Empty-file
+rollback authenticates the encrypted empty original and restores exactly zero
+bytes. Direct registry configuration also rejects managed `env` fields rather
+than omitting them. API and CLI projections require the expected format;
+unknown effects require reconciliation and do not become retryable success.
+
+Language Selection: TypeScript keeps the codec and its transaction/profile
+integration within the existing Node runtime and checked operation types;
+the existing JavaScript CLI needs only one metadata entry. Domain/maintenance/operations/safety/
 migration/ecosystem scores are TS 5/5/5/5/5/5 (30), JS 5/4/5/3/5/5 (27), and a
 separate runtime 3/3/2/4/2/3 (17). An AST parser is necessary to preserve source
-trivia; parse/stringify alone cannot satisfy that requirement. Rollback removes
-these codec exports and their two dependencies; no user configuration or state
-migration is involved. Synthetic tests verify bytes and semantics; they do not
-prove the unconnected transaction/approval/native-client path.
+trivia; parse/stringify alone cannot satisfy that requirement. No new dependency,
+database schema, service or transaction abstraction is added by the integration.
+Its cross-owner file count is necessary to close format, receipt and CLI checks
+together. On downgrade, preserve TOML journals, encrypted backups and receipt
+authority until compatible code completes rollback/recovery; never relabel or
+delete that history. Existing JSON/JSONC formats and fingerprints are retained.
+Temporary-file tests cover byte-exact restart rollback, format/identity
+conflicts, encrypted backups, recovery and durable owner/receipt replay. Actual
+HTTP plus Node CLI fixtures execute approval before apply and rollback, restart
+replay and explicit recovery. Authored pending journals do not prove a process
+kill or power-loss result. Native client loading, real Providers, cold install,
+production durability, YAML and bulk control-center v2 remain separate work.
 
 ## Language Selection
 

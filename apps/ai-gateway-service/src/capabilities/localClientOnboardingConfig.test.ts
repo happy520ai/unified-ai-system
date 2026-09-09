@@ -94,13 +94,15 @@ describe("resolveLocalClientOnboardingConfiguration", () => {
     expect(result.status).not.toHaveProperty("formats");
   });
 
-  it("accepts one explicit JSONC profile and exposes only actual clients/formats", () => {
-    const result = resolveLocalClientOnboardingConfiguration(selectedEnv());
+  it.each([
+    ["vscode-mcp-jsonc-v1", "vscode", "jsonc"], ["codex-mcp-toml-v1", "codex", "toml"],
+  ])("accepts one explicit %s profile and exposes only actual clients/formats", (profileId, client, format) => {
+    const result = resolveLocalClientOnboardingConfiguration(selectedEnv([profileId]));
     if (!result.enabled || result.registryOptions.version !== 2) throw new Error("expected v2 configuration");
     expect(result.registryOptions.profiles).toHaveLength(1);
-    expect(result.registryOptions.profiles[0]?.profileId).toBe("vscode-mcp-jsonc-v1");
+    expect(result.registryOptions.profiles[0]?.profileId).toBe(profileId);
     expect(result.status).toMatchObject({ enabled: true, configurationVersion: 2, configuredProfileCount: 1,
-      clients: ["vscode"], formats: ["jsonc"], tenantOwned: true, backupProtection: "aes-256-gcm" });
+      clients: [client], formats: [format], tenantOwned: true, backupProtection: "aes-256-gcm" });
     expect(result.status).not.toHaveProperty("format");
     expect(JSON.stringify(result.status)).not.toContain("client.jsonc");
     expect(JSON.stringify(result.status)).not.toContain("tenant-a");
@@ -108,12 +110,20 @@ describe("resolveLocalClientOnboardingConfiguration", () => {
     expect(Object.isFrozen(result.registryOptions.profiles[0]?.paths)).toBe(true);
   });
 
-  it("reports four profiles with unique actual clients and formats in selected order", () => {
+  it("reports five profiles with unique actual clients and formats in selected order", () => {
     const result = resolveLocalClientOnboardingConfiguration(selectedEnv([
-      "vscode-mcp-jsonc-v1", "cursor-mcp-json", "claude-compatible-mcp-json", "vscode-mcp-json",
+      "vscode-mcp-jsonc-v1", "cursor-mcp-json", "claude-compatible-mcp-json", "vscode-mcp-json", "codex-mcp-toml-v1",
     ]));
-    expect(result.status).toMatchObject({ configurationVersion: 2, configuredProfileCount: 4,
-      clients: ["vscode", "cursor", "claude-compatible"], formats: ["jsonc", "json-only"] });
+    expect(result.status).toMatchObject({ configurationVersion: 2, configuredProfileCount: 5,
+      clients: ["vscode", "cursor", "claude-compatible", "codex"], formats: ["jsonc", "json-only", "toml"] });
+  });
+
+  it("rejects TOML budgets above the codec limit in startup configuration", () => {
+    const env = selectedEnv(["codex-mcp-toml-v1"]);
+    const value = JSON.parse(env.AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_CONFIG_JSON);
+    value.profiles[0].paths.maxBytes = 65_537;
+    expect(() => resolveLocalClientOnboardingConfiguration({ ...env, AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_CONFIG_JSON: JSON.stringify(value) }))
+      .toThrowError(expect.objectContaining({ code: "LOCAL_CLIENT_ONBOARDING_CONFIG_INVALID" }));
   });
 
   it("retains the exact disabled v1 status even when an unactivated v2 payload is present", () => {

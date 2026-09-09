@@ -2,9 +2,11 @@ import { createHash } from "node:crypto";
 import { lstat, readFile, realpath } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { parseLocalClientJsoncObject } from "./localClientConfigJsonc.ts";
+import { parseLocalClientCodexTomlObject } from "./localClientCodexToml.ts";
 
 import {
   createLocalClientConfigTransactionEngine,
+  LOCAL_CLIENT_CONFIG_TOML_MAX_BYTES,
   type LocalClientConfigFormat,
   type LocalClientConfigJsonValue,
   type LocalClientConfigReceipt,
@@ -27,12 +29,13 @@ export const LOCAL_CLIENT_ONBOARDING_PROFILE_IDS = Object.freeze({
   cursor: "cursor-mcp-json" as const,
   vscode: "vscode-mcp-json" as const,
   vscodeJsonc: "vscode-mcp-jsonc-v1" as const,
+  codexToml: "codex-mcp-toml-v1" as const,
 });
 
 export type LocalClientOnboardingProfileId =
   typeof LOCAL_CLIENT_ONBOARDING_PROFILE_IDS[keyof typeof LOCAL_CLIENT_ONBOARDING_PROFILE_IDS];
 export type LocalClientOnboardingAction = "enable" | "disable";
-export type LocalClientOnboardingClient = "claude-compatible" | "cursor" | "vscode";
+export type LocalClientOnboardingClient = "claude-compatible" | "cursor" | "vscode" | "codex";
 
 export interface LocalClientOnboardingBoundPaths {
   readonly targetPath: string;
@@ -80,7 +83,7 @@ export interface LocalClientOnboardingProfileSummary {
   readonly profileId: LocalClientOnboardingProfileId;
   readonly client: LocalClientOnboardingClient;
   readonly format: LocalClientConfigFormat;
-  readonly containerKey: "mcpServers" | "servers";
+  readonly containerKey: "mcpServers" | "servers" | "mcp_servers";
   readonly serverName: typeof LOCAL_CLIENT_ONBOARDING_SERVER_NAME;
   readonly transport: "stdio";
   readonly backupProtection: "aes-256-gcm" | "0600-plaintext";
@@ -248,6 +251,13 @@ const PROFILE_DEFINITIONS = Object.freeze([
     containerKey: "servers" as const,
     format: "jsonc" as const,
   }),
+  Object.freeze({
+    optionKey: "codexToml" as const,
+    profileId: LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.codexToml,
+    client: "codex" as const,
+    containerKey: "mcp_servers" as const,
+    format: "toml" as const,
+  }),
 ] as const);
 
 type SelectedProfile = Readonly<{ definition: typeof PROFILE_DEFINITIONS[number]; paths: LocalClientOnboardingBoundPaths }>;
@@ -268,13 +278,16 @@ export class LocalClientOnboardingRegistry {
   static async open(options: LocalClientOnboardingRegistryOptions): Promise<LocalClientOnboardingRegistry> {
     const selected = assertRegistryOptions(options);
     const serverDefinition = normalizeServerDefinition(options.serverDefinition);
+    if (selected.some(({ definition }) => definition.client === "codex") && serverDefinition.env !== undefined) throw configurationError();
     await assertDistinctProfileStorage(selected);
     const profiles = new Map<LocalClientOnboardingProfileId, ProfileRecord>();
     try {
       for (const { definition, paths } of selected) {
         const engine = await createLocalClientConfigTransactionEngine({ ...toTransactionOptions(paths, options), format: definition.format });
         const summary = createProfileSummary(definition, engine.getStatus().backupProtection);
-        const maxBytes = boundedInteger(paths.maxBytes, DEFAULT_MAX_BYTES, 256, HARD_MAX_BYTES);
+        const maxBytes = definition.format === "toml"
+          ? boundedInteger(paths.maxBytes, LOCAL_CLIENT_CONFIG_TOML_MAX_BYTES, 256, LOCAL_CLIENT_CONFIG_TOML_MAX_BYTES)
+          : boundedInteger(paths.maxBytes, DEFAULT_MAX_BYTES, 256, HARD_MAX_BYTES);
         profiles.set(definition.profileId, Object.freeze({
           summary,
           engine,
@@ -574,7 +587,7 @@ function assertRegistryOptions(options: LocalClientOnboardingRegistryOptions): r
     if (options.version !== undefined && options.version !== 1) throw configurationError();
     assertExactObject(options.profiles, ["claudeCompatible", "cursor", "vscode"], new Set());
     for (const definition of PROFILE_DEFINITIONS) {
-      if (definition.optionKey === "vscodeJsonc") continue;
+      if (definition.optionKey === "vscodeJsonc" || definition.optionKey === "codexToml") continue;
       const paths = options.profiles[definition.optionKey];
       assertPathOptions(paths);
       selected.push({ definition, paths });
@@ -710,7 +723,7 @@ async function readBoundJsonObject(
     if (
       !targetBefore.isFile()
       || targetBefore.isSymbolicLink()
-      || targetBefore.size < 2
+      || targetBefore.size < (format === "toml" ? 0 : 2)
       || targetBefore.size > maxBytes
     ) throw configInvalidError();
     const [resolvedRoot, resolvedTarget] = await Promise.all([
@@ -728,7 +741,8 @@ async function readBoundJsonObject(
       || targetBefore.mtimeMs !== targetAfter.mtimeMs
       || bytes.byteLength !== targetAfter.size
     ) throw configInvalidError();
-    const parsed: unknown = format === "jsonc" ? parseLocalClientJsoncObject(bytes, maxBytes) : JSON.parse(bytes.toString("utf8"));
+    const parsed: unknown = format === "toml" ? parseLocalClientCodexTomlObject(bytes, maxBytes)
+      : format === "jsonc" ? parseLocalClientJsoncObject(bytes, maxBytes) : JSON.parse(bytes.toString("utf8"));
     if (!isPlainRecord(parsed)) throw configInvalidError();
     return parsed;
   } catch (error) {

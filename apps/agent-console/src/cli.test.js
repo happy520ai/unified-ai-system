@@ -2242,20 +2242,32 @@ test("CLI workflow requests a real approval and publishes the exact reviewed art
 });
 
 
-test("CLI JSONC onboarding uses real approval, durable replay, exact rollback and explicit recovery", { timeout: 60_000 }, async (context) => {
+for (const fixture of [
+  {
+    label: "JSONC", profileId: "vscode-mcp-jsonc-v1", client: "vscode", format: "jsonc", containerKey: "servers",
+    target: ["vscode-fixture", "mcp.jsonc"],
+    original: '\ufeff{\r\n // JSONC original comment\r\n "servers": {"unmanaged" : {"args":["literal",],},}, /* footer */\r\n}',
+  },
+  {
+    label: "Codex TOML", profileId: "codex-mcp-toml-v1", client: "codex", format: "toml", containerKey: "mcp_servers",
+    target: ["codex-fixture", "config.toml"],
+    original: "# TOML original comment\r\nmodel = 'synthetic-native-model'\r\n[native]\r\nbase_url = 'https://native.invalid'\r\n[mcp_servers.unmanaged]\r\ncommand = 'unmanaged'\r\nargs = [ 'literal', ]\r\n\r\n",
+  },
+]) {
+test(`CLI ${fixture.label} onboarding uses real approval, durable replay, exact rollback and explicit recovery`, { timeout: 60_000 }, async (context) => {
   const [{ createGatewayApplication }, { createGatewayHttpServer }] = await Promise.all([
     import("../../ai-gateway-service/src/application/createGatewayApplication.js"),
     import("../../ai-gateway-service/src/http/httpServer.js"),
   ]);
-  const root = await mkdtemp(join(tmpdir(), "cli-real-jsonc-onboarding-"));
-  const targetPath = join(root, "vscode-fixture", "mcp.jsonc");
+  const root = await mkdtemp(join(tmpdir(), `cli-real-${fixture.format}-onboarding-`));
+  const targetPath = join(root, ...fixture.target);
   const backupDir = join(root, "config-backups");
   const journalPath = join(root, "config-state", "journal.json");
-  const original = Buffer.from('\ufeff{\r\n // JSONC original comment\r\n "servers": {"unmanaged" : {"args":["literal",],},}, /* footer */\r\n}');
+  const original = Buffer.from(fixture.original);
   await mkdir(dirname(targetPath), { recursive: true });
   await writeFile(targetPath, original);
   const token = "cli-jsonc-integration-fixture-token";
-  const profileId = "vscode-mcp-jsonc-v1";
+  const { profileId, format } = fixture;
   const config = {
     version: 2, ownerTenantId: "cli-jsonc-tenant",
     profiles: [{ profileId, paths: { targetPath, allowedRoot: root, backupDir, journalPath, maxBytes: 65536, maxTransactions: 16 } }],
@@ -2307,7 +2319,7 @@ test("CLI JSONC onboarding uses real approval, durable replay, exact rollback an
   async function invoke(args) {
     const result = await runCliProcess(["clients-onboarding", ...args, "--admin-key", token, "--url", url, "--json"], "", { cwd: root });
     assert.equal(result.code, 0, result.stderr);
-    assert.doesNotMatch(result.stdout, /JSONC original comment|gateway-entry\.mjs|cli-jsonc-integration-fixture-token/);
+    assert.doesNotMatch(result.stdout, /(?:JSONC|TOML) original comment|synthetic-native-model|native\.invalid|gateway-entry\.mjs|cli-jsonc-integration-fixture-token/);
     return JSON.parse(result.stdout);
   }
   const mutate = (operation, planId, idempotencyKey) => invoke([operation, "--plan-id", planId, "--yes", "--idempotency-key", idempotencyKey]);
@@ -2331,7 +2343,8 @@ test("CLI JSONC onboarding uses real approval, durable replay, exact rollback an
   await start();
   assert.equal(application.localClientGovernedOnboardingStatus.configurationVersion, 2);
   const profiles = await invoke(["profiles"]);
-  assert.deepEqual(profiles.data.profiles.map(({ profileId, format }) => ({ profileId, format })), [{ profileId, format: "jsonc" }]);
+  assert.deepEqual(profiles.data.profiles.map(({ profileId, client, format, containerKey }) => ({ profileId, client, format, containerKey })),
+    [{ profileId, client: fixture.client, format, containerKey: fixture.containerKey }]);
   const inspect = await invoke(["inspect", "--profile-id", profileId]);
   assert.equal(inspect.data.installation.state, "absent");
   const plan = await invoke(["plan", "--profile-id", profileId, "--action", "enable"]);
@@ -2343,10 +2356,20 @@ test("CLI JSONC onboarding uses real approval, durable replay, exact rollback an
   await mutate("approve", planId, "jsonc-approve");
   const applied = await mutate("apply", planId, "jsonc-apply");
   const receipt = applied.data.result.receipt;
-  assert.equal(receipt.profileId, profileId); assert.equal(receipt.format, "jsonc");
+  assert.equal(receipt.profileId, profileId); assert.equal(receipt.format, format);
   const enabled = await readFile(targetPath);
-  assert.ok(enabled.toString().includes('"unmanaged" : {"args":["literal",],}'));
-  assert.ok(enabled.toString().includes("// JSONC original comment\r\n"));
+  if (format === "jsonc") {
+    assert.ok(enabled.toString().includes('"unmanaged" : {"args":["literal",],}'));
+    assert.ok(enabled.toString().includes("// JSONC original comment\r\n"));
+  } else {
+    // Authored expected bytes, independent of the production TOML parser/editor.
+    const expected = Buffer.from(fixture.original.slice(0, -4)
+      + '\r\n[mcp_servers."unified-ai-system"]\r\n'
+      + `command = ${JSON.stringify(join(root, "bin", "node.exe"))}\r\n`
+      + `args = [${JSON.stringify(join(root, "gateway-entry.mjs"))}]\r\n`
+      + `cwd = ${JSON.stringify(root)}\r\n\r\n`);
+    assert.deepEqual(enabled, expected);
+  }
   assert.equal(createHash("sha256").update(enabled).digest("hex"), receipt.transaction.afterSha256);
   const enabledIdentity = await lstat(targetPath);
   await mutate("apply", planId, "jsonc-apply");
@@ -2358,7 +2381,7 @@ test("CLI JSONC onboarding uses real approval, durable replay, exact rollback an
   const rollbackPlan = await invoke(["plan", "--profile-id", profileId, "--action", "rollback", "--receipt-file", "receipt.json"]);
   await mutate("approve", rollbackPlan.data.planId, "jsonc-rollback-approve");
   const rolledBack = await mutate("rollback", rollbackPlan.data.planId, "jsonc-rollback");
-  assert.equal(rolledBack.data.result.receipt.format, "jsonc");
+  assert.equal(rolledBack.data.result.receipt.format, format);
   assert.deepEqual(await readFile(targetPath), original);
   const restoredIdentity = await lstat(targetPath);
   await mutate("rollback", rollbackPlan.data.planId, "jsonc-rollback");
@@ -2381,27 +2404,30 @@ test("CLI JSONC onboarding uses real approval, durable replay, exact rollback an
   const recoveryPlan = await invoke(["plan", "--profile-id", profileId, "--action", "recover"]);
   await mutate("approve", recoveryPlan.data.planId, "jsonc-recovery-approve");
   const recovered = await mutate("recover", recoveryPlan.data.planId, "jsonc-recover");
-  assert.equal(recovered.data.result.receipt.format, "jsonc");
+  assert.equal(recovered.data.result.receipt.format, format);
   assert.deepEqual(await readFile(targetPath), recoveryBefore);
   await mutate("recover", recoveryPlan.data.planId, "jsonc-recover");
   assert.equal((await invoke(["inspect", "--profile-id", profileId])).data.recoveryRequired, false);
   for (const missing of ["claude", "cursor", "vscode-backups"]) await assert.rejects(lstat(join(root, missing)), { code: "ENOENT" });
 });
 
-test("CLI JSONC profile refuses a JSON-only verification or rollback receipt", async (context) => {
-  const profileId = "vscode-mcp-jsonc-v1";
+test(`CLI ${fixture.label} profile refuses a wrong-format verification or rollback receipt`, async (context) => {
+  const { profileId, format } = fixture;
   assert.equal(parseCliArgs(["clients-onboarding", "verify", "--profile-id", profileId], {}).onboardingProfileId, profileId);
   const gateway = await createOnboardingMockGateway(); context.after(gateway.close);
   const verification = await runCliProcess(["clients-onboarding", "verify", "--profile-id", profileId, "--json", "--url", gateway.url]);
   assert.equal(verification.code, 1);
   assert.equal(gateway.requestCount("verify"), 1);
-  const root = await mkdtemp(join(tmpdir(), "cli-jsonc-wrong-receipt-"));
+  const root = await mkdtemp(join(tmpdir(), `cli-${format}-wrong-receipt-`));
   context.after(() => rm(root, { recursive: true, force: true }));
-  await writeFile(join(root, "receipt.json"), JSON.stringify(onboardingApplyReceipt(profileId)));
-  const rollback = await runCliProcess(["clients-onboarding", "plan", "--profile-id", profileId, "--action", "rollback", "--receipt-file", "receipt.json", "--json", "--url", gateway.url], "", { cwd: root });
-  assert.equal(rollback.code, 2);
-  assert.equal(gateway.requestCount("plan"), 0);
+  for (const wrongFormat of ["json-only", format === "toml" ? "jsonc" : "toml"]) {
+    await writeFile(join(root, "receipt.json"), JSON.stringify({ ...onboardingApplyReceipt(profileId), format: wrongFormat }));
+    const rollback = await runCliProcess(["clients-onboarding", "plan", "--profile-id", profileId, "--action", "rollback", "--receipt-file", "receipt.json", "--json", "--url", gateway.url], "", { cwd: root });
+    assert.equal(rollback.code, 2);
+    assert.equal(gateway.requestCount("plan"), 0);
+  }
 });
+}
 
 test("workflow/provider commands use explicit identifiers without a new confirmation layer", () => {
   const env = { AGENT_CONSOLE_ADMIN_KEY: "operator-fixture-key" };

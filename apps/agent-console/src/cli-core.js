@@ -242,6 +242,13 @@ const LOCAL_CLIENT_ONBOARDING_PROFILE_DEFINITIONS = Object.freeze([
     containerKey: "servers",
     format: "jsonc",
   }),
+  Object.freeze({
+    profileId: "codex-mcp-toml-v1",
+    client: "codex",
+    label: "Codex TOML",
+    containerKey: "mcp_servers",
+    format: "toml",
+  }),
 ]);
 const SAFE_LOCAL_CLIENT_ONBOARDING_ERROR_CODES = new Set([
   "FORBIDDEN",
@@ -4507,7 +4514,7 @@ function validateLocalClientOnboardingOptions(options) {
   if (needsProfile) {
     if (!LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.has(options.onboardingProfileId)) {
       throw new CliUsageError(
-        "--profile-id must be claude-compatible-mcp-json, cursor-mcp-json, vscode-mcp-json, or vscode-mcp-jsonc-v1.",
+        "--profile-id must be claude-compatible-mcp-json, cursor-mcp-json, vscode-mcp-json, vscode-mcp-jsonc-v1, or codex-mcp-toml-v1.",
       );
     }
   } else if (options.onboardingProfileId !== null) {

@@ -309,8 +309,8 @@ export interface LocalClientStatusResult {
     format: "json-only";
   } | {
     configurationVersion: 2;
-    configuredProfileCount: 1 | 2 | 3 | 4;
-    clients: ("claude-compatible" | "cursor" | "vscode")[];
+    configuredProfileCount: 1 | 2 | 3 | 4 | 5;
+    clients: ("claude-compatible" | "cursor" | "vscode" | "codex")[];
     formats: LocalClientOnboardingFormat[];
   });
   boundaries: {
@@ -630,9 +630,10 @@ export type LocalClientOnboardingProfileId =
   | "claude-compatible-mcp-json"
   | "cursor-mcp-json"
   | "vscode-mcp-json"
-  | "vscode-mcp-jsonc-v1";
+  | "vscode-mcp-jsonc-v1"
+  | "codex-mcp-toml-v1";
 
-export type LocalClientOnboardingFormat = "json-only" | "jsonc";
+export type LocalClientOnboardingFormat = "json-only" | "jsonc" | "toml";
 
 export type GovernedLocalClientOnboardingAction =
   | "enable"
@@ -642,9 +643,9 @@ export type GovernedLocalClientOnboardingAction =
 
 export interface LocalClientOnboardingProfileSummary {
   profileId: LocalClientOnboardingProfileId;
-  client: "claude-compatible" | "cursor" | "vscode";
+  client: "claude-compatible" | "cursor" | "vscode" | "codex";
   format: LocalClientOnboardingFormat;
-  containerKey: "mcpServers" | "servers";
+  containerKey: "mcpServers" | "servers" | "mcp_servers";
   serverName: "unified-ai-system";
   transport: "stdio";
   backupProtection: "aes-256-gcm" | "0600-plaintext";

@@ -1131,10 +1131,13 @@ function projectProfile(raw: LocalClientOnboardingProfileSummary): LocalClientOn
   ]);
   const profileId = normalizeProfileId(raw.profileId);
   if (
-    !new Set(["claude-compatible", "cursor", "vscode"]).has(raw.client)
+    !new Set(["claude-compatible", "cursor", "vscode", "codex"]).has(raw.client)
     || raw.format !== getLocalClientOnboardingProfileFormat(raw.profileId)
-    || (raw.containerKey !== "mcpServers" && raw.containerKey !== "servers")
+    || (raw.containerKey !== "mcpServers" && raw.containerKey !== "servers" && raw.containerKey !== "mcp_servers")
     || (profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.vscodeJsonc && (raw.client !== "vscode" || raw.containerKey !== "servers"))
+    || (profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.codexToml
+      ? raw.client !== "codex" || raw.containerKey !== "mcp_servers"
+      : raw.client === "codex" || raw.containerKey === "mcp_servers")
     || raw.serverName !== "unified-ai-system"
     || raw.transport !== "stdio"
     || (raw.backupProtection !== "aes-256-gcm" && raw.backupProtection !== "0600-plaintext")

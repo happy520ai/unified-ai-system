@@ -11,7 +11,7 @@ import {
   type LocalClientOnboardingSelectedProfile,
 } from "./localClientOnboardingRegistry.ts";
 import { parseLocalClientJsoncObject } from "./localClientConfigJsonc.ts";
-import type { LocalClientConfigFormat } from "./localClientConfigTransaction.ts";
+import { LOCAL_CLIENT_CONFIG_TOML_MAX_BYTES, type LocalClientConfigFormat } from "./localClientConfigTransaction.ts";
 
 export const LOCAL_CLIENT_ONBOARDING_CONFIG_VERSION = 1 as const;
 export const LOCAL_CLIENT_ONBOARDING_CONFIG_ENV =
@@ -37,7 +37,7 @@ export interface LocalClientOnboardingConfigurationV1Status {
 export type LocalClientOnboardingConfigurationV2Status = Readonly<
   Omit<LocalClientOnboardingConfigurationV1Status, "configurationVersion" | "configuredProfileCount" | "clients" | "format"> & {
     configurationVersion: 2;
-    configuredProfileCount: 1 | 2 | 3 | 4;
+    configuredProfileCount: 1 | 2 | 3 | 4 | 5;
     clients: readonly LocalClientOnboardingClient[];
     formats: readonly LocalClientConfigFormat[];
   }
@@ -160,14 +160,16 @@ export function resolveLocalClientOnboardingConfiguration(
 }
 
 function normalizeSelectedProfiles(value: unknown): readonly LocalClientOnboardingSelectedProfile[] {
-  if (!Array.isArray(value) || value.length < 1 || value.length > 4) throw invalidConfig();
+  if (!Array.isArray(value) || value.length < 1 || value.length > 5) throw invalidConfig();
   const seen = new Set<string>();
   return Object.freeze(value.map((entry) => {
     const selected = exactRecord(entry, ["profileId", "paths"]);
     if (typeof selected.profileId !== "string" || !getLocalClientOnboardingProfileFormat(selected.profileId)
       || seen.has(selected.profileId)) throw invalidConfig();
     seen.add(selected.profileId);
-    return Object.freeze({ profileId: selected.profileId as LocalClientOnboardingSelectedProfile["profileId"], paths: normalizeProfile(selected.paths) });
+    const paths = normalizeProfile(selected.paths);
+    if (selected.profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.codexToml && paths.maxBytes !== undefined && paths.maxBytes > LOCAL_CLIENT_CONFIG_TOML_MAX_BYTES) throw invalidConfig();
+    return Object.freeze({ profileId: selected.profileId as LocalClientOnboardingSelectedProfile["profileId"], paths });
   }));
 }
 
@@ -307,10 +309,11 @@ function createStatus(enabled: boolean): LocalClientOnboardingConfigurationV1Sta
 function createSelectedStatus(profiles: readonly LocalClientOnboardingSelectedProfile[]): LocalClientOnboardingConfigurationV2Status {
   const { format: _format, clients: _clients, configuredProfileCount: _count, configurationVersion: _version, ...common } = createStatus(true);
   const clients = profiles.map(({ profileId }): LocalClientOnboardingClient => profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.claudeCompatible
-    ? "claude-compatible" : profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.cursor ? "cursor" : "vscode");
+    ? "claude-compatible" : profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.cursor ? "cursor"
+      : profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.codexToml ? "codex" : "vscode");
   const formats = profiles.map(({ profileId }) => getLocalClientOnboardingProfileFormat(profileId)!);
   return Object.freeze({ ...common, configurationVersion: 2 as const,
-    configuredProfileCount: profiles.length as 1 | 2 | 3 | 4,
+    configuredProfileCount: profiles.length as 1 | 2 | 3 | 4 | 5,
     clients: Object.freeze([...new Set(clients)]), formats: Object.freeze([...new Set(formats)]) });
 }
 

@@ -61,16 +61,17 @@ async function enabledConfiguration() {
   });
 }
 
-async function selectedConfiguration() {
+async function selectedConfiguration(format: "jsonc" | "toml" = "jsonc") {
+  const profileId = format === "toml" ? "codex-mcp-toml-v1" : "vscode-mcp-jsonc-v1";
   const root = await mkdtemp(resolve(await realpath(tmpdir()), "local-client-onboarding-runtime-v2-"));
   temporaryRoots.push(root);
   const targetPath = resolve(root, "mcp.json");
-  const original = '{\r\n  // selected profile only\r\n  "servers": {},\r\n  "unmanaged": true,\r\n}\r\n';
+  const original = format === "toml" ? '# selected profile only\r\nmodel = "retained"\r\n' : '{\r\n  // selected profile only\r\n  "servers": {},\r\n  "unmanaged": true,\r\n}\r\n';
   await writeFile(targetPath, original, "utf8");
   const configuration = resolveLocalClientOnboardingConfiguration({
     AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_ENABLED: "true",
     AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_CONFIG_JSON: JSON.stringify({ version: 2, ownerTenantId: "tenant-a",
-      profiles: [{ profileId: "vscode-mcp-jsonc-v1", paths: { targetPath, allowedRoot: root,
+      profiles: [{ profileId, paths: { targetPath, allowedRoot: root,
         backupDir: resolve(root, "backup"), journalPath: resolve(root, "journal.json") } }],
       serverDefinition: { transport: "stdio", command: process.execPath, args: [resolve(root, "server.mjs")] },
     }),
@@ -113,19 +114,21 @@ function dependencies() {
 }
 
 describe("createLocalClientGovernedOnboardingRuntime", () => {
-  it("initializes only selected v2 JSONC profiles and preserves actual redacted status", async () => {
-    const fixture = await selectedConfiguration();
+  it.each(["jsonc", "toml"] as const)("initializes only selected v2 %s profiles and preserves actual redacted status", async (format) => {
+    const profileId = format === "toml" ? "codex-mcp-toml-v1" : "vscode-mcp-jsonc-v1";
+    const client = format === "toml" ? "codex" : "vscode";
+    const fixture = await selectedConfiguration(format);
     const dependencySet = dependencies();
     const runtime = createLocalClientGovernedOnboardingRuntime({ configuration: fixture.configuration, ...dependencySet });
     try {
       expect(runtime.getStatus()).toMatchObject({ initializationState: "not-started", configurationVersion: 2,
-        configuredProfileCount: 1, clients: ["vscode"], formats: ["jsonc"] });
+        configuredProfileCount: 1, clients: [client], formats: [format] });
       expect(runtime.getStatus()).not.toHaveProperty("format");
       const profiles = await runtime.api.list({ tenantId: "tenant-a", subjectId: "operator-a" });
       expect(profiles).toHaveLength(1);
-      expect(profiles[0]).toMatchObject({ profileId: "vscode-mcp-jsonc-v1", client: "vscode", format: "jsonc" });
-      await expect(runtime.api.inspect({ tenantId: "tenant-a", subjectId: "operator-a", profileId: "vscode-mcp-jsonc-v1" }))
-        .resolves.toMatchObject({ installation: { installed: false, format: "jsonc" }, journalCorrupt: false });
+      expect(profiles[0]).toMatchObject({ profileId, client, format });
+      await expect(runtime.api.inspect({ tenantId: "tenant-a", subjectId: "operator-a", profileId }))
+        .resolves.toMatchObject({ installation: { installed: false, format }, journalCorrupt: false });
       expect(runtime.getStatus().initializationState).toBe("ready");
       expect(await readFile(fixture.targetPath, "utf8")).toBe(fixture.original);
       const createdNames = await readdir(fixture.root);
