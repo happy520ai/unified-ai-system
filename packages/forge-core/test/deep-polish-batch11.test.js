@@ -13,11 +13,13 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createSourceReader } from "./helpers/source-closure.js";
+import { createWorktreeIsolation } from "../../../apps/ai-gateway-service/src/workforce/worktreeIsolation.js";
+import { createWorkforceGit } from "../../../apps/ai-gateway-service/src/workforce/workforceGit.ts";
 
 // Resolve source paths via import.meta.url for reliable cross-platform behavior
 const __testDir = fileURLToPath(new URL(".", import.meta.url));
@@ -337,34 +339,43 @@ describe("Batch11-6: enterpriseOpsService backup JSON.parse crash guard", () => 
 
 // ─── 7. Branch name sanitization ───────────────────────────────────
 
-describe("Batch11-7: worktreeIsolation branch name sanitization", () => {
-  it("sanitizes planId before using in branch name", () => {
-    const src = readFileSync(join(SRC_ROOT, "workforce/worktreeIsolation.js"), "utf-8");
+describe("Batch11-7: worktreeIsolation branch identity boundary", () => {
+  async function verifyPlanBranches(t, planIds) {
+    const temporaryRoot = await realpath(tmpdir());
+    const root = await mkdtemp(join(temporaryRoot, "uai-branch-contract-"));
+    const repo = join(root, "repo"), trees = join(root, "trees"), records = [];
+    const manager = createWorktreeIsolation({ repoRoot: repo, worktreeRoot: trees });
+    t.after(async () => {
+      for (const record of records) assert.equal((await manager.remove(record.worktreeId)).success, true);
+      const owned = relative(temporaryRoot, root);
+      assert.ok(owned.startsWith("uai-branch-contract-") && !owned.startsWith("..") && !isAbsolute(owned));
+      await rm(root, { recursive: true, force: true });
+    });
+    await mkdir(repo);
+    const git = createWorkforceGit(repo);
+    await git.run(["-c", "init.templateDir=", "init", "--initial-branch=main"]);
+    await git.run(["-c", "user.name=Branch Contract", "-c", "user.email=branch@example.invalid", "-c", "commit.gpgSign=false", "commit", "--allow-empty", "-m", "Owned test baseline"]);
+    const baseline = (await git.run(["rev-parse", "HEAD"])).stdout.trim();
+    for (const planId of planIds) {
+      const result = await manager.create({ planId });
+      assert.equal(result.success, true);
+      const record = result.worktree; records.push(record);
+      assert.equal(record.planId, planId);
+      assert.match(record.branch, /^workforce\/wf-[a-f0-9-]{36}$/u);
+      assert.ok(record.branch.length < 64);
+      const child = relative(trees, record.path);
+      assert.ok(child && !child.startsWith("..") && !isAbsolute(child));
+      assert.equal((await git.run(["rev-parse", `refs/heads/${record.branch}`])).stdout.trim(), baseline);
+    }
+    assert.equal(new Set(records.map(record => record.branch)).size, records.length);
+    assert.equal((await git.run(["rev-parse", "HEAD"])).stdout.trim(), baseline);
+    assert.equal((await git.run(["status", "--porcelain=v1"])).stdout, "");
+  }
 
-    assert.ok(src.includes("sanitizedPlanId"), "Should create a sanitized version of planId");
-  });
-
-  it("strips unsafe characters from planId", () => {
-    const src = readFileSync(join(SRC_ROOT, "workforce/worktreeIsolation.js"), "utf-8");
-    const branchArea = src.slice(src.indexOf("sanitizedPlanId") - 100, src.indexOf("sanitizedPlanId") + 200);
-
-    // Should use replace with a regex that strips unsafe chars
-    assert.ok(branchArea.includes(".replace("), "Should use replace to sanitize");
-    assert.ok(branchArea.includes("[^a-zA-Z0-9_-]"), "Should strip characters that aren't alphanumeric, dash, or underscore");
-  });
-
-  it("limits planId length to prevent excessively long branch names", () => {
-    const src = readFileSync(join(SRC_ROOT, "workforce/worktreeIsolation.js"), "utf-8");
-    const branchArea = src.slice(src.indexOf("sanitizedPlanId") - 100, src.indexOf("sanitizedPlanId") + 200);
-
-    assert.ok(branchArea.includes(".slice(0,"), "Should limit planId length");
-  });
-
-  it("uses sanitized planId in branch name construction", () => {
-    const src = readFileSync(join(SRC_ROOT, "workforce/worktreeIsolation.js"), "utf-8");
-
-    assert.ok(src.includes("workforce/${sanitizedPlanId}"), "Branch name should use sanitizedPlanId, not raw planId");
-  });
+  it("keeps traversal-shaped plan IDs out of branches and worktree paths", t => verifyPlanBranches(t, ["../../escape"]));
+  it("keeps option-like and Git metacharacter input out of branches", t => verifyPlanBranches(t, ["--bad^:~?*[ref]"]));
+  it("bounds branch length independently of an oversized plan ID", t => verifyPlanBranches(t, ["x".repeat(4096)]));
+  it("keeps otherwise colliding plan IDs on distinct real Git branches", t => verifyPlanBranches(t, ["plan/a", "plan?a"]));
 });
 
 // ─── 8. timingSafeEqual auth ───────────────────────────────────────

@@ -3,7 +3,10 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { isAbsolute, join, relative, resolve, sep } from "path";
 import { fileURLToPath } from "node:url";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { createSourceReader } from "./helpers/source-closure.js";
+import { createTaskEvidenceCapture } from "../../../apps/ai-gateway-service/src/workforce/taskEvidenceCapture.js";
 import {
   createLifecycleStatePath,
   sanitizePlanId,
@@ -56,20 +59,48 @@ describe("Batch15 Fix2: taskEvidenceCapture sanitizeId", () => {
     assert.ok(window.includes(".slice(0, 128)"), "should cap length at 128");
   });
 
-  it("sanitizes planId and agentId in finish()", () => {
-    const fnIdx = src.indexOf("async finish()");
-    assert.ok(fnIdx >= 0, "finish() should exist");
-    const fnSrc = src.slice(fnIdx, fnIdx + 600);
-    assert.ok(fnSrc.includes("sanitizeId(planId)"), "finish should sanitize planId");
-    assert.ok(fnSrc.includes("sanitizeId(agentId)"), "finish should sanitize agentId");
+  async function evidenceFixture(t) {
+    const temporaryRoot = await realpath(tmpdir());
+    const root = await mkdtemp(join(temporaryRoot, "uai-evidence-contract-"));
+    t.after(async () => {
+      const owned = relative(temporaryRoot, root);
+      assert.ok(owned.startsWith("uai-evidence-contract-") && !owned.startsWith("..") && !isAbsolute(owned));
+      await rm(root, { recursive: true, force: true });
+    });
+    // Keep even a broken two-level traversal inside this owned test fixture.
+    const evidenceDir = join(root, "a", "b", "evidence");
+    await mkdir(evidenceDir, { recursive: true });
+    return { root, evidenceDir, capture: createTaskEvidenceCapture({ evidenceDir }) };
+  }
+
+  it("persists legacy and per-task evidence inside the configured root without collisions", async t => {
+    const { evidenceDir, capture } = await evidenceFixture(t);
+    const planId = "../../escape", agentId = "../same-agent", paths = [];
+    for (const [index, taskId] of [undefined, "../../task", "..\\..\\task"].entries()) {
+      const session = capture.startCapture({ planId, agentId, taskId, goal: "owned path test" });
+      session.setOutput({ summary: `result-${index}` });
+      const saved = await session.finish();
+      assert.equal(saved.success, true);
+      const child = relative(evidenceDir, saved.evidencePath);
+      assert.ok(child && !child.startsWith("..") && !isAbsolute(child));
+      paths.push(saved.evidencePath);
+      const fresh = createTaskEvidenceCapture({ evidenceDir });
+      const loaded = await fresh.load(planId, agentId, taskId);
+      assert.equal(loaded.success, true);
+      assert.equal(loaded.evidence.output.summary, `result-${index}`);
+    }
+    assert.equal(new Set(paths).size, paths.length);
   });
 
-  it("sanitizes in load() method", () => {
-    const fnIdx = src.indexOf("async load(planId, agentId)");
-    assert.ok(fnIdx >= 0, "load() should exist");
-    const fnSrc = src.slice(fnIdx, fnIdx + 400);
-    assert.ok(fnSrc.includes("sanitizeId(planId)"), "load should sanitize planId");
-    assert.ok(fnSrc.includes("sanitizeId(agentId)"), "load should sanitize agentId");
+  it("never loads a sibling file through traversal-shaped plan, agent or task IDs", async t => {
+    const { root, evidenceDir, capture } = await evidenceFixture(t);
+    const sibling = join(root, "a", "canary.json"), canary = '{"output":{"summary":"outside evidence"}}';
+    await writeFile(sibling, canary);
+    for (const [planId, agentId, taskId] of [["../..", "canary"], ["..", "../canary"], ["..", "../canary", "../../canary"]]) {
+      assert.equal((await capture.load(planId, agentId, taskId)).success, false);
+    }
+    assert.equal(await readFile(sibling, "utf8"), canary);
+    assert.equal((await createTaskEvidenceCapture({ evidenceDir }).load("missing", "missing")).success, false);
   });
 
   it("sanitizes planId in getEvidenceChain()", () => {
