@@ -95,7 +95,7 @@ describe("resolveLocalClientOnboardingConfiguration", () => {
   });
 
   it.each([
-    ["vscode-mcp-jsonc-v1", "vscode", "jsonc"], ["codex-mcp-toml-v1", "codex", "toml"],
+    ["vscode-mcp-jsonc-v1", "vscode", "jsonc"], ["codex-mcp-toml-v1", "codex", "toml"], ["continue-mcp-yaml-v1", "continue", "yaml"],
   ])("accepts one explicit %s profile and exposes only actual clients/formats", (profileId, client, format) => {
     const result = resolveLocalClientOnboardingConfiguration(selectedEnv([profileId]));
     if (!result.enabled || result.registryOptions.version !== 2) throw new Error("expected v2 configuration");
@@ -110,16 +110,16 @@ describe("resolveLocalClientOnboardingConfiguration", () => {
     expect(Object.isFrozen(result.registryOptions.profiles[0]?.paths)).toBe(true);
   });
 
-  it("reports five profiles with unique actual clients and formats in selected order", () => {
+  it("reports six profiles with unique actual clients and formats in selected order", () => {
     const result = resolveLocalClientOnboardingConfiguration(selectedEnv([
-      "vscode-mcp-jsonc-v1", "cursor-mcp-json", "claude-compatible-mcp-json", "vscode-mcp-json", "codex-mcp-toml-v1",
+      "vscode-mcp-jsonc-v1", "cursor-mcp-json", "claude-compatible-mcp-json", "vscode-mcp-json", "codex-mcp-toml-v1", "continue-mcp-yaml-v1",
     ]));
-    expect(result.status).toMatchObject({ configurationVersion: 2, configuredProfileCount: 5,
-      clients: ["vscode", "cursor", "claude-compatible", "codex"], formats: ["jsonc", "json-only", "toml"] });
+    expect(result.status).toMatchObject({ configurationVersion: 2, configuredProfileCount: 6,
+      clients: ["vscode", "cursor", "claude-compatible", "codex", "continue"], formats: ["jsonc", "json-only", "toml", "yaml"] });
   });
 
-  it("rejects TOML budgets above the codec limit in startup configuration", () => {
-    const env = selectedEnv(["codex-mcp-toml-v1"]);
+  it.each(["codex-mcp-toml-v1", "continue-mcp-yaml-v1"])("rejects %s budgets above the codec limit in startup configuration", profileId => {
+    const env = selectedEnv([profileId]);
     const value = JSON.parse(env.AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_CONFIG_JSON);
     value.profiles[0].paths.maxBytes = 65_537;
     expect(() => resolveLocalClientOnboardingConfiguration({ ...env, AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_CONFIG_JSON: JSON.stringify(value) }))

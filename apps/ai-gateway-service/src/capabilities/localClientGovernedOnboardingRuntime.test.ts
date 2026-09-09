@@ -61,12 +61,12 @@ async function enabledConfiguration() {
   });
 }
 
-async function selectedConfiguration(format: "jsonc" | "toml" = "jsonc") {
-  const profileId = format === "toml" ? "codex-mcp-toml-v1" : "vscode-mcp-jsonc-v1";
+async function selectedConfiguration(format: "jsonc" | "toml" | "yaml" = "jsonc") {
+  const profileId = format === "yaml" ? "continue-mcp-yaml-v1" : format === "toml" ? "codex-mcp-toml-v1" : "vscode-mcp-jsonc-v1";
   const root = await mkdtemp(resolve(await realpath(tmpdir()), "local-client-onboarding-runtime-v2-"));
   temporaryRoots.push(root);
   const targetPath = resolve(root, "mcp.json");
-  const original = format === "toml" ? '# selected profile only\r\nmodel = "retained"\r\n' : '{\r\n  // selected profile only\r\n  "servers": {},\r\n  "unmanaged": true,\r\n}\r\n';
+  const original = format === "yaml" ? 'name: Fixture\r\nversion: "1"\r\nschema: v1\r\n# selected YAML profile only\r\n' : format === "toml" ? '# selected profile only\r\nmodel = "retained"\r\n' : '{\r\n  // selected profile only\r\n  "servers": {},\r\n  "unmanaged": true,\r\n}\r\n';
   await writeFile(targetPath, original, "utf8");
   const configuration = resolveLocalClientOnboardingConfiguration({
     AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_ENABLED: "true",
@@ -114,9 +114,9 @@ function dependencies() {
 }
 
 describe("createLocalClientGovernedOnboardingRuntime", () => {
-  it.each(["jsonc", "toml"] as const)("initializes only selected v2 %s profiles and preserves actual redacted status", async (format) => {
-    const profileId = format === "toml" ? "codex-mcp-toml-v1" : "vscode-mcp-jsonc-v1";
-    const client = format === "toml" ? "codex" : "vscode";
+  it.each(["jsonc", "toml", "yaml"] as const)("initializes only selected v2 %s profiles and preserves actual redacted status", async (format) => {
+    const profileId = format === "yaml" ? "continue-mcp-yaml-v1" : format === "toml" ? "codex-mcp-toml-v1" : "vscode-mcp-jsonc-v1";
+    const client = format === "yaml" ? "continue" : format === "toml" ? "codex" : "vscode";
     const fixture = await selectedConfiguration(format);
     const dependencySet = dependencies();
     const runtime = createLocalClientGovernedOnboardingRuntime({ configuration: fixture.configuration, ...dependencySet });

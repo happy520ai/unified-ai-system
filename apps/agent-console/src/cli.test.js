@@ -2359,6 +2359,11 @@ for (const fixture of [
     target: ["codex-fixture", "config.toml"],
     original: "# TOML original comment\r\nmodel = 'synthetic-native-model'\r\n[native]\r\nbase_url = 'https://native.invalid'\r\n[mcp_servers.unmanaged]\r\ncommand = 'unmanaged'\r\nargs = [ 'literal', ]\r\n\r\n",
   },
+  {
+    label: "Continue YAML", profileId: "continue-mcp-yaml-v1", client: "continue", format: "yaml", containerKey: "mcpServers",
+    target: ["continue-fixture", "config.yaml"],
+    original: '# YAML original comment\r\nname: "Fixture assistant"\r\nversion: "1.0.0"\r\nschema: v1\r\nmodels:\r\n  - name: native fixture\r\n    provider: openai\r\n    model: synthetic-native-model\r\n    apiBase: https://native.invalid\r\nmcpServers:\r\n  - name: unmanaged\r\n    command: unmanaged\r\n    args: [literal]\r\n',
+  },
 ]) {
 test(`CLI ${fixture.label} onboarding uses real approval, durable replay, exact rollback and explicit recovery`, { timeout: 60_000 }, async (context) => {
   const [{ createGatewayApplication }, { createGatewayHttpServer }] = await Promise.all([
@@ -2425,7 +2430,7 @@ test(`CLI ${fixture.label} onboarding uses real approval, durable replay, exact 
   async function invoke(args) {
     const result = await runCliProcess(["clients-onboarding", ...args, "--admin-key", token, "--url", url, "--json"], "", { cwd: root });
     assert.equal(result.code, 0, result.stderr);
-    assert.doesNotMatch(result.stdout, /(?:JSONC|TOML) original comment|synthetic-native-model|native\.invalid|gateway-entry\.mjs|cli-jsonc-integration-fixture-token/);
+    assert.doesNotMatch(result.stdout, /(?:JSONC|TOML|YAML) original comment|synthetic-native-model|native\.invalid|gateway-entry\.mjs|cli-jsonc-integration-fixture-token/);
     return JSON.parse(result.stdout);
   }
   const mutate = (operation, planId, idempotencyKey) => invoke([operation, "--plan-id", planId, "--yes", "--idempotency-key", idempotencyKey]);
@@ -2467,6 +2472,10 @@ test(`CLI ${fixture.label} onboarding uses real approval, durable replay, exact 
   if (format === "jsonc") {
     assert.ok(enabled.toString().includes('"unmanaged" : {"args":["literal",],}'));
     assert.ok(enabled.toString().includes("// JSONC original comment\r\n"));
+  } else if (format === "yaml") {
+    const expected = Buffer.from(fixture.original + '  - ' + JSON.stringify({ name: "unified-ai-system",
+      command: join(root, "bin", "node.exe"), args: [join(root, "gateway-entry.mjs")], cwd: root }) + '\r\n');
+    assert.deepEqual(enabled, expected);
   } else {
     // Authored expected bytes, independent of the production TOML parser/editor.
     const expected = Buffer.from(fixture.original.slice(0, -4)
@@ -2526,7 +2535,7 @@ test(`CLI ${fixture.label} profile refuses a wrong-format verification or rollba
   assert.equal(gateway.requestCount("verify"), 1);
   const root = await mkdtemp(join(tmpdir(), `cli-${format}-wrong-receipt-`));
   context.after(() => rm(root, { recursive: true, force: true }));
-  for (const wrongFormat of ["json-only", format === "toml" ? "jsonc" : "toml"]) {
+  for (const wrongFormat of ["json-only", "jsonc", "toml", "yaml"].filter(value => value !== format)) {
     await writeFile(join(root, "receipt.json"), JSON.stringify({ ...onboardingApplyReceipt(profileId), format: wrongFormat }));
     const rollback = await runCliProcess(["clients-onboarding", "plan", "--profile-id", profileId, "--action", "rollback", "--receipt-file", "receipt.json", "--json", "--url", gateway.url], "", { cwd: root });
     assert.equal(rollback.code, 2);

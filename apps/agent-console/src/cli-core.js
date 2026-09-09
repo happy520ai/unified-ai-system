@@ -249,6 +249,13 @@ const LOCAL_CLIENT_ONBOARDING_PROFILE_DEFINITIONS = Object.freeze([
     containerKey: "mcp_servers",
     format: "toml",
   }),
+  Object.freeze({
+    profileId: "continue-mcp-yaml-v1",
+    client: "continue",
+    label: "Continue YAML",
+    containerKey: "mcpServers",
+    format: "yaml",
+  }),
 ]);
 const SAFE_LOCAL_CLIENT_ONBOARDING_ERROR_CODES = new Set([
   "FORBIDDEN",
@@ -4618,7 +4625,7 @@ function validateLocalClientOnboardingOptions(options) {
   if (needsProfile) {
     if (!LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.has(options.onboardingProfileId)) {
       throw new CliUsageError(
-        "--profile-id must be claude-compatible-mcp-json, cursor-mcp-json, vscode-mcp-json, vscode-mcp-jsonc-v1, or codex-mcp-toml-v1.",
+        "--profile-id must be claude-compatible-mcp-json, cursor-mcp-json, vscode-mcp-json, vscode-mcp-jsonc-v1, codex-mcp-toml-v1, or continue-mcp-yaml-v1.",
       );
     }
   } else if (options.onboardingProfileId !== null) {

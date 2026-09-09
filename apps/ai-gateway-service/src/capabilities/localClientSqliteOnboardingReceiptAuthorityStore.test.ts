@@ -471,7 +471,7 @@ describeDurableLocalClientSqlite("LocalClientSqliteOnboardingReceiptAuthoritySto
     expect(INTEGRITY_KEY.equals(Buffer.alloc(32, 0x63))).toBe(true);
   });
 
-  it.each(["vscode-mcp-jsonc-v1", "codex-mcp-toml-v1"] as const)("persists the exact %s profile and receipt fingerprint across restart with one rollback claim", async (profileId) => {
+  it.each(["vscode-mcp-jsonc-v1", "codex-mcp-toml-v1", "continue-mcp-yaml-v1"] as const)("persists the exact %s profile and receipt fingerprint across restart with one rollback claim", async (profileId) => {
     const input = applied({ profileId, receiptContentFingerprint: digest("jsonc-format-bound-receipt") });
     const first = createStore();
     await first.recordApplied(input);

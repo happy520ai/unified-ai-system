@@ -3,10 +3,13 @@ import { lstat, readFile, realpath } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { parseLocalClientJsoncObject } from "./localClientConfigJsonc.ts";
 import { parseLocalClientCodexTomlObject } from "./localClientCodexToml.ts";
+import { parseLocalClientContinueYamlObject } from "./localClientContinueYaml.ts";
 
 import {
   createLocalClientConfigTransactionEngine,
   LOCAL_CLIENT_CONFIG_TOML_MAX_BYTES,
+  LOCAL_CLIENT_CONFIG_YAML_MAX_BYTES,
+  type LocalClientConfigOperation,
   type LocalClientConfigFormat,
   type LocalClientConfigJsonValue,
   type LocalClientConfigReceipt,
@@ -30,12 +33,13 @@ export const LOCAL_CLIENT_ONBOARDING_PROFILE_IDS = Object.freeze({
   vscode: "vscode-mcp-json" as const,
   vscodeJsonc: "vscode-mcp-jsonc-v1" as const,
   codexToml: "codex-mcp-toml-v1" as const,
+  continueYaml: "continue-mcp-yaml-v1" as const,
 });
 
 export type LocalClientOnboardingProfileId =
   typeof LOCAL_CLIENT_ONBOARDING_PROFILE_IDS[keyof typeof LOCAL_CLIENT_ONBOARDING_PROFILE_IDS];
 export type LocalClientOnboardingAction = "enable" | "disable";
-export type LocalClientOnboardingClient = "claude-compatible" | "cursor" | "vscode" | "codex";
+export type LocalClientOnboardingClient = "claude-compatible" | "cursor" | "vscode" | "codex" | "continue";
 
 export interface LocalClientOnboardingBoundPaths {
   readonly targetPath: string;
@@ -258,6 +262,13 @@ const PROFILE_DEFINITIONS = Object.freeze([
     containerKey: "mcp_servers" as const,
     format: "toml" as const,
   }),
+  Object.freeze({
+    optionKey: "continueYaml" as const,
+    profileId: LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.continueYaml,
+    client: "continue" as const,
+    containerKey: "mcpServers" as const,
+    format: "yaml" as const,
+  }),
 ] as const);
 
 type SelectedProfile = Readonly<{ definition: typeof PROFILE_DEFINITIONS[number]; paths: LocalClientOnboardingBoundPaths }>;
@@ -278,14 +289,16 @@ export class LocalClientOnboardingRegistry {
   static async open(options: LocalClientOnboardingRegistryOptions): Promise<LocalClientOnboardingRegistry> {
     const selected = assertRegistryOptions(options);
     const serverDefinition = normalizeServerDefinition(options.serverDefinition);
-    if (selected.some(({ definition }) => definition.client === "codex") && serverDefinition.env !== undefined) throw configurationError();
+    if (selected.some(({ definition }) => (definition.client === "codex" || definition.client === "continue")) && serverDefinition.env !== undefined) throw configurationError();
     await assertDistinctProfileStorage(selected);
     const profiles = new Map<LocalClientOnboardingProfileId, ProfileRecord>();
     try {
       for (const { definition, paths } of selected) {
         const engine = await createLocalClientConfigTransactionEngine({ ...toTransactionOptions(paths, options), format: definition.format });
         const summary = createProfileSummary(definition, engine.getStatus().backupProtection);
-        const maxBytes = definition.format === "toml"
+        const maxBytes = definition.format === "yaml"
+          ? boundedInteger(paths.maxBytes, LOCAL_CLIENT_CONFIG_YAML_MAX_BYTES, 256, LOCAL_CLIENT_CONFIG_YAML_MAX_BYTES)
+          : definition.format === "toml"
           ? boundedInteger(paths.maxBytes, LOCAL_CLIENT_CONFIG_TOML_MAX_BYTES, 256, LOCAL_CLIENT_CONFIG_TOML_MAX_BYTES)
           : boundedInteger(paths.maxBytes, DEFAULT_MAX_BYTES, 256, HARD_MAX_BYTES);
         profiles.set(definition.profileId, Object.freeze({
@@ -336,8 +349,7 @@ export class LocalClientOnboardingRegistry {
     const profile = this.#profile(profileId);
     const normalizedAction = normalizeAction(action);
     assertProfileOperable(profile);
-    const transactionPlan = await profile.engine.plan({
-      operations: [normalizedAction === "enable"
+    let operations: readonly LocalClientConfigOperation[] = [normalizedAction === "enable"
         ? {
           op: "set" as const,
           path: [profile.summary.containerKey, LOCAL_CLIENT_ONBOARDING_SERVER_NAME],
@@ -346,8 +358,21 @@ export class LocalClientOnboardingRegistry {
         : {
           op: "delete" as const,
           path: [profile.summary.containerKey, LOCAL_CLIENT_ONBOARDING_SERVER_NAME],
-        }],
-    });
+        }];
+    if (profile.summary.format === "yaml") {
+      const current = await readBoundJsonObject(profile.targetPath, profile.allowedRoot, profile.maxBytes, "yaml");
+      const servers = current.mcpServers === undefined ? [] : current.mcpServers;
+      if (!Array.isArray(servers)) throw configInvalidError();
+      const owned = (entry: unknown) => isPlainRecord(entry) && entry.name === LOCAL_CLIENT_ONBOARDING_SERVER_NAME;
+      const found = servers.some(owned);
+      const next = normalizedAction === "enable"
+        ? servers.map(entry => owned(entry) ? profile.entryDefinition : entry)
+        : servers.filter(entry => !owned(entry));
+      if (normalizedAction === "enable" && !found) next.push(profile.entryDefinition);
+      // The codec checks this full list against the transaction engine's own later snapshot.
+      operations = [{ op: "set", path: ["mcpServers"], value: next as LocalClientConfigJsonValue[] }];
+    }
+    const transactionPlan = await profile.engine.plan({ operations });
     const planId = publicPlanId(profileId, transactionPlan.planId);
     this.#plans.set(planId, Object.freeze({
       profileId,
@@ -477,8 +502,10 @@ export class LocalClientOnboardingRegistry {
     if (container === undefined) {
       state = "absent";
     } else {
-      if (!isPlainRecord(container)) throw configInvalidError();
-      const entry = container[LOCAL_CLIENT_ONBOARDING_SERVER_NAME];
+      if (profile.summary.format === "yaml" ? !Array.isArray(container) : !isPlainRecord(container)) throw configInvalidError();
+      const entry = profile.summary.format === "yaml"
+        ? (container as unknown[]).find(entry => isPlainRecord(entry) && entry.name === LOCAL_CLIENT_ONBOARDING_SERVER_NAME)
+        : (container as Record<string, unknown>)[LOCAL_CLIENT_ONBOARDING_SERVER_NAME];
       state = entry === undefined
         ? "absent"
         : canonicalJson(entry) === canonicalJson(profile.entryDefinition)
@@ -530,7 +557,7 @@ function createProfileEntry(
     ...(definition.cwd === undefined ? {} : { cwd: definition.cwd }),
     ...(definition.env === undefined ? {} : { env: { ...definition.env } }),
   };
-  const value = client === "vscode"
+  const value = client === "continue" ? { name: LOCAL_CLIENT_ONBOARDING_SERVER_NAME, ...common } : client === "vscode"
     ? { type: "stdio", ...common }
     : common;
   return deepFreezeJson(value) as LocalClientConfigJsonValue;
@@ -587,7 +614,7 @@ function assertRegistryOptions(options: LocalClientOnboardingRegistryOptions): r
     if (options.version !== undefined && options.version !== 1) throw configurationError();
     assertExactObject(options.profiles, ["claudeCompatible", "cursor", "vscode"], new Set());
     for (const definition of PROFILE_DEFINITIONS) {
-      if (definition.optionKey === "vscodeJsonc" || definition.optionKey === "codexToml") continue;
+      if (definition.optionKey === "vscodeJsonc" || definition.optionKey === "codexToml" || definition.optionKey === "continueYaml") continue;
       const paths = options.profiles[definition.optionKey];
       assertPathOptions(paths);
       selected.push({ definition, paths });
@@ -741,7 +768,7 @@ async function readBoundJsonObject(
       || targetBefore.mtimeMs !== targetAfter.mtimeMs
       || bytes.byteLength !== targetAfter.size
     ) throw configInvalidError();
-    const parsed: unknown = format === "toml" ? parseLocalClientCodexTomlObject(bytes, maxBytes)
+    const parsed: unknown = format === "yaml" ? parseLocalClientContinueYamlObject(bytes, maxBytes) : format === "toml" ? parseLocalClientCodexTomlObject(bytes, maxBytes)
       : format === "jsonc" ? parseLocalClientJsoncObject(bytes, maxBytes) : JSON.parse(bytes.toString("utf8"));
     if (!isPlainRecord(parsed)) throw configInvalidError();
     return parsed;

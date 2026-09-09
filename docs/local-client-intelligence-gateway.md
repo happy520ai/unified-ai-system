@@ -346,7 +346,7 @@ fail-closed execution foundation. The current safe boundary is:
   Endpoint, client identity, manifest digest, and a dedicated hex secret must all
   validate before the adapter is added; the secret is absent from descriptors
   and status output;
-- a reusable JSON/explicit JSONC client configuration transaction engine provides
+- the shared JSON and explicitly selected JSONC/TOML/YAML configuration transaction engine provides
   redacted content-addressed dry-runs, safe set/delete paths, prototype-pollution
   rejection, cross-process locks, precondition hashes, fsynced backups and
   journals, atomic replacement, exact byte rollback, and explicit crash
@@ -360,8 +360,8 @@ fail-closed execution foundation. The current safe boundary is:
   committed backups expire with the receipt-authority TTL, while pending or
   ambiguous entries are never pruned. Canonical path, cross-role containment,
   symlink/junction, and existing target file-identity collisions are rejected
-  before independent locks can govern the same storage. YAML and TOML remain
-  unsupported. The four code-registered MCP profiles above use this boundary; arbitrary paths, commands,
+  before independent locks can govern the same storage. The code-registered MCP
+  profiles use this boundary; arbitrary paths, commands,
   args, cwd, environment values, scopes, and digests cannot be supplied through
   an HTTP request;
   application startup also builds a role-aware path graph covering governance
@@ -518,8 +518,8 @@ fingerprint, or derived key.
   The default PoP runtime's assurance remains `same-user-resistant-if-provisioned`,
   `not-admin-resistant`, and `not-provisioner`, not deployed rollback resistance.
 
-Additional lossless adapters for YAML/TOML, other client-specific JSONC shapes
-and other formats, MCP/A2A client-principal dispatch binding, real-client adapter
+Other client-specific JSONC/TOML/YAML shapes and formats, MCP/A2A client-principal
+dispatch binding, real-client adapter
 certification, OS/service-account isolation and an independently protected
 monotonic revocation anchor, a distributed PoP replay guard, async PostgreSQL
 readiness, real-client atomic receipt/reconciliation certification, distributed
@@ -622,14 +622,14 @@ encrypted restart rollback, durable receipt/idempotency replay, owner/format
 rejection and actual HTTP/CLI approval. An authored pending-journal fixture
 exercises explicit recovery and is not evidence of a real process kill or power
 loss. These fixtures do not prove native client loading, real Provider calls,
-clean-machine installation, production durability or YAML support. Codex TOML
-uses the separate profile below.
+clean-machine installation or production durability. Codex TOML and Continue
+YAML use the separate profiles below.
 
 ## Governed Codex TOML profile
 
 `codex-mcp-toml-v1` is an explicitly selected onboarding configuration v2 profile
 with client `codex`, format `toml`, and container `mcp_servers`. Configuration v2
-accepts one to five known profiles; v1 retains its original three JSON profiles.
+accepts one to six known profiles; v1 retains its original three JSON profiles.
 Use the existing `clients-onboarding` CLI with `--profile-id codex-mcp-toml-v1`
 for inspect, plan, approval, apply, verify, receipt-bound rollback and recovery.
 The existing HTTP routes and shared SDK carry the same named profile. Targets
@@ -684,8 +684,70 @@ Temporary-file tests cover byte-exact restart rollback, format/identity
 conflicts, encrypted backups, recovery and durable owner/receipt replay. Actual
 HTTP plus Node CLI fixtures execute approval before apply and rollback, restart
 replay and explicit recovery. Authored pending journals do not prove a process
-kill or power-loss result. Native client loading, real Providers, cold install,
-production durability, YAML and bulk control-center v2 remain separate work.
+kill or power-loss result. A separate isolated signed Codex CLI 0.153.4 run loaded
+the actual generated TOML with unchanged bytes and exactly one enabled stdio
+entry; it did not start that MCP server or call a model. Real Providers, complete
+native-client certification, cold install, production durability and bulk
+control-center v2 remain separate work.
+
+## Governed Continue YAML profile
+
+Select `continue-mcp-yaml-v1` in onboarding configuration v2. It reports client
+`continue`, format `yaml`, and container `mcpServers`. The container is a list;
+only its unique `name: unified-ai-system` entry is managed. Use the existing
+`clients-onboarding` commands with this profile for inspect, plan, approve, apply,
+verify, receipt-bound rollback and explicit recovery. No filename-based format
+detection or automatic change to a native client's configuration is performed.
+
+The input must be one YAML 1.2 mapping with nonempty string `name` and `version`
+and `schema: v1`, as described by the [Continue configuration reference](https://docs.continue.dev/reference).
+`mcpServers`, when present, must contain uniquely named mapping entries. The
+managed entry accepts only `name`, `command`, optional string-array `args`,
+optional `cwd`, and optional `type: stdio`. The server definition remains trusted
+startup configuration; HTTP callers cannot supply paths, commands, environment
+values or a replacement list.
+
+The codec retains BOM, newline style, final-newline state, original comments and
+unmodified source ranges, including unrelated literal blocks. A new entry appends
+to the list, replacement keeps its position, and removal leaves other entries in
+their original order. The registry plans a root-list set and the codec independently
+checks that every other entry is unchanged. If another entry changes between the
+registry read and transaction snapshot, planning fails instead of overwriting it.
+The generated document is parsed again and compared with the complete expected
+value and original comment sequence before any write is approved.
+
+This editing profile has a 64 KiB input/output limit, maximum depth 64 and at most
+128 server entries. It rejects anchors, aliases, merge keys, explicit tags,
+YAML 1.1, multiple documents, duplicate/unsafe keys, invalid UTF-8, unsafe numbers,
+unnamed/imported MCP entries, and managed block scalars or extra fields such as
+`env`. Continue itself supports more YAML features; these are explicit limits of
+this profile. Empty YAML files are rejected. TOML's existing empty-file behavior
+is not extended to YAML. Parser failures return a fixed error without source text.
+
+The codec version participates in the target fingerprint and uses
+`local-client-config-journal-continue-yaml-v1`. Plans, receipts, replay and rollback
+must retain this format identity; JSON, JSONC and TOML records cannot authorize a
+YAML mutation. Existing AES-256-GCM backups, path/identity checks, atomic replacement
+and durable one-time receipt authority apply. Repair a reported pending transaction
+with its original profile and recovery command. Before downgrading, preserve its
+journal, encrypted backups and authority state and complete rollback/recovery with
+compatible code; do not relabel them as another format.
+
+Language Selection: the bounded codec and governance contracts stay in TypeScript,
+with the existing ESM JavaScript CLI. `yaml` 2.9.0 (ISC) supplies source-preserving
+CST ranges. This adds one directly pinned parser dependency; the lock also records
+Vite's existing optional YAML peer. Compared with a handwritten parser or whole-file
+serialization, CST editing preserves the current file without another transaction
+engine. The integration exceeds eight files because format fingerprints, named-list
+planning, v2 configuration, API/receipt validation and the CLI must change together;
+the corresponding tests verify that boundary. There is no new database, service,
+route or CLI command. Roll back the profile, codec, CLI and dependency as a unit.
+
+The pure codec, transaction/registry/approval/recovery tests and real temporary-file
+HTTP/CLI flow cover exact preservation, unauthorised apply refusal, restart replay,
+byte-for-byte rollback and explicit recovery. An authored pending journal is not a
+process-kill or power-loss test. Native Continue execution, real Provider calls,
+production durability and bulk control-center v2 require their own evidence.
 
 ## Language Selection
 

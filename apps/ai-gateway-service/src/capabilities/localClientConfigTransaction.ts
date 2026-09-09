@@ -29,6 +29,7 @@ import {
 import { platform } from "node:os";
 import { LOCAL_CLIENT_JSONC_CODEC_VERSION, parseLocalClientJsoncObject, editLocalClientJsoncObject } from "./localClientConfigJsonc.ts";
 import { LOCAL_CLIENT_CODEX_TOML_CODEC_VERSION, parseLocalClientCodexTomlObject, editLocalClientCodexTomlObject } from "./localClientCodexToml.ts";
+import { LOCAL_CLIENT_CONTINUE_YAML_CODEC_VERSION, LOCAL_CLIENT_CONTINUE_YAML_MAX_BYTES, parseLocalClientContinueYamlObject, editLocalClientContinueYamlObject } from "./localClientContinueYaml.ts";
 
 export const LOCAL_CLIENT_CONFIG_PLAN_VERSION = "local-client-config-plan-v1" as const;
 export const LOCAL_CLIENT_CONFIG_RECEIPT_VERSION = "local-client-config-receipt-v1" as const;
@@ -38,8 +39,10 @@ export const LOCAL_CLIENT_CONFIG_JOURNAL_VERSION = "local-client-config-journal-
 export const LOCAL_CLIENT_CONFIG_JSONC_JOURNAL_VERSION = "local-client-config-journal-jsonc-v1" as const;
 export const LOCAL_CLIENT_CONFIG_TOML_JOURNAL_VERSION = "local-client-config-journal-codex-toml-v1" as const;
 export const LOCAL_CLIENT_CONFIG_TOML_MAX_BYTES = 65_536;
-export type LocalClientConfigFormat = "json-only" | "jsonc" | "toml";
-type JournalVersion = typeof LOCAL_CLIENT_CONFIG_JOURNAL_VERSION | typeof LOCAL_CLIENT_CONFIG_JSONC_JOURNAL_VERSION | typeof LOCAL_CLIENT_CONFIG_TOML_JOURNAL_VERSION;
+export const LOCAL_CLIENT_CONFIG_YAML_JOURNAL_VERSION = "local-client-config-journal-continue-yaml-v1" as const;
+export const LOCAL_CLIENT_CONFIG_YAML_MAX_BYTES = LOCAL_CLIENT_CONTINUE_YAML_MAX_BYTES;
+export type LocalClientConfigFormat = "json-only" | "jsonc" | "toml" | "yaml";
+type JournalVersion = typeof LOCAL_CLIENT_CONFIG_JOURNAL_VERSION | typeof LOCAL_CLIENT_CONFIG_JSONC_JOURNAL_VERSION | typeof LOCAL_CLIENT_CONFIG_TOML_JOURNAL_VERSION | typeof LOCAL_CLIENT_CONFIG_YAML_JOURNAL_VERSION;
 export const LOCAL_CLIENT_CONFIG_BACKUP_ENVELOPE_VERSION = "local-client-config-backup-aes-256-gcm-v1" as const;
 
 const LOCK_VERSION = "local-client-config-lock-v1" as const;
@@ -166,7 +169,7 @@ export interface LocalClientConfigTransactionStatus {
   readonly boundaries: Readonly<{
     jsoncSupported: boolean;
     tomlSupported?: true;
-    yamlSupported: false;
+    yamlSupported: boolean;
     rawPathsExposed: false;
     rawValuesExposed: false;
     crossProcessExclusiveLock: true;
@@ -182,6 +185,7 @@ export type LocalClientConfigTransactionErrorCode =
   | "LOCAL_CLIENT_CONFIG_TOO_LARGE"
   | "LOCAL_CLIENT_CONFIG_JSON_INVALID"
   | "LOCAL_CLIENT_CONFIG_TOML_INVALID"
+  | "LOCAL_CLIENT_CONFIG_YAML_INVALID"
   | "LOCAL_CLIENT_CONFIG_OPERATION_INVALID"
   | "LOCAL_CLIENT_CONFIG_PLAN_CAPACITY"
   | "LOCAL_CLIENT_CONFIG_PLAN_UNKNOWN"
@@ -287,7 +291,7 @@ const BOUNDARIES = Object.freeze({
 });
 
 /**
- * Transaction engine for one code-bound JSON or explicitly selected JSONC/TOML file.
+ * Transaction engine for one code-bound JSON or explicitly selected JSONC/TOML/YAML file.
  * Source codecs share the same filesystem effect and recovery boundary.
  */
 export class LocalClientConfigTransactionEngine {
@@ -330,9 +334,9 @@ export class LocalClientConfigTransactionEngine {
       "clock",
       "format",
     ]), configurationError);
-    if (options.format !== undefined && options.format !== "json-only" && options.format !== "jsonc" && options.format !== "toml") throw configurationError();
+    if (options.format !== undefined && options.format !== "json-only" && options.format !== "jsonc" && options.format !== "toml" && options.format !== "yaml") throw configurationError();
     this.#format = options.format ?? "json-only";
-    this.#journalVersion = this.#format === "toml" ? LOCAL_CLIENT_CONFIG_TOML_JOURNAL_VERSION
+    this.#journalVersion = this.#format === "yaml" ? LOCAL_CLIENT_CONFIG_YAML_JOURNAL_VERSION : this.#format === "toml" ? LOCAL_CLIENT_CONFIG_TOML_JOURNAL_VERSION
       : this.#format === "jsonc" ? LOCAL_CLIENT_CONFIG_JSONC_JOURNAL_VERSION : LOCAL_CLIENT_CONFIG_JOURNAL_VERSION;
     this.#journal = createEmptyJournal(this.#journalVersion);
     this.#targetPath = assertAbsolutePath(options.targetPath);
@@ -340,7 +344,9 @@ export class LocalClientConfigTransactionEngine {
     this.#backupDir = assertAbsolutePath(options.backupDir);
     this.#journalPath = assertAbsolutePath(options.journalPath);
     this.#lockPath = `${this.#journalPath}.lock`;
-    this.#maxBytes = this.#format === "toml"
+    this.#maxBytes = this.#format === "yaml"
+      ? boundedInteger(options.maxBytes, LOCAL_CLIENT_CONFIG_YAML_MAX_BYTES, 256, LOCAL_CLIENT_CONFIG_YAML_MAX_BYTES)
+      : this.#format === "toml"
       ? boundedInteger(options.maxBytes, LOCAL_CLIENT_CONFIG_TOML_MAX_BYTES, 256, LOCAL_CLIENT_CONFIG_TOML_MAX_BYTES)
       : boundedInteger(options.maxBytes, DEFAULT_MAX_BYTES, 256, HARD_MAX_BYTES);
     this.#maxTransactions = boundedInteger(
@@ -358,7 +364,8 @@ export class LocalClientConfigTransactionEngine {
     if (options.clock !== undefined && typeof options.clock !== "function") throw configurationError();
     this.#clock = options.clock ?? Date.now;
     const normalizedTarget = normalizePathForFingerprint(this.#targetPath);
-    this.#targetFingerprint = sha256Text(this.#format === "toml"
+    this.#targetFingerprint = sha256Text(this.#format === "yaml"
+      ? JSON.stringify([LOCAL_CLIENT_CONTINUE_YAML_CODEC_VERSION, normalizedTarget]) : this.#format === "toml"
       ? JSON.stringify([LOCAL_CLIENT_CODEX_TOML_CODEC_VERSION, normalizedTarget]) : this.#format === "jsonc"
       ? JSON.stringify([LOCAL_CLIENT_JSONC_CODEC_VERSION, normalizedTarget]) : normalizedTarget);
     assertBoundPaths({
@@ -397,7 +404,8 @@ export class LocalClientConfigTransactionEngine {
       maxTransactions: this.#maxTransactions,
       committedRetentionMs: this.#committedRetentionMs,
       backupProtection: this.#backupEncryptionKey === null ? "0600-plaintext" : "aes-256-gcm",
-      boundaries: this.#format === "toml" ? Object.freeze({ ...BOUNDARIES, tomlSupported: true as const })
+      boundaries: this.#format === "yaml" ? Object.freeze({ ...BOUNDARIES, yamlSupported: true })
+        : this.#format === "toml" ? Object.freeze({ ...BOUNDARIES, tomlSupported: true as const })
         : this.#format === "jsonc" ? Object.freeze({ ...BOUNDARIES, jsoncSupported: true }) : BOUNDARIES,
     });
   }
@@ -428,7 +436,15 @@ export class LocalClientConfigTransactionEngine {
     await this.#assertSafeTopology({ requireTarget: true });
     const snapshot = await readBoundTarget(this.#targetPath, this.#allowedRoot, this.#maxBytes, this.#format);
     let afterBytes: Buffer;
-    if (this.#format === "toml") {
+    if (this.#format === "yaml") {
+      try {
+        const root = parseLocalClientContinueYamlObject(snapshot.bytes, this.#maxBytes);
+        afterBytes = editLocalClientContinueYamlObject(snapshot.bytes, operations, applyOperations(root, operations), this.#maxBytes);
+      } catch (error) {
+        if (error instanceof LocalClientConfigTransactionError) throw error;
+        throw transactionError("LOCAL_CLIENT_CONFIG_YAML_INVALID", "The bounded Continue YAML configuration cannot be safely parsed or edited.", "validation", 422);
+      }
+    } else if (this.#format === "toml") {
       try {
         const root = parseLocalClientCodexTomlObject(snapshot.bytes, this.#maxBytes);
         afterBytes = editLocalClientCodexTomlObject(snapshot.bytes, operations, applyOperations(root, operations), this.#maxBytes);
