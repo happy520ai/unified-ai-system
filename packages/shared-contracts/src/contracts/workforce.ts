@@ -42,11 +42,11 @@ export interface WorkforceCodeDeliveryReview {
   readonly roleProfileHash: string;
 }
 
-/** Until the real delivery factory is wired, all code approval and execution paths reject. */
+/** Preview never grants execution; each approval/run requires current private preflight. */
 export interface WorkforceCodeDeliveryReadiness {
   readonly version: 1;
   readonly executionAllowed: false;
-  readonly implementation: "unavailable";
+  readonly implementation: "unavailable" | "available";
   readonly container: "not-checked";
   readonly policy: "not-checked";
   readonly worktree: "not-created";

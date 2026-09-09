@@ -1,36 +1,52 @@
-# Workforce code delivery profiles: non-executable first batch
+# Workforce code delivery in an owned local worktree
 
-The executor can now describe a server-configured code delivery intent. **Code delivery cannot run or receive an execution approval yet.** Its Forge implementation, approved-file validation snapshot and durable artifact runtime are not connected.
+An explicitly configured code profile can produce a complete patch and run its fixed test command in a real container. The implementation uses the existing plan approval, signed Agent policy, claimed role execution, Gateway Provider operation and Forge action hooks. Success requires durable artifact readback and confirmed cleanup. The local fake Provider remains the default; this feature does not enable a real Provider, deploy, commit, merge or publish code.
 
-The production application does not load a new environment setting or enable a factory in this batch. Internal callers may provide `codeDeliveryProfiles` to `createControlledExecutor`; a request can select only `codeDelivery: { profileId }`. A profile, root, policy, container, callback or `ready` object supplied in request JSON grants no authority.
+## Configuration and approval
 
-A valid description includes the complete frozen profile, configured repository hash, selected employee profile hash and `codeDeliveryReadiness.executionAllowed: false`. Approval, approval lookup and execution reject `WORKFORCE_CODE_DELIVERY_IMPLEMENTATION_UNAVAILABLE` before their stores, model operations or worktree creation. Both HTTP approval paths also stop before Tool Proxy admission. A description is not permission.
+The application accepts `AI_GATEWAY_WORKFORCE_CODE_DELIVERY_PROFILES_JSON`, a bounded array of at most sixteen server profiles. Each binds exact relative read/write files, immutable test hashes, baseline revision, fixed command, digest-pinned image and artifact/resource limits. The request selects only `codeDelivery: { profileId }`. Request JSON cannot supply a root, implementation, callback, container authority or readiness capability.
 
-The profile binds exact relative read/write files, an immutable test set, baseline revision, fixed container command and digest-pinned image, no network, read-only validation and bounded resources/artifact sizes. Path and hash validation only describe intent. They do not attest filesystem ownership, a running container, current policy permission, budget availability or test success. Future validation must use a snapshot containing only the approved exact files; this profile does not authorize mounting the entire repository.
+`AI_GATEWAY_WORKFORCE_CODE_DELIVERY_ENABLED=true` explicitly connects the concrete factory. `AI_GATEWAY_WORKFORCE_CODE_DELIVERY_ENGINE_PATH` must name an absolute local Docker-compatible engine executable. `AI_GATEWAY_WORKFORCE_CODE_DELIVERY_SCRATCH_ROOT` may name an absolute existing scratch directory. Execution also requires `WORKFORCE_EXECUTION_ENABLED=true` and an approved employee role profile or server role selection. Preview remains available with the delivery factory disabled.
 
-The backend employee must have at least three model requests available in its configured role limit, at least 16,384 output tokens per request, and the run limit must cover one request per selected role plus two for implementation. These are minimum configuration checks for analysis, Forge compilation and one worker; they do not guarantee completion. Existing per-role maximums are unchanged.
+The current profile supports **local execution control on one host**. PostgreSQL/distributed lifecycle and multi-instance modes fail before code admission. Other Workforce analysis modes keep their existing storage behavior. This does not complete the broader distributed employee collaboration objective.
 
-## Compatibility and recovery
+The default execution-family policy still denies code execution and does not grant `workforce_verify_snapshot`. An operator must separately create and activate an appropriate policy version through existing governance. It must explicitly allow `file_read`, `file_write`, `file_edit` and `workforce_verify_snapshot`, permit writes/code execution and cover the exact project paths. Global per-tool approval, unsupported sandbox requirements, record ceilings, insufficient remaining budget or exclusions that remove artifact fields cause rejection. `workforce_execute` can retain its separate Tool Proxy approval. General shell/code tools remain denied; the snapshot validator has no public execution callback or namespace alias.
 
-Requests without `codeDelivery` retain the existing v1/v2/v3 approval digests and analysis behavior. Code descriptions use v4 and bind the full profile. Changing project configuration, baseline, allowed paths, verification settings or selected role profile changes that digest. The readiness projection is not an approval parameter.
+The backend employee needs at least three requests: analysis, Forge compilation and one worker operation. Its configured output ceiling must cover the 16,384-token compiler request; additional workers or corrective model calls need a sufficient approved role/run budget. Forge requests are clamped to that role ceiling. Existing Gateway token/cost guards, input limits, deadlines and dispatch rules still apply. These minimums do not guarantee model success.
 
-The durable Agent approval serializer understands the complete new review and still rejects unknown fields or mismatched hashes. This supports contract validation; it does not permit the executor to issue code approvals. Existing records remain readable without migration or re-signing.
+Both plan approval and execution perform current preflight against the owning active root Agent, verified policy, actual clean Git baseline, approved file bytes and container attestation. Execution repeats preflight before Tool Proxy admission, plan approval consumption, model dispatch or worktree creation. Preview reports `executionAllowed: false`; `implementation: available` describes the factory only. Readiness data grants no execution authority. CLI review displays the complete code scope and verification settings.
 
-Before enabling the later execution batch, the CLI operator review must display the complete code scope and verification settings. Its current employee-only summary is insufficient for approving code changes. The actual Forge `orchestrate` adapter, task/Agent fences, shared role budget, per-action Tool Proxy, bounded container verification, persistent evidence and confirmed cleanup remain required.
+## Execution and evidence
 
-Rollback is a source revert of this bounded addition. This batch performs no code execution, does not create code-delivery worktrees or approvals, and adds no database migration. Do not delete existing approval records or user data to roll it back.
+Forge runs inside a worktree proven to belong to the current scoped execution. Its compiler does not probe the project, and implicit project-content gathering is disabled. The backend role's private operation handles every model request, sharing the analysis/implementation budget and Gateway receipts. Private live DAG task and Agent fences are checked at effect boundaries. Copied callbacks, unrelated tasks/runs and JSON objects cannot satisfy those capabilities.
+
+Each read, write or edit must pass the actual enforcing Tool Proxy and match an exact approved path. Path topology checks inspect filesystem metadata to reject escapes; this is not zero filesystem observation. Approved project contents are the only project contents supplied to the model. Forge uses an external temporary database without creating a project `.forge` directory.
+
+The validator copies only approved files into a separate snapshot, mounts it read-only and disables network access. It uses the fixed command, image and limits. Nonzero exit, killed/OOM results, truncated output, uncertain cleanup, changed snapshots or source changes after validation fail delivery. The rest of the repository is absent.
+
+The response contains one complete `codeDelivery.artifact`: full unified patches, before/after file hashes, source snapshot hash, diff bytes and aggregate digest. Oversized patches fail instead of being truncated. Verification includes the actual command/image, snapshot hash, exit code, cleanup state and governed output. Gateway receipts remain in `roleExecution`; Forge calls consume the same backend role limit.
+
+Each claimed task receives a separate evidence filename, even when roles share an Agent. The existing lifecycle summary holds a bounded index outside the approved worktree. Only metadata created after actual verification can preserve its hashes through log redaction; patch contents and commands still pass redaction checks. Evidence is written and read back before normal cleanup.
+
+The owner-bound `/workforce/execute/status` reads artifacts after restart. Missing, oversized or inconsistent evidence yields `evidenceUnavailable: true` and no verified artifact; it never reruns the task. Index hashes check consistency and separate evidence from the model's write domain. Ordinary server files do not prove authenticity against an administrator replacing or rolling back the entire index/evidence set.
+
+Validation or evidence failure after a write retains the worktree and reports recovery required. Unconfirmed local quiescence prevents destructive cleanup. Inspect retained files and evidence before any new approved run. Terminal response/audit acknowledgement failure remains an uncertain HTTP outcome; persisted evidence is available through execution status. No automatic retry or merge follows failure.
+
+## Verification and rollback
+
+Direct tests cover artifact/path/link bounds, actual patch application, private operation/task/proxy provenance, snapshot capability denial, role budgets, external Forge database placement and bounded per-task evidence. The opt-in container fixture covers actual HTTP approvals, signed governance, claimed roles, real Forge mutation, real container verification, owner readback after restart, corruption detection, failed tests and evidence I/O failure. Its model is a local fake Provider with fixed responses, not a real-provider or production claim.
+
+For that fixture, set `AI_GATEWAY_CODE_DELIVERY_CONTAINER_TEST=1`, `AI_GATEWAY_CODE_DELIVERY_TEST_ENGINE` and `AI_GATEWAY_CODE_DELIVERY_TEST_IMAGE` to an already available absolute engine and digest-pinned image. Tests do not pull images or modify existing containers. Container tests, module tests, repository gates, hosted CI and production evidence must be reported separately.
+
+Disable `AI_GATEWAY_WORKFORCE_CODE_DELIVERY_ENABLED` to stop new code admissions while preserving evidence. A source revert restores the unavailable code lane. No database migration or new dependency is required. Do not delete approvals, retained worktrees or user data as rollback.
 
 ## Language Selection
 
-Workload: canonicalize an untrusted selector and a server configuration into a typed, immutable approval contract, then stop unavailable execution before effects.
-
-New validation and public contracts use TypeScript; existing executor and HTTP ESM files receive only their local integration changes. No new runtime language, dependency, service or generalized execution API is introduced.
+Workload: enforce bounded file/process operations, preserve capability provenance and serialize reviewable artifacts across existing HTTP/governance/Workforce components. TypeScript implements the new runtime and typed bindings; existing ESM entrypoints and lifecycle writers receive local changes.
 
 | Option | Domain fit | Maintenance | Operability | Safety | Migration | Ecosystem | Total |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| TypeScript for the new validator/contracts | 5 | 5 | 5 | 5 | 5 | 5 | 30 |
-| ESM JavaScript for the new validator | 5 | 4 | 5 | 3 | 5 | 5 | 27 |
+| TypeScript for the new runtime/contracts | 5 | 5 | 5 | 5 | 5 | 5 | 30 |
+| ESM JavaScript for the new runtime | 5 | 4 | 5 | 3 | 5 | 5 | 27 |
 
-These are design scores, not performance measurements. TypeScript keeps the shared review and the persisted parser aligned; retaining small ESM call-site edits avoids an unrelated module rewrite.
-
-The file-count and net-line review thresholds are necessary: the same contract crosses the profile parser, descriptor, executor, two HTTP approval paths, persisted approval validation and two shared type modules. Direct profile/store and real HTTP refusal tests cover these boundaries. The implementation is still only the first batch; module checks and repository gates must be reported separately, and no result here proves code delivery or production readiness.
+These are design scores, not measurements. File-count/net-line thresholds are necessary because one approved delivery crosses application/HTTP admission, Agent Tool Proxy, role budget, DAG claim, Forge constructor, filesystem/container operations and existing evidence/lifecycle persistence. No alternative service, framework or persistent process is added. Requests without `codeDelivery` keep their analysis behavior; v4 digests bind the complete code review, while earlier approval formats keep their existing meaning.

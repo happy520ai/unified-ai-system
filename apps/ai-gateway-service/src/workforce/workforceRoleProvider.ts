@@ -12,6 +12,21 @@ import { readFrozenWorkforceRoleExecutionProfile } from "./workforceRoleExecutio
 
 type GatewayPort = { execute(input: Record<string, unknown>, execution?: Record<string, unknown>): Promise<unknown> };
 type Fence = { assertActive(phase: "reserve" | "commit"): Promise<unknown>; signal?: AbortSignal };
+interface CodeRoleBinding {
+  executionId: string; planId: string; planDigest: string; profileHash: string;
+  agentId: string; agentRunId: string; taskId: string; roleId: string;
+  agentFence: unknown; taskFence: unknown;
+}
+const codeRoleOperations = new WeakMap<object, CodeRoleBinding & { generate(input: any): Promise<any> }>();
+
+/** Returns the fixed budgeted operation only for the same server-bound run and task. */
+export function readWorkforceCodeRoleOperation(value: unknown, expected: CodeRoleBinding) {
+  const operation = value && typeof value === "object" ? codeRoleOperations.get(value) : undefined;
+  if (!operation || Object.entries(expected).some(([key, entry]) => operation[key as keyof CodeRoleBinding] !== entry)) {
+    throw roleError("WORKFORCE_CODE_ROLE_OPERATION_INVALID");
+  }
+  return Object.freeze({ generate: operation.generate });
+}
 export interface WorkforceRoleRunContext {
   identity: { tenantId: string; userId: string; role: string; permissions: readonly string[]; apiKeyFingerprint?: string };
   agentId: string; agentRunId: string; policyHash: string;
@@ -59,6 +74,8 @@ export function createWorkforceRoleProviderFactory(options: {
         ...(input.identity.apiKeyFingerprint ? { apiKeyFingerprint: input.identity.apiKeyFingerprint } : {}) });
       const executionId = identifier(input.executionId);
       const planId = identifier(input.planId);
+      const codeRunBinding = Object.freeze({ executionId, planId, planDigest: input.planDigest, profileHash: input.profileHash,
+        agentId: input.agentId, agentRunId: input.agentRunId, agentFence: input.agentFence });
       const agentContext = Object.freeze({ agentId: input.agentId, runId: input.agentRunId,
         policyHash: input.policyHash, tenantId: identity.tenantId, userId: identity.userId });
       const http = Object.freeze({ signal: input.requestExecution.signal, timeoutMs: input.requestExecution.timeoutMs,
@@ -139,7 +156,7 @@ export function createWorkforceRoleProviderFactory(options: {
               return result;
             } },
           });
-          return Object.freeze({
+          const operation = Object.freeze({
             governedProviderOperation: true as const,
             descriptor: adapter.descriptor,
             binding,
@@ -195,6 +212,9 @@ export function createWorkforceRoleProviderFactory(options: {
               }
             },
           });
+          codeRoleOperations.set(operation, { ...codeRunBinding, taskId, roleId: binding.roleId,
+            taskFence, generate: operation.generate.bind(operation) });
+          return operation;
         },
       });
     },

@@ -30,6 +30,8 @@ import { readFrozenWorkforceRoleExecutionProfile } from "./workforceRoleExecutio
 import { CODE_DELIVERY_READINESS, codeDeliveryError, createWorkforceCodeDeliveryReview,
   freezeWorkforceCodeDeliveryProfile, readWorkforceCodeDeliverySelector, rejectUnimplementedCodeDelivery,
 } from "./workforceCodeDeliveryProfile.ts";
+import { assertWorkforceCodeDeliveryPreflight, createWorkforceCodeDeliveryEvidenceIndex, isWorkforceCodeDeliveryFactory, preflightWorkforceCodeDelivery,
+  runWorkforceCodeDelivery } from "./workforceCodeDeliveryRuntime.ts";
 import { createWorkforceSelectionFeedback } from "./workforceSelectionReview.ts";
 import { executeWorkforceDag } from "./workforceDagExecutor.ts";
 import { createAutonomyTierGovernor, TIERS as TIER_VALUES } from "./autonomyTierGovernor.js";
@@ -162,6 +164,7 @@ async function reserveGovernedRoleStep(governedExecution) {
  * @param {ReturnType<typeof import("./workforceRoleSelection.ts").createConfiguredWorkforceRoleSelection> | null} [options.roleSelection] — explicit frozen server selection mode
  * @param {object} [options.forgeService] — optional isolated-root-aware Forge adapter
  * @param {readonly import("@unified-ai-system/shared-contracts").WorkforceCodeDeliveryProfileInput[]} [options.codeDeliveryProfiles] — server-owned, non-executable reviewed intents
+ * @param {import("./workforceCodeDeliveryRuntime.ts").WorkforceCodeDeliveryFactory | null} [options.codeDeliveryFactory] — concrete local delivery implementation
  * @param {object} [options.sandboxMerger] — injected sandbox merge boundary
  * @param {object} [options.tierGovernor] — injected autonomy tier governor
  * @param {object} [options.workspaceGuard] — injected workspace safety boundary
@@ -197,6 +200,7 @@ export function createControlledExecutor(options = {}) {
     );
   }
   const forgeService = options.forgeService ?? null;
+  const codeDeliveryFactory = options.codeDeliveryFactory ?? null;
   const configuredCodeProfiles = options.codeDeliveryProfiles ?? [];
   if (!Array.isArray(configuredCodeProfiles) || configuredCodeProfiles.length > 16) {
     throw codeDeliveryError("WORKFORCE_CODE_DELIVERY_PROFILE_INVALID", 503, "At most sixteen server code delivery profiles may be configured.");
@@ -245,6 +249,14 @@ export function createControlledExecutor(options = {}) {
   const approvalGate = options.approvalGate ?? executionControl?.approvalGate;
   if (!lifecycle || !approvalGate) {
     throw new Error("A complete Workforce execution control backend is required.");
+  }
+  function assertCodeDeliveryRuntimeConfigured() {
+    if (!isWorkforceCodeDeliveryFactory(codeDeliveryFactory)) rejectUnimplementedCodeDelivery();
+    if (executionControl?.getHealth?.().distributed === true || lifecycle.getInfo?.().distributed === true
+      || env.AI_GATEWAY_MULTI_INSTANCE === "true") {
+      throw codeDeliveryError("WORKFORCE_CODE_DELIVERY_LOCAL_CONTROL_REQUIRED", 409,
+        "Code delivery currently requires local execution control and an owned local worktree.");
+    }
   }
   const worktree = options.worktreeIsolation ?? createWorktreeIsolation({
     repoRoot: options.repoRoot ?? undefined,
@@ -445,8 +457,14 @@ export function createControlledExecutor(options = {}) {
     async execute(input = {}, executionOptions = {}) {
       const startedAt = new Date();
       const { plan, autonomyMode: mode, descriptor, roleExecutionProfile, roleProviderFactory, selectionReview } = await prepareExecution(input);
-      if (descriptor.codeDelivery) rejectUnimplementedCodeDelivery();
       const governedExecution = normalizeGovernedExecution(executionOptions.agentGovernance);
+      if (descriptor.codeDelivery) {
+        assertCodeDeliveryRuntimeConfigured();
+        assertWorkforceCodeDeliveryPreflight(executionOptions.codeDeliveryPreflight, {
+          factory: codeDeliveryFactory, tenantId: input.tenantId, userId: input.userId,
+          agentId: governedExecution?.context.agentId, policyHash: governedExecution?.policy.policyHash,
+          planId: descriptor.planId, planDigest: descriptor.planDigest });
+      }
       const executionSignal = combineWorkforceExecutionSignals(
         executionOptions.signal,
         governedExecution?.executionLease.signal,
@@ -591,6 +609,7 @@ export function createControlledExecutor(options = {}) {
         worktreeId: worktreeRecord.worktreeId,
         roleCount: (plan.selectedRoles ?? []).length,
         ...(agentRunId ? { agentRunId, profileHash: roleExecutionProfile.profileHash } : {}),
+        ...(descriptor.codeDelivery ? { codeDelivery: true } : {}),
         startedAt: startedAt.toISOString(),
       });
       await lifecycle.start(executionScopeId);
@@ -618,12 +637,16 @@ export function createControlledExecutor(options = {}) {
       const context = {
         plan,
         priorOutputs: {},
+        ...(descriptor.codeDelivery ? { executionId: executionScopeId, agentRunId } : {}),
         ...(governedExecution ? { governedAgentId: governedExecution.context.agentId } : {}),
       };
       let executionGraph = null;
       let forgeExecuted = false;
       let requestedFinalStatus = null;
       let legacyProviderCallsMade = false;
+      let codeDeliveryResult = null;
+      let codeFailure = null;
+      let codeDeliveryEvidence = null;
 
       try {
         let _timeoutTimer;
@@ -663,6 +686,7 @@ export function createControlledExecutor(options = {}) {
               planId: executionScopeId,
               agentId: governedExecution?.context.agentId ?? roleId,
               role: roleId,
+              ...(descriptor.codeDelivery ? { taskId: task.queueTaskId } : {}),
               goal: plan.goal,
               context: {
                 publicPlanId: planId,
@@ -670,6 +694,9 @@ export function createControlledExecutor(options = {}) {
               },
             });
             try {
+              const roleAbort = new AbortController();
+              const rawRoleAdapter = roleProviderRun?.createRoleAdapter({ roleId, taskId: task.queueTaskId,
+                signal: AbortSignal.any([roleContext.signal, roleAbort.signal]), taskFence: roleContext.externalEffectFence });
               const roleAdapter = roleProviderRun ? createRuntimeGatewayBrainAdapter({
                 context: {
                   employeeId: roleExecutionProfile.bindings.find((binding) => binding.roleId === roleId).employeeId,
@@ -677,8 +704,7 @@ export function createControlledExecutor(options = {}) {
                   executionId: executionScopeId, taskId: task.queueTaskId, planId,
                   planDigest: descriptor.planDigest, profileHash: roleExecutionProfile.profileHash,
                 },
-                providerAdapter: roleProviderRun.createRoleAdapter({ roleId, taskId: task.queueTaskId,
-                  signal: roleContext.signal, taskFence: roleContext.externalEffectFence }),
+                providerAdapter: rawRoleAdapter,
               }) : providerAdapter ? { ...providerAdapter, generate: (...args) => {
                 legacyProviderCallsMade = true;
                 return providerAdapter.generate(...args);
@@ -687,6 +713,18 @@ export function createControlledExecutor(options = {}) {
                 ? await executeRoleWithLLM(roleId, plan.goal, roleContext, roleAdapter,
                   { requireRuntimeContribution: Boolean(roleProviderRun) })
                 : await createRoleExecutor(roleId).analyze(plan.goal, roleContext);
+              if (descriptor.codeDelivery?.profile.roleId === roleId) {
+                try {
+                  codeDeliveryResult = await runWorkforceCodeDelivery(codeDeliveryFactory, executionOptions.codeDeliveryPreflight, {
+                    executionId: executionScopeId, taskId: task.queueTaskId, agentRunId,
+                    planApprovalId: approvalCheck.approval?.approvalId, manager: worktree, worktreeId: worktreeRecord.worktreeId,
+                    roleProviderOperation: rawRoleAdapter, agentFence: governedExecution.executionLease,
+                    taskFence: roleContext.externalEffectFence, toolProxy: executionOptions.codeDeliveryToolProxy,
+                    signal: roleContext.signal, abort: error => roleAbort.abort(error), goal: plan.goal });
+                  result = { ...result, codeDelivery: codeDeliveryResult };
+                  forgeExecuted = true;
+                } catch (error) { codeFailure = error.details ?? { recoveryRequired: true, projectFileWrites: null }; throw error; }
+              }
               if (selectionReview && result.workforceContribution) {
                 result = { ...result, selectionFeedback: createWorkforceSelectionFeedback({ selection: selectionReview,
                   profile: roleExecutionProfile, executionId: executionScopeId, roleId,
@@ -696,8 +734,21 @@ export function createControlledExecutor(options = {}) {
               if (capture) {
                 capture.setOutput({ summary: summarizeEvidenceOutput(result, logRedactor),
                   ...(result.selectionFeedback ? { deliverables: [result.selectionFeedback] } : {}),
+                  ...(result.codeDelivery ? { codeDelivery: result.codeDelivery } : {}),
                 });
                 await capture.finish();
+                if (result.codeDelivery) {
+                  const loaded = await evidenceCapture.load(executionScopeId, governedExecution.context.agentId, task.queueTaskId);
+                  if (loaded?.success !== true || JSON.stringify(loaded.evidence?.output?.codeDelivery) !== JSON.stringify(capture.evidence?.output?.codeDelivery)) {
+                    throw Object.assign(new Error("Verified code evidence could not be read back."), { code: "WORKFORCE_CODE_EVIDENCE_UNAVAILABLE" });
+                  }
+                  codeDeliveryEvidence = createWorkforceCodeDeliveryEvidenceIndex(result.codeDelivery,
+                    { executionId: executionScopeId, agentId: governedExecution.context.agentId, taskId: task.queueTaskId },
+                    loaded.evidence.output.codeDelivery);
+                  result = { ...result, codeDelivery: { status: "verified", diffSha256: result.codeDelivery.artifact.diffSha256 } };
+                }
+              } else if (result.codeDelivery) {
+                throw Object.assign(new Error("Verified code delivery requires durable task evidence."), { code: "WORKFORCE_CODE_EVIDENCE_UNAVAILABLE" });
               }
               const lifecycleDecision = await lifecycle.onAgentCompleted(
                 executionScopeId,
@@ -707,6 +758,7 @@ export function createControlledExecutor(options = {}) {
               assertLifecycleDecisionAllowsContinuation(lifecycleDecision);
               return result;
             } catch (error) {
+              if (descriptor.codeDelivery && (codeDeliveryResult || codeFailure?.recoveryRequired)) worktreeCleanupAllowed = false;
               if (capture) {
                 try {
                   const binding = selectionReview && roleExecutionProfile.bindings.find(item => item.roleId === roleId);
@@ -782,7 +834,7 @@ export function createControlledExecutor(options = {}) {
       }
 
       // --- Step 8b: Forge code execution (if available) ---
-      if (!requestedFinalStatus && forgeService && roleResults["backend-engineer"]) {
+      if (!descriptor.codeDelivery && !requestedFinalStatus && forgeService && roleResults["backend-engineer"]) {
         try {
           const forgeCapabilities = forgeService.getCapabilities?.() ?? {};
           if (forgeService.supportsIsolatedProjectRoot !== true
@@ -830,9 +882,12 @@ export function createControlledExecutor(options = {}) {
       }
 
       // --- Step 10: Cleanup worktree before committing the lifecycle terminal state ---
+      if (descriptor.codeDelivery && executionErrors.length > 0 && (codeDeliveryResult || codeFailure?.recoveryRequired)) worktreeCleanupAllowed = false;
       cleanupAttempted = true;
       if (!worktreeCleanupAllowed) {
-        executionErrors.push("worktree_cleanup_skipped: execution quiescence was not confirmed");
+        executionErrors.push(descriptor.codeDelivery
+          ? "worktree_cleanup_skipped: recovery or unconfirmed execution quiescence requires retention"
+          : "worktree_cleanup_skipped: execution quiescence was not confirmed");
       } else {
         try {
           const cleanup = await worktree.remove(worktreeRecord.worktreeId);
@@ -863,6 +918,7 @@ export function createControlledExecutor(options = {}) {
           executionGraph,
           postScan: postScan.result,
           ...(selectionFeedback ? { selectionFeedback } : {}),
+          ...(descriptor.codeDelivery ? { codeDeliveryEvidence, recoveryRequired: !worktreeCleanedUp } : {}),
         });
       }
 
@@ -882,6 +938,8 @@ export function createControlledExecutor(options = {}) {
         totalRoles: tasks.length,
         roleResults,
         ...(selectionReview ? { selectionFeedback } : {}),
+        ...(descriptor.codeDelivery ? { codeDelivery: codeDeliveryResult,
+          recoveryRequired: !worktreeCleanedUp, ...(codeFailure ? { codeDeliveryFailure: codeFailure } : {}) } : {}),
         ...(roleProviderRun ? { agentRunId, roleExecution: {
           profile: roleExecutionProfile, receipts: roleProviderRun.getReceipts(),
           requestsDispatched: roleProviderRun.getUsage().totalRequests,
@@ -897,6 +955,7 @@ export function createControlledExecutor(options = {}) {
         worktree: {
           created: true,
           cleanedUp: worktreeCleanedUp,
+          ...(descriptor.codeDelivery && !worktreeCleanedUp ? { retainedWorktreeId: worktreeRecord.worktreeId } : {}),
         },
         approval: {
           checked: true,
@@ -910,8 +969,9 @@ export function createControlledExecutor(options = {}) {
             : legacyProviderCallsMade,
           secretValueExposed: postScan.result === "pass" ? false : null,
           secretScanPassed: postScan.result === "pass",
-          projectFileWrites: forgeExecuted,
-          projectWritesIsolated: forgeExecuted ? true : null,
+          projectFileWrites: descriptor.codeDelivery ? codeDeliveryResult ? true
+            : codeFailure && Object.hasOwn(codeFailure, "projectFileWrites") ? codeFailure.projectFileWrites : false : forgeExecuted,
+          projectWritesIsolated: descriptor.codeDelivery ? codeDeliveryResult || codeFailure?.projectWriteAttempted === true ? true : null : forgeExecuted ? true : null,
           deployExecuted: false,
           releaseExecuted: false,
         },
@@ -932,7 +992,7 @@ export function createControlledExecutor(options = {}) {
     /**
      * Request approval for a workforce plan execution.
      */
-    async approveExecution(input = {}, userId, approvedScopes = []) {
+    async approveExecution(input = {}, userId, approvedScopes = [], executionOptions = {}) {
       if (!executionEnabled) {
         const error = new Error("WORKFORCE_EXECUTION_ENABLED=true is required before issuing execution approvals.");
         error.code = "WORKFORCE_EXECUTION_DISABLED";
@@ -940,7 +1000,12 @@ export function createControlledExecutor(options = {}) {
         throw error;
       }
       const { autonomyMode, descriptor } = await prepareExecution(input);
-      if (descriptor.codeDelivery) rejectUnimplementedCodeDelivery();
+      if (descriptor.codeDelivery) {
+        assertCodeDeliveryRuntimeConfigured();
+        assertWorkforceCodeDeliveryPreflight(executionOptions.codeDeliveryPreflight, {
+          factory: codeDeliveryFactory, tenantId: input.tenantId, userId, agentId: executionOptions.context?.agentId,
+          policyHash: executionOptions.policy?.policyHash, planId: descriptor.planId, planDigest: descriptor.planDigest });
+      }
       if (autonomyMode === AUTONOMY_MODES.DRY_RUN) {
         const error = new Error("A non-dry-run autonomyMode is required for execution approval.");
         error.code = "WORKFORCE_EXECUTION_MODE_REQUIRED";
@@ -982,7 +1047,7 @@ export function createControlledExecutor(options = {}) {
      */
     async checkApproval(input = {}, userId) {
       const { descriptor } = await prepareExecution(input);
-      if (descriptor.codeDelivery) rejectUnimplementedCodeDelivery();
+      if (descriptor.codeDelivery) assertCodeDeliveryRuntimeConfigured();
       return approvalGate.check({
         planId: descriptor.planId,
         tenantId: typeof input.tenantId === "string" && input.tenantId.trim()
@@ -1004,13 +1069,23 @@ export function createControlledExecutor(options = {}) {
     async describeExecution(input = {}) {
       const { descriptor } = await prepareExecution(input);
       return descriptor.codeDelivery
-        ? Object.freeze({ ...descriptor, codeDeliveryReadiness: CODE_DELIVERY_READINESS }) : descriptor;
+        ? Object.freeze({ ...descriptor, codeDeliveryReadiness: Object.freeze({ ...CODE_DELIVERY_READINESS,
+          implementation: isWorkforceCodeDeliveryFactory(codeDeliveryFactory) ? "available" : "unavailable" }) }) : descriptor;
     },
 
     /** Called before the HTTP Tool Proxy may consume its separate approval. */
     async assertExecutionPrerequisites(input = {}) {
       const { descriptor } = await prepareExecution(input);
-      if (descriptor.codeDelivery) rejectUnimplementedCodeDelivery();
+      if (descriptor.codeDelivery) assertCodeDeliveryRuntimeConfigured();
+    },
+
+    async prepareCodeDeliveryAdmission(input = {}, serverContext = {}) {
+      const { descriptor, roleExecutionProfile } = await prepareExecution(input);
+      if (!descriptor.codeDelivery) return null;
+      assertCodeDeliveryRuntimeConfigured();
+      return preflightWorkforceCodeDelivery(codeDeliveryFactory, { ...serverContext,
+        review: descriptor.codeDelivery, roleProfile: roleExecutionProfile,
+        planId: descriptor.planId, planDigest: descriptor.planDigest });
     },
 
     /**
@@ -1020,6 +1095,22 @@ export function createControlledExecutor(options = {}) {
       const snapshot = await lifecycle.getStatus(executionId);
       assertExecutionAccess(snapshot, identity);
       const { tenantFingerprint: _tenant, subjectFingerprint: _subject, ...safe } = snapshot;
+      if (snapshot.codeDelivery) {
+        const index = snapshot.codeDelivery.evidence;
+        let codeDelivery = null;
+        try {
+          if (index?.version !== 1 || index.executionId !== executionId || typeof index.agentId !== "string"
+            || typeof index.taskId !== "string" || !/^[a-f0-9]{64}$/u.test(index.evidenceHash)) throw new Error("index unavailable");
+          const loaded = await evidenceCapture.load(executionId, index.agentId, index.taskId);
+          const value = loaded.evidence?.output?.codeDelivery;
+          if (!loaded.success || loaded.evidence.planId !== executionId || loaded.evidence.agentId !== index.agentId
+            || loaded.evidence.taskId !== index.taskId || value?.status !== "verified" || value.profileHash !== index.profileHash
+            || value.artifact?.diffSha256 !== index.diffSha256 || createHash("sha256").update(JSON.stringify(value)).digest("hex") !== index.evidenceHash) throw new Error("evidence mismatch");
+          codeDelivery = value;
+        } catch { /* Unavailable or inconsistent evidence never authorizes execution or invents a verified artifact. */ }
+        return { ...safe, codeDelivery, evidenceUnavailable: codeDelivery === null,
+          recoveryRequired: snapshot.codeDelivery.recoveryRequired === true };
+      }
       return safe;
     },
 

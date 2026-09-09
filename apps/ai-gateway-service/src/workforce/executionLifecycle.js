@@ -386,6 +386,9 @@ export function createExecutionLifecycle(options = {}) {
           transitions: memState.transitions,
           tenantFingerprint: memState.metadata?.tenantFingerprint ?? null,
           subjectFingerprint: memState.metadata?.subjectFingerprint ?? null,
+          ...(memState.metadata?.codeDelivery === true ? { codeDelivery: {
+            evidence: memState.summary?.codeDeliveryEvidence ?? null,
+            recoveryRequired: memState.summary?.recoveryRequired !== false } } : {}),
         };
       }
 
@@ -406,6 +409,9 @@ export function createExecutionLifecycle(options = {}) {
           transitions: diskState.transitions,
           tenantFingerprint: diskState.metadata?.tenantFingerprint ?? null,
           subjectFingerprint: diskState.metadata?.subjectFingerprint ?? null,
+          ...(diskState.metadata?.codeDelivery === true ? { codeDelivery: {
+            evidence: diskState.summary?.codeDeliveryEvidence ?? null,
+            recoveryRequired: diskState.summary?.recoveryRequired !== false } } : {}),
         };
       }
 

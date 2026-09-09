@@ -11,7 +11,7 @@
  *   const handlers = createForgeRouteHandlers({ forge, agentPool, ... });
  */
 
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { TaskStore } from './task-store/index.js';
 import { compileGoal } from './goal-compiler/index.js';
@@ -78,8 +78,8 @@ export class Forge {
       );
     }
 
-    // Ensure .forge directory exists
-    mkdirSync(join(projectRoot, '.forge'), { recursive: true });
+    // An externally owned database must not create an unapproved project directory.
+    if (this.#dbPath !== ':memory:') mkdirSync(dirname(this.#dbPath), { recursive: true });
 
     this.#store = new TaskStore(this.#dbPath);
 

@@ -17,10 +17,12 @@
  * - 支持证据链查询（按 planId 获取所有 Agent 的证据）
  */
 
-import { randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile, readdir, rename, rm } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir, open, readFile, writeFile, readdir, rename, rm } from "node:fs/promises";
+import { constants } from "node:fs";
 import { dirname, resolve, join } from "node:path";
 import { createLogRedactor } from "./logRedactor.js";
+import { readVerifiedWorkforceCodeDeliveryResult } from "./workforceCodeDeliveryRuntime.ts";
 
 // 默认证据存储根目录
 const DEFAULT_EVIDENCE_DIR = resolve(process.cwd(), ".data", "workforce", "evidence");
@@ -34,6 +36,26 @@ const MAX_EVIDENCE_BYTES = 1024 * 1024;
  */
 function sanitizeId(id) {
   return String(id).replace(/[^a-zA-Z0-9_.\-]/g, "_").replace(/^\.+/, "").slice(0, 128);
+}
+function evidenceFile(agentId, taskId) {
+  return taskId === undefined ? `${sanitizeId(agentId)}.json`
+    : `task-${createHash("sha256").update(JSON.stringify([agentId, taskId])).digest("hex")}.json`;
+}
+async function readBoundedTaskEvidence(filePath) {
+  const handle = await open(filePath, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+  try {
+    const stat = await handle.stat();
+    if (!stat.isFile() || stat.nlink !== 1 || stat.size > MAX_EVIDENCE_BYTES) throw new Error("Invalid or oversized task evidence.");
+    const buffer = Buffer.alloc(MAX_EVIDENCE_BYTES + 1);
+    let size = 0;
+    while (size < buffer.length) {
+      const read = await handle.read(buffer, size, buffer.length - size, null);
+      if (read.bytesRead === 0) break;
+      size += read.bytesRead;
+    }
+    if (size > MAX_EVIDENCE_BYTES) throw new Error("Task evidence exceeded the bounded read limit.");
+    return buffer.subarray(0, size).toString("utf8");
+  } finally { await handle.close(); }
 }
 
 export function createTaskEvidenceCapture(options = {}) {
@@ -63,7 +85,7 @@ export function createTaskEvidenceCapture(options = {}) {
      * @param {string} [params.role] - Agent 角色
      * @returns {object} 捕获会话
      */
-    startCapture({ planId, agentId, goal, context = {}, role = "" }) {
+    startCapture({ planId, agentId, taskId, goal, context = {}, role = "" }) {
       if (!planId || typeof planId !== "string") {
         throw new Error("planId 是必填项");
       }
@@ -78,6 +100,7 @@ export function createTaskEvidenceCapture(options = {}) {
         planId: planId.trim(),
         agentId: agentId.trim(),
         role: String(role || "").trim(),
+        ...(taskId !== undefined ? { taskId } : {}),
         // 任务输入
         input: {
           goal: String(goal || "").trim(),
@@ -161,6 +184,7 @@ export function createTaskEvidenceCapture(options = {}) {
             filesChanged: Array.isArray(output.filesChanged) ? output.filesChanged.slice(0, 100) : [],
             commandsRun: Array.isArray(output.commandsRun) ? output.commandsRun.slice(0, 50) : [],
             deliverables: Array.isArray(output.deliverables) ? output.deliverables.slice(0, 20) : [],
+            ...(output.codeDelivery ? { codeDelivery: output.codeDelivery } : {}),
           };
           return this;
         },
@@ -192,9 +216,27 @@ export function createTaskEvidenceCapture(options = {}) {
           }
 
           // 持久化证据
-          const filePath = resolve(evidenceDir, sanitizeId(planId), `${sanitizeId(agentId)}.json`);
+          const filePath = resolve(evidenceDir, sanitizeId(planId), evidenceFile(agentId, taskId));
           await mkdir(dirname(filePath), { recursive: true, mode: 0o700 });
           const persistedEvidence = redactor.redactObject(this.evidence);
+          if (this.evidence.output.codeDelivery) {
+            const verified = readVerifiedWorkforceCodeDeliveryResult(this.evidence.output.codeDelivery,
+              { executionId: planId, taskId, agentId });
+            const original = this.evidence.output.codeDelivery;
+            if (redactor.redactString(original.verification.command) !== original.verification.command
+              || original.artifact.filesChanged.some(file => redactor.redactString(file.path) !== file.path
+                || redactor.redactString(file.patch) !== file.patch)) {
+              throw Object.assign(new Error("The full approved code diff cannot be persisted without redaction."), { code: "WORKFORCE_CODE_EVIDENCE_UNREVIEWABLE" });
+            }
+            // Preserve only independently constructed digest metadata. File text still passes the normal redactor.
+            persistedEvidence.planId = verified.executionId;
+            persistedEvidence.agentId = verified.agentId;
+            persistedEvidence.taskId = verified.taskId;
+            persistedEvidence.output.codeDelivery = { ...persistedEvidence.output.codeDelivery,
+              forgeRunId: original.forgeRunId, profileHash: verified.profileHash, baselineRevision: verified.baselineRevision,
+              artifact: original.artifact, verification: { ...persistedEvidence.output.codeDelivery.verification,
+                command: original.verification.command, image: original.verification.image, snapshotHash: original.verification.snapshotHash } };
+          }
           const serialized = `${JSON.stringify(persistedEvidence, null, 2)}\n`;
           if (Buffer.byteLength(serialized, "utf8") > MAX_EVIDENCE_BYTES) {
             throw Object.assign(new Error("Task evidence exceeds the bounded persistence limit."), {
@@ -228,10 +270,10 @@ export function createTaskEvidenceCapture(options = {}) {
      * @param {string} agentId - Agent ID
      * @returns {Promise<object>} 证据数据
      */
-    async load(planId, agentId) {
+    async load(planId, agentId, taskId) {
       try {
-        const filePath = resolve(evidenceDir, sanitizeId(planId), `${sanitizeId(agentId)}.json`);
-        const content = await readFile(filePath, "utf8");
+        const filePath = resolve(evidenceDir, sanitizeId(planId), evidenceFile(agentId, taskId));
+        const content = taskId === undefined ? await readFile(filePath, "utf8") : await readBoundedTaskEvidence(filePath);
         return {
           success: true,
           planId: planId.trim(),

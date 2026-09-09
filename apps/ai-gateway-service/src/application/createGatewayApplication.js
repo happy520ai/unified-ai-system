@@ -45,6 +45,8 @@ import { createControlledExecutor } from "../workforce/workforceControlledExecut
 import { createWorkforceRoleProviderFactory } from "../workforce/workforceRoleProvider.ts";
 import { freezeWorkforceRoleExecutionProfile } from "../workforce/workforceRoleExecutionProfile.ts";
 import { createConfiguredWorkforceRoleSelection } from "../workforce/workforceRoleSelection.ts";
+import { freezeWorkforceCodeDeliveryProfile } from "../workforce/workforceCodeDeliveryProfile.ts";
+import { createWorkforceCodeDeliveryFactory } from "../workforce/workforceCodeDeliveryRuntime.ts";
 import { createUserExperienceService } from "../capabilities/userExperienceService.js";
 import { createCapabilityRouterService } from "../capabilities/capabilityRouterService.js";
 import { createEnterpriseGovernanceService } from "../enterprise/enterpriseGovernanceService.js";
@@ -131,6 +133,15 @@ export function createGatewayApplicationForLocalClientFixtureTests(env = {}) {
 }
 
 function createGatewayApplicationInternal(env, fixtureCapability) {
+  let workforceCodeDeliveryProfiles = [];
+  const codeDeliveryJson = String(env.AI_GATEWAY_WORKFORCE_CODE_DELIVERY_PROFILES_JSON ?? "").trim();
+  if (codeDeliveryJson) {
+    if (Buffer.byteLength(codeDeliveryJson, "utf8") > 262144) throw new Error("Workforce code profile configuration exceeds its limit.");
+    let profiles;
+    try { profiles = JSON.parse(codeDeliveryJson); } catch { throw new Error("Workforce code profiles must be a JSON array."); }
+    if (!Array.isArray(profiles) || profiles.length > 16) throw new Error("At most sixteen Workforce code profiles may be configured.");
+    workforceCodeDeliveryProfiles = profiles.map(profile => { freezeWorkforceCodeDeliveryProfile(profile); return profile; });
+  }
   let workforceRoleExecutionProfile = null;
   let workforceRoleSelectionConfiguration = null;
   const selectionJson = String(env.AI_GATEWAY_WORKFORCE_ROLE_SELECTION_JSON ?? "").trim();
@@ -319,6 +330,12 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
     env,
     repoRoot,
     executionDir: env.WORKFORCE_EXECUTION_DIR,
+    codeDeliveryProfiles: workforceCodeDeliveryProfiles,
+    codeDeliveryFactory: env.AI_GATEWAY_WORKFORCE_CODE_DELIVERY_ENABLED === "true"
+      ? createWorkforceCodeDeliveryFactory({ repoRoot,
+          enginePath: env.AI_GATEWAY_WORKFORCE_CODE_DELIVERY_ENGINE_PATH,
+          ...(env.AI_GATEWAY_WORKFORCE_CODE_DELIVERY_SCRATCH_ROOT
+            ? { scratchRoot: env.AI_GATEWAY_WORKFORCE_CODE_DELIVERY_SCRATCH_ROOT } : {}) }) : null,
     roleProviderFactory: workforceRoleExecutionProfile ? createWorkforceRoleProviderFactory({
       gatewayService, providerRegistry, profile: workforceRoleExecutionProfile,
     }) : null,

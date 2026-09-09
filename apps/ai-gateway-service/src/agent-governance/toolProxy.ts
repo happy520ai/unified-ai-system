@@ -32,6 +32,7 @@ import {
 import { isSafePublicObjectKey, redactSecretsInText } from "../security/secretSafety.js";
 import { createToolRiskCatalog } from "./toolRiskCatalog.ts";
 import { readFrozenWorkforceRoleExecutionProfile } from "../workforce/workforceRoleExecutionProfile.ts";
+import { consumeWorkforceSnapshotCapability, WORKFORCE_VERIFY_SNAPSHOT_TOOL } from "../workforce/workforceCodeDeliveryRuntime.ts";
 
 export interface AgentGovernanceCallContext {
   agentId: string;
@@ -71,6 +72,8 @@ export interface AgentGovernanceToolProxy {
       /** Server-produced proof that this invocation is already confined by
        * the Gateway's sandbox boundary. Agent parameters cannot populate it. */
       sandboxAttestation?: AgentGovernanceSandboxAttestation;
+      /** Private one-shot exact-file verification capability; JSON is never sufficient. */
+      workforceSnapshotCapability?: unknown;
     };
   }): Promise<ToolProxyVerdict>;
   enforceResult(input: {
@@ -95,6 +98,13 @@ export interface AgentGovernanceToolProxy {
 }
 
 export type ToolProxyMode = "enforce" | "observe";
+type WorkforceProxyOperations = Readonly<Pick<AgentGovernanceToolProxy, "enforce" | "enforceResult">>;
+const workforceProxyOperations = new WeakMap<object, WorkforceProxyOperations>();
+
+/** Fixed operations from an actual enforcing proxy; its presence alone grants no code authority. */
+export function readWorkforceCodeDeliveryToolProxy(value: unknown): WorkforceProxyOperations | null {
+  return value && typeof value === "object" ? workforceProxyOperations.get(value) ?? null : null;
+}
 
 const SANDBOX_RISK_CATALOG = createToolRiskCatalog();
 
@@ -188,7 +198,7 @@ export function createAgentGovernanceToolProxy(options: {
     });
   }
 
-  return {
+  const proxy: AgentGovernanceToolProxy = {
     mintSandboxAttestation,
     recordOutcome,
     async enforce({ context, toolName, params, resourceContext }) {
@@ -256,6 +266,15 @@ export function createAgentGovernanceToolProxy(options: {
       }
       if (policy.expiresAt <= now()) {
         return observe(await denyAudited("AGENT_EXPIRED", "Agent policy has expired."));
+      }
+
+      if (typeof toolName === "string" && toolName.startsWith(WORKFORCE_VERIFY_SNAPSHOT_TOOL + ":")) {
+        return denyAudited("WORKFORCE_SNAPSHOT_ALIAS_DENIED", "The snapshot validator has no callable namespace aliases.");
+      }
+      if (toolName === WORKFORCE_VERIFY_SNAPSHOT_TOOL
+        && !await consumeWorkforceSnapshotCapability(resourceContext?.workforceSnapshotCapability, context, params, policy.policyHash, proxy)) {
+        // This is mandatory even in observe mode. A policy alone cannot authorize a snapshot implementation.
+        return denyAudited("WORKFORCE_SNAPSHOT_CAPABILITY_REQUIRED", "Snapshot validation requires its private approved-run capability.");
       }
 
       const decision = effectiveGovernedToolDecision(policy, toolName);
@@ -457,6 +476,10 @@ export function createAgentGovernanceToolProxy(options: {
       return { ...verdict, result: governedResult };
     },
   };
+  if (mode === "enforce") workforceProxyOperations.set(proxy, Object.freeze({
+    enforce: proxy.enforce.bind(proxy), enforceResult: proxy.enforceResult.bind(proxy),
+  }));
+  return proxy;
 }
 
 function classifyToolResultStatus(result: unknown): "success" | "error" | "denied" {

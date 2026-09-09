@@ -9,6 +9,7 @@ import { createGatewayHttpServer } from "../http/httpServer.js";
 import { createControlledExecutor } from "./workforceControlledExecutor.js";
 import { createWorkforcePlan } from "./workforcePlanner.js";
 import { freezeWorkforceRoleExecutionProfile } from "./workforceRoleExecutionProfile.ts";
+import { createWorkforceCodeDeliveryFactory } from "./workforceCodeDeliveryRuntime.ts";
 
 const cleanups: (() => Promise<unknown>)[] = [];
 afterEach(async () => { for (const cleanup of cleanups.splice(0).reverse()) await cleanup(); vi.restoreAllMocks(); });
@@ -20,7 +21,7 @@ function profile(): any {
       workspaceMode: "ro", networkAccess: false, timeoutMs: 10000, maxMemoryMB: 128, maxOutputBytes: 65536, pidsLimit: 32, cpus: 1 },
     artifactLimits: { maxChangedFiles: 1, maxFileBytes: 65536, maxDiffBytes: 262144 } };
 }
-async function fixture() {
+async function fixture(options: { distributed?: boolean } = {}) {
   const root = await mkdtemp(join(await realpath(tmpdir()), "code-delivery-http-"));
   cleanups.push(async () => { expect(await realpath(root)).toBe(root); expect(dirname(root)).toBe(await realpath(tmpdir())); await rm(root, { recursive: true, force: true }); });
   const workspace = join(root, "workspace"); await mkdir(workspace);
@@ -53,8 +54,10 @@ async function fixture() {
     forTask: vi.fn(async () => ({ execute: async () => ({ success: true }) })) };
   const profiles = [profile()];
   const executor = createControlledExecutor({ env, repoRoot: workspace, executionDir: env.WORKFORCE_EXECUTION_DIR,
-    codeDeliveryProfiles: profiles, codeDeliveryFactory: fakeFactory, roleProviderFactory: { profile: roleProfile, forRun },
-    approvalGate: approval, executionLifecycle: { getInfo: () => ({}) }, taskQueueManager: { close: async () => {} },
+    codeDeliveryProfiles: profiles, codeDeliveryFactory: options.distributed
+      ? createWorkforceCodeDeliveryFactory({ repoRoot: workspace, enginePath: join(root, "missing-engine") }) : fakeFactory,
+    roleProviderFactory: { profile: roleProfile, forRun },
+    approvalGate: approval, executionLifecycle: { getInfo: () => ({ distributed: options.distributed === true }) }, taskQueueManager: { close: async () => {} },
     worktreeIsolation: worktree, workspaceGuard: { check: async () => ({ clean: true }) },
     securityCheckpoint: { preExecutionCheck: async () => ({ result: "pass" }) }, evidenceCapture: {},
     sandboxMerger: {}, tierGovernor: { getCurrentTier: async () => ({ autonomyMode: "controlled-execution" }) } } as any);
@@ -111,4 +114,17 @@ it("validates the exact selector and keeps absent codeDelivery descriptors uncha
   await expect(f.executor.describeExecution({ ...analysis, codeDelivery: { profileId: "absent" } })).rejects.toMatchObject({ code: "WORKFORCE_CODE_DELIVERY_PROFILE_NOT_FOUND" });
   expect(await f.executor.describeExecution(analysis)).toEqual(baseline);
   expect(f.enforced).not.toHaveBeenCalled(); expect(f.approval.approve).not.toHaveBeenCalled(); expect(f.worktree.create).not.toHaveBeenCalled();
+}, 30000);
+
+it("refuses a concrete code factory with distributed lifecycle before either HTTP approval path", async () => {
+  const f = await fixture({ distributed: true });
+  for (const path of ["/workforce/execute", "/workforce/execute/approve"]) {
+    const result = await f.send(path, { ...f.input, approvedScopes: ["workforce:execute"] });
+    expect(result.status, JSON.stringify(result.payload)).toBe(409);
+    expect(result.payload.error.code).toBe("WORKFORCE_CODE_DELIVERY_LOCAL_CONTROL_REQUIRED");
+  }
+  for (const operation of [() => f.executor.approveExecution(f.input, "code-owner", []), () => f.executor.execute(f.input)]) {
+    await expect(operation()).rejects.toMatchObject({ code: "WORKFORCE_CODE_DELIVERY_LOCAL_CONTROL_REQUIRED" });
+  }
+  for (const spy of [f.enforced, f.approval.approve, f.approval.consume, f.worktree.create, f.forRun, f.calls]) expect(spy).not.toHaveBeenCalled();
 }, 30000);

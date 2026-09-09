@@ -4,7 +4,7 @@ import { AGENT_GOVERNANCE_EXECUTION_CONTEXT, GatewayService } from "../core/gate
 import { createFakeProvider } from "../providers/fakeProvider.js";
 import { HttpLLMProviderAdapter } from "../providers/httpLlmProviderAdapter.js";
 import { ProviderRegistry } from "../providers/providerRegistry.js";
-import { createWorkforceRoleProviderFactory, type WorkforceRoleRunContext } from "./workforceRoleProvider.ts";
+import { createWorkforceRoleProviderFactory, readWorkforceCodeRoleOperation, type WorkforceRoleRunContext } from "./workforceRoleProvider.ts";
 import { freezeWorkforceRoleExecutionProfile } from "./workforceRoleExecutionProfile.ts";
 import { createApiKeyManager } from "../enterprise/apiKeyManager.js";
 import { bindVirtualKeyRequestAccounting, createVirtualKeyRequestAccounting } from "../enterprise/virtualKeyRequestAccounting.ts";
@@ -44,6 +44,23 @@ function fixture(selected = profile()) {
 }
 
 describe("per-run Workforce role Provider factory", () => {
+  it("binds the code reader to the original Agent, task and fixed shared-budget operation", async () => {
+    const f = fixture(); const runContext = context(f.profile.profileHash), taskContext = task();
+    const run = f.factory.forRun(runContext);
+    const expected = { executionId: runContext.executionId, planId: runContext.planId, planDigest: runContext.planDigest,
+      profileHash: runContext.profileHash, agentId: runContext.agentId, agentRunId: runContext.agentRunId,
+      taskId: taskContext.taskId, roleId: taskContext.roleId, agentFence: runContext.agentFence, taskFence: taskContext.taskFence };
+    runContext.agentId = "agt_changed"; runContext.agentRunId = "agr_changed"; runContext.planDigest = "c".repeat(64);
+    const adapter = run.createRoleAdapter(taskContext);
+    for (const key of ["executionId", "planId", "planDigest", "profileHash", "agentId", "agentRunId", "taskId", "roleId", "agentFence", "taskFence"]) {
+      expect(() => readWorkforceCodeRoleOperation(adapter, { ...expected, [key]: key.endsWith("Fence") ? {} : "wrong" })).toThrow();
+    }
+    expect(() => readWorkforceCodeRoleOperation({ ...adapter }, expected)).toThrow();
+    expect(f.execute).not.toHaveBeenCalled();
+    await readWorkforceCodeRoleOperation(adapter, expected).generate(REQUEST);
+    await expect(readWorkforceCodeRoleOperation(adapter, expected).generate(REQUEST)).rejects.toMatchObject({ code: "WORKFORCE_ROLE_REQUEST_LIMIT" });
+    expect(f.execute).toHaveBeenCalledOnce(); expect(run.getUsage().totalRequests).toBe(1);
+  });
   it("preserves authenticated virtual-key accounting across two roles without a second RPM admission", async () => {
     const f = fixture(profile(1, ["analysis", "review"]));
     const manager = createApiKeyManager({ storePath: null });

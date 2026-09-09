@@ -9,6 +9,7 @@ import { stableStringify } from "@unified-ai-system/policy-engine";
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { redactSecretsInText } from "../security/secretSafety.js";
 import { rejectUnimplementedCodeDelivery } from "../workforce/workforceCodeDeliveryProfile.ts";
+import { assertWorkforceCodeDeliveryPreflight } from "../workforce/workforceCodeDeliveryRuntime.ts";
 
 const GOVERNED_WORKFORCE_TOOL_NAME = "workforce_execute";
 const GOVERNED_AGENT_ID_PATTERN = /^agt_[A-Za-z0-9_-]{1,128}$/u;
@@ -256,8 +257,6 @@ export function createWorkforceRoutes(application, helpers) {
       if (Object.hasOwn(input, "codeDelivery")) {
         if (typeof workforceExecutor?.assertExecutionPrerequisites !== "function") rejectUnimplementedCodeDelivery();
         await workforceExecutor.assertExecutionPrerequisites(input);
-        // A substituted executor cannot turn the first-batch preview into an executable lane.
-        rejectUnimplementedCodeDelivery();
       }
       governedExecution = await authorizeGovernedWorkforceExecution(req, input);
       if (governedExecution?.approval) {
@@ -271,6 +270,8 @@ export function createWorkforceRoutes(application, helpers) {
               signal: requestExecution?.signal ?? null,
               requestExecution,
               identity: req.enterpriseIdentity,
+              codeDeliveryPreflight: governedExecution.codeDeliveryPreflight,
+              codeDeliveryToolProxy: agentGovernance.toolProxy,
               agentGovernance: {
                 context: governedExecution.context,
                 policy: governedExecution.policy,
@@ -307,6 +308,9 @@ export function createWorkforceRoutes(application, helpers) {
               "Workforce completed, but its terminal result could not be returned safely.",
               503,
             );
+          }
+          if (completedResult?.codeDelivery && JSON.stringify(metered.result?.codeDelivery) !== JSON.stringify(completedResult.codeDelivery)) {
+            throw workforceGovernanceError("WORKFORCE_CODE_RESULT_UNAVAILABLE", "The complete code artifact could not be returned after terminal governance.", 503);
           }
           output = metered.result;
         }
@@ -400,6 +404,10 @@ export function createWorkforceRoutes(application, helpers) {
         );
       }
       descriptor = await workforceExecutor.describeExecution(input);
+      const codeDeliveryPreflight = descriptor.codeDelivery ? await prepareCodeAdmission(request, input, context, authorized.policy) : null;
+      if (descriptor.codeDelivery) assertWorkforceCodeDeliveryPreflight(codeDeliveryPreflight, {
+        tenantId: context.tenantId, userId: context.userId, agentId: context.agentId,
+        policyHash: authorized.policy.policyHash, planId: descriptor.planId, planDigest: descriptor.planDigest });
       const requestedParams = createSafeWorkforceGovernanceParams(input, descriptor);
       const proxyVerdict = await toolProxy.enforce({
         context,
@@ -465,6 +473,7 @@ export function createWorkforceRoutes(application, helpers) {
         approvedParams,
         remainingSteps,
         reserveStep: () => service.reserveUsage(context.agentId, authorized.policy.limits, { steps: 1 }),
+        codeDeliveryPreflight,
       };
     } catch (error) {
       toolExecutionLease?.release?.();
@@ -473,20 +482,44 @@ export function createWorkforceRoutes(application, helpers) {
     }
   }
 
+  async function prepareCodeAdmission(request, input, context, policy) {
+    const service = agentGovernance?.service;
+    if (typeof workforceExecutor?.prepareCodeDeliveryAdmission !== "function" || !service?.getUsage || !requestExecution?.signal) rejectUnimplementedCodeDelivery();
+    return workforceExecutor.prepareCodeDeliveryAdmission(input, { identity: request.enterpriseIdentity,
+      context, policy, usage: await service.getUsage(context.agentId), signal: requestExecution.signal,
+      deadlineAt: requestExecution.deadlineAt, toolProxy: agentGovernance.toolProxy });
+  }
+
   async function handleWorkforceExecuteApprove(req, res, { startedAt, body }) {
     if (!body) return;
     try {
       const userId = requireExecutionUserId(req);
       const tenantId = requireExecutionTenantId(req);
+      let codeOptions = {};
       if (Object.hasOwn(body, "codeDelivery")) {
         if (typeof workforceExecutor?.assertExecutionPrerequisites !== "function") rejectUnimplementedCodeDelivery();
         await workforceExecutor.assertExecutionPrerequisites({ ...body, userId, tenantId });
-        rejectUnimplementedCodeDelivery();
+        const context = buildGovernedWorkforceContext(req, body.agentId);
+        const service = agentGovernance?.service;
+        if (!context || !service?.getAgent || !service?.loadVerifiedPolicy) rejectUnimplementedCodeDelivery();
+        const record = await service.getAgent(context.agentId, context.tenantId);
+        const loaded = record && await service.loadVerifiedPolicy(context.agentId);
+        if (!record || record.status !== "ACTIVE" || record.parentAgentId !== null || record.generationDepth !== 0
+          || record.ownerUserId !== userId || !loaded?.policy || !Number.isFinite(Date.parse(loaded.policy.expiresAt))
+          || Date.parse(loaded.policy.expiresAt) <= Date.now()) {
+          throw workforceGovernanceError("WORKFORCE_CODE_APPROVAL_AGENT_REQUIRED", "Code approval requires the owning active root Agent and its verified policy.", 403);
+        }
+        const codeDeliveryPreflight = await prepareCodeAdmission(req, { ...body, userId, tenantId }, context, loaded.policy);
+        const descriptor = await workforceExecutor.describeExecution({ ...body, userId, tenantId });
+        assertWorkforceCodeDeliveryPreflight(codeDeliveryPreflight, { tenantId, userId, agentId: context.agentId,
+          policyHash: loaded.policy.policyHash, planId: descriptor.planId, planDigest: descriptor.planDigest });
+        codeOptions = { codeDeliveryPreflight, context, policy: loaded.policy };
       }
       const result = await workforceExecutor.approveExecution(
         { ...body, userId, tenantId },
         userId,
         body.approvedScopes,
+        codeOptions,
       );
       writeJson(res, 200, createOkEnvelope(result, { startedAt }));
     } catch (e) {

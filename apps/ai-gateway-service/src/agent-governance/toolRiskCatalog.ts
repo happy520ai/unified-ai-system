@@ -36,6 +36,10 @@ const BUILT_IN_TOOL_DESCRIPTORS: ToolGovernanceDescriptor[] = [
   descriptor({ name: "file_insert", actionType: "write", riskTraits: ["write_capable"], riskLevel: "medium", defaultDecision: "allow" }),
   descriptor({ name: "shell_exec", actionType: "write", riskTraits: ["code_execution", "destructive_operation"], riskLevel: "critical", defaultDecision: "deny" }),
   descriptor({ name: "code_run", actionType: "write", riskTraits: ["code_execution"], riskLevel: "critical", defaultDecision: "deny" }),
+  Object.freeze({ ...descriptor({ name: "workforce_verify_snapshot", actionType: "write", riskTraits: ["code_execution"],
+    riskLevel: "critical", defaultDecision: "allow",
+    description: "Server-only validation of an approved Workforce exact-file snapshot; requires its private one-shot capability." }),
+    riskTraits: Object.freeze(["code_execution"]) as unknown as ToolGovernanceDescriptor["riskTraits"] }),
   descriptor({ name: "web_fetch", actionType: "read", riskTraits: ["external_communication"], riskLevel: "medium", defaultDecision: "allow" }),
   descriptor({ name: "web_search", actionType: "read", riskTraits: ["external_communication"], riskLevel: "low", defaultDecision: "allow" }),
   descriptor({ name: "image_analyze", actionType: "read", riskTraits: [], riskLevel: "low", defaultDecision: "allow" }),
@@ -88,11 +92,17 @@ export interface ToolRiskCatalog {
 
 export function createToolRiskCatalog(options: { extra?: ToolGovernanceDescriptor[] } = {}): ToolRiskCatalog {
   const byName = new Map<string, ToolGovernanceDescriptor>();
-  for (const item of [...BUILT_IN_TOOL_DESCRIPTORS, ...(options.extra ?? [])]) {
+  for (const item of BUILT_IN_TOOL_DESCRIPTORS) {
+    byName.set(item.name, item);
+  }
+  const reservedSnapshot = (name: string) => name === "workforce_verify_snapshot" || name.startsWith("workforce_verify_snapshot:");
+  for (const item of options.extra ?? []) {
+    if (reservedSnapshot(item.name)) throw new Error("The Workforce snapshot validator is server-owned and cannot be replaced.");
     byName.set(item.name, item);
   }
   return {
     lookup(toolName: string) {
+      if (toolName.startsWith("workforce_verify_snapshot:")) return null;
       const direct = byName.get(toolName);
       if (direct) return direct;
       // Namespaced tools (mcp:<server>:<tool> and similar) inherit the
@@ -106,6 +116,7 @@ export function createToolRiskCatalog(options: { extra?: ToolGovernanceDescripto
       return null;
     },
     register(input: ToolGovernanceDescriptor) {
+      if (reservedSnapshot(input.name)) throw new Error("The Workforce snapshot validator is server-owned and cannot be replaced.");
       byName.set(input.name, input);
     },
     asMap() {
