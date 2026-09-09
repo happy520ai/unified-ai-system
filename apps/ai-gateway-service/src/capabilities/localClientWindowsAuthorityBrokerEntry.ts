@@ -29,16 +29,18 @@ export async function handleLocalClientAuthorityWorkerEnvelope(native: LocalClie
  * stdin. This helper performs no filesystem, registry, service or network writes.
  * It reuses the existing file signing protocol and never includes that key in output. */
 export function createLocalClientNativeAuthorityZeroCheckpoints(input: unknown) {
-  exact(input, ["hostId", "currentUserSid", "programDataBasePath", "anchorIds", "integrityKey"]);
+  const v2 = input !== null && typeof input === "object" && !Array.isArray(input) && Object.hasOwn(input, "packageManifestSha256");
+  exact(input, ["hostId", "currentUserSid", "programDataBasePath", "anchorIds", "integrityKey", ...(v2 ? ["packageManifestSha256"] : [])]);
   if (typeof input.hostId !== "string" || !input.hostId.startsWith("windows-authority-")
     || typeof input.integrityKey !== "string") fail();
   const key = Buffer.from(input.integrityKey, "base64");
   try {
     if (key.byteLength !== 32 || key.toString("base64") !== input.integrityKey) fail();
     input.integrityKey = "";
-    const bootstrap = parseLocalClientNativeAuthorityBootstrap({ version: "local-client-windows-authority-bootstrap-v1",
+    const bootstrap = parseLocalClientNativeAuthorityBootstrap({ version: v2 ? "local-client-windows-authority-bootstrap-v2" : "local-client-windows-authority-bootstrap-v1",
       installationId: input.hostId.slice("windows-authority-".length), hostId: input.hostId,
-      currentUserSid: input.currentUserSid, programDataBasePath: input.programDataBasePath, anchorIds: input.anchorIds });
+      currentUserSid: input.currentUserSid, programDataBasePath: input.programDataBasePath, anchorIds: input.anchorIds,
+      ...(v2 ? { packageManifestSha256: input.packageManifestSha256 } : {}) });
     const checkpoints = bootstrap.anchorIds.map(anchorId => {
       const plan = createLocalClientWindowsAuthorityProvisioningPlan(bootstrap.programDataBasePath, [], { anchorId });
       const unsigned = { fileVersion: LOCAL_CLIENT_WINDOWS_AUTHORITY_FILE_VERSION, hostId: bootstrap.hostId,

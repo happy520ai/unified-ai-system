@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { createRequire } from "node:module";
 import { isAbsolute, win32 } from "node:path";
 import {
@@ -11,19 +11,26 @@ import {
   LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_VERSION,
   type LocalClientWindowsAuthorityBrokerRequest, type LocalClientWindowsAuthorityPrivilegedBrokerPort,
 } from "./localClientWindowsProtectedAuthorityAnchor.ts";
+import { LOCAL_CLIENT_POP_PROTECTED_ANCHOR_EVIDENCE_VERSION, LOCAL_CLIENT_POP_REPLAY_CHECKPOINT_VERSION,
+  type LocalClientPopExternalMonotonicAnchorPort, type LocalClientPopReplayCheckpoint,
+  type LocalClientPopProtectedAnchorEvidence } from "./localClientPopSnapshotRollbackProtection.ts";
 
-const BOOTSTRAP_VERSION = "local-client-windows-authority-bootstrap-v1";
+const LEGACY_BOOTSTRAP_VERSION = "local-client-windows-authority-bootstrap-v1";
+const BOOTSTRAP_VERSION = "local-client-windows-authority-bootstrap-v2";
 const BOOTSTRAP_REQUEST = "local-client-windows-authority-bootstrap-request-v1";
 const BOOTSTRAP_RESPONSE = "local-client-windows-authority-bootstrap-response-v1";
 const MAX_BYTES = 65_536;
 const LOCK_NAME = "Global\\UnifiedAiSystemLocalClientAuthorityBroker-v1";
-export const LOCAL_CLIENT_NATIVE_AUTHORITY_RUNTIME_SLOTS = Object.freeze([
+const LEGACY_RUNTIME_SLOTS = Object.freeze([
   "gateway-vscode", "client-vscode", "workcopy-vscode", "gateway-cursor", "client-cursor", "workcopy-cursor",
 ]);
-export const LOCAL_CLIENT_NATIVE_AUTHORITY_VALIDATION_SLOTS = Object.freeze([
+const LEGACY_VALIDATION_SLOTS = Object.freeze([
   "validation-gateway-vscode", "validation-client-vscode", "validation-workcopy-vscode",
   "validation-gateway-cursor", "validation-client-cursor", "validation-workcopy-cursor",
 ]);
+export const LOCAL_CLIENT_NATIVE_AUTHORITY_LEGACY_SLOTS = Object.freeze([...LEGACY_RUNTIME_SLOTS, ...LEGACY_VALIDATION_SLOTS]);
+export const LOCAL_CLIENT_NATIVE_AUTHORITY_RUNTIME_SLOTS = Object.freeze([...LEGACY_RUNTIME_SLOTS, "pop-replay"]);
+export const LOCAL_CLIENT_NATIVE_AUTHORITY_VALIDATION_SLOTS = Object.freeze([...LEGACY_VALIDATION_SLOTS, "validation-pop-replay"]);
 // One-use validation must not consume the future editor runtime's baselines.
 export const LOCAL_CLIENT_NATIVE_AUTHORITY_SLOTS = Object.freeze([
   ...LOCAL_CLIENT_NATIVE_AUTHORITY_RUNTIME_SLOTS, ...LOCAL_CLIENT_NATIVE_AUTHORITY_VALIDATION_SLOTS,
@@ -46,9 +53,12 @@ export interface LocalClientNativeAuthorityApi {
   request(payload: string): Promise<string>;
 }
 export type LocalClientNativeAuthorityBootstrap = Readonly<{
-  version: typeof BOOTSTRAP_VERSION; installationId: string; hostId: string;
+  version: typeof BOOTSTRAP_VERSION | typeof LEGACY_BOOTSTRAP_VERSION; installationId: string; hostId: string;
   currentUserSid: string; programDataBasePath: string; anchorIds: readonly string[];
+  packageManifestSha256?: string;
 }>;
+const nativeClientBindings = new WeakMap<LocalClientWindowsProtectedAuthorityAnchor,
+  Readonly<{ bootstrap: LocalClientNativeAuthorityBootstrap; anchorId: string }>>();
 
 /** No automatic installation or fallback to a JavaScript authority model. The
  * service entry loads only its protected sibling addon; the build package can
@@ -66,19 +76,23 @@ export function loadLocalClientNativeAuthority(addonPath: string): LocalClientNa
 }
 
 export function parseLocalClientNativeAuthorityBootstrap(value: unknown): LocalClientNativeAuthorityBootstrap {
-  exact(value, ["version", "installationId", "hostId", "currentUserSid", "programDataBasePath", "anchorIds"]);
-  if (value.version !== BOOTSTRAP_VERSION || typeof value.installationId !== "string"
+  const isV2 = isRecord(value) && value.version === BOOTSTRAP_VERSION;
+  exact(value, ["version", "installationId", "hostId", "currentUserSid", "programDataBasePath", "anchorIds", ...(isV2 ? ["packageManifestSha256"] : [])]);
+  const slots = isV2 ? LOCAL_CLIENT_NATIVE_AUTHORITY_SLOTS : LOCAL_CLIENT_NATIVE_AUTHORITY_LEGACY_SLOTS;
+  if ((value.version !== BOOTSTRAP_VERSION && value.version !== LEGACY_BOOTSTRAP_VERSION) || typeof value.installationId !== "string"
     || !/^[a-f0-9-]{16,64}$/u.test(value.installationId)
     || value.hostId !== `windows-authority-${value.installationId}`
     || typeof value.currentUserSid !== "string" || !/^S-1-5-21-(?:[0-9]+-){3}[0-9]+$/u.test(value.currentUserSid)
     || typeof value.programDataBasePath !== "string" || !Array.isArray(value.anchorIds)
-    || value.anchorIds.length !== LOCAL_CLIENT_NATIVE_AUTHORITY_SLOTS.length
+    || value.anchorIds.length !== slots.length
     || new Set(value.anchorIds).size !== value.anchorIds.length
-    || value.anchorIds.some(id => !LOCAL_CLIENT_NATIVE_AUTHORITY_SLOTS.includes(id))) fail();
+    || value.anchorIds.some(id => !slots.includes(id))
+    || (isV2 && (typeof value.packageManifestSha256 !== "string" || !/^[a-f0-9]{64}$/u.test(value.packageManifestSha256)))) fail();
   for (const anchorId of value.anchorIds) createLocalClientWindowsAuthorityProvisioningPlan(value.programDataBasePath, [], { anchorId });
-  return Object.freeze({ version: BOOTSTRAP_VERSION, installationId: value.installationId,
+  return Object.freeze({ version: value.version, installationId: value.installationId,
     hostId: String(value.hostId), currentUserSid: value.currentUserSid,
-    programDataBasePath: value.programDataBasePath, anchorIds: Object.freeze([...value.anchorIds]) });
+    programDataBasePath: value.programDataBasePath, anchorIds: Object.freeze([...value.anchorIds]),
+    ...(isV2 ? { packageManifestSha256: String(value.packageManifestSha256) } : {}) });
 }
 
 /** Adapts authenticated native request state to the existing broker OS port.
@@ -198,17 +212,88 @@ export async function createLocalClientNativeAuthorityClient(native: LocalClient
     if (key.byteLength !== 32 || key.toString("base64") !== response.integrityKey) fail();
     response.integrityKey = "";
     const bootstrap = parseLocalClientNativeAuthorityBootstrap(response.bootstrap);
+    if (!bootstrap.anchorIds.includes(anchorId)) throw new Error("LOCAL_CLIENT_NATIVE_AUTHORITY_SLOT_VERSION_REQUIRED");
     const environment = native.inspectEnvironment();
     if (environment.osPlatform !== "win32" || win32.normalize(environment.programDataBasePath).toLowerCase()
       !== win32.normalize(bootstrap.programDataBasePath).toLowerCase()) fail();
     const target = createLocalClientWindowsAuthorityProvisioningPlan(bootstrap.programDataBasePath, [], { anchorId });
     const invoke = async (request: LocalClientWindowsAuthorityBrokerRequest) => parseBounded(await native.request(boundedJson(request))) as Awaited<ReturnType<LocalClientWindowsAuthorityPrivilegedBrokerPort["inspect"]>>;
     const broker: LocalClientWindowsAuthorityPrivilegedBrokerPort = { inspect: invoke, prepareNext: invoke, finalize: invoke, enrollBaseline: invoke };
-    return new LocalClientWindowsProtectedAuthorityAnchor({ enabled: true,
+    const authority = new LocalClientWindowsProtectedAuthorityAnchor({ enabled: true,
       anchorPath: target.storage.anchorPath, programDataRoot: target.storage.programDataRoot,
       hklmKeyPath: target.registry.keyPath, hostId: bootstrap.hostId, serviceSid: LOCAL_CLIENT_WINDOWS_AUTHORITY_SERVICE_SID,
       currentUserSid: bootstrap.currentUserSid, integrityKey: key, broker });
+    nativeClientBindings.set(authority, Object.freeze({ bootstrap, anchorId }));
+    return authority;
   } finally { key.fill(0); }
+}
+
+/** The native API is a trusted OS transport, not caller JSON. This creates no baseline or service. */
+export async function createLocalClientNativePopReplayBinding(native: LocalClientNativeAuthorityApi) {
+  const authority = await createLocalClientNativeAuthorityClient(native, "pop-replay");
+  const binding = nativeClientBindings.get(authority)!;
+  if (binding.bootstrap.version !== BOOTSTRAP_VERSION || !binding.bootstrap.packageManifestSha256) {
+    await authority.close(); throw new Error("LOCAL_CLIENT_NATIVE_POP_V2_REQUIRED");
+  }
+  const deploymentEvidenceSha256 = binding.bootstrap.packageManifestSha256;
+  const anchorBindingSha256 = createHash("sha256").update(JSON.stringify([
+    "local-client-native-pop-anchor-v1", binding.bootstrap.installationId, binding.bootstrap.hostId,
+    binding.bootstrap.currentUserSid, binding.bootstrap.programDataBasePath, binding.anchorId,
+  ])).digest("hex");
+  // Capture the real private-validation entry point before exposing the authority.
+  const verifyCheckpointChallenge = authority.verifyCheckpointChallenge.bind(authority);
+  let closed = false, verified = false, adapterCreated = false;
+  let verifying = false, verificationSequence = 0;
+  const close = async () => { closed = true; verified = false; await authority.close(); };
+  return Object.freeze({ authority, anchorBindingSha256, close,
+    createEvidenceAdapter(storeBindingSha256: string) {
+      if (closed || adapterCreated || !/^[a-f0-9]{64}$/u.test(storeBindingSha256)) fail();
+      adapterCreated = true;
+      const combinedBinding = createHash("sha256").update(JSON.stringify([
+        storeBindingSha256, anchorBindingSha256, deploymentEvidenceSha256,
+      ])).digest("hex");
+      const verifyCurrent: LocalClientPopExternalMonotonicAnchorPort["verifyCurrent"] = async ({ checkpoint, challenge }) => {
+        const sequence = ++verificationSequence;
+        verified = false;
+        // An overlapping attempt invalidates the current result; neither may publish ready.
+        if (closed || verifying) fail();
+        verifying = true;
+        let challengeSnapshot: Buffer | undefined;
+        try {
+          if (checkpoint?.checkpointVersion !== LOCAL_CLIENT_POP_REPLAY_CHECKPOINT_VERSION
+            || checkpoint.state !== "ready" || checkpoint.storeBindingSha256 !== storeBindingSha256
+            || checkpoint.anchorBindingSha256 !== anchorBindingSha256
+            || !(challenge instanceof Uint8Array) || challenge.byteLength !== 32) fail();
+          const generation = checkpoint.generation, digest = checkpoint.checkpointDigestSha256;
+          challengeSnapshot = Buffer.from(challenge);
+          const challengeSha256 = createHash("sha256").update(challengeSnapshot).digest("hex");
+          const proof = await verifyCheckpointChallenge({ generation, digest,
+            bindingSha256: combinedBinding, challenge: challengeSnapshot });
+          // This result follows response HMAC+nonce, independent file, HKLM and ACL verification.
+          if (closed || sequence !== verificationSequence || proof.generation !== generation || proof.digest !== digest
+            || proof.challengeSha256 !== challengeSha256 || !/^[a-f0-9]{64}$/u.test(proof.attestationSha256)) fail();
+          verified = true;
+          return Object.freeze({ evidenceVersion: LOCAL_CLIENT_POP_PROTECTED_ANCHOR_EVIDENCE_VERSION,
+            evidenceKind: "native-protected-external-monotonic-anchor", storeBindingSha256, anchorBindingSha256,
+            generation, checkpointDigestSha256: digest, challengeSha256,
+            deploymentEvidenceSha256, nativeDeploymentVerified: true, monotonic: true,
+            externalToReplayStoreSnapshot: true, protectedFromReplayStoreWriter: true, attestationVerified: true }) satisfies LocalClientPopProtectedAnchorEvidence;
+        } catch (error) { verified = false; throw error; }
+        finally { verifying = false; challengeSnapshot?.fill(0); }
+      };
+      return Object.freeze({
+        get status() { const ready = !closed && !verifying && verified; return Object.freeze({ available: ready,
+          mode: "windows-native-pop-replay-v2", anchorBindingSha256, deploymentEvidenceSha256,
+          nativeDeploymentVerified: ready, monotonic: ready, externalToReplayStoreSnapshot: ready,
+          protectedFromReplayStoreWriter: ready, challengeAttestation: ready }); },
+        verifyCurrent, close,
+        async preflight(checkpoint: LocalClientPopReplayCheckpoint) {
+          const challenge = randomBytes(32);
+          try { return await verifyCurrent({ checkpoint, challenge }); } finally { challenge.fill(0); }
+        },
+      });
+    },
+  });
 }
 
 export function parseBounded(text: string): unknown {

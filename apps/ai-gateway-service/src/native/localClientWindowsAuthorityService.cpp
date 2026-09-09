@@ -37,8 +37,8 @@ constexpr wchar_t ServiceAccount[] = L"NT SERVICE\\UnifiedAiSystemLocalClientAut
 constexpr wchar_t ServiceSid[] = L"S-1-5-80-2517572854-3647151239-2500651488-2982019916-1580030387";
 constexpr wchar_t PipeName[] = L"\\\\.\\pipe\\UnifiedAiSystemLocalClientAuthorityBroker-v1";
 constexpr wchar_t RegistryRoot[] = L"Software\\UnifiedAISystem\\LocalClientAuthority";
-constexpr char PackageVersion[] = "local-client-windows-authority-package-v1";
-constexpr char BootstrapVersion[] = "local-client-windows-authority-bootstrap-v1";
+constexpr char PackageVersion[] = "local-client-windows-authority-package-v2";
+constexpr char BootstrapVersion[] = "local-client-windows-authority-bootstrap-v2";
 constexpr char OwnershipVersion[] = "local-client-windows-authority-installation-v1";
 constexpr char NonceHeader[] = "UAI-AUTHORITY-NONCES-V1\n";
 constexpr size_t MaxFrame = 65536, MaxPrivateFrame = 8 * MaxFrame;
@@ -46,9 +46,10 @@ constexpr DWORD RequestDeadlineMs = 8000;
 const std::array<std::string, 7> PackageFiles = {"bin/authority-broker-host.exe", "bin/node.exe",
   "bin/authority-worker.mjs", "bin/authority-install.mjs", "bin/local-client-authority.node",
   "licenses/LICENSE.node", "licenses/LICENSE.project"};
-const std::array<std::string, 12> AnchorIds = {"gateway-vscode", "client-vscode", "workcopy-vscode",
+const std::array<std::string, 14> AnchorIds = {"gateway-vscode", "client-vscode", "workcopy-vscode",
   "gateway-cursor", "client-cursor", "workcopy-cursor", "validation-gateway-vscode", "validation-client-vscode",
-  "validation-workcopy-vscode", "validation-gateway-cursor", "validation-client-cursor", "validation-workcopy-cursor"};
+  "validation-workcopy-vscode", "validation-gateway-cursor", "validation-client-cursor", "validation-workcopy-cursor",
+  "pop-replay", "validation-pop-replay"};
 
 [[noreturn]] void Reject(const char* code) { throw std::runtime_error(code); }
 void Require(bool value, const char* code) { if (!value) Reject(code); }
@@ -638,10 +639,11 @@ InstalledRuntime OpenInstalledRuntime(const std::wstring& root) {
     Require(HashFile(file.value) == hashes.at(name), "INSTALLED_CODE_MISMATCH"); out.code.push_back(std::move(file)); }
   auto bootstrap = OpenPath(Join(root, L"bootstrap.json"), false); CheckProtectedAcl(bootstrap.value, true);
   out.bootstrap = JsonParser(ReadFileBounded(bootstrap.value, MaxFrame)).parse();
-  out.bootstrap.exact({"version", "installationId", "hostId", "currentUserSid", "programDataBasePath", "anchorIds"});
+  out.bootstrap.exact({"version", "installationId", "hostId", "currentUserSid", "programDataBasePath", "anchorIds", "packageManifestSha256"});
   Require(out.bootstrap.at("version").string() == BootstrapVersion
     && out.bootstrap.at("installationId").string() == ownership.at("installationId").string()
     && out.bootstrap.at("hostId").string() == "windows-authority-" + ownership.at("installationId").string()
+    && out.bootstrap.at("packageManifestSha256").string() == ownership.at("packageManifestSha256").string()
     && SamePath(Wide(out.bootstrap.at("programDataBasePath").string()), ProgramData()), "BOOTSTRAP_BINDING_MISMATCH");
   CheckAnchorList(out.bootstrap.at("anchorIds")); out.caller = Wide(out.bootstrap.at("currentUserSid").string());
   Require(out.caller.rfind(L"S-1-5-21-", 0) == 0, "BOOTSTRAP_OPERATOR_INVALID"); Sid validCaller(out.caller);
@@ -704,12 +706,14 @@ void Install(Package& package, const std::wstring& base, Operator& caller) {
   WriteNewFile(Join(root, L"integrity-key.dpapi"), reinterpret_cast<const char*>(encrypted.pbData), encrypted.cbData, privateState);
   const auto bootstrap = "{\"version\":" + QuoteJson(BootstrapVersion) + ",\"installationId\":" + QuoteJson(installationId)
     + ",\"hostId\":" + QuoteJson(hostId) + ",\"currentUserSid\":" + QuoteJson(Utf8(caller.sid))
-    + ",\"programDataBasePath\":" + QuoteJson(Utf8(base)) + ",\"anchorIds\":" + AnchorsJson() + '}';
+    + ",\"programDataBasePath\":" + QuoteJson(Utf8(base)) + ",\"anchorIds\":" + AnchorsJson()
+    + ",\"packageManifestSha256\":" + QuoteJson(package.manifestHash) + '}';
   WriteNewFile(Join(root, L"bootstrap.json"), bootstrap, privateState);
   WriteNewFile(Join(root, L"request-nonces.bin"), std::string(NonceHeader), privateState);
   PrivateText encoded; encoded.value = Base64(key.bytes);
   PrivateText helperInput; helperInput.value = "{\"hostId\":" + QuoteJson(hostId) + ",\"currentUserSid\":" + QuoteJson(Utf8(caller.sid))
-    + ",\"programDataBasePath\":" + QuoteJson(Utf8(base)) + ",\"anchorIds\":" + AnchorsJson() + ",\"integrityKey\":" + QuoteJson(encoded.value) + '}';
+    + ",\"programDataBasePath\":" + QuoteJson(Utf8(base)) + ",\"anchorIds\":" + AnchorsJson()
+    + ",\"packageManifestSha256\":" + QuoteJson(package.manifestHash) + ",\"integrityKey\":" + QuoteJson(encoded.value) + '}';
   auto signedData = JsonParser(RunWorker(root, L"authority-install.mjs", [&](HANDLE) { return helperInput.value; }, nullptr, nullptr, L"--prepare-bootstrap")).parse();
   signedData.exact({"checkpoints"}); const auto& checkpoints = signedData.at("checkpoints"); Require(checkpoints.kind == Json::Array && checkpoints.list.size() == AnchorIds.size(), "SIGNER_REPLY_INVALID");
   std::map<std::string, std::string> signedCheckpoints;

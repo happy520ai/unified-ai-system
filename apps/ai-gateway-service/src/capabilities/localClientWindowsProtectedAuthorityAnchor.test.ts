@@ -1,4 +1,5 @@
 import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join, win32 } from "node:path";
 
@@ -88,6 +89,39 @@ describe("LocalClientWindowsProtectedAuthorityAnchor", () => {
   });
 
   describeWindowsAnchorFlows("broker-attested win32 flows", () => {
+    it("binds the supplied PoP challenge and checkpoint context into the HMAC-verified broker nonce", async () => {
+      const broker = new FakeBroker(createConfiguration({ broker: undefined }), checkpoint(1, DIGEST_ONE));
+      await broker.persistFile();
+      const requests: LocalClientWindowsAuthorityBrokerRequest[] = [];
+      const anchor = createAnchor({ inspect: request => { requests.push(request); return broker.inspect(request); },
+        prepareNext: broker.prepareNext.bind(broker), finalize: broker.finalize.bind(broker) });
+      const bindingSha256 = "1".repeat(64), challenge = Buffer.alloc(32, 42);
+      const proof = await anchor.verifyCheckpointChallenge({ generation: 1, digest: DIGEST_ONE, bindingSha256, challenge });
+      const challengeSha256 = createHash("sha256").update(challenge).digest("hex");
+      const nonce = createHash("sha256").update(JSON.stringify([
+        "local-client-pop-native-challenge-v1", bindingSha256, 1, DIGEST_ONE, challengeSha256,
+      ])).digest("hex");
+      expect(requests[0]!.nonce).toBe(nonce);
+      expect(proof).toMatchObject({ generation: 1, digest: DIGEST_ONE, nonce, challengeSha256,
+        attestationSha256: expect.stringMatching(/^[a-f0-9]{64}$/u) });
+      await expect(anchor.verifyCheckpointChallenge({ generation: 1, digest: DIGEST_ONE, bindingSha256, challenge })).rejects.toThrow();
+      await anchor.verifyCheckpointChallenge({ generation: 1, digest: DIGEST_ONE, bindingSha256, challenge: Buffer.alloc(32, 43) });
+      expect(requests[1]!.nonce).not.toBe(nonce);
+      expect(broker.operations).toEqual(["inspect", "inspect"]);
+      await anchor.close();
+    });
+
+    it.each(["hmac", "nonce", "checkpoint"] as const)("rejects a PoP challenge proof with incorrect %s binding", async failure => {
+      const broker = new FakeBroker(createConfiguration({ broker: undefined }), checkpoint(1, DIGEST_ONE),
+        failure === "hmac" ? { forgeResponseHmac: true } : failure === "nonce"
+          ? { mutateUnsignedResponse: response => ({ ...response, nonce: "f".repeat(64) }) } : {});
+      await broker.persistFile();
+      const anchor = createAnchor(broker);
+      await expect(anchor.verifyCheckpointChallenge({ generation: failure === "checkpoint" ? 2 : 1, digest: DIGEST_ONE,
+        bindingSha256: "1".repeat(64), challenge: Buffer.alloc(32, 44) })).rejects.toThrow();
+      await anchor.close();
+    });
+
     it("explicitly enrolls an authenticated zero baseline and retries only the exact generation-one digest", async () => {
       const broker = new FakeBroker(createConfiguration({ broker: undefined }), checkpoint(0, null));
       await broker.persistFile();

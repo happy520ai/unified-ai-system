@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { lstat, open, realpath } from "node:fs/promises";
 import { win32 } from "node:path";
 
@@ -240,6 +240,7 @@ type NormalizedConfiguration = Readonly<{
 type StrictInspection = Readonly<{
   status: LocalClientWindowsProtectedAuthorityStatus;
   checkpoint: LocalClientWindowsAuthorityCheckpointState;
+  attestationSha256: string;
 }>;
 
 const SYSTEM_SID = "S-1-5-18";
@@ -282,6 +283,25 @@ export class LocalClientWindowsProtectedAuthorityAnchor {
         errorReason(error),
       );
     }
+  }
+
+  /** The supplied PoP challenge and binding enter the signed native nonce; status alone cannot satisfy this call. */
+  async verifyCheckpointChallenge(input: Readonly<{ generation: number; digest: string;
+    challenge: Uint8Array; bindingSha256: string }>) {
+    this.#assertOpen();
+    const generation = assertGeneration(input?.generation, false), digest = assertDigest(input?.digest);
+    if (!(input?.challenge instanceof Uint8Array) || input.challenge.byteLength !== 32
+      || typeof input.bindingSha256 !== "string" || !SHA256_PATTERN.test(input.bindingSha256)) throw configurationError();
+    const challengeSha256 = createHash("sha256").update(input.challenge).digest("hex");
+    const nonce = createHash("sha256").update(JSON.stringify([
+      "local-client-pop-native-challenge-v1", input.bindingSha256, generation, digest, challengeSha256,
+    ])).digest("hex");
+    const inspected = await this.#inspectStrict(nonce);
+    if (inspected.status.state !== "ready" || !inspected.status.rollbackResistant
+      || inspected.checkpoint.currentGeneration !== generation || inspected.checkpoint.currentDigest !== digest) {
+      throw attestationError("CHECKPOINT_DIVERGED");
+    }
+    return Object.freeze({ generation, digest, nonce, challengeSha256, attestationSha256: inspected.attestationSha256 });
   }
 
   async assertCurrent(
@@ -440,7 +460,7 @@ export class LocalClientWindowsProtectedAuthorityAnchor {
     this.#usedNonces.clear();
   }
 
-  async #inspectStrict(): Promise<StrictInspection> {
+  async #inspectStrict(challengeNonce?: string): Promise<StrictInspection> {
     const configuration = this.#requireConfiguration();
     if (process.platform !== "win32") throw unavailableReason("NOT_WINDOWS");
     if (!configuration.broker) throw unavailableReason("BROKER_UNAVAILABLE");
@@ -451,7 +471,7 @@ export class LocalClientWindowsProtectedAuthorityAnchor {
       expectedCurrentDigest: localFile.currentDigest,
       nextGeneration: localFile.pendingGeneration,
       nextDigest: localFile.pendingDigest,
-    });
+    }, challengeNonce);
     let response: LocalClientWindowsAuthorityBrokerResponse;
     try {
       response = await configuration.broker.inspect(request);
@@ -476,9 +496,9 @@ export class LocalClientWindowsProtectedAuthorityAnchor {
     expectedCurrentDigest: string | null;
     nextGeneration: number | null;
     nextDigest: string | null;
-  }>): LocalClientWindowsAuthorityBrokerRequest {
+  }>, challengeNonce?: string): LocalClientWindowsAuthorityBrokerRequest {
     const configuration = this.#requireConfiguration();
-    const nonce = this.#nextNonce(configuration);
+    const nonce = this.#nextNonce(configuration, challengeNonce);
     const unsigned = {
       requestVersion: LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_VERSION,
       operation: input.operation,
@@ -504,9 +524,9 @@ export class LocalClientWindowsProtectedAuthorityAnchor {
     });
   }
 
-  #nextNonce(configuration: NormalizedConfiguration): string {
+  #nextNonce(configuration: NormalizedConfiguration, challengeNonce?: string): string {
     let nonce: unknown;
-    try { nonce = configuration.nonceFactory(); } catch { throw configurationError(); }
+    try { nonce = challengeNonce ?? configuration.nonceFactory(); } catch { throw configurationError(); }
     if (typeof nonce !== "string" || !NONCE_PATTERN.test(nonce) || this.#usedNonces.has(nonce)) {
       throw configurationError();
     }
@@ -700,7 +720,8 @@ function validateAttestation(
   }
   validateAclFacts(configuration, response.acl);
   const status = statusFromCheckpoint(configuration, fileState);
-  return Object.freeze({ status, checkpoint: fileState });
+  return Object.freeze({ status, checkpoint: fileState,
+    attestationSha256: createHash("sha256").update(JSON.stringify(response)).digest("hex") });
 }
 
 function validateResponseShape(response: unknown): asserts response is LocalClientWindowsAuthorityBrokerResponse {
