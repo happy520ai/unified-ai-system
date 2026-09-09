@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { runStages, testCounts, validationEnvironment } from "./verify-windows.mjs";
 import { REPO_ROOT } from "./check-critical-js.mjs";
 
@@ -71,4 +73,26 @@ test("an explicit suite worker limit is applied and invalid limits fail configur
     encoding: "utf8", timeout: 10000, windowsHide: true });
   assert.notEqual(invalid.status, 0);
   assert.match(invalid.stderr, /must be an integer from 1 to 8/);
+});
+
+test("Vitest selects the requested workspace test without its evidence copy", () => {
+  const evidenceRoot = realpathSync(join(REPO_ROOT, "apps/ai-gateway-service/evidence"));
+  const fixtureRoot = mkdtempSync(join(evidenceRoot, "test-discovery-"));
+  const selected = "apps/ai-gateway-service/src/capabilities/localClientWindowsAuthorityNative.test.ts";
+  const copy = join(fixtureRoot, selected);
+  const output = join(fixtureRoot, "selected.json");
+  try {
+    mkdirSync(dirname(copy), { recursive: true });
+    writeFileSync(copy, "throw new Error('An evidence copy must never be imported as a workspace test');\n");
+    const env = validationEnvironment(process.env, fixtureRoot, fixtureRoot);
+    const listed = spawnSync(process.execPath, ["node_modules/vitest/vitest.mjs", "list", "--filesOnly", `--json=${output}`, selected],
+      { cwd: REPO_ROOT, env, encoding: "utf8", timeout: 10000, windowsHide: true });
+    assert.equal(listed.status, 0, listed.stderr || listed.stdout);
+    const files = JSON.parse(readFileSync(output, "utf8")).map(item => item.file.replaceAll("\\", "/"));
+    assert.deepEqual(files, [join(REPO_ROOT, selected).replaceAll("\\", "/")]);
+  } finally {
+    assert.equal(realpathSync(fixtureRoot), fixtureRoot);
+    assert.equal(dirname(fixtureRoot), evidenceRoot);
+    rmSync(fixtureRoot, { recursive: true, force: true });
+  }
 });

@@ -12,8 +12,9 @@ const maxWorkers = configuredWorkers === undefined
 export default defineConfig({
   test: {
     include: [
-      "packages/**/src/**/*.test.{js,mjs,ts,mts}",
-      "apps/**/src/**/*.test.{js,mjs,ts,mts}",
+      // Match pnpm's direct workspace roots, not source copies in evidence.
+      "packages/*/src/**/*.test.{js,mjs,ts,mts}",
+      "apps/*/src/**/*.test.{js,mjs,ts,mts}",
     ],
     testTimeout: 15000,
     hookTimeout: 10000,
