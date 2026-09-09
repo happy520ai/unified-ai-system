@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import { Readable } from "node:stream";
 import { describe, expect, it, vi, type Mock } from "vitest";
+import { createApiKeyManager } from "../enterprise/apiKeyManager.js";
 import {
   createGeminiGenerateContentResponse,
   createGeminiModelList,
@@ -17,6 +18,17 @@ const descriptors = [
     models: [{ id: "local-fake-model", enabled: true, capabilities: ["chat"] }],
   },
 ];
+
+function realVirtualKey(limitTokens = 1000) {
+  const manager = createApiKeyManager({ storePath: null, now: () => Date.parse("2026-09-09T00:00:00Z") });
+  const { key, record } = manager.create({ role: "operator", tenantId: "tenant-budget",
+    budget: { limitTokens, window: "daily" }, rateLimit: { requestsPerMinute: 10 } });
+  const authenticated = manager.validate(key);
+  if (!authenticated.valid || !authenticated.record) throw new Error("Synthetic key did not authenticate.");
+  const identity = { tenantId: authenticated.record.tenantId, userId: `api-key:${record.keyFingerprint}`,
+    apiKeyFingerprint: authenticated.record.keyFingerprint };
+  return { manager, record, identity, usage: () => manager.describeUsage({ keyId: record.keyId })!.usage };
+}
 
 interface TestRequest extends Readable {
   method: string;
@@ -223,6 +235,90 @@ describe("geminiCompatibilityRoutes generateContent", () => {
     expect(response.statusCode).toBeGreaterThanOrEqual(500);
     expect(response.body.error.status).toBeTruthy();
     expect(response.body.error.message).toContain("provider timed out");
+  });
+});
+
+describe("T025 Gemini real-manager request and token accounting", () => {
+  const body = { contents: [{ role: "user", parts: [{ text: "hello" }] }] };
+
+  it("rejects an exhausted normal request before the provider and without another admission", async () => {
+    const fixture = realVirtualKey(12);
+    fixture.manager.recordUsage({ keyId: fixture.record.keyId, tokens: 12 });
+    const response = createResponseRecorder(); const gatewayService = createGatewayService();
+    await dispatchGeminiCompatibilityRoutes({ ...createContext({ body, response, gatewayService, enterpriseIdentity: fixture.identity }),
+      enterpriseGovernanceService: { getApiKeyManager: () => fixture.manager } });
+    expect(response.statusCode).toBe(429);
+    expect(gatewayService.execute).not.toHaveBeenCalled();
+    expect(response.body.error).toMatchObject({ code: 429, status: "RESOURCE_EXHAUSTED", details: [{ reason: "VIRTUAL_KEY_BUDGET_EXHAUSTED" }] });
+    expect(fixture.usage()).toMatchObject({ requestCount: 0, rateRequestCount: 0, tokensUsed: 12 });
+  });
+
+  it("admits one normal request and charges its reported tokens once", async () => {
+    const fixture = realVirtualKey(); const charge = vi.spyOn(fixture.manager, "recordUsage");
+    const response = createResponseRecorder(); const gatewayService = createGatewayService();
+    await dispatchGeminiCompatibilityRoutes({ ...createContext({ body, response, gatewayService, enterpriseIdentity: fixture.identity }),
+      enterpriseGovernanceService: { getApiKeyManager: () => fixture.manager } });
+    expect(response.statusCode).toBe(200);
+    expect(gatewayService.execute).toHaveBeenCalledOnce();
+    expect(fixture.usage()).toMatchObject({ requestCount: 1, rateRequestCount: 1, tokensUsed: 12 });
+    expect(charge).toHaveBeenCalledExactlyOnceWith({ keyId: fixture.record.keyFingerprint, tokens: 12 });
+  });
+
+  it("charges a successful SSE terminal usage once in addition to its single admission", async () => {
+    const fixture = realVirtualKey(); const charge = vi.spyOn(fixture.manager, "recordUsage");
+    const response = createResponseRecorder(); const gatewayService = createGatewayService();
+    const stream = vi.spyOn(gatewayService, "executeStream");
+    await dispatchGeminiCompatibilityRoutes({ ...createContext({ body, response, gatewayService, enterpriseIdentity: fixture.identity,
+      path: "/v1beta/models/local-fake-model:streamGenerateContent" }),
+    enterpriseGovernanceService: { getApiKeyManager: () => fixture.manager } });
+    expect(response.statusCode).toBe(200);
+    expect(stream).toHaveBeenCalledOnce();
+    expect(response.text).toContain('"totalTokenCount":12');
+    expect(fixture.usage()).toMatchObject({ requestCount: 1, rateRequestCount: 1, tokensUsed: 12 });
+    expect(charge).toHaveBeenCalledExactlyOnceWith({ keyId: fixture.record.keyFingerprint, tokens: 12 });
+  });
+
+  it("prechecks the aggregate batch input instead of admitting only its cheap first item", async () => {
+    const fixture = realVirtualKey(10);
+    const response = createResponseRecorder(); const gatewayService = createGatewayService();
+    await dispatchGeminiCompatibilityRoutes({ ...createContext({ response, gatewayService, enterpriseIdentity: fixture.identity,
+      path: "/v1beta/models/local-fake-model:batchGenerateContent", body: { requests: [
+        { contents: [{ role: "user", parts: [{ text: "hi" }] }] },
+        { contents: [{ role: "user", parts: [{ text: "costly ".repeat(128) }] }] },
+      ] } }), enterpriseGovernanceService: { getApiKeyManager: () => fixture.manager } });
+    expect(response.statusCode).toBe(429);
+    expect(gatewayService.execute).not.toHaveBeenCalled();
+    expect(fixture.usage()).toMatchObject({ requestCount: 0, rateRequestCount: 0, tokensUsed: 0 });
+  });
+
+  it("preserves one batch request admission while charging both successful item results", async () => {
+    const fixture = realVirtualKey(); const charge = vi.spyOn(fixture.manager, "recordUsage");
+    const response = createResponseRecorder(); const gatewayService = createGatewayService();
+    await dispatchGeminiCompatibilityRoutes({ ...createContext({ response, gatewayService, enterpriseIdentity: fixture.identity,
+      path: "/v1beta/models/local-fake-model:batchGenerateContent", body: { requests: [body, body] } }),
+    enterpriseGovernanceService: { getApiKeyManager: () => fixture.manager } });
+    expect(response.statusCode).toBe(200);
+    expect(gatewayService.execute).toHaveBeenCalledTimes(2);
+    expect(charge).toHaveBeenCalledTimes(2);
+    expect(fixture.usage()).toMatchObject({ requestCount: 1, rateRequestCount: 1, tokensUsed: 24 });
+  });
+
+  it("records an explicit text estimate when a completed result has no valid total", async () => {
+    const fixture = realVirtualKey(); const response = createResponseRecorder(); const gatewayService = createGatewayService();
+    gatewayService.execute.mockResolvedValue({ success: true, data: { message: { content: "A complete answer without upstream usage." } } });
+    const writeServiceLog = vi.fn();
+    await dispatchGeminiCompatibilityRoutes({ ...createContext({ body, response, gatewayService, enterpriseIdentity: fixture.identity }),
+      writeServiceLog, enterpriseGovernanceService: { getApiKeyManager: () => fixture.manager } });
+    expect(response.statusCode).toBe(200); expect(fixture.usage().tokensUsed).toBeGreaterThan(0);
+    expect(writeServiceLog).toHaveBeenCalledWith("virtual_key_usage_recorded", expect.objectContaining({ calculationSource: "estimated", tokens: fixture.usage().tokensUsed }));
+  });
+
+  it("returns a Gemini accounting-unavailable error before any normal dispatch", async () => {
+    const fixture = realVirtualKey(); const response = createResponseRecorder(); const gatewayService = createGatewayService();
+    await dispatchGeminiCompatibilityRoutes({ ...createContext({ body, response, gatewayService, enterpriseIdentity: fixture.identity }),
+      enterpriseGovernanceService: { getApiKeyManager: () => null } });
+    expect(response.statusCode).toBe(503); expect(gatewayService.execute).not.toHaveBeenCalled();
+    expect(response.body.error).toMatchObject({ code: 503, details: [{ reason: "VIRTUAL_KEY_ACCOUNTING_UNAVAILABLE" }] });
   });
 });
 

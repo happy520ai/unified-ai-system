@@ -1,7 +1,7 @@
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { MANAGED_LOCAL_CLIENT_PROVIDER_PIN } from "../core/gatewayService.js";
 import { createLocalClientProviderDispatchBinding } from "../routing/localClientProviderDispatchBinding.ts";
-import { getChatResponseCacheIntegration } from "../cache/chatResponseCacheIntegration.ts";
+import { getChatResponseCacheIntegration, readChatCacheBillingSnapshot } from "../cache/chatResponseCacheIntegration.ts";
 import { getGuardrailsEngine } from "../guardrails/guardrailsEngine.ts";
 import { resolveProviderDispatchHttpStatus } from "./providerDispatchHttpStatus.ts";
 import {
@@ -2073,14 +2073,16 @@ export function applyVirtualKeyRequestGate({
   writeServiceLog,
   startedAt,
   path = CHAT_COMPLETIONS_PATH,
-  errorFactory = createOpenAiError,
+  errorFactory = /** @type {(error: {code: string, category: string, message: string}) => object} */ (createOpenAiError),
+  estimatedInputTokens: aggregateInputEstimate = /** @type {number | undefined} */ (undefined),
 }) {
   const fingerprint = request?.enterpriseIdentity?.apiKeyFingerprint;
   if (!fingerprint) return false;
   const manager = enterpriseGovernanceService?.getApiKeyManager?.();
-  const estimatedInputTokens = estimateTokens(gatewayInput).estimatedInputTokens;
+  const estimatedInputTokens = aggregateInputEstimate ?? estimateTokens(gatewayInput).estimatedInputTokens;
   let decision;
   try {
+    if (!Number.isSafeInteger(estimatedInputTokens) || estimatedInputTokens < 0) throw new Error("Invalid accounting estimate.");
     if (typeof manager?.authorizeUsage !== "function" || typeof manager?.recordUsage !== "function") throw new Error("Accounting unavailable.");
     decision = manager.authorizeUsage({ keyId: fingerprint, estimatedTokens: estimatedInputTokens });
   } catch {
@@ -2106,12 +2108,19 @@ export function applyVirtualKeyRequestGate({
   return true;
 }
 
+export function calculateVirtualKeyTextCharge(gatewayInput, reportedTotal, outputText) {
+  const reported = Number.isSafeInteger(reportedTotal) && reportedTotal > 0;
+  return Object.freeze({ version: 1, source: reported ? "reported" : "estimated",
+    totalTokens: reported ? reportedTotal : estimateTokens(gatewayInput).estimatedInputTokens + estimateTextTokens(String(outputText ?? "")) });
+}
+
 export function recordVirtualKeyUsage({
   enterpriseGovernanceService,
   request,
   writeServiceLog,
   tokens,
   path = CHAT_COMPLETIONS_PATH,
+  calculationSource = /** @type {"reported" | "estimated" | undefined} */ (undefined),
 }) {
   const fingerprint = request?.enterpriseIdentity?.apiKeyFingerprint;
   if (!fingerprint) return;
@@ -2119,6 +2128,9 @@ export function recordVirtualKeyUsage({
   if (!manager) return;
   try {
     const result = manager.recordUsage({ keyId: fingerprint, tokens });
+    if (calculationSource === "reported" || calculationSource === "estimated") {
+      writeServiceLog?.("virtual_key_usage_recorded", { path, keyFingerprint: fingerprint, tokens, calculationSource });
+    }
     if (result.softBudgetExceeded) {
       writeServiceLog?.("virtual_key_soft_budget", {
         path,
@@ -2312,7 +2324,8 @@ export async function streamOpenAiChatCompletion({
   const cacheLookup = cacheCandidate
     ? chatResponseCache.lookup({ candidate: cacheCandidate, tenantIdentity: request.enterpriseIdentity })
     : null;
-  if (cacheLookup?.payload.kind === "sse") {
+  const cachedBilling = readChatCacheBillingSnapshot(cacheLookup?.payload);
+  if (cacheLookup?.payload.kind === "sse" && (!request.enterpriseIdentity?.apiKeyFingerprint || cachedBilling)) {
     writeSseHeaders(response);
     const hitLayer = cacheLookup.hitType === "semantic" ? "semantic" : "exact";
     recordChatRequest(CHAT_COMPLETIONS_PATH, true);
@@ -2323,7 +2336,7 @@ export async function streamOpenAiChatCompletion({
       stream: true,
       cacheHit: true,
       usage: {
-        totalTokens: Number(cacheLookup.payload.usageChunk?.usage?.total_tokens ?? 0) || undefined,
+        totalTokens: cachedBilling?.totalTokens ?? (Number(cacheLookup.payload.usageChunk?.usage?.total_tokens ?? 0) || undefined),
       },
       latencyMs: Date.now() - startedAt,
       inputText: gatewayInput.messages?.at(-1)?.content ?? undefined,
@@ -2339,8 +2352,9 @@ export async function streamOpenAiChatCompletion({
       enterpriseGovernanceService,
       request,
       writeServiceLog,
-      tokens: Number(cacheLookup.payload.usageChunk?.usage?.total_tokens ?? 0)
-        || estimateTokens(gatewayInput).estimatedInputTokens,
+      tokens: cachedBilling?.totalTokens ?? (Number(cacheLookup.payload.usageChunk?.usage?.total_tokens ?? 0)
+        || estimateTokens(gatewayInput).estimatedInputTokens),
+      calculationSource: cachedBilling?.source,
     });
     writeServiceLog?.("openai_chat_stream_cache_hit", {
       method: request.method,
@@ -2373,6 +2387,7 @@ export async function streamOpenAiChatCompletion({
 
   const capturedChunks = [];
   let capturedUsageChunk;
+  let capturedBilling;
   let firstTokenAt = 0;
 
   const consumeProviderStream = async (choiceIndex, primedStream) => {
@@ -2419,6 +2434,7 @@ export async function streamOpenAiChatCompletion({
   }
 
   if (!failed) {
+    capturedBilling = calculateVirtualKeyTextCharge(gatewayInput, finalEvent?.rawProviderMeta?.usage?.totalTokens, streamOutputText);
     recordChatRequest(CHAT_COMPLETIONS_PATH, true);
     if (cacheCandidate) {
       recordChatCacheEvent("exact", cacheLookup ? "miss" : "bypassed");
@@ -2447,8 +2463,8 @@ export async function streamOpenAiChatCompletion({
       enterpriseGovernanceService,
       request,
       writeServiceLog,
-      tokens: Number(finalEvent?.rawProviderMeta?.usage?.totalTokens ?? 0)
-        || (estimateTokens(gatewayInput).estimatedInputTokens + estimateTextTokens(streamOutputText)),
+      tokens: capturedBilling.totalTokens,
+      calculationSource: capturedBilling.source,
     });
   }
 
@@ -2484,6 +2500,7 @@ export async function streamOpenAiChatCompletion({
       payload: {
         kind: "sse",
         chunks: capturedChunks,
+        billing: capturedBilling,
         ...(capturedUsageChunk !== undefined ? { usageChunk: capturedUsageChunk } : {}),
       },
     });

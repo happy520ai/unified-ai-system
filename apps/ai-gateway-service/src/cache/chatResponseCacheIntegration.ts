@@ -58,6 +58,19 @@ export interface ChatCacheSsePayload {
   kind: "sse";
   chunks: unknown[];
   usageChunk?: unknown;
+  billing?: { version: 1; totalTokens: number; source: "reported" | "estimated" };
+}
+
+/** Server-written accounting snapshot; wire include_usage never determines this value. */
+export function readChatCacheBillingSnapshot(payload: unknown): ChatCacheSsePayload["billing"] | null {
+  if (!payload || typeof payload !== "object") return null;
+  const billing = (payload as ChatCacheSsePayload).billing;
+  if (!billing || typeof billing !== "object" || ![Object.prototype, null].includes(Object.getPrototypeOf(billing))
+    || Object.getOwnPropertySymbols(billing).length || Object.getOwnPropertyNames(billing).sort().join(",") !== "source,totalTokens,version"
+    || Object.values(Object.getOwnPropertyDescriptors(billing)).some(property => !("value" in property))
+    || billing.version !== 1 || !Number.isSafeInteger(billing.totalTokens) || billing.totalTokens < 0
+    || (billing.source !== "reported" && billing.source !== "estimated")) return null;
+  return Object.freeze({ version: 1, totalTokens: billing.totalTokens, source: billing.source });
 }
 
 export type ChatCachePayload = ChatCacheJsonPayload | ChatCacheSsePayload;
@@ -211,6 +224,7 @@ export function createChatResponseCacheIntegration(options: {
     if (!payload || (payload.kind !== "json" && payload.kind !== "sse")) return null;
     if (payload.kind === "json" && !payload.response) return null;
     if (payload.kind === "sse" && !Array.isArray(payload.chunks)) return null;
+    if (payload.kind === "sse" && payload.billing !== undefined && !readChatCacheBillingSnapshot(payload)) return null;
     return payload;
   }
 

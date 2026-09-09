@@ -1,7 +1,7 @@
 # Virtual Keys (uai-) — Budgets and Rate Limits
 
-Virtual keys are consumer-facing credentials for the OpenAI-compatible chat
-surface. An operator issues a key; the key's consumer calls
+Virtual keys are consumer-facing credentials for gateway chat APIs.
+An operator issues a key; for example, the key's consumer calls
 `POST /v1/chat/completions` with it as a Bearer token; the gateway attributes
 spend to that key, enforces a periodic token budget and an optional
 per-minute request limit, and revokes keys instantly.
@@ -69,8 +69,29 @@ The tenant header is not required — the key's own tenant is used.
 | Cache interactions | Response-cache hits still consume budget (they are real requests); replayed usage comes from the cached payload. |
 | Native idempotency | Replaying a completed non-streaming `/chat` request under its original idempotency key does not consume another request admission or token charge; concurrent duplicates share the same execution. This remains true when the key's budget is later exhausted. |
 | Rate limit | Optional per-key requests-per-minute fixed window; rejects with 429 `VIRTUAL_KEY_RATE_LIMITED`. |
-| Soft budget | When usage crosses `softThreshold` (default 0.8) a `openai_chat_virtual_key_soft_budget` service log event is emitted once per crossing. |
-| Scope (v1) | Enforcement covers `POST /v1/chat/completions` and its aliases (streaming and non-streaming), plus non-streaming native `POST /chat` used by the MCP `gateway_chat` tool. Other routes authenticate the key but do not yet attribute spend. |
+| Soft budget | When usage crosses `softThreshold` (default 0.8) a `virtual_key_soft_budget` service log event is emitted once per crossing. |
+| Validated scope | OpenAI chat/completions and aliases, non-streaming native `/chat`, and Gemini normal/SSE/batch have per-key gates and successful-result charging. Anthropic Messages and Responses also have route-local accounting hooks; their interruption/unknown-usage handling still requires the unified accounting work below. |
+
+Gemini batches perform one request/RPM admission using the sum of normalized
+input estimates; each successful item contributes its own token charge. This is
+an input preflight, not a reservation of the batch's eventual output tokens.
+Completed text without a valid positive reported total uses the existing text
+estimator and records `calculationSource: estimated`; positive valid totals use
+`reported`. A normalized zero cannot yet distinguish a genuine reported zero
+from missing upstream usage. Failed/interrupted calls and non-token operations
+still need the broader accounting coverage work; do not read them as free usage.
+
+For SSE response caching, the same internal billing snapshot settles both the
+live response and later cache requests. `stream_options.include_usage` controls
+only the wire response. Older SSE records without that snapshot, or records with
+invalid billing fields, are misses for virtual-key requests and can cause a new
+Provider call under the existing execution policy. Existing records are retained.
+Non-key callers can still replay legacy entries. A cache hit is a new HTTP request
+with its own admission and charge; it is distinct from native idempotent replay.
+
+Native stream/route variants, internal Workforce/Forge/Agent/proposer calls,
+WebSocket messages and multimodal requests are not yet universally covered by
+these route-local hooks. Attempt ledgers and metrics do not prove per-key charging.
 
 Native `/chat` and the compatibility request gate fail closed with HTTP 503
 `VIRTUAL_KEY_ACCOUNTING_UNAVAILABLE` if an authenticated virtual-key request has
@@ -135,3 +156,14 @@ back restores its old per-request persistence and mixed-window defects; pause
 traffic and preserve the latest store before rollback. Synthetic restart,
 write-failure, repair, HTTP rejection and legacy-record tests cover this boundary.
 No provider selection, credential format or fake-provider default changes.
+
+The protocol coverage slice reuses the existing JS compatibility helper and
+TypeScript Gemini/cache owners, with no dependency or persistence migration.
+Its workload is route admission plus a versioned internal cache payload, not a
+new billing service; the local JS/TS approach keeps the score above and avoids
+rewriting unrelated routes. Rolling back reintroduces the missing Gemini charges
+and inconsistent SSE-cache totals; preserve counters and pause affected traffic.
+Real-manager synthetic-route tests cover batch admission, native idempotency,
+cache wire options, legacy refusal and cache-store reload. They do not establish
+actual Provider invoices, complete interrupted usage, distributed reservations
+or production billing accuracy.

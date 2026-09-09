@@ -4,6 +4,7 @@ import { createRouteFailureEnvelope } from "../core/gatewayService.js";
 import { dispatchHttpRoutes06 } from "./httpServerRoutes06.js";
 import { createIdempotencyCoordinator } from "./idempotencyCoordinator.ts";
 import { readJson, writeJson } from "./utils/responseUtils.js";
+import { createApiKeyManager } from "../enterprise/apiKeyManager.js";
 
 function createResponse() {
   const headers = new Map<string, string>();
@@ -80,6 +81,47 @@ function createContext(
 }
 
 describe("production POST /chat idempotency contract", () => {
+  it("keeps real-manager counters unchanged across concurrent replay, exhausted replay and input conflict", async () => {
+    const manager = createApiKeyManager({ storePath: null, now: () => Date.parse("2026-09-09T00:00:00Z") });
+    const { key, record } = manager.create({ role: "operator", tenantId: "tenant-a",
+      budget: { limitTokens: 9, window: "daily" }, rateLimit: { requestsPerMinute: 1 } });
+    const validated = manager.validate(key);
+    if (!validated.valid || !validated.record) throw new Error("Synthetic key did not authenticate.");
+    const identity = { tenantId: validated.record.tenantId, userId: `api-key:${record.keyFingerprint}`,
+      apiKeyFingerprint: record.keyFingerprint };
+    const admission = vi.spyOn(manager, "authorizeUsage"); const charge = vi.spyOn(manager, "recordUsage");
+    let finish!: (value: ReturnType<typeof successfulBudgetResult>) => void;
+    const execute = vi.fn(() => new Promise<ReturnType<typeof successfulBudgetResult>>((resolve) => { finish = resolve; }));
+    const body = { messages: [{ role: "user", content: "hello" }] };
+    const base = createContext(execute, "real-key-replay", body);
+    const context = (operationKey: string, payload: unknown = body) => ({ ...base, response: createResponse(),
+      request: { ...createRequest(operationKey, payload), headers: { "idempotency-key": operationKey, authorization: `Bearer ${key}` }, enterpriseIdentity: identity },
+      enterpriseGovernanceService: { getApiKeyManager: () => manager } });
+    try {
+      const first = context("real-key-replay"); const duplicate = context("real-key-replay");
+      const running = dispatchHttpRoutes06(first);
+      await vi.waitFor(() => expect(execute).toHaveBeenCalledOnce());
+      expect(manager.describeUsage({ keyId: record.keyId })!.usage).toMatchObject({ requestCount: 1, rateRequestCount: 1, tokensUsed: 0 });
+      const concurrent = dispatchHttpRoutes06(duplicate); finish(successfulBudgetResult());
+      await Promise.all([running, concurrent]);
+      expect(duplicate.response.payload).toEqual(first.response.payload);
+      const after = manager.describeUsage({ keyId: record.keyId })!.usage;
+      expect(after).toMatchObject({ requestCount: 1, rateRequestCount: 1, tokensUsed: 9, tokensRemaining: 0 });
+      const exhaustedReplay = context("real-key-replay"); await dispatchHttpRoutes06(exhaustedReplay);
+      expect(exhaustedReplay.response.statusCode).toBe(200);
+      expect(exhaustedReplay.response.payload).toEqual(first.response.payload);
+      const conflict = context("real-key-replay", { messages: [{ role: "user", content: "changed" }] });
+      await dispatchHttpRoutes06(conflict);
+      expect(conflict.response.statusCode).toBe(409);
+      expect(admission).toHaveBeenCalledOnce(); expect(charge).toHaveBeenCalledOnce();
+      const distinct = context("real-key-new-request"); await dispatchHttpRoutes06(distinct);
+      expect(distinct.response.statusCode).toBe(429);
+      expect(admission).toHaveBeenCalledTimes(2); expect(charge).toHaveBeenCalledOnce();
+      expect(execute).toHaveBeenCalledOnce();
+      expect(manager.describeUsage({ keyId: record.keyId })!.usage).toEqual(after);
+    } finally { base.idempotencyCoordinator.close(); }
+  });
+
   it("replays through dispatchHttpRoutes06 without a second provider execution", async () => {
     const execute = vi.fn(async () => ({
       success: true,

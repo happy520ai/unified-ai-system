@@ -18,6 +18,7 @@ import { readJson, writeJson, writeSseHeaders } from "./utils/responseUtils.js";
 import { getGuardrailsEngine } from "../guardrails/guardrailsEngine.ts";
 import {
   applyVirtualKeyRequestGate,
+  calculateVirtualKeyTextCharge,
   applyManagedLocalClientProviderRoute,
   authenticateManagedLocalClientProtocolRequest,
   normalizeOpenAiChatCompletionRequest,
@@ -619,29 +620,24 @@ export async function dispatchGeminiCompatibilityRoutes(context: Record<string, 
       }
       convertedEntries.push(entryBody);
     }
-    // 预算门以第一条的输入近似预检(批量按实际消耗记账)。
-    const firstInput = normalizeOpenAiChatCompletionRequest(
-      convertedEntries[0],
-      gatewayService.getProviderDescriptors(),
-    );
-    if (applyVirtualKeyRequestGate({
+    const normalizedInputs = convertedEntries.map(entry => normalizeOpenAiChatCompletionRequest(entry, gatewayService.getProviderDescriptors()));
+    const aggregateInputEstimate = normalizedInputs.reduce((sum, input) => sum + estimateTokens(input).estimatedInputTokens, 0);
+    if (applyGeminiVirtualKeyGate({
       enterpriseGovernanceService,
       request,
-      gatewayInput: firstInput,
+      gatewayInput: normalizedInputs[0],
+      estimatedInputTokens: aggregateInputEstimate,
       response,
       writeServiceLog,
       startedAt,
+      path: pathname,
     })) {
       return;
     }
     const responses: Record<string, any>[] = [];
     let failures = 0;
-    for (const [index, entryBody] of convertedEntries.entries()) {
+    for (const [index, entryInput] of normalizedInputs.entries()) {
       try {
-        const entryInput = normalizeOpenAiChatCompletionRequest(
-          entryBody,
-          gatewayService.getProviderDescriptors(),
-        );
         entryInput.metadata = {
           ...entryInput.metadata,
           source: "gemini-compatible-api",
@@ -659,12 +655,14 @@ export async function dispatchGeminiCompatibilityRoutes(context: Record<string, 
           continue;
         }
         responses.push(createGeminiGenerateContentResponse(result, { requestedModel: route.modelId }));
-        const usage = result.data?.usage ?? {};
+        const charge = calculateVirtualKeyTextCharge(entryInput, result.data?.usage?.totalTokens,
+          result.data?.message?.content ?? result.data?.outputText ?? result.data?.text);
         recordVirtualKeyUsage({
           enterpriseGovernanceService,
           request,
           writeServiceLog,
-          tokens: Number(usage.totalTokens ?? 0),
+          tokens: charge.totalTokens,
+          calculationSource: charge.source,
           path: pathname,
         });
       } catch (error) {
@@ -804,6 +802,7 @@ export async function dispatchGeminiCompatibilityRoutes(context: Record<string, 
 
 
 
+  if (applyGeminiVirtualKeyGate({ enterpriseGovernanceService, request, gatewayInput, response, writeServiceLog, startedAt, path: pathname })) return;
   const result = await gatewayService.execute(gatewayInput);
   if (!result?.success) {
     const error = readErrorDetails(result?.error ?? {
@@ -826,6 +825,10 @@ export async function dispatchGeminiCompatibilityRoutes(context: Record<string, 
     return;
   }
 
+  const charge = calculateVirtualKeyTextCharge(gatewayInput, result.data?.usage?.totalTokens,
+    result.data?.message?.content ?? result.data?.outputText ?? result.data?.text);
+  recordVirtualKeyUsage({ enterpriseGovernanceService, request, writeServiceLog, path: pathname,
+    tokens: charge.totalTokens, calculationSource: charge.source });
   const geminiResponse = createGeminiGenerateContentResponse(result, {
     requestedModel: route.modelId,
   });
@@ -888,6 +891,14 @@ function readErrorDetails(value: unknown): { code?: unknown; param?: unknown; me
     : {};
 }
 
+function applyGeminiVirtualKeyGate(options: {
+  enterpriseGovernanceService: any; request: any; gatewayInput: any; response: any;
+  writeServiceLog: any; startedAt: number; path: string; estimatedInputTokens?: number;
+}) {
+  return applyVirtualKeyRequestGate({ ...options, errorFactory: ({ code, message }: { code: string; message: string }) =>
+    createGeminiErrorPayload(code === "VIRTUAL_KEY_ACCOUNTING_UNAVAILABLE" ? 503 : 429, message, { reason: code }) });
+}
+
 async function streamGeminiGenerateContent({
   gatewayInput,
   gatewayService,
@@ -910,13 +921,14 @@ async function streamGeminiGenerateContent({
   });
 
   // 虚拟 key 门对流式请求同样生效；必须在写出 SSE 头之前拒绝。
-  if (applyVirtualKeyRequestGate({
+  if (applyGeminiVirtualKeyGate({
     enterpriseGovernanceService,
     request,
     gatewayInput,
     response,
     writeServiceLog,
     startedAt,
+    path: pathname,
   })) {
     return;
   }
@@ -972,6 +984,9 @@ async function streamGeminiGenerateContent({
   if (!failed && !clientClosed) {
     recordChatRequest(pathname, true);
     const usage = finalEvent?.rawProviderMeta?.usage ?? {};
+    const charge = calculateVirtualKeyTextCharge(gatewayInput, usage.totalTokens, streamOutputText);
+    recordVirtualKeyUsage({ enterpriseGovernanceService, request, writeServiceLog, path: pathname,
+      tokens: charge.totalTokens, calculationSource: charge.source });
     recordChatTokens(
       selectedModel,
       "input",
