@@ -47,10 +47,28 @@ The checked-in example is a credential-free desired-state document:
 }
 ```
 
-The parser rejects extra keys, fewer than two profiles, duplicates, unknown
-profiles, URL credentials, URLs that disagree with `--url`, symbolic links,
-paths outside the current working directory, invalid JSON, and files above 32
-KiB.
+The v1 manifest retains its two-or-three JSON profile contract. Use the explicit
+v2 schema to select two to six profiles across JSON, JSONC, TOML and YAML:
+
+```json
+{
+  "schema": "unified-ai-system/local-ai-control-center/v2",
+  "gatewayUrl": "http://127.0.0.1:3100",
+  "profiles": [
+    "cursor-mcp-json",
+    "vscode-mcp-jsonc-v1",
+    "codex-mcp-toml-v1",
+    "continue-mcp-yaml-v1"
+  ]
+}
+```
+
+Each selected profile must already be configured and available at this gateway.
+The manifest selects its existing path and format contract; it does not supply
+new filesystem paths. The parser rejects extra keys, invalid profile counts,
+duplicates, unknown profiles or schema versions, URL credentials, URLs that
+disagree with `--url`, symbolic links, paths outside the current working
+directory, invalid JSON, and files above 32 KiB.
 
 Plan every profile without changing client configuration:
 
@@ -145,7 +163,28 @@ The manifest flow preserves the existing per-client plans, approvals,
 idempotency records, redacted receipts, and rollback API. It does not invent a
 weaker parallel configuration writer.
 
+The v2 flow uses the same sequential operation: plan every selected profile,
+then approve and apply each one with a separate idempotency key. Its completed
+receipts retain each profile's format and transaction identity. A failure stops
+later mutations; completed clients are not automatically rolled back. Use their
+individual receipts with `clients-onboarding plan --action rollback` followed by
+approval and rollback. Do not convert a receipt to another format or assume a
+batch is an atomic transaction across clients.
+
+Actual HTTP/CLI tests configure JSON, JSONC, TOML and YAML together, verify four
+independent approvals and receipts, and restore each original byte sequence via
+its own governed rollback. The existing v1 tests retain the unknown-result and
+partial-application boundaries. These tests do not certify that four native
+applications loaded their configuration.
+
 ## Language Selection
+
+The v2 manifest addition is a local change to the existing ESM JavaScript CLI
+parser; it reuses the current format validators and the existing governed APIs.
+A new batch service or transaction layer would duplicate those owners. No new
+dependency, endpoint or persistent schema is introduced by v2. Reverting the CLI
+addition restores v1 parsing; configurations already written still require their
+original receipts and compatible per-format rollback support.
 
 - **Workload:** add a control-center CLI and make virtual-key accounting cover
   its shared MCP `gateway_chat` path.

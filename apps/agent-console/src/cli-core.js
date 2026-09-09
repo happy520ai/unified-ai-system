@@ -305,6 +305,7 @@ const IDEMPOTENCY_KEY_PATTERN = /^[\x21-\x7e]{1,255}$/u;
 const CONTROL_CENTER_VISIBLE_ID_PATTERN = /^[\x21-\x7e]{1,256}$/u;
 const CONTROL_CENTER_MODEL_PREVIEW_LIMIT = 100;
 const CONTROL_CENTER_MANIFEST_SCHEMA = "unified-ai-system/local-ai-control-center/v1";
+const CONTROL_CENTER_MANIFEST_SCHEMA_V2 = "unified-ai-system/local-ai-control-center/v2";
 const CONTROL_CENTER_MANIFEST_MAX_BYTES = 32 * 1024;
 const CONTROL_CENTER_IDEMPOTENCY_PREFIX_PATTERN = /^[\x21-\x7e]{1,180}$/u;
 
@@ -1938,16 +1939,17 @@ function readControlCenterManifest({ path, root, expectedGatewayUrl }) {
   });
   if (
     !hasExactKeys(value, ["schema", "gatewayUrl", "profiles"])
-    || value.schema !== CONTROL_CENTER_MANIFEST_SCHEMA
+    || ![CONTROL_CENTER_MANIFEST_SCHEMA, CONTROL_CENTER_MANIFEST_SCHEMA_V2].includes(value.schema)
     || typeof value.gatewayUrl !== "string"
     || !Array.isArray(value.profiles)
     || value.profiles.length < 2
-    || value.profiles.length > 3
+    || value.profiles.length > (value.schema === CONTROL_CENTER_MANIFEST_SCHEMA ? 3 : 6)
     || new Set(value.profiles).size !== value.profiles.length
-    || value.profiles.some((profileId) => localClientOnboardingProfileFormat(profileId) !== "json-only")
+    || value.profiles.some((profileId) => !localClientOnboardingProfileFormat(profileId)
+      || (value.schema === CONTROL_CENTER_MANIFEST_SCHEMA && localClientOnboardingProfileFormat(profileId) !== "json-only"))
   ) {
     throw new CliUsageError(
-      "Control-center manifest must use the exact v1 schema and select two or three unique supported profiles.",
+      "Control-center manifest must select unique supported profiles: v1 accepts two or three JSON profiles; v2 accepts two to six profiles.",
     );
   }
   const gatewayUrl = normalizeControlCenterGatewayUrl(value.gatewayUrl);
@@ -1955,7 +1957,7 @@ function readControlCenterManifest({ path, root, expectedGatewayUrl }) {
     throw new CliUsageError("Control-center manifest gatewayUrl must exactly match --url.");
   }
   return Object.freeze({
-    schema: CONTROL_CENTER_MANIFEST_SCHEMA,
+    schema: value.schema,
     gatewayUrl,
     profiles: Object.freeze([...value.profiles]),
   });

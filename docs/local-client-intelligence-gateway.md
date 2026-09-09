@@ -599,7 +599,8 @@ approval and idempotency requirements apply. Rollback restores the encrypted
 original bytes, including comments and formatting, with the existing identity
 checks. Replaying a completed request never performs a second file mutation.
 The existing `control-center configure` v1 bulk manifest retains its two/three
-JSON-only profile contract; use `clients-onboarding` for the JSONC profile.
+JSON-only profile contract. Its explicit v2 manifest selects two to six supported
+profiles across formats; see [control-center configuration](local-ai-control-center.md).
 
 Downgrade requires preserving the JSONC journal, encrypted backups and receipt
 authority until a compatible gateway can finish recovery/rollback; do not reset
@@ -687,8 +688,9 @@ replay and explicit recovery. Authored pending journals do not prove a process
 kill or power-loss result. A separate isolated signed Codex CLI 0.153.4 run loaded
 the actual generated TOML with unchanged bytes and exactly one enabled stdio
 entry; it did not start that MCP server or call a model. Real Providers, complete
-native-client certification, cold install, production durability and bulk
-control-center v2 remain separate work.
+native-client certification, cold install and production durability remain
+separate work. Control-center v2 can include this profile in a governed batch;
+that does not extend the native-client evidence above.
 
 ## Governed Continue YAML profile
 
@@ -746,8 +748,20 @@ route or CLI command. Roll back the profile, codec, CLI and dependency as a unit
 The pure codec, transaction/registry/approval/recovery tests and real temporary-file
 HTTP/CLI flow cover exact preservation, unauthorised apply refusal, restart replay,
 byte-for-byte rollback and explicit recovery. An authored pending journal is not a
-process-kill or power-loss test. Native Continue execution, real Provider calls,
-production durability and bulk control-center v2 require their own evidence.
+process-kill or power-loss test. A Windows run of the official Continue CLI 1.5.47
+read this profile's actual approved YAML, preserving comments and an unowned MCP
+entry. It initialized the current gateway MCP server, discovered its 15 tools,
+and completed one successful `gateway_health` call with verified loopback
+authentication. The native process exited with code 0, left the file unchanged,
+and an approved rollback restored the original bytes. Its model interaction used
+the local fake provider in an isolated home with telemetry disabled; no user
+configuration, native login or real Provider credentials were used.
+
+That run required the verification harness to stop lingering MCP child processes
+after the native process exited. It proves the governed configuration and scoped
+tool interaction, not autonomous child cleanup, cold-VM certification, real
+Provider behavior or production durability. Control-center v2 has separate actual
+four-format approval/application/rollback tests.
 
 ## Language Selection
 

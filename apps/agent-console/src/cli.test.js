@@ -3956,3 +3956,128 @@ function writeJson(response, statusCode, body) {
   });
   response.end(JSON.stringify(body));
 }
+
+test("control-center v2 applies and rolls back four actual formats with separate governed receipts", { timeout: 60_000 }, async context => {
+  const [{ createGatewayApplication }, { createGatewayHttpServer }] = await Promise.all([
+    import("../../ai-gateway-service/src/application/createGatewayApplication.js"),
+    import("../../ai-gateway-service/src/http/httpServer.js"),
+  ]);
+  const root = await mkdtemp(join(tmpdir(), "cli-control-center-v2-"));
+  let server;
+  context.after(async () => {
+    if (server) {
+      await new Promise(resolveClose => { server.close(resolveClose); server.closeAllConnections(); });
+      await server.shutdownResources?.();
+    }
+    assert.ok(resolve(root).startsWith(resolve(tmpdir()) + (process.platform === "win32" ? "\\" : "/")));
+    await rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+  });
+  const fixtures = [
+    { profileId: "cursor-mcp-json", format: "json-only", text: '{"unmanaged":"bulk-native-value","mcpServers":{}}\r\n' },
+    { profileId: "vscode-mcp-jsonc-v1", format: "jsonc", text: '{\r\n// bulk original comment\r\n"servers":{},\r\n"unmanaged":"bulk-native-value",\r\n}' },
+    { profileId: "codex-mcp-toml-v1", format: "toml", text: '# bulk original comment\r\nmodel = "bulk-native-value"\r\n' },
+    { profileId: "continue-mcp-yaml-v1", format: "yaml", text: '# bulk original comment\r\nname: "Bulk fixture"\r\nversion: "1.0.0"\r\nschema: v1\r\nmcpServers: []\r\n' },
+  ];
+  const profiles = [];
+  for (const [index, fixture] of fixtures.entries()) {
+    const targetPath = join(root, "config", `${index}.config`);
+    await mkdir(dirname(targetPath), { recursive: true });
+    await writeFile(targetPath, fixture.text);
+    fixture.targetPath = targetPath;
+    profiles.push({ profileId: fixture.profileId, paths: { targetPath, allowedRoot: root,
+      backupDir: join(root, `backup-${index}`), journalPath: join(root, `journal-${index}`, "journal.json"), maxBytes: 65536, maxTransactions: 16 } });
+  }
+  const token = "cli-bulk-integration-fixture-token";
+  const config = { version: 2, ownerTenantId: "cli-jsonc-tenant", profiles,
+    serverDefinition: { transport: "stdio", command: join(root, "bin", "node.exe"), args: [join(root, "gateway-entry.mjs")], cwd: root } };
+  const env = {
+    NODE_ENV: "test", AI_GATEWAY_PROVIDER_MODE: "fake", AI_GATEWAY_REAL_PROVIDER_ENABLED: "false",
+    PME_RUNTIME_CREDENTIAL_STORE_MODE: "memory", KNOWLEDGE_STORAGE_MODE: "memory",
+    AI_GATEWAY_MODEL_LIBRARY_STATE_PATH: join(root, "model-library.json"),
+    WORKFLOW_OUTPUT_DIR: join(root, "artifacts"), WORKFORCE_PLAN_STORE_PATH: join(root, "workforce-plans.json"), WORKFORCE_EXECUTION_DIR: join(root, "workforce"),
+    AI_GATEWAY_USAGE_LOG_DIR: join(root, "usage"), PME_ENTERPRISE_AUTH_ENABLED: "true",
+    PME_AUTH_TOKEN: token, PME_AUTH_USER_ID: "cli-jsonc-owner", PME_AUTH_TENANT_ID: config.ownerTenantId,
+    PME_AUTH_ROLE: "admin", PME_ENTERPRISE_PLATFORM_TENANT_ID: config.ownerTenantId,
+    PME_ENTERPRISE_USER_STORE_PATH: join(root, "users.json"), PME_API_KEY_STORE_PATH: join(root, "keys.json"),
+    PME_AUDIT_LOG_PATH: join(root, "audit.jsonl"), PME_AUDIT_CHAIN_PATH: join(root, "audit.chain.jsonl"),
+    AI_GATEWAY_RATE_LIMIT_WHITELIST: "127.0.0.1",
+    AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_ENABLED: "true", AI_GATEWAY_LOCAL_CLIENT_HOST_ID: "cli-jsonc-test-host",
+    AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_CONFIG_JSON: JSON.stringify(config),
+    AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_RECEIPT_AUTHORITY_SQLITE_PATH: join(root, "receipt-authority.sqlite"),
+    AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_RECEIPT_AUTHORITY_NAMESPACE: "cli-jsonc-test",
+    AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_RECEIPT_AUTHORITY_TTL_MS: "2592000000",
+    AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_RECEIPT_AUTHORITY_LEASE_TTL_MS: "600000",
+    AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_ROOT_SECRET_REF: "env_key_name:CLI_JSONC_TEST_ROOT_SECRET",
+    CLI_JSONC_TEST_ROOT_SECRET: "hex:" + "9c".repeat(32),
+    AI_GATEWAY_LOCAL_CLIENT_REGISTRY_PATH: join(root, "client-registry.json"),
+    AI_GATEWAY_LOCAL_CLIENT_EXECUTION_LOG_PATH: join(root, "client-execution.jsonl"),
+    AI_GATEWAY_LOCAL_CLIENT_CONTROL_STORE_MODE: "local", AI_GATEWAY_LOCAL_CLIENT_EXECUTION_CONTROL_DIR: join(root, "control"),
+    AI_GATEWAY_IDEMPOTENCY_STORE_MODE: "sqlite", AI_GATEWAY_IDEMPOTENCY_SQLITE_PATH: join(root, "idempotency.sqlite"),
+    AI_GATEWAY_IDEMPOTENCY_HMAC_SECRET: "cli-jsonc-idempotency-fixture".padEnd(64, "x"),
+    AI_GATEWAY_EXTERNAL_EFFECT_STORE_MODE: "sqlite", AI_GATEWAY_EXTERNAL_EFFECT_SQLITE_PATH: join(root, "external-effects.sqlite"),
+    AI_GATEWAY_EXTERNAL_EFFECT_HMAC_SECRET: "cli-jsonc-external-fixture".padEnd(64, "x"),
+    AI_GATEWAY_EXTERNAL_EFFECT_CENTRAL_REQUIRED: "false",
+  };
+  const application = createGatewayApplication(env);
+  server = createGatewayHttpServer(application);
+  server.listen(0, "127.0.0.1"); await once(server, "listening");
+  const url = "http://127.0.0.1:" + server.address().port;
+  const keyResponse = await fetch(url + "/enterprise/virtual-keys", { method: "POST",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    body: JSON.stringify({ role: "operator", tenantId: config.ownerTenantId, budget: { limitTokens: 1000, window: "daily" } }) });
+  assert.equal(keyResponse.status, 200);
+  await keyResponse.body?.cancel();
+  await writeFile(join(root, "manifest.json"), JSON.stringify({ schema: "unified-ai-system/local-ai-control-center/v2", gatewayUrl: url, profiles: fixtures.map(item => item.profileId) }));
+  async function invoke(args) {
+    const response = await runCliProcess([...args, "--admin-key", token, "--url", url, "--json"], "", { cwd: root });
+    assert.equal(response.code, 0, response.stderr || response.stdout);
+    assert.doesNotMatch(response.stdout, /bulk original comment|bulk-native-value|cli-bulk-integration-fixture-token|gateway-entry\.mjs/);
+    return JSON.parse(response.stdout);
+  }
+  const common = ["control-center", "configure", "--manifest", "manifest.json"];
+  const planned = await invoke(common);
+  assert.equal(planned.manifest.schema, "unified-ai-system/local-ai-control-center/v2");
+  assert.equal(planned.plans.length, 4); assert.equal(planned.clientConfigWritesPerformed, false);
+  for (const fixture of fixtures) assert.equal(await readFile(fixture.targetPath, "utf8"), fixture.text);
+  const applied = await invoke([...common, "--apply", "--yes", "--idempotency-key", "bulk-four"]);
+  assert.equal(applied.status, "completed"); assert.equal(applied.atomicAcrossClients, false);
+  assert.equal(applied.automaticRollbackPerformed, false); assert.equal(applied.completed.length, 4);
+  assert.deepEqual(applied.completed.map(item => item.receipt.format), fixtures.map(item => item.format));
+  assert.equal(new Set(applied.completed.map(item => item.approvalId)).size, 4);
+  assert.equal(new Set(applied.completed.map(item => item.receipt.transaction.transactionId)).size, 4);
+  assert.ok(applied.verification.profiles.every(item => item.state === "exact"));
+  for (const [index, fixture] of fixtures.entries()) {
+    const receipt = applied.completed[index].receipt;
+    assert.equal(createHash("sha256").update(await readFile(fixture.targetPath)).digest("hex"), receipt.transaction.afterSha256);
+    await writeFile(join(root, "receipt.json"), JSON.stringify(receipt));
+    const rollback = await invoke(["clients-onboarding", "plan", "--profile-id", fixture.profileId, "--action", "rollback", "--receipt-file", "receipt.json"]);
+    await invoke(["clients-onboarding", "approve", "--plan-id", rollback.data.planId, "--yes", "--idempotency-key", `bulk-rollback-approve-${index}`]);
+    await invoke(["clients-onboarding", "rollback", "--plan-id", rollback.data.planId, "--yes", "--idempotency-key", `bulk-rollback-${index}`]);
+    assert.equal(await readFile(fixture.targetPath, "utf8"), fixture.text);
+  }
+});
+
+test("control-center v2 rejects invalid profile selections before network I/O", async context => {
+  const gateway = await createMockGateway();
+  const root = await mkdtemp(join(tmpdir(), "cli-control-center-v2-invalid-"));
+  context.after(async () => { await gateway.close(); await rm(root, { recursive: true, force: true }); });
+  const valid = { schema: "unified-ai-system/local-ai-control-center/v2", gatewayUrl: gateway.url,
+    profiles: ["cursor-mcp-json", "continue-mcp-yaml-v1"] };
+  const invalid = [
+    { ...valid, schema: "unified-ai-system/local-ai-control-center/v3" },
+    { ...valid, profiles: ["continue-mcp-yaml-v1"] },
+    { ...valid, profiles: ["cursor-mcp-json", "cursor-mcp-json"] },
+    { ...valid, profiles: ["cursor-mcp-json", "unknown-yaml"] },
+    { ...valid, profiles: ["cursor-mcp-json", null] },
+    { ...valid, profiles: ["cursor-mcp-json", "claude-compatible-mcp-json", "vscode-mcp-json", "vscode-mcp-jsonc-v1", "codex-mcp-toml-v1", "continue-mcp-yaml-v1", "seventh"] },
+    { ...valid, extra: true },
+    { ...valid, gatewayUrl: "http://wrong.invalid" },
+  ];
+  for (const manifest of invalid) {
+    await writeFile(join(root, "manifest.json"), JSON.stringify(manifest));
+    const response = await runCliProcess(["control-center", "configure", "--manifest", "manifest.json", "--json", "--url", gateway.url,
+      "--admin-key", "uai-mock-admin-key"], "", { cwd: root });
+    assert.equal(response.code, 2, response.stdout + response.stderr);
+  }
+  assert.equal(gateway.controlCenterRequestCount(), 0);
+});
