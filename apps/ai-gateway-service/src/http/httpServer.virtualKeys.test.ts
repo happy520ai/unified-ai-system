@@ -21,8 +21,27 @@ function result(text = "fixed fixture", totalTokens = 12) {
   return { text, message: { role: "assistant", content: text }, usage: { inputTokens: 5, outputTokens: 7, totalTokens },
     raw: {}, latencyMs: 0, executionStatus: "success", warnings: [] };
 }
+function a2aResult() { return { ...result(), raw: { fake: true } }; }
+function a2aMessage(messageId: string, options: { taskId?: string; returnImmediately?: boolean } = {}) {
+  return { message: { messageId, role: "ROLE_USER", parts: [{ text: "hello", mediaType: "text/plain" }],
+    ...(options.taskId ? { taskId: options.taskId } : {}) },
+  configuration: { returnImmediately: options.returnImmediately ?? false } };
+}
+function deferredProvider() {
+  let release!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  cleanups.push(async () => { release(); });
+  return { pending, release };
+}
+async function a2aRpc(f: Awaited<ReturnType<typeof fixture>>, method: string, params: unknown, key: string) {
+  const response = await f.post("/a2a/jsonrpc", { jsonrpc: "2.0", id: "meter-a2a", method, params }, key);
+  const payload = await response.json() as any;
+  expect(response.status, JSON.stringify(payload)).toBe(200);
+  expect(payload.error).toBeUndefined();
+  return payload.result;
+}
 
-async function fixture(cache = false, compact = false, agent = false) {
+async function fixture(cache = false, compact = false, agent = false, a2a = false) {
   const directory = mkdtempSync(join(tmpdir(), "gateway-key-http-"));
   cleanups.push(async () => { rmSync(directory, { recursive: true, force: true }); });
   const managementToken = randomBytes(24).toString("base64url");
@@ -31,14 +50,22 @@ async function fixture(cache = false, compact = false, agent = false) {
     PME_AUDIT_LOG_PATH: join(directory, "audit.jsonl"), PME_AUDIT_CHAIN_PATH: join(directory, "audit-chain.jsonl"),
     AI_GATEWAY_PROVIDER_MODE: "fake", AI_GATEWAY_REAL_PROVIDER_ENABLED: "false",
     AI_GATEWAY_CORS_ALLOWED_ORIGINS: "https://meter.example", AI_GATEWAY_WS_SHUTDOWN_GRACE_MS: "5",
-    AI_GATEWAY_RATE_LIMIT_WHITELIST: "127.0.0.1" };
+    AI_GATEWAY_RATE_LIMIT_WHITELIST: "127.0.0.1",
+    ...(a2a ? { AI_GATEWAY_A2A_TASK_STORE_MODE: "memory", AI_GATEWAY_A2A_TASK_STORE_REQUIRED: "false",
+      AI_GATEWAY_A2A_TASK_STORE_CENTRAL_REQUIRED: "false", AI_GATEWAY_A2A_EXECUTION_LEASE_MODE: "disabled",
+      AI_GATEWAY_A2A_EXECUTION_LEASE_REQUIRED: "false", AI_GATEWAY_A2A_AGENT_CARD_SIGNING_REQUIRED: "false",
+      AI_GATEWAY_A2A_AGENT_CARD_SIGNING_KEY_FILE: "", AI_GATEWAY_A2A_AGENT_CARD_PREVIOUS_SIGNING_KEY_FILES_JSON: "[]",
+      AI_GATEWAY_A2A_AGENT_CARD_JWKS_URL: "", A2A_PUBLIC_BASE_URL: "http://127.0.0.1" } : {}) };
   const governance = createEnterpriseGovernanceService({ env });
+  const audits = vi.spyOn(governance, "recordAudit");
   const manager = governance.getApiKeyManager();
   const charges = vi.spyOn(manager, "recordUsage");
   const admissions = vi.spyOn(manager, "authorizeUsage");
-  const provider = createFakeProvider({ providerId: "meter-fixture", modelId: "meter-model", providerType: "fake",
+  const providerId = a2a ? "local-fake-provider" : "meter-fixture";
+  const modelId = a2a ? "local-fake-model" : "meter-model";
+  const provider = createFakeProvider({ providerId, modelId, providerType: "fake",
     enabled: true, capabilities: ["chat"] });
-  const generate = vi.spyOn(provider, "generate").mockImplementation(async () => result());
+  const generate = vi.spyOn(provider, "generate").mockImplementation(async () => a2a ? a2aResult() : result());
   const generateImage = vi.fn(async () => ({ success: true, data: { images: [], usage: { images: 1 } } }));
   const generateStream = vi.spyOn(provider, "generateStream").mockImplementation(async function* () {
     yield { textDelta: "fixed fixture", raw: { fake: true } };
@@ -48,17 +75,18 @@ async function fixture(cache = false, compact = false, agent = false) {
   const gateway = new GatewayService({ providerRegistry: registry,
     runtimeConfig: { providerMode: "fake", realProviderEnabled: false, fallbackEnabled: false,
       ...(compact ? { chatContextCompaction: { thresholdMessages: 2, keepRecentTurns: 1, maxContextTokens: 120 } } : {}) } });
+  const executions = vi.spyOn(gateway, "execute");
   const agentGovernance = agent ? { dataDir: join(directory, "agent-governance"), service: createAgentGovernanceService({ dataDir: join(directory, "agent-governance"),
     env: { AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: randomBytes(32).toString("hex"), PME_ENTERPRISE_PLATFORM_TENANT_ID: "default" },
-    modelProposer: createGatewayModelProposer({ gatewayService: gateway as any, providerId: "meter-fixture", modelId: "meter-model" }),
+    modelProposer: createGatewayModelProposer({ gatewayService: gateway as any, providerId, modelId }),
   }) } : undefined;
   const store = createResponseCacheStore({ paths: { records: join(directory, "cache-records.jsonl"), index: join(directory, "cache-index.json"),
     summary: join(directory, "cache-summary.json"), audit: join(directory, "cache-audit.jsonl") }, auditFlushIntervalMs: 0 });
   cleanups.push(async () => { await store.close(); });
   setChatResponseCacheIntegrationForTests(createChatResponseCacheIntegration({ env: { AI_GATEWAY_RESPONSE_CACHE_ENABLED: String(cache) }, store }));
   const server = createGatewayHttpServer({ runtimeEnv: env, config: { aiGatewayService: { providerMode: "fake", realProviderEnabled: false,
-    providerSelection: { mode: "fixed", defaultProviderId: "meter-fixture", defaultModelId: "meter-model" },
-    providerModels: [{ providerId: "meter-fixture", modelId: "meter-model" }] } },
+    providerSelection: { mode: "fixed", defaultProviderId: providerId, defaultModelId: modelId },
+    providerModels: [{ providerId, modelId }] } },
     gatewayService: gateway, providerRegistry: registry, enterpriseGovernanceService: governance, agentGovernance,
     multimodalAdapter: { generateImage },
     knowledgeService: { getHealth: () => ({ status: "ready" }) }, knowledgeInfra: { getReadiness: () => ({ status: "ready" }) },
@@ -85,7 +113,7 @@ async function fixture(cache = false, compact = false, agent = false) {
     const body = await response.json() as any;
     return body.data as { key: string; record: { keyId: string; keyFingerprint: string } };
   }
-  return { directory, server, url, post, createKey, manager, admissions, charges, generate, generateStream, generateImage, gateway, agentGovernance,
+  return { directory, server, url, post, createKey, manager, admissions, charges, audits, generate, generateStream, generateImage, gateway, executions, agentGovernance,
     usage: (id: string) => manager.describeUsage({ keyId: id })!.usage };
 }
 
@@ -265,5 +293,160 @@ describe("actual authenticated HTTP and WebSocket virtual-key accounting", () =>
     expect(f.generate).toHaveBeenCalledTimes(2); // Failed settlement must not create an exact-billing cache record.
     expect(f.charges).toHaveBeenCalledTimes(2);
     expect(f.usage(key.record.keyId)).toMatchObject({ requestCount: 2, tokensUsed: 24 });
+  }, 30_000);
+});
+
+describe("actual authenticated A2A HTTP virtual-key accounting", () => {
+  it.each([
+    { limit: 24, rpm: 50, exhausted: "budget" },
+    { limit: 1000, rpm: 2, exhausted: "RPM" },
+  ])("charges repeated message IDs as separate executions and keeps queries free after $exhausted exhaustion", async ({ limit, rpm }) => {
+    const f = await fixture(false, false, false, true); const key = await f.createKey(limit, rpm); const other = await f.createKey();
+    const params = { ...a2aMessage("same-a2a-message"), tenant: "forged-tenant",
+      enterpriseIdentity: { apiKeyFingerprint: other.record.keyFingerprint, tenantId: "forged-tenant" },
+      metadata: { enterpriseIdentity: { apiKeyFingerprint: other.record.keyFingerprint, tenantId: "forged-tenant" },
+        unifiedAi: { apiKeyFingerprint: other.record.keyFingerprint, tenantId: "forged-tenant" } } };
+    const first = await a2aRpc(f, "SendMessage", params, key.key);
+    const second = await a2aRpc(f, "SendMessage", params, key.key);
+    expect(first.task.status.state).toBe("TASK_STATE_COMPLETED");
+    expect(second.task.status.state).toBe("TASK_STATE_COMPLETED");
+    expect(second.task.id).not.toBe(first.task.id);
+    expect(f.generate).toHaveBeenCalledTimes(2); expect(f.admissions).toHaveBeenCalledTimes(2); expect(f.charges).toHaveBeenCalledTimes(2);
+    for (const [input] of f.generate.mock.calls) {
+      expect(input!.request.enterpriseIdentity).toMatchObject({ tenantId: "default", apiKeyFingerprint: key.record.keyFingerprint });
+    }
+    expect(f.usage(key.record.keyId)).toMatchObject({ requestCount: 2, rateRequestCount: 2, tokensUsed: 24 });
+    expect(f.usage(other.record.keyId)).toMatchObject({ requestCount: 0, tokensUsed: 0 });
+    const loaded = await a2aRpc(f, "GetTask", { id: first.task.id }, key.key);
+    expect(loaded).toMatchObject({ id: first.task.id, status: { state: "TASK_STATE_COMPLETED" } });
+    const listed = await a2aRpc(f, "ListTasks", { pageSize: 10 }, key.key);
+    expect(listed.tasks.map((task: any) => task.id)).toEqual(expect.arrayContaining([first.task.id, second.task.id]));
+    expect(f.admissions).toHaveBeenCalledTimes(2); expect(f.charges).toHaveBeenCalledTimes(2);
+    const denied = await a2aRpc(f, "SendMessage", a2aMessage("later-a2a-message"), key.key);
+    expect(denied.task.status.state).toBe("TASK_STATE_FAILED");
+    expect(f.generate).toHaveBeenCalledTimes(2); expect(f.charges).toHaveBeenCalledTimes(2);
+    expect(f.usage(key.record.keyId)).toMatchObject({ requestCount: 2, rateRequestCount: 2, tokensUsed: 24 });
+  }, 30_000);
+
+  it("keeps a nonblocking execution billable after its HTTP response has finished", async () => {
+    const f = await fixture(false, false, false, true); const key = await f.createKey(); const gate = deferredProvider();
+    let providerSignal: AbortSignal | undefined;
+    f.generate.mockImplementationOnce(async (input: any) => {
+      providerSignal = input.execution?.signal;
+      await gate.pending;
+      return a2aResult();
+    });
+    const accepted = await a2aRpc(f, "SendMessage", a2aMessage("nonblocking-a2a", { returnImmediately: true }), key.key);
+    expect(accepted.task.status.state).toBe("TASK_STATE_SUBMITTED");
+    await vi.waitFor(() => expect(f.generate).toHaveBeenCalledOnce());
+    expect(providerSignal).toBeInstanceOf(AbortSignal); expect(providerSignal!.aborted).toBe(false);
+    expect(f.charges).not.toHaveBeenCalled();
+    expect(f.usage(key.record.keyId)).toMatchObject({ requestCount: 1, tokensUsed: 0 });
+    gate.release();
+    await Promise.allSettled(f.executions.mock.results.map(call => call.value));
+    await vi.waitFor(() => expect(f.charges).toHaveBeenCalledOnce());
+    await vi.waitFor(async () => expect(await a2aRpc(f, "GetTask", { id: accepted.task.id }, key.key))
+      .toMatchObject({ status: { state: "TASK_STATE_COMPLETED" } }));
+    expect(f.admissions).toHaveBeenCalledOnce();
+    expect(f.usage(key.record.keyId)).toMatchObject({ requestCount: 1, rateRequestCount: 1, tokensUsed: 12 });
+  }, 30_000);
+
+  it.each([false, true])("aborts the provider on explicit cancellation and settles once (late result=%s)", async lateResult => {
+    const f = await fixture(false, false, false, true); const key = await f.createKey(); const gate = deferredProvider();
+    const aborted = vi.fn(); let providerSignal: AbortSignal | undefined;
+    f.generate.mockImplementationOnce(async (input: any) => {
+      const signal = input.execution?.signal as AbortSignal | undefined;
+      if (!signal) throw new Error("A2A fixture expected the provider execution AbortSignal.");
+      providerSignal = signal;
+      const onAbort = () => { aborted(); gate.release(); };
+      if (signal.aborted) onAbort(); else signal.addEventListener("abort", onAbort, { once: true });
+      try {
+        await gate.pending;
+        if (lateResult) return a2aResult();
+        signal.throwIfAborted();
+        throw new Error("A2A fixture resumed without cancellation.");
+      } finally { signal.removeEventListener("abort", onAbort); }
+    });
+    const accepted = await a2aRpc(f, "SendMessage", a2aMessage("cancel-a2a", { returnImmediately: true }), key.key);
+    await vi.waitFor(() => expect(f.generate).toHaveBeenCalledOnce());
+    expect(providerSignal).toBeInstanceOf(AbortSignal); expect(providerSignal!.aborted).toBe(false);
+    const cancelled = await a2aRpc(f, "CancelTask", { id: accepted.task.id }, key.key);
+    expect(cancelled.status.state).toBe("TASK_STATE_CANCELED");
+    await vi.waitFor(() => expect(aborted).toHaveBeenCalledOnce());
+    await Promise.allSettled(f.executions.mock.results.map(call => call.value));
+    if (lateResult) await vi.waitFor(() => expect(f.charges).toHaveBeenCalledOnce());
+    else {
+      await vi.waitFor(() => expect(f.audits.mock.calls.map(([event]) => event)
+        .filter(event => (event as { code?: string }).code === "VIRTUAL_KEY_USAGE_SETTLED"))
+        .toEqual([expect.objectContaining({ details: expect.objectContaining({ source: "unknown", tokens: null, incomplete: true }) })]));
+      expect(f.charges).not.toHaveBeenCalled();
+    }
+    const stored = await a2aRpc(f, "GetTask", { id: accepted.task.id }, key.key);
+    expect(stored).toMatchObject({ status: { state: "TASK_STATE_CANCELED" } });
+    expect(stored.artifacts ?? []).toHaveLength(0);
+    expect(f.admissions).toHaveBeenCalledOnce(); expect(f.generate).toHaveBeenCalledOnce();
+    expect(f.usage(key.record.keyId)).toMatchObject({ requestCount: 1, rateRequestCount: 1 });
+    if (lateResult) expect(f.usage(key.record.keyId).tokensUsed).toBe(12);
+    else expect(f.usage(key.record.keyId).tokensUsed).toBe(0);
+  }, 30_000);
+
+  it("retains both active invocations on one task and aborts and bills each once", async () => {
+    const f = await fixture(false, false, false, true); const key = await f.createKey();
+    const gates = [deferredProvider(), deferredProvider()]; const signals: AbortSignal[] = []; const aborted = vi.fn();
+    f.generate.mockImplementation(async (input: any) => {
+      const signal = input.execution?.signal as AbortSignal | undefined;
+      if (!signal) throw new Error("A2A fixture expected a separate provider execution AbortSignal.");
+      const gate = gates[signals.length];
+      if (!gate) throw new Error("A2A fixture received an unexpected additional provider call.");
+      signals.push(signal);
+      const onAbort = () => { aborted(signal); gate.release(); };
+      if (signal.aborted) onAbort(); else signal.addEventListener("abort", onAbort, { once: true });
+      try { await gate.pending; return a2aResult(); }
+      finally { signal.removeEventListener("abort", onAbort); }
+    });
+    const first = await a2aRpc(f, "SendMessage", a2aMessage("task-first", { returnImmediately: true }), key.key);
+    await vi.waitFor(() => expect(f.generate).toHaveBeenCalledOnce());
+    const second = await a2aRpc(f, "SendMessage", a2aMessage("task-second", { taskId: first.task.id, returnImmediately: true }), key.key);
+    expect(second.task.id).toBe(first.task.id);
+    await vi.waitFor(() => expect(f.generate).toHaveBeenCalledTimes(2));
+    expect(signals).toHaveLength(2); expect(signals[0]).not.toBe(signals[1]);
+    expect(signals.every(signal => !signal.aborted)).toBe(true);
+    const cancelled = await a2aRpc(f, "CancelTask", { id: first.task.id }, key.key);
+    expect(cancelled.status.state).toBe("TASK_STATE_CANCELED");
+    await vi.waitFor(() => expect(aborted).toHaveBeenCalledTimes(2));
+    await Promise.allSettled(f.executions.mock.results.map(call => call.value));
+    await vi.waitFor(() => expect(f.charges).toHaveBeenCalledTimes(2));
+    expect(await a2aRpc(f, "GetTask", { id: first.task.id }, key.key)).toMatchObject({ status: { state: "TASK_STATE_CANCELED" } });
+    expect(f.generate).toHaveBeenCalledTimes(2); expect(f.admissions).toHaveBeenCalledTimes(2);
+    expect(f.usage(key.record.keyId)).toMatchObject({ requestCount: 2, rateRequestCount: 2, tokensUsed: 24 });
+  }, 30_000);
+
+  it("aborts and settles a blocking invocation when the HTTP caller disconnects", async () => {
+    const f = await fixture(false, false, false, true); const key = await f.createKey(); const gate = deferredProvider();
+    const disconnected = new AbortController(); const aborted = vi.fn();
+    f.generate.mockImplementationOnce(async (input: any) => {
+      const signal = input.execution?.signal as AbortSignal | undefined;
+      if (!signal) throw new Error("A2A fixture expected the provider execution AbortSignal.");
+      const onAbort = () => { aborted(); gate.release(); };
+      if (signal.aborted) onAbort(); else signal.addEventListener("abort", onAbort, { once: true });
+      try { await gate.pending; signal.throwIfAborted(); throw new Error("A2A fixture resumed without disconnecting."); }
+      finally { signal.removeEventListener("abort", onAbort); }
+    });
+    const pending = fetch(f.url + "/a2a/jsonrpc", { method: "POST", headers: { authorization: `Bearer ${key.key}`, "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: "disconnect-a2a", method: "SendMessage", params: a2aMessage("blocking-a2a") }),
+      signal: disconnected.signal }).then(response => response.json(), error => error);
+    cleanups.push(async () => { disconnected.abort(); await pending; });
+    await vi.waitFor(() => expect(f.generate).toHaveBeenCalledOnce());
+    disconnected.abort();
+    expect(await pending).toMatchObject({ name: "AbortError" });
+    await vi.waitFor(() => expect(aborted).toHaveBeenCalledOnce());
+    await Promise.allSettled(f.executions.mock.results.map(call => call.value));
+    await vi.waitFor(() => expect(f.audits.mock.calls.map(([event]) => event)
+      .filter(event => (event as { code?: string }).code === "VIRTUAL_KEY_USAGE_SETTLED"))
+      .toEqual([expect.objectContaining({ details: expect.objectContaining({ source: "unknown", tokens: null, incomplete: true }) })]));
+    expect(f.charges).not.toHaveBeenCalled();
+    expect(f.generate).toHaveBeenCalledOnce(); expect(f.admissions).toHaveBeenCalledOnce();
+    expect(f.usage(key.record.keyId).requestCount).toBe(1);
+    expect(f.usage(key.record.keyId).tokensUsed).toBe(0);
   }, 30_000);
 });

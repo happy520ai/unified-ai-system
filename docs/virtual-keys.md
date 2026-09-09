@@ -70,7 +70,7 @@ The tenant header is not required — the key's own tenant is used.
 | Native idempotency | Replaying a completed non-streaming `/chat` request under its original idempotency key does not consume another request admission or token charge; concurrent duplicates share the same execution. This remains true when the key's budget is later exhausted. |
 | Rate limit | Optional per-key requests-per-minute fixed window; rejects with 429 `VIRTUAL_KEY_RATE_LIMITED`. |
 | Soft budget | When usage crosses `softThreshold` (default 0.8) a `virtual_key_soft_budget` service log event is emitted once per crossing. |
-| Execution scope | Native chat, OpenAI chat/Responses, Anthropic Messages, Gemini normal/SSE/batch and WebSocket chat enter the same Gateway accounting boundary. Trusted Agent proposer, Workforce role and shadow-call projections retain the request capability. |
+| Execution scope | Native chat, OpenAI chat/Responses, Anthropic Messages, Gemini normal/SSE/batch, WebSocket chat and A2A chat enter the same Gateway accounting boundary. Trusted Agent proposer, Workforce role and shadow-call projections retain the request capability. |
 
 Gemini batches perform one request/RPM admission using the sum of normalized
 input estimates; each actual item attempt contributes its own settlement. This is
@@ -96,6 +96,18 @@ Incomplete usage or a failed counter/audit write cannot create an exact-billing
 cache entry. A shadow or failed fallback attempt keeps its separate settlement;
 the response cache saves the successful response's own charge. WebSocket ping
 and control-plane reads do not consume a model request admission.
+
+A2A `SendMessage` keeps its authenticated accounting capability and execution
+deadline until the actual invocation finishes, including when
+`configuration.returnImmediately` has already returned a submitted task.
+Repeated message IDs can start separate executions and are charged separately;
+`GetTask`, `ListTasks` and `CancelTask` do not start model work. Cancellation
+signals every active invocation for the authenticated task owner and tenant.
+Observed late usage still settles once; cancellation without observable usage
+remains unknown. A2A quota rejection becomes a failed Task in its existing
+JSON-RPC response, rather than a new HTTP error contract. The profile remains
+bound to its local fake provider before dispatch, including fallback, weighted
+routing and shadow boundaries. Its Workforce mode remains a dry-run.
 
 The provider-operation lane currently has no supported token-metering contract
 for image, audio or embedding operations. Token-budgeted keys receive
@@ -185,6 +197,18 @@ back as a unit, pause key traffic and preserve counters; reverting only the Core
 or HTTP half causes missing or duplicate charges. Synthetic tests do not establish
 Provider invoices, complete interrupted usage, distributed reservations or
 production billing accuracy.
+
+The A2A addition uses one TypeScript helper for the private server-context
+transfer and per-invocation lifetime, with local changes to the existing JS
+adapter and Core owner. Route-only accounting would lose background work after
+an early HTTP response; a new task store or scheduler is unnecessary. Its nine
+files exceed the scope checkpoint because Core constraints, SDK integration,
+actual HTTP regressions and both protocol/accounting documents must agree.
+Revert the A2A slice as a unit and pause A2A traffic during rollback; reverting
+only its Core constraint restores the old possibility of a routing escape.
+Tests cover same-task concurrent calls, cancellation, deadline, lease loss,
+shutdown and quota denials with local providers. They do not prove remote
+provider interruption or cross-host billing durability.
 
 ### Provider usage observations
 

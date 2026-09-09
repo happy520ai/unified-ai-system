@@ -177,8 +177,10 @@ System extension, not a standard A2A field.
 
 ## Safety And Limits
 
-- A2A execution is pinned to `local-fake-provider` and fails unless the result
-  proves fake execution.
+- A2A chat is privately bound to `local-fake-provider` / `local-fake-model` with
+  provider type `fake` before dispatch. Weighted overrides, alternate provider
+  attempts and shadow calls cannot escape that binding. JSON flags do not create
+  it; the returned result must also prove fake execution.
 - The Agent Card is public. `/a2a/jsonrpc` follows the gateway's existing
   enterprise authentication and `chat:use` permission policy.
 - When enterprise authentication is enabled, the Agent Card advertises HTTP
@@ -189,12 +191,40 @@ System extension, not a standard A2A field.
   ownership across hosts.
 - The official request handler provides `SendMessage`, `GetTask`, `ListTasks`,
   and `CancelTask`. A different replica can revoke the scoped PostgreSQL lease,
-  but cancellation remains cooperative and cannot guarantee that an
-  already-running provider operation was interrupted.
+  and local cancellation aborts all active invocations of that owner/tenant task.
+  Cancellation remains cooperative and cannot prove that a provider operation
+  stopped before consuming tokens.
 - Streaming, push notifications, gRPC, HTTP+JSON/REST, non-text parts, and a
   fence-aware irreversible side-effect sink are not enabled in this profile.
   Durable/distributed task storage and Agent Card signing remain explicit
   deployment options.
+
+## Virtual keys and execution lifetime
+
+An authenticated virtual key follows the private server context into each
+actual A2A chat execution. Core admits and settles it through the same accounting
+boundary as native HTTP chat. `GetTask`, `ListTasks`, `CancelTask`, rejected
+protocol operations and the existing Workforce dry-run do not invoke a model
+or acquire a model-token charge. Budget/RPM denials return a failed A2A Task
+through the existing JSON-RPC response, without dispatching a provider.
+
+Each accepted `SendMessage` that starts work is metered separately. Repeating a
+`messageId` is not execution idempotency in the installed SDK; without a task ID
+it creates another task, and new messages on a nonterminal task may start another
+invocation. Reading a stored task does not replay or recharge its execution.
+
+`configuration.returnImmediately: true` may return before execution ends. Its
+accounting context and independent deadline remain until the actual executor
+finishes; normal HTTP response completion does not cancel background work.
+Explicit scoped cancellation, transport disconnection, lease loss and shutdown
+signal the affected active invocations. Already observed usage is settled once,
+even when cancellation wins the task result race; unobserved usage remains
+`unknown` with no invented zero or token charge. Task status is not a billing
+receipt. No new streaming or paid Workforce mode is enabled by this integration.
+
+Language Selection: the private call/lifetime helper uses TypeScript and existing
+Core contracts. The existing JavaScript A2A adapter and Core entrypoints retain
+their ownership; no new service, dependency or persistent schema is introduced.
 
 Run `pnpm verify:public-clone` for the credential-free official-client proof.
 The published `v0.5.0` gateway image and the current source include this A2A

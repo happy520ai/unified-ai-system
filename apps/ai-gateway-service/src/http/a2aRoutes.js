@@ -16,6 +16,7 @@ import {
   A2A_JWKS_PATH,
 } from "./a2aGateway.js";
 import { readJson } from "./utils/responseUtils.js";
+import { bindA2AGatewayCall, releaseA2AGatewayCall } from "./a2aGatewayExecution.ts";
 
 function writeA2AJson(response, statusCode, body, headers = {}) {
   response.writeHead(statusCode, {
@@ -57,6 +58,7 @@ export async function dispatchA2ARoutes(context) {
     url,
     writeServiceLog,
     startedAt,
+    requestExecution,
   } = context;
 
   if (request.method === "GET" && url.pathname === A2A_JWKS_PATH) {
@@ -119,6 +121,7 @@ export async function dispatchA2ARoutes(context) {
   });
   let result;
   try {
+    bindA2AGatewayCall(serverContext, request.enterpriseIdentity, requestExecution);
     validateVersion(serverContext.requestedVersion, a2aGateway.agentCard, "JSONRPC");
     result = await a2aGateway.transportHandler.handle(body, serverContext);
   } catch (error) {
@@ -127,7 +130,7 @@ export async function dispatchA2ARoutes(context) {
       id: body?.id ?? null,
       error: JsonRpcTransportHandler.mapToJSONRPCError(error),
     };
-  }
+  } finally { releaseA2AGatewayCall(serverContext); }
 
   if (result && typeof result[Symbol.asyncIterator] === "function") {
     // A2A 流式：JSON-RPC 响应按规范作为 SSE data 事件透传（content-type

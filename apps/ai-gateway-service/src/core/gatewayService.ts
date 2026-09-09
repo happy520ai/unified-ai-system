@@ -83,6 +83,8 @@ export interface GatewayProviderOperationInput {
 /** Internal, non-JSON capability marker for a verified provider dispatch binding. */
 export declare const MANAGED_LOCAL_CLIENT_PROVIDER_PIN: unique symbol;
 export declare const AGENT_GOVERNANCE_EXECUTION_CONTEXT: unique symbol;
+/** Private, restrictive execution binding; not represented in request JSON. */
+export declare function bindFakeProviderExecution(execution: object, target: { providerId: string; modelId: string }): void;
 
 export interface GatewayAgentGovernanceExecutionContext {
   readonly agentId: string;

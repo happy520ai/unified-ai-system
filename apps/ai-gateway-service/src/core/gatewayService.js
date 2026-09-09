@@ -38,6 +38,25 @@ const PROVIDER_OPERATION_TYPES = new Set([
 export const MANAGED_LOCAL_CLIENT_PROVIDER_PIN = Symbol("managed-local-client-provider-pin");
 /** Server-owned Agent attribution; JSON callers cannot construct this symbol. */
 export const AGENT_GOVERNANCE_EXECUTION_CONTEXT = Symbol("agent-governance-execution-context");
+const fakeProviderExecutions = new WeakMap();
+
+/** Restrictive server capability: JSON flags cannot create or replace it. */
+export function bindFakeProviderExecution(execution, target) {
+  if (!execution || typeof execution !== "object" || typeof target?.providerId !== "string" || !target.providerId
+    || typeof target?.modelId !== "string" || !target.modelId || fakeProviderExecutions.has(execution)) {
+    throw new Error("Invalid fake-provider execution binding.");
+  }
+  fakeProviderExecutions.set(execution, Object.freeze({ providerId: target.providerId, modelId: target.modelId }));
+}
+
+function assertFakeProviderExecution(execution, selection) {
+  const required = fakeProviderExecutions.get(execution);
+  if (required && (selection.selected.providerType !== "fake"
+    || selection.selected.target.providerId !== required.providerId || selection.selected.target.modelId !== required.modelId)) {
+    throw Object.assign(new Error("This execution requires the bound local fake provider and model."),
+      { code: "FAKE_PROVIDER_EXECUTION_REQUIRED", category: "governance", retryable: false });
+  }
+}
 
 export class GatewayService {
   constructor({ providerRegistry, runtimeConfig = {}, healthScorer = null, requestLogger = null, enterpriseAudit = null, governance = null, contentGuardrails = null, weightedTrafficPolicy = null, providerDispatchGate = null }) {
@@ -89,7 +108,7 @@ export class GatewayService {
         &&
         request.metadata?.managedLocalClientProviderRouting?.providerPinned === true
         && request.metadata?.managedLocalClientProviderRouting?.modelPinned === true;
-      if (this.weightedTrafficPolicy && !execution.shadow && !managedLocalClientProviderPinned) {
+      if (this.weightedTrafficPolicy && !execution.shadow && !managedLocalClientProviderPinned && !fakeProviderExecutions.has(execution)) {
         const weighted = this.weightedTrafficPolicy.apply(request);
         if (weighted?.overrideProviderId && weighted.overrideProviderId !== baseSelection.selected.target.providerId) {
           const shadowOfWeighted = request;
@@ -121,7 +140,7 @@ export class GatewayService {
       const response = createGatewayResponse(request, selection, providerResult, startedAt, this.runtimeConfig, [...compactionWarnings, ...attemptResult.warnings]);
 
       // 影子流量:主响应已定,旁路复制到 shadow provider,仅观测不影响主响应。
-      if (this.weightedTrafficPolicy && !execution.shadow && !managedLocalClientProviderPinned) {
+      if (this.weightedTrafficPolicy && !execution.shadow && !managedLocalClientProviderPinned && !fakeProviderExecutions.has(execution)) {
         this.#fireShadowTraffic(request, execution);
       }
       const envelope = createRouteSuccessEnvelope(response, {
@@ -181,6 +200,7 @@ export class GatewayService {
       for (const attempt of createFallbackAttempts(baseSelection, this.runtimeConfig)) {
         throwIfExecutionAborted(execution.signal);
         selection = createAttemptSelection(baseSelection, attempt.candidate, attempt.index);
+        assertFakeProviderExecution(execution, selection);
         assertManagedLocalClientProviderAttempt(request, selection.selected.target);
         if (this.runtimeConfig.modelAccessEnforce) {
           this.#enforceModelAccess(request, selection);
@@ -455,6 +475,7 @@ export class GatewayService {
     try {
       throwIfExecutionAborted(execution.signal);
       assertManagedLocalClientProviderAttempt(request, selection.selected.target);
+      assertFakeProviderExecution(execution, selection);
       if (this.runtimeConfig.modelAccessEnforce) {
         this.#enforceModelAccess(request, selection);
       }
@@ -558,6 +579,7 @@ export class GatewayService {
     for (const attempt of createFallbackAttempts(baseSelection, this.runtimeConfig)) {
       throwIfExecutionAborted(execution.signal);
       const attemptSelection = createAttemptSelection(baseSelection, attempt.candidate, attempt.index);
+      assertFakeProviderExecution(execution, attemptSelection);
       assertManagedLocalClientProviderAttempt(request, attemptSelection.selected.target);
       hooks.onAttemptSelected?.(attemptSelection);
       let providerCallStarted = false;
