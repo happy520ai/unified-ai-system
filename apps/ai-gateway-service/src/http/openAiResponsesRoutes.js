@@ -35,8 +35,8 @@ const REASONING_SUMMARY_MODES = new Set(["auto", "concise", "detailed"]);
 // Declarative/built-in tool shapes that cannot be served on the
 // chat-completions wire (namespace grouping, web_search, code_interpreter …).
 // They are accepted and dropped instead of failing the whole request; the
-// drop is recorded in gateway request metadata. Unknown tool types are still
-// rejected loudly.
+// drop is recorded in gateway request metadata and public compatibility notices.
+// Unknown tool types are still rejected.
 const DROPPED_TOOL_TYPES = new Set([
   "namespace",
   "web_search",
@@ -163,6 +163,8 @@ export async function dispatchOpenAiResponsesRoutes(context) {
 
   let gatewayInput;
   let session;
+  let compatibilityNotice;
+  let responseTools = [];
   let mergedWireMessages = [];
   try {
     session = normalizeResponseSessionOptions(normalizedBody, sessionStore);
@@ -174,6 +176,7 @@ export async function dispatchOpenAiResponsesRoutes(context) {
     );
     mergedWireMessages = mergeSessionMessages(session.previous, turnMessages);
     const toolNormalization = normalizeResponseTools(normalizedBody.tools);
+    responseTools = (toolNormalization?.tools ?? []).map(tool => ({ type: "function", ...tool.function }));
     gatewayInput = normalizeOpenAiResponseRequest(
       normalizedBody,
       gatewayService.getProviderDescriptors(),
@@ -199,6 +202,16 @@ export async function dispatchOpenAiResponsesRoutes(context) {
     }
     if (messageMeta.droppedReasoningItems > 0) {
       gatewayInput.metadata.openAiCompatibility.droppedReasoningInputItems = messageMeta.droppedReasoningItems;
+    }
+    // Construct public evidence from local normalization, never caller metadata.
+    if (droppedToolTypes.length || droppedIncludeTokens.length || droppedParameters.length || messageMeta.droppedReasoningItems) {
+      compatibilityNotice = Object.freeze({
+        version: 1,
+        ...(droppedToolTypes.length ? { ignored_tool_types: Object.freeze([...droppedToolTypes]) } : {}),
+        ...(droppedIncludeTokens.length ? { ignored_include: Object.freeze([...droppedIncludeTokens]) } : {}),
+        ...(droppedParameters.length ? { ignored_parameters: Object.freeze([...droppedParameters]) } : {}),
+        ...(messageMeta.droppedReasoningItems ? { ignored_reasoning_input_items: messageMeta.droppedReasoningItems } : {}),
+      });
     }
   } catch (error) {
     writeServiceLog?.("openai_response_validation_failed", {
@@ -263,6 +276,8 @@ export async function dispatchOpenAiResponsesRoutes(context) {
   if (normalizedBody.stream === true) {
     await streamOpenAiResponse({
       body: normalizedBody,
+      compatibilityNotice,
+      responseTools,
       gatewayInput,
       mergedWireMessages,
       gatewayService,
@@ -296,6 +311,8 @@ export async function dispatchOpenAiResponsesRoutes(context) {
 
   const openAiResponse = createOpenAiResponse(result, {
     body: normalizedBody,
+    compatibilityNotice,
+    responseTools,
     createdAt: Math.floor(startedAt / 1000),
     promptEnhancement: gatewayInput.metadata?.promptEnhancement,
     session,
@@ -660,7 +677,7 @@ export function createOpenAiResponse(result, options = {}) {
     parallel_tool_calls: body.parallel_tool_calls ?? false,
     temperature: body.temperature ?? null,
     tool_choice: body.tool_choice ?? "auto",
-    tools: body.tools ?? [],
+    tools: options.responseTools ?? [],
     top_p: body.top_p ?? null,
     max_output_tokens: body.max_output_tokens ?? null,
     previous_response_id: session?.previousResponseId ?? null,
@@ -678,11 +695,10 @@ export function createOpenAiResponse(result, options = {}) {
       output_tokens_details: { reasoning_tokens: usage.reasoningTokens ?? 0 },
       total_tokens: usage.totalTokens ?? 0,
     },
-    unified_ai: createUnifiedAiMetadata(
-      data,
-      result.meta,
-      options.promptEnhancement,
-    ),
+    unified_ai: {
+      ...createUnifiedAiMetadata(data, result.meta, options.promptEnhancement),
+      ...(options.compatibilityNotice ? { compatibility: options.compatibilityNotice } : {}),
+    },
   };
 }
 
@@ -1049,6 +1065,8 @@ function validateResponseTextOptions(text) {
 
 async function streamOpenAiResponse({
   body,
+  compatibilityNotice,
+  responseTools,
   gatewayInput,
   mergedWireMessages = [],
   gatewayService,
@@ -1095,6 +1113,8 @@ async function streamOpenAiResponse({
 
   const initialResponse = createStreamingResponse({
     body,
+    compatibilityNotice,
+    responseTools,
     createdAt,
     model: selectedModel,
     responseId,
@@ -1225,6 +1245,8 @@ async function streamOpenAiResponse({
     });
     const completed = createStreamingResponse({
       body,
+      compatibilityNotice,
+      responseTools,
       createdAt,
       executionMode,
       model: selectedModel,
@@ -1278,6 +1300,8 @@ async function streamOpenAiResponse({
 
 function createStreamingResponse({
   body,
+  compatibilityNotice,
+  responseTools = [],
   createdAt,
   executionMode = null,
   model,
@@ -1307,7 +1331,7 @@ function createStreamingResponse({
     parallel_tool_calls: body.parallel_tool_calls ?? false,
     temperature: body.temperature ?? null,
     tool_choice: body.tool_choice ?? "auto",
-    tools: body.tools ?? [],
+    tools: responseTools,
     top_p: body.top_p ?? null,
     max_output_tokens: body.max_output_tokens ?? null,
     previous_response_id: session?.previousResponseId ?? null,
@@ -1319,6 +1343,7 @@ function createStreamingResponse({
       selected_provider: selectedProvider,
       selected_model: model,
       execution_mode: executionMode,
+      ...(compatibilityNotice ? { compatibility: compatibilityNotice } : {}),
     },
   };
 }
