@@ -24,6 +24,7 @@
 #include <thread>
 #include <utility>
 #include <vector>
+#include "localClientWindowsAuthorityMaintenance.h"
 
 #pragma comment(lib, "advapi32.lib")
 #pragma comment(lib, "shell32.lib")
@@ -37,8 +38,8 @@ constexpr wchar_t ServiceAccount[] = L"NT SERVICE\\UnifiedAiSystemLocalClientAut
 constexpr wchar_t ServiceSid[] = L"S-1-5-80-2517572854-3647151239-2500651488-2982019916-1580030387";
 constexpr wchar_t PipeName[] = L"\\\\.\\pipe\\UnifiedAiSystemLocalClientAuthorityBroker-v1";
 constexpr wchar_t RegistryRoot[] = L"Software\\UnifiedAISystem\\LocalClientAuthority";
-constexpr char PackageVersion[] = "local-client-windows-authority-package-v3";
-constexpr char BootstrapVersion[] = "local-client-windows-authority-bootstrap-v3";
+constexpr char PackageVersion[] = "local-client-windows-authority-package-v4";
+constexpr char BootstrapVersion[] = "local-client-windows-authority-bootstrap-v4";
 constexpr char OwnershipVersion[] = "local-client-windows-authority-installation-v1";
 constexpr char NonceHeader[] = "UAI-AUTHORITY-NONCES-V1\n";
 constexpr size_t MaxFrame = 65536, MaxPrivateFrame = 8 * MaxFrame;
@@ -391,6 +392,7 @@ RegistryParents OpenRegistryParents(bool writing) {
 }
 
 struct Package {
+  unsigned version = 0;
   std::wstring root;
   std::vector<Handle> directories;
   Handle manifest;
@@ -398,10 +400,10 @@ struct Package {
   std::map<std::string, std::string> hashes;
   std::vector<Handle> files;
 };
-void CheckAnchorList(const Json& anchors) {
-  Require(anchors.kind == Json::Array && anchors.list.size() == AnchorIds.size(), "ANCHOR_SET_INVALID"); std::set<std::string> actual;
+void CheckAnchorList(const Json& anchors, size_t count = AnchorIds.size()) {
+  Require(anchors.kind == Json::Array && anchors.list.size() == count, "ANCHOR_SET_INVALID"); std::set<std::string> actual;
   for (const auto& value : anchors.list) Require(actual.insert(value.string()).second, "ANCHOR_SET_INVALID");
-  Require(actual == std::set<std::string>(AnchorIds.begin(), AnchorIds.end()), "ANCHOR_SET_INVALID");
+  Require(actual == std::set<std::string>(AnchorIds.begin(), AnchorIds.begin() + count), "ANCHOR_SET_INVALID");
 }
 Package OpenPackage(const std::wstring& root, const std::string& expectedHash) {
   Package out; out.root = FullPath(root); out.directories = HoldDirectories(Join(root, L"bin"));
@@ -410,7 +412,9 @@ Package OpenPackage(const std::wstring& root, const std::string& expectedHash) {
   out.manifest = OpenPath(Join(root, L"package-manifest.json"), false); out.manifestHash = HashFile(out.manifest.value, MaxFrame);
   if (!expectedHash.empty()) Require(Hex(expectedHash, 64) && out.manifestHash == expectedHash, "MANIFEST_PIN_MISMATCH");
   auto manifest = JsonParser(ReadFileBounded(out.manifest.value, MaxFrame)).parse(); manifest.exact({"version", "files", "anchorIds"});
-  Require(manifest.at("version").string() == PackageVersion, "PACKAGE_VERSION_INVALID"); CheckAnchorList(manifest.at("anchorIds"));
+  for (unsigned version = 1; version <= 4; ++version) if (manifest.at("version").string()
+    == "local-client-windows-authority-package-v" + std::to_string(version)) out.version = version;
+  Require(out.version != 0, "PACKAGE_VERSION_INVALID"); CheckAnchorList(manifest.at("anchorIds"), out.version == 1 ? 12 : 14);
   const auto& files = manifest.at("files"); Require(files.kind == Json::Array && files.list.size() == PackageFiles.size(), "PACKAGE_FILES_INVALID");
   for (const auto& value : files.list) { value.exact({"path", "sha256"}); const auto& path = value.at("path").string(); const auto& hash = value.at("sha256").string();
     Require(std::find(PackageFiles.begin(), PackageFiles.end(), path) != PackageFiles.end() && Hex(hash, 64)
@@ -442,30 +446,51 @@ std::vector<wchar_t> WorkerEnvironment(const std::wstring& root) {
 }
 bool PeerConnected(HANDLE pipe) { DWORD remaining = 0; return PeekNamedPipe(pipe, nullptr, 0, nullptr, &remaining, nullptr) && remaining == 0; }
 DWORD Remaining(ULONGLONG deadline) { auto now = GetTickCount64(); return now >= deadline ? 0 : static_cast<DWORD>(deadline - now); }
+void CheckPrivateHelperDirectory(const std::wstring& root) {
+  WIN32_FIND_DATAW found{}; HANDLE search = FindFirstFileW(Join(root, L"bin\\*").c_str(), &found);
+  Require(search != INVALID_HANDLE_VALUE, "PRIVATE_HELPER_DIRECTORY_UNAVAILABLE"); std::set<std::string> actual; bool valid = true;
+  do { std::wstring name(found.cFileName); if (name == L"." || name == L"..") continue;
+    const auto relative = "bin/" + Utf8(name);
+    if ((found.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT))
+      || std::find(PackageFiles.begin(), PackageFiles.begin() + 5, relative) == PackageFiles.begin() + 5 || !actual.insert(relative).second) { valid = false; break; }
+  } while (FindNextFileW(search, &found)); const DWORD last = GetLastError(); FindClose(search);
+  Require(valid && last == ERROR_NO_MORE_FILES && actual.size() == 5, "PRIVATE_HELPER_DIRECTORY_CONFLICT");
+}
 
 // One child owns one authenticated request. Closing the job also closes every
 // duplicated token/lease; an expired or disconnected request cannot outlive it.
 std::string RunWorker(const std::wstring& root, const wchar_t* entry, const std::function<std::string(HANDLE)>& makeInput,
-  HANDLE stop = nullptr, HANDLE peer = nullptr, const wchar_t* mode = nullptr, ULONGLONG absoluteDeadline = 0) {
+  HANDLE stop = nullptr, HANDLE peer = nullptr, const wchar_t* mode = nullptr, ULONGLONG absoluteDeadline = 0,
+  const std::wstring& pinnedHelperRoot = {}) {
   const ULONGLONG deadline = absoluteDeadline ? absoluteDeadline : GetTickCount64() + RequestDeadlineMs;
+  if (!pinnedHelperRoot.empty()) CheckPrivateHelperDirectory(pinnedHelperRoot);
   SECURITY_ATTRIBUTES inheritance{sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE}; Handle inRead, inWrite, outRead, outWrite;
   Require(CreatePipe(&inRead.value, &inWrite.value, &inheritance, static_cast<DWORD>(MaxPrivateFrame + 4096))
     && CreatePipe(&outRead.value, &outWrite.value, &inheritance, static_cast<DWORD>(MaxPrivateFrame + 4096)), "PRIVATE_PIPE_UNAVAILABLE");
   Require(SetHandleInformation(inWrite.value, HANDLE_FLAG_INHERIT, 0) && SetHandleInformation(outRead.value, HANDLE_FLAG_INHERIT, 0), "PRIVATE_PIPE_UNAVAILABLE");
   Handle nullError(CreateFileW(L"NUL", GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, &inheritance, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
   Require(static_cast<bool>(nullError), "PRIVATE_STDERR_UNAVAILABLE");
-  SIZE_T attributeBytes = 0; InitializeProcThreadAttributeList(nullptr, 1, 0, &attributeBytes);
+  const DWORD attributeCount = pinnedHelperRoot.empty() ? 1 : 2;
+  SIZE_T attributeBytes = 0; InitializeProcThreadAttributeList(nullptr, attributeCount, 0, &attributeBytes);
   std::vector<unsigned char> attributeBuffer(attributeBytes); auto attributes = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(attributeBuffer.data());
-  Require(InitializeProcThreadAttributeList(attributes, 1, 0, &attributeBytes), "PROCESS_ATTRIBUTES_UNAVAILABLE");
+  Require(InitializeProcThreadAttributeList(attributes, attributeCount, 0, &attributeBytes), "PROCESS_ATTRIBUTES_UNAVAILABLE");
   Handle job(CreateJobObjectW(nullptr, nullptr)); Handle process, thread;
   try {
     std::array<HANDLE, 3> inherited{inRead.value, outWrite.value, nullError.value};
     Require(UpdateProcThreadAttribute(attributes, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, inherited.data(), sizeof(inherited), nullptr, nullptr), "PROCESS_ATTRIBUTES_UNAVAILABLE");
+    // The maintenance-only helper runs from a pinned external package. Node's
+    // system-DLL imports (including dbghelp) must not resolve beside that package.
+    // The ordinary installed worker already runs inside the protected root.
+    DWORD64 helperImagePolicy = PROCESS_CREATION_MITIGATION_POLICY_IMAGE_LOAD_PREFER_SYSTEM32_ALWAYS_ON;
+    if (!pinnedHelperRoot.empty()) Require(UpdateProcThreadAttribute(attributes, 0, PROC_THREAD_ATTRIBUTE_MITIGATION_POLICY,
+      &helperImagePolicy, sizeof(helperImagePolicy), nullptr, nullptr), "PRIVATE_HELPER_IMAGE_POLICY_UNAVAILABLE");
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{};
     limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_ACTIVE_PROCESS | JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION;
     limits.BasicLimitInformation.ActiveProcessLimit = 1;
     Require(job && SetInformationJobObject(job.value, JobObjectExtendedLimitInformation, &limits, sizeof(limits)), "JOB_UNAVAILABLE");
-    const auto bin = Join(root, L"bin"), node = Join(bin, L"node.exe");
+    Require(pinnedHelperRoot.empty() || (std::wstring(entry) == L"authority-install.mjs" && mode
+      && (std::wstring(mode) == L"--prepare-maintenance" || std::wstring(mode) == L"--verify-maintenance-checkpoints")), "PRIVATE_HELPER_SCOPE_REJECTED");
+    const auto bin = Join(pinnedHelperRoot.empty() ? root : pinnedHelperRoot, L"bin"), node = Join(bin, L"node.exe");
     auto command = QuoteArgument(node) + L" --no-warnings --disable-proto=throw " + QuoteArgument(Join(bin, entry)); if (mode) command += L" " + std::wstring(mode);
     auto environment = WorkerEnvironment(root); STARTUPINFOEXW startup{}; startup.StartupInfo.cb = sizeof(startup);
     startup.StartupInfo.dwFlags = STARTF_USESTDHANDLES; startup.StartupInfo.hStdInput = inRead.value;
@@ -476,6 +501,11 @@ std::string RunWorker(const std::wstring& root, const wchar_t* entry, const std:
       environment.data(), bin.c_str(), &startup.StartupInfo, &created), "WORKER_START_REJECTED");
     process.reset(created.hProcess); thread.reset(created.hThread);
     if (!AssignProcessToJobObject(job.value, process.value)) { TerminateProcess(process.value, 2); Reject("WORKER_JOB_REJECTED"); }
+    if (!pinnedHelperRoot.empty()) {
+      PROCESS_MITIGATION_IMAGE_LOAD_POLICY actual{};
+      Require(GetProcessMitigationPolicy(process.value, ProcessImageLoadPolicy, &actual, sizeof(actual))
+        && actual.PreferSystem32Images, "PRIVATE_HELPER_IMAGE_POLICY_UNCONFIRMED");
+    }
     PrivateText input; input.value = makeInput(process.value); Require(!input.value.empty() && input.value.size() <= MaxPrivateFrame
       && input.value.find('\n') == std::string::npos && input.value.find('\r') == std::string::npos, "PRIVATE_FRAME_INVALID"); input.value += '\n';
     Require(Remaining(deadline) && (!stop || WaitForSingleObject(stop, 0) != WAIT_OBJECT_0) && (!peer || PeerConnected(peer)), "WORKER_CANCELLED");
@@ -528,11 +558,11 @@ ScHandle* OpenServiceRead(SC_HANDLE manager) {
   return new ScHandle(service);
 }
 std::wstring ServiceCommand(const std::wstring& root) { return QuoteArgument(Join(root, L"bin\\authority-broker-host.exe")) + L" --service"; }
-void CheckServiceConfiguration(SC_HANDLE service, const std::wstring& root, bool allowIncompleteSid = false) {
+void CheckServiceConfiguration(SC_HANDLE service, const std::wstring& root, bool allowIncompleteSid = false, bool allowDisabled = false) {
   DWORD bytes = 0; QueryServiceConfigW(service, nullptr, 0, &bytes); Require(bytes && bytes <= MaxFrame, "SERVICE_CONFIGURATION_UNAVAILABLE");
   std::vector<unsigned char> storage(bytes); auto config = reinterpret_cast<QUERY_SERVICE_CONFIGW*>(storage.data());
   Require(QueryServiceConfigW(service, config, bytes, &bytes) && config->dwServiceType == SERVICE_WIN32_OWN_PROCESS
-    && config->dwStartType == SERVICE_DEMAND_START && SamePath(config->lpBinaryPathName, ServiceCommand(root))
+    && (config->dwStartType == SERVICE_DEMAND_START || (allowDisabled && config->dwStartType == SERVICE_DISABLED)) && SamePath(config->lpBinaryPathName, ServiceCommand(root))
     && CompareStringOrdinal(config->lpServiceStartName, -1, ServiceAccount, -1, TRUE) == CSTR_EQUAL, "SERVICE_OWNERSHIP_MISMATCH");
   SERVICE_SID_INFO sid{}; Require(QueryServiceConfig2W(service, SERVICE_CONFIG_SERVICE_SID_INFO, reinterpret_cast<BYTE*>(&sid), sizeof(sid), &bytes), "SERVICE_CONFIGURATION_UNAVAILABLE");
   Require(sid.dwServiceSidType == SERVICE_SID_TYPE_UNRESTRICTED || (allowIncompleteSid && sid.dwServiceSidType == SERVICE_SID_TYPE_NONE), "SERVICE_IDENTITY_MISMATCH");
@@ -628,12 +658,14 @@ struct InstalledRuntime {
   Json bootstrap;
   std::vector<Handle> directories, code;
 };
+void VerifyRuntimeMaintenance(const std::wstring& root, const Json& ownership);
 InstalledRuntime OpenInstalledRuntime(const std::wstring& root) {
   InstalledRuntime out; out.root = root; out.directories = HoldDirectories(Join(root, L"bin"));
   for (const auto& ancestor : out.directories) CheckAncestorAcl(ancestor.value);
   auto directory = OpenPath(root, true, FILE_READ_ATTRIBUTES | READ_CONTROL, FILE_SHARE_READ | FILE_SHARE_WRITE); CheckProtectedAcl(directory.value);
   auto bin = OpenPath(Join(root, L"bin"), true, FILE_READ_ATTRIBUTES | READ_CONTROL, FILE_SHARE_READ | FILE_SHARE_WRITE); CheckProtectedAcl(bin.value);
   auto ownership = ReadOwnership(root); Require(ownership.at("phase").string() == "installed", "INSTALLATION_INCOMPLETE"); auto hashes = OwnedHashes(ownership);
+  VerifyRuntimeMaintenance(root, ownership);
   for (const auto& name : PackageFiles) { auto relative = Wide(name); std::replace(relative.begin(), relative.end(), L'/', L'\\');
     auto file = OpenPath(Join(root, relative), false); CheckProtectedAcl(file.value);
     Require(HashFile(file.value) == hashes.at(name), "INSTALLED_CODE_MISMATCH"); out.code.push_back(std::move(file)); }
@@ -679,7 +711,638 @@ RegHandle CreateRegistryCheckpoint(HKEY parent, const wchar_t* name, const std::
   Require(RegFlushKey(key.value) == ERROR_SUCCESS, "REGISTRY_FLUSH_FAILED");
   return key;
 }
+
+// Maintenance never rewrites a retained logical-state object. Only fixed code,
+// bootstrap/ownership views, and this private forward-only journal are replaceable.
+constexpr char MaintenanceVersion[] = "local-client-windows-authority-maintenance-v1";
+namespace maintenance = uai_authority_maintenance;
+Json StringValue(const std::string& text) { Json value; value.kind = Json::String; value.text = text; return value; }
+Json NumberValue(unsigned value) { Json out; out.kind = Json::Number; out.text = std::to_string(value); return out; }
+Json ObjectValue() { Json out; out.kind = Json::Object; return out; }
+std::string JsonText(const Json& value) {
+  if (value.kind == Json::String) return QuoteJson(value.text);
+  if (value.kind == Json::Null) return "null";
+  if (value.kind == Json::Boolean || value.kind == Json::Number) return value.text;
+  std::string out = value.kind == Json::Array ? "[" : "{"; bool first = true;
+  if (value.kind == Json::Array) for (const auto& item : value.list) { if (!first) out += ','; first = false; out += JsonText(item); }
+  else for (const auto& item : value.members) { if (!first) out += ','; first = false; out += QuoteJson(item.first) + ':' + JsonText(item.second); }
+  return out + (value.kind == Json::Array ? ']' : '}');
+}
+unsigned UnsignedValue(const Json& value, unsigned maximum) {
+  Require(value.kind == Json::Number && !value.text.empty() && value.text.size() <= 9, "MAINTENANCE_NUMBER_INVALID");
+  auto number = std::stoul(value.text); Require(number <= maximum, "MAINTENANCE_NUMBER_INVALID"); return static_cast<unsigned>(number);
+}
+std::wstring RelativeFile(const std::wstring& root, const std::string& relative) {
+  auto name = Wide(relative); std::replace(name.begin(), name.end(), L'/', L'\\'); return Join(root, name);
+}
+std::string HashBytes(const void* bytes, size_t size) {
+  Require(size <= 2 * 1024 * 1024, "MAINTENANCE_HASH_SIZE_REJECTED");
+  BCRYPT_ALG_HANDLE algorithm = nullptr; BCRYPT_HASH_HANDLE hash = nullptr; std::array<unsigned char, 32> digest{};
+  Require(BCryptOpenAlgorithmProvider(&algorithm, BCRYPT_SHA256_ALGORITHM, nullptr, 0) == 0, "HASH_UNAVAILABLE");
+  try {
+    Require(BCryptCreateHash(algorithm, &hash, nullptr, 0, nullptr, 0, 0) == 0
+      && BCryptHashData(hash, reinterpret_cast<PUCHAR>(const_cast<void*>(bytes)), static_cast<ULONG>(size), 0) == 0
+      && BCryptFinishHash(hash, digest.data(), static_cast<ULONG>(digest.size()), 0) == 0, "HASH_UNAVAILABLE");
+  } catch (...) { if (hash) BCryptDestroyHash(hash); BCryptCloseAlgorithmProvider(algorithm, 0); throw; }
+  BCryptDestroyHash(hash); BCryptCloseAlgorithmProvider(algorithm, 0); return HexBytes(digest.data(), digest.size());
+}
+std::string HashText(const std::string& value) { return HashBytes(value.data(), value.size()); }
+std::string AclDigest(HANDLE object, SE_OBJECT_TYPE type) {
+  PSECURITY_DESCRIPTOR descriptor = nullptr;
+  Require(GetSecurityInfo(object, type, OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
+    nullptr, nullptr, nullptr, nullptr, &descriptor) == ERROR_SUCCESS, "MAINTENANCE_ACL_UNAVAILABLE"); LocalMemory memory; memory.value = descriptor;
+  return HashBytes(descriptor, GetSecurityDescriptorLength(descriptor));
+}
+std::string ReadProtectedText(const std::wstring& path, bool privateState = true, size_t maximum = MaxFrame) {
+  auto file = OpenPath(path, false); CheckProtectedAcl(file.value, privateState); return ReadFileBounded(file.value, maximum);
+}
+void CheckMaintenanceRights(HANDLE object, SE_OBJECT_TYPE type, HANDLE probe, bool privateState) {
+  PSECURITY_DESCRIPTOR descriptor = nullptr; PSID owner = nullptr; PACL acl = nullptr;
+  Require(GetSecurityInfo(object, type, OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
+    &owner, nullptr, &acl, nullptr, &descriptor) == ERROR_SUCCESS, "MAINTENANCE_OBJECT_ACL_UNAVAILABLE"); LocalMemory memory; memory.value = descriptor;
+  Sid system(L"S-1-5-18"), admins(L"S-1-5-32-544"), service(ServiceSid);
+  const auto trusted = [&](PSID sid) { return sid && (EqualSid(sid, system.get()) || EqualSid(sid, admins.get()) || EqualSid(sid, service.get())); };
+  Require(trusted(owner) && acl, "MAINTENANCE_OBJECT_OWNER_REJECTED"); const bool registry = type == SE_REGISTRY_KEY;
+  GENERIC_MAPPING mapping = registry ? GENERIC_MAPPING{KEY_READ, KEY_WRITE, KEY_EXECUTE, KEY_ALL_ACCESS}
+    : GENERIC_MAPPING{FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_GENERIC_EXECUTE, FILE_ALL_ACCESS};
+  const DWORD writes = registry ? KEY_SET_VALUE | KEY_CREATE_SUB_KEY | DELETE | WRITE_DAC | WRITE_OWNER
+    : FILE_WRITE_DATA | FILE_APPEND_DATA | FILE_WRITE_EA | FILE_WRITE_ATTRIBUTES | DELETE | WRITE_DAC | WRITE_OWNER | FILE_DELETE_CHILD;
+  DWORD serviceAccess = 0;
+  for (DWORD index = 0; index < acl->AceCount; ++index) { void* raw = nullptr; Require(GetAce(acl, index, &raw), "MAINTENANCE_OBJECT_ACL_UNAVAILABLE");
+    auto ace = static_cast<ACCESS_ALLOWED_ACE*>(raw); Require(ace->Header.AceType == ACCESS_ALLOWED_ACE_TYPE, "MAINTENANCE_OBJECT_ACL_REJECTED");
+    if (ace->Header.AceFlags & INHERIT_ONLY_ACE) continue; DWORD mask = ace->Mask; MapGenericMask(&mask, &mapping);
+    if (mask & writes) Require(trusted(&ace->SidStart), "MAINTENANCE_OBJECT_WRITER_REJECTED");
+    if (EqualSid(&ace->SidStart, service.get())) serviceAccess |= mask;
+  }
+  const DWORD required = registry ? KEY_QUERY_VALUE | KEY_SET_VALUE : FILE_READ_DATA | FILE_WRITE_DATA;
+  Require((serviceAccess & required) == required, "MAINTENANCE_SERVICE_ACCESS_MISSING");
+  if (probe) { const DWORD access = AccessMask(descriptor, probe, registry), read = registry ? KEY_QUERY_VALUE : FILE_READ_DATA;
+    Require(!(access & writes) && !!(access & read) == !privateState, "MAINTENANCE_OPERATOR_ACCESS_REJECTED"); }
+}
+std::string FileSeal(const std::wstring& path, bool privateState, HANDLE probe = nullptr) {
+  auto file = OpenPath(path, false); CheckProtectedAcl(file.value, privateState);
+  CheckMaintenanceRights(file.value, SE_FILE_OBJECT, probe, privateState);
+  return HashFile(file.value, 1024 * 1024) + ':' + AclDigest(file.value, SE_FILE_OBJECT);
+}
+void PublishMaintenanceText(const std::wstring& path, const std::wstring& temporary, const std::string& data, Security& security) {
+  // A named private transaction owns its temporary path. Retrying may truncate
+  // that metadata/code spool, but never a logical-state destination.
+  Handle file;
+  if (PathExists(temporary)) { file = OpenPath(temporary, false, GENERIC_READ | GENERIC_WRITE | READ_CONTROL);
+    CheckProtectedAcl(file.value, true); SeekStart(file.value); Require(SetEndOfFile(file.value), "MAINTENANCE_SPOOL_TRUNCATE_FAILED"); }
+  else { file.reset(CreateFileW(temporary.c_str(), GENERIC_READ | GENERIC_WRITE | READ_CONTROL, FILE_SHARE_READ,
+      &security.attributes, CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, nullptr));
+    Require(file && SamePath(FinalPath(file.value), temporary), "MAINTENANCE_SPOOL_CONFLICT"); }
+  WriteAll(file.value, data.data(), data.size()); Require(FlushFileBuffers(file.value) && HashFile(file.value, 2 * 1024 * 1024) == HashText(data), "MAINTENANCE_SPOOL_READBACK_FAILED");
+  file.reset();
+  Require(MoveFileExW(temporary.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH), "MAINTENANCE_PUBLISH_FAILED");
+  auto published = OpenPath(path, false, GENERIC_READ | GENERIC_WRITE | READ_CONTROL); CheckProtectedAcl(published.value, true);
+  Require(FlushFileBuffers(published.value) && ReadFileBounded(published.value, 2 * 1024 * 1024) == data, "MAINTENANCE_PUBLISH_READBACK_FAILED");
+}
+void SavePrivateMetadata(const std::wstring& directory, const wchar_t* name, const std::string& data, Security& security) {
+  PublishMaintenanceText(Join(directory, name), Join(directory, std::wstring(name) + L".pending"), data, security);
+}
+std::vector<unsigned char> UnprotectOwnedBlob(const std::wstring& path, size_t maximum) {
+  auto raw = ReadProtectedText(path, true, maximum); DATA_BLOB input{static_cast<DWORD>(raw.size()), reinterpret_cast<BYTE*>(raw.data())}, output{};
+  Require(CryptUnprotectData(&input, nullptr, nullptr, nullptr, nullptr, CRYPTPROTECT_UI_FORBIDDEN, &output), "MAINTENANCE_DPAPI_REJECTED");
+  LocalMemory memory; memory.value = output.pbData;
+  Require(output.cbData <= maximum, "MAINTENANCE_DPAPI_SIZE_REJECTED");
+  std::vector<unsigned char> bytes(output.pbData, output.pbData + output.cbData); SecureZeroMemory(output.pbData, output.cbData); return bytes;
+}
+void VerifyPopLedgerFile(const std::wstring& path, const std::string& hostId, bool requireZero = false) {
+  Secret plaintext(0); plaintext.bytes = UnprotectOwnedBlob(path, 1024 * 1024);
+  const auto& bytes = plaintext.bytes; const std::string header = "UAI-POP-REQUEST-REPLAY-V1\n"; size_t offset = 0;
+  auto text = [&](size_t length) { Require(offset + length <= bytes.size(), "MAINTENANCE_POP_LEDGER_INVALID");
+    std::string out(reinterpret_cast<const char*>(bytes.data() + offset), length); offset += length; return out; };
+  auto integer = [&](size_t length) { Require(offset + length <= bytes.size(), "MAINTENANCE_POP_LEDGER_INVALID"); uint64_t value = 0;
+    for (size_t index = 0; index < length; ++index) value |= static_cast<uint64_t>(bytes[offset++]) << (index * 8); return value; };
+  Require(text(header.size()) == header, "MAINTENANCE_POP_LEDGER_INVALID"); auto hostLength = integer(4);
+  Require(hostLength == hostId.size() && text(static_cast<size_t>(hostLength)) == hostId, "MAINTENANCE_POP_LEDGER_BINDING_MISMATCH");
+  auto instance = text(64); const auto highWater = integer(8); auto count = integer(4);
+  Require(Hex(instance, 64) && highWater <= 9007199254740991ULL && (!requireZero || (instance == std::string(64, '0') && highWater == 0 && count == 0)), "MAINTENANCE_POP_LEDGER_INVALID");
+  Require(count <= 4096 && bytes.size() - offset == count * 136, "MAINTENANCE_POP_LEDGER_INVALID"); std::set<std::string> nonces;
+  for (uint64_t index = 0; index < count; ++index) { auto nonce = text(64); auto digest = text(64); auto expires = integer(8);
+    Require(Hex(nonce, 64) && nonces.insert(nonce).second && Hex(digest, 64) && expires > highWater
+      && expires <= 9007199254740991ULL, "MAINTENANCE_POP_LEDGER_INVALID"); }
+}
+void VerifyRetainedPopLedger(const std::wstring& root, const std::string& hostId) { VerifyPopLedgerFile(Join(root, L"pop-request-replay.dpapi"), hostId); }
+struct RegistrySnapshot { std::string json, seal; };
+RegistrySnapshot ReadCheckpointRegistry(const std::string& id, HANDLE probe = nullptr) {
+  auto parents = OpenRegistryParents(false); Require(parents.product.value != nullptr, "MAINTENANCE_REGISTRY_MISSING");
+  auto authority = OpenRegistryChild(parents.product.value, L"LocalClientAuthority", false, false);
+  auto anchors = OpenRegistryChild(authority.value, L"Anchors", false, false);
+  auto key = OpenRegistryChild(anchors.value, Wide(id).c_str(), false, false);
+  CheckMaintenanceRights(reinterpret_cast<HANDLE>(key.value), SE_REGISTRY_KEY, probe, false);
+  DWORD subkeys = 0, values = 0; Require(RegQueryInfoKeyW(key.value, nullptr, nullptr, nullptr, &subkeys, nullptr, nullptr,
+    &values, nullptr, nullptr, nullptr, nullptr) == ERROR_SUCCESS && subkeys == 0 && values == 1, "MAINTENANCE_REGISTRY_SHAPE_INVALID");
+  DWORD type = 0, size = 0; Require(RegQueryValueExW(key.value, L"Checkpoint", nullptr, &type, nullptr, &size) == ERROR_SUCCESS
+    && type == REG_SZ && size >= sizeof(wchar_t) && size <= MaxFrame && size % sizeof(wchar_t) == 0, "MAINTENANCE_REGISTRY_VALUE_INVALID");
+  std::vector<wchar_t> bytes(size / sizeof(wchar_t)); Require(RegQueryValueExW(key.value, L"Checkpoint", nullptr, &type,
+    reinterpret_cast<BYTE*>(bytes.data()), &size) == ERROR_SUCCESS && type == REG_SZ && bytes.back() == L'\0'
+    && std::find(bytes.begin(), bytes.end() - 1, L'\0') == bytes.end() - 1, "MAINTENANCE_REGISTRY_VALUE_INVALID");
+  return {Utf8(std::wstring(bytes.data(), bytes.size() - 1)), std::to_string(type) + ':' + HashBytes(bytes.data(), size)
+    + ':' + AclDigest(reinterpret_cast<HANDLE>(key.value), SE_REGISTRY_KEY)};
+}
+bool CheckpointRegistryExists(const std::string& id) {
+  auto parents = OpenRegistryParents(false); Require(parents.product.value != nullptr, "MAINTENANCE_REGISTRY_MISSING");
+  auto authority = OpenRegistryChild(parents.product.value, L"LocalClientAuthority", false, false);
+  auto anchors = OpenRegistryChild(authority.value, L"Anchors", false, false);
+  return OpenRegistryChild(anchors.value, Wide(id).c_str(), false, true).value != nullptr;
+}
+Json ParseMaintenanceRecord(const std::wstring& root) {
+  auto record = JsonParser(ReadProtectedText(Join(root, L"maintenance.json"))).parse();
+  record.exact({"version", "installationId", "rootIdentity", "transactionId", "operation", "phase", "sourceVersion", "targetVersion",
+    "sourceHasMaintenance", "minPopProtocolVersion", "sourceManifestSha256", "targetManifestSha256", "sourceBootstrapSha256",
+    "sourceOwnershipSha256", "targetBootstrapSha256", "targetOwnershipSha256", "legacyBootstrapSha256", "legacyOwnershipSha256", "sealSha256"});
+  Require(record.at("version").string() == MaintenanceVersion && Hex(record.at("installationId").string(), 32)
+    && Hex(record.at("transactionId").string(), 32) && record.at("sourceHasMaintenance").kind == Json::Boolean, "MAINTENANCE_RECORD_INVALID");
+  for (const auto* key : {"sourceManifestSha256", "targetManifestSha256", "sourceBootstrapSha256", "sourceOwnershipSha256", "targetBootstrapSha256", "targetOwnershipSha256"})
+    Require(Hex(record.at(key).string(), 64), "MAINTENANCE_RECORD_INVALID");
+  for (const auto* key : {"legacyBootstrapSha256", "legacyOwnershipSha256"}) Require(record.at(key).kind == Json::Null || Hex(record.at(key).string(), 64), "MAINTENANCE_RECORD_INVALID");
+  Require((record.at("legacyBootstrapSha256").kind == Json::Null) == (record.at("legacyOwnershipSha256").kind == Json::Null), "MAINTENANCE_RECORD_INVALID");
+  Require(record.at("sealSha256").kind == Json::Null || Hex(record.at("sealSha256").string(), 64), "MAINTENANCE_RECORD_INVALID");
+  auto directory = OpenPath(root, true, FILE_READ_ATTRIBUTES | READ_CONTROL, FILE_SHARE_READ | FILE_SHARE_WRITE);
+  Require(record.at("rootIdentity").string() == RootIdentity(directory.value), "MAINTENANCE_ROOT_MISMATCH"); return record;
+}
+maintenance::Journal MaintenanceJournal(const Json& record) {
+  maintenance::Journal journal;
+  journal.operation = static_cast<maintenance::Operation>(UnsignedValue(record.at("operation"), 3));
+  journal.phase = static_cast<maintenance::Phase>(UnsignedValue(record.at("phase"), 7));
+  journal.sourceVersion = UnsignedValue(record.at("sourceVersion"), 4); journal.targetVersion = UnsignedValue(record.at("targetVersion"), 4);
+  journal.minPopProtocolVersion = UnsignedValue(record.at("minPopProtocolVersion"), 2);
+  journal.sourceHasMaintenance = record.at("sourceHasMaintenance").text == "true";
+  Require(maintenance::IsValid(journal) && (journal.operation == maintenance::Operation::FreshInstall
+    || journal.phase == maintenance::Phase::Intent || record.at("sealSha256").kind == Json::String), "MAINTENANCE_RECORD_INVALID"); return journal;
+}
+void VerifyRuntimeMaintenance(const std::wstring& root, const Json& ownership) {
+  auto record = ParseMaintenanceRecord(root); auto journal = MaintenanceJournal(record);
+  Require(journal.targetVersion == 4 && (journal.phase == maintenance::Phase::CommittedStopped || journal.phase == maintenance::Phase::Complete)
+    && record.at("installationId").string() == ownership.at("installationId").string()
+    && record.at("targetManifestSha256").string() == ownership.at("packageManifestSha256").string()
+    && HashText(ReadProtectedText(Join(root, L"bootstrap.json"))) == record.at("targetBootstrapSha256").string()
+    && HashText(ReadProtectedText(Join(root, L"installation.json"))) == record.at("targetOwnershipSha256").string(), "MAINTENANCE_RUNTIME_VIEW_REJECTED");
+}
+Json ReadMaintenanceBootstrap(const std::wstring& root, unsigned version, const Json& ownership) {
+  auto bootstrap = JsonParser(ReadProtectedText(Join(root, L"bootstrap.json"))).parse();
+  if (version == 1) bootstrap.exact({"version", "installationId", "hostId", "currentUserSid", "programDataBasePath", "anchorIds"});
+  else bootstrap.exact({"version", "installationId", "hostId", "currentUserSid", "programDataBasePath", "anchorIds", "packageManifestSha256"});
+  Require(bootstrap.at("version").string() == "local-client-windows-authority-bootstrap-v" + std::to_string(version)
+    && bootstrap.at("installationId").string() == ownership.at("installationId").string()
+    && bootstrap.at("hostId").string() == "windows-authority-" + ownership.at("installationId").string()
+    && SamePath(Wide(bootstrap.at("programDataBasePath").string()), ProgramData())
+    && (version == 1 || bootstrap.at("packageManifestSha256").string() == ownership.at("packageManifestSha256").string()), "MAINTENANCE_BOOTSTRAP_BINDING_MISMATCH");
+  CheckAnchorList(bootstrap.at("anchorIds"), version == 1 ? 12 : 14); return bootstrap;
+}
+void VerifyInstalledPackage(const std::wstring& root, const Package& package) {
+  for (const auto& name : PackageFiles) {
+    auto file = OpenPath(RelativeFile(root, name), false); CheckProtectedAcl(file.value);
+    Require(HashFile(file.value) == package.hashes.at(name), "MAINTENANCE_INSTALLED_CODE_MISMATCH");
+  }
+}
+Json CollectMaintenanceSeal(const std::wstring& root, const Json& bootstrap, unsigned sourceVersion, bool sourceHasMaintenance, const Package& helper, HANDLE operatorProbe = nullptr) {
+  Json seal = ObjectValue(), files = ObjectValue(), registry = ObjectValue(), checkpoints; checkpoints.kind = Json::Array;
+  auto directories = HoldDirectories(Join(root, L"anchors")); for (const auto& directory : directories) CheckAncestorAcl(directory.value);
+  auto rootHandle = OpenPath(root, true, FILE_READ_ATTRIBUTES | READ_CONTROL, FILE_SHARE_READ | FILE_SHARE_WRITE); CheckProtectedAcl(rootHandle.value);
+  CheckMaintenanceRights(rootHandle.value, SE_FILE_OBJECT, operatorProbe, false);
+  seal.members["rootAcl"] = StringValue(AclDigest(rootHandle.value, SE_FILE_OBJECT));
+  const auto nonces = ReadProtectedText(Join(root, L"request-nonces.bin"), true, 1024 * 1024);
+  const size_t headerSize = sizeof(NonceHeader) - 1; Require(nonces.rfind(NonceHeader, 0) == 0 && (nonces.size() - headerSize) % 65 == 0
+    && (nonces.size() - headerSize) / 65 <= 4096, "MAINTENANCE_LEGACY_NONCES_INVALID"); std::set<std::string> seen;
+  for (size_t offset = headerSize; offset < nonces.size(); offset += 65) Require(Hex(nonces.substr(offset, 64), 64)
+    && nonces[offset + 64] == '\n' && seen.insert(nonces.substr(offset, 64)).second, "MAINTENANCE_LEGACY_NONCES_INVALID");
+  for (const auto* name : {"integrity-key.dpapi", "request-nonces.bin"}) files.members[name] = StringValue(FileSeal(RelativeFile(root, name), true, operatorProbe));
+  bool missingPop = false;
+  for (size_t index = 0; index < AnchorIds.size(); ++index) {
+    const auto& id = AnchorIds[index]; const auto relative = "anchors/" + id + "/authority.json";
+    const auto directory = RelativeFile(root, "anchors/" + id);
+    const bool fileExists = PathExists(RelativeFile(root, relative)), keyExists = CheckpointRegistryExists(id);
+    if (index >= 12 && sourceVersion == 1 && !sourceHasMaintenance)
+      Require(!fileExists && !keyExists && !PathExists(directory), "MAINTENANCE_UNOWNED_POP_CONFLICT");
+    if (index >= 12 && !fileExists && !keyExists && !PathExists(directory)) {
+      Require(sourceVersion == 1 && !sourceHasMaintenance, "MAINTENANCE_RETAINED_POP_MISSING"); missingPop = true; continue;
+    }
+    Require(fileExists && keyExists && !(missingPop && index >= 12), "MAINTENANCE_CHECKPOINT_PAIR_MISSING");
+    auto guard = OpenPath(directory, true, FILE_READ_ATTRIBUTES | READ_CONTROL, FILE_SHARE_READ | FILE_SHARE_WRITE); CheckProtectedAcl(guard.value);
+    CheckMaintenanceRights(guard.value, SE_FILE_OBJECT, operatorProbe, false);
+    files.members[relative] = StringValue(FileSeal(RelativeFile(root, relative), false, operatorProbe));
+    files.members["directory:" + id] = StringValue(AclDigest(guard.value, SE_FILE_OBJECT));
+    auto counterpart = ReadCheckpointRegistry(id, operatorProbe); registry.members[id] = StringValue(counterpart.seal);
+    Json checkpoint = ObjectValue(); checkpoint.members["anchorId"] = StringValue(id);
+    checkpoint.members["fileJson"] = StringValue(ReadProtectedText(RelativeFile(root, relative), false));
+    checkpoint.members["registryJson"] = StringValue(counterpart.json); checkpoints.list.push_back(std::move(checkpoint));
+  }
+  Require(checkpoints.list.size() == 12 || checkpoints.list.size() == 14, "MAINTENANCE_CHECKPOINT_SET_INVALID");
+  const bool ledgerPresent = PathExists(Join(root, L"pop-request-replay.dpapi"));
+  Require(!(ledgerPresent && sourceVersion < 3 && !sourceHasMaintenance), "MAINTENANCE_UNOWNED_POP_LEDGER_CONFLICT");
+  Require(ledgerPresent || (sourceVersion < 3 && !sourceHasMaintenance), "MAINTENANCE_RETAINED_POP_LEDGER_MISSING");
+  if (ledgerPresent) { VerifyRetainedPopLedger(root, bootstrap.at("hostId").string());
+    files.members["pop-request-replay.dpapi"] = StringValue(FileSeal(Join(root, L"pop-request-replay.dpapi"), true, operatorProbe)); }
+  Secret key(0); key.bytes = UnprotectOwnedBlob(Join(root, L"integrity-key.dpapi"), MaxFrame); Require(key.bytes.size() == 32, "MAINTENANCE_KEY_INVALID");
+  PrivateText input; Json request = ObjectValue(); request.members["bootstrap"] = bootstrap;
+  request.members["integrityKey"] = StringValue(Base64(key.bytes)); request.members["checkpoints"] = std::move(checkpoints); input.value = JsonText(request);
+  request.members["integrityKey"].text.assign(request.members["integrityKey"].text.size(), '\0');
+  auto response = JsonParser(RunWorker(root, L"authority-install.mjs", [&](HANDLE) { return input.value; }, nullptr, nullptr,
+    L"--verify-maintenance-checkpoints", 0, helper.root)).parse(); response.exact({"verified", "checkpointCount"});
+  Require(response.at("verified").kind == Json::Boolean && response.at("verified").text == "true"
+    && UnsignedValue(response.at("checkpointCount"), 14) == registry.members.size(), "MAINTENANCE_CHECKPOINT_VERIFICATION_FAILED");
+  seal.members["files"] = std::move(files); seal.members["registry"] = std::move(registry);
+  seal.members["createPopSlots"] = NumberValue(missingPop ? 1 : 0); seal.members["createPopLedger"] = NumberValue(ledgerPresent ? 0 : 1); return seal;
+}
+void ValidateSealShape(const Json& seal) {
+  seal.exact({"rootAcl", "files", "registry", "createPopSlots", "createPopLedger"});
+  Require(Hex(seal.at("rootAcl").string(), 64), "MAINTENANCE_SEAL_INVALID");
+  Require(seal.at("files").kind == Json::Object && seal.at("registry").kind == Json::Object, "MAINTENANCE_SEAL_INVALID");
+  const auto createSlots = UnsignedValue(seal.at("createPopSlots"), 1), createLedger = UnsignedValue(seal.at("createPopLedger"), 1);
+  const size_t retainedSlots = createSlots ? 12 : 14;
+  Require(seal.at("registry").members.size() == retainedSlots && seal.at("files").members.size() == retainedSlots * 2 + 2 + (createLedger ? 0 : 1)
+    && seal.at("files").members.count("integrity-key.dpapi") && seal.at("files").members.count("request-nonces.bin")
+    && !!seal.at("files").members.count("pop-request-replay.dpapi") == !createLedger, "MAINTENANCE_SEAL_INVALID");
+  for (size_t index = 0; index < retainedSlots; ++index) Require(seal.at("registry").members.count(AnchorIds[index])
+    && seal.at("files").members.count("anchors/" + AnchorIds[index] + "/authority.json")
+    && seal.at("files").members.count("directory:" + AnchorIds[index]), "MAINTENANCE_SEAL_INVALID");
+  for (const auto& item : seal.at("files").members) { const auto& value = item.second.string();
+    Require(item.first.rfind("directory:", 0) == 0 ? Hex(value, 64)
+      : value.size() == 129 && value[64] == ':' && Hex(value.substr(0, 64), 64) && Hex(value.substr(65), 64), "MAINTENANCE_SEAL_INVALID"); }
+  for (const auto& item : seal.at("registry").members) { const auto& value = item.second.string();
+    Require(value.size() == 131 && value.rfind("1:", 0) == 0 && value[66] == ':'
+      && Hex(value.substr(2, 64), 64) && Hex(value.substr(67), 64), "MAINTENANCE_SEAL_INVALID"); }
+}
+void VerifySealObjects(const std::wstring& root, const Json& seal) {
+  ValidateSealShape(seal);
+  auto rootHandle = OpenPath(root, true, FILE_READ_ATTRIBUTES | READ_CONTROL, FILE_SHARE_READ | FILE_SHARE_WRITE); CheckProtectedAcl(rootHandle.value);
+  Require(AclDigest(rootHandle.value, SE_FILE_OBJECT) == seal.at("rootAcl").string(), "MAINTENANCE_SEALED_ROOT_CHANGED");
+  for (const auto& item : seal.at("files").members) {
+    if (item.first.rfind("directory:", 0) == 0) { auto id = item.first.substr(10); Require(std::find(AnchorIds.begin(), AnchorIds.end(), id) != AnchorIds.end(), "MAINTENANCE_SEAL_PATH_INVALID");
+      auto directory = OpenPath(RelativeFile(root, "anchors/" + id), true, FILE_READ_ATTRIBUTES | READ_CONTROL, FILE_SHARE_READ | FILE_SHARE_WRITE); CheckProtectedAcl(directory.value);
+      Require(AclDigest(directory.value, SE_FILE_OBJECT) == item.second.string(), "MAINTENANCE_SEALED_ACL_CHANGED"); continue; }
+    bool permitted = item.first == "integrity-key.dpapi" || item.first == "request-nonces.bin" || item.first == "pop-request-replay.dpapi";
+    for (const auto& id : AnchorIds) permitted = permitted || item.first == "anchors/" + id + "/authority.json";
+    Require(permitted && FileSeal(RelativeFile(root, item.first), item.first.rfind("anchors/", 0) != 0) == item.second.string(), "MAINTENANCE_SEALED_FILE_CHANGED");
+  }
+  Require(seal.at("registry").members.size() == 12 || seal.at("registry").members.size() == 14, "MAINTENANCE_SEAL_INVALID");
+  for (const auto& item : seal.at("registry").members) Require(std::find(AnchorIds.begin(), AnchorIds.end(), item.first) != AnchorIds.end()
+    && ReadCheckpointRegistry(item.first).seal == item.second.string(), "MAINTENANCE_SEALED_REGISTRY_CHANGED");
+}
+void StageArtifact(HANDLE source, const std::wstring& path, const std::string& hash, Security& security, bool privateState) {
+  Handle destination;
+  if (PathExists(path)) { destination = OpenPath(path, false, GENERIC_READ | GENERIC_WRITE | READ_CONTROL); CheckProtectedAcl(destination.value, privateState);
+    if (HashFile(destination.value) == hash) { Require(FlushFileBuffers(destination.value), "MAINTENANCE_ARTIFACT_FLUSH_FAILED"); return; }
+    SeekStart(destination.value); Require(SetEndOfFile(destination.value), "MAINTENANCE_ARTIFACT_TRUNCATE_FAILED"); }
+  else { destination.reset(CreateFileW(path.c_str(), GENERIC_READ | GENERIC_WRITE | READ_CONTROL, FILE_SHARE_READ, &security.attributes,
+      CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, nullptr)); Require(destination && SamePath(FinalPath(destination.value), path), "MAINTENANCE_ARTIFACT_CONFLICT"); }
+  SeekStart(source); std::array<char, 65536> buffer{}; DWORD count = 0;
+  do { Require(ReadFile(source, buffer.data(), static_cast<DWORD>(buffer.size()), &count, nullptr), "PACKAGE_READ_FAILED");
+    if (count) WriteAll(destination.value, buffer.data(), count); } while (count);
+  Require(FlushFileBuffers(destination.value) && HashFile(destination.value) == hash, "MAINTENANCE_ARTIFACT_READBACK_FAILED");
+}
+void PublishNewState(const std::wstring& source, const std::wstring& destination, const std::wstring& temporary, Security& security, bool privateState) {
+  auto input = OpenPath(source, false); CheckProtectedAcl(input.value, true); auto hash = HashFile(input.value);
+  if (PathExists(destination)) { auto existing = OpenPath(destination, false, GENERIC_READ | GENERIC_WRITE | READ_CONTROL); CheckProtectedAcl(existing.value, privateState);
+    Require(HashFile(existing.value) == hash && FlushFileBuffers(existing.value), "MAINTENANCE_NEW_OBJECT_CONFLICT"); return; }
+  StageArtifact(input.value, temporary, hash, security, privateState);
+  Require(MoveFileExW(temporary.c_str(), destination.c_str(), MOVEFILE_WRITE_THROUGH), "MAINTENANCE_NEW_OBJECT_PUBLISH_FAILED");
+  auto final = OpenPath(destination, false, GENERIC_READ | GENERIC_WRITE | READ_CONTROL); CheckProtectedAcl(final.value, privateState);
+  Require(FlushFileBuffers(final.value) && HashFile(final.value) == hash, "MAINTENANCE_NEW_OBJECT_READBACK_FAILED");
+}
+struct MaintenancePort {
+  const std::wstring root, directory;
+  Package& source; Package& target; Package& helper; Operator& caller;
+  Json record; maintenance::Journal journal;
+  Security readable, privateState, registrySecurity;
+  ScHandle manager, service; Handle mutex; bool locked = false, unlockFault = false;
+  MaintenancePort(const std::wstring& path, Package& from, Package& to, Operator& user, Json input)
+    : root(path), directory(Join(Join(path, L"maintenance"), Wide(input.at("transactionId").string()))), source(from), target(to),
+      helper(to.version == 4 ? to : from), caller(user), record(std::move(input)), journal(MaintenanceJournal(record)),
+      readable(ObjectAcl(user.sid, false)), privateState(ObjectAcl(user.sid, true)), registrySecurity(ObjectAcl(user.sid, false, true)),
+      manager(OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT)),
+      service(manager.value ? OpenServiceW(manager.value, ServiceName, SERVICE_QUERY_CONFIG | SERVICE_QUERY_STATUS | SERVICE_CHANGE_CONFIG | SERVICE_STOP) : nullptr) {
+    Require(service.value != nullptr, "MAINTENANCE_SERVICE_UNAVAILABLE");
+    Require(record.at("sourceManifestSha256").string() == source.manifestHash && record.at("targetManifestSha256").string() == target.manifestHash
+      && journal.sourceVersion == source.version && journal.targetVersion == target.version && helper.version == 4, "MAINTENANCE_PIN_MISMATCH");
+  }
+  std::string saved(const wchar_t* name, const char* hashKey) {
+    auto raw = ReadProtectedText(Join(directory, name)); Require(HashText(raw) == record.at(hashKey).string(), "MAINTENANCE_SAVED_VIEW_MISMATCH"); return raw;
+  }
+  void persist() { PublishMaintenanceText(Join(root, L"maintenance.json"), Join(directory, L"journal.pending"), JsonText(record), privateState);
+    Require(JsonText(ParseMaintenanceRecord(root)) == JsonText(record), "MAINTENANCE_JOURNAL_READBACK_FAILED"); }
+  void advance(maintenance::Phase phase) { record.members["phase"] = NumberValue(static_cast<unsigned>(phase)); persist(); journal.phase = phase; }
+  void ensureDisabled() {
+    CheckServiceConfiguration(service.value, root, false, true);
+    Require(ChangeServiceConfigW(service.value, SERVICE_NO_CHANGE, SERVICE_DISABLED, SERVICE_NO_CHANGE, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr), "MAINTENANCE_DISABLE_FAILED");
+    CheckServiceConfiguration(service.value, root, false, true);
+    DWORD bytes = 0; QueryServiceConfigW(service.value, nullptr, 0, &bytes); Require(bytes && bytes <= MaxFrame, "MAINTENANCE_DISABLE_READBACK_FAILED");
+    std::vector<unsigned char> storage(bytes); auto config = reinterpret_cast<QUERY_SERVICE_CONFIGW*>(storage.data());
+    Require(QueryServiceConfigW(service.value, config, bytes, &bytes) && config->dwStartType == SERVICE_DISABLED, "MAINTENANCE_DISABLE_READBACK_FAILED");
+  }
+  void ensureStopped() {
+    SERVICE_STATUS_PROCESS status{}; DWORD bytes = 0;
+    auto query = [&] { Require(QueryServiceStatusEx(service.value, SC_STATUS_PROCESS_INFO, reinterpret_cast<BYTE*>(&status), sizeof(status), &bytes), "MAINTENANCE_SERVICE_STATUS_FAILED"); };
+    query(); Handle process;
+    if (status.dwProcessId) { process.reset(OpenProcess(SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, status.dwProcessId)); Require(static_cast<bool>(process), "MAINTENANCE_SERVICE_PROCESS_UNAVAILABLE");
+      std::array<wchar_t, 32768> image{}; DWORD count = static_cast<DWORD>(image.size());
+      Require(QueryFullProcessImageNameW(process.value, 0, image.data(), &count) && SamePath(std::wstring(image.data(), count), Join(root, L"bin\\authority-broker-host.exe")), "MAINTENANCE_SERVICE_PROCESS_MISMATCH"); }
+    if (status.dwCurrentState != SERVICE_STOPPED && status.dwCurrentState != SERVICE_STOP_PENDING) { SERVICE_STATUS stopped{};
+      Require(ControlService(service.value, SERVICE_CONTROL_STOP, &stopped) || GetLastError() == ERROR_SERVICE_NOT_ACTIVE, "MAINTENANCE_STOP_FAILED"); }
+    const ULONGLONG deadline = GetTickCount64() + 30000;
+    do { query(); if (status.dwCurrentState == SERVICE_STOPPED) break; Require(Remaining(deadline), "MAINTENANCE_STOP_TIMEOUT"); Sleep(10); } while (true);
+    if (process) Require(WaitForSingleObject(process.value, Remaining(deadline)) == WAIT_OBJECT_0, "MAINTENANCE_PROCESS_EXIT_UNCONFIRMED");
+    query(); Require(status.dwCurrentState == SERVICE_STOPPED && status.dwProcessId == 0, "MAINTENANCE_STOP_UNCONFIRMED");
+  }
+  void acquireBrokerLock() {
+    Security security(L"O:BAG:BAD:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;" + std::wstring(ServiceSid) + L")");
+    mutex.reset(CreateMutexExW(&security.attributes, L"Global\\UnifiedAiSystemLocalClientAuthorityBroker-v1", 0, SYNCHRONIZE | MUTEX_MODIFY_STATE | READ_CONTROL));
+    Require(static_cast<bool>(mutex), "MAINTENANCE_BROKER_LOCK_UNAVAILABLE");
+    PSECURITY_DESCRIPTOR descriptor = nullptr; PSID owner = nullptr; PACL acl = nullptr;
+    Require(GetSecurityInfo(mutex.value, SE_KERNEL_OBJECT, OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
+      &owner, nullptr, &acl, nullptr, &descriptor) == ERROR_SUCCESS, "MAINTENANCE_BROKER_LOCK_ACL_REJECTED"); LocalMemory memory; memory.value = descriptor;
+    Sid system(L"S-1-5-18"), admins(L"S-1-5-32-544"), serviceSid(ServiceSid);
+    auto trusted = [&](PSID sid) { return sid && (EqualSid(sid, system.get()) || EqualSid(sid, admins.get()) || EqualSid(sid, serviceSid.get())); };
+    SECURITY_DESCRIPTOR_CONTROL control{}; DWORD revision = 0;
+    Require(trusted(owner) && acl && GetSecurityDescriptorControl(descriptor, &control, &revision) && (control & SE_DACL_PROTECTED), "MAINTENANCE_BROKER_LOCK_ACL_REJECTED");
+    for (DWORD index = 0; index < acl->AceCount; ++index) { void* raw = nullptr; Require(GetAce(acl, index, &raw), "MAINTENANCE_BROKER_LOCK_ACL_REJECTED");
+      auto ace = static_cast<ACCESS_ALLOWED_ACE*>(raw); Require(ace->Header.AceType == ACCESS_ALLOWED_ACE_TYPE && trusted(&ace->SidStart), "MAINTENANCE_BROKER_LOCK_ACL_REJECTED"); }
+    const auto result = WaitForSingleObject(mutex.value, 2000); if (result == WAIT_ABANDONED) { ReleaseMutex(mutex.value); Reject("MAINTENANCE_BROKER_LOCK_ABANDONED"); }
+    Require(result == WAIT_OBJECT_0, "MAINTENANCE_BROKER_LOCK_UNAVAILABLE"); locked = true;
+  }
+  void releaseBrokerLock() noexcept { if (locked) { if (!ReleaseMutex(mutex.value)) unlockFault = true; locked = false; } mutex.reset(); }
+  void seal() {
+    auto ownership = ReadOwnership(root, record.at("installationId").string(), source.manifestHash);
+    Require(HashText(ReadProtectedText(Join(root, L"installation.json"))) == record.at("sourceOwnershipSha256").string()
+      && ownership.at("phase").string() == "installed", "MAINTENANCE_SOURCE_VIEW_CHANGED"); VerifyInstalledPackage(root, source);
+    auto bootstrap = ReadMaintenanceBootstrap(root, source.version, ownership);
+    Require(HashText(ReadProtectedText(Join(root, L"bootstrap.json"))) == record.at("sourceBootstrapSha256").string(), "MAINTENANCE_SOURCE_VIEW_CHANGED");
+    auto current = CollectMaintenanceSeal(root, bootstrap, source.version, journal.sourceHasMaintenance, helper, caller.probe.value);
+    const auto path = Join(directory, L"seal.json");
+    if (PathExists(path)) Require(ReadProtectedText(path) == JsonText(current), "MAINTENANCE_SEALED_STATE_CHANGED");
+    else SavePrivateMetadata(directory, L"seal.json", JsonText(current), privateState);
+    const auto digest = HashText(JsonText(current)); Require(record.at("sealSha256").kind == Json::Null
+      || record.at("sealSha256").string() == digest, "MAINTENANCE_SEALED_STATE_CHANGED");
+    record.members["sealSha256"] = StringValue(digest); persist();
+  }
+  Json sealed() { const auto raw = ReadProtectedText(Join(directory, L"seal.json"));
+    Require(record.at("sealSha256").kind == Json::String && HashText(raw) == record.at("sealSha256").string(), "MAINTENANCE_SEAL_BINDING_MISMATCH");
+    return JsonParser(raw).parse(); }
+  void blockView() {
+    VerifySealObjects(root, sealed()); auto raw = saved(L"source-ownership.json", "sourceOwnershipSha256"); auto preparing = JsonParser(raw).parse();
+    preparing.members["phase"] = StringValue("preparing"); const auto current = ReadProtectedText(Join(root, L"installation.json"));
+    Require(current == raw || current == JsonText(preparing), "MAINTENANCE_PREPARING_VIEW_CONFLICT");
+    PublishMaintenanceText(Join(root, L"installation.json"), Join(directory, L"preparing-ownership.pending"), JsonText(preparing), privateState);
+  }
+  void replaceCode(size_t index) {
+    Require(index < PackageFiles.size(), "MAINTENANCE_CODE_INDEX_INVALID"); const auto& name = PackageFiles[index]; const auto path = RelativeFile(root, name);
+    { auto current = OpenPath(path, false, GENERIC_READ | GENERIC_WRITE | READ_CONTROL); CheckProtectedAcl(current.value); const auto hash = HashFile(current.value);
+      if (hash == target.hashes.at(name)) { Require(FlushFileBuffers(current.value), "MAINTENANCE_CODE_FLUSH_FAILED"); return; }
+      Require(hash == source.hashes.at(name), "MAINTENANCE_CODE_REPLACEMENT_CONFLICT"); }
+    const auto temporary = Join(directory, L"code-" + std::to_wstring(index) + L".pending");
+    StageArtifact(target.files[index].value, temporary, target.hashes.at(name), readable, false);
+    Require(MoveFileExW(temporary.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH), "MAINTENANCE_CODE_PUBLISH_FAILED");
+    auto published = OpenPath(path, false, GENERIC_READ | GENERIC_WRITE | READ_CONTROL); CheckProtectedAcl(published.value);
+    Require(FlushFileBuffers(published.value) && HashFile(published.value) == target.hashes.at(name), "MAINTENANCE_CODE_READBACK_FAILED");
+  }
+  void extendPoPState();
+  void prepareTargetViews() {
+    static_cast<void>(saved(L"target-bootstrap.json", "targetBootstrapSha256")); static_cast<void>(saved(L"target-ownership.json", "targetOwnershipSha256"));
+    VerifyInstalledPackage(root, target); verifySealedPreservation();
+  }
+  void verifySealedPreservation() {
+    const auto seal = sealed(); VerifySealObjects(root, seal);
+    if (UnsignedValue(seal.at("createPopSlots"), 1)) for (const auto& id : {std::string("pop-replay"), std::string("validation-pop-replay")}) {
+      const auto expected = ReadProtectedText(Join(directory, Wide(id) + L".json"));
+      Require(ReadProtectedText(RelativeFile(root, "anchors/" + id + "/authority.json"), false) == expected
+        && ReadCheckpointRegistry(id).json == "{\"currentGeneration\":0,\"currentDigest\":null,\"pendingGeneration\":null,\"pendingDigest\":null}", "MAINTENANCE_NEW_CHECKPOINT_CHANGED");
+    }
+    if (UnsignedValue(seal.at("createPopLedger"), 1)) Require(FileSeal(Join(root, L"pop-request-replay.dpapi"), true).substr(0, 64)
+      == HashText(ReadProtectedText(Join(directory, L"new-pop-request-replay.dpapi"), true, 1024 * 1024)), "MAINTENANCE_NEW_POP_LEDGER_CHANGED");
+    auto bootstrap = JsonParser(saved(L"target-bootstrap.json", "targetBootstrapSha256")).parse();
+    static_cast<void>(CollectMaintenanceSeal(root, bootstrap, target.version, true, helper, caller.probe.value));
+  }
+  void commitViews() {
+    const auto bootstrap = saved(L"target-bootstrap.json", "targetBootstrapSha256"), ownership = saved(L"target-ownership.json", "targetOwnershipSha256");
+    auto oldOwnership = JsonParser(saved(L"source-ownership.json", "sourceOwnershipSha256")).parse(); oldOwnership.members["phase"] = StringValue("preparing");
+    const auto currentBootstrap = ReadProtectedText(Join(root, L"bootstrap.json")), currentOwnership = ReadProtectedText(Join(root, L"installation.json"));
+    Require((HashText(currentBootstrap) == record.at("sourceBootstrapSha256").string() || currentBootstrap == bootstrap)
+      && (currentOwnership == JsonText(oldOwnership) || currentOwnership == ownership), "MAINTENANCE_COMMIT_VIEW_CONFLICT");
+    PublishMaintenanceText(Join(root, L"bootstrap.json"), Join(directory, L"bootstrap.pending"), bootstrap, privateState);
+    PublishMaintenanceText(Join(root, L"installation.json"), Join(directory, L"ownership.pending"), ownership, privateState);
+  }
+  void verifyCommittedView() {
+    Require(HashText(ReadProtectedText(Join(root, L"bootstrap.json"))) == record.at("targetBootstrapSha256").string()
+      && HashText(ReadProtectedText(Join(root, L"installation.json"))) == record.at("targetOwnershipSha256").string(), "MAINTENANCE_COMMITTED_VIEW_CHANGED");
+    auto ownership = ReadOwnership(root, record.at("installationId").string(), target.manifestHash); Require(ownership.at("phase").string() == "installed"
+      && OwnedHashes(ownership) == target.hashes, "MAINTENANCE_COMMITTED_OWNERSHIP_INVALID");
+    static_cast<void>(ReadMaintenanceBootstrap(root, target.version, ownership)); VerifyInstalledPackage(root, target);
+    auto durable = ParseMaintenanceRecord(root); auto state = MaintenanceJournal(durable);
+    Require(durable.at("transactionId").string() == record.at("transactionId").string()
+      && (state.phase == maintenance::Phase::CommittedStopped || state.phase == maintenance::Phase::Complete), "MAINTENANCE_COMMITTED_JOURNAL_INVALID");
+  }
+  void restoreDemandStart() {
+    Require(!unlockFault, "MAINTENANCE_BROKER_UNLOCK_UNCONFIRMED");
+    CheckServiceConfiguration(service.value, root, false, true);
+    Require(ChangeServiceConfigW(service.value, SERVICE_NO_CHANGE, SERVICE_DEMAND_START, SERVICE_NO_CHANGE, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr), "MAINTENANCE_DEMAND_START_FAILED");
+    CheckServiceConfiguration(service.value, root);
+  }
+  void complete() { advance(maintenance::Phase::Complete); }
+  void verifyComplete() { verifyCommittedView(); CheckServiceConfiguration(service.value, root); }
+};
+void MaintenancePort::extendPoPState() {
+  auto seal = sealed(); VerifySealObjects(root, seal);
+  Require(journal.minPopProtocolVersion == 2 && MaintenanceJournal(ParseMaintenanceRecord(root)).minPopProtocolVersion == 2, "MAINTENANCE_POP_FLOOR_MISSING");
+  auto bootstrap = JsonParser(saved(L"source-bootstrap.json", "sourceBootstrapSha256")).parse(); const auto hostId = bootstrap.at("hostId").string();
+  if (UnsignedValue(seal.at("createPopSlots"), 1)) {
+    Require(target.version == 4, "MAINTENANCE_LEGACY_CANNOT_CREATE_POP");
+    const auto signedPath = Join(directory, L"new-pop-checkpoints.json");
+    if (!PathExists(signedPath)) {
+      Secret key(0); key.bytes = UnprotectOwnedBlob(Join(root, L"integrity-key.dpapi"), MaxFrame); Require(key.bytes.size() == 32, "MAINTENANCE_KEY_INVALID");
+      PrivateText input; input.value = "{\"hostId\":" + QuoteJson(hostId) + ",\"currentUserSid\":" + QuoteJson(Utf8(caller.sid))
+        + ",\"programDataBasePath\":" + QuoteJson(Utf8(ProgramData())) + ",\"anchorIds\":" + AnchorsJson()
+        + ",\"packageManifestSha256\":" + QuoteJson(target.manifestHash) + ",\"integrityKey\":" + QuoteJson(Base64(key.bytes)) + '}';
+      auto response = RunWorker(root, L"authority-install.mjs", [&](HANDLE) { return input.value; }, nullptr, nullptr, L"--prepare-maintenance", 0, helper.root);
+      SavePrivateMetadata(directory, L"new-pop-checkpoints.json", response, privateState);
+    }
+    auto signedData = JsonParser(ReadProtectedText(signedPath)).parse(); signedData.exact({"checkpoints"});
+    Require(signedData.at("checkpoints").kind == Json::Array && signedData.at("checkpoints").list.size() == 2, "MAINTENANCE_SIGNER_SET_INVALID");
+    std::map<std::string, std::string> signedFiles;
+    for (const auto& value : signedData.at("checkpoints").list) { value.exact({"anchorId", "checkpointJson"}); const auto& id = value.at("anchorId").string();
+      Require((id == "pop-replay" || id == "validation-pop-replay") && signedFiles.emplace(id, value.at("checkpointJson").string()).second, "MAINTENANCE_SIGNER_SET_INVALID"); }
+    auto parents = OpenRegistryParents(true); Require(parents.product.value != nullptr, "MAINTENANCE_REGISTRY_MISSING");
+    auto authority = OpenRegistryChild(parents.product.value, L"LocalClientAuthority", true, false);
+    auto anchors = OpenRegistryChild(authority.value, L"Anchors", true, false);
+    const std::string zeroRegistry = "{\"currentGeneration\":0,\"currentDigest\":null,\"pendingGeneration\":null,\"pendingDigest\":null}";
+    for (const auto& item : signedFiles) {
+      const auto& id = item.first; const auto slot = RelativeFile(root, "anchors/" + id);
+      // The seal recorded absence before any new object was published. Only this
+      // fixed namespace may be resumed as empty-or-exact-zero; existing state is never reset.
+      if (!PathExists(slot)) CreateOwnedDirectory(slot, readable);
+      auto directoryGuard = OpenPath(slot, true, FILE_READ_ATTRIBUTES | READ_CONTROL, FILE_SHARE_READ | FILE_SHARE_WRITE); CheckProtectedAcl(directoryGuard.value);
+      const auto name = Wide(id) + L".json"; SavePrivateMetadata(directory, name.c_str(), item.second, privateState);
+      PublishNewState(Join(directory, name), Join(slot, L"authority.json"), Join(directory, Wide(id) + L".publish"), readable, false);
+      RegHandle key; DWORD disposition = 0;
+      Require(RegCreateKeyExW(anchors.value, Wide(id).c_str(), 0, nullptr, REG_OPTION_NON_VOLATILE, KEY_READ | KEY_WRITE | READ_CONTROL | KEY_WOW64_64KEY,
+        &registrySecurity.attributes, &key.value, &disposition) == ERROR_SUCCESS, "MAINTENANCE_NEW_REGISTRY_CONFLICT"); CheckRegistryParent(key.value);
+      DWORD subkeys = 0, values = 0; Require(RegQueryInfoKeyW(key.value, nullptr, nullptr, nullptr, &subkeys, nullptr, nullptr,
+        &values, nullptr, nullptr, nullptr, nullptr) == ERROR_SUCCESS && subkeys == 0 && values <= 1, "MAINTENANCE_NEW_REGISTRY_CONFLICT");
+      if (values == 0) { auto raw = Wide(zeroRegistry);
+        Require(RegSetValueExW(key.value, L"Checkpoint", 0, REG_SZ, reinterpret_cast<const BYTE*>(raw.c_str()),
+          static_cast<DWORD>((raw.size() + 1) * sizeof(wchar_t))) == ERROR_SUCCESS, "MAINTENANCE_NEW_REGISTRY_WRITE_FAILED"); }
+      Require(RegFlushKey(key.value) == ERROR_SUCCESS && ReadCheckpointRegistry(id).json == zeroRegistry, "MAINTENANCE_NEW_REGISTRY_CONFLICT");
+      auto file = OpenPath(Join(slot, L"authority.json"), false); VerifyOperatorFileAccess(file.value, caller.probe.value, true);
+    }
+  }
+  if (UnsignedValue(seal.at("createPopLedger"), 1)) {
+    Require(target.version == 4, "MAINTENANCE_LEGACY_CANNOT_CREATE_POP"); const auto staged = Join(directory, L"new-pop-request-replay.dpapi");
+    if (!PathExists(staged)) {
+      PrivateText plain; plain.value = "UAI-POP-REQUEST-REPLAY-V1\n";
+      auto integer = [&](uint64_t value, size_t count) { for (size_t index = 0; index < count; ++index) plain.value.push_back(static_cast<char>(value >> (index * 8))); };
+      integer(hostId.size(), 4); plain.value += hostId; plain.value += std::string(64, '0'); integer(0, 8); integer(0, 4);
+      DATA_BLOB input{static_cast<DWORD>(plain.value.size()), reinterpret_cast<BYTE*>(plain.value.data())}, output{};
+      Require(CryptProtectData(&input, L"Unified AI PoP request replay", nullptr, nullptr, nullptr, CRYPTPROTECT_LOCAL_MACHINE | CRYPTPROTECT_UI_FORBIDDEN, &output), "MAINTENANCE_POP_LEDGER_PROTECTION_FAILED");
+      LocalMemory encrypted; encrypted.value = output.pbData;
+      SavePrivateMetadata(directory, L"new-pop-request-replay.dpapi", std::string(reinterpret_cast<char*>(output.pbData), output.cbData), privateState);
+    }
+    VerifyPopLedgerFile(staged, hostId, true);
+    PublishNewState(staged, Join(root, L"pop-request-replay.dpapi"), Join(directory, L"pop-ledger.publish"), privateState, true);
+  }
+  // Validate all retained and newly created pairs through the same TypeScript
+  // HMAC parser. This reads the final files; helper output alone is not proof.
+  const auto finalBootstrap = JsonParser(saved(L"target-bootstrap.json", "targetBootstrapSha256")).parse();
+  static_cast<void>(CollectMaintenanceSeal(root, finalBootstrap, target.version, true, helper, caller.probe.value)); VerifySealObjects(root, seal);
+}
+Json NewMaintenanceRecord(const Json& ownership, const Json& bootstrap, const Package& source, const Package& target,
+  maintenance::Operation operation, bool previous, const std::string& sourceRaw, const std::string& sourceOwnership,
+  const std::string& targetRaw, const std::string& targetOwnership, const Json& legacyBootstrapHash, const Json& legacyOwnershipHash) {
+  Json record = ObjectValue(); record.members["version"] = StringValue(MaintenanceVersion);
+  record.members["installationId"] = ownership.at("installationId"); record.members["rootIdentity"] = ownership.at("rootIdentity");
+  record.members["transactionId"] = StringValue(RandomId()); record.members["operation"] = NumberValue(static_cast<unsigned>(operation));
+  record.members["phase"] = NumberValue(static_cast<unsigned>(maintenance::Phase::Intent)); record.members["sourceVersion"] = NumberValue(source.version);
+  record.members["targetVersion"] = NumberValue(target.version); record.members["minPopProtocolVersion"] = NumberValue(2);
+  Json was; was.kind = Json::Boolean; was.text = previous ? "true" : "false"; record.members["sourceHasMaintenance"] = was;
+  record.members["sourceManifestSha256"] = StringValue(source.manifestHash); record.members["targetManifestSha256"] = StringValue(target.manifestHash);
+  record.members["sourceBootstrapSha256"] = StringValue(HashText(sourceRaw)); record.members["sourceOwnershipSha256"] = StringValue(HashText(sourceOwnership));
+  record.members["targetBootstrapSha256"] = StringValue(HashText(targetRaw)); record.members["targetOwnershipSha256"] = StringValue(HashText(targetOwnership));
+  record.members["legacyBootstrapSha256"] = legacyBootstrapHash; record.members["legacyOwnershipSha256"] = legacyOwnershipHash;
+  record.members["sealSha256"] = Json{};
+  Require(bootstrap.at("installationId").string() == ownership.at("installationId").string(), "MAINTENANCE_IDENTITY_MISMATCH"); return record;
+}
+void Maintain(Package& source, Package& target, const std::wstring& base, Operator& caller, const std::string& expectedId,
+  maintenance::Operation operation, bool resume, bool apply) {
+  const auto root = AuthorityRoot(base); auto guards = HoldDirectories(root); for (const auto& guard : guards) CheckAncestorAcl(guard.value);
+  Require(!SamePath(ModulePath(), Join(root, L"bin\\authority-broker-host.exe")) && !SamePath(source.root, root) && !SamePath(target.root, root), "MAINTENANCE_REQUIRES_EXTERNAL_PACKAGES");
+  Package& helper = target.version == 4 ? target : source; Require(helper.version == 4, "MAINTENANCE_CURRENT_HELPER_REQUIRED");
+  if (apply) Require(caller.elevated, "EXPLICIT_ELEVATION_REQUIRED");
+  if (resume) {
+    const auto existing = ParseMaintenanceRecord(root);
+    const auto directory = Join(Join(root, L"maintenance"), Wide(existing.at("transactionId").string()));
+    for (const auto& view : {std::pair<const wchar_t*, const char*>{L"source-bootstrap.json", "sourceBootstrapSha256"},
+      {L"target-bootstrap.json", "targetBootstrapSha256"}}) {
+      auto raw = ReadProtectedText(Join(directory, view.first)); Require(HashText(raw) == existing.at(view.second).string()
+        && JsonParser(raw).parse().at("currentUserSid").string() == Utf8(caller.sid), "MAINTENANCE_RESUME_OPERATOR_MISMATCH");
+    }
+  }
+  Handle maintenanceLock; Security privateState(ObjectAcl(caller.sid, true));
+  if (apply) {
+    const auto lockPath = Join(root, L"maintenance.lock");
+    if (PathExists(lockPath)) maintenanceLock = OpenPath(lockPath, false, GENERIC_READ | GENERIC_WRITE | READ_CONTROL, 0);
+    else { maintenanceLock.reset(CreateFileW(lockPath.c_str(), GENERIC_READ | GENERIC_WRITE | READ_CONTROL, 0, &privateState.attributes,
+      CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, nullptr)); Require(maintenanceLock && SamePath(FinalPath(maintenanceLock.value), lockPath), "MAINTENANCE_LOCK_CONFLICT"); }
+    CheckProtectedAcl(maintenanceLock.value, true); Require(HashFile(maintenanceLock.value, 0) == HashText(""), "MAINTENANCE_LOCK_INVALID");
+  }
+  const bool previous = PathExists(Join(root, L"maintenance.json")); Json record;
+  if (resume) {
+    Require(previous, "MAINTENANCE_RESUME_RECORD_MISSING"); record = ParseMaintenanceRecord(root); auto journal = MaintenanceJournal(record);
+    Require(record.at("installationId").string() == expectedId && journal.operation == operation
+      && record.at("sourceManifestSha256").string() == source.manifestHash && record.at("targetManifestSha256").string() == target.manifestHash,
+      "MAINTENANCE_RESUME_PIN_MISMATCH");
+    const auto directory = Join(Join(root, L"maintenance"), Wide(record.at("transactionId").string()));
+    for (const auto& view : {std::pair<const wchar_t*, const char*>{L"source-bootstrap.json", "sourceBootstrapSha256"}, {L"target-bootstrap.json", "targetBootstrapSha256"},
+      {L"source-ownership.json", "sourceOwnershipSha256"}, {L"target-ownership.json", "targetOwnershipSha256"}})
+      Require(HashText(ReadProtectedText(Join(directory, view.first))) == record.at(view.second).string(), "MAINTENANCE_RESUME_SAVED_VIEW_CHANGED");
+    Require(JsonParser(ReadProtectedText(Join(directory, L"source-bootstrap.json"))).parse().at("currentUserSid").string() == Utf8(caller.sid), "MAINTENANCE_RESUME_OPERATOR_MISMATCH");
+    ScHandle manager(OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT)); Require(manager.value != nullptr, "SCM_UNAVAILABLE");
+    std::unique_ptr<ScHandle> service(OpenServiceRead(manager.value)); Require(static_cast<bool>(service), "MAINTENANCE_SERVICE_MISSING");
+    CheckServiceConfiguration(service->value, root, false, true);
+    for (const auto& name : PackageFiles) { auto file = OpenPath(RelativeFile(root, name), false); CheckProtectedAcl(file.value); const auto hash = HashFile(file.value);
+      const bool beforeCode = static_cast<unsigned>(journal.phase) < static_cast<unsigned>(maintenance::Phase::Blocked);
+      const bool afterCode = static_cast<unsigned>(journal.phase) > static_cast<unsigned>(maintenance::Phase::Blocked);
+      Require(beforeCode ? hash == source.hashes.at(name) : afterCode ? hash == target.hashes.at(name)
+        : hash == source.hashes.at(name) || hash == target.hashes.at(name), "MAINTENANCE_RESUME_CODE_CONFLICT"); }
+    if ((journal.phase != maintenance::Phase::Intent || record.at("sealSha256").kind == Json::String)
+      && journal.phase != maintenance::Phase::CommittedStopped && journal.phase != maintenance::Phase::Complete) {
+      const auto raw = ReadProtectedText(Join(directory, L"seal.json")); Require(HashText(raw) == record.at("sealSha256").string(), "MAINTENANCE_SEAL_BINDING_MISMATCH");
+      VerifySealObjects(root, JsonParser(raw).parse());
+    }
+    const auto currentBootstrap = HashText(ReadProtectedText(Join(root, L"bootstrap.json")));
+    Require(journal.phase == maintenance::Phase::ViewsPrepared ? currentBootstrap == record.at("sourceBootstrapSha256").string() || currentBootstrap == record.at("targetBootstrapSha256").string()
+      : static_cast<unsigned>(journal.phase) < static_cast<unsigned>(maintenance::Phase::ViewsPrepared) ? currentBootstrap == record.at("sourceBootstrapSha256").string()
+      : currentBootstrap == record.at("targetBootstrapSha256").string(), "MAINTENANCE_RESUME_BOOTSTRAP_CONFLICT");
+    const auto sourceOwnership = ReadProtectedText(Join(directory, L"source-ownership.json")); auto preparing = JsonParser(sourceOwnership).parse();
+    preparing.members["phase"] = StringValue("preparing"); const auto currentOwnership = ReadProtectedText(Join(root, L"installation.json"));
+    const auto targetOwnership = ReadProtectedText(Join(directory, L"target-ownership.json"));
+    const bool ownershipValid = journal.phase == maintenance::Phase::Intent ? currentOwnership == sourceOwnership
+      : journal.phase == maintenance::Phase::Sealed ? currentOwnership == sourceOwnership || currentOwnership == JsonText(preparing)
+      : journal.phase == maintenance::Phase::ViewsPrepared ? currentOwnership == JsonText(preparing) || currentOwnership == targetOwnership
+      : static_cast<unsigned>(journal.phase) < static_cast<unsigned>(maintenance::Phase::ViewsPrepared) ? currentOwnership == JsonText(preparing)
+      : currentOwnership == targetOwnership;
+    Require(ownershipValid, "MAINTENANCE_RESUME_OWNERSHIP_CONFLICT");
+  } else {
+    auto ownership = ReadOwnership(root, expectedId, source.manifestHash); Require(ownership.at("phase").string() == "installed"
+      && OwnedHashes(ownership) == source.hashes, "MAINTENANCE_SOURCE_OWNERSHIP_MISMATCH"); VerifyInstalledPackage(root, source);
+    auto bootstrap = ReadMaintenanceBootstrap(root, source.version, ownership); Require(bootstrap.at("currentUserSid").string() == Utf8(caller.sid), "MAINTENANCE_OPERATOR_MISMATCH");
+    Json previousRecord, legacyBootstrapHash, legacyOwnershipHash;
+    if (previous) {
+      previousRecord = ParseMaintenanceRecord(root); auto prior = MaintenanceJournal(previousRecord);
+      Require(prior.phase == maintenance::Phase::Complete && prior.targetVersion == source.version
+        && previousRecord.at("installationId").string() == expectedId && previousRecord.at("targetManifestSha256").string() == source.manifestHash
+        && HashText(ReadProtectedText(Join(root, L"bootstrap.json"))) == previousRecord.at("targetBootstrapSha256").string()
+        && HashText(ReadProtectedText(Join(root, L"installation.json"))) == previousRecord.at("targetOwnershipSha256").string(), "MAINTENANCE_PREVIOUS_TRANSACTION_INCOMPLETE");
+      legacyBootstrapHash = previousRecord.at("legacyBootstrapSha256"); legacyOwnershipHash = previousRecord.at("legacyOwnershipSha256");
+    }
+    const auto sourceRaw = ReadProtectedText(Join(root, L"bootstrap.json")), sourceOwnership = ReadProtectedText(Join(root, L"installation.json"));
+    std::string targetRaw, targetOwnership;
+    if (operation == maintenance::Operation::RestoreLegacyV1) {
+      Require(previous && legacyBootstrapHash.kind == Json::String && legacyOwnershipHash.kind == Json::String, "MAINTENANCE_ORIGINAL_V1_VIEW_MISSING");
+      targetRaw = ReadProtectedText(Join(root, L"legacy-v1-bootstrap.json")); targetOwnership = ReadProtectedText(Join(root, L"legacy-v1-installation.json"));
+      Require(HashText(targetRaw) == legacyBootstrapHash.string() && HashText(targetOwnership) == legacyOwnershipHash.string(), "MAINTENANCE_ORIGINAL_V1_VIEW_CHANGED");
+      auto legacy = JsonParser(targetOwnership).parse(); legacy.exact({"version", "installationId", "rootIdentity", "packageManifestSha256", "serviceImagePath", "phase", "files"});
+      auto legacyBootstrap = JsonParser(targetRaw).parse(); legacyBootstrap.exact({"version", "installationId", "hostId", "currentUserSid", "programDataBasePath", "anchorIds"});
+      Require(target.version == 1 && legacy.at("packageManifestSha256").string() == target.manifestHash && OwnedHashes(legacy) == target.hashes
+        && legacy.at("installationId").string() == expectedId && legacy.at("rootIdentity").string() == ownership.at("rootIdentity").string()
+        && legacyBootstrap.at("version").string() == "local-client-windows-authority-bootstrap-v1", "MAINTENANCE_ORIGINAL_V1_PACKAGE_REQUIRED");
+    } else {
+      auto nextBootstrap = bootstrap; nextBootstrap.members["version"] = StringValue(BootstrapVersion);
+      nextBootstrap.members["anchorIds"] = JsonParser(AnchorsJson()).parse(); nextBootstrap.members["packageManifestSha256"] = StringValue(target.manifestHash); targetRaw = JsonText(nextBootstrap);
+      auto nextOwnership = ownership; nextOwnership.members["packageManifestSha256"] = StringValue(target.manifestHash);
+      nextOwnership.members["files"] = JsonParser(FilesJson(target.hashes)).parse(); targetOwnership = JsonText(nextOwnership);
+      if (source.version == 1 && !previous) { legacyBootstrapHash = StringValue(HashText(sourceRaw)); legacyOwnershipHash = StringValue(HashText(sourceOwnership)); }
+    }
+    record = NewMaintenanceRecord(ownership, bootstrap, source, target, operation, previous, sourceRaw, sourceOwnership, targetRaw, targetOwnership, legacyBootstrapHash, legacyOwnershipHash);
+    static_cast<void>(MaintenanceJournal(record));
+    ScHandle manager(OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT)); Require(manager.value != nullptr, "SCM_UNAVAILABLE");
+    std::unique_ptr<ScHandle> service(OpenServiceRead(manager.value)); Require(static_cast<bool>(service), "MAINTENANCE_SERVICE_MISSING"); CheckServiceConfiguration(service->value, root);
+    // Check-only performs reads and the pure pinned signer only. The apply path
+    // repeats this whole seal after STOPPED under the existing broker mutex.
+    static_cast<void>(CollectMaintenanceSeal(root, bootstrap, source.version, previous, helper, caller.probe.value));
+    if (apply) {
+      const auto parent = Join(root, L"maintenance"); if (!PathExists(parent)) CreateOwnedDirectory(parent, privateState);
+      auto parentGuard = OpenPath(parent, true, FILE_READ_ATTRIBUTES | READ_CONTROL, FILE_SHARE_READ | FILE_SHARE_WRITE); CheckProtectedAcl(parentGuard.value, true);
+      const auto directory = Join(parent, Wide(record.at("transactionId").string())); CreateOwnedDirectory(directory, privateState);
+      for (const auto& item : {std::pair<const wchar_t*, std::string>{L"source-bootstrap.json", sourceRaw}, {L"source-ownership.json", sourceOwnership},
+        {L"target-bootstrap.json", targetRaw}, {L"target-ownership.json", targetOwnership}}) SavePrivateMetadata(directory, item.first, item.second, privateState);
+      if (source.version == 1 && !previous) {
+        for (const auto& item : {std::pair<const wchar_t*, std::string>{L"legacy-v1-bootstrap.json", sourceRaw}, {L"legacy-v1-installation.json", sourceOwnership}}) {
+          if (PathExists(Join(root, item.first))) Require(ReadProtectedText(Join(root, item.first)) == item.second, "MAINTENANCE_LEGACY_BACKUP_CONFLICT");
+          else SavePrivateMetadata(root, item.first, item.second, privateState);
+        }
+      }
+      PublishMaintenanceText(Join(root, L"maintenance.json"), Join(directory, L"journal.pending"), JsonText(record), privateState);
+    }
+  }
+  if (apply) { MaintenancePort port(root, source, target, caller, record); auto journal = MaintenanceJournal(record); maintenance::Execute(port, journal); }
+  std::cout << "{\"mode\":\"" << (apply ? "maintenance-apply" : "maintenance-check-only") << "\",\"packagesVerified\":true,\"targetVersion\":" << target.version
+    << ",\"restrictedLegacyOnly\":" << (target.version == 1 ? "true" : "false") << ",\"serviceStarted\":false,\"nativeProvisioningVerified\":false"
+    << (apply ? ",\"completed\":true" : ",\"systemMutations\":0") << "}\n";
+}
 void Install(Package& package, const std::wstring& base, Operator& caller) {
+  Require(package.version == 4, "FRESH_INSTALL_CURRENT_PACKAGE_REQUIRED");
   Require(caller.elevated, "EXPLICIT_ELEVATION_REQUIRED"); const auto root = AuthorityRoot(base);
   ScHandle manager(OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT | SC_MANAGER_CREATE_SERVICE)); Require(manager.value != nullptr, "SCM_UNAVAILABLE");
   std::unique_ptr<ScHandle> existing(OpenServiceRead(manager.value)); Require(!existing && !PathExists(root) && !RegistryExists(), "INSTALLATION_CONFLICT");
@@ -757,9 +1420,98 @@ void Install(Package& package, const std::wstring& base, Operator& caller) {
     SERVICE_WIN32_OWN_PROCESS, SERVICE_DEMAND_START, SERVICE_ERROR_NORMAL, ServiceCommand(root).c_str(), nullptr, nullptr, nullptr, ServiceAccount, nullptr));
   Require(service.value != nullptr, "SERVICE_CREATE_CONFLICT"); SERVICE_SID_INFO sid{SERVICE_SID_TYPE_UNRESTRICTED};
   Require(ChangeServiceConfig2W(service.value, SERVICE_CONFIG_SERVICE_SID_INFO, &sid), "SERVICE_SID_CONFIGURATION_FAILED"); CheckServiceConfiguration(service.value, root);
-  WriteOwnership(root, installationId, identity, package, "installed", privateState, false);
+  // Only this final publication window is recoverable by --resume-fresh-install.
+  // Earlier fresh-only creation failures retain the existing explicit conflict behavior.
+  Handle freshLock(CreateFileW(Join(root, L"maintenance.lock").c_str(), GENERIC_READ | GENERIC_WRITE | READ_CONTROL,
+    0, &privateState.attributes, CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, nullptr));
+  Require(freshLock && SamePath(FinalPath(freshLock.value), Join(root, L"maintenance.lock")), "MAINTENANCE_LOCK_CONFLICT");
+  CheckProtectedAcl(freshLock.value, true);
+  const auto preparingRaw = ReadProtectedText(Join(root, L"installation.json"));
+  auto freshOwnership = ReadOwnership(root); auto freshBootstrap = JsonParser(bootstrap).parse();
+  Require(freshOwnership.at("phase").string() == "preparing", "FRESH_INSTALL_PREPARING_REQUIRED");
+  auto installedOwnership = freshOwnership; installedOwnership.members["phase"] = StringValue("installed");
+  const auto installedRaw = JsonText(installedOwnership);
+  SavePrivateMetadata(root, L"fresh-install-target-ownership.json", installedRaw, privateState);
+  auto freshRecord = NewMaintenanceRecord(freshOwnership, freshBootstrap, package, package, maintenance::Operation::FreshInstall,
+    false, bootstrap, preparingRaw, bootstrap, installedRaw, Json{}, Json{});
+  freshRecord.members["sourceVersion"] = NumberValue(0);
+  freshRecord.members["phase"] = NumberValue(static_cast<unsigned>(maintenance::Phase::CommittedStopped));
+  static_cast<void>(MaintenanceJournal(freshRecord));
+  PublishMaintenanceText(Join(root, L"maintenance.json"), Join(root, L"maintenance-initial.pending"), JsonText(freshRecord), privateState);
+  Require(JsonText(ParseMaintenanceRecord(root)) == JsonText(freshRecord), "FRESH_INSTALL_RECORD_READBACK_FAILED");
+  PublishMaintenanceText(Join(root, L"installation.json"), Join(root, L"fresh-install-ownership.pending"), installedRaw, privateState);
+  VerifyRuntimeMaintenance(root, ReadOwnership(root));
+  freshRecord.members["phase"] = NumberValue(static_cast<unsigned>(maintenance::Phase::Complete));
+  PublishMaintenanceText(Join(root, L"maintenance.json"), Join(root, L"maintenance-initial.pending"), JsonText(freshRecord), privateState);
+  Require(JsonText(ParseMaintenanceRecord(root)) == JsonText(freshRecord), "FRESH_INSTALL_RECORD_READBACK_FAILED");
   std::cout << "{\"mode\":\"apply\",\"serviceRegistered\":true,\"serviceStarted\":false,\"installationId\":" << QuoteJson(installationId)
     << ",\"manifestSha256\":" << QuoteJson(package.manifestHash) << ",\"nativeProvisioningVerified\":false}\n";
+}
+
+void ResumeFreshInstall(Package& package, const std::wstring& base, Operator& caller, const std::string& expectedId, bool apply) {
+  Require(package.version == 4 && Hex(expectedId, 32), "FRESH_INSTALL_RESUME_PACKAGE_REQUIRED");
+  const auto root = AuthorityRoot(base); auto parents = HoldDirectories(root);
+  for (const auto& parent : parents) CheckAncestorAcl(parent.value);
+  Require(!SamePath(ModulePath(), Join(root, L"bin\\authority-broker-host.exe")) && !SamePath(package.root, root), "MAINTENANCE_REQUIRES_EXTERNAL_PACKAGES");
+  auto record = ParseMaintenanceRecord(root); auto journal = MaintenanceJournal(record);
+  Require(journal.operation == maintenance::Operation::FreshInstall && record.at("installationId").string() == expectedId
+    && record.at("sourceManifestSha256").string() == package.manifestHash && record.at("targetManifestSha256").string() == package.manifestHash
+    && record.at("sourceBootstrapSha256").string() == record.at("targetBootstrapSha256").string(), "FRESH_INSTALL_RESUME_RECORD_MISMATCH");
+  std::string targetRaw;
+  Json currentBootstrap;
+  ScHandle manager(OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT)); Require(manager.value != nullptr, "SCM_UNAVAILABLE");
+  std::unique_ptr<ScHandle> service(OpenServiceRead(manager.value)); Require(static_cast<bool>(service), "MAINTENANCE_SERVICE_MISSING");
+  const auto verifyViews = [&]() {
+    auto current = ReadOwnership(root, expectedId, package.manifestHash);
+    Require(OwnedHashes(current) == package.hashes, "FRESH_INSTALL_RESUME_CODE_BINDING_MISMATCH");
+    currentBootstrap = ReadMaintenanceBootstrap(root, 4, current);
+    Require(currentBootstrap.at("currentUserSid").string() == Utf8(caller.sid)
+      && HashText(ReadProtectedText(Join(root, L"bootstrap.json"))) == record.at("targetBootstrapSha256").string(), "FRESH_INSTALL_RESUME_CALLER_OR_BOOTSTRAP_MISMATCH");
+    VerifyInstalledPackage(root, package); CheckServiceConfiguration(service->value, root);
+    targetRaw = ReadProtectedText(Join(root, L"fresh-install-target-ownership.json"));
+    Require(HashText(targetRaw) == record.at("targetOwnershipSha256").string(), "FRESH_INSTALL_RESUME_TARGET_VIEW_MISMATCH");
+    auto installedProjection = current; installedProjection.members["phase"] = StringValue("installed");
+    Require(JsonText(installedProjection) == JsonText(JsonParser(targetRaw).parse()), "FRESH_INSTALL_RESUME_TARGET_VIEW_MISMATCH");
+    const auto raw = ReadProtectedText(Join(root, L"installation.json"));
+    const bool installed = current.at("phase").string() == "installed" && HashText(raw) == record.at("targetOwnershipSha256").string();
+    const bool preparing = current.at("phase").string() == "preparing" && HashText(raw) == record.at("sourceOwnershipSha256").string();
+    Require(installed || (preparing && journal.phase == maintenance::Phase::CommittedStopped), "FRESH_INSTALL_RESUME_ACTIVE_VIEW_MISMATCH");
+    if (preparing) {
+      SERVICE_STATUS_PROCESS status{}; DWORD bytes = 0;
+      Require(QueryServiceStatusEx(service->value, SC_STATUS_PROCESS_INFO, reinterpret_cast<BYTE*>(&status), sizeof(status), &bytes)
+        && status.dwCurrentState == SERVICE_STOPPED && status.dwProcessId == 0, "FRESH_INSTALL_RESUME_PREPARING_PROCESS_ACTIVE");
+    }
+    return installed;
+  };
+  bool installed = verifyViews();
+  Handle maintenanceLock;
+  Security privateState(ObjectAcl(caller.sid, true));
+  if (apply) {
+    Require(caller.elevated, "EXPLICIT_ELEVATION_REQUIRED");
+    // The publishing installer creates this lock before its first resumable record.
+    maintenanceLock = OpenPath(Join(root, L"maintenance.lock"), false, GENERIC_READ | GENERIC_WRITE | READ_CONTROL, 0);
+    CheckProtectedAcl(maintenanceLock.value, true);
+    Require(HashFile(maintenanceLock.value, 0) == HashText(""), "MAINTENANCE_LOCK_INVALID");
+    auto durable = ParseMaintenanceRecord(root); auto durableJournal = MaintenanceJournal(durable);
+    auto unchanged = record; unchanged.members["phase"] = durable.at("phase");
+    Require(JsonText(unchanged) == JsonText(durable) && static_cast<unsigned>(durableJournal.phase) >= static_cast<unsigned>(journal.phase),
+      "FRESH_INSTALL_RESUME_RECORD_CHANGED");
+    record = std::move(durable); journal = durableJournal; installed = verifyViews();
+  }
+  // A previous installed view may already have served legitimate requests.
+  // Validate current retained state; never compare to an old seal or rewrite it.
+  static_cast<void>(CollectMaintenanceSeal(root, currentBootstrap, 4, true, package, caller.probe.value));
+  if (apply) {
+    if (!installed) PublishMaintenanceText(Join(root, L"installation.json"), Join(root, L"fresh-install-ownership.pending"), targetRaw, privateState);
+    VerifyRuntimeMaintenance(root, ReadOwnership(root));
+    if (journal.phase != maintenance::Phase::Complete) {
+      record.members["phase"] = NumberValue(static_cast<unsigned>(maintenance::Phase::Complete));
+      PublishMaintenanceText(Join(root, L"maintenance.json"), Join(root, L"maintenance-initial.pending"), JsonText(record), privateState);
+      Require(JsonText(ParseMaintenanceRecord(root)) == JsonText(record), "FRESH_INSTALL_RECORD_READBACK_FAILED");
+    }
+  }
+  std::cout << "{\"mode\":\"resume-fresh-install\",\"packagesVerified\":true,\"targetVersion\":4,\"recoverable\":true,\"serviceStarted\":false,\"nativeProvisioningVerified\":false"
+    << (apply ? ",\"completed\":true" : ",\"systemMutations\":0") << "}\n";
 }
 
 void Rollback(Package& package, const std::wstring& base, Operator& caller, const std::string& expectedId, bool apply) {
@@ -1006,9 +1758,10 @@ void WINAPI ServiceMain(DWORD, LPWSTR*) {
 }
 
 struct Options {
-  bool apply = false, yes = false, check = false, rollback = false;
-  std::wstring package;
-  std::string expectedHash, installationId;
+  bool apply = false, yes = false, check = false, rollback = false, maintaining = false, resume = false, resumeFreshInstall = false;
+  maintenance::Operation operation = maintenance::Operation::Upgrade;
+  std::wstring package, sourcePackage;
+  std::string expectedHash, installationId, sourceHash;
 };
 Options ParseOptions(int argc, wchar_t** argv) {
   Options out; std::set<std::wstring> seen;
@@ -1016,14 +1769,28 @@ Options ParseOptions(int argc, wchar_t** argv) {
     std::wstring flag(argv[i]); Require(seen.insert(flag).second, "CLI_DUPLICATE_FLAG");
     if (flag == L"--apply") out.apply = true; else if (flag == L"--yes") out.yes = true;
     else if (flag == L"--check-only") out.check = true; else if (flag == L"--rollback") out.rollback = true;
-    else if (flag == L"--package" || flag == L"--expected-manifest-sha256" || flag == L"--installation-id") {
+    else if (flag == L"--upgrade" || flag == L"--adopt-existing-v3" || flag == L"--restore-legacy-v1") {
+      Require(!out.maintaining, "CLI_MAINTENANCE_OPERATION_CONFLICT"); out.maintaining = true;
+      out.operation = flag == L"--upgrade" ? maintenance::Operation::Upgrade : flag == L"--adopt-existing-v3"
+        ? maintenance::Operation::AdoptExistingV3 : maintenance::Operation::RestoreLegacyV1;
+    } else if (flag == L"--resume") out.resume = true;
+    else if (flag == L"--resume-fresh-install") out.resumeFreshInstall = true;
+    else if (flag == L"--package" || flag == L"--expected-manifest-sha256" || flag == L"--installation-id"
+      || flag == L"--source-package" || flag == L"--expected-source-manifest-sha256") {
       Require(++i < argc, "CLI_VALUE_REQUIRED"); if (flag == L"--package") out.package = FullPath(argv[i]);
       else if (flag == L"--expected-manifest-sha256") { out.expectedHash = Utf8(argv[i]); Require(Hex(out.expectedHash, 64), "CLI_MANIFEST_HASH_INVALID"); }
+      else if (flag == L"--source-package") out.sourcePackage = FullPath(argv[i]);
+      else if (flag == L"--expected-source-manifest-sha256") { out.sourceHash = Utf8(argv[i]); Require(Hex(out.sourceHash, 64), "CLI_MANIFEST_HASH_INVALID"); }
       else { out.installationId = Utf8(argv[i]); Require(Hex(out.installationId, 32), "CLI_INSTALLATION_ID_INVALID"); }
     } else Reject("CLI_FLAG_REJECTED");
   }
   Require(out.apply == out.yes && !(out.apply && out.check) && (!out.apply || !out.expectedHash.empty())
-    && (!out.rollback || !out.installationId.empty()) && (out.rollback || out.installationId.empty()), "CLI_APPLY_GUARD_REQUIRED");
+    && (!(out.rollback || out.maintaining || out.resumeFreshInstall) || !out.installationId.empty())
+    && (out.rollback || out.maintaining || out.resumeFreshInstall || out.installationId.empty())
+    && !(out.rollback && out.maintaining) && (!out.resume || out.maintaining)
+    && (!out.resumeFreshInstall || (!out.rollback && !out.maintaining && !out.resume && !out.package.empty() && !out.expectedHash.empty()))
+    && (out.maintaining ? !out.sourcePackage.empty() && !out.sourceHash.empty() && !out.expectedHash.empty()
+      : out.sourcePackage.empty() && out.sourceHash.empty()), "CLI_APPLY_GUARD_REQUIRED");
   if (out.package.empty()) { const auto parent = Parent(ModulePath()); out.package = SamePath(parent.substr(parent.find_last_of(L'\\') + 1), L"bin") ? Parent(parent) : parent; }
   return out;
 }
@@ -1040,7 +1807,11 @@ int wmain(int argc, wchar_t** argv) {
     auto options = ParseOptions(argc, argv); readOnly = !options.apply;
     auto package = OpenPackage(options.package, options.expectedHash);
     const auto base = ProgramData(); auto caller = ReadOperator();
-    if (options.rollback) Rollback(package, base, caller, options.installationId, options.apply);
+    if (options.resumeFreshInstall) ResumeFreshInstall(package, base, caller, options.installationId, options.apply);
+    else if (options.maintaining) {
+      auto source = OpenPackage(options.sourcePackage, options.sourceHash);
+      Maintain(source, package, base, caller, options.installationId, options.operation, options.resume, options.apply);
+    } else if (options.rollback) Rollback(package, base, caller, options.installationId, options.apply);
     else if (options.apply) Install(package, base, caller);
     else {
       ScHandle manager(OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT)); Require(manager.value != nullptr, "SCM_UNAVAILABLE");

@@ -1,7 +1,9 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { timingSafeEqual } from "node:crypto";
 import {
   createLocalClientWindowsAuthorityFileHmac, LOCAL_CLIENT_WINDOWS_AUTHORITY_FILE_VERSION,
+  type LocalClientWindowsAuthorityCheckpointState,
 } from "./localClientWindowsProtectedAuthorityAnchor.ts";
 import {
   createLocalClientWindowsAuthorityProvisioningPlan, LOCAL_CLIENT_WINDOWS_AUTHORITY_SERVICE_SID,
@@ -9,6 +11,7 @@ import {
 import {
   boundedJson, parseBounded, handleLocalClientNativeAuthorityRequest, loadLocalClientNativeAuthority,
   parseLocalClientNativeAuthorityBootstrap, type LocalClientNativeAuthorityApi,
+  LOCAL_CLIENT_NATIVE_AUTHORITY_LEGACY_SLOTS, LOCAL_CLIENT_NATIVE_AUTHORITY_SLOTS,
 } from "./localClientWindowsAuthorityNative.ts";
 
 const PRIVATE_LIMIT = 8 * 65_536;
@@ -32,19 +35,31 @@ export async function handleLocalClientAuthorityWorkerEnvelope(native: LocalClie
  * stdin. This helper performs no filesystem, registry, service or network writes.
  * It reuses the existing file signing protocol and never includes that key in output. */
 export function createLocalClientNativeAuthorityZeroCheckpoints(input: unknown) {
+  return createZeroCheckpoints(input, false);
+}
+
+/** The preserving installer may request only the two new slots. It receives no
+ * newly signed legacy checkpoint and must never rewrite an existing slot. */
+export function createLocalClientNativeAuthorityMaintenanceCheckpoints(input: unknown) {
+  return createZeroCheckpoints(input, true);
+}
+
+function createZeroCheckpoints(input: unknown, popOnly: boolean) {
   const v2 = input !== null && typeof input === "object" && !Array.isArray(input) && Object.hasOwn(input, "packageManifestSha256");
-  exact(input, ["hostId", "currentUserSid", "programDataBasePath", "anchorIds", "integrityKey", ...(v2 ? ["packageManifestSha256"] : [])]);
+  exactData(input, ["hostId", "currentUserSid", "programDataBasePath", "anchorIds", "integrityKey", ...(v2 ? ["packageManifestSha256"] : [])]);
+  if (popOnly && !v2) fail();
   if (typeof input.hostId !== "string" || !input.hostId.startsWith("windows-authority-")
     || typeof input.integrityKey !== "string") fail();
   const key = Buffer.from(input.integrityKey, "base64");
   try {
     if (key.byteLength !== 32 || key.toString("base64") !== input.integrityKey) fail();
     input.integrityKey = "";
-    const bootstrap = parseLocalClientNativeAuthorityBootstrap({ version: v2 ? "local-client-windows-authority-bootstrap-v3" : "local-client-windows-authority-bootstrap-v1",
+    const bootstrap = parseLocalClientNativeAuthorityBootstrap({ version: v2 ? "local-client-windows-authority-bootstrap-v4" : "local-client-windows-authority-bootstrap-v1",
       installationId: input.hostId.slice("windows-authority-".length), hostId: input.hostId,
       currentUserSid: input.currentUserSid, programDataBasePath: input.programDataBasePath, anchorIds: input.anchorIds,
       ...(v2 ? { packageManifestSha256: input.packageManifestSha256 } : {}) });
-    const checkpoints = bootstrap.anchorIds.map(anchorId => {
+    const slots = popOnly ? ["pop-replay", "validation-pop-replay"] : bootstrap.anchorIds;
+    const checkpoints = slots.map(anchorId => {
       const plan = createLocalClientWindowsAuthorityProvisioningPlan(bootstrap.programDataBasePath, [], { anchorId });
       const unsigned = { fileVersion: LOCAL_CLIENT_WINDOWS_AUTHORITY_FILE_VERSION, hostId: bootstrap.hostId,
         serviceSid: LOCAL_CLIENT_WINDOWS_AUTHORITY_SERVICE_SID, anchorPath: plan.storage.anchorPath,
@@ -55,6 +70,64 @@ export function createLocalClientNativeAuthorityZeroCheckpoints(input: unknown) 
     });
     return Object.freeze({ checkpoints: Object.freeze(checkpoints) });
   } finally { key.fill(0); }
+}
+
+/** Offline verification of already-read bytes. OS paths, ACLs, registry types,
+ * ownership and before/after byte preservation remain the installer's checks. */
+export function verifyLocalClientNativeAuthorityMaintenanceCheckpoints(input: unknown) {
+  exactData(input, ["bootstrap", "integrityKey", "checkpoints"]);
+  if (typeof input.integrityKey !== "string" || !Array.isArray(input.checkpoints)) fail();
+  const key = Buffer.from(input.integrityKey, "base64");
+  try {
+    if (key.byteLength !== 32 || key.toString("base64") !== input.integrityKey) fail();
+    input.integrityKey = "";
+    const bootstrap = parseLocalClientNativeAuthorityBootstrap(input.bootstrap);
+    const expected = input.checkpoints.length === LOCAL_CLIENT_NATIVE_AUTHORITY_LEGACY_SLOTS.length
+      && bootstrap.version === "local-client-windows-authority-bootstrap-v1"
+      ? LOCAL_CLIENT_NATIVE_AUTHORITY_LEGACY_SLOTS : LOCAL_CLIENT_NATIVE_AUTHORITY_SLOTS;
+    if (input.checkpoints.length !== expected.length) fail();
+    const seen = new Set<string>();
+    for (const raw of input.checkpoints) {
+      exactData(raw, ["anchorId", "fileJson", "registryJson"]);
+      if (typeof raw.anchorId !== "string" || !expected.includes(raw.anchorId) || seen.has(raw.anchorId)
+        || typeof raw.fileJson !== "string" || typeof raw.registryJson !== "string") fail();
+      seen.add(raw.anchorId);
+      const plan = createLocalClientWindowsAuthorityProvisioningPlan(bootstrap.programDataBasePath, [], { anchorId: raw.anchorId });
+      const file = parseBounded(raw.fileJson), registry = parseBounded(raw.registryJson);
+      exactData(file, ["fileVersion", "hostId", "serviceSid", "anchorPath", "hklmKeyPath", "hklmView",
+        "currentGeneration", "currentDigest", "pendingGeneration", "pendingDigest", "hmacSha256"]);
+      if (file.fileVersion !== LOCAL_CLIENT_WINDOWS_AUTHORITY_FILE_VERSION || file.hostId !== bootstrap.hostId
+        || file.serviceSid !== LOCAL_CLIENT_WINDOWS_AUTHORITY_SERVICE_SID || file.anchorPath !== plan.storage.anchorPath
+        || file.hklmKeyPath !== plan.registry.keyPath || file.hklmView !== "registry64"
+        || typeof file.hmacSha256 !== "string" || !/^[a-f0-9]{64}$/u.test(file.hmacSha256)) fail();
+      const state = maintenanceCheckpointState(file, false);
+      const unsigned = { fileVersion: LOCAL_CLIENT_WINDOWS_AUTHORITY_FILE_VERSION, hostId: bootstrap.hostId,
+        serviceSid: LOCAL_CLIENT_WINDOWS_AUTHORITY_SERVICE_SID, anchorPath: plan.storage.anchorPath,
+        hklmKeyPath: plan.registry.keyPath, hklmView: "registry64" as const, ...state };
+      const expectedHmac = createLocalClientWindowsAuthorityFileHmac(key, unsigned);
+      if (!timingSafeEqual(Buffer.from(file.hmacSha256, "hex"), Buffer.from(expectedHmac, "hex"))) fail();
+      const registryState = maintenanceCheckpointState(registry, true);
+      if (state.currentGeneration !== registryState.currentGeneration || state.currentDigest !== registryState.currentDigest
+        || state.pendingGeneration !== registryState.pendingGeneration || state.pendingDigest !== registryState.pendingDigest) fail();
+    }
+    if (expected.some(anchorId => !seen.has(anchorId))) fail();
+    return Object.freeze({ verified: true as const, checkpointCount: seen.size });
+  } finally { key.fill(0); }
+}
+
+function maintenanceCheckpointState(raw: unknown, exactState: boolean): LocalClientWindowsAuthorityCheckpointState {
+  if (exactState) exactData(raw, ["currentGeneration", "currentDigest", "pendingGeneration", "pendingDigest"]);
+  else if (raw === null || typeof raw !== "object" || Array.isArray(raw)) fail();
+  const record = raw as Record<string, unknown>;
+  const generation = record.currentGeneration, pending = record.pendingGeneration;
+  const digest = record.currentDigest, pendingDigest = record.pendingDigest;
+  const nullableDigest = (value: unknown) => value === null || (typeof value === "string" && /^[a-f0-9]{64}$/u.test(value));
+  if (typeof generation !== "number" || !Number.isSafeInteger(generation) || generation < 0
+    || (pending !== null && (typeof pending !== "number" || !Number.isSafeInteger(pending) || pending <= 0 || pending !== generation + 1))
+    || !nullableDigest(digest) || !nullableDigest(pendingDigest)
+    || (generation === 0) !== (digest === null) || (pending === null) !== (pendingDigest === null)) fail();
+  return Object.freeze({ currentGeneration: generation, currentDigest: digest as string | null,
+    pendingGeneration: pending as number | null, pendingDigest: pendingDigest as string | null });
 }
 
 /** Called only by the separately bundled private worker entry. Importing this
@@ -107,7 +180,8 @@ export async function runNativeAuthorityWorker() {
       const loadedBootstrap = native.readBootstrap();
       try {
         const bootstrap = parseLocalClientNativeAuthorityBootstrap(parseBounded(loadedBootstrap.configJson));
-        if (bootstrap.version !== "local-client-windows-authority-bootstrap-v3" || !native.startPopServiceInstance) fail();
+        if ((bootstrap.version !== "local-client-windows-authority-bootstrap-v3"
+          && bootstrap.version !== "local-client-windows-authority-bootstrap-v4") || !native.startPopServiceInstance) fail();
         native.initializeService({ hostId: bootstrap.hostId, currentUserSid: bootstrap.currentUserSid });
         const serviceInstanceId = native.startPopServiceInstance();
         if (!/^[a-f0-9]{64}$/u.test(serviceInstanceId)) fail();
@@ -130,8 +204,13 @@ export async function runNativeAuthorityWorker() {
 
 export async function runPrepareBootstrap() {
   try {
-    if (process.argv.length !== 3 || process.argv[2] !== "--prepare-bootstrap") fail();
-    await writePrivateOutput(createLocalClientNativeAuthorityZeroCheckpoints(await readPrivateInput()));
+    if (process.argv.length !== 3) fail();
+    const mode = process.argv[2];
+    if (mode !== "--prepare-bootstrap" && mode !== "--prepare-maintenance" && mode !== "--verify-maintenance-checkpoints") fail();
+    const input = await readPrivateInput();
+    await writePrivateOutput(mode === "--prepare-maintenance" ? createLocalClientNativeAuthorityMaintenanceCheckpoints(input)
+      : mode === "--verify-maintenance-checkpoints" ? verifyLocalClientNativeAuthorityMaintenanceCheckpoints(input)
+      : createLocalClientNativeAuthorityZeroCheckpoints(input));
   } catch {
     process.stderr.write("LOCAL_CLIENT_NATIVE_AUTHORITY_BOOTSTRAP_REJECTED\n");
     process.exitCode = 1;
@@ -178,5 +257,11 @@ async function writePrivateOutput(value: unknown) {
 function exact(value: unknown, keys: readonly string[]): asserts value is Record<string, unknown> {
   if (value === null || typeof value !== "object" || Array.isArray(value)
     || Object.keys(value).length !== keys.length || keys.some(key => !Object.hasOwn(value, key))) fail();
+}
+function exactData(value: unknown, keys: readonly string[]): asserts value is Record<string, unknown> {
+  exact(value, keys);
+  if ((Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null)
+    || Reflect.ownKeys(value).length !== keys.length
+    || Object.values(Object.getOwnPropertyDescriptors(value)).some(descriptor => !("value" in descriptor))) fail();
 }
 function fail(): never { throw new Error("LOCAL_CLIENT_NATIVE_AUTHORITY_ENTRY_REJECTED"); }

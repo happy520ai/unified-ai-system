@@ -12,7 +12,9 @@ import {
   handleLocalClientNativeAuthorityRequest, parseLocalClientNativeAuthorityBootstrap,
   type LocalClientNativeAuthorityApi,
 } from "./localClientWindowsAuthorityNative.ts";
-import { createLocalClientNativeAuthorityZeroCheckpoints, handleLocalClientAuthorityWorkerEnvelope } from "./localClientWindowsAuthorityBrokerEntry.ts";
+import { createLocalClientNativeAuthorityZeroCheckpoints, handleLocalClientAuthorityWorkerEnvelope,
+  createLocalClientNativeAuthorityMaintenanceCheckpoints, verifyLocalClientNativeAuthorityMaintenanceCheckpoints } from "./localClientWindowsAuthorityBrokerEntry.ts";
+import * as authorityCrypto from "./localClientWindowsProtectedAuthorityAnchor.ts";
 import { createLocalClientWindowsAuthorityProvisioningPlan, LOCAL_CLIENT_WINDOWS_AUTHORITY_SERVICE_SID } from "./localClientWindowsAuthorityBrokerService.ts";
 import { createLocalClientWindowsAuthorityFileHmac, createLocalClientWindowsAuthorityRequestHmac,
   type LocalClientWindowsAuthorityBrokerRequest, type LocalClientWindowsAuthorityFileCheckpoint } from "./localClientWindowsProtectedAuthorityAnchor.ts";
@@ -27,10 +29,119 @@ const bootstrap = { version: "local-client-windows-authority-bootstrap-v3" as co
   programDataBasePath: "C:\\fixture\\ProgramData", anchorIds: [...LOCAL_CLIENT_NATIVE_AUTHORITY_SLOTS], packageManifestSha256: "a".repeat(64) };
 const BOOTSTRAP_REQUEST = JSON.stringify({ version: "local-client-windows-authority-bootstrap-request-v1" });
 
+it("maintenance v4 preserves exact bootstrap versions and the v3 PoP lifecycle without accepting v2 PoP", async () => {
+  const v4 = { ...bootstrap, version: "local-client-windows-authority-bootstrap-v4" as const };
+  expect(parseLocalClientNativeAuthorityBootstrap(v4)).toEqual(v4);
+  for (const invalid of [{ ...v4, extra: true }, { ...v4, version: "local-client-windows-authority-bootstrap-v5" },
+    { ...v4, anchorIds: [...LOCAL_CLIENT_NATIVE_AUTHORITY_LEGACY_SLOTS] }]) {
+    expect(() => parseLocalClientNativeAuthorityBootstrap(invalid)).toThrow();
+  }
+  const f = fixture(undefined, v4.version);
+  const client = await createLocalClientNativeAuthorityClient(f.api, "pop-replay");
+  await client.close();
+  expect(f.nonceCount).toBe(0); expect(f.popClaimCount).toBe(2); expectClosed(f);
+  const old = fixture();
+  const readBootstrap = old.api.readBootstrap.bind(old.api);
+  old.api.readBootstrap = () => {
+    const loaded = readBootstrap();
+    return { ...loaded, configJson: JSON.stringify({ ...old.configuration, version: "local-client-windows-authority-bootstrap-v2" }) };
+  };
+  await expect(createLocalClientNativeAuthorityClient(old.api, "pop-replay")).rejects.toThrow();
+  expect(old.nonceCount).toBe(0); expect(old.popClaimCount).toBe(0); expectClosed(old);
+});
+
+it("maintenance signer signs exactly the two new PoP slots without signing any of the original twelve", () => {
+  const key = Buffer.alloc(32, 74);
+  const input = { hostId: bootstrap.hostId, currentUserSid: USER_SID, programDataBasePath: bootstrap.programDataBasePath,
+    anchorIds: [...LOCAL_CLIENT_NATIVE_AUTHORITY_SLOTS], packageManifestSha256: bootstrap.packageManifestSha256, integrityKey: key.toString("base64") };
+  const signer = vi.spyOn(authorityCrypto, "createLocalClientWindowsAuthorityFileHmac");
+  try {
+    const result = createLocalClientNativeAuthorityMaintenanceCheckpoints(input);
+    expect(result.checkpoints.map(value => value.anchorId)).toEqual(["pop-replay", "validation-pop-replay"]);
+    expect(signer).toHaveBeenCalledTimes(2);
+    expect(input.integrityKey).toBe("");
+    for (const item of result.checkpoints) {
+      const file = JSON.parse(item.checkpointJson) as LocalClientWindowsAuthorityFileCheckpoint;
+      const { hmacSha256, ...unsigned } = file;
+      expect(state(file)).toEqual({ currentGeneration: 0, currentDigest: null, pendingGeneration: null, pendingDigest: null });
+      expect(hmacSha256).toBe(createLocalClientWindowsAuthorityFileHmac(key, unsigned));
+    }
+    expect(() => createLocalClientNativeAuthorityMaintenanceCheckpoints({ ...input, integrityKey: key.toString("base64"), anchorIds: [...LOCAL_CLIENT_NATIVE_AUTHORITY_LEGACY_SLOTS] })).toThrow();
+    expect(() => createLocalClientNativeAuthorityMaintenanceCheckpoints({ ...input, integrityKey: key.toString("base64"), existingCheckpoints: [] })).toThrow();
+  } finally { signer.mockRestore(); key.fill(0); }
+});
+
+function maintenanceVerificationFixture(version: 1 | 2 | 3 | 4 = 4, retainPop = true) {
+  const key = Buffer.alloc(32, 75);
+  const { packageManifestSha256: _manifest, ...legacy } = bootstrap;
+  const config = version === 1 ? { ...legacy, version: "local-client-windows-authority-bootstrap-v1" as const,
+    anchorIds: [...LOCAL_CLIENT_NATIVE_AUTHORITY_LEGACY_SLOTS] }
+    : { ...bootstrap, version: `local-client-windows-authority-bootstrap-v${version}` };
+  const slots = retainPop ? LOCAL_CLIENT_NATIVE_AUTHORITY_SLOTS : LOCAL_CLIENT_NATIVE_AUTHORITY_LEGACY_SLOTS;
+  const checkpoints = slots.map((anchorId, index) => {
+    const plan = createLocalClientWindowsAuthorityProvisioningPlan(config.programDataBasePath, [], { anchorId });
+    const currentGeneration = index + 7, currentDigest = createHash("sha256").update(anchorId).digest("hex");
+    const pendingGeneration = index % 2 ? currentGeneration + 1 : null;
+    const pendingDigest = pendingGeneration === null ? null : createHash("sha256").update(anchorId + "-pending").digest("hex");
+    const checkpoint = { currentGeneration, currentDigest, pendingGeneration, pendingDigest };
+    const unsigned = { fileVersion: "local-client-windows-authority-file-v1" as const, hostId: config.hostId,
+      serviceSid: SERVICE_SID, anchorPath: plan.storage.anchorPath, hklmKeyPath: plan.registry.keyPath, hklmView: "registry64" as const, ...checkpoint };
+    return { anchorId, fileJson: JSON.stringify({ ...unsigned, hmacSha256: createLocalClientWindowsAuthorityFileHmac(key, unsigned) }, null, 2) + "\n",
+      registryJson: JSON.stringify(checkpoint) };
+  });
+  return { key, input: { bootstrap: config, integrityKey: key.toString("base64"), checkpoints } };
+}
+
+it.each([1, 2, 3, 4] as const)("maintenance verifier accepts v%s nonzero and pending checkpoints without changing raw state bytes", version => {
+  const f = maintenanceVerificationFixture(version);
+  const originalBytes = f.input.checkpoints.map(value => [value.fileJson, value.registryJson]);
+  expect(verifyLocalClientNativeAuthorityMaintenanceCheckpoints(f.input)).toEqual({ verified: true, checkpointCount: 14 });
+  expect(f.input.checkpoints.map(value => [value.fileJson, value.registryJson])).toEqual(originalBytes);
+  expect(f.input.integrityKey).toBe(""); f.key.fill(0);
+});
+
+it("maintenance verifier accepts original v1 twelve slots but never accepts partial PoP or arbitrary subsets", () => {
+  const original = maintenanceVerificationFixture(1, false);
+  expect(verifyLocalClientNativeAuthorityMaintenanceCheckpoints(original.input)).toEqual({ verified: true, checkpointCount: 12 });
+  original.key.fill(0);
+  for (const variant of ["one-pop-missing", "one-legacy-missing", "duplicate", "unknown", "v4-with-twelve"] as const) {
+    const f = maintenanceVerificationFixture(variant === "v4-with-twelve" ? 4 : 1);
+    if (variant === "one-pop-missing") f.input.checkpoints.pop();
+    if (variant === "one-legacy-missing") f.input.checkpoints.shift();
+    if (variant === "duplicate") f.input.checkpoints[1] = { ...f.input.checkpoints[0]! };
+    if (variant === "unknown") f.input.checkpoints[0]!.anchorId = "unrecognized";
+    if (variant === "v4-with-twelve") f.input.checkpoints = f.input.checkpoints.filter(value => !value.anchorId.includes("pop-replay"));
+    expect(() => verifyLocalClientNativeAuthorityMaintenanceCheckpoints(f.input)).toThrow(); f.key.fill(0);
+  }
+});
+
+it.each(["hmac", "identity", "path", "pending", "registry", "extra-file-field", "extra-registry-field", "wrong-key"] as const)
+  ("maintenance verifier rejects %s drift without repairing or resigning existing state", variation => {
+    const f = maintenanceVerificationFixture();
+    const target = f.input.checkpoints[1]!;
+    const file = JSON.parse(target.fileJson) as LocalClientWindowsAuthorityFileCheckpoint;
+    const registry = JSON.parse(target.registryJson) as ReturnType<typeof state>;
+    if (variation === "hmac") target.fileJson = JSON.stringify({ ...file, hmacSha256: "f".repeat(64) });
+    if (variation === "identity") target.fileJson = JSON.stringify({ ...file, hostId: "different-installation" });
+    if (variation === "path") target.fileJson = JSON.stringify({ ...file, anchorPath: file.anchorPath.replace("authority.json", "other.json") });
+    if (variation === "pending") {
+      const { hmacSha256: _mac, ...base } = file;
+      const unsigned = { ...base, pendingGeneration: base.currentGeneration + 2 };
+      target.fileJson = JSON.stringify({ ...unsigned, hmacSha256: createLocalClientWindowsAuthorityFileHmac(f.key, unsigned) });
+    }
+    if (variation === "registry") target.registryJson = JSON.stringify({ ...registry, pendingDigest: "e".repeat(64) });
+    if (variation === "extra-file-field") target.fileJson = JSON.stringify({ ...file, extra: true });
+    if (variation === "extra-registry-field") target.registryJson = JSON.stringify({ ...registry, extra: true });
+    if (variation === "wrong-key") f.input.integrityKey = Buffer.alloc(32, 76).toString("base64");
+    const changedBytes = [target.fileJson, target.registryJson];
+    expect(() => verifyLocalClientNativeAuthorityMaintenanceCheckpoints(f.input)).toThrow();
+    expect([target.fileJson, target.registryJson]).toEqual(changedBytes); f.key.fill(0);
+  });
+
 /** Native API behavior model only: these tests exercise the real TS broker and
  * signing code, not Windows tokens, filesystem ACLs, SCM, named pipes or DPAPI. */
-function fixture(basePath?: string) {
-  const configuration = { ...bootstrap, programDataBasePath: basePath ?? bootstrap.programDataBasePath };
+function fixture(basePath?: string, version: "local-client-windows-authority-bootstrap-v3" | "local-client-windows-authority-bootstrap-v4" = bootstrap.version) {
+  const configuration = { ...bootstrap, version, programDataBasePath: basePath ?? bootstrap.programDataBasePath };
   const key = Buffer.alloc(32, 73);
   const helperInput = { hostId: configuration.hostId, currentUserSid: USER_SID,
     programDataBasePath: configuration.programDataBasePath, anchorIds: configuration.anchorIds,

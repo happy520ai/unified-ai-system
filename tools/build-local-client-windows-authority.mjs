@@ -19,9 +19,10 @@ const versionSort = (a, b) => a.localeCompare(b, undefined, { numeric: true });
 let stage = 'arguments';
 
 function parseArguments() {
-  const args = process.argv.slice(2); let output, nodeLicense, nativeOnly = false;
+  const args = process.argv.slice(2); let output, nodeLicense, nativeOnly = false, maintenanceTests = false;
   for (let i = 0; i < args.length; ++i) {
     if (args[i] === '--native-only' && !nativeOnly) nativeOnly = true;
+    else if (args[i] === '--maintenance-tests' && !maintenanceTests) maintenanceTests = true;
     else if (args[i] === '--output' && output === undefined && args[i + 1]) output = args[++i];
     else if (args[i] === '--node-license' && nodeLicense === undefined && args[i + 1]) nodeLicense = args[++i];
     else fail('WINDOWS_AUTHORITY_BUILD_ARGUMENTS');
@@ -29,8 +30,9 @@ function parseArguments() {
   if (process.platform !== 'win32' || process.arch !== 'x64') fail('WINDOWS_AUTHORITY_BUILD_PLATFORM');
   output ??= join(evidenceRoot, 'native-authority-package-' + randomUUID());
   if (!isAbsolute(output)) fail('WINDOWS_AUTHORITY_BUILD_OUTPUT');
-  if (!nativeOnly && (nodeLicense === undefined || !isAbsolute(nodeLicense))) fail('WINDOWS_AUTHORITY_BUILD_NODE_LICENSE_REQUIRED');
-  return { output: resolve(output), nativeOnly, nodeLicense };
+  if (nativeOnly && maintenanceTests) fail('WINDOWS_AUTHORITY_BUILD_ARGUMENTS');
+  if (!nativeOnly && !maintenanceTests && (nodeLicense === undefined || !isAbsolute(nodeLicense))) fail('WINDOWS_AUTHORITY_BUILD_NODE_LICENSE_REQUIRED');
+  return { output: resolve(output), nativeOnly, maintenanceTests, nodeLicense };
 }
 function within(path, root) { const part = relative(root, path); return part !== '' && part !== '..' && !part.startsWith('..' + sep) && !isAbsolute(part); }
 async function validateNewOutput(output) {
@@ -105,7 +107,7 @@ async function bundleEntrypoint(scratch, output, name, functionName) {
 }
 async function buildPackage(options) {
   stage = 'toolchain'; const toolchain = await discoverToolchain(); await validateNewOutput(options.output);
-  if (!options.nativeOnly) {
+  if (!options.nativeOnly && !options.maintenanceTests) {
     stage = 'verify-node-license';
     // Exact notice fetched separately from nodejs/node v25.8.1/LICENSE. This tool
     // performs no network fetch; a different Node release requires its audited notice.
@@ -114,6 +116,17 @@ async function buildPackage(options) {
   stage = 'prepare-output'; await mkdir(options.output); const bin = join(options.output, 'bin'), scratch = join(options.output, '.build'); await mkdir(bin); await mkdir(scratch);
   let succeeded = false;
   try {
+    if (options.maintenanceTests) {
+      stage = 'maintenance-model';
+      const source = join(sourceRoot, 'localClientWindowsAuthorityMaintenance.test.cpp');
+      const executable = join(bin, 'maintenance-model.exe');
+      compile(toolchain, source, executable, join(scratch, 'maintenance-model'), false);
+      execFileSync(executable, [], { timeout: 30_000, windowsHide: true, stdio: ['ignore', 'inherit', 'inherit'] });
+      succeeded = true;
+      return { status: 'tested', modelOnly: true, sourceSha256: sha256(await readFile(source)),
+        coordinatorSha256: sha256(await readFile(join(sourceRoot, 'localClientWindowsAuthorityMaintenance.h'))),
+        serviceInstalled: false, systemApplied: false, nativeRuntimeVerified: false };
+    }
     stage = 'compile-addon'; compile(toolchain, join(sourceRoot, 'localClientWindowsAuthorityNative.cpp'), join(bin, 'local-client-authority.node'), join(scratch, 'native'), true);
     if (!options.nativeOnly) {
       stage = 'compile-service-host'; compile(toolchain, join(sourceRoot, 'localClientWindowsAuthorityService.cpp'), join(bin, 'authority-broker-host.exe'), join(scratch, 'service'), false);
@@ -129,7 +142,7 @@ async function buildPackage(options) {
     const files = [];
     for (const name of names) { const artifact = join(bin, name); if (!(await stat(artifact)).isFile()) fail('WINDOWS_AUTHORITY_BUILD_ARTIFACT'); files.push({ path: 'bin/' + name, sha256: sha256(await readFile(artifact)) }); }
     if (!options.nativeOnly) for (const name of ['LICENSE.node', 'LICENSE.project']) files.push({ path: 'licenses/' + name, sha256: sha256(await readFile(join(options.output, 'licenses', name))) });
-    const manifest = { version: options.nativeOnly ? 'local-client-windows-authority-native-build-v3' : 'local-client-windows-authority-package-v3', files, anchorIds: slots };
+    const manifest = { version: options.nativeOnly ? 'local-client-windows-authority-native-build-v4' : 'local-client-windows-authority-package-v4', files, anchorIds: slots };
     const manifestBytes = JSON.stringify(manifest, null, 2) + '\n'; await writeFile(join(options.output, 'package-manifest.json'), manifestBytes, { flag: 'wx' });
     for (const file of files) if (sha256(await readFile(join(options.output, file.path))) !== file.sha256) fail('WINDOWS_AUTHORITY_BUILD_HASH_MISMATCH');
     succeeded = true;

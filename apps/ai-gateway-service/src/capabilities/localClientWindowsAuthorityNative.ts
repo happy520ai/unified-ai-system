@@ -18,6 +18,7 @@ import { LOCAL_CLIENT_POP_PROTECTED_ANCHOR_EVIDENCE_VERSION, LOCAL_CLIENT_POP_RE
 const LEGACY_BOOTSTRAP_VERSION = "local-client-windows-authority-bootstrap-v1";
 const BOOTSTRAP_VERSION = "local-client-windows-authority-bootstrap-v2";
 const LIFECYCLE_BOOTSTRAP_VERSION = "local-client-windows-authority-bootstrap-v3";
+const MAINTENANCE_BOOTSTRAP_VERSION = "local-client-windows-authority-bootstrap-v4";
 const BOOTSTRAP_REQUEST = "local-client-windows-authority-bootstrap-request-v1";
 const BOOTSTRAP_RESPONSE = "local-client-windows-authority-bootstrap-response-v1";
 const POP_BOOTSTRAP_REQUEST = "local-client-windows-authority-bootstrap-request-v2";
@@ -60,7 +61,7 @@ export interface LocalClientNativeAuthorityApi {
   request(payload: string): Promise<string>;
 }
 export type LocalClientNativeAuthorityBootstrap = Readonly<{
-  version: typeof BOOTSTRAP_VERSION | typeof LEGACY_BOOTSTRAP_VERSION | typeof LIFECYCLE_BOOTSTRAP_VERSION; installationId: string; hostId: string;
+  version: typeof BOOTSTRAP_VERSION | typeof LEGACY_BOOTSTRAP_VERSION | typeof LIFECYCLE_BOOTSTRAP_VERSION | typeof MAINTENANCE_BOOTSTRAP_VERSION; installationId: string; hostId: string;
   currentUserSid: string; programDataBasePath: string; anchorIds: readonly string[];
   packageManifestSha256?: string;
 }>;
@@ -83,10 +84,10 @@ export function loadLocalClientNativeAuthority(addonPath: string): LocalClientNa
 }
 
 export function parseLocalClientNativeAuthorityBootstrap(value: unknown): LocalClientNativeAuthorityBootstrap {
-  const isV2 = isRecord(value) && (value.version === BOOTSTRAP_VERSION || value.version === LIFECYCLE_BOOTSTRAP_VERSION);
+  const isV2 = isRecord(value) && (value.version === BOOTSTRAP_VERSION || hasPopLifecycle(value.version));
   exact(value, ["version", "installationId", "hostId", "currentUserSid", "programDataBasePath", "anchorIds", ...(isV2 ? ["packageManifestSha256"] : [])]);
   const slots = isV2 ? LOCAL_CLIENT_NATIVE_AUTHORITY_SLOTS : LOCAL_CLIENT_NATIVE_AUTHORITY_LEGACY_SLOTS;
-  if ((value.version !== BOOTSTRAP_VERSION && value.version !== LEGACY_BOOTSTRAP_VERSION && value.version !== LIFECYCLE_BOOTSTRAP_VERSION) || typeof value.installationId !== "string"
+  if ((value.version !== BOOTSTRAP_VERSION && value.version !== LEGACY_BOOTSTRAP_VERSION && !hasPopLifecycle(value.version)) || typeof value.installationId !== "string"
     || !/^[a-f0-9-]{16,64}$/u.test(value.installationId)
     || value.hostId !== `windows-authority-${value.installationId}`
     || typeof value.currentUserSid !== "string" || !/^S-1-5-21-(?:[0-9]+-){3}[0-9]+$/u.test(value.currentUserSid)
@@ -199,7 +200,7 @@ export async function handleLocalClientNativeAuthorityRequest(native: LocalClien
       exact(request, popBootstrap ? ["version", "challenge", "clientSessionId", "issuedAtMs", "expiresAtMs"] : ["version"]);
       let popObservedAtMs: number | undefined;
       if (popBootstrap) {
-        if (bootstrap.version !== LIFECYCLE_BOOTSTRAP_VERSION || !hostServiceInstanceId || !native.readPopServiceInstance
+        if (!hasPopLifecycle(bootstrap.version) || !hostServiceInstanceId || !native.readPopServiceInstance
           || typeof request.challenge !== "string" || !/^[a-f0-9]{64}$/u.test(request.challenge)
           || typeof request.clientSessionId !== "string" || !/^[a-f0-9]{64}$/u.test(request.clientSessionId)
           || !Number.isSafeInteger(request.issuedAtMs) || !Number.isSafeInteger(request.expiresAtMs)
@@ -239,7 +240,7 @@ export async function handleLocalClientNativeAuthorityRequest(native: LocalClien
     if (!isRecord(request) || typeof request.anchorPath !== "string") fail();
     const broker = byPath.get(request.anchorPath); if (!broker) fail();
     const isPop = /\\(?:validation-)?pop-replay\\authority\.json$/u.test(broker.target.anchorPath);
-    if (isPop && (!hostServiceInstanceId || bootstrap.version !== LIFECYCLE_BOOTSTRAP_VERSION
+    if (isPop && (!hostServiceInstanceId || !hasPopLifecycle(bootstrap.version)
       || request.requestVersion !== LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_V2_VERSION || request.serviceInstanceId !== hostServiceInstanceId)) fail();
     const operation = request.operation;
     const method = operation === "inspect" ? "inspect" : operation === "prepare-next" ? "prepareNext"
@@ -272,7 +273,7 @@ export async function createLocalClientNativeAuthorityClient(native: LocalClient
     if (key.byteLength !== 32 || key.toString("base64") !== response.integrityKey) fail();
     response.integrityKey = "";
     const bootstrap = parseLocalClientNativeAuthorityBootstrap(response.bootstrap);
-    if (isPop && bootstrap.version !== LIFECYCLE_BOOTSTRAP_VERSION) throw new Error("LOCAL_CLIENT_NATIVE_POP_LIFECYCLE_REQUIRED");
+    if (isPop && !hasPopLifecycle(bootstrap.version)) throw new Error("LOCAL_CLIENT_NATIVE_POP_LIFECYCLE_REQUIRED");
     if (!bootstrap.anchorIds.includes(anchorId)) throw new Error("LOCAL_CLIENT_NATIVE_AUTHORITY_SLOT_VERSION_REQUIRED");
     const environment = native.inspectEnvironment();
     if (environment.osPlatform !== "win32" || win32.normalize(environment.programDataBasePath).toLowerCase()
@@ -295,7 +296,7 @@ export async function createLocalClientNativeAuthorityClient(native: LocalClient
 export async function createLocalClientNativePopReplayBinding(native: LocalClientNativeAuthorityApi) {
   const authority = await createLocalClientNativeAuthorityClient(native, "pop-replay");
   const binding = nativeClientBindings.get(authority)!;
-  if (binding.bootstrap.version !== LIFECYCLE_BOOTSTRAP_VERSION || !binding.bootstrap.packageManifestSha256 || !binding.serviceInstanceId) {
+  if (!hasPopLifecycle(binding.bootstrap.version) || !binding.bootstrap.packageManifestSha256 || !binding.serviceInstanceId) {
     await authority.close(); throw new Error("LOCAL_CLIENT_NATIVE_POP_V2_REQUIRED");
   }
   const deploymentEvidenceSha256 = binding.bootstrap.packageManifestSha256;
@@ -365,6 +366,9 @@ export async function createLocalClientNativePopReplayBinding(native: LocalClien
 function popAnchorBinding(bootstrap: LocalClientNativeAuthorityBootstrap, anchorId: string) {
   return createHash("sha256").update(JSON.stringify(["local-client-native-pop-anchor-v1", bootstrap.installationId,
     bootstrap.hostId, bootstrap.currentUserSid, bootstrap.programDataBasePath, anchorId])).digest("hex");
+}
+function hasPopLifecycle(version: unknown): version is typeof LIFECYCLE_BOOTSTRAP_VERSION | typeof MAINTENANCE_BOOTSTRAP_VERSION {
+  return version === LIFECYCLE_BOOTSTRAP_VERSION || version === MAINTENANCE_BOOTSTRAP_VERSION;
 }
 
 export function parseBounded(text: string): unknown {
