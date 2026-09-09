@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { createLocalClientPopSnapshotRollbackProtectedReplayGuard, LOCAL_CLIENT_POP_REPLAY_CHECKPOINT_VERSION,
@@ -18,6 +18,16 @@ import * as authorityCrypto from "./localClientWindowsProtectedAuthorityAnchor.t
 import { createLocalClientWindowsAuthorityProvisioningPlan, LOCAL_CLIENT_WINDOWS_AUTHORITY_SERVICE_SID } from "./localClientWindowsAuthorityBrokerService.ts";
 import { createLocalClientWindowsAuthorityFileHmac, createLocalClientWindowsAuthorityRequestHmac,
   type LocalClientWindowsAuthorityBrokerRequest, type LocalClientWindowsAuthorityFileCheckpoint } from "./localClientWindowsProtectedAuthorityAnchor.ts";
+
+import * as nativeAuthorityModule from "./localClientWindowsAuthorityNative.ts";
+import { LocalClientProtectedSqliteCheckpoint } from "./localClientProtectedSqliteCheckpoint.ts";
+import { createManagedLocalClientPopIdentityAuthority } from "./localClientPopIdentityAuthority.ts";
+import { materializeConfiguredLocalClientPopRegistryKey, enrollConfiguredLocalClientNativePopReplayBaseline } from "./localClientPopReplayConfiguration.ts";
+import { createGatewayApplication } from "../application/createGatewayApplication.js";
+import { runLocalClientNativePopReplayCommand } from "../../../../tools/local-client-native-pop-replay.mjs";
+import { createLocalClientNativePopReplayRuntime, prepareLocalClientNativePopReplayRuntime,
+  createNonOwningNativePopReplayGuardPort, isLocalClientNativePopReplayRuntime, enrollLocalClientNativePopReplayBaseline,
+} from "./localClientNativePopReplayRuntime.ts";
 
 const SERVICE_SID = LOCAL_CLIENT_WINDOWS_AUTHORITY_SERVICE_SID;
 const USER_SID = "S-1-5-21-101-202-303-1001";
@@ -572,4 +582,382 @@ it("MODEL lifecycle: expiry and clock rollback withdraw cached adapter readiness
     expect(adapter.status.available).toBe(false); await adapter.preflight(checkpoint); expect(adapter.status.available).toBe(true);
     now += 8000; expect(adapter.status.available).toBe(false);
   }); } finally { clock.mockRestore(); }
+});
+
+/** MODEL: real SQLite, TS authority/HMAC and runtime composition. Only the
+ * pinned addon loader is replaced by the existing native API fixture above. */
+type NativeRuntimeModel = ReturnType<typeof createLocalClientNativePopReplayRuntime>;
+async function withNativeRuntimeModel(run: (model: {
+  root: string; sqlitePath: string; addonPath: string; f: ReturnType<typeof fixture>;
+  options: (key?: Buffer) => Parameters<typeof createLocalClientNativePopReplayRuntime>[0];
+  create: (key?: Buffer, overrides?: Partial<Parameters<typeof createLocalClientNativePopReplayRuntime>[0]>) => NativeRuntimeModel;
+  enroll: () => Promise<LocalClientPopReplayCheckpoint>; loadCount: () => number;
+  snapshot: () => Map<string, Buffer>; fingerprint: () => string; restore: (snapshot: Map<string, Buffer>) => void;
+  expectUnconfirmedClose: (runtime: NativeRuntimeModel) => void;
+}) => Promise<void>) {
+  const root = mkdtempSync(join(realpathSync(tmpdir()), "native-pop-runtime-")), base = join(root, "ProgramData");
+  const priorProgramData = process.env.ProgramData;
+  const f = fixture(base, "local-client-windows-authority-bootstrap-v4");
+  const addonPath = join(base, "UnifiedAISystem", "LocalClientAuthority", "bin", "local-client-authority.node");
+  mkdirSync(dirname(addonPath), { recursive: true }); const syntheticAddon = Buffer.from("T051 fixture bytes; never load as native code");
+  writeFileSync(addonPath, syntheticAddon); process.env.ProgramData = base;
+  const load = vi.spyOn(nativeAuthorityModule, "loadLocalClientNativeAuthority").mockReturnValue(f.api);
+  const runtimes = new Set<NativeRuntimeModel>(), unconfirmedClosures = new Set<NativeRuntimeModel>(), sqlitePath = join(root, "pop.sqlite");
+  const options = (key: Buffer = Buffer.alloc(32, 88)) => ({ sqlitePath, hostId: f.configuration.hostId, integrityKey: key,
+    namespace: "native-runtime-model", maxEntries: 64, maxEntriesPerScope: 32, nativeAddonPath: addonPath,
+    nativeAddonSha256: createHash("sha256").update(syntheticAddon).digest("hex") });
+  const snapshot = () => new Map([sqlitePath, `${sqlitePath}-wal`, `${sqlitePath}-shm`]
+    .filter(existsSync).map(path => [path, readFileSync(path)] as const));
+  const fingerprint = () => JSON.stringify([...snapshot()].map(([path, bytes]) => [path, createHash("sha256").update(bytes).digest("hex")]));
+  try {
+    await run({ root, sqlitePath, addonPath, f, options, loadCount: () => load.mock.calls.length, snapshot, fingerprint,
+      expectUnconfirmedClose: runtime => { unconfirmedClosures.add(runtime); },
+      create(key = Buffer.alloc(32, 88), overrides = {}) {
+        const runtime = createLocalClientNativePopReplayRuntime({ ...options(key), ...overrides });
+        expect(key.equals(Buffer.alloc(key.length))).toBe(true); runtimes.add(runtime); return runtime;
+      },
+      async enroll() {
+        const key = Buffer.alloc(32, 88), pending = enrollLocalClientNativePopReplayBaseline(options(key));
+        expect(key.equals(Buffer.alloc(32))).toBe(true); return pending;
+      },
+      restore(saved) {
+        expect(dirname(sqlitePath)).toBe(root);
+        for (const path of [sqlitePath, `${sqlitePath}-wal`, `${sqlitePath}-shm`]) {
+          if (saved.has(path)) writeFileSync(path, saved.get(path)!);
+          else if (existsSync(path)) rmSync(path);
+        }
+      },
+    });
+  } finally {
+    try {
+      for (const runtime of runtimes) {
+        if (unconfirmedClosures.has(runtime)) await expect(runtime.close()).rejects.toMatchObject({ code: "LOCAL_CLIENT_NATIVE_POP_CLOSE_UNCONFIRMED" });
+        else await runtime.close();
+      }
+      expect(f.calls.context).toBe(f.calls.end); expect(f.calls.lock).toBe(f.calls.release);
+      if (f.returnedKeys.length) expectClosed(f);
+    } finally {
+      load.mockRestore(); f.key.fill(0);
+      if (priorProgramData === undefined) delete process.env.ProgramData; else process.env.ProgramData = priorProgramData;
+      expect(realpathSync(root)).toBe(root); expect(dirname(root)).toBe(realpathSync(tmpdir())); rmSync(root, { recursive: true, force: true });
+    }
+  }
+}
+function runtimeReplay(index = 1) {
+  return { replayKeySha256: createHash("sha256").update(`runtime-proof-${index}`).digest("hex"), replayScopeSha256: "d".repeat(64),
+    nowMs: 1_900_000_000_000, expiresAtMs: 1_900_000_030_000 };
+}
+
+it.each(["missing", "empty", "schema3"] as const)("MODEL native runtime: ordinary startup rejects %s without creating or changing DB state", async mode => {
+  await withNativeRuntimeModel(async model => {
+    if (mode === "empty") writeFileSync(model.sqlitePath, Buffer.alloc(0));
+    if (mode === "schema3") {
+      const legacy = new LocalClientSqlitePopReplayGuard({ sqlitePath: model.sqlitePath, hostId: model.f.configuration.hostId,
+        integrityKey: Buffer.alloc(32, 88), namespace: "native-runtime-model", maxEntries: 64, maxEntriesPerScope: 32 });
+      await legacy.close();
+    }
+    const before = model.fingerprint(), runtime = model.create();
+    await expect(runtime.ready).resolves.toBe(false);
+    await expect(prepareLocalClientNativePopReplayRuntime(runtime)).resolves.toBe(false);
+    await expect(runtime.consumeOnce(runtimeReplay())).rejects.toThrow();
+    await runtime.close(); expect(runtime.status.available).toBe(false);
+    expect(model.fingerprint()).toBe(before); expect(model.loadCount()).toBe(0); expect(model.f.calls.write).toBe(0);
+  });
+});
+
+it("MODEL native runtime: explicit generation-one enrollment resumes the identical baseline", async () => {
+  await withNativeRuntimeModel(async model => {
+    const first = await model.enroll(), writes = model.f.calls.write, before = model.fingerprint();
+    expect(first.generation).toBe(1); expect(first.state).toBe("ready");
+    await expect(model.enroll()).resolves.toEqual(first);
+    expect(model.f.calls.write).toBe(writes); expect(model.fingerprint()).toBe(before);
+    const runtime = model.create(); await expect(runtime.ready).resolves.toBe(true);
+    expect(runtime.status).toMatchObject({ available: true, snapshotRollbackProtected: true });
+    expect(model.f.nonceCount).toBe(0);
+  });
+});
+
+it("MODEL native runtime: explicit enrollment cannot reset an authority already at generation two", async () => {
+  await withNativeRuntimeModel(async model => {
+    await model.enroll(); const binding = await createLocalClientNativePopReplayBinding(model.f.api);
+    try { await binding.authority.prepareNext(1, "f".repeat(64)); await binding.authority.finalize(2, "f".repeat(64)); }
+    finally { await binding.close(); }
+    const before = model.fingerprint(), writes = model.f.calls.write;
+    await expect(model.enroll()).rejects.toThrow();
+    expect(model.f.calls.write).toBe(writes); expect(model.fingerprint()).toBe(before);
+    const slot = createLocalClientWindowsAuthorityProvisioningPlan(model.f.configuration.programDataBasePath, [], { anchorId: "pop-replay" });
+    expect(model.f.files.get(slot.storage.anchorPath)?.currentGeneration).toBe(2);
+  });
+});
+
+it("MODEL native runtime: reopening with the same key preserves replay and a wrong key fails without rewriting state", async () => {
+  await withNativeRuntimeModel(async model => {
+    await model.enroll(); const first = model.create(); await expect(first.ready).resolves.toBe(true);
+    await expect(first.consumeOnce(runtimeReplay())).resolves.toBe("consumed"); await first.close();
+    const second = model.create(); await expect(second.ready).resolves.toBe(true);
+    await expect(second.consumeOnce(runtimeReplay())).resolves.toBe("replayed"); await second.close();
+    const before = model.fingerprint(), writes = model.f.calls.write, wrong = model.create(Buffer.alloc(32, 89));
+    await expect(wrong.ready).resolves.toBe(false); await expect(wrong.consumeOnce(runtimeReplay(2))).rejects.toThrow(); await wrong.close();
+    expect(model.fingerprint()).toBe(before); expect(model.f.calls.write).toBe(writes);
+    const recovered = model.create(); await expect(recovered.ready).resolves.toBe(true);
+    await expect(recovered.consumeOnce(runtimeReplay())).resolves.toBe("replayed");
+  });
+});
+
+it("MODEL native runtime: restoring the entire older SQLite file set is rejected by the retained native checkpoint", async () => {
+  await withNativeRuntimeModel(async model => {
+    await model.enroll(); const oldDatabase = model.snapshot();
+    const runtime = model.create(); await expect(runtime.ready).resolves.toBe(true);
+    await expect(runtime.consumeOnce(runtimeReplay())).resolves.toBe("consumed"); await runtime.close();
+    const writes = model.f.calls.write; model.restore(oldDatabase); const restored = model.fingerprint();
+    const rollback = model.create(); await expect(rollback.ready).resolves.toBe(false);
+    await expect(rollback.consumeOnce(runtimeReplay())).rejects.toThrow(); await rollback.close();
+    expect(model.f.calls.write).toBe(writes); expect(model.fingerprint()).toBe(restored);
+  });
+});
+
+it("MODEL native runtime: an expired live status can refresh after eight idle seconds", async () => {
+  let now = Date.now(); const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
+  try { await withNativeRuntimeModel(async model => {
+    await model.enroll(); const runtime = model.create(); await expect(runtime.ready).resolves.toBe(true);
+    expect(runtime.status.available).toBe(true); now += 8_001;
+    expect(runtime.status.available).toBe(false); expect(runtime.status.snapshotRollbackProtected).toBe(false);
+    await expect(prepareLocalClientNativePopReplayRuntime(runtime)).resolves.toBe(true);
+    expect(runtime.status.available).toBe(true); await expect(runtime.consumeOnce(runtimeReplay())).resolves.toBe("consumed");
+  }); } finally { clock.mockRestore(); }
+});
+
+it("MODEL native runtime: service restart refuses one consume without retry and a later prepare establishes a fresh instance", async () => {
+  await withNativeRuntimeModel(async model => {
+    await model.enroll(); const runtime = model.create(); await expect(runtime.ready).resolves.toBe(true);
+    const writes = model.f.calls.write, loads = model.loadCount(); model.f.restartPop();
+    await expect(runtime.consumeOnce(runtimeReplay())).rejects.toThrow();
+    expect(runtime.status.available).toBe(false); expect(model.f.calls.write).toBe(writes); expect(model.loadCount()).toBe(loads);
+    await expect(prepareLocalClientNativePopReplayRuntime(runtime)).resolves.toBe(true);
+    expect(model.loadCount()).toBe(loads + 1); await expect(runtime.consumeOnce(runtimeReplay())).resolves.toBe("consumed");
+    expect(model.f.nonceCount).toBe(0);
+  });
+});
+
+it("MODEL native runtime: concurrent prepare is shared and consumes use the same serialization boundary", async () => {
+  let now = Date.now(); const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
+  try { await withNativeRuntimeModel(async model => {
+    await model.enroll(); const runtime = model.create(); await expect(runtime.ready).resolves.toBe(true); now += 8_001;
+    const transport = model.f.api.request, entered = signal(), release = signal(); let first = true, active = 0, maximum = 0;
+    model.f.api.request = async payload => {
+      active++; maximum = Math.max(maximum, active);
+      try { if (first) { first = false; entered.resolve(); await release.promise; } return await transport(payload); }
+      finally { active--; }
+    };
+    const initial = prepareLocalClientNativePopReplayRuntime(runtime); await entered.promise;
+    const concurrent = prepareLocalClientNativePopReplayRuntime(runtime);
+    const firstConsume = runtime.consumeOnce(runtimeReplay(1)), secondConsume = runtime.consumeOnce(runtimeReplay(2));
+    release.resolve();
+    await expect(Promise.all([initial, concurrent, firstConsume, secondConsume])).resolves.toEqual([true, true, "consumed", "consumed"]);
+    expect(maximum).toBe(1); expect(model.f.nonceCount).toBe(0);
+  }); } finally { clock.mockRestore(); }
+});
+
+it("MODEL native runtime: closing during initialization cannot publish a late ready state", async () => {
+  await withNativeRuntimeModel(async model => {
+    await model.enroll(); const transport = model.f.api.request, entered = signal(), release = signal(); let first = true;
+    model.f.api.request = async payload => { if (first) { first = false; entered.resolve(); await release.promise; } return transport(payload); };
+    const runtime = model.create(); await entered.promise; const closing = runtime.close();
+    expect(runtime.status.available).toBe(false); release.resolve(); await closing;
+    await expect(runtime.ready).resolves.toBe(false); await expect(prepareLocalClientNativePopReplayRuntime(runtime)).resolves.toBe(false);
+    expect(runtime.runtimeStatus.state).toBe("closed"); expect(runtime.status.available).toBe(false);
+  });
+});
+
+it("MODEL native runtime: closing during a failed consume preserves the final closed state", async () => {
+  await withNativeRuntimeModel(async model => {
+    await model.enroll(); const runtime = model.create(); await expect(runtime.ready).resolves.toBe(true);
+    const transport = model.f.api.request, entered = signal(), release = signal(); let first = true;
+    model.f.api.request = async payload => { if (first) { first = false; entered.resolve(); await release.promise; } return transport(payload); };
+    try {
+      model.f.restartPop(); const consume = runtime.consumeOnce(runtimeReplay()).then(() => "accepted", () => "rejected");
+      await entered.promise; const closing = runtime.close(); expect(runtime.runtimeStatus.state).toBe("closed");
+      release.resolve(); expect(await consume).toBe("rejected"); await closing;
+      expect(runtime.runtimeStatus.state).toBe("closed"); expect(runtime.status.available).toBe(false);
+      await expect(prepareLocalClientNativePopReplayRuntime(runtime)).resolves.toBe(false);
+    } finally { release.resolve(); model.f.api.request = transport; }
+  });
+});
+
+it("MODEL native runtime: disappearance of an existing DB during native bootstrap cannot recreate it", async () => {
+  await withNativeRuntimeModel(async model => {
+    await model.enroll(); const original = model.snapshot(), writes = model.f.calls.write;
+    const transport = model.f.api.request, entered = signal(), release = signal(); let first = true;
+    model.f.api.request = async payload => { if (first) { first = false; entered.resolve(); await release.promise; } return transport(payload); };
+    const runtime = model.create();
+    try {
+      await entered.promise;
+      for (const path of original.keys()) {
+        expect(dirname(path)).toBe(model.root); expect(dirname(`${path}.retained`)).toBe(model.root);
+        renameSync(path, `${path}.retained`);
+      }
+      release.resolve(); await expect(runtime.ready).resolves.toBe(false); await runtime.close();
+      expect(existsSync(model.sqlitePath)).toBe(false); expect(model.f.calls.write).toBe(writes);
+      for (const [path, bytes] of original) expect(readFileSync(`${path}.retained`)).toEqual(bytes);
+    } finally { release.resolve(); model.f.api.request = transport; await runtime.close(); }
+  });
+});
+
+it("MODEL native runtime: a prepare queued before cleanup failure cannot reconnect or publish ready", async () => {
+  await withNativeRuntimeModel(async model => {
+    await model.enroll(); const runtime = model.create(); await expect(runtime.ready).resolves.toBe(true);
+    const original = LocalClientProtectedSqliteCheckpoint.prototype.close, entered = signal(), release = signal();
+    const close = vi.spyOn(LocalClientProtectedSqliteCheckpoint.prototype, "close").mockImplementationOnce(async function (this: LocalClientProtectedSqliteCheckpoint) {
+      await original.call(this); entered.resolve(); await release.promise;
+      throw new Error("MODEL_CLOSE_UNCONFIRMED");
+    });
+    model.expectUnconfirmedClose(runtime);
+    try {
+      const loads = model.loadCount(); model.f.restartPop();
+      const consume = runtime.consumeOnce(runtimeReplay()).then(() => "accepted", () => "rejected");
+      await entered.promise; const queued = prepareLocalClientNativePopReplayRuntime(runtime); release.resolve();
+      expect(await consume).toBe("rejected"); await expect(queued).resolves.toBe(false);
+      expect(model.loadCount()).toBe(loads); expect(runtime.status.available).toBe(false);
+      expect(runtime.runtimeStatus.reason).toBe("CLOSE_UNCONFIRMED");
+      await expect(prepareLocalClientNativePopReplayRuntime(runtime)).resolves.toBe(false);
+    } finally { release.resolve(); close.mockRestore(); }
+  });
+});
+
+it("MODEL native runtime: private branding survives a non-owning port and does not spread extra status fields", async () => {
+  await withNativeRuntimeModel(async model => {
+    await model.enroll(); const runtime = model.create(); await expect(runtime.ready).resolves.toBe(true);
+    const nonOwning = createNonOwningNativePopReplayGuardPort(runtime)!;
+    expect(nonOwning).not.toBeNull(); expect(isLocalClientNativePopReplayRuntime(nonOwning)).toBe(true);
+    await nonOwning.close?.(); expect(runtime.status.available).toBe(true);
+    await expect(prepareLocalClientNativePopReplayRuntime(nonOwning)).resolves.toBe(true);
+    const fake = { ...runtime, status: { ...runtime.status }, runtimeStatus: runtime.runtimeStatus };
+    expect(isLocalClientNativePopReplayRuntime(fake)).toBe(false); expect(createNonOwningNativePopReplayGuardPort(fake)).toBeNull();
+    await expect(prepareLocalClientNativePopReplayRuntime(fake)).resolves.toBe(false);
+    const allowed = new Set(["available", "durable", "distributed", "mode", "authenticatedReplaySet", "snapshotRollbackProtected", "defensiveEnabled", "capacityIsolatedByScope", "maxEntries", "maxEntriesPerScope"]);
+    expect(Reflect.ownKeys(runtime.status).every(key => typeof key === "string" && allowed.has(key))).toBe(true);
+    await runtime.close(); expect(nonOwning.status.available).toBe(false);
+  });
+});
+
+it.each(["hash", "path"] as const)("MODEL native runtime: a changed addon %s is refused before invoking the native loader", async failure => {
+  await withNativeRuntimeModel(async model => {
+    await model.enroll(); const loads = model.loadCount(), before = model.fingerprint();
+    const options = failure === "hash" ? { nativeAddonSha256: "0".repeat(64) } : { nativeAddonPath: join(model.root, "local-client-authority.node") };
+    const runtime = model.create(Buffer.alloc(32, 88), options); await expect(runtime.ready).resolves.toBe(false); await runtime.close();
+    expect(model.loadCount()).toBe(loads); expect(model.fingerprint()).toBe(before);
+  });
+});
+
+type NativeRuntimeFixture = Parameters<Parameters<typeof withNativeRuntimeModel>[0]>[0];
+function nativeWiringEnv(model: NativeRuntimeFixture): Record<string, string> {
+  return {
+    AI_GATEWAY_MODEL_LIBRARY_STATE_PATH: join(model.root, "model-library.json"),
+    AI_GATEWAY_AGENT_GOVERNANCE_ENABLED: "false", PME_RUNTIME_CREDENTIAL_STORE_MODE: "memory", KNOWLEDGE_STORAGE_MODE: "memory",
+    AI_GATEWAY_LOCAL_CLIENT_REGISTRY_PATH: join(model.root, "clients.json"),
+    AI_GATEWAY_LOCAL_CLIENT_EXECUTION_LOG_PATH: join(model.root, "client-execution.jsonl"),
+    AI_GATEWAY_LOCAL_CLIENT_DISCOVERY_HINTS_PATH: join(model.root, "discovery.json"),
+    AI_GATEWAY_LOCAL_CLIENT_EXECUTION_CONTROL_DIR: join(model.root, "client-control"),
+    AI_GATEWAY_USAGE_LOG_DIR: join(model.root, "usage"), WORKFORCE_EXECUTION_DIR: join(model.root, "workforce"),
+    WORKFLOW_OUTPUT_DIR: join(model.root, "workflows"), CREDENTIAL_VAULT_DIR: join(model.root, "vault"),
+    PME_API_KEY_STORE_PATH: join(model.root, "api-keys.json"), PME_ENTERPRISE_USER_STORE_PATH: join(model.root, "users.json"),
+    PME_AUDIT_LOG_PATH: join(model.root, "audit.jsonl"), PME_AUDIT_CHAIN_PATH: join(model.root, "audit-chain.jsonl"),
+    PME_AUDIT_CHECKPOINT_PATH: join(model.root, "audit-checkpoint.json"),
+    PME_AUDIT_CHECKPOINT_HMAC_KEY: `hex:${"43".repeat(32)}`,
+    AI_GATEWAY_LOCAL_CLIENT_HOST_ID: model.f.configuration.hostId,
+    AI_GATEWAY_LOCAL_CLIENT_LOOPBACK_ENABLED: "true", AI_GATEWAY_LOCAL_CLIENT_LOOPBACK_ENDPOINT: "http://127.0.0.1:43128",
+    AI_GATEWAY_LOCAL_CLIENT_LOOPBACK_CLIENT_ID: "managed.native-runtime", AI_GATEWAY_LOCAL_CLIENT_LOOPBACK_TENANT_ID: "tenant-native-runtime",
+    AI_GATEWAY_LOCAL_CLIENT_LOOPBACK_MANIFEST_SHA256: "9".repeat(64),
+    AI_GATEWAY_LOCAL_CLIENT_LOOPBACK_SECRET_REF: "env_key_name:NATIVE_MODEL_CLIENT_SECRET", NATIVE_MODEL_CLIENT_SECRET: `hex:${"41".repeat(32)}`,
+    AI_GATEWAY_LOCAL_CLIENT_REGISTRY_INTEGRITY_SECRET_REF: "env_key_name:NATIVE_MODEL_REGISTRY_SECRET", NATIVE_MODEL_REGISTRY_SECRET: `hex:${"42".repeat(32)}`,
+    AI_GATEWAY_LOCAL_CLIENT_PROTOCOL_PRINCIPALS_JSON: JSON.stringify({ version: 1,
+      bindings: [{ tenantId: "tenant-native-runtime", subjectId: "operator-native-runtime", clientId: "managed.native-runtime" }] }),
+    AI_GATEWAY_LOCAL_CLIENT_POP_REPLAY_STORE_MODE: "sqlite", AI_GATEWAY_LOCAL_CLIENT_POP_REPLAY_SQLITE_PATH: model.sqlitePath,
+    AI_GATEWAY_LOCAL_CLIENT_POP_REPLAY_NAMESPACE: "native-wiring-model", AI_GATEWAY_LOCAL_CLIENT_POP_REPLAY_MAX_ENTRIES: "64",
+    AI_GATEWAY_LOCAL_CLIENT_POP_REPLAY_MAX_ENTRIES_PER_SCOPE: "32", AI_GATEWAY_LOCAL_CLIENT_POP_REPLAY_BUSY_TIMEOUT_MS: "100",
+    AI_GATEWAY_LOCAL_CLIENT_POP_REPLAY_PROTECTION_MODE: "windows-native", AI_GATEWAY_LOCAL_CLIENT_NATIVE_AUTHORITY_ADDON_PATH: model.addonPath,
+    AI_GATEWAY_LOCAL_CLIENT_NATIVE_AUTHORITY_ADDON_SHA256: createHash("sha256").update(readFileSync(model.addonPath)).digest("hex"),
+  };
+}
+async function closeNativeWiringApplication(application?: ReturnType<typeof createGatewayApplication>) {
+  if (!application) return;
+  for (const resource of [application.localClientRoutePlanStore, application.localClientExecutionClaimStore,
+    application.localClientExecutionControl, application.localClientSmartManagementScheduler, application.localClientExecutionReceiptRecoveryService,
+    application.localClientExecutionFeedbackDispatcher, application.localClientExecutionFeedbackOutbox, application.localClientExecutionReceiptJournalRegistry,
+    application.localClientGovernedOnboardingRuntime, application.localClientOnboardingReceiptAuthorityStore, application.localClientPopIdentityAuthority,
+    application.localClientVerificationService, application.localClientAdapterRegistry, application.localClientManagementService,
+    application.localClientFeedbackDedupStore, application.localClientAuthorityEpochStore, application.idempotencyCoordinator,
+    application.workforceExecutor, application.requestLogger, application.providerDispatchGate, application.externalEffectGate,
+    application.mcpGatewayService, application.enterpriseGovernanceService, application.runtimeCredentialStore]) {
+    if (resource && "close" in resource && typeof resource.close === "function") await resource.close();
+  }
+}
+
+it("MODEL native wiring: identity authority accepts only private-branded initial unavailability without consuming a proof", async () => {
+  await withNativeRuntimeModel(async model => {
+    const runtime = model.create(), nonOwning = createNonOwningNativePopReplayGuardPort(runtime)!;
+    const authority = createManagedLocalClientPopIdentityAuthority({ key: Buffer.alloc(32, 90), keyId: "native-wiring-key", replayGuard: nonOwning,
+      now: () => 1_900_000_000_000, nonceFactory: () => Buffer.alloc(32, 17) });
+    try {
+      expect(authority.status.available).toBe(false); await expect(runtime.ready).resolves.toBe(false);
+      const identity = { tenantId: "tenant-native-runtime", subjectId: "operator-native-runtime", clientId: "managed.native-runtime", clientRevision: 1 };
+      const request = { method: "POST", path: "/local-clients/heartbeat", body: Buffer.from("{}") };
+      const proof = await authority.issue({ identity, request });
+      await expect(authority.verify({ expectedIdentity: identity, request, proof })).rejects.toMatchObject({ code: "LOCAL_CLIENT_POP_REPLAY_GUARD_UNAVAILABLE" });
+      expect(model.loadCount()).toBe(0); expect(model.f.calls.write).toBe(0); expect(existsSync(model.sqlitePath)).toBe(false);
+      const consume = vi.fn(() => "consumed" as const), sourceKey = Buffer.alloc(32, 90);
+      expect(() => createManagedLocalClientPopIdentityAuthority({ key: sourceKey, keyId: "native-wiring-key",
+        replayGuard: { status: { available: false, durable: true, distributed: false, mode: "windows-native-snapshot-protected-sqlite" }, consumeOnce: consume },
+      })).toThrow();
+      expect(consume).not.toHaveBeenCalled(); expect(sourceKey.equals(Buffer.alloc(32))).toBe(true);
+    } finally { await authority.close(); }
+  });
+});
+
+it("MODEL native wiring: gateway stays unavailable without enrollment and shared configuration restores live readiness after idle", async () => {
+  let now = Date.now(); const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
+  try { await withNativeRuntimeModel(async model => {
+    const env = nativeWiringEnv(model); let application: ReturnType<typeof createGatewayApplication> | undefined;
+    try {
+      application = createGatewayApplication(env);
+      const dispatches = [vi.spyOn(application.gatewayService, "execute"), vi.spyOn(application.gatewayService, "executeStream"),
+        vi.spyOn(application.gatewayService, "executeProviderOperation")];
+      expect(application.localClientPopIdentityStatus.available).toBe(false);
+      const binding = { tenantId: "tenant-native-runtime", clientId: "managed.native-runtime" };
+      await expect(application.localClientPopIdentityAuthority!.prepareReplayProtection(binding)).resolves.toBe(false);
+      expect(existsSync(model.sqlitePath)).toBe(false); expect(model.f.calls.write).toBe(0);
+      const registryKey = materializeConfiguredLocalClientPopRegistryKey(env);
+      try { await expect(enrollConfiguredLocalClientNativePopReplayBaseline(env, registryKey)).resolves.toMatchObject({ generation: 1, state: "ready" }); }
+      finally { registryKey.fill(0); }
+      await expect(application.localClientPopIdentityAuthority!.prepareReplayProtection(binding)).resolves.toBe(true);
+      expect(application.localClientPopIdentityStatus).toMatchObject({ available: true, snapshotRollbackProtected: true });
+      now += 8_001; expect(application.localClientPopIdentityStatus.available).toBe(false);
+      await expect(application.localClientPopIdentityAuthority!.prepareReplayProtection(binding)).resolves.toBe(true);
+      expect(application.localClientPopIdentityStatus.available).toBe(true);
+      for (const dispatch of dispatches) { expect(dispatch).not.toHaveBeenCalled(); dispatch.mockRestore(); }
+    } finally { await closeNativeWiringApplication(application); }
+  }); } finally { clock.mockRestore(); }
+});
+
+it("MODEL native wiring: management CLI enrolls through the same configuration and emits only a safe checkpoint", async () => {
+  await withNativeRuntimeModel(async model => {
+    const env = nativeWiringEnv(model), output: string[] = []; let application: ReturnType<typeof createGatewayApplication> | undefined;
+    try {
+      await expect(runLocalClientNativePopReplayCommand(["enroll-baseline", "--yes"], env, (text: string) => { output.push(text); return true; })).resolves.toBe(0);
+      expect(output).toHaveLength(1); const result = JSON.parse(output[0]);
+      expect(result).toMatchObject({ success: true, operation: "enroll-baseline", checkpointVersion: LOCAL_CLIENT_POP_REPLAY_CHECKPOINT_VERSION, generation: 1 });
+      expect(Object.keys(result).sort()).toEqual(["anchorBindingSha256", "checkpointDigestSha256", "checkpointVersion", "generation", "operation", "storeBindingSha256", "success"]);
+      expect(output.join("")).not.toContain(env.NATIVE_MODEL_CLIENT_SECRET); expect(output.join("")).not.toContain(env.NATIVE_MODEL_REGISTRY_SECRET);
+      application = createGatewayApplication(env);
+      await expect(application.localClientPopIdentityAuthority!.prepareReplayProtection({ tenantId: "tenant-native-runtime", clientId: "managed.native-runtime" })).resolves.toBe(true);
+      expect(application.localClientPopIdentityStatus).toMatchObject({ available: true, snapshotRollbackProtected: true });
+      const registryKey = materializeConfiguredLocalClientPopRegistryKey(env);
+      try {
+        const same = await enrollConfiguredLocalClientNativePopReplayBaseline(env, registryKey);
+        expect(same.storeBindingSha256).toBe(result.storeBindingSha256); expect(same.anchorBindingSha256).toBe(result.anchorBindingSha256);
+        expect(same.checkpointDigestSha256).toBe(result.checkpointDigestSha256); expect(same.generation).toBe(1);
+      } finally { registryKey.fill(0); }
+      expect(model.f.nonceCount).toBe(0);
+    } finally { await closeNativeWiringApplication(application); }
+  });
 });

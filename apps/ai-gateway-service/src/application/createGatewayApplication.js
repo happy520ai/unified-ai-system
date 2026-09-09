@@ -96,7 +96,11 @@ import {
   createManagedLocalClientPopIdentityAuthority,
   deriveManagedLocalClientPopKey,
 } from "../capabilities/localClientPopIdentityAuthority.ts";
-import { createLocalClientSqlitePopReplayGuard } from "../capabilities/localClientSqlitePopReplayGuard.ts";
+import { createConfiguredLocalClientPopReplayGuard, readLocalClientPopReplayStoreMode, resolveLocalClientPopReplayPath,
+  requireLocalClientPopReplayHostId, readLocalClientPopReplayNamespace, readStrictLocalClientPopReplayInteger,
+  localClientPopReplayConfigError } from "../capabilities/localClientPopReplayConfiguration.ts";
+import { createNonOwningNativePopReplayGuardPort, isLocalClientNativePopReplayRuntime,
+  prepareLocalClientNativePopReplayRuntime } from "../capabilities/localClientNativePopReplayRuntime.ts";
 import {
   LOCAL_CLIENT_POP_SNAPSHOT_ROLLBACK_BOUNDARIES,
   LOCAL_CLIENT_POP_SNAPSHOT_ROLLBACK_NATIVE_DEPLOYMENT_BLOCKERS,
@@ -773,12 +777,16 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
   });
   const localClientPopSnapshotRollbackProtectionStatus = Object.freeze({
     protocolCoreAvailable: true,
-    configured: false,
-    ready: false,
-    snapshotRollbackProtected: false,
-    nativeDeploymentVerified: false,
-    blockers: LOCAL_CLIENT_POP_SNAPSHOT_ROLLBACK_NATIVE_DEPLOYMENT_BLOCKERS,
-    boundaries: LOCAL_CLIENT_POP_SNAPSHOT_ROLLBACK_BOUNDARIES,
+    get configured() { return localClientAdapterConfiguration.popAuthorityRegistry?.nativeReplayProtection !== null
+      && localClientAdapterConfiguration.popAuthorityRegistry?.nativeReplayProtection !== undefined; },
+    get ready() { return localClientAdapterConfiguration.popAuthorityRegistry?.nativeReplayProtection?.ready === true; },
+    get snapshotRollbackProtected() { return this.ready; },
+    get nativeDeploymentVerified() { return this.ready; },
+    get blockers() { return this.configured ? this.ready ? Object.freeze([]) : Object.freeze(["native_pop_replay_runtime_unavailable"])
+      : LOCAL_CLIENT_POP_SNAPSHOT_ROLLBACK_NATIVE_DEPLOYMENT_BLOCKERS; },
+    get boundaries() { return this.configured ? Object.freeze({ ...LOCAL_CLIENT_POP_SNAPSHOT_ROLLBACK_BOUNDARIES,
+      mutatesOperatingSystem: true, nativeWindowsAdapterImplemented: true, sqliteCheckpointCoordinatorImplemented: true })
+      : LOCAL_CLIENT_POP_SNAPSHOT_ROLLBACK_BOUNDARIES; },
   });
   const localClientExecutionPreview = createLocalClientExecutionPreview({
     routePlanStore: localClientRoutePlanStore,
@@ -1620,148 +1628,6 @@ function createDisabledLocalClientIdempotencyCoordinator() {
   });
 }
 
-function createConfiguredLocalClientPopReplayGuard(env, registryIntegrityKey) {
-  const mode = readLocalClientPopReplayStoreMode(env);
-  if (mode === "memory") return null;
-  if (!(registryIntegrityKey instanceof Uint8Array)) {
-    throw localClientPopReplayConfigError(
-      "INTEGRITY_KEY_REQUIRED",
-      "SQLite PoP replay protection requires authenticated local-client adapter material.",
-    );
-  }
-  const dedicatedKey = createHmac("sha256", registryIntegrityKey)
-    .update("local-client-pop-replay-integrity-key-v1")
-    .digest();
-  try {
-    const maxEntries = readStrictLocalClientPopReplayInteger(
-      env.AI_GATEWAY_LOCAL_CLIENT_POP_REPLAY_MAX_ENTRIES,
-      10_000,
-      1,
-      1_000_000,
-      "AI_GATEWAY_LOCAL_CLIENT_POP_REPLAY_MAX_ENTRIES",
-    );
-    const configuredPerScope = String(
-      env.AI_GATEWAY_LOCAL_CLIENT_POP_REPLAY_MAX_ENTRIES_PER_SCOPE ?? "",
-    ).trim();
-    return createLocalClientSqlitePopReplayGuard({
-      sqlitePath: resolveLocalClientPopReplayPath(
-        env.AI_GATEWAY_LOCAL_CLIENT_POP_REPLAY_SQLITE_PATH,
-      ),
-      hostId: requireLocalClientPopReplayHostId(env.AI_GATEWAY_LOCAL_CLIENT_HOST_ID),
-      integrityKey: dedicatedKey,
-      namespace: readLocalClientPopReplayNamespace(
-        env.AI_GATEWAY_LOCAL_CLIENT_POP_REPLAY_NAMESPACE,
-      ),
-      maxEntries,
-      ...(configuredPerScope
-        ? {
-            maxEntriesPerScope: readStrictLocalClientPopReplayInteger(
-              configuredPerScope,
-              1,
-              1,
-              maxEntries,
-              "AI_GATEWAY_LOCAL_CLIENT_POP_REPLAY_MAX_ENTRIES_PER_SCOPE",
-            ),
-          }
-        : {}),
-      busyTimeoutMs: readStrictLocalClientPopReplayInteger(
-        env.AI_GATEWAY_LOCAL_CLIENT_POP_REPLAY_BUSY_TIMEOUT_MS,
-        5_000,
-        100,
-        30_000,
-        "AI_GATEWAY_LOCAL_CLIENT_POP_REPLAY_BUSY_TIMEOUT_MS",
-      ),
-    });
-  } finally {
-    dedicatedKey.fill(0);
-  }
-}
-
-function readLocalClientPopReplayStoreMode(env) {
-  const mode = String(
-    env.AI_GATEWAY_LOCAL_CLIENT_POP_REPLAY_STORE_MODE ?? "memory",
-  ).trim().toLowerCase();
-  if (mode !== "memory" && mode !== "sqlite") {
-    throw localClientPopReplayConfigError(
-      "STORE_MODE_INVALID",
-      "AI_GATEWAY_LOCAL_CLIENT_POP_REPLAY_STORE_MODE must be memory or sqlite.",
-    );
-  }
-  return mode;
-}
-
-function resolveLocalClientPopReplayPath(value) {
-  const path = String(value ?? "");
-  if (
-    !path.trim()
-    || path !== path.trim()
-    || path.length > 4_096
-    || path === ":memory:"
-    || path.startsWith("\\\\")
-    || path.startsWith("//")
-    || /[\u0000-\u001f\u007f]/u.test(path)
-  ) {
-    throw localClientPopReplayConfigError(
-      "SQLITE_PATH_REQUIRED",
-      "SQLite PoP replay protection requires an explicit bounded local database path.",
-    );
-  }
-  const absolute = resolve(repoRoot, path);
-  if (absolute.startsWith("\\\\") || absolute.startsWith("//")) {
-    throw localClientPopReplayConfigError(
-      "SQLITE_PATH_INVALID",
-      "The PoP replay SQLite path must remain on this host.",
-    );
-  }
-  return absolute;
-}
-
-function requireLocalClientPopReplayHostId(value) {
-  const hostId = String(value ?? "").trim();
-  if (
-    hostId.length < 8
-    || hostId.length > 256
-    || /[\u0000-\u001f\u007f]/u.test(hostId)
-  ) {
-    throw localClientPopReplayConfigError(
-      "HOST_ID_REQUIRED",
-      "SQLite PoP replay protection requires AI_GATEWAY_LOCAL_CLIENT_HOST_ID.",
-    );
-  }
-  return hostId;
-}
-
-function readLocalClientPopReplayNamespace(value) {
-  const namespace = String(value ?? "local-client-pop-replay").trim();
-  if (!/^[a-z][a-z0-9._-]{0,127}$/u.test(namespace)) {
-    throw localClientPopReplayConfigError(
-      "CONFIG_INVALID",
-      "AI_GATEWAY_LOCAL_CLIENT_POP_REPLAY_NAMESPACE must be a portable identifier.",
-    );
-  }
-  return namespace;
-}
-
-function readStrictLocalClientPopReplayInteger(value, fallback, minimum, maximum, name) {
-  if (value === undefined || value === null || String(value).trim() === "") return fallback;
-  const normalized = String(value).trim();
-  if (!/^(?:0|[1-9][0-9]*)$/u.test(normalized)) {
-    throw localClientPopReplayConfigError("CONFIG_INVALID", `${name} must be a bounded integer.`);
-  }
-  const parsed = Number(normalized);
-  if (!Number.isSafeInteger(parsed) || parsed < minimum || parsed > maximum) {
-    throw localClientPopReplayConfigError("CONFIG_INVALID", `${name} must be a bounded integer.`);
-  }
-  return parsed;
-}
-
-function localClientPopReplayConfigError(reason, message) {
-  return Object.assign(new Error(message), {
-    code: `LOCAL_CLIENT_POP_REPLAY_${reason}`,
-    category: "configuration",
-    statusCode: 503,
-  });
-}
 
 function createConfiguredLocalClientReceiptJournal({
   env,
@@ -2855,7 +2721,7 @@ function registerConfiguredLocalClientAdapters(registry, env) {
     for (const binding of receiptJournalBindings) {
       void binding.journal.close().catch(() => undefined);
     }
-    try { popReplayGuard?.close?.(); } catch { /* Preserve startup failure. */ }
+    if (popReplayGuard?.close) void Promise.resolve().then(() => popReplayGuard.close()).catch(() => undefined);
     throw error;
   } finally {
     registrySecret.fill(0);
@@ -2863,6 +2729,8 @@ function registerConfiguredLocalClientAdapters(registry, env) {
 }
 
 function createNonOwningLocalClientPopReplayGuardPort(guard) {
+  const nativePort = createNonOwningNativePopReplayGuardPort(guard);
+  if (nativePort) return nativePort;
   return Object.freeze({
     get status() {
       return guard.status;
@@ -2933,6 +2801,16 @@ function createLocalClientPopAuthorityRegistry(rawBindings, ownedReplayGuard = n
     },
     hasBinding(tenantId, clientId) {
       return !closed && bindings.has(`${tenantId ?? ""}\0${clientId ?? ""}`);
+    },
+    async prepareReplayProtection({ tenantId, clientId }) {
+      if (closed || !bindings.has(`${tenantId ?? ""}\0${clientId ?? ""}`)) throw localClientPopUnavailableError();
+      return isLocalClientNativePopReplayRuntime(ownedReplayGuard)
+        ? prepareLocalClientNativePopReplayRuntime(ownedReplayGuard) : true;
+    },
+    get nativeReplayProtection() {
+      if (!isLocalClientNativePopReplayRuntime(ownedReplayGuard)) return null;
+      const status = ownedReplayGuard.status;
+      return Object.freeze({ ready: !closed && status.available === true && status.snapshotRollbackProtected === true });
     },
     async close() {
       if (closed) return;

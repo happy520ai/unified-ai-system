@@ -8,6 +8,7 @@ import { ProviderRegistry } from "../providers/providerRegistry.js";
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import {
   createAnthropicMessage,
+  authenticateManagedLocalClientProtocolRequest,
   createOpenAiChatCompletionChunk,
   dispatchOpenAiCompatibilityRoutes,
   normalizeAnthropicMessageRequest,
@@ -968,6 +969,63 @@ describe("OpenAI request normalization", () => {
     expect(response.id).toBe("msg_request-abc");
     expect(response.stop_reason).toBe("max_tokens");
     expect(response.usage).toEqual({ input_tokens: 3, output_tokens: 2 });
+  });
+});
+
+describe("managed native replay preparation gate", () => {
+  function fixture() {
+    let ready = false;
+    const order = [];
+    const authenticate = vi.fn(async () => { order.push("authenticate"); return { verified: true }; });
+    const prepare = vi.fn(async () => { order.push("prepare"); ready = true; return true; });
+    const application = {
+      localClientProtocolPrincipalResolver: { resolve: vi.fn(() => ({ clientId: "bound-client" })) },
+      localClientPopIdentityAuthority: { prepareReplayProtection: prepare },
+      localClientPopHttpAuth: { authenticate },
+      localClientManagedProtocolDispatchStatus: { get ready() { return ready; } },
+    };
+    const input = { application, request: { method: "POST", socket: { destroyed: false }, headers: { "x-ai-gateway-local-client-proof": "fixture-proof" },
+      enterpriseIdentity: { tenantId: "bound-tenant", userId: "bound-subject" } },
+      url: new URL("http://127.0.0.1/v1/messages"), requestBody: { unified_ai: { local_client_id: "bound-client" } } };
+    return { input, application, prepare, authenticate, order, setReady: value => { ready = value; } };
+  }
+  it("prepares only the server-bound client before the complete dispatch gate and proof verifier", async () => {
+    const f = fixture();
+    expect(await authenticateManagedLocalClientProtocolRequest(f.input)).toEqual({ verified: true });
+    expect(f.prepare).toHaveBeenCalledExactlyOnceWith({ tenantId: "bound-tenant", clientId: "bound-client" });
+    expect(f.order).toEqual(["prepare", "authenticate"]);
+    f.setReady(false);
+    await authenticateManagedLocalClientProtocolRequest(f.input);
+    expect(f.prepare).toHaveBeenCalledTimes(2);
+  });
+  it("keeps wrong identities, incomplete requests, failed preparation and other dispatch blockers closed", async () => {
+    for (const mutate of [
+      f => f.application.localClientProtocolPrincipalResolver.resolve.mockReturnValue(null),
+      f => { f.input.requestBody.unified_ai.local_client_id = "other-client"; },
+      f => { delete f.input.request.headers["x-ai-gateway-local-client-proof"]; },
+    ]) {
+      const f = fixture(); mutate(f);
+      await expect(authenticateManagedLocalClientProtocolRequest(f.input)).rejects.toMatchObject({ code: "LOCAL_CLIENT_POP_HTTP_UNAUTHORIZED" });
+      expect(f.prepare).not.toHaveBeenCalled(); expect(f.authenticate).not.toHaveBeenCalled();
+    }
+    for (const preparation of [false, true]) {
+      const f = fixture();
+      f.prepare.mockImplementation(async () => preparation); // Other dispatch prerequisites remain false.
+      await expect(authenticateManagedLocalClientProtocolRequest(f.input)).rejects.toMatchObject({ code: "LOCAL_CLIENT_POP_HTTP_UNAUTHORIZED" });
+      expect(f.prepare).toHaveBeenCalledOnce(); expect(f.authenticate).not.toHaveBeenCalled();
+    }
+  });
+  it("does not authorize dispatch after the connection closes during native preparation or proof verification", async () => {
+    for (const during of ["prepare", "authenticate"]) {
+      const f = fixture();
+      f[during].mockImplementation(async () => {
+        f.input.request.socket.destroyed = true;
+        f.setReady(true);
+        return during === "prepare" ? true : { verified: true };
+      });
+      await expect(authenticateManagedLocalClientProtocolRequest(f.input)).rejects.toMatchObject({ code: "LOCAL_CLIENT_POP_HTTP_UNAUTHORIZED" });
+      if (during === "prepare") expect(f.authenticate).not.toHaveBeenCalled();
+    }
   });
 });
 

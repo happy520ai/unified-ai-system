@@ -3180,6 +3180,7 @@ export async function authenticateManagedLocalClientProtocolRequest({
   const clientRequested = rawClientId !== undefined;
   const proofSupplied = proofHeader !== undefined;
   const rawBody = proofSupplied ? takeRawJsonRequestBody(request) : null;
+  const disconnected = () => request.aborted === true || request.socket?.destroyed === true;
   try {
     const serverBinding = application?.localClientProtocolPrincipalResolver?.resolve?.(
       request.enterpriseIdentity,
@@ -3195,11 +3196,20 @@ export async function authenticateManagedLocalClientProtocolRequest({
       || !MANAGED_LOCAL_CLIENT_PROTOCOL_ID_PATTERN.test(rawClientId)
       || rawClientId !== serverBinding.clientId
       || !application?.localClientPopHttpAuth
-      || application?.localClientManagedProtocolDispatchStatus?.ready !== true
+      || disconnected()
     ) {
       throw createManagedLocalClientAuthError();
     }
-    return await application.localClientPopHttpAuth.authenticate({
+    // The authenticated server binding chooses the client before any native
+    // bootstrap/refresh. The existing complete dispatch gate still follows it.
+    if (application.localClientPopIdentityAuthority?.prepareReplayProtection) {
+      const prepared = await application.localClientPopIdentityAuthority.prepareReplayProtection({
+        tenantId: request.enterpriseIdentity?.tenantId, clientId: serverBinding.clientId,
+      });
+      if (!prepared || disconnected()) throw createManagedLocalClientAuthError();
+    }
+    if (application?.localClientManagedProtocolDispatchStatus?.ready !== true) throw createManagedLocalClientAuthError();
+    const principal = await application.localClientPopHttpAuth.authenticate({
       authenticatedScope: {
         tenantId: request.enterpriseIdentity?.tenantId,
         subjectId: request.enterpriseIdentity?.userId,
@@ -3210,6 +3220,8 @@ export async function authenticateManagedLocalClientProtocolRequest({
       rawBody,
       proofHeader,
     });
+    if (disconnected()) throw createManagedLocalClientAuthError();
+    return principal;
   } finally {
     rawBody?.fill(0);
   }

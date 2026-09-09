@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { LocalClientProtectedSqliteCheckpoint } from "./localClientProtectedSqliteCheckpoint.ts";
 import type { LocalClientWindowsProtectedAuthorityAnchor } from "./localClientWindowsProtectedAuthorityAnchor.ts";
@@ -70,6 +71,8 @@ export interface LocalClientSqlitePopReplayGuardOptions {
    */
   readonly maxEntriesPerScope?: number;
   readonly busyTimeoutMs?: number;
+  /** Native recovery may open an existing store only; never creates a missing DB or parent. */
+  readonly existingOnly?: true;
   /** Explicit protected format; never upgrades an existing schema-3 database. Authority ownership stays with the caller. */
   readonly protectedAuthority?: LocalClientWindowsProtectedAuthorityAnchor;
   readonly anchorBindingSha256?: string;
@@ -242,11 +245,12 @@ implements ManagedLocalClientPopReplayGuard {
 
       const sqliteDirectory = dirname(sqlitePath);
       const sqliteDirectoryExisted = existsSync(sqliteDirectory);
-      mkdirSync(sqliteDirectory, { recursive: true, mode: 0o700 });
-      if (!sqliteDirectoryExisted) {
+      if (!options.existingOnly) mkdirSync(sqliteDirectory, { recursive: true, mode: 0o700 });
+      if (!options.existingOnly && !sqliteDirectoryExisted) {
         try { chmodSync(sqliteDirectory, 0o700); } catch { /* Best effort on Windows. */ }
       }
-      this.#db = new DatabaseSync(sqlitePath);
+      this.#db = new DatabaseSync(options.existingOnly ? `${pathToFileURL(sqlitePath).href}?mode=rw` : sqlitePath);
+      if (options.existingOnly && this.#db.prepare("PRAGMA user_version").get()?.user_version !== this.#schemaVersion) throw schemaError();
       this.#db.exec(`PRAGMA busy_timeout = ${this.#busyTimeoutMs}`);
       const journal = this.#db.prepare("PRAGMA journal_mode = WAL").get() as
         | { journal_mode?: unknown }
@@ -905,6 +909,7 @@ function assertOptions(options: LocalClientSqlitePopReplayGuardOptions): void {
     "maxEntries",
     "maxEntriesPerScope",
     "busyTimeoutMs",
+    "existingOnly",
     "protectedAuthority",
     "anchorBindingSha256",
   ];
@@ -916,6 +921,7 @@ function assertOptions(options: LocalClientSqlitePopReplayGuardOptions): void {
     || !Buffer.isBuffer(options.integrityKey)
     || options.integrityKey.length < MIN_KEY_BYTES
     || options.integrityKey.length > MAX_KEY_BYTES
+    || (Object.hasOwn(options, "existingOnly") && options.existingOnly !== true)
   ) throw configurationError();
   if (options.protectedAuthority === undefined ? options.anchorBindingSha256 !== undefined
     : !isDigest(options.anchorBindingSha256) || ["inspect", "assertCurrent", "prepareNext", "finalize", "enrollBaseline"]
