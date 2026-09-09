@@ -552,7 +552,7 @@ describe("managed A2A blocking SendMessage admission", () => {
     expect(f.generate).toHaveBeenCalledOnce();
     tamper = false;
     const invalidText = body().params;
-    invalidText.message.parts = [{ text: "   " }];
+    invalidText.message.parts = [{ text: "   ", mediaType: "text/plain" }];
     await expect(client.sendMessage(SendMessageRequest.fromJSON(invalidText))).rejects.toMatchObject({
       message: "A2A text input cannot be empty.",
     });
