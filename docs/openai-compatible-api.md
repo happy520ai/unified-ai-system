@@ -302,7 +302,7 @@ when the provider selects a function.
 | `metadata` | Preserved in the response and gateway request metadata. |
 | `text.format` | Only `{ "type": "text" }` is supported. |
 | `store` | Optional boolean, defaults to `true`. Stored responses enable `previous_response_id` chaining. |
-| `previous_response_id` | Continues a stored conversation: the gateway replays the stored context (instructions, prior turns, tool calls, and assistant outputs) before the new input. Unknown or expired ids return `404` with `code: "response_not_found"`. |
+| `previous_response_id` | Continues a stored conversation owned by the same authenticated tenant and caller: the gateway replays its context before the new input. Unknown, expired or differently owned ids return `404` with `code: "response_not_found"` before dispatch. |
 | `reasoning` | Optional `{ "effort": "minimal" \| "low" \| "medium" \| "high" \| "xhigh", "summary": "auto" \| "concise" \| "detailed" }`. `effort` is passed to supporting providers as `reasoning_effort` and echoed back on the response. Provider reasoning content is captured, returned as a `reasoning` output item, retained in the session, and replayed as bounded context on chained turns so multi-turn agents stop re-deriving conclusions. Client-sent `reasoning` input items are accepted and dropped (counted in `unified_ai` metadata). |
 | `tools` | Function tools in the flat Responses shape (`{ type: "function", name, description, parameters, strict }`), mapped to the chat tool contract. Built-in tools such as `web_search` are rejected. |
 | `tool_choice` | `"none"`, `"auto"`, `"required"`, or `{ "type": "function", "name" }`. |
@@ -315,15 +315,39 @@ returned reasoning content, `function_call` items when the provider selected
 a function, and the assistant `message`), `output_text`, token usage, and
 `unified_ai` execution evidence. Stored responses can be retrieved
 (`GET /v1/responses/{id}`) or deleted (`DELETE /v1/responses/{id}`, returns
-`{ "deleted": true }`); unknown or expired ids return `404
+`{ "deleted": true }`); unknown, expired or differently owned ids return `404
 response_not_found`. Response sessions are held in memory with a
 TTL (`AI_GATEWAY_RESPONSE_SESSION_TTL_MS`, default 30 minutes; `0` disables
 chaining) and a bounded table
 (`AI_GATEWAY_RESPONSE_SESSION_MAX_ENTRIES`, default 256, least-recently-used
-eviction). Sessions store normalized message text and captured reasoning
-summaries only — never credentials or raw provider payloads. Background
+eviction). Sessions retain normalized conversation context, captured reasoning
+summaries and the formatted response. Conversation content is caller-supplied;
+this is not a provider credential store or raw transport archive. Background
 execution, remote images, files, and audio are not implemented in this
 profile.
+
+With enterprise authentication, creation, retrieval, continuation and deletion
+use the server's tenant and caller identity. Virtual keys have separate scopes
+by fingerprint, including two keys in the same tenant. User sessions use the
+authenticated user identity. Request metadata cannot choose the scope. The
+anonymous local preview retains its existing shared preview scope and cannot
+read authenticated sessions. Incomplete authenticated identities cannot fall
+back to that preview scope.
+
+Generated assistant text passes output rules before a successful response is
+stored; stored assistant context matches its redacted output. A later GET checks
+the current caller's output policy and can return `guardrail_blocked`. GET and
+DELETE do not invoke a Provider. Session memory is lost on restart: a missing
+`previous_response_id` is an explicit 404, not an automatic model retry.
+
+Language Selection for session ownership: this local change preserves the
+existing ESM JavaScript store and route, with authenticated HTTP regression
+tests in TypeScript. Scoping existing in-memory keys and binding the store once
+per request avoids a new datastore or authentication layer. The public paths,
+TTL and response IDs remain compatible; cross-owner access is intentionally
+refused. Roll back the store and its route binding together after draining
+Responses traffic. An older version restores the prior unscoped behavior and
+must not serve multiple authenticated callers under an isolation claim.
 
 Virtual-key budgets and rate limits are enforced uniformly across the chat
 completions, Responses, and Anthropic `/v1/messages` surfaces, and per-key

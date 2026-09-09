@@ -10,12 +10,12 @@ import {
   applyVirtualKeyRequestGate,
 } from "./openAiCompatibilityRoutes.js";
 import { readJson, writeJson, writeSseHeaders } from "./utils/responseUtils.js";
-import { getGuardrailsEngine } from "../guardrails/guardrailsEngine.ts";
+import { captureGuardrailsOutputPolicy, getGuardrailsEngine, inspectGuardrailsOutputStream } from "../guardrails/guardrailsEngine.ts";
 import {
   recordGuardrailEvaluation,
   recordGuardrailFinding,
 } from "../observability/aiMetrics.ts";
-import { isResponseId } from "../responses/responseSessionStore.js";
+import { bindResponseSessionStore, isResponseId } from "../responses/responseSessionStore.js";
 import {
   closePrimedGatewayStream,
   iteratePrimedGatewayStream,
@@ -112,6 +112,10 @@ export async function dispatchOpenAiResponsesRoutes(context) {
     application,
   } = context;
   const normalized = normalizeOpenAiResponsesPath(url.pathname);
+  const sessionStore = bindResponseSessionStore(
+    responseSessionStore ?? application?.responseSessionStore ?? null,
+    request.enterpriseIdentity,
+  );
 
   const retrieveMatch = normalized.path.match(/^\/v1\/responses\/(resp_[A-Za-z0-9_-]{1,64})$/);
   if (retrieveMatch) {
@@ -120,7 +124,8 @@ export async function dispatchOpenAiResponsesRoutes(context) {
       method: request.method,
       response,
       startedAt,
-      sessionStore: responseSessionStore ?? application?.responseSessionStore ?? null,
+      sessionStore,
+      guardrailsEngine: getGuardrailsEngine(request.enterpriseIdentity?.tenantId),
       writeServiceLog,
     });
     return;
@@ -155,10 +160,6 @@ export async function dispatchOpenAiResponsesRoutes(context) {
   const normalizedBody = shouldInjectModel
     ? { ...body, model: normalized.modelFromPath }
     : body;
-
-  const sessionStore = responseSessionStore
-    ?? application?.responseSessionStore
-    ?? null;
 
   let gatewayInput;
   let session;
@@ -299,23 +300,6 @@ export async function dispatchOpenAiResponsesRoutes(context) {
     promptEnhancement: gatewayInput.metadata?.promptEnhancement,
     session,
   });
-  const storedSession = storeResponseSession({
-    sessionStore,
-    session,
-    responseId: openAiResponse.id,
-    instructions: normalizedBody.instructions ?? session.previous?.instructions ?? null,
-    contextMessages: [
-      ...mergedWireMessages,
-      ...createAssistantWireReplies(result),
-    ],
-    assistantOutput: openAiResponse.output_text,
-    reasoningSummary: readGatewayReasoningSummary(result),
-    model: openAiResponse.model,
-    providerId: result.data?.selectedProvider ?? null,
-    responseBody: openAiResponse,
-  });
-  openAiResponse.store = storedSession;
-
   // Guardrails 输出侧：对最终 output_text 脱敏/拦截；fail-open 保证不影响正常响应。
   if (typeof openAiResponse.output_text === "string" && openAiResponse.output_text) {
     const outputVerdict = guardrailsEngine.inspectOutputText(openAiResponse.output_text);
@@ -357,6 +341,23 @@ export async function dispatchOpenAiResponsesRoutes(context) {
       }
     }
   }
+  const storedSession = storeResponseSession({
+    sessionStore,
+    session,
+    responseId: openAiResponse.id,
+    instructions: normalizedBody.instructions ?? session.previous?.instructions ?? null,
+    contextMessages: [
+      ...mergedWireMessages,
+      ...createAssistantWireReplies(result).map(message => message.role === "assistant" && typeof message.content === "string"
+        ? { ...message, content: openAiResponse.output_text } : message),
+    ],
+    assistantOutput: openAiResponse.output_text,
+    reasoningSummary: readGatewayReasoningSummary(result),
+    model: openAiResponse.model,
+    providerId: result.data?.selectedProvider ?? null,
+    responseBody: openAiResponse,
+  });
+  openAiResponse.store = storedSession;
   writeServiceLog?.("openai_response_completed", {
     method: request.method,
     path: normalized.path,
@@ -497,6 +498,7 @@ function dispatchResponseRetrieval({
   response,
   startedAt,
   sessionStore,
+  guardrailsEngine,
   writeServiceLog,
 }) {
   if (method !== "GET" && method !== "DELETE") {
@@ -530,12 +532,27 @@ function dispatchResponseRetrieval({
       writeJson(response, 404, createOpenAiError(error));
       return;
     }
+    const outputVerdict = guardrailsEngine.inspectOutputText(record.responseBody.output_text ?? "");
+    recordGuardrailEvaluation("output", outputVerdict.decision);
+    for (const finding of outputVerdict.findings) recordGuardrailFinding(finding.rule, finding.action);
+    if (outputVerdict.decision === "block") {
+      writeJson(response, 400, createOpenAiError({ code: "guardrail_blocked", category: "governance",
+        message: "Stored response blocked by current chat guardrails.", param: "response_id" }));
+      return;
+    }
+    const responseBody = outputVerdict.text === record.responseBody.output_text ? record.responseBody : {
+      ...record.responseBody,
+      output_text: outputVerdict.text,
+      output: record.responseBody.output?.map(item => item?.type === "message" && Array.isArray(item.content)
+        ? { ...item, content: item.content.map(part => part?.type === "output_text"
+          ? { ...part, text: outputVerdict.text } : part) } : item),
+    };
     writeServiceLog?.("openai_response_retrieved", {
       method,
       path: `/v1/responses/${responseId}`,
       durationMs: Date.now() - startedAt,
     });
-    writeJson(response, 200, record.responseBody);
+    writeJson(response, 200, responseBody);
     return;
   }
 
@@ -1055,6 +1072,7 @@ async function streamOpenAiResponse({
   const accumulatedToolCalls = new Map();
   const createdAt = Math.floor(startedAt / 1000);
   const guardrailsEngine = getGuardrailsEngine(request.enterpriseIdentity?.tenantId);
+  const outputPolicy = captureGuardrailsOutputPolicy(guardrailsEngine);
 
   response.on("close", () => {
     clientClosed = true;
@@ -1094,7 +1112,7 @@ async function streamOpenAiResponse({
   });
 
   try {
-    for await (const event of iteratePrimedGatewayStream(primedStream)) {
+    for await (const event of inspectGuardrailsOutputStream(iteratePrimedGatewayStream(primedStream), outputPolicy, () => clientClosed)) {
       if (clientClosed) break;
       if (event.type === "error") {
         failed = true;
@@ -1124,8 +1142,7 @@ async function streamOpenAiResponse({
         });
       }
       if (event.type === "chunk") {
-        // Guardrails 输出侧（流式）：对每个 delta 尽力脱敏，fail-open 保证流不中断。
-        const delta = guardrailsEngine.inspectSseDelta(event.textDelta ?? "");
+        const delta = event.textDelta ?? "";
         outputText += delta;
         writeResponseSse(response, {
           type: "response.output_text.delta",

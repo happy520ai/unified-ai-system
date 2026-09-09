@@ -5,7 +5,8 @@ import {
   dispatchOpenAiResponsesRoutes as dispatchResponsesRoutes,
   normalizeOpenAiResponseRequest,
 } from "./openAiResponsesRoutes.js";
-import { createResponseSessionStore } from "../responses/responseSessionStore.js";
+import { bindResponseSessionStore, createResponseSessionStore } from "../responses/responseSessionStore.js";
+import { createGuardrailsEngineForTests, setGuardrailsEngineForTests } from "../guardrails/guardrailsEngine.ts";
 import { createApiKeyManager } from "../enterprise/apiKeyManager.js";
 import { bindVirtualKeyTestGateway } from "./virtualKeyGateway.testHelper.ts";
 
@@ -714,6 +715,84 @@ describe("OpenAI Responses request normalization", () => {
       { type: "image_url", image_url: { url: imageUrl, detail: "low" } },
     ]);
     expect(request.metadata.openAiCompatibility.api).toBe("responses");
+  });
+});
+
+describe("Responses server-owned session scope", () => {
+  const owner = { tenantId: "session-tenant-a", userId: "alice" };
+  it("does not save a blocked output as a retrievable successful response", async () => {
+    const store = createResponseSessionStore({}); const response = createResponseRecorder();
+    setGuardrailsEngineForTests(createGuardrailsEngineForTests({ enabled: true, bannedTerms: ["completed"] }));
+    try {
+      await dispatchOpenAiResponsesRoutes(createContext({ body: { model: "local-fake-model", input: "Owned context", store: true },
+        responseSessionStore: store, enterpriseIdentity: owner, response }));
+      expect(response.statusCode).toBe(400); expect(response.body.error.code).toBe("guardrail_blocked");
+      expect(store.size()).toBe(0);
+    } finally { setGuardrailsEngineForTests(null); }
+  });
+
+  it.each([false, true])("rechecks stored output against the current owner policy (stream=%s)", async stream => {
+    const store = createResponseSessionStore({}); const response = createResponseRecorder();
+    const engine = createGuardrailsEngineForTests({ enabled: true, bannedTerms: [] });
+    setGuardrailsEngineForTests(engine);
+    try {
+      await dispatchOpenAiResponsesRoutes(createContext({ body: { model: "local-fake-model", input: "Owned context", store: true, stream },
+        responseSessionStore: store, enterpriseIdentity: owner, response }));
+      expect(response.statusCode).toBe(200);
+      const created = stream ? response.text.split("\n").filter(line => line.startsWith("data: {")).map(line => JSON.parse(line.slice(6)))
+        .find(event => event.type === "response.completed").response : response.body;
+      expect(created.store).toBe(true);
+      engine.applyOverrides({ bannedTerms: [stream ? "Hello" : "completed"] });
+      const readback = createResponseRecorder();
+      await dispatchOpenAiResponsesRoutes(createContext({ method: "GET", path: `/v1/responses/${created.id}`,
+        responseSessionStore: store, enterpriseIdentity: owner, response: readback }));
+      expect(readback.statusCode).toBe(400); expect(readback.body.error.code).toBe("guardrail_blocked");
+      expect(readback.text).not.toContain(created.output_text);
+    } finally { setGuardrailsEngineForTests(null); }
+  });
+
+  it("keeps stored assistant context consistent with redacted output", async () => {
+    const store = createResponseSessionStore({}); const response = createResponseRecorder();
+    const gateway = createGatewayService();
+    const originalExecute = gateway.execute;
+    gateway.execute = vi.fn(async () => {
+      const result = await originalExecute(); result.data.message.content = "Contact alice@example.test"; return result;
+    });
+    setGuardrailsEngineForTests(createGuardrailsEngineForTests({ enabled: true }));
+    try {
+      await dispatchOpenAiResponsesRoutes(createContext({ body: { model: "local-fake-model", input: "Owned context", store: true },
+        responseSessionStore: store, gatewayService: gateway, enterpriseIdentity: owner, response }));
+      expect(response.statusCode).toBe(200); expect(response.body.output_text).toBe("Contact [redacted-email]");
+      const saved = bindResponseSessionStore(store, owner).get(response.body.id);
+      expect(saved.assistantOutput).toBe(response.body.output_text);
+      expect(saved.contextMessages.findLast(message => message.role === "assistant").content).toBe(response.body.output_text);
+    } finally { setGuardrailsEngineForTests(null); }
+  });
+  it.each([
+    ["GET", { tenantId: "session-tenant-b", userId: "alice" }],
+    ["POST", { tenantId: "session-tenant-b", userId: "alice" }],
+    ["DELETE", { tenantId: "session-tenant-b", userId: "alice" }],
+    ["GET", { tenantId: "session-tenant-a", userId: "bob" }],
+    ["POST", { tenantId: "session-tenant-a", userId: "bob" }],
+    ["DELETE", { tenantId: "session-tenant-a", userId: "bob" }],
+  ])("refuses %s from another authenticated owner %j without dispatch", async (method, other) => {
+    const store = createResponseSessionStore({}); const gateway = createGatewayService();
+    const first = createResponseRecorder();
+    await dispatchOpenAiResponsesRoutes(createContext({ body: { model: "local-fake-model", input: "Owned context", store: true },
+      responseSessionStore: store, gatewayService: gateway, enterpriseIdentity: owner, response: first }));
+    expect(first.statusCode).toBe(200); expect(first.body.store).toBe(true);
+    const denied = createResponseRecorder();
+    await dispatchOpenAiResponsesRoutes(createContext({ method,
+      path: method === "POST" ? "/v1/responses" : `/v1/responses/${first.body.id}`,
+      body: { model: "local-fake-model", input: "Continue", previous_response_id: first.body.id,
+        metadata: { tenantId: owner.tenantId, userId: owner.userId }, unified_ai: { enterpriseIdentity: owner } },
+      responseSessionStore: store, gatewayService: gateway, enterpriseIdentity: other, response: denied }));
+    expect(denied.statusCode).toBe(404); expect(denied.body.error.code).toBe("response_not_found");
+    expect(gateway.execute).toHaveBeenCalledOnce();
+    const readback = createResponseRecorder();
+    await dispatchOpenAiResponsesRoutes(createContext({ method: "GET", path: `/v1/responses/${first.body.id}`,
+      responseSessionStore: store, gatewayService: gateway, enterpriseIdentity: owner, response: readback }));
+    expect(readback.statusCode).toBe(200); expect(readback.body.output_text).toBe(first.body.output_text);
   });
 });
 

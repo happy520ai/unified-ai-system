@@ -15,7 +15,7 @@
 
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { readJson, writeJson, writeSseHeaders } from "./utils/responseUtils.js";
-import { getGuardrailsEngine } from "../guardrails/guardrailsEngine.ts";
+import { captureGuardrailsOutputPolicy, getGuardrailsEngine, inspectGuardrailsOutputStream } from "../guardrails/guardrailsEngine.ts";
 import {
   applyVirtualKeyRequestGate,
   applyManagedLocalClientProviderRoute,
@@ -949,7 +949,8 @@ async function streamGeminiGenerateContent({
   writeSseHeaders(response);
 
   const guardrailsEngine = getGuardrailsEngine(request.enterpriseIdentity?.tenantId);
-  for await (const event of iteratePrimedGatewayStream(primedStream)) {
+  const outputPolicy = captureGuardrailsOutputPolicy(guardrailsEngine);
+  for await (const event of inspectGuardrailsOutputStream(iteratePrimedGatewayStream(primedStream), outputPolicy, () => clientClosed)) {
     if (clientClosed) break;
     if (event.type === "error") {
       failed = true;
@@ -959,11 +960,6 @@ async function streamGeminiGenerateContent({
     finalEvent = event;
     selectedModel = event.selectedModel ?? selectedModel;
     if (typeof event.textDelta === "string" && event.textDelta) {
-      // Guardrails 输出侧（流式）：对每个 delta 尽力脱敏，fail-open 保证流不中断。
-      const redactedDelta = guardrailsEngine.inspectSseDelta(event.textDelta);
-      if (redactedDelta !== event.textDelta) {
-        event.textDelta = redactedDelta;
-      }
       if (!firstTokenAt) {
         firstTokenAt = Date.now();
         recordChatTtft(pathname, firstTokenAt, startedAt);

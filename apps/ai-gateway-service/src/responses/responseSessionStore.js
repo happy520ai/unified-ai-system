@@ -1,8 +1,10 @@
 import { randomUUID } from "node:crypto";
 
 // Response sessions power previous_response_id chaining on the OpenAI
-// Responses compatibility surface. Only normalized message text is stored —
-// never credentials, raw provider payloads, or file contents.
+// Responses compatibility surface. This bounded, memory-only store retains
+// normalized conversation context and the formatted response, scoped to the
+// authenticated tenant/caller. Callers control conversation content; it is not
+// a provider credential store or a raw transport archive.
 
 export const DEFAULT_RESPONSE_SESSION_TTL_MS = 30 * 60 * 1000;
 export const DEFAULT_RESPONSE_SESSION_MAX_ENTRIES = 256;
@@ -43,6 +45,36 @@ function capContextMessages(messages) {
     totalChars -= typeof dropped?.content === "string" ? dropped.content.length : 0;
   }
   return capped;
+}
+
+function scopedSessionKey(responseId, scope) {
+  if (scope === undefined || scope === null) return JSON.stringify(["preview", responseId]);
+  if (!scope || typeof scope !== "object"
+    || typeof scope.tenantId !== "string" || !scope.tenantId || scope.tenantId.length > 512
+    || typeof scope.subjectId !== "string" || !scope.subjectId || scope.subjectId.length > 1024) {
+    throw Object.assign(new Error("Response session scope is invalid."), { code: "RESPONSE_SESSION_SCOPE_INVALID" });
+  }
+  return JSON.stringify(["authenticated", scope.tenantId, scope.subjectId, responseId]);
+}
+
+/** Bind the existing store to server-authenticated identity, never request JSON. */
+export function bindResponseSessionStore(store, identity) {
+  if (!store) return null;
+  if (identity === undefined || identity === null) return store;
+  const tenantId = typeof identity.tenantId === "string" ? identity.tenantId : "";
+  const keyFingerprint = typeof identity.apiKeyFingerprint === "string" ? identity.apiKeyFingerprint : "";
+  const userId = [identity.userId, identity.subject, identity.id].find(value => typeof value === "string" && value.length > 0);
+  const subjectId = keyFingerprint ? `key:${keyFingerprint}` : userId ? `user:${userId}` : "";
+  if (!tenantId || tenantId.length > 512 || !subjectId || subjectId.length > 1024) {
+    return Object.freeze({ ...store, enabled: false, get: () => null, delete: () => false,
+      set: record => ({ responseId: record?.responseId, stored: false }) });
+  }
+  const scope = Object.freeze({ tenantId, subjectId });
+  return Object.freeze({ ...store,
+    set: record => store.set(record, scope),
+    get: responseId => store.get(responseId, scope),
+    delete: responseId => store.delete(responseId, scope),
+  });
 }
 
 export function createResponseSessionStore({
@@ -95,7 +127,7 @@ export function createResponseSessionStore({
     ttlMs: resolvedTtlMs,
     maxEntries: resolvedMaxEntries,
 
-    set(record) {
+    set(record, scope = undefined) {
       if (!record || typeof record !== "object") {
         throw new Error("Response session record must be an object.");
       }
@@ -103,10 +135,11 @@ export function createResponseSessionStore({
       if (!isResponseId(responseId)) {
         throw new Error("Response session responseId must match the resp_* format.");
       }
+      const storageKey = scopedSessionKey(responseId, scope);
       evictForEntry();
       const timestamp = now();
       accessCounter += 1;
-      sessions.set(responseId, {
+      sessions.set(storageKey, {
         responseId,
         instructions: typeof record.instructions === "string" ? record.instructions : null,
         contextMessages: capContextMessages(record.contextMessages),
@@ -125,12 +158,13 @@ export function createResponseSessionStore({
       return { responseId, stored: true };
     },
 
-    get(responseId) {
+    get(responseId, scope = undefined) {
       if (!isResponseId(responseId)) return null;
-      const record = sessions.get(responseId);
+      const storageKey = scopedSessionKey(responseId, scope);
+      const record = sessions.get(storageKey);
       if (!record) return null;
       if (isExpired(record)) {
-        sessions.delete(responseId);
+        sessions.delete(storageKey);
         return null;
       }
       record.lastAccessedAt = now();
@@ -151,8 +185,9 @@ export function createResponseSessionStore({
       };
     },
 
-    delete(responseId) {
-      return sessions.delete(responseId);
+    delete(responseId, scope = undefined) {
+      if (!isResponseId(responseId)) return false;
+      return sessions.delete(scopedSessionKey(responseId, scope));
     },
 
     size() {

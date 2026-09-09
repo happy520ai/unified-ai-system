@@ -2,7 +2,7 @@ import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { MANAGED_LOCAL_CLIENT_PROVIDER_PIN } from "../core/gatewayService.js";
 import { createLocalClientProviderDispatchBinding } from "../routing/localClientProviderDispatchBinding.ts";
 import { getChatResponseCacheIntegration, readChatCacheBillingSnapshot } from "../cache/chatResponseCacheIntegration.ts";
-import { getGuardrailsEngine } from "../guardrails/guardrailsEngine.ts";
+import { captureGuardrailsOutputPolicy, getGuardrailsEngine, inspectGuardrailsOutputStream } from "../guardrails/guardrailsEngine.ts";
 import { resolveProviderDispatchHttpStatus } from "./providerDispatchHttpStatus.ts";
 import {
   closePrimedGatewayStream,
@@ -335,6 +335,7 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
     // Guardrails（确定性本地扫描）：在 normalize 之前作用于原始请求——
     // 拦截/脱敏同时覆盖 JSON、SSE 与缓存路径（脱敏后的文本进入缓存键）。
     const guardrailsEngine = getGuardrailsEngine(request.enterpriseIdentity?.tenantId);
+    const outputPolicy = captureGuardrailsOutputPolicy(guardrailsEngine);
     const guardrailInputVerdict = guardrailsEngine.inspectInput(requestBody);
     if (guardrailInputVerdict.decision === "block") {
       recordGuardrailEvaluation("input", "block");
@@ -468,7 +469,7 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
         response,
         startedAt,
         normalizedPath,
-        guardrailsEngine,
+        guardrailsEngine: outputPolicy,
         writeServiceLog,
         enterpriseGovernanceService,
       });
@@ -493,7 +494,7 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
       ? null
       : gatewayInput.metadata?.ragInjection?.applied
       ? null
-      : chatResponseCache.describeCacheCandidate(requestBody, gatewayInput);
+      : chatResponseCache.describeCacheCandidate(requestBody, gatewayInput, outputPolicy.fingerprint);
     const cacheLookup = cacheCandidate
       ? chatResponseCache.lookup({ candidate: cacheCandidate, tenantIdentity: request.enterpriseIdentity })
       : null;
@@ -557,7 +558,7 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
     // Guardrails 输出侧：对最终文本脱敏/拦截；fail-open 保证不影响正常响应。
     const outputContent = chatCompletion?.choices?.[0]?.message?.content;
     if (typeof outputContent === "string") {
-      const outputVerdict = guardrailsEngine.inspectOutputText(outputContent);
+      const outputVerdict = outputPolicy.inspectOutputText(outputContent);
       if (outputVerdict.decision === "block") {
         recordGuardrailEvaluation("output", "block");
         for (const finding of outputVerdict.findings) {
@@ -757,7 +758,9 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
     return;
   }
 
-  if (request.method === "POST" && normalizedPath === RESPONSES_PATH) {
+  if ((request.method === "POST" && normalizedPath === RESPONSES_PATH)
+    || (["GET", "DELETE"].includes(request.method)
+      && /^\/v1\/responses\/resp_[A-Za-z0-9_-]{1,64}$/u.test(normalizedPath))) {
     return ROUTE_NOT_HANDLED;
   }
 
@@ -1523,6 +1526,7 @@ async function streamAnthropicMessage({
   let finalEvent = null;
   const accumulatedToolCalls = new Map();
   const inputTokens = estimateAnthropicInputTokens(gatewayInput.messages);
+  const outputPolicy = captureGuardrailsOutputPolicy(getGuardrailsEngine(request.enterpriseIdentity?.tenantId));
 
   response.on("close", () => {
     clientClosed = true;
@@ -1580,7 +1584,7 @@ async function streamAnthropicMessage({
     started = true;
   };
 
-  for await (const event of iteratePrimedGatewayStream(primedStream)) {
+  for await (const event of inspectGuardrailsOutputStream(iteratePrimedGatewayStream(primedStream), outputPolicy, () => clientClosed)) {
     if (clientClosed) break;
     if (event.type === "error") {
       failed = true;
@@ -1597,12 +1601,6 @@ async function streamAnthropicMessage({
     selectedProvider = event.selectedProvider ?? selectedProvider;
     executionMode = event.executionMode ?? executionMode;
     if (event.type === "chunk" && typeof event.textDelta === "string" && event.textDelta) {
-      // Guardrails 输出侧（流式）：与 /v1/chat/completions 同一引擎，逐 delta
-      // 尽力脱敏；fail-open 保证流不中断。
-      const redactedAnthropicDelta = getGuardrailsEngine(request.enterpriseIdentity?.tenantId).inspectSseDelta(event.textDelta);
-      if (redactedAnthropicDelta !== event.textDelta) {
-        event.textDelta = redactedAnthropicDelta;
-      }
       outputText += event.textDelta;
       writeAnthropicSseEvent(response, "content_block_delta", {
         type: "content_block_delta",
@@ -2291,6 +2289,7 @@ export async function streamOpenAiChatCompletion({
   let finalEvent = null;
   let streamOutputText = "";
   const created = Math.floor(startedAt / 1000);
+  const outputPolicy = captureGuardrailsOutputPolicy(getGuardrailsEngine(request.enterpriseIdentity?.tenantId));
 
   response.on("close", () => {
     clientClosed = true;
@@ -2318,7 +2317,7 @@ export async function streamOpenAiChatCompletion({
     || choiceCount > 1
     || gatewayInput.metadata?.ragInjection?.applied
     ? null
-    : chatResponseCache.describeCacheCandidate(body, gatewayInput);
+    : chatResponseCache.describeCacheCandidate(body, gatewayInput, outputPolicy.fingerprint);
   const cacheLookup = cacheCandidate
     ? chatResponseCache.lookup({ candidate: cacheCandidate, tenantIdentity: request.enterpriseIdentity })
     : null;
@@ -2384,7 +2383,7 @@ export async function streamOpenAiChatCompletion({
 
   const consumeProviderStream = async (choiceIndex, primedStream) => {
     const stream = primedStream ?? await primeGatewayStream(gatewayService.executeStream(gatewayInput));
-    for await (const event of iteratePrimedGatewayStream(stream)) {
+    for await (const event of inspectGuardrailsOutputStream(iteratePrimedGatewayStream(stream), outputPolicy, () => clientClosed)) {
       if (clientClosed) break;
       if (event.type === "error") {
         failed = true;
@@ -2396,12 +2395,6 @@ export async function streamOpenAiChatCompletion({
       selectedModel = event.selectedModel ?? selectedModel;
       finalEvent = event;
       if (typeof event.textDelta === "string" && event.textDelta) {
-        // Guardrails 输出侧（流式）：对每个 delta 尽力脱敏（跨块边界的模式以
-        // 完成后的审计发现兜底），fail-open 保证流不中断。
-        const redactedDelta = getGuardrailsEngine(request.enterpriseIdentity?.tenantId).inspectSseDelta(event.textDelta);
-        if (redactedDelta !== event.textDelta) {
-          event.textDelta = redactedDelta;
-        }
         if (!firstTokenAt) {
           firstTokenAt = Date.now();
           recordChatTtft(CHAT_COMPLETIONS_PATH, firstTokenAt, startedAt);
@@ -2510,6 +2503,7 @@ async function streamOpenAiCompletion({
   let firstTokenAt = 0;
   const created = Math.floor(startedAt / 1000);
   const choiceCount = Number(gatewayInput.metadata?.openAiCompatibility?.choiceCount ?? 1);
+  const outputPolicy = captureGuardrailsOutputPolicy(getGuardrailsEngine(request.enterpriseIdentity?.tenantId));
 
   response.on("close", () => {
     clientClosed = true;
@@ -2532,7 +2526,7 @@ async function streamOpenAiCompletion({
 
   const consumeLegacyStream = async (choiceIndex, primedStream) => {
     const stream = primedStream ?? await primeGatewayStream(gatewayService.executeStream(gatewayInput));
-    for await (const event of iteratePrimedGatewayStream(stream)) {
+    for await (const event of inspectGuardrailsOutputStream(iteratePrimedGatewayStream(stream), outputPolicy, () => clientClosed)) {
       if (clientClosed) break;
       if (event.type === "error") {
         failed = true;
