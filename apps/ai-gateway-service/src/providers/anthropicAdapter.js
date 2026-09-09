@@ -4,6 +4,7 @@
 // =============================================================================
 
 import { assertProviderAdapter } from "./providerAdapter.js";
+import { observeProviderUsage } from "./providerUsageObservation.ts";
 import { fetchWithAgent } from "../http/connectionPool.js";
 import { resolveSafeOutboundUrl } from "../security/outboundUrlPolicy.ts";
 import { inspectInlineImageDataUrl } from "@unified-ai-system/shared-utils";
@@ -193,7 +194,7 @@ function mapFromAnthropicResponse(anthropicResponse, latencyMs, target) {
     .map((block) => block.text);
   const text = textParts.join("\n");
 
-  const usage = anthropicResponse.usage ?? {};
+  const observed = observeProviderUsage("anthropic", anthropicResponse.usage, true);
   const stopReason = anthropicResponse.stop_reason;
 
   return {
@@ -202,18 +203,11 @@ function mapFromAnthropicResponse(anthropicResponse, latencyMs, target) {
       role: "assistant",
       content: text,
     },
-    usage: {
-      inputTokens: usage.input_tokens ?? 0,
-      outputTokens: usage.output_tokens ?? 0,
-      totalTokens: (usage.input_tokens ?? 0) + (usage.output_tokens ?? 0),
-      // prompt caching 计量:缓存命中读与首次写入的 token 数。
-      cacheReadInputTokens: usage.cache_read_input_tokens ?? 0,
-      cacheCreationInputTokens: usage.cache_creation_input_tokens ?? 0,
-    },
+    usage: observed.usage,
     latencyMs,
     executionStatus: "success",
     warnings: [],
-    raw: anthropicResponse,
+    raw: { ...anthropicResponse, usageObservation: observed.usageObservation },
     ...(stopReason ? { finishReason: mapStopReason(stopReason) } : {}),
   };
 }
@@ -275,11 +269,10 @@ async function* streamAnthropicApi({ baseUrl, apiKey, anthropicVersion, body, ti
   const onExternalAbort = () => controller.abort(signal?.reason);
   signal?.addEventListener("abort", onExternalAbort, { once: true });
 
-  let inputTokens = 0;
-  let cacheReadInputTokens = 0;
-  let cacheCreationInputTokens = 0;
-  let outputTokens = 0;
+  let usageSnapshot = {};
   let finishReason;
+  const usageChunk = (complete = false, textDelta = "", usageOnly = false) => ({ textDelta, usageOnly, raw: { anthropic: true,
+    ...(finishReason ? { finishReason } : {}), ...observeProviderUsage("anthropic", usageSnapshot, complete) } });
 
   try {
     const destination = await resolveSafeOutboundUrl(`${baseUrl}/v1/messages`);
@@ -324,41 +317,26 @@ async function* streamAnthropicApi({ baseUrl, apiKey, anthropicVersion, body, ti
         if (!event) continue;
 
         if (event.type === "message_start") {
-          inputTokens = Number(event.data?.message?.usage?.input_tokens ?? inputTokens);
-          cacheReadInputTokens = Number(event.data?.message?.usage?.cache_read_input_tokens ?? cacheReadInputTokens);
-          cacheCreationInputTokens = Number(event.data?.message?.usage?.cache_creation_input_tokens ?? cacheCreationInputTokens);
+          usageSnapshot = { ...usageSnapshot, ...event.data?.message?.usage };
+          yield usageChunk(false, "", true);
           continue;
         }
         if (event.type === "content_block_delta" && event.data?.delta?.type === "text_delta") {
           const textDelta = event.data.delta.text ?? "";
           if (textDelta) {
-            yield { textDelta, raw: { anthropic: true } };
+            yield usageChunk(false, textDelta);
           }
           continue;
         }
         if (event.type === "message_delta") {
           const stopReason = event.data?.delta?.stop_reason;
           if (stopReason) finishReason = mapStopReason(stopReason);
-          outputTokens = Number(event.data?.usage?.output_tokens ?? outputTokens);
-          cacheReadInputTokens = Number(event.data?.usage?.cache_read_input_tokens ?? cacheReadInputTokens);
-          cacheCreationInputTokens = Number(event.data?.usage?.cache_creation_input_tokens ?? cacheCreationInputTokens);
+          usageSnapshot = { ...usageSnapshot, ...event.data?.usage };
+          yield usageChunk(false, "", true);
           continue;
         }
         if (event.type === "message_stop") {
-          yield {
-            textDelta: "",
-            raw: {
-              anthropic: true,
-              ...(finishReason ? { finishReason } : {}),
-              usage: {
-                inputTokens,
-                outputTokens,
-                totalTokens: inputTokens + outputTokens,
-                cacheReadInputTokens,
-                cacheCreationInputTokens,
-              },
-            },
-          };
+          yield usageChunk(true);
           return;
         }
         if (event.type === "error") {
@@ -376,20 +354,7 @@ async function* streamAnthropicApi({ baseUrl, apiKey, anthropicVersion, body, ti
 
     // Stream ended without message_stop (connection cut): surface what we
     // captured so the done event still carries usage and finish reason.
-    yield {
-      textDelta: "",
-      raw: {
-        anthropic: true,
-        ...(finishReason ? { finishReason } : {}),
-        usage: {
-          inputTokens,
-          outputTokens,
-          totalTokens: inputTokens + outputTokens,
-          cacheReadInputTokens,
-          cacheCreationInputTokens,
-        },
-      },
-    };
+    yield usageChunk();
   } catch (error) {
     throw normalizeAnthropicTransportError(error, timeoutMs);
   } finally {

@@ -242,6 +242,10 @@ export class GatewayService {
             throwIfExecutionAborted(execution.signal);
             const textDelta = providerChunk.textDelta ?? "";
             finalProviderRaw = providerChunk.raw;
+            // Newly retained accounting frames do not emit application output
+            // or disable the existing pre-output fallback policy.
+            if (providerChunk.usageOnly === true && !textDelta
+              && !Array.isArray(providerChunk.raw?.toolCallsDelta)) continue;
             outputText += textDelta;
             emittedChunk = true;
 

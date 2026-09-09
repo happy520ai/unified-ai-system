@@ -406,6 +406,19 @@ function translateGeminiToolConfig(toolConfig: unknown) {
 
 // ── Response translation: gateway result → Gemini GenerateContentResponse ──
 
+function createGeminiUsageMetadata(usage: Record<string, any>, fallbackInput = 0, fallbackOutput = 0) {
+  const input = Number(usage.inputTokens ?? fallbackInput);
+  const output = Number(usage.outputTokens ?? fallbackOutput);
+  const reasoning = usage.reasoningTokens;
+  const hasReasoning = Number.isSafeInteger(reasoning) && reasoning >= 0 && reasoning <= output;
+  return {
+    promptTokenCount: input,
+    candidatesTokenCount: output - (hasReasoning ? reasoning : 0),
+    ...(hasReasoning ? { thoughtsTokenCount: reasoning } : {}),
+    totalTokenCount: Number(usage.totalTokens ?? input + output),
+  };
+}
+
 export function createGeminiGenerateContentResponse(
   result: Record<string, any>,
   options: { requestedModel?: string } = {},
@@ -441,13 +454,7 @@ export function createGeminiGenerateContentResponse(
         index: 0,
       },
     ],
-    usageMetadata: {
-      promptTokenCount: Number(usage.inputTokens ?? 0),
-      candidatesTokenCount: Number(usage.outputTokens ?? 0),
-      totalTokenCount: Number(
-        usage.totalTokens ?? Number(usage.inputTokens ?? 0) + Number(usage.outputTokens ?? 0),
-      ),
-    },
+    usageMetadata: createGeminiUsageMetadata(usage),
     modelVersion: data.selectedModel ?? options.requestedModel ?? "",
     ...(data.id ?? result?.meta?.requestId
       ? { responseId: String(data.id ?? result?.meta?.requestId) }
@@ -1008,15 +1015,8 @@ async function streamGeminiGenerateContent({
             index: 0,
           },
         ],
-        usageMetadata: {
-          promptTokenCount: Number(usage.inputTokens ?? estimateTokens(gatewayInput).estimatedInputTokens),
-          candidatesTokenCount: Number(usage.outputTokens ?? estimateTextTokens(streamOutputText)),
-          totalTokenCount: Number(
-            usage.totalTokens
-              ?? (usage.inputTokens ?? estimateTokens(gatewayInput).estimatedInputTokens)
-                + (usage.outputTokens ?? estimateTextTokens(streamOutputText)),
-          ),
-        },
+        usageMetadata: createGeminiUsageMetadata(usage,
+          estimateTokens(gatewayInput).estimatedInputTokens, estimateTextTokens(streamOutputText)),
       }),
     );
   }

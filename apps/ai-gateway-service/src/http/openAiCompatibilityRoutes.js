@@ -1418,6 +1418,13 @@ export function createAnthropicMessage(result, options = {}) {
   const data = result.data ?? {};
   const text = data.message?.content ?? data.outputText ?? data.text ?? "";
   const usage = data.usage ?? {};
+  const inputTokens = usage.inputTokens ?? estimateAnthropicInputTokens(options.messages);
+  const cacheRead = usage.cacheReadInputTokens ?? 0;
+  const cacheCreation = usage.cacheCreationInputTokens ?? 0;
+  const hasCacheBreakdown = (usage.cacheReadInputTokens !== undefined || usage.cacheCreationInputTokens !== undefined)
+    && Number.isSafeInteger(cacheRead) && cacheRead >= 0
+    && Number.isSafeInteger(cacheCreation) && cacheCreation >= 0
+    && Number.isSafeInteger(cacheRead + cacheCreation) && cacheRead + cacheCreation <= inputTokens;
   const requestId = result.meta?.requestId ?? data.id;
   const toolCalls = readAnthropicToolCalls(data.message);
 
@@ -1445,8 +1452,9 @@ export function createAnthropicMessage(result, options = {}) {
       : normalizeAnthropicStopReason(data.finishReason),
     stop_sequence: data.stopSequence ?? null,
     usage: {
-      input_tokens: usage.inputTokens ?? estimateAnthropicInputTokens(options.messages),
+      input_tokens: inputTokens - (hasCacheBreakdown ? cacheRead + cacheCreation : 0),
       output_tokens: usage.outputTokens ?? estimateCompatibilityTokens(text),
+      ...(hasCacheBreakdown ? { cache_read_input_tokens: cacheRead, cache_creation_input_tokens: cacheCreation } : {}),
     },
     unified_ai: createAnthropicUnifiedAiMetadata(data, requestId),
   };

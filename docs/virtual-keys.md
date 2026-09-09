@@ -167,3 +167,43 @@ Real-manager synthetic-route tests cover batch admission, native idempotency,
 cache wire options, legacy refusal and cache-store reload. They do not establish
 actual Provider invoices, complete interrupted usage, distributed reservations
 or production billing accuracy.
+
+### Provider usage observations
+
+The OpenAI mapper and native Anthropic/Gemini adapters now retain a versioned
+`raw.usageObservation` before filling legacy numeric fields. It distinguishes
+reported totals (including explicit zero), totals derived from complete reported
+components, partial known counts and missing usage. Negative, fractional, unsafe,
+coerced or contradictory counts are invalid; `totalTokens: null` is not a free
+request. `complete` describes the observed protocol termination, not invoice
+reconciliation. Cumulative stream snapshots replace earlier counts; they are not
+added together. Usage-only frames stay available to Gateway execution without
+becoming application output or disabling the existing pre-output fallback.
+
+Canonical input includes Anthropic uncached input plus cache reads and creation.
+Canonical output includes Gemini visible output plus thoughts. OpenAI reasoning
+and cached-input fields already form subsets of its reported counts. Gemini and
+Anthropic response translators split these canonical counts back into their
+respective wire fields, avoiding double counting. These rules follow the
+[OpenAI chunk schema](https://developers.openai.com/api/reference/cli/__sdk_schema?declaration=%28resource%29+chat.completions+%3E+%28model%29+chat_completion_chunk+%3E+%28schema%29&selected=%28resource%29+chat.completions),
+[Anthropic cache usage contract](https://platform.claude.com/docs/en/build-with-claude/prompt-caching?s=09)
+and [Gemini UsageMetadata](https://ai.google.dev/api/generate-content).
+
+This observation slice does not yet activate unified request accounting. The
+route-local charge helper still needs migration to consume provenance and settle
+interrupted work. Current ledger dollar values remain its existing static fallback
+estimates; corrected token totals do not provide cache-tier pricing or an actual
+Provider invoice. Earlier failed attempts and missing stream remainders remain
+unknown until independently reconciled.
+
+Language Selection: the new bounded mapping helper uses TypeScript alongside
+the existing TS Gemini owner and ESM JS OpenAI/Anthropic owners. A local helper
+keeps the same count-validation contract at all three actual protocol boundaries;
+rewriting the adapters or adding a billing dependency would not improve this
+workload. The slice exceeds eight files because both response translators and
+Gateway's stream-emission boundary must change together to prevent count and
+fallback regressions. Adapter/translator regressions and the actual Gateway
+fallback/cancellation suites cover these interactions. There is no new state
+store, dependency, credential read or Provider selection rule. Revert this slice
+as a unit to preserve compatibility; doing so restores the old counting and
+missing-observation defects, so pause affected key traffic before rollback.
