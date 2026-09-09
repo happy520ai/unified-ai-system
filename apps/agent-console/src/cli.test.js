@@ -577,6 +577,84 @@ async function workforceSelectionApprovalFixture() {
         selectionReview: { ...decision, selectionHash } } } };
 }
 
+test("agents approvals displays the complete code delivery scope and preserves its exact JSON contract", async (context) => {
+  const review = await workforceCodeApprovalFixture();
+  const expected = structuredClone(review.workforce.options.codeDelivery);
+  const gateway = await createAgentGovernanceMockGateway({ approvalReview: review }); context.after(gateway.close);
+  const args = ["agents", "approvals", "--url", gateway.url];
+  const options = { env: { AGENT_CONSOLE_ADMIN_KEY: "uai-mock-admin-key" } };
+  const plain = await runCliProcess(args, "", options);
+  assert.equal(plain.code, 0, plain.stderr);
+  assert.match(plain.stdout, /Code delivery: forge-owned-worktree-artifact/);
+  for (const value of [expected.profile.profileId, expected.profile.projectId, expected.profile.baselineRevision,
+    expected.profile.profileHash, expected.configuredRepositoryHash, expected.roleProfileHash,
+    ...expected.profile.readPaths, ...expected.profile.writePaths, expected.profile.verification.image,
+    expected.profile.verification.immutableTests[0].sha256]) assert.ok(plain.stdout.includes(value), value);
+  assert.ok(plain.stdout.includes(JSON.stringify(expected.profile.verification.command)));
+  assert.match(plain.stdout, /Workspace: read-only; network: disabled/);
+  assert.match(plain.stdout, /timeout=30000ms; memory=256MB; output=32768 bytes; processes=32; CPUs=0.5/);
+  assert.match(plain.stdout, /changed files<=1; file bytes<=65536; diff bytes<=131072/);
+  assert.match(plain.stdout, /artifact only; automatic merge: disabled/);
+  const json = await runCliProcess([...args, "--json"], "", options);
+  assert.equal(json.code, 0, json.stderr);
+  assert.deepEqual(JSON.parse(json.stdout).data[0].review.workforce.options.codeDelivery, expected);
+  assert.deepEqual(gateway.requests.map(({ method, path }) => `${method} ${path}`), ["GET /v1/approvals", "GET /v1/approvals"]);
+});
+
+test("agents approvals rejects incomplete or altered code delivery scope before printing it", async (context) => {
+  const baseline = await workforceCodeApprovalFixture();
+  const { stableStringify } = await import("../../../packages/policy-engine/src/integrity.ts");
+  const resealCommand = (review, command) => {
+    const profile = review.workforce.options.codeDelivery.profile;
+    profile.verification.command = command;
+    const { profileHash: _old, ...input } = profile;
+    profile.profileHash = `sha256:${createHash("sha256").update(stableStringify(input)).digest("hex")}`;
+  };
+  const mutations = {
+    "profile hash": review => { review.workforce.options.codeDelivery.profile.profileHash = `sha256:${"0".repeat(64)}`; },
+    "role binding": review => { review.workforce.options.roleExecution.bindings[0].modelId = "altered-code-model"; },
+    "missing test hash": review => { delete review.workforce.options.codeDelivery.profile.verification.immutableTests[0].sha256; },
+    "command alteration": review => { review.workforce.options.codeDelivery.profile.verification.command = "unexpected-command"; },
+    "unknown field": review => { review.workforce.options.codeDelivery.apiKey = "private-code-delivery-value"; },
+    "network enabled": review => { review.workforce.options.codeDelivery.profile.verification.networkAccess = true; },
+    "missing role": review => { delete review.workforce.options.roleExecution; },
+    "unreviewable": review => { review.reviewable = false; },
+    "wrong effect": review => { review.effectType = "different-effect"; },
+    "null scope": review => { review.workforce.options.codeDelivery = null; },
+    "signed secret text": review => { resealCommand(review, 'node -e "TOKEN=private-code-delivery-value"'); },
+    "signed terminal escape": review => { resealCommand(review, 'node \u001b[31munexpected-command'); },
+    "signed bidi override": review => { resealCommand(review, 'node \u202eunexpected-command'); },
+  };
+  for (const [label, mutate] of Object.entries(mutations)) {
+    const review = structuredClone(baseline); mutate(review);
+    const gateway = await createAgentGovernanceMockGateway({ approvalReview: review }); context.after(gateway.close);
+    for (const format of [[], ["--json"]]) {
+      const response = await runCliProcess(["agents", "approvals", "--url", gateway.url, ...format], "", { env: { AGENT_CONSOLE_ADMIN_KEY: "uai-mock-admin-key" } });
+      assert.equal(response.code, 1, `${label} ${format}`);
+      assert.doesNotMatch(response.stdout + response.stderr, /private-code-delivery-value|unexpected-command|altered-code-model|code-project/);
+    }
+    assert.ok(gateway.requests.every(request => request.method === "GET" && request.path === "/v1/approvals"));
+  }
+});
+
+async function workforceCodeApprovalFixture() {
+  const { freezeWorkforceRoleExecutionProfile } = await import("../../ai-gateway-service/src/workforce/workforceRoleExecutionProfile.ts");
+  const { freezeWorkforceCodeDeliveryProfile, createWorkforceCodeDeliveryReview } = await import("../../ai-gateway-service/src/workforce/workforceCodeDeliveryProfile.ts");
+  const roleExecution = freezeWorkforceRoleExecutionProfile({ version: 1, mode: "gateway-llm-required", profileId: "code-employees",
+    maxTotalRequests: 3, maxConcurrentRoles: 1, bindings: [{ roleId: "backend-engineer", employeeId: "code-employee",
+      providerId: "approved-provider", modelId: "approved-model", maxRequests: 3, maxInputTokens: 32768, maxOutputTokens: 16384, timeoutMs: 30000 }] });
+  const profile = freezeWorkforceCodeDeliveryProfile({ version: 1, mode: "forge-owned-worktree-artifact", profileId: "code-profile", projectId: "code-project",
+    baselineRevision: "a".repeat(40), roleId: "backend-engineer", readPaths: ["src/calc.js", "tests/calc.test.js", ...Array.from({ length: 30 }, (_, index) => `fixtures/allowed-${index}.js`)], writePaths: ["src/calc.js"],
+    verification: { verificationId: "code-tests", command: `node --test --test-name-pattern="keeps  two spaces ${"n".repeat(280)}" tests/calc.test.js`,
+      immutableTests: [{ path: "tests/calc.test.js", sha256: "c".repeat(64) }], image: `node@sha256:${"b".repeat(64)}`,
+      workspaceMode: "ro", networkAccess: false, timeoutMs: 30000, maxMemoryMB: 256, maxOutputBytes: 32768, pidsLimit: 32, cpus: 0.5 },
+    artifactLimits: { maxChangedFiles: 1, maxFileBytes: 65536, maxDiffBytes: 131072 } });
+  return { schemaVersion: 1, reviewable: true, effectType: "workforce:execute", policyHash: `sha256:${"d".repeat(64)}`,
+    workforce: { goal: "Create a reviewed code artifact", planId: "code-plan", planDigest: `sha256:${"e".repeat(64)}`, autonomyMode: "controlled-execution",
+      options: { selectedRoleCount: 1, templateSelected: false, roleExecution, codeDelivery: createWorkforceCodeDeliveryReview({ profile,
+        configuredRepositoryHash: `sha256:${"f".repeat(64)}`, roleExecution }) } } };
+}
+
 test("agents run keeps transport alive beyond a shorter global timeout", async (context) => {
   const gateway = await createAgentGovernanceMockGateway({ runDelayMs: 350 });
   context.after(gateway.close);

@@ -15,6 +15,7 @@ import {
 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readVerificationSource, readWindowsVerificationHistory } from "./verificationHistory.ts";
+import { projectWorkforceCodeDeliveryReview, formatWorkforceCodeDeliveryReview } from "./workforceCodeDeliveryReview.ts";
 
 import {
   createGatewayChatRequest,
@@ -1324,12 +1325,14 @@ function formatSafeReview(value) {
     const workforce = value.workforce;
     const profile = workforce.options.roleExecution;
     const selection = workforce.options.selectionReview;
+    const codeDelivery = workforce.options.codeDelivery;
     const text = (item) => safeTerminalText(item, 256);
     return [
       `Workforce goal: ${safeTerminalBlock(workforce.goal, 4_000)}`,
       `Plan: ${text(workforce.planId)}; digest: ${text(workforce.planDigest)}; policy: ${text(value.policyHash)}`,
       `Employee model execution: required; profile: ${text(profile.profileId)}; hash: ${text(profile.profileHash)}`,
       `Request dispatch hard limit: ${profile.maxTotalRequests}; Concurrent roles: ${profile.maxConcurrentRoles}`,
+      ...(codeDelivery === undefined ? [] : formatWorkforceCodeDeliveryReview(codeDelivery)),
       ...(selection === undefined ? [] : [
         `Deterministic selection rules: v${selection.version}; catalog/configuration hash: ${text(selection.catalogHash)}`,
         `Selection hash: ${text(selection.selectionHash)}; task type: ${text(selection.taskType)}; execution mode: ${text(selection.executionMode)}`,
@@ -1390,6 +1393,14 @@ function projectAgentApproval(value) {
     }
     const profile = value.review?.workforce?.options?.roleExecution;
     const selectionSource = value.review?.workforce?.options?.selectionReview;
+    const codeSource = value.review?.workforce?.options?.codeDelivery;
+    let codeDelivery;
+    if (codeSource !== undefined) {
+      if (value.review.effectType !== "workforce:execute" || value.review.reviewable !== true || profile === undefined) {
+        throw new Error("invalid or incomplete Workforce code delivery review");
+      }
+      codeDelivery = projectWorkforceCodeDeliveryReview(codeSource, profile);
+    }
     let selection;
     if (selectionSource !== undefined) {
       if (value.review.effectType !== "workforce:execute" || value.review.reviewable !== true || profile === undefined) {
@@ -1417,6 +1428,7 @@ function projectAgentApproval(value) {
     }
     // Restore only the exact validated decision, including numeric token limits.
     if (selection !== undefined) output.review.workforce.options.selectionReview = selection;
+    if (codeDelivery !== undefined) output.review.workforce.options.codeDelivery = codeDelivery;
   }
   return Object.freeze(output);
 }
