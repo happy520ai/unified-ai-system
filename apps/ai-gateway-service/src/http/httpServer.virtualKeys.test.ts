@@ -2,9 +2,10 @@ import { mkdtempSync, rmSync, mkdirSync, rmdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
+import { getEventListeners } from "node:events";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
-import { GatewayService } from "../core/gatewayService.js";
+import { GatewayService, MANAGED_LOCAL_CLIENT_PROVIDER_PIN } from "../core/gatewayService.js";
 import { ProviderRegistry } from "../providers/providerRegistry.js";
 import { createFakeProvider } from "../providers/fakeProvider.js";
 import { createEnterpriseGovernanceService } from "../enterprise/enterpriseGovernanceService.js";
@@ -14,6 +15,10 @@ import { createResponseCacheStore } from "../cache/responseCacheStore.js";
 import { estimateTextTokens, estimateTokens } from "../cost/tokenEstimator.js";
 import { createAgentGovernanceService } from "../agent-governance/agentGovernanceService.ts";
 import { createGatewayModelProposer } from "../agent-governance/gatewayModelProposer.ts";
+import { resolveLocalClientProtocolPrincipalConfiguration } from "../capabilities/localClientProtocolPrincipalConfig.ts";
+import { createLocalClientPopHttpAuth, encodeLocalClientPopHttpProof } from "../capabilities/localClientPopHttpAuth.ts";
+import { createManagedLocalClientPopIdentityAuthority } from "../capabilities/localClientPopIdentityAuthority.ts";
+import { createLocalClientProviderRuntimeRouter } from "../routing/localClientProviderRuntimeRouter.ts";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => { for (const cleanup of cleanups.splice(0).reverse()) await cleanup(); setChatResponseCacheIntegrationForTests(null); });
@@ -41,15 +46,55 @@ async function a2aRpc(f: Awaited<ReturnType<typeof fixture>>, method: string, pa
   return payload.result;
 }
 
-async function fixture(cache = false, compact = false, agent = false, a2a = false) {
+function managedA2APorts(registry: ProviderRegistry, configured: Array<{ key: string; identity: { tenantId: string; subjectId: string; clientId: string } }>, proofTtlMs = 1000) {
+  const state = { revision: 2, clockOffset: 0, provider: "local-fake-provider", beforeRoute: async (_input: any) => {} };
+  const clients = configured.map(({ key, identity }) => {
+    const authority = createManagedLocalClientPopIdentityAuthority({ key: randomBytes(32), keyId: `fixture-${identity.clientId}`,
+      proofTtlMs, maxClockSkewMs: 0, now: () => Date.now() + state.clockOffset });
+    cleanups.push(async () => { await authority.close(); });
+    return { key, identity, authority };
+  });
+  const resolveTarget = ({ identity, clientId }: any) => {
+    if (!clients.some(client => client.identity.clientId === clientId && client.identity.tenantId === identity.tenantId
+      && client.identity.subjectId === identity.subjectId)) throw new Error("Synthetic managed client is not authorized.");
+    return { descriptorVersion: "verified-local-client-adapter-target-v1", clientId, revision: state.revision, state: "verified", trustDecision: "verified",
+      adapter: { id: "fixture", type: "loopback-http", version: "1.0.0" }, capabilityIds: ["local_application"] };
+  };
+  const router = createLocalClientProviderRuntimeRouter({ providerRegistry: registry as any,
+    healthFacts: { getScore: () => 100 },
+    authorizeClient: async (input: any) => { await state.beforeRoute(input); return resolveTarget(input) as any; },
+    resolvePolicy: async () => ({ policyRevision: "fixture-policy-v1", policy: { dataClass: "public", allowedProviders: [state.provider], maxFanout: 1 } }) });
+  return { state, clients, router, ports: {
+    localClientProtocolPrincipalResolver: resolveLocalClientProtocolPrincipalConfiguration({ AI_GATEWAY_LOCAL_CLIENT_PROTOCOL_PRINCIPALS_JSON:
+      JSON.stringify({ version: 1, bindings: clients.map(client => client.identity) }) }),
+    localClientManagedProtocolDispatchStatus: { ready: true },
+    localClientPopHttpAuth: createLocalClientPopHttpAuth({ authority: { verify: (input: any) => {
+      const client = clients.find(candidate => candidate.identity.clientId === input.expectedIdentity.clientId);
+      if (!client) throw new Error("Synthetic unknown client."); return client.authority.verify(input);
+    } }, resolveVerifiedTarget: async input => resolveTarget(input) as any }),
+    localClientProviderRuntimeRouter: router,
+  }, async sign(raw: string, index = 0, overrides: Record<string, unknown> = {}) {
+    const proof = await clients[index]!.authority.issue({ identity: { ...clients[index]!.identity, clientRevision: state.revision, ...overrides },
+      request: { method: "POST", path: "/a2a/jsonrpc", body: Buffer.from(raw) } });
+    return encodeLocalClientPopHttpProof(proof);
+  } };
+}
+
+async function fixture(cache = false, compact = false, agent = false, a2a = false, managed: false | { timeoutMs?: number; proofTtlMs?: number } = false) {
   const directory = mkdtempSync(join(tmpdir(), "gateway-key-http-"));
   const agentWorkDirectory = join(directory, "agent-workspace"); mkdirSync(agentWorkDirectory);
   cleanups.push(async () => { rmSync(directory, { recursive: true, force: true }); });
   const managementToken = randomBytes(24).toString("base64url");
+  const managedClients = managed ? ["alpha", "beta"].map(name => ({ key: randomBytes(24).toString("base64url"),
+    identity: { tenantId: `managed-${name}`, subjectId: `fixture-${name}`, clientId: `desktop.${name}` } })) : undefined;
   const env = { PME_ENTERPRISE_AUTH_ENABLED: "true", PME_AUTH_TOKEN: managementToken,
     PME_API_KEY_STORE_PATH: join(directory, "keys.json"), PME_ENTERPRISE_USER_STORE_PATH: join(directory, "users.json"),
     PME_AUDIT_LOG_PATH: join(directory, "audit.jsonl"), PME_AUDIT_CHAIN_PATH: join(directory, "audit-chain.jsonl"),
     AI_GATEWAY_PROVIDER_MODE: "fake", AI_GATEWAY_REAL_PROVIDER_ENABLED: "false",
+    ...(managed ? { AI_GATEWAY_REQUEST_TIMEOUT_MS: String(managed.timeoutMs ?? 5000),
+      AI_GATEWAY_STREAMING_REQUEST_TIMEOUT_MS: String(managed.timeoutMs ?? 5000) } : {}),
+    ...(managedClients ? { PME_ENTERPRISE_USERS_JSON: JSON.stringify(managedClients.map(client => ({ token: client.key,
+      userId: client.identity.subjectId, tenantId: client.identity.tenantId, role: "local_client" }))) } : {}),
     AI_GATEWAY_CORS_ALLOWED_ORIGINS: "https://meter.example", AI_GATEWAY_WS_SHUTDOWN_GRACE_MS: "5",
     AI_GATEWAY_RATE_LIMIT_WHITELIST: "127.0.0.1",
     ...(a2a ? { AI_GATEWAY_A2A_TASK_STORE_MODE: "memory", AI_GATEWAY_A2A_TASK_STORE_REQUIRED: "false",
@@ -73,6 +118,7 @@ async function fixture(cache = false, compact = false, agent = false, a2a = fals
     yield { textDelta: "", usageOnly: true, raw: { fake: true, usage: result().usage } };
   });
   const registry = new ProviderRegistry(); registry.register(provider);
+  const managedContext = managedClients ? managedA2APorts(registry, managedClients, managed && managed.proofTtlMs || 1000) : undefined;
   const gateway = new GatewayService({ providerRegistry: registry,
     runtimeConfig: { providerMode: "fake", realProviderEnabled: false, fallbackEnabled: false,
       ...(compact ? { chatContextCompaction: { thresholdMessages: 2, keepRecentTurns: 1, maxContextTokens: 120 } } : {}) } });
@@ -89,6 +135,7 @@ async function fixture(cache = false, compact = false, agent = false, a2a = fals
     providerSelection: { mode: "fixed", defaultProviderId: providerId, defaultModelId: modelId },
     providerModels: [{ providerId, modelId }] } },
     gatewayService: gateway, providerRegistry: registry, enterpriseGovernanceService: governance, agentGovernance,
+    ...managedContext?.ports,
     agentExecWorkingDirectory: agentWorkDirectory,
     multimodalAdapter: { generateImage },
     knowledgeService: { getHealth: () => ({ status: "ready" }) }, knowledgeInfra: { getReadiness: () => ({ status: "ready" }) },
@@ -116,7 +163,7 @@ async function fixture(cache = false, compact = false, agent = false, a2a = fals
     const body = await response.json() as any;
     return body.data as { key: string; record: { keyId: string; keyFingerprint: string } };
   }
-  return { directory, application, server, url, post, createKey, manager, admissions, charges, audits, generate, generateStream, generateImage, gateway, executions, agentGovernance,
+  return { directory, application, server, url, post, createKey, manager, admissions, charges, audits, generate, generateStream, generateImage, gateway, executions, agentGovernance, managedContext,
     usage: (id: string) => manager.describeUsage({ keyId: id })!.usage };
 }
 
@@ -452,6 +499,108 @@ describe("actual authenticated A2A HTTP virtual-key accounting", () => {
     expect(f.usage(key.record.keyId).requestCount).toBe(1);
     expect(f.usage(key.record.keyId).tokensUsed).toBe(0);
   }, 30_000);
+});
+
+describe("managed A2A blocking SendMessage admission", () => {
+  const body = (index = 0) => ({ jsonrpc: "2.0", id: "managed-rpc", method: "SendMessage", params: {
+    ...a2aMessage("managed-message"), metadata: { unifiedAi: { localClientId: `desktop.${index ? "beta" : "alpha"}` } } } });
+  async function send(f: Awaited<ReturnType<typeof fixture>>, input = body(), index = 0, proof?: string | null) {
+    const raw = JSON.stringify(input); const managed = f.managedContext!;
+    const header = proof === undefined ? await managed.sign(raw, index) : proof;
+    const response = await fetch(f.url + "/a2a/jsonrpc", { method: "POST", body: raw,
+      headers: { authorization: `Bearer ${managed.clients[index]!.key}`, "content-type": "application/json", "provider-dispatch-key": `elc03-${index}`,
+        ...(header === null ? {} : { "x-ai-gateway-local-client-proof": header }) } });
+    return { response, payload: await response.json() as any };
+  }
+  it("composes authenticated identity, exact-body proof, current policy pin and private fake fence", async () => {
+    const f = await fixture(false, false, false, true, {});
+    const input = body(); Object.assign(input.params.metadata.unifiedAi, { verified: true, managedClientId: "forged", clientRevision: 999,
+      providerPinned: true, tenantId: "forged", subjectId: "forged", executionMode: "fake-provider" });
+    const result = await send(f, input);
+    expect(result.response.status, JSON.stringify(result.payload)).toBe(200);
+    expect(result.payload.result.task.status.state).toBe("TASK_STATE_COMPLETED"); expect(f.generate).toHaveBeenCalledOnce();
+    expect(result.response.headers.get("x-ai-gateway-local-client-revision")).toBe("2");
+    expect(result.response.headers.get("x-ai-gateway-local-client-policy-revision")).toBe("fixture-policy-v1");
+    expect(result.response.headers.get("x-ai-gateway-local-client-decision-digest")).toMatch(/^[a-f0-9]{64}$/);
+    const [request, execution] = f.executions.mock.calls[0]!;
+    expect(request.enterpriseIdentity).toMatchObject({ tenantId: "managed-alpha", managedClientId: "desktop.alpha" });
+    expect(request[MANAGED_LOCAL_CLIENT_PROVIDER_PIN]).toMatchObject({ clientId: "desktop.alpha", clientRevision: 2,
+      providerId: "local-fake-provider", modelId: "local-fake-model", policyRevision: "fixture-policy-v1" });
+    expect(execution).toMatchObject({ providerDispatchKeyHash: expect.stringMatching(/^[a-f0-9]{64}$/), providerDispatchRoute: "/a2a/jsonrpc" });
+    expect(getEventListeners(execution!.signal!, "abort")).toHaveLength(0);
+    expect(JSON.stringify(result.payload)).not.toContain("api-key:");
+    const proof = await f.managedContext!.sign(JSON.stringify(input));
+    expect((await f.post("/a2a/jsonrpc", input, undefined, { "x-ai-gateway-local-client-proof": proof })).status).toBe(401);
+    expect(f.generate).toHaveBeenCalledOnce();
+  });
+  it("rejects absent, mismatched raw-body and replayed proofs before model admission", async () => {
+    const f = await fixture(false, false, false, true, {}); const input = body();
+    expect((await send(f, input, 0, null)).response.status).toBe(401);
+    const forged = structuredClone(input); Object.assign(forged.params.metadata.unifiedAi, {
+      verified: true, clientRevision: 2, providerPinned: true, fakeProviderOnly: true, managedClientId: "desktop.alpha" });
+    expect((await send(f, forged, 0, null)).response.status).toBe(401);
+    const proof = await f.managedContext!.sign(JSON.stringify(input));
+    const changed = structuredClone(input); changed.params.message.parts[0]!.text = "changed after signing";
+    expect((await send(f, changed, 0, proof)).response.status).toBe(401); expect(f.generate).not.toHaveBeenCalled();
+    expect((await send(f, input, 0, proof)).response.status).toBe(200);
+    expect((await send(f, input, 0, proof)).response.status).toBe(401); expect(f.generate).toHaveBeenCalledOnce();
+  });
+  it.each(["revision", "tenant", "subject", "client", "selector", "expired"])("rejects the %s mismatch before dispatch", async kind => {
+    const f = await fixture(false, false, false, true, {}); const m = f.managedContext!; const input = body();
+    if (kind === "expired") m.state.clockOffset = -2000;
+    if (kind === "selector") input.params.metadata.unifiedAi.localClientId = "desktop.beta";
+    const proof = await m.sign(JSON.stringify(input), 0, kind === "tenant" ? { tenantId: "managed-beta" }
+      : kind === "subject" ? { subjectId: "fixture-beta" } : kind === "client" ? { clientId: "desktop.beta" } : {});
+    m.state.clockOffset = 0; if (kind === "revision") m.state.revision++;
+    expect((await send(f, input, 0, proof)).response.status).toBe(401);
+    expect(f.generate).not.toHaveBeenCalled(); expect(f.admissions).not.toHaveBeenCalled();
+  });
+  it("rechecks the exact revision after admission and refuses a conflicting fake policy target", async () => {
+    const f = await fixture(false, false, false, true, {}); const m = f.managedContext!;
+    m.state.beforeRoute = async () => { m.state.revision++; };
+    const stale = await send(f); expect(stale.payload.result.task.status.state).toBe("TASK_STATE_FAILED"); expect(f.generate).not.toHaveBeenCalled();
+    m.state.beforeRoute = async () => {};
+    const alternative = createFakeProvider({ providerId: "alternate-fake", modelId: "alternate-model", enabled: true, capabilities: ["chat"] });
+    const other = vi.spyOn(alternative, "generate"); f.application.providerRegistry.register(alternative); m.state.provider = "alternate-fake";
+    const denied = await send(f); expect(denied.payload.result.task.status.state).toBe("TASK_STATE_FAILED");
+    expect(f.generate).not.toHaveBeenCalled(); expect(other).not.toHaveBeenCalled();
+  });
+  it.each(["request", "proof"])("honors the %s deadline while policy resolution waits", async source => {
+    const f = await fixture(false, false, false, true, { timeoutMs: source === "request" ? 1000 : 5000, proofTtlMs: source === "request" ? 3000 : 1000 });
+    const resolvePolicy = vi.fn(async () => { await new Promise(resolve => setTimeout(resolve, 1100)); });
+    f.managedContext!.state.beforeRoute = resolvePolicy;
+    const result = await send(f); expect(JSON.stringify(result.payload)).toContain("GATEWAY_DEADLINE_EXCEEDED");
+    expect(resolvePolicy).toHaveBeenCalledOnce(); expect(f.generate).not.toHaveBeenCalled();
+  });
+  it.each(["resolve", "reject"])("returns at the proof deadline before an unfinished pure route lookup can %s", async settlement => {
+    const f = await fixture(false, false, false, true, {}); const gate = deferredProvider();
+    const lookup = vi.fn(async () => { await gate.pending; if (settlement === "reject") throw new Error("Synthetic late lookup rejection."); });
+    f.managedContext!.state.beforeRoute = lookup;
+    let readHeaderWrites = () => 0; f.server.once("request", (_request, response) => {
+      const setter = vi.spyOn(response, "setHeader"); readHeaderWrites = () => setter.mock.calls.length;
+    });
+    let completed = false; const pending = send(f).then(result => { completed = true; return result; });
+    let writesAtDeadline = 0;
+    try {
+      await vi.waitFor(() => expect(lookup).toHaveBeenCalledOnce());
+      await vi.waitFor(() => expect(completed).toBe(true), { timeout: 1700 });
+      expect(JSON.stringify((await pending).payload)).toContain("GATEWAY_DEADLINE_EXCEEDED");
+      writesAtDeadline = readHeaderWrites();
+    } finally { gate.release(); await pending; }
+    await new Promise(resolve => setImmediate(resolve));
+    expect(readHeaderWrites()).toBe(writesAtDeadline); expect(f.generate).not.toHaveBeenCalled();
+  });
+  it("keeps concurrent same-message calls bound to separate authenticated principals", async () => {
+    const f = await fixture(false, false, false, true, {}); const m = f.managedContext!;
+    let entered = 0; let release!: () => void; const both = new Promise<void>(resolve => { release = resolve; });
+    m.state.beforeRoute = async () => { if (++entered === 2) release(); await both; };
+    const results = await Promise.all([send(f, body(0), 0), send(f, body(1), 1)]);
+    for (const result of results) expect(result.payload.result.task.status.state).toBe("TASK_STATE_COMPLETED");
+    expect(f.generate).toHaveBeenCalledTimes(2);
+    expect(f.executions.mock.calls.map(([request]) => [request.enterpriseIdentity?.tenantId, request.enterpriseIdentity?.managedClientId,
+      request[MANAGED_LOCAL_CLIENT_PROVIDER_PIN]?.clientId]).sort()).toEqual([
+      ["managed-alpha", "desktop.alpha", "desktop.alpha"], ["managed-beta", "desktop.beta", "desktop.beta"]]);
+  });
 });
 
 describe("actual authenticated internal entry virtual-key accounting", () => {

@@ -6,6 +6,8 @@ import { ProviderRegistry } from "../providers/providerRegistry.js";
 import { createFakeProvider } from "../providers/fakeProvider.js";
 import { createWeightedTrafficPolicy } from "../routing/weightedTrafficPolicy.js";
 import { bindA2AGatewayCall } from "./a2aGatewayExecution.ts";
+import { Readable } from "node:stream";
+import { dispatchA2ARoutes } from "./a2aRoutes.js";
 import {
   A2A_JSONRPC_PATH,
   a2aGatewayInternals,
@@ -18,6 +20,28 @@ function createGateway(env = {}) {
     env,
   });
 }
+
+describe("managed A2A method admission before SDK task side effects", () => {
+  it.each([
+    { method: "GetTask", params: { id: "task" } }, { method: "ListTasks", params: {} },
+    { method: "CancelTask", params: { id: "task" } }, { method: "message/stream", params: {} },
+    { method: "SendMessage", params: { configuration: { returnImmediately: true } } },
+    { method: "SendMessage", params: { configuration: { returnImmediately: "false" } } },
+    { method: "SendMessage", params: { metadata: { unifiedAi: { executionMode: "workforce" } } } },
+    [[]],
+  ])("denies unsupported managed operation %j before handler or task storage", async input => {
+    const gateway = createGateway(); const handle = vi.spyOn(gateway.transportHandler, "handle"); const save = vi.spyOn(gateway.taskStore, "save");
+    const request = Readable.from([Buffer.from(JSON.stringify(Array.isArray(input) ? input : { jsonrpc: "2.0", id: 1, ...input }))]);
+    request.method = "POST"; request.headers = {};
+    request.enterpriseIdentity = { tenantId: "managed", userId: "subject", role: "local_client", managedClientId: "desktop.managed" };
+    let status; let payload;
+    await dispatchA2ARoutes({ a2aGateway: gateway, request, url: new URL("http://127.0.0.1/a2a/jsonrpc"), startedAt: Date.now(),
+      application: { localClientProtocolPrincipalResolver: { resolve: () => ({ tenantId: "managed", subjectId: "subject", clientId: "desktop.managed" }) } },
+      response: { writeHead(value) { status = value; }, end(value) { payload = JSON.parse(value); } } });
+    expect(status).toBe(403); expect(payload.error.data.code).toBe("LOCAL_CLIENT_A2A_METHOD_UNSUPPORTED");
+    expect(handle).not.toHaveBeenCalled(); expect(save).not.toHaveBeenCalled(); await gateway.close();
+  });
+});
 
 describe("A2A gateway profile", () => {
   it("advertises a loopback JSON-RPC v1.0 endpoint and text-only capabilities", () => {

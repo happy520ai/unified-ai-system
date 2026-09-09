@@ -175,6 +175,34 @@ prompt enhancer used by the HTTP and MCP surfaces:
 This metadata belongs on `SendMessageRequest.metadata`. It is a Unified AI
 System extension, not a standard A2A field.
 
+## Managed Local-Client Blocking Send
+
+The current source admits one limited managed-client profile: blocking
+`SendMessage` with the existing exact local-fake chat target. The dedicated
+`local_client` bearer identity must have an exact server-side tenant/subject/client
+binding and a current verified client revision. Put the repeated client selector
+in `params.metadata.unifiedAi.localClientId`, and send
+`X-AI-Gateway-Local-Client-Proof` for the exact complete JSON-RPC HTTP bytes and
+`POST /a2a/jsonrpc` path (including any query). The generic shared-SDK
+`createManagedLocalClientPopProofHeader` can create this proof; re-serializing
+only `params` does not produce the required body binding.
+
+`configuration.returnImmediately` must be absent or `false`; execution mode
+must be absent or `fake-provider`. Other managed JSON-RPC methods, batch bodies,
+nonblocking sends, stream/subscription methods and Workforce mode return `403`
+with `error.data.code: LOCAL_CLIENT_A2A_METHOD_UNSUPPORTED` before SDK task side
+effects. Non-managed callers retain the existing A2A operations.
+
+Before dispatch, the gateway rechecks the same verified revision against server
+policy and applies its existing single Provider/model pin together with the
+private exact fake fence. Conflicting policy targets fail closed. Execution is
+bounded by the earlier request deadline or PoP expiry. The existing
+`X-AI-Gateway-Local-Client-*` routing, policy-revision, revision and decision-digest
+headers describe the resolved binding without exposing the subject or proof.
+Fake execution does not exercise the real-Provider reservation path. Managed
+A2A lifecycle/stream operations and the separate MCP managed-client profile
+remain outside this first certification slice.
+
 ## Safety And Limits
 
 - A2A chat is privately bound to `local-fake-provider` / `local-fake-model` with
@@ -227,6 +255,7 @@ Core contracts. The existing JavaScript A2A adapter and Core entrypoints retain
 their ownership; no new service, dependency or persistent schema is introduced.
 
 Run `pnpm verify:public-clone` for the credential-free official-client proof.
-The published `v0.5.0` gateway image and the current source include this A2A
-profile; the current source carries additional post-release hardening tracked in
-PR #115.
+The published `v0.5.0` gateway image contains the earlier A2A profile. The managed
+local-client blocking-send slice described above is candidate-source behavior;
+verify the exact built artifact before claiming it contains this binding. This
+document does not establish that older images include the new managed profile.

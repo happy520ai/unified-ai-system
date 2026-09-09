@@ -1,15 +1,16 @@
-import { createExecutionAbortError, createLinkedAbortController, EXECUTION_ABORT_CODES } from "@unified-ai-system/shared-utils";
+import { createExecutionAbortError, createLinkedAbortController, EXECUTION_ABORT_CODES, throwIfExecutionAborted } from "@unified-ai-system/shared-utils";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { inheritVirtualKeyRequestAccounting } from "../enterprise/virtualKeyRequestAccounting.ts";
 import { bindFakeProviderExecution } from "../core/gatewayService.js";
 
 type Identity = Readonly<Record<string, unknown>>;
 type Execution = Record<string, any>;
-type Call = { identity?: Identity; execution: Execution };
+type ManagedCall = Readonly<{ expiresAtMs: number; prepareGatewayInput(input: Record<string, any>, signal: AbortSignal): Promise<Record<string, any>> }>;
+type Call = { identity?: Identity; execution: Execution; managed?: ManagedCall };
 const calls = new WeakMap<object, Call>();
 
 /** The SDK clones requests, but preserves this server-created context object. */
-export function bindA2AGatewayCall(context: object, identity: unknown, execution: Execution = {}): void {
+export function bindA2AGatewayCall(context: object, identity: unknown, execution: Execution = {}, managed?: ManagedCall): void {
   let projection: Identity | undefined;
   if (identity && typeof identity === "object") {
     const source = identity as Record<string, unknown>;
@@ -20,9 +21,11 @@ export function bindA2AGatewayCall(context: object, identity: unknown, execution
     if (Array.isArray(source.permissions)) safe.permissions = Object.freeze(source.permissions.filter(value => typeof value === "string"));
     projection = Object.freeze(safe);
   }
-  const base = Object.freeze({ ...execution });
+  const base = Object.freeze({ ...execution, ...(managed ? { deadlineAt: Math.min(
+    Number.isFinite(execution.deadlineAt) ? execution.deadlineAt : Infinity, managed.expiresAtMs,
+  ) } : {}) });
   inheritVirtualKeyRequestAccounting(execution, base);
-  calls.set(context, { identity: projection, execution: base });
+  calls.set(context, { identity: projection, execution: base, managed });
 }
 
 export function releaseA2AGatewayCall(context: object): void { calls.delete(context); }
@@ -33,6 +36,8 @@ type Invocation = {
   readonly contextId: string;
   readonly done: Promise<void>;
   readonly cancelled: boolean;
+  readonly prepareGatewayInput?: (input: Record<string, any>) => Promise<Record<string, any>>;
+  assertActive(): void;
   abort(reason: Error, cancelled?: boolean): void;
   finish(): void;
 };
@@ -64,6 +69,26 @@ export function createA2AGatewayExecutionLifecycle() {
       let finished = false; let cancelled = false;
       const invocation: Invocation = Object.freeze({
         identity: call?.identity, execution, contextId,
+        prepareGatewayInput: call?.managed ? async input => {
+          throwIfExecutionAborted(linked.signal);
+          let onAbort!: () => void;
+          const aborted = new Promise<never>((_resolve, reject) => {
+            onAbort = () => { try { throwIfExecutionAborted(linked.signal); } catch (error) { reject(error); } };
+            linked.signal.addEventListener("abort", onAbort, { once: true });
+            if (linked.signal.aborted) onAbort();
+          });
+          // Both settlement handlers remain attached to a late pure lookup.
+          const preparation = Promise.resolve().then(() => {
+            throwIfExecutionAborted(linked.signal);
+            return call.managed!.prepareGatewayInput(input, linked.signal);
+          });
+          try { return await Promise.race([preparation, aborted]); }
+          finally { linked.signal.removeEventListener("abort", onAbort); }
+        } : undefined,
+        assertActive() {
+          if (Number.isFinite(base.deadlineAt) && base.deadlineAt <= Date.now() && !linked.signal.aborted) linked.controller.abort(deadlineError());
+          throwIfExecutionAborted(linked.signal);
+        },
         done: new Promise<void>(resolve => { resolveDone = resolve; }),
         get cancelled() { return cancelled; },
         abort(reason: Error, explicitCancellation = false) {

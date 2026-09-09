@@ -1280,6 +1280,7 @@ function isManagedLocalClientProtocolRoute(method, pathname) {
   const path = String(pathname ?? "").replace(/\/+$/u, "") || "/";
   return path === "/chat"
     || path === "/chat/stream"
+    || path === "/a2a/jsonrpc"
     || path === "/v1/chat/completions"
     || path === "/chat/completions"
     || path === "/v1/messages"

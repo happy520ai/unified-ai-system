@@ -51,7 +51,7 @@ source and a reproducible test support them.
 
 | Dimension | 9Router verified baseline | Unified AI System acceptance gate |
 | --- | --- | --- |
-| Client reach | Known client catalog and protocol proxying | Server-bound managed OpenAI, Anthropic, Gemini, and native HTTP today; MCP/A2A principal binding and each non-protocol adapter must pass their own versioned certification gate |
+| Client reach | Known client catalog and protocol proxying | Server-bound managed OpenAI, Anthropic, Gemini, native HTTP, and the limited A2A blocking SendMessage profile; MCP, other A2A operations and each non-protocol adapter still need their own certification |
 | Local inventory | Known-tool checks; no general governed process registry found | General observation API, but observed processes remain `unverified` and non-routable until explicitly managed |
 | Routing | Fallback, round-robin, cooldown/backoff, modality checks, Fusion | Policy filter first; then exact capability, health, bounded EWMA reliability, latency, cost, quota, priority, and trust scoring with per-candidate explanations |
 | Feedback | Usage/quota/latency records | Authenticated, bounded feedback; replay resistance; failure quarantine; controlled recovery; restart persistence |

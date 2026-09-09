@@ -324,7 +324,14 @@ class GatewayAgentExecutor {
       throwIfExecutionAborted(invocation.execution.signal);
       if (invocation.identity) gatewayInput = { ...gatewayInput, enterpriseIdentity: invocation.identity };
       let result;
-      try { result = await this.gatewayService.execute(gatewayInput, invocation.execution); }
+      try {
+        if (invocation.prepareGatewayInput) {
+          invocation.assertActive();
+          gatewayInput = await invocation.prepareGatewayInput(gatewayInput);
+          invocation.assertActive();
+        }
+        result = await this.gatewayService.execute(gatewayInput, invocation.execution);
+      }
       catch (error) {
         if (!invocation.cancelled) publishGatewayFailure(eventBus, contextId, taskId, error);
         return;
