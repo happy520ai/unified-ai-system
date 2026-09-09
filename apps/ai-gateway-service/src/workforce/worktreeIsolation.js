@@ -1,340 +1,163 @@
-/**
- * worktreeIsolation.js
- *
- * Git Worktree 隔离模块
- *
- * 功能：
- * - 为每个 Workforce 任务创建独立的 git worktree
- * - worktree 路径：.worktrees/{planId}-{timestamp}/
- * - 创建时从指定分支 checkout
- * - 任务完成后自动清理 worktree
- * - 支持并发隔离（多个任务同时在不同 worktree 中执行）
- * - 提供 cleanup 方法清理过期的 worktree
- */
+/** Git worktrees owned by this Workforce manager; public records are receipts. */
+import { randomUUID } from "node:crypto";
+import { mkdir, lstat, realpath } from "node:fs/promises";
+import { resolve, relative, isAbsolute, parse } from "node:path";
+import { createWorkforceGit } from "./workforceGit.ts";
 
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-import { mkdir, rm, readdir, stat } from "node:fs/promises";
-import { resolve, join } from "node:path";
-
-const execFileAsync = promisify(execFile);
-
-// 默认超时：60秒
-const DEFAULT_TIMEOUT_MS = 60_000;
-
-// 默认 worktree 根目录
-const DEFAULT_WORKTREE_ROOT = ".worktrees";
-
-// worktree 最大存活时间：24小时
 const DEFAULT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const normalized = (path) => process.platform === "win32" ? resolve(path).toLowerCase() : resolve(path);
+async function pathState(path) {
+  try { return await lstat(path); }
+  catch (error) { if (error?.code === "ENOENT") return null; throw error; }
+}
+function assertDescendant(root, path) {
+  const rel = relative(root, path);
+  if (!rel || rel === ".." || rel.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) || isAbsolute(rel)) {
+    throw new Error("Worktree path is outside the owned root.");
+  }
+}
 
-/**
- * 创建 Worktree 隔离管理器
- * @param {object} [options] - 配置选项
- * @param {string} [options.repoRoot] - Git 仓库根目录
- * @param {string} [options.worktreeRoot] - worktree 存放根目录
- * @param {number} [options.maxAge] - worktree 最大存活时间（毫秒）
- * @returns {object} Worktree 隔离管理器实例
- */
 export function createWorktreeIsolation(options = {}) {
-  const repoRoot = options.repoRoot || process.cwd();
-  const worktreeRoot = options.worktreeRoot || DEFAULT_WORKTREE_ROOT;
+  const repoRoot = resolve(options.repoRoot || process.cwd());
+  const worktreeRoot = options.worktreeRoot || ".worktrees";
+  const configuredRoot = resolve(repoRoot, worktreeRoot);
+  if ([repoRoot, parse(configuredRoot).root].some((path) => normalized(path) === normalized(configuredRoot))) {
+    throw new Error("Worktree root must not be the repository or filesystem root.");
+  }
   const maxAge = options.maxAge || DEFAULT_MAX_AGE_MS;
-
-  // 已创建的 worktree 记录（内存中维护）
+  const git = createWorkforceGit(repoRoot);
   const worktrees = new Map();
-
-  return {
-    /**
-     * 获取模块信息
-     */
+  const removedWorktreeHeads = new Map();
+  let canonicalRoot;
+  let pending = Promise.resolve();
+  /** @template T @param {() => Promise<T>} operation @returns {Promise<T>} */
+  function exclusive(operation) {
+    const result = pending.then(operation);
+    pending = result.then(() => undefined, () => undefined);
+    return result;
+  }
+  async function ownedRoot(create = false) {
+    if (create) await mkdir(configuredRoot, { recursive: true, mode: 0o700 });
+    const state = await pathState(configuredRoot);
+    if (!state?.isDirectory() || state.isSymbolicLink()) throw new Error("Worktree root is missing or replaced.");
+    const actual = await realpath(configuredRoot);
+    if (canonicalRoot && normalized(actual) !== normalized(canonicalRoot)) throw new Error("Worktree root changed.");
+    canonicalRoot ??= actual;
+    return canonicalRoot;
+  }
+  async function registered(path) {
+    const { stdout } = await git.run(["worktree", "list", "--porcelain", "-z"]);
+    return stdout.split("\0").some((line) => line.startsWith("worktree ") && normalized(line.slice(9)) === normalized(path));
+  }
+  async function branchExists(branch) {
+    try { await git.run(["show-ref", "--verify", "--quiet", `refs/heads/${branch}`]); return true; }
+    catch (error) { if (error?.code === 1) return false; throw error; }
+  }
+  const receipt = (record) => Object.freeze({ ...record });
+  const manager = {
     getInfo() {
-      return {
-        module: "worktreeIsolation",
-        version: "1.0.0",
-        repoRoot,
-        worktreeRoot,
-        maxAge,
-        activeWorktrees: worktrees.size,
-        description: "Git Worktree 隔离模块：为每个任务创建独立的工作目录",
-      };
+      return { module: "worktreeIsolation", version: "1.0.0", repoRoot, worktreeRoot, maxAge,
+        activeWorktrees: worktrees.size, description: "Git Worktree 隔离模块：为每个任务创建独立的工作目录" };
     },
-
-    /**
-     * 为指定计划创建独立的 worktree
-     * @param {object} params - 创建参数
-     * @param {string} params.planId - 计划 ID
-     * @param {string} [params.branch] - 源分支名称（默认使用当前 HEAD）
-     * @param {string} [params.newBranch] - 新分支名称（默认自动生成）
-     * @returns {Promise<object>} 创建结果
-     */
+    /** @param {{planId: string, branch?: string, newBranch?: string}} params */
     async create({ planId, branch, newBranch }) {
-      if (!planId || typeof planId !== "string") {
-        throw new Error("planId 是必填项");
-      }
-
-      const timestamp = Date.now();
-      // Security: sanitize planId for both git branch name AND filesystem path
-      const sanitizedPlanId = String(planId).replace(/[^a-zA-Z0-9_-]/g, "-").replace(/^\.+/, "").slice(0, 64);
-      const safeBranchName = newBranch || `workforce/${sanitizedPlanId}-${timestamp}`;
-      const worktreePath = resolve(repoRoot, worktreeRoot, `${sanitizedPlanId}-${timestamp}`);
-
-      // 确保 worktree 根目录存在
-      await mkdir(resolve(repoRoot, worktreeRoot), { recursive: true });
-
-      try {
-        // 构建 git worktree add 命令
-        const args = ["worktree", "add"];
-        if (branch) {
-          args.push("-b", safeBranchName, worktreePath, branch);
-        } else {
-          args.push("-b", safeBranchName, worktreePath, "HEAD");
-        }
-
-        await execFileAsync("git", args, {
-          cwd: repoRoot,
-          timeout: DEFAULT_TIMEOUT_MS,
-        });
-
-        // 记录 worktree 信息
-        const record = {
-          worktreeId: `wt_${planId}_${timestamp}`,
-          planId,
-          branch: safeBranchName,
-          sourceBranch: branch || "HEAD",
-          path: worktreePath,
-          createdAt: new Date().toISOString(),
-          status: "active",
-        };
-        worktrees.set(record.worktreeId, record);
-
-        return {
-          success: true,
-          worktree: record,
-          message: `Worktree 已创建: ${worktreePath}`,
-        };
-      } catch (error) {
-        return {
-          success: false,
-          reason: `创建 worktree 失败: ${error.message}`,
-          planId,
-          worktreePath,
-        };
-      }
-    },
-
-    /**
-     * 移除指定 worktree
-     * @param {string} worktreeId - Worktree ID
-     * @returns {Promise<object>} 移除结果
-     */
-    async remove(worktreeId, removeOptions = {}) {
-      const record = worktrees.get(worktreeId);
-      if (!record) {
-        return {
-          success: false,
-          reason: "未找到指定的 worktree 记录",
-        };
-      }
-
-      let removed = false;
-      try {
-        // 使用 git worktree remove 清理
-        await execFileAsync("git", ["worktree", "remove", record.path, "--force"], {
-          cwd: repoRoot,
-          timeout: DEFAULT_TIMEOUT_MS,
-        });
-        removed = true;
-      } catch (gitError) {
-        // 如果 git 命令失败，尝试直接删除目录
+      if (!planId || typeof planId !== "string") throw new Error("planId 是必填项");
+      return exclusive(async () => {
         try {
-          await rm(record.path, { recursive: true, force: true });
-          removed = true;
-        } catch (fileError) {
-          return {
-            success: false,
-            code: "WORKTREE_REMOVE_FAILED",
-            worktreeId,
-            reason: "The isolated worktree could not be removed.",
-            errors: [gitError?.code, fileError?.code].filter(Boolean),
-          };
-        }
-      }
-
-      if (!removed) {
-        return {
-          success: false,
-          code: "WORKTREE_REMOVE_FAILED",
-          worktreeId,
-          reason: "The isolated worktree could not be removed.",
-        };
-      }
-
-      const preserveBranch = removeOptions?.preserveBranch === true;
-      // Rollback deletes the candidate branch. A verified manual-merge
-      // candidate must survive worktree directory cleanup.
-      if (!preserveBranch) {
-        let branchRemoved = false;
-        try {
-          await execFileAsync("git", ["branch", "-D", record.branch], {
-            cwd: repoRoot,
-            timeout: DEFAULT_TIMEOUT_MS,
-          });
-          branchRemoved = true;
-        } catch {
-          try {
-            const { stdout } = await execFileAsync("git", ["branch", "--list", record.branch], {
-              cwd: repoRoot,
-              timeout: DEFAULT_TIMEOUT_MS,
-            });
-            branchRemoved = !stdout.trim();
-          } catch {
-            branchRemoved = false;
+          await git.assertSafe();
+          const sourceBranch = branch ?? "HEAD";
+          if (typeof sourceBranch !== "string" || !sourceBranch || sourceBranch.startsWith("-") || /[\0\r\n]/.test(sourceBranch)) {
+            throw new Error("Invalid source ref.");
           }
+          const id = `wf-${randomUUID()}`;
+          const branchName = newBranch ?? `workforce/${id}`;
+          if (typeof branchName !== "string" || branchName.startsWith("-") || /[\0\r\n]/.test(branchName)) throw new Error("Invalid new branch.");
+          await git.run(["check-ref-format", `refs/heads/${branchName}`]);
+          if (await branchExists(branchName)) throw new Error("Candidate branch already exists.");
+          const { stdout } = await git.run(["rev-parse", "--verify", "--end-of-options", `${sourceBranch}^{commit}`]);
+          const commit = stdout.trim();
+          if (!/^[a-f0-9]{40,64}$/.test(commit)) throw new Error("Source commit could not be resolved.");
+          const root = await ownedRoot(true);
+          const path = resolve(root, id);
+          assertDescendant(root, path);
+          if (await pathState(path)) throw new Error("Candidate directory already exists.");
+          await git.run(["worktree", "add", "-b", branchName, path, commit], 60_000);
+          const record = Object.freeze({ worktreeId: id, planId, branch: branchName, sourceBranch,
+            path, createdAt: new Date().toISOString(), status: "active" });
+          worktrees.set(id, record);
+          return { success: true, worktree: receipt(record), message: `Worktree 已创建: ${path}` };
+        } catch {
+          return { success: false, code: "WORKTREE_CREATE_FAILED", reason: "Cannot safely create the isolated worktree. Check the source ref, new branch and Git configuration.", planId };
         }
-        if (!branchRemoved) {
-          return {
-            success: false,
-            code: "WORKTREE_BRANCH_REMOVE_FAILED",
-            worktreeId,
-            reason: "The isolated candidate branch could not be removed.",
-          };
-        }
-      }
-
-      record.status = "removed";
-      record.removedAt = new Date().toISOString();
-      worktrees.delete(worktreeId);
-
-      return {
-        success: true,
-        worktreeId,
-        branch: record.branch,
-        branchPreserved: preserveBranch,
-        message: `Worktree 已移除: ${record.path}`,
-      };
+      });
     },
-
-    /**
-     * 根据 planId 移除所有关联的 worktree
-     * @param {string} planId - 计划 ID
-     * @returns {Promise<object>} 移除结果
-     */
+    async remove(worktreeId, removeOptions = {}) {
+      return exclusive(async () => {
+        const record = worktrees.get(worktreeId);
+        if (!record) return { success: false, reason: "未找到指定的 worktree 记录" };
+        try {
+          const root = await ownedRoot();
+          assertDescendant(root, record.path);
+          const state = await pathState(record.path);
+          if (state && (state.isSymbolicLink() || normalized(await realpath(record.path)) !== normalized(record.path))) {
+            throw new Error("Owned worktree path was replaced.");
+          }
+          if (await registered(record.path)) {
+            if (!state) throw new Error("Registered worktree is missing; ownership requires review.");
+            const worktreeGit = createWorkforceGit(record.path);
+            const ref = (await worktreeGit.run(["symbolic-ref", "--quiet", "HEAD"])).stdout.trim();
+            if (ref !== `refs/heads/${record.branch}`) throw new Error("Worktree branch changed.");
+            const expectedHead = (await worktreeGit.run(["rev-parse", "--verify", "HEAD"])).stdout.trim();
+            if (!/^[a-f0-9]{40,64}$/.test(expectedHead)) throw new Error("Worktree HEAD is invalid.");
+            await git.run(["worktree", "remove", "--force", "--", record.path], 60_000);
+            removedWorktreeHeads.set(worktreeId, expectedHead);
+          }
+          if (await pathState(record.path) || await registered(record.path)) throw new Error("Worktree removal could not be verified.");
+          const preserveBranch = removeOptions?.preserveBranch === true;
+          if (!preserveBranch && await branchExists(record.branch)) {
+            const expectedHead = removedWorktreeHeads.get(worktreeId);
+            if (!expectedHead) throw new Error("No owned removal proves the branch may be deleted.");
+            const { stdout } = await git.run(["worktree", "list", "--porcelain", "-z"]);
+            if (stdout.split("\0").includes(`branch refs/heads/${record.branch}`)) throw new Error("Candidate branch is in use.");
+            // Compare-and-delete prevents a stale cleanup record from deleting
+            // a ref that moved after the owned worktree was removed.
+            await git.run(["update-ref", "-d", `refs/heads/${record.branch}`, expectedHead]);
+          }
+          if (!preserveBranch && await branchExists(record.branch)) throw new Error("Candidate branch removal could not be verified.");
+          worktrees.delete(worktreeId);
+          removedWorktreeHeads.delete(worktreeId);
+          return { success: true, worktreeId, branch: record.branch, branchPreserved: preserveBranch,
+            message: `Worktree 已移除: ${record.path}` };
+        } catch {
+          return { success: false, code: "WORKTREE_REMOVE_FAILED", worktreeId,
+            reason: "The owned worktree or branch could not be safely removed; its record is retained for recovery." };
+        }
+      });
+    },
     async removeByPlanId(planId) {
-      const toRemove = [...worktrees.entries()].filter(
-        ([, record]) => record.planId === planId,
-      );
-
+      const records = [...worktrees.values()].filter((record) => record.planId === planId);
       const results = [];
-      for (const [id] of toRemove) {
-        results.push(await this.remove(id));
-      }
-
-      return {
-        success: true,
-        planId,
-        removedCount: results.filter((r) => r.success).length,
-        results,
-      };
+      for (const record of records) results.push(await manager.remove(record.worktreeId));
+      return { success: results.every((result) => result.success), planId,
+        removedCount: results.filter((result) => result.success).length, results };
     },
-
-    /**
-     * 列出所有活跃的 worktree
-     * @returns {object} worktree 列表
-     */
     list() {
-      const active = [...worktrees.values()].filter((w) => w.status === "active");
-      return {
-        success: true,
-        count: active.length,
-        worktrees: active,
-      };
+      return { success: true, count: worktrees.size, worktrees: [...worktrees.values()].map(receipt) };
     },
-
-    /**
-     * 查询指定 worktree 的状态
-     * @param {string} worktreeId - Worktree ID
-     * @returns {object} worktree 状态
-     */
     getStatus(worktreeId) {
       const record = worktrees.get(worktreeId);
-      if (!record) {
-        return { success: false, reason: "未找到指定的 worktree 记录" };
-      }
-      return {
-        success: true,
-        worktree: record,
-      };
+      return record ? { success: true, worktree: receipt(record) } : { success: false, reason: "未找到指定的 worktree 记录" };
     },
-
-    /**
-     * 清理过期的 worktree
-     * @param {number} [maxAgeMs] - 覆盖默认的最大存活时间
-     * @returns {Promise<object>} 清理结果
-     */
     async cleanup(maxAgeMs) {
-      const effectiveMaxAge = maxAgeMs || maxAge;
+      const age = maxAgeMs ?? maxAge;
+      if (!Number.isFinite(age) || age < 0) throw new Error("Invalid worktree expiry age.");
       const now = Date.now();
-      const expired = [];
-
-      for (const [id, record] of worktrees) {
-        if (record.status !== "active") continue;
-        const age = now - new Date(record.createdAt).getTime();
-        if (age > effectiveMaxAge) {
-          expired.push(id);
-        }
-      }
-
+      const expired = [...worktrees.values()].filter((record) => now - Date.parse(record.createdAt) > age);
       const results = [];
-      for (const id of expired) {
-        results.push(await this.remove(id));
-      }
-
-      // 额外清理：扫描文件系统中遗留的 worktree 目录
-      try {
-        const rootPath = resolve(repoRoot, worktreeRoot);
-        const entries = await readdir(rootPath).catch(() => []);
-        for (const entry of entries) {
-          const entryPath = join(rootPath, entry);
-          try {
-            const stats = await stat(entryPath);
-            const age = now - stats.mtimeMs;
-            if (age > effectiveMaxAge) {
-              // 尝试通过 git 移除
-              try {
-                await execFileAsync("git", ["worktree", "remove", entryPath, "--force"], {
-                  cwd: repoRoot,
-                  timeout: DEFAULT_TIMEOUT_MS,
-                });
-              } catch {
-                await rm(entryPath, { recursive: true, force: true }).catch(() => {});
-              }
-              results.push({ success: true, path: entryPath, cleanedFromDisk: true });
-            }
-          } catch {
-            // 忽略
-          }
-        }
-      } catch {
-        // worktree 根目录不存在时忽略
-      }
-
-      // 执行 git worktree prune 清理过期记录
-      try {
-        await execFileAsync("git", ["worktree", "prune"], {
-          cwd: repoRoot,
-          timeout: DEFAULT_TIMEOUT_MS,
-        });
-      } catch {
-        // 忽略
-      }
-
-      return {
-        success: true,
-        expiredCount: expired.length,
-        totalCleaned: results.length,
-        results,
-      };
+      for (const record of expired) results.push(await manager.remove(record.worktreeId));
+      return { success: results.every((result) => result.success), expiredCount: expired.length,
+        totalCleaned: results.filter((result) => result.success).length, results };
     },
   };
+  return manager;
 }

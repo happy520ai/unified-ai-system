@@ -11,13 +11,7 @@
  * - 提供 force 选项跳过检查（需显式确认）
  */
 
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-
-const execFileAsync = promisify(execFile);
-
-// 默认超时：30秒
-const DEFAULT_TIMEOUT_MS = 30_000;
+import { createWorkforceGit } from "./workforceGit.ts";
 
 /**
  * 创建 Git 工作区守卫
@@ -25,7 +19,7 @@ const DEFAULT_TIMEOUT_MS = 30_000;
  * @param {string} [options.cwd] - 工作目录路径
  * @param {string} [options.requiredBranch] - 要求的分支名称
  * @param {boolean} [options.strictMode] - 严格模式（默认 true）
- * @returns {object} Git 工作区守卫实例
+ * Returns the Git workspace guard instance.
  */
 export function createGitWorkspaceGuard(options = {}) {
   const cwd = options.cwd || process.cwd();
@@ -53,7 +47,7 @@ export function createGitWorkspaceGuard(options = {}) {
      * @param {boolean} [checkOptions.force] - 强制跳过检查（需确认）
      * @param {string} [checkOptions.forceReason] - 强制跳过原因
      * @param {string} [checkOptions.branch] - 临时覆盖所需分支
-     * @returns {Promise<object>} 检查结果
+     * Returns the workspace check result.
      */
     async check(checkOptions = {}) {
       // 强制跳过检查
@@ -145,7 +139,7 @@ export function createGitWorkspaceGuard(options = {}) {
 
     /**
      * 获取当前 Git 状态摘要
-     * @returns {Promise<object>} Git 状态摘要
+     * Returns the Git status summary.
      */
     async getGitStatus() {
       try {
@@ -178,8 +172,8 @@ export function createGitWorkspaceGuard(options = {}) {
  */
 async function checkIsGitRepository(cwd) {
   try {
-    await execGit(cwd, ["rev-parse", "--is-inside-work-tree"]);
-    return { passed: true, message: "当前目录是 Git 仓库" };
+    const { stdout } = await execGit(cwd, ["rev-parse", "--is-inside-work-tree"]);
+    return { passed: stdout.trim() === "true", message: "Git 仓库检查完成" };
   } catch {
     return { passed: false, message: "当前目录不是 Git 仓库" };
   }
@@ -309,11 +303,9 @@ async function checkUntrackedFiles(cwd) {
  * 执行 git 命令
  */
 async function execGit(cwd, args) {
-  return execFileAsync("git", args, {
-    cwd,
-    timeout: DEFAULT_TIMEOUT_MS,
-    maxBuffer: 10 * 1024 * 1024, // 10MB
-  });
+  const git = createWorkforceGit(cwd);
+  await git.assertSafe();
+  return git.run(args);
 }
 
 /**
