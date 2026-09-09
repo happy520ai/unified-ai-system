@@ -3,6 +3,7 @@ import type { WorkforceRoleContributionReceipt, WorkforceRoleExecutionProfile } 
 import { createLinkedAbortController, throwIfExecutionAborted } from "@unified-ai-system/shared-utils";
 import { estimateTokens } from "../cost/tokenEstimator.js";
 import { bindGatewayExecution, type GatewayExecutionContext } from "../http/httpRequestExecution.ts";
+import { inheritVirtualKeyRequestAccounting } from "../enterprise/virtualKeyRequestAccounting.ts";
 import type { GatewayWorkforceDispatchFence } from "../core/gatewayService.ts";
 import { createGatewayBackedProviderAdapter } from "../providers/gatewayBackedProviderAdapter.ts";
 import { HttpLLMProviderAdapter } from "../providers/httpLlmProviderAdapter.js";
@@ -65,6 +66,7 @@ export function createWorkforceRoleProviderFactory(options: {
         providerDispatchKeyInvalid: input.requestExecution.providerDispatchKeyInvalid,
         providerDispatchRoute: input.requestExecution.providerDispatchRoute,
         transportRequestId: input.requestExecution.transportRequestId, transportTraceId: input.requestExecution.transportTraceId });
+      inheritVirtualKeyRequestAccounting(input.requestExecution, http);
       if (http.providerDispatchKeyInvalid || (http.providerDispatchKeyHash !== undefined
         && !/^[a-f0-9]{64}$/.test(http.providerDispatchKeyHash)) || http.providerDispatchRoute !== "/workforce/execute"
         || !Number.isFinite(http.deadlineAt)) throw roleError("WORKFORCE_ROLE_DISPATCH_CONTEXT_INVALID");
@@ -125,8 +127,10 @@ export function createWorkforceRoleProviderFactory(options: {
           const dispatchHash = http.providerDispatchKeyHash
             ? createHash("sha256").update(JSON.stringify(["workforce-role/v1", http.providerDispatchKeyHash,
               identity.tenantId, identity.userId, executionId, taskId, binding.roleId, binding.employeeId])).digest("hex") : undefined;
-          const boundGateway = bindGatewayExecution(gatewayService, Object.freeze({ ...http, signal,
-            providerDispatchKeyHash: dispatchHash, workforceDispatchFence: fence }), () => identity);
+          const roleExecution = Object.freeze({ ...http, signal,
+            providerDispatchKeyHash: dispatchHash, workforceDispatchFence: fence });
+          inheritVirtualKeyRequestAccounting(http, roleExecution);
+          const boundGateway = bindGatewayExecution(gatewayService, roleExecution, () => identity);
           const adapter = createGatewayBackedProviderAdapter({ providerId: binding.providerId, modelId: binding.modelId,
             source: `workforce-role:${binding.roleId}`, agentExecutionContext: agentContext,
             gatewayService: { async execute(request, execution) {

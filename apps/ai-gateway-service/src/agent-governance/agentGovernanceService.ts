@@ -92,6 +92,8 @@ import type {
 import { createAgentGenerationJournal } from "./agentGenerationJournal.ts";
 import { getGovernanceStateAuthority } from "./governanceStateAnchor.ts";
 import { normalizeModelPolicyDraft } from "./modelPolicyDraft.ts";
+import type { GatewayExecutionContext } from "../http/httpRequestExecution.ts";
+import { inheritVirtualKeyRequestAccounting } from "../enterprise/virtualKeyRequestAccounting.ts";
 
 export interface GovernanceContext {
   tenantId: string;
@@ -99,6 +101,8 @@ export interface GovernanceContext {
   role?: string;
   permissions?: string[];
   requestId?: string;
+  /** Server-owned request lifetime; never loaded from a request body or journal. */
+  execution?: GatewayExecutionContext;
   /** When set, an agent identity is attempting the call (self-modification guard). */
   actorAgentId?: string | null;
 }
@@ -242,6 +246,7 @@ export interface ModelProposer {
     tenantId: string;
     userId: string;
     requestId?: string;
+    execution?: GatewayExecutionContext;
   }): Promise<{
     classification: AgentClassification;
     proposedTraits: string[];
@@ -1548,13 +1553,16 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
         : null;
       if (!proposal && modelProposer) {
         try {
-          const candidate = await modelProposer.proposeClassification(input.task, {
+          const proposerContext = {
             name: input.name,
             requestedTools: [...input.requestedTools],
             tenantId: ctx.tenantId,
             userId: ctx.userId,
             requestId: ctx.requestId,
-          });
+            ...(ctx.execution ? { execution: ctx.execution } : {}),
+          };
+          inheritVirtualKeyRequestAccounting(ctx, proposerContext);
+          const candidate = await modelProposer.proposeClassification(input.task, proposerContext);
           if (candidate) {
             modelPolicyDraftProposed = candidate.policyDraft !== undefined;
             proposal = {

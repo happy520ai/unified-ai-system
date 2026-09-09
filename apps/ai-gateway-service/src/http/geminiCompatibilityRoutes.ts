@@ -18,11 +18,9 @@ import { readJson, writeJson, writeSseHeaders } from "./utils/responseUtils.js";
 import { getGuardrailsEngine } from "../guardrails/guardrailsEngine.ts";
 import {
   applyVirtualKeyRequestGate,
-  calculateVirtualKeyTextCharge,
   applyManagedLocalClientProviderRoute,
   authenticateManagedLocalClientProtocolRequest,
   normalizeOpenAiChatCompletionRequest,
-  recordVirtualKeyUsage,
   resolveManagedLocalClientProviderRoute,
   resolveOpenAiErrorStatus,
 } from "./openAiCompatibilityRoutes.js";
@@ -39,6 +37,7 @@ import {
   iteratePrimedGatewayStream,
   primeGatewayStream,
   readPrimedGatewayStreamError,
+  resolveGatewayStreamPreflightStatus,
 } from "./gatewayStreamPreflight.ts";
 import { resolveProviderDispatchHttpStatus } from "./providerDispatchHttpStatus.ts";
 
@@ -662,16 +661,6 @@ export async function dispatchGeminiCompatibilityRoutes(context: Record<string, 
           continue;
         }
         responses.push(createGeminiGenerateContentResponse(result, { requestedModel: route.modelId }));
-        const charge = calculateVirtualKeyTextCharge(entryInput, result.data?.usage?.totalTokens,
-          result.data?.message?.content ?? result.data?.outputText ?? result.data?.text);
-        recordVirtualKeyUsage({
-          enterpriseGovernanceService,
-          request,
-          writeServiceLog,
-          tokens: charge.totalTokens,
-          calculationSource: charge.source,
-          path: pathname,
-        });
       } catch (error) {
         if (error instanceof GeminiTranslationError) throw error;
         failures += 1;
@@ -832,10 +821,6 @@ export async function dispatchGeminiCompatibilityRoutes(context: Record<string, 
     return;
   }
 
-  const charge = calculateVirtualKeyTextCharge(gatewayInput, result.data?.usage?.totalTokens,
-    result.data?.message?.content ?? result.data?.outputText ?? result.data?.text);
-  recordVirtualKeyUsage({ enterpriseGovernanceService, request, writeServiceLog, path: pathname,
-    tokens: charge.totalTokens, calculationSource: charge.source });
   const geminiResponse = createGeminiGenerateContentResponse(result, {
     requestedModel: route.modelId,
   });
@@ -944,7 +929,7 @@ async function streamGeminiGenerateContent({
     gatewayService.executeStream(gatewayInput),
   );
   const preflightError = readPrimedGatewayStreamError(primedStream);
-  const preflightStatus = resolveProviderDispatchHttpStatus(preflightError?.code);
+  const preflightStatus = resolveGatewayStreamPreflightStatus(preflightError?.code);
   if (preflightError && preflightStatus !== null) {
     await closePrimedGatewayStream(primedStream);
     writeServiceLog?.("gemini_stream_failed", {
@@ -991,9 +976,6 @@ async function streamGeminiGenerateContent({
   if (!failed && !clientClosed) {
     recordChatRequest(pathname, true);
     const usage = finalEvent?.rawProviderMeta?.usage ?? {};
-    const charge = calculateVirtualKeyTextCharge(gatewayInput, usage.totalTokens, streamOutputText);
-    recordVirtualKeyUsage({ enterpriseGovernanceService, request, writeServiceLog, path: pathname,
-      tokens: charge.totalTokens, calculationSource: charge.source });
     recordChatTokens(
       selectedModel,
       "input",

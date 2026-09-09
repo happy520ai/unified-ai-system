@@ -52,6 +52,7 @@ export interface ChatCacheCandidate {
 export interface ChatCacheJsonPayload {
   kind: "json";
   response: Record<string, unknown>;
+  billing?: ChatCacheSsePayload["billing"];
 }
 
 export interface ChatCacheSsePayload {
@@ -224,7 +225,7 @@ export function createChatResponseCacheIntegration(options: {
     if (!payload || (payload.kind !== "json" && payload.kind !== "sse")) return null;
     if (payload.kind === "json" && !payload.response) return null;
     if (payload.kind === "sse" && !Array.isArray(payload.chunks)) return null;
-    if (payload.kind === "sse" && payload.billing !== undefined && !readChatCacheBillingSnapshot(payload)) return null;
+    if (payload.billing !== undefined && !readChatCacheBillingSnapshot(payload)) return null;
     return payload;
   }
 

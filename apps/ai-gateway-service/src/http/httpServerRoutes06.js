@@ -7,15 +7,16 @@ import {
   iteratePrimedGatewayStream,
   primeGatewayStream,
   readPrimedGatewayStreamError,
+  resolveGatewayStreamPreflightStatus,
 } from "./gatewayStreamPreflight.ts";
 import { resolveProviderDispatchHttpStatus } from "./providerDispatchHttpStatus.ts";
 import {
   applyManagedLocalClientProviderRoute,
   authenticateManagedLocalClientProtocolRequest,
-  recordVirtualKeyUsage,
+  authorizeVirtualKeyRequest,
   resolveManagedLocalClientProviderRoute,
 } from "./openAiCompatibilityRoutes.js";
-import { estimateTextTokens, estimateTokens } from "../cost/tokenEstimator.js";
+import { estimateTokens } from "../cost/tokenEstimator.js";
 
 export async function dispatchHttpRoutes06(context) {
   const {
@@ -144,7 +145,7 @@ export async function dispatchHttpRoutes06(context) {
       });
       const primedStream = await primeGatewayStream(gatewayService.executeStream(chatInput));
       const preflightError = readPrimedGatewayStreamError(primedStream);
-      const preflightStatus = resolveProviderDispatchHttpStatus(preflightError?.code);
+      const preflightStatus = resolveGatewayStreamPreflightStatus(preflightError?.code);
       if (preflightError && preflightStatus !== null) {
         await closePrimedGatewayStream(primedStream);
         writeJson(response, preflightStatus, primedStream.first.value.envelope);
@@ -469,7 +470,7 @@ export async function dispatchHttpRoutes06(context) {
       });
       const primedStream = await primeGatewayStream(gatewayService.executeStream(gatewayInput));
       const preflightError = readPrimedGatewayStreamError(primedStream);
-      const preflightStatus = resolveProviderDispatchHttpStatus(preflightError?.code);
+      const preflightStatus = resolveGatewayStreamPreflightStatus(preflightError?.code);
       if (preflightError && preflightStatus !== null) {
         await closePrimedGatewayStream(primedStream);
         writeJson(response, preflightStatus, primedStream.first.value.envelope);
@@ -524,15 +525,6 @@ export async function dispatchHttpRoutes06(context) {
           });
           if (budgetRejection) return budgetRejection;
           let executionResult = await gatewayService.execute(gatewayInput);
-          if (executionResult.success) {
-            recordVirtualKeyUsage({
-              enterpriseGovernanceService,
-              request,
-              writeServiceLog,
-              tokens: resolveNativeChatUsageTokens(gatewayInput, executionResult),
-              path: url.pathname,
-            });
-          }
           if (promptEnhancement) {
             executionResult = {
               ...executionResult,
@@ -644,29 +636,13 @@ function decorateStreamEvent(event, promptEnhancement) {
   };
 }
 
-function resolveNativeChatUsageTokens(gatewayInput, result) {
-  const reportedTotal = Number(result?.data?.usage?.totalTokens);
-  if (Number.isSafeInteger(reportedTotal) && reportedTotal > 0) return reportedTotal;
-  const outputText = result?.data?.message?.content
-    ?? result?.data?.outputText
-    ?? result?.data?.text
-    ?? "";
-  return estimateTokens(gatewayInput).estimatedInputTokens + estimateTextTokens(outputText);
-}
-
 function authorizeNativeChatVirtualKeyUsage({ enterpriseGovernanceService, request, gatewayInput, writeServiceLog, startedAt, createErrorEnvelope, path }) {
   const keyId = request.enterpriseIdentity?.apiKeyFingerprint;
   if (!keyId) return null;
-  const manager = enterpriseGovernanceService?.getApiKeyManager?.();
-  if (typeof manager?.authorizeUsage !== "function" || typeof manager?.recordUsage !== "function") {
-    return {
-      statusCode: 503,
-      payload: createErrorEnvelope("VIRTUAL_KEY_ACCOUNTING_UNAVAILABLE", "Virtual key accounting is unavailable.", { startedAt, category: "internal", retryable: false }),
-    };
-  }
   let decision;
   try {
-    decision = manager.authorizeUsage({ keyId, estimatedTokens: estimateTokens(gatewayInput).estimatedInputTokens });
+    decision = authorizeVirtualKeyRequest({ enterpriseGovernanceService, request, writeServiceLog, path,
+      estimatedTokens: estimateTokens(gatewayInput).estimatedInputTokens });
   } catch {
     return {
       statusCode: 503,

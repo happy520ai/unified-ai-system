@@ -1,6 +1,10 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createHash } from "node:crypto";
 import {
+  bindVirtualKeyRequestAccounting, inheritVirtualKeyRequestAccounting,
+  type VirtualKeyRequestAccounting,
+} from "../enterprise/virtualKeyRequestAccounting.ts";
+import {
   EXECUTION_ABORT_CODES,
   createExecutionAbortError,
   type ExecutionAbortError,
@@ -105,6 +109,7 @@ export function bindGatewayExecution<TService extends object>(
   gatewayService: TService,
   execution: GatewayExecutionContext,
   identityProvider?: () => unknown,
+  accountingProvider?: () => VirtualKeyRequestAccounting | undefined,
 ): TService {
   let providerDispatchInvocation = 0;
   return new Proxy(gatewayService, {
@@ -113,6 +118,7 @@ export function bindGatewayExecution<TService extends object>(
         const operation = Reflect.get(target, property, receiver);
         if (typeof operation !== "function") return operation;
         return (input: unknown, invocationExecution?: { signal?: AbortSignal } | null) => {
+          const accounting = accountingProvider?.();
           const boundExecution = execution.providerDispatchKeyHash
             || execution.providerDispatchKeyInvalid
             ? Object.freeze({
@@ -126,6 +132,8 @@ export function bindGatewayExecution<TService extends object>(
             : Object.freeze({ ...boundExecution, signal: combined.signal });
           let result: unknown;
           try {
+            inheritVirtualKeyRequestAccounting(execution, effectiveExecution);
+            if (accounting) bindVirtualKeyRequestAccounting(effectiveExecution, accounting);
             result = Reflect.apply(
             operation,
             target,
@@ -135,17 +143,53 @@ export function bindGatewayExecution<TService extends object>(
             combined.dispose();
             throw error;
           }
-          if (result && typeof (result as PromiseLike<unknown>).then === "function") {
-            return Promise.resolve(result).finally(combined.dispose);
-          }
-          combined.dispose();
-          return result;
+          return retainExecutionSignals(result, combined.dispose);
         };
       }
       const value = Reflect.get(target, property, receiver);
       return typeof value === "function" ? value.bind(target) : value;
     },
   });
+}
+
+function retainExecutionSignals(result: unknown, dispose: () => void): unknown {
+  if (result && typeof (result as AsyncIterable<unknown>)[Symbol.asyncIterator] === "function") {
+    let iterator: AsyncIterator<unknown>;
+    try { iterator = (result as AsyncIterable<unknown>)[Symbol.asyncIterator](); }
+    catch (error) { dispose(); throw error; }
+    // A generator wrapper's finally never runs if return() precedes next().
+    // Delegate the iterator methods explicitly so that path also releases links.
+    return {
+      [Symbol.asyncIterator]() { return this; },
+      async next(value?: unknown) {
+        try {
+          const step = await iterator.next(value);
+          if (step.done) dispose();
+          return step;
+        } catch (error) { dispose(); throw error; }
+      },
+      async return(value?: unknown) {
+        try {
+          const step = iterator.return ? await iterator.return(value) : { done: true, value };
+          if (step.done) dispose();
+          return step;
+        } catch (error) { dispose(); throw error; }
+      },
+      async throw(error?: unknown) {
+        try {
+          if (!iterator.throw) throw error;
+          const step = await iterator.throw(error);
+          if (step.done) dispose();
+          return step;
+        } catch (error) { dispose(); throw error; }
+      },
+    };
+  }
+  if (result && typeof (result as PromiseLike<unknown>).then === "function") {
+    return Promise.resolve(result).then(value => retainExecutionSignals(value, dispose), error => { dispose(); throw error; });
+  }
+  dispose();
+  return result;
 }
 
 function combineExecutionSignals(outer: AbortSignal, inner?: AbortSignal) {

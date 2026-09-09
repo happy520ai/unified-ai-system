@@ -194,6 +194,7 @@ import {
   dispatchOpenAiCompatibilityRoutes,
   isAnthropicMessagesRoute,
   isOpenAiCompatibilityRoute,
+  resolveVirtualKeyRequestAccounting,
 } from "./openAiCompatibilityRoutes.js";
 import { dispatchOpenAiResponsesRoutes } from "./openAiResponsesRoutes.js";
 import {
@@ -214,6 +215,7 @@ import { createOpenTelemetryRuntime } from "../observability/openTelemetry.js";
 import { createIdempotencyCoordinator } from "./idempotencyCoordinator.ts";
 import { createGatewayLifecycle } from "./gatewayLifecycle.ts";
 import { bindGatewayExecution, createHttpRequestExecutionScope } from "./httpRequestExecution.ts";
+import { bindVirtualKeyRequestAccounting } from "../enterprise/virtualKeyRequestAccounting.ts";
 import { createRequestIdentityResolver, parseTrustedProxyCidrs } from "./requestIdentity.ts";
 import { shouldRejectUnmappedRoute } from "./runtimeRouteAccessManifest.ts";
 import { isLoopbackAddress } from "../security/networkBindingPolicy.ts";
@@ -514,14 +516,20 @@ function createGatewayHttpServerWithOwnerLease(application, governanceOwnerLease
             )));
             return;
           }
+          const messageExecution = { ...execution };
+          const messageRequest = { enterpriseIdentity: ws.identity };
+          const accounting = resolveVirtualKeyRequestAccounting({ enterpriseGovernanceService, request: messageRequest,
+            writeServiceLog, path: "/ws" });
+          if (accounting) bindVirtualKeyRequestAccounting(messageExecution, accounting);
           const result = await tracedGatewayService.execute({
             messages: [{ role: "user", content: data.prompt }],
+            enterpriseIdentity: ws.identity,
             metadata: {
               source: "websocket",
               userId: ws.identity?.userId,
               tenantId: ws.identity?.tenantId,
             },
-          }, execution);
+          }, messageExecution);
           ws.send(JSON.stringify({ type: "chat_response", data: result }));
         } else if (data.type === "ping") {
           ws.send(JSON.stringify({ type: "pong", timestamp: Date.now() }));
@@ -770,7 +778,9 @@ function createGatewayHttpServerWithOwnerLease(application, governanceOwnerLease
     });
     // Identity resolves lazily at execute time, after enterprise authorization
     // has attached it, so the usage ledger attributes records to the real tenant.
-    const requestGatewayService = bindGatewayExecution(tracedGatewayService, requestExecutionScope.context, () => request.enterpriseIdentity);
+    const requestGatewayService = bindGatewayExecution(tracedGatewayService, requestExecutionScope.context,
+      () => request.enterpriseIdentity,
+      () => resolveVirtualKeyRequestAccounting({ enterpriseGovernanceService, request, writeServiceLog, path: url.pathname }));
 
     const routeRateLimiter = rateLimiter;
 
@@ -1055,6 +1065,12 @@ function createGatewayHttpServerWithOwnerLease(application, governanceOwnerLease
       }
       let routeResult;
       try {
+        if (!publicRoute && request.enterpriseIdentity?.apiKeyFingerprint) {
+          // Mint authority after authentication without admitting usage. This
+          // also covers server-owned contexts passed directly to Workforce.
+          const accounting = resolveVirtualKeyRequestAccounting({ enterpriseGovernanceService, request, writeServiceLog, path: pathname });
+          bindVirtualKeyRequestAccounting(requestExecutionScope.context, accounting);
+        }
         routeResult = await httpTrace.run(() => dispatchHttpRouteGroups(HTTP_ROUTE_GROUPS, {
           ...HTTP_ROUTE_DEPENDENCIES,
           application,

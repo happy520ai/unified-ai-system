@@ -11,9 +11,17 @@ import {
 import { createResponseCacheStore } from "../cache/responseCacheStore.js";
 import { createApiKeyManager } from "../enterprise/apiKeyManager.js";
 import {
-  dispatchOpenAiCompatibilityRoutes,
-  streamOpenAiChatCompletion,
+  dispatchOpenAiCompatibilityRoutes as dispatchOpenAiRoutes,
+  streamOpenAiChatCompletion as streamOpenAiCompletion,
 } from "./openAiCompatibilityRoutes.js";
+import { bindVirtualKeyTestGateway } from "./virtualKeyGateway.testHelper.ts";
+
+function dispatchOpenAiCompatibilityRoutes(context: any) {
+  return dispatchOpenAiRoutes({ ...context, gatewayService: bindVirtualKeyTestGateway(context) });
+}
+function streamOpenAiChatCompletion(context: any) {
+  return streamOpenAiCompletion({ ...context, gatewayService: bindVirtualKeyTestGateway(context) });
+}
 
 const descriptors = [
   {

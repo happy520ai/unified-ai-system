@@ -65,6 +65,7 @@ export function createVirtualKeyRequestAccounting(options: {
   const invocations = new WeakMap<VirtualKeyInvocation, { settlement?: Promise<Readonly<VirtualKeySettlementReceipt>> }>();
 
   const admit = (estimatedTokens: number): Readonly<ApiKeyAuthorizationResult> => {
+    if (auditFailed) throw accountingError();
     if (admissionError) throw admissionError;
     if (admission) return admission;
     try {
@@ -140,5 +141,5 @@ export function createVirtualKeyRequestAccounting(options: {
 
 function accountingError(code = "VIRTUAL_KEY_ACCOUNTING_UNAVAILABLE", statusCode = 503) {
   return Object.assign(new Error("Virtual key execution accounting did not authorize this operation."),
-    { code, statusCode, category: statusCode === 429 ? "rate_limit" : statusCode === 400 ? "validation" : "internal", retryable: false });
+    { code, statusCode, category: statusCode === 429 ? "rate_limit" : statusCode === 401 ? "auth" : statusCode === 400 ? "validation" : "internal", retryable: false });
 }

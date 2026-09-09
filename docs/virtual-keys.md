@@ -65,33 +65,44 @@ The tenant header is not required — the key's own tenant is used.
 | --- | --- |
 | Budget window | Fixed windows (`daily` = 24h, `monthly` = 30d, or an explicit `windowMs`), keyed by wall-clock window index; usage resets automatically at rollover. |
 | Pre-request check | Before the provider call, the gateway estimates input tokens and rejects with HTTP 429 `VIRTUAL_KEY_BUDGET_EXHAUSTED` if the estimate would exceed the remaining budget. |
-| Post-request record | Actual total tokens are recorded after success (upstream usage when available, conservative estimates otherwise). Streaming records from the final stream event, falling back to input estimate + output text estimate. |
-| Cache interactions | Response-cache hits still consume budget (they are real requests); replayed usage comes from the cached payload. |
+| Attempt settlement | Each actual Gateway Provider attempt settles once, including observed work before cancellation, fallback, or postprocessing failure. Complete reported totals take precedence; missing components use the existing text estimator. |
+| Cache interactions | JSON and SSE hits consume a new admission and charge using the complete internal settlement snapshot saved with the cache entry. Wire usage fields do not control billing. |
 | Native idempotency | Replaying a completed non-streaming `/chat` request under its original idempotency key does not consume another request admission or token charge; concurrent duplicates share the same execution. This remains true when the key's budget is later exhausted. |
 | Rate limit | Optional per-key requests-per-minute fixed window; rejects with 429 `VIRTUAL_KEY_RATE_LIMITED`. |
 | Soft budget | When usage crosses `softThreshold` (default 0.8) a `virtual_key_soft_budget` service log event is emitted once per crossing. |
-| Validated scope | OpenAI chat/completions and aliases, non-streaming native `/chat`, and Gemini normal/SSE/batch have per-key gates and successful-result charging. Anthropic Messages and Responses also have route-local accounting hooks; their interruption/unknown-usage handling still requires the unified accounting work below. |
+| Execution scope | Native chat, OpenAI chat/Responses, Anthropic Messages, Gemini normal/SSE/batch and WebSocket chat enter the same Gateway accounting boundary. Trusted Agent proposer, Workforce role and shadow-call projections retain the request capability. |
 
 Gemini batches perform one request/RPM admission using the sum of normalized
-input estimates; each successful item contributes its own token charge. This is
+input estimates; each actual item attempt contributes its own settlement. This is
 an input preflight, not a reservation of the batch's eventual output tokens.
-Completed text without a valid positive reported total uses the existing text
-estimator and records `calculationSource: estimated`; positive valid totals use
-`reported`. A normalized zero cannot yet distinguish a genuine reported zero
-from missing upstream usage. Failed/interrupted calls and non-token operations
-still need the broader accounting coverage work; do not read them as free usage.
+An explicitly reported zero is a known zero; a legacy synthesized zero is not.
+Missing input uses the estimate of the request actually sent after compaction.
+Missing output uses observed text, tool names/arguments and exposed reasoning.
+Known partial components are retained. Estimates are not exact tokenizer counts
+or guaranteed upper bounds. Unobserved output after a disconnect remains unknown.
+Each settlement records `reported`, `estimated`, `partial` or `unknown`, its
+completion status and correlation IDs. Unknown use never becomes a fictitious
+zero-token record. Hidden transport retries do not invent separate token totals.
 
-For SSE response caching, the same internal billing snapshot settles both the
-live response and later cache requests. `stream_options.include_usage` controls
-only the wire response. Older SSE records without that snapshot, or records with
+For JSON and SSE response caching, a complete internal billing snapshot is captured
+from the actual Gateway settlement. `stream_options.include_usage` controls
+only the wire response. Older records without that snapshot, or records with
 invalid billing fields, are misses for virtual-key requests and can cause a new
 Provider call under the existing execution policy. Existing records are retained.
 Non-key callers can still replay legacy entries. A cache hit is a new HTTP request
 with its own admission and charge; it is distinct from native idempotent replay.
 
-Native stream/route variants, internal Workforce/Forge/Agent/proposer calls,
-WebSocket messages and multimodal requests are not yet universally covered by
-these route-local hooks. Attempt ledgers and metrics do not prove per-key charging.
+Incomplete usage or a failed counter/audit write cannot create an exact-billing
+cache entry. A shadow or failed fallback attempt keeps its separate settlement;
+the response cache saves the successful response's own charge. WebSocket ping
+and control-plane reads do not consume a model request admission.
+
+The provider-operation lane currently has no supported token-metering contract
+for image, audio or embedding operations. Token-budgeted keys receive
+`VIRTUAL_KEY_METERING_UNSUPPORTED` before dispatch. RPM-only keys can use this
+lane, with unknown token evidence. Image counts, seconds and bytes are not
+converted into tokens. This restriction is explicit; it is not full multimodal
+billing or a claim that such work is free.
 
 Native `/chat` and the compatibility request gate fail closed with HTTP 503
 `VIRTUAL_KEY_ACCOUNTING_UNAVAILABLE` if an authenticated virtual-key request has
@@ -157,16 +168,23 @@ traffic and preserve the latest store before rollback. Synthetic restart,
 write-failure, repair, HTTP rejection and legacy-record tests cover this boundary.
 No provider selection, credential format or fake-provider default changes.
 
-The protocol coverage slice reuses the existing JS compatibility helper and
-TypeScript Gemini/cache owners, with no dependency or persistence migration.
-Its workload is route admission plus a versioned internal cache payload, not a
-new billing service; the local JS/TS approach keeps the score above and avoids
-rewriting unrelated routes. Rolling back reintroduces the missing Gemini charges
-and inconsistent SSE-cache totals; preserve counters and pause affected traffic.
-Real-manager synthetic-route tests cover batch admission, native idempotency,
-cache wire options, legacy refusal and cache-store reload. They do not establish
-actual Provider invoices, complete interrupted usage, distributed reservations
-or production billing accuracy.
+The execution-accounting workload uses a TypeScript helper for private capability,
+attempt lifetime and cache receipt contracts, with focused changes to the existing
+ESM JS and TS owners. Keeping only route-local JavaScript hooks scores lower on
+safety and maintenance because internal calls bypass them and protocol handlers
+duplicate settlement. A full language rewrite has the migration cost shown above.
+The chosen mixed approach preserves imports, synchronous manager operations,
+Provider selection and the fake default; it adds no dependency or state store.
+
+This slice exceeds eight files and 500 lines because the Core switch, removal of
+normal HTTP charges, explicit cache settlement, adapter observations, cancellation
+lifetimes and trusted internal projections must agree in one release. Their
+actual Core/manager, HTTP/WS, native-adapter and governed-role tests cover charge
+count, partial usage, callback failure and replay boundaries. Roll these changes
+back as a unit, pause key traffic and preserve counters; reverting only the Core
+or HTTP half causes missing or duplicate charges. Synthetic tests do not establish
+Provider invoices, complete interrupted usage, distributed reservations or
+production billing accuracy.
 
 ### Provider usage observations
 
@@ -189,9 +207,9 @@ respective wire fields, avoiding double counting. These rules follow the
 [Anthropic cache usage contract](https://platform.claude.com/docs/en/build-with-claude/prompt-caching?s=09)
 and [Gemini UsageMetadata](https://ai.google.dev/api/generate-content).
 
-This observation slice does not yet activate unified request accounting. The
-route-local charge helper still needs migration to consume provenance and settle
-interrupted work. Current ledger dollar values remain its existing static fallback
+Gateway accounting consumes these observations before cancellation checks can
+discard a returned result or usage-only stream frame. Current ledger dollar
+values remain its existing static fallback
 estimates; corrected token totals do not provide cache-tier pricing or an actual
 Provider invoice. Earlier failed attempts and missing stream remainders remain
 unknown until independently reconciled.
@@ -208,7 +226,7 @@ store, dependency, credential read or Provider selection rule. Revert this slice
 as a unit to preserve compatibility; doing so restores the old counting and
 missing-observation defects, so pause affected key traffic before rollback.
 
-### Request accounting capability (prepared, not activated)
+### Request accounting capability
 
 `apiKeyManager.checkContinuation` rechecks expiry, revocation and the remaining
 token budget, and repairs a retained failed write, without charging another
@@ -227,11 +245,12 @@ Neither failure becomes a retryable Provider error. Unsupported non-token
 operations reject token-budgeted capabilities; RPM-only capabilities still admit
 once and retain unknown token evidence. Fake work still consumes virtual quota.
 
-This module is not bound to HTTP/Core yet. Activation must land with removal of
-the old normal-execution charge hooks, while retaining explicit cache settlement
-and native idempotency replay. Its capability is request-local and provides no
+The authenticated HTTP request binds the capability to Gateway execution;
+normal protocol handlers no longer charge the same successful call again.
+Explicit cache settlement and native idempotency replay retain their distinct
+semantics. Its capability is request-local and provides no
 distributed or in-flight reservation. It adds no persistent schema or dependency.
 TypeScript expresses the private lifetime and receipt contracts; the existing JS
 manager only extracts its current checks so admission and continuation cannot
-drift. Once activation lands, roll it back together with this helper rather than
+drift. Roll back the execution binding together with this helper rather than
 removing a dependency under active request execution.

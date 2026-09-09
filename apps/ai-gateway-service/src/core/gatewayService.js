@@ -1,4 +1,6 @@
 import { createProviderRequest } from "../providers/providerMapping.js";
+import { beginVirtualKeyUsage, finishVirtualKeyUsage, inheritVirtualKeyBilling, observeVirtualKeyUsageChunk } from "./virtualKeyUsageAccounting.ts";
+import { inheritVirtualKeyRequestAccounting } from "../enterprise/virtualKeyRequestAccounting.ts";
 import {
   createAttemptSelection,
   createFallbackAttempts,
@@ -122,10 +124,12 @@ export class GatewayService {
       if (this.weightedTrafficPolicy && !execution.shadow && !managedLocalClientProviderPinned) {
         this.#fireShadowTraffic(request, execution);
       }
-      return createRouteSuccessEnvelope(response, {
+      const envelope = createRouteSuccessEnvelope(response, {
         traceId: request.context.traceId,
         startedAt,
       });
+      inheritVirtualKeyBilling(providerResult, envelope);
+      return envelope;
     } catch (error) {
       const cancellation = findExecutionAbortError(error, execution.signal);
       if (cancellation) {
@@ -198,6 +202,7 @@ export class GatewayService {
           error.retryable = false;
           throw error;
         }
+        const accountingAttempt = beginVirtualKeyUsage(request, execution);
 
         await this.#reserveProviderDispatch({
           request,
@@ -215,6 +220,8 @@ export class GatewayService {
         });
         let emittedChunk = false;
         let finalProviderRaw;
+        let streamCompleted = false;
+        let ledgerSettled = false;
 
         yield createStreamEvent("start", {
           request,
@@ -239,14 +246,16 @@ export class GatewayService {
               execution,
             }),
           })) {
-            throwIfExecutionAborted(execution.signal);
             const textDelta = providerChunk.textDelta ?? "";
             finalProviderRaw = providerChunk.raw;
+            observeVirtualKeyUsageChunk(accountingAttempt, providerChunk);
+            outputText += textDelta;
+            // Preserve a result observed just before cancellation.
+            throwIfExecutionAborted(execution.signal);
             // Newly retained accounting frames do not emit application output
             // or disable the existing pre-output fallback policy.
             if (providerChunk.usageOnly === true && !textDelta
               && !Array.isArray(providerChunk.raw?.toolCallsDelta)) continue;
-            outputText += textDelta;
             emittedChunk = true;
 
             yield createStreamEvent("chunk", {
@@ -259,6 +268,9 @@ export class GatewayService {
               runtimeConfig: this.runtimeConfig,
             });
           }
+          streamCompleted = true;
+          await finishVirtualKeyUsage(accountingAttempt, { raw: finalProviderRaw, outputText,
+            completed: true, usageAttemptId });
 
           writeGatewayLog("provider_stream_completed", {
             requestId: request.context.requestId,
@@ -276,9 +288,11 @@ export class GatewayService {
             );
           }
 
+          ledgerSettled = true;
           await this.#recordUsage({
             request,
             selection,
+            ...(finalProviderRaw?.usage ? { providerResult: { usage: finalProviderRaw.usage } } : {}),
             providerCallAttempted: true,
             startedAt,
             outputText,
@@ -286,7 +300,7 @@ export class GatewayService {
             usageAttemptId,
           });
 
-          yield createStreamEvent("done", {
+          const doneEvent = createStreamEvent("done", {
             request,
             selection,
             startedAt,
@@ -294,13 +308,23 @@ export class GatewayService {
             raw: finalProviderRaw,
             runtimeConfig: this.runtimeConfig,
           });
+          inheritVirtualKeyBilling(accountingAttempt, doneEvent);
+          yield doneEvent;
           return;
         } catch (error) {
-          if (!isProviderEvidenceError(error) && providerCallStarted) {
+          if (providerCallStarted) await finishVirtualKeyUsage(accountingAttempt, { raw: finalProviderRaw,
+            outputText, completed: streamCompleted, usageAttemptId });
+          if (isProviderEvidenceError(error)) {
+            if (providerCallStarted) error.retryable = false;
+            throw error;
+          }
+          if (providerCallStarted) {
             try {
+              ledgerSettled = true;
               await this.#recordUsage({
                 request,
                 selection,
+                ...(finalProviderRaw?.usage ? { providerResult: { usage: finalProviderRaw.usage } } : {}),
                 providerCallAttempted: true,
                 startedAt,
                 error,
@@ -309,6 +333,7 @@ export class GatewayService {
                 usageAttemptId,
               });
             } catch (usageError) {
+              if (isProviderEvidenceError(usageError)) usageError.retryable = false;
               throw usageError;
             }
           }
@@ -348,6 +373,19 @@ export class GatewayService {
 
           if (!canFallback) {
             throw error;
+          }
+        } finally {
+          if (providerCallStarted) {
+            await finishVirtualKeyUsage(accountingAttempt, { raw: finalProviderRaw,
+              outputText, completed: streamCompleted, usageAttemptId });
+            if (!ledgerSettled) {
+              ledgerSettled = true;
+              await this.#recordUsage({ request, selection, providerCallAttempted: true,
+                ...(finalProviderRaw?.usage ? { providerResult: { usage: finalProviderRaw.usage } } : {}),
+                startedAt, outputText, shadow: execution.shadow === true, usageAttemptId,
+                error: Object.assign(new Error("Gateway stream consumer closed before completion."),
+                  { code: "STREAM_CONSUMER_CLOSED", retryable: false }) });
+            }
           }
         }
       }
@@ -411,6 +449,8 @@ export class GatewayService {
     };
     let providerCallStarted = false;
     let usageAttemptId = null;
+    let accountingAttempt;
+    let observedResult;
 
     try {
       throwIfExecutionAborted(execution.signal);
@@ -425,6 +465,7 @@ export class GatewayService {
         shadowRequest: false,
       });
       await this.#assertUsageLedgerReady(selection);
+      accountingAttempt = beginVirtualKeyUsage(request, execution, false);
       await this.#reserveProviderDispatch({
         request,
         selection,
@@ -443,11 +484,13 @@ export class GatewayService {
       throwIfExecutionAborted(execution.signal);
       providerCallStarted = true;
       const result = await operation.invoke();
+      observedResult = normalizeProviderOperationResult(result);
+      await finishVirtualKeyUsage(accountingAttempt, { result: observedResult, completed: true, usageAttemptId });
       throwIfExecutionAborted(execution.signal);
       await this.#recordUsage({
         request,
         selection,
-        providerResult: normalizeProviderOperationResult(result),
+        providerResult: observedResult,
         providerCallAttempted: true,
         startedAt,
         usageAttemptId,
@@ -465,10 +508,17 @@ export class GatewayService {
     } catch (error) {
       const cancellation = findExecutionAbortError(error, execution.signal);
       const terminalError = cancellation ?? error;
+      if (providerCallStarted) await finishVirtualKeyUsage(accountingAttempt, {
+        result: observedResult, completed: Boolean(observedResult), usageAttemptId });
+      if (isProviderEvidenceError(terminalError) && providerCallStarted) {
+        terminalError.retryable = false;
+        throw terminalError;
+      }
       try {
         await this.#recordUsage({
           request,
           selection,
+          providerResult: observedResult,
           providerCallAttempted: providerCallStarted,
           startedAt,
           error: terminalError,
@@ -476,6 +526,7 @@ export class GatewayService {
           usagePath: operation.path,
         });
       } catch (usageError) {
+        if (providerCallStarted && isProviderEvidenceError(usageError)) usageError.retryable = false;
         throw usageError;
       }
       writeGatewayLog("provider_operation_failed", {
@@ -511,6 +562,9 @@ export class GatewayService {
       hooks.onAttemptSelected?.(attemptSelection);
       let providerCallStarted = false;
       let usageAttemptId = null;
+      let accountingAttempt;
+      let observedResult;
+      let ledgerSettled = false;
 
       try {
         if (execution.workforceDispatchFence !== undefined) {
@@ -526,6 +580,7 @@ export class GatewayService {
           shadowRequest: execution.shadow === true,
         });
         await this.#assertUsageLedgerReady(attemptSelection);
+        accountingAttempt = beginVirtualKeyUsage(request, execution);
         await this.#reserveProviderDispatch({
           request,
           selection: attemptSelection,
@@ -557,7 +612,10 @@ export class GatewayService {
             execution,
           }),
         });
+        observedResult = providerResult;
+        await finishVirtualKeyUsage(accountingAttempt, { result: providerResult, completed: true, usageAttemptId });
         throwIfExecutionAborted(execution.signal);
+        ledgerSettled = true;
         await this.#recordUsage({
           request,
           selection: attemptSelection,
@@ -592,13 +650,23 @@ export class GatewayService {
         };
       } catch (error) {
         lastError = error;
+        if (providerCallStarted) await finishVirtualKeyUsage(accountingAttempt, {
+          result: observedResult, completed: Boolean(observedResult), usageAttemptId });
 
-        if (isProviderEvidenceError(error)) throw error;
-        if (providerCallStarted) {
+        // A returned provider result must not be bought again because a local
+        // post-call observer failed, even if that observer labels its error retryable.
+        if (observedResult && error && typeof error === "object") error.retryable = false;
+
+        if (isProviderEvidenceError(error)) {
+          if (providerCallStarted) error.retryable = false;
+          throw error;
+        }
+        if (providerCallStarted && !ledgerSettled) {
           try {
             await this.#recordUsage({
               request,
               selection: attemptSelection,
+              providerResult: observedResult,
               providerCallAttempted: true,
               startedAt,
               error,
@@ -606,9 +674,10 @@ export class GatewayService {
               usageAttemptId,
             });
           } catch (usageError) {
+            if (isProviderEvidenceError(usageError)) usageError.retryable = false;
             throw usageError;
           }
-        } else {
+        } else if (!providerCallStarted) {
           await this.#recordUsage({
             request,
             selection: attemptSelection,
@@ -622,8 +691,8 @@ export class GatewayService {
         const cancellation = findExecutionAbortError(error, execution.signal);
         if (cancellation) throw cancellation;
 
-        // Record failed call for health-weighted selection
-        if (this.healthScorer) {
+        // A local post-call failure does not make the returned Provider work fail.
+        if (this.healthScorer && !observedResult) {
           this.healthScorer.recordFailure(
             attemptSelection.selected.target.providerId,
             error?.code ?? "unknown",
@@ -808,7 +877,9 @@ export class GatewayService {
       );
       const signals = [execution.signal, AbortSignal.timeout(shadowTimeoutMs)].filter(Boolean);
       const shadowSignal = signals.length === 1 ? signals[0] : AbortSignal.any(signals);
-      void this.execute(shadowRequest, { ...execution, shadow: true, signal: shadowSignal })
+      const shadowExecution = { ...execution, shadow: true, signal: shadowSignal };
+      inheritVirtualKeyRequestAccounting(execution, shadowExecution);
+      void this.execute(shadowRequest, shadowExecution)
         .then((result) => {
           writeGatewayLog("shadow_traffic_completed", {
             requestId: request.context?.requestId,
@@ -912,7 +983,9 @@ export class GatewayService {
     } catch (err) {
       writeGatewayLog("usage_ledger_write_failed", { message: err?.message ?? "unknown" });
       if (billable && this.runtimeConfig.realProviderEnabled === true) {
-        throw createUsageLedgerFailure(err?.code, err);
+        const failure = createUsageLedgerFailure(err?.code, err);
+        failure.retryable = false;
+        throw failure;
       }
     }
   }

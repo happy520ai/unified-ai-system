@@ -8,7 +8,6 @@ import {
   normalizeOpenAiChatCompletionRequest,
   resolveOpenAiErrorStatus,
   applyVirtualKeyRequestGate,
-  recordVirtualKeyUsage,
 } from "./openAiCompatibilityRoutes.js";
 import { readJson, writeJson, writeSseHeaders } from "./utils/responseUtils.js";
 import { getGuardrailsEngine } from "../guardrails/guardrailsEngine.ts";
@@ -22,6 +21,7 @@ import {
   iteratePrimedGatewayStream,
   primeGatewayStream,
   readPrimedGatewayStreamError,
+  resolveGatewayStreamPreflightStatus,
 } from "./gatewayStreamPreflight.ts";
 import { resolveProviderDispatchHttpStatus } from "./providerDispatchHttpStatus.ts";
 
@@ -357,13 +357,6 @@ export async function dispatchOpenAiResponsesRoutes(context) {
       }
     }
   }
-  recordVirtualKeyUsage({
-    enterpriseGovernanceService,
-    request,
-    writeServiceLog,
-    tokens: Number(result.data?.usage?.totalTokens ?? 0),
-    path: RESPONSES_PATH,
-  });
   writeServiceLog?.("openai_response_completed", {
     method: request.method,
     path: normalized.path,
@@ -1068,7 +1061,7 @@ async function streamOpenAiResponse({
   });
   const primedStream = await primeGatewayStream(gatewayService.executeStream(gatewayInput));
   const preflightError = readPrimedGatewayStreamError(primedStream);
-  const preflightStatus = resolveProviderDispatchHttpStatus(preflightError?.code);
+  const preflightStatus = resolveGatewayStreamPreflightStatus(preflightError?.code);
   if (preflightError && preflightStatus !== null) {
     await closePrimedGatewayStream(primedStream);
     writeServiceLog?.("openai_response_stream_failed", {
@@ -1247,13 +1240,6 @@ async function streamOpenAiResponse({
       responseBody: completed,
     });
     completed.store = storedSession;
-    recordVirtualKeyUsage({
-      enterpriseGovernanceService,
-      request,
-      writeServiceLog,
-      tokens: estimateStreamTokens(gatewayInput, outputText),
-      path: RESPONSES_PATH,
-    });
     writeResponseSse(response, {
       type: "response.completed",
       sequence_number: sequenceNumber++,

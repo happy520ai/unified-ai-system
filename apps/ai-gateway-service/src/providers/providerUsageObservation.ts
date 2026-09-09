@@ -35,18 +35,25 @@ export function observeProviderUsage(protocol: Protocol, value: unknown, complet
   let reportedTotal: number | null = null;
   let known: number | null;
   let componentsComplete = false;
+  let inputComplete = false;
+  let outputComplete = false;
+  let visibleOutputTokens: number | null = null;
+  let reasoningTokens: number | null = null;
   const breakdown: Counts = {};
   if (protocol === "openai") {
     input = read(raw, "prompt_tokens");
     output = read(raw, "completion_tokens");
     reportedTotal = read(raw, "total_tokens");
     const reasoning = read(nested("completion_tokens_details"), "reasoning_tokens");
+    reasoningTokens = reasoning;
     const cached = read(nested("prompt_tokens_details"), "cached_tokens");
     if (reasoning !== null && output !== null && reasoning > output) invalid = true;
     if (cached !== null && input !== null && cached > input) invalid = true;
     breakdown.reasoningTokens = reasoning ?? 0;
     if (cached !== null) breakdown.cacheReadInputTokens = cached;
-    known = sum(input, output);
+    known = sum(input, output ?? reasoning);
+    inputComplete = input !== null;
+    outputComplete = output !== null;
     componentsComplete = input !== null && output !== null;
   } else if (protocol === "anthropic") {
     const uncached = read(raw, "input_tokens");
@@ -57,11 +64,15 @@ export function observeProviderUsage(protocol: Protocol, value: unknown, complet
     breakdown.cacheReadInputTokens = cached ?? 0;
     breakdown.cacheCreationInputTokens = creation ?? 0;
     known = sum(input, output);
+    inputComplete = uncached !== null;
+    outputComplete = output !== null;
     componentsComplete = uncached !== null && output !== null;
   } else {
     input = read(raw, "promptTokenCount");
     const visible = read(raw, "candidatesTokenCount");
     const thoughts = read(raw, "thoughtsTokenCount");
+    visibleOutputTokens = visible;
+    reasoningTokens = thoughts;
     const cached = read(raw, "cachedContentTokenCount");
     reportedTotal = read(raw, "totalTokenCount");
     output = visible === null && thoughts === null ? null : sum(visible, thoughts);
@@ -69,11 +80,13 @@ export function observeProviderUsage(protocol: Protocol, value: unknown, complet
     if (cached !== null) breakdown.cacheReadInputTokens = cached;
     if (cached !== null && input !== null && cached > input) invalid = true;
     known = sum(input, output);
+    inputComplete = input !== null;
+    outputComplete = visible !== null && thoughts !== null;
     // Missing thoughts must not prove a complete zero-reasoning total.
     componentsComplete = input !== null && visible !== null && thoughts !== null;
   }
   if (reportedTotal !== null && known !== null && reportedTotal < known) invalid = true;
-  const hasKnown = input !== null || output !== null;
+  const hasKnown = input !== null || output !== null || reasoningTokens !== null;
   const source = !invalid && reportedTotal !== null ? "reported"
     : !invalid && componentsComplete ? "components" : hasKnown ? "partial" : "unknown";
   const totalTokens = source === "reported" ? reportedTotal : source === "components" ? known : null;
@@ -81,6 +94,7 @@ export function observeProviderUsage(protocol: Protocol, value: unknown, complet
     usage: { inputTokens: input ?? 0, outputTokens: output ?? 0,
       totalTokens: (!invalid ? reportedTotal : null) ?? known ?? 0, ...breakdown },
     usageObservation: { version: 1 as const, source, totalTokens, inputTokens: input, outputTokens: output,
-      knownTokens: hasKnown ? known : null, invalid, complete },
+      knownTokens: hasKnown || reasoningTokens !== null ? known : null, invalid, complete,
+      inputComplete, outputComplete, visibleOutputTokens, reasoningTokens },
   };
 }

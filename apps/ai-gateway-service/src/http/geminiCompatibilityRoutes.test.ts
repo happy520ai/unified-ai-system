@@ -5,11 +5,16 @@ import { createApiKeyManager } from "../enterprise/apiKeyManager.js";
 import {
   createGeminiGenerateContentResponse,
   createGeminiModelList,
-  dispatchGeminiCompatibilityRoutes,
+  dispatchGeminiCompatibilityRoutes as dispatchGeminiRoutes,
   isGeminiCompatibilityRoute,
   isGeminiStreamRoute,
   parseGeminiModelRoute,
 } from "./geminiCompatibilityRoutes.ts";
+import { bindVirtualKeyTestGateway } from "./virtualKeyGateway.testHelper.ts";
+
+function dispatchGeminiCompatibilityRoutes(context: any) {
+  return dispatchGeminiRoutes({ ...context, gatewayService: bindVirtualKeyTestGateway(context) });
+}
 
 const descriptors = [
   {

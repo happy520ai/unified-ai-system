@@ -2,10 +2,16 @@ import { EventEmitter } from "node:events";
 import { Readable } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
 import {
-  dispatchOpenAiResponsesRoutes,
+  dispatchOpenAiResponsesRoutes as dispatchResponsesRoutes,
   normalizeOpenAiResponseRequest,
 } from "./openAiResponsesRoutes.js";
 import { createResponseSessionStore } from "../responses/responseSessionStore.js";
+import { createApiKeyManager } from "../enterprise/apiKeyManager.js";
+import { bindVirtualKeyTestGateway } from "./virtualKeyGateway.testHelper.ts";
+
+function dispatchOpenAiResponsesRoutes(context) {
+  return dispatchResponsesRoutes({ ...context, gatewayService: bindVirtualKeyTestGateway(context) });
+}
 
 const descriptors = [
   {
@@ -476,19 +482,20 @@ describe("OpenAI Responses compatibility routes", () => {
 
   it("enforces the virtual key budget gate on the Responses path", async () => {
     const gatewayService = createGatewayService();
-    const authorizeUsage = vi.fn(() => ({
-      allowed: false,
-      code: "VIRTUAL_KEY_BUDGET_EXHAUSTED",
-    }));
+    const manager = createApiKeyManager({ storePath: null });
+    const { key, record } = manager.create({ budget: { limitTokens: 10, window: "daily" } });
+    expect(manager.validate(key).valid).toBe(true);
+    manager.recordUsage({ keyId: record.keyId, tokens: 10 });
+    const authorizeUsage = vi.spyOn(manager, "authorizeUsage");
     const response = createResponseRecorder();
     await dispatchOpenAiResponsesRoutes(createContext({
       body: { model: "local-fake-model", input: "Over budget" },
       gatewayService,
       response,
       enterpriseGovernanceService: {
-        getApiKeyManager: () => ({ authorizeUsage, recordUsage: vi.fn() }),
+        getApiKeyManager: () => manager,
       },
-      enterpriseIdentity: { apiKeyFingerprint: "fp123", tenantId: "default" },
+      enterpriseIdentity: { apiKeyFingerprint: record.keyFingerprint, tenantId: record.tenantId },
       responseSessionStore: createResponseSessionStore({}),
     }));
 
@@ -503,24 +510,24 @@ describe("OpenAI Responses compatibility routes", () => {
 
   it("records virtual key usage after a successful Responses call", async () => {
     const gatewayService = createGatewayService();
-    const recordUsage = vi.fn(() => ({ softBudgetExceeded: false }));
+    const manager = createApiKeyManager({ storePath: null });
+    const { key, record } = manager.create({ budget: { limitTokens: 1000, window: "daily" } });
+    expect(manager.validate(key).valid).toBe(true);
+    const recordUsage = vi.spyOn(manager, "recordUsage");
     const response = createResponseRecorder();
     await dispatchOpenAiResponsesRoutes(createContext({
       body: { model: "local-fake-model", input: "Record me" },
       gatewayService,
       response,
       enterpriseGovernanceService: {
-        getApiKeyManager: () => ({
-          authorizeUsage: () => ({ allowed: true }),
-          recordUsage,
-        }),
+        getApiKeyManager: () => manager,
       },
-      enterpriseIdentity: { apiKeyFingerprint: "fp456", tenantId: "default" },
+      enterpriseIdentity: { apiKeyFingerprint: record.keyFingerprint, tenantId: record.tenantId },
       responseSessionStore: createResponseSessionStore({}),
     }));
 
     expect(response.statusCode).toBe(200);
-    expect(recordUsage).toHaveBeenCalledWith(expect.objectContaining({ keyId: "fp456" }));
+    expect(recordUsage).toHaveBeenCalledWith(expect.objectContaining({ keyId: record.keyFingerprint }));
   });
 });
 

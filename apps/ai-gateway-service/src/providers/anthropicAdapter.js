@@ -328,6 +328,21 @@ async function* streamAnthropicApi({ baseUrl, apiKey, anthropicVersion, body, ti
           }
           continue;
         }
+        if (event.type === "content_block_delta" && event.data?.delta?.type === "thinking_delta") {
+          yield { ...usageChunk(false, "", true), reasoningDelta: event.data.delta.thinking ?? "" };
+          continue;
+        }
+        if (event.type === "content_block_start" && event.data?.content_block?.type === "tool_use") {
+          const block = event.data.content_block;
+          yield { ...usageChunk(false, "", true), accountingToolCallsDelta: [{ index: event.data.index,
+            name: block.name ?? "", arguments: block.input && Object.keys(block.input).length ? JSON.stringify(block.input) : "" }] };
+          continue;
+        }
+        if (event.type === "content_block_delta" && event.data?.delta?.type === "input_json_delta") {
+          yield { ...usageChunk(false, "", true), accountingToolCallsDelta: [{ index: event.data.index,
+            arguments: event.data.delta.partial_json ?? "" }] };
+          continue;
+        }
         if (event.type === "message_delta") {
           const stopReason = event.data?.delta?.stop_reason;
           if (stopReason) finishReason = mapStopReason(stopReason);

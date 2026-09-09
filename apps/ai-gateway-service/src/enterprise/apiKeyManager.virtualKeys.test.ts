@@ -11,6 +11,7 @@ import {
 } from "./apiKeyManager.js";
 import { createEnterpriseGovernanceService } from "./enterpriseGovernanceService.js";
 import { dispatchOpenAiCompatibilityRoutes } from "../http/openAiCompatibilityRoutes.js";
+import { bindVirtualKeyTestGateway } from "../http/virtualKeyGateway.testHelper.ts";
 
 const descriptors = [
   {
@@ -329,7 +330,7 @@ describe("chat completions virtual key enforcement", () => {
     manager: ApiKeyManager;
     enterpriseIdentity: unknown;
   }) {
-    return {
+    const context = {
       request: createJsonRequest(body, { enterpriseIdentity }),
       response: createResponseRecorder(),
       startedAt: Date.now(),
@@ -340,6 +341,8 @@ describe("chat completions virtual key enforcement", () => {
         ? { getApiKeyManager: () => manager }
         : undefined,
     };
+    context.gatewayService = bindVirtualKeyTestGateway(context);
+    return context;
   }
 
   const chatBody = {

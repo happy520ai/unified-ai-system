@@ -9,6 +9,7 @@ import type { RiskLevel } from "@unified-ai-system/shared-contracts";
 import type { GatewayService } from "../core/gatewayService.ts";
 import type { ModelProposer } from "./agentGovernanceService.ts";
 import { normalizeModelPolicyDraft } from "./modelPolicyDraft.ts";
+import { inheritVirtualKeyRequestAccounting } from "../enterprise/virtualKeyRequestAccounting.ts";
 
 const FAMILIES = new Set<AgentFamily>([
   "analysis",
@@ -55,6 +56,16 @@ export function createGatewayModelProposer(options: {
           : [],
       });
       const dispatchSeed = context.requestId || randomUUID();
+      const execution = {
+        ...(context.execution ? { signal: context.execution.signal } : {}),
+        providerDispatchKeyHash: createHash("sha256")
+          .update(`agent-governance-classifier\0${dispatchSeed}`, "utf8")
+          .digest("hex"),
+        providerDispatchRoute: "/__agent-governance/classify",
+        providerDispatchInvocation: 1,
+      };
+      inheritVirtualKeyRequestAccounting(context, execution);
+      inheritVirtualKeyRequestAccounting(context.execution, execution);
       const result = await options.gatewayService.execute({
         taskType: "chat",
         providerId,
@@ -82,13 +93,7 @@ export function createGatewayModelProposer(options: {
           ...(context.requestId ? { requestId: context.requestId } : {}),
           internalProviderExecution: { governedByGateway: true, directAdapterCall: false },
         },
-      }, {
-        providerDispatchKeyHash: createHash("sha256")
-          .update(`agent-governance-classifier\0${dispatchSeed}`, "utf8")
-          .digest("hex"),
-        providerDispatchRoute: "/__agent-governance/classify",
-        providerDispatchInvocation: 1,
-      });
+      }, execution);
       if (!result?.success) throw proposerError("AGENT_MODEL_PROPOSER_GATEWAY_FAILED");
       const content = result.data?.message?.content ?? result.data?.text ?? result.data?.outputText;
       return parseProposal(content);

@@ -9,8 +9,11 @@ import {
   iteratePrimedGatewayStream,
   primeGatewayStream,
   readPrimedGatewayStreamError,
+  resolveGatewayStreamPreflightStatus,
 } from "./gatewayStreamPreflight.ts";
 import { estimateTextTokens, estimateTokens } from "../cost/tokenEstimator.js";
+import { bindVirtualKeyRequestAccounting, createVirtualKeyRequestAccounting, getVirtualKeyRequestAccounting } from "../enterprise/virtualKeyRequestAccounting.ts";
+import { getVirtualKeyBillingSnapshot } from "../core/virtualKeyUsageAccounting.ts";
 import {
   recordChatCacheEvent,
   recordChatRequest,
@@ -494,7 +497,10 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
     const cacheLookup = cacheCandidate
       ? chatResponseCache.lookup({ candidate: cacheCandidate, tenantIdentity: request.enterpriseIdentity })
       : null;
-    if (cacheLookup?.payload.kind === "json") {
+    const cachedBilling = readChatCacheBillingSnapshot(cacheLookup?.payload);
+    if (cacheLookup?.payload.kind === "json" && (!request.enterpriseIdentity?.apiKeyFingerprint || cachedBilling)) {
+      await recordCachedVirtualKeyUsage({ enterpriseGovernanceService, request, writeServiceLog,
+        path: normalizedPath, billingSnapshot: cachedBilling });
       const hitLayer = cacheLookup.hitType === "semantic" ? "semantic" : "exact";
       recordChatRequest(normalizedPath, false);
       recordChatCacheEvent(hitLayer, "hit");
@@ -512,13 +518,6 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
         inputText: gatewayInput.messages?.at(-1)?.content ?? undefined,
         outputText: cacheLookup.payload.response?.choices?.[0]?.message?.content,
         virtualKeyFingerprint: request.enterpriseIdentity?.apiKeyFingerprint,
-      });
-      recordVirtualKeyUsage({
-        enterpriseGovernanceService,
-        request,
-        writeServiceLog,
-        tokens: Number(cacheLookup.payload.response?.usage?.total_tokens ?? 0)
-          || estimateTokens(gatewayInput).estimatedInputTokens,
       });
       writeServiceLog?.("openai_chat_cache_hit", {
         method: request.method,
@@ -609,18 +608,11 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
       outputText: result.data?.message?.content ?? result.data?.outputText,
       virtualKeyFingerprint: request.enterpriseIdentity?.apiKeyFingerprint,
     });
-    recordVirtualKeyUsage({
-      enterpriseGovernanceService,
-      request,
-      writeServiceLog,
-      tokens: Number(result.data?.usage?.totalTokens ?? 0)
-        || estimateTokens(gatewayInput).estimatedInputTokens,
-    });
     if (cacheCandidate) {
       chatResponseCache.persist({
         candidate: cacheCandidate,
         tenantIdentity: request.enterpriseIdentity,
-        payload: { kind: "json", response: chatCompletion },
+        payload: { kind: "json", response: chatCompletion, billing: getVirtualKeyBillingSnapshot(result) },
       });
       recordChatCacheEvent("exact", "write");
     }
@@ -948,14 +940,6 @@ async function handleAnthropicMessages({
     model: result.data?.selectedModel,
     executionMode: result.data?.executionMode,
     durationMs: Date.now() - startedAt,
-  });
-  recordVirtualKeyUsage({
-    enterpriseGovernanceService,
-    request,
-    writeServiceLog,
-    tokens: Number(result.data?.usage?.totalTokens ?? 0)
-      || estimateTokens(gatewayInput).estimatedInputTokens,
-    path: ANTHROPIC_MESSAGES_PATH,
   });
   const anthropicMessage = createAnthropicMessage(result, {
     requestedModel: body.model,
@@ -1545,7 +1529,7 @@ async function streamAnthropicMessage({
   });
   const primedStream = await primeGatewayStream(gatewayService.executeStream(gatewayInput));
   const preflightError = readPrimedGatewayStreamError(primedStream);
-  const preflightStatus = resolveProviderDispatchHttpStatus(preflightError?.code);
+  const preflightStatus = resolveGatewayStreamPreflightStatus(preflightError?.code);
   if (preflightError && preflightStatus !== null) {
     await closePrimedGatewayStream(primedStream);
     writeServiceLog?.("anthropic_messages_stream_failed", {
@@ -1654,13 +1638,6 @@ async function streamAnthropicMessage({
     durationMs: Date.now() - startedAt,
   });
   if (!failed) {
-    recordVirtualKeyUsage({
-      enterpriseGovernanceService,
-      request,
-      writeServiceLog,
-      tokens: inputTokens + estimateCompatibilityTokens(outputText),
-      path: ANTHROPIC_MESSAGES_PATH,
-    });
   }
 
   if (!clientClosed) {
@@ -2073,6 +2050,47 @@ function resolveOpenAiModelResource(modelId, descriptors = []) {
   return null;
 }
 
+export function resolveVirtualKeyRequestAccounting({ enterpriseGovernanceService, request, writeServiceLog, path = "/" }) {
+  const fingerprint = request?.enterpriseIdentity?.apiKeyFingerprint;
+  if (!fingerprint) return undefined;
+  const existing = getVirtualKeyRequestAccounting(request);
+  if (existing) return existing;
+  const manager = enterpriseGovernanceService?.getApiKeyManager?.();
+  if (typeof enterpriseGovernanceService?.recordAudit !== "function" && typeof writeServiceLog !== "function") {
+    throw new Error("Virtual key accounting audit is unavailable.");
+  }
+  const identity = request.enterpriseIdentity;
+  const scope = createVirtualKeyRequestAccounting({ manager, keyFingerprint: fingerprint,
+    onEvent: async (event) => {
+      const usage = event.softBudgetExceeded ? manager.describeUsage({ keyId: fingerprint })?.usage : undefined;
+      try {
+        await enterpriseGovernanceService.recordAudit?.({ identity, method: "POST", path,
+          permission: "chat:use", outcome: event.state, code: "VIRTUAL_KEY_USAGE_SETTLED", details: event });
+      } catch {
+        writeServiceLog?.("virtual_key_accounting_failed", { path, keyFingerprint: fingerprint, code: "VIRTUAL_KEY_ACCOUNTING_UNAVAILABLE" });
+        throw new Error("Virtual key accounting audit is unavailable.");
+      }
+      writeServiceLog?.("virtual_key_usage_settled", { path, ...event });
+      if (event.state === "recorded" && (event.source === "reported" || event.source === "estimated")) {
+        writeServiceLog?.("virtual_key_usage_recorded", { path, keyFingerprint: fingerprint,
+          tokens: event.tokens, calculationSource: event.source });
+      }
+      if (event.softBudgetExceeded) writeServiceLog?.("virtual_key_soft_budget", { path, keyFingerprint: fingerprint,
+        tokensUsed: usage?.tokensUsed ?? null, limitTokens: usage?.limitTokens ?? null });
+    } });
+  bindVirtualKeyRequestAccounting(request, scope);
+  return scope;
+}
+
+export function authorizeVirtualKeyRequest({ enterpriseGovernanceService, request, writeServiceLog, path, estimatedTokens }) {
+  const scope = resolveVirtualKeyRequestAccounting({ enterpriseGovernanceService, request, writeServiceLog, path });
+  if (!scope) return undefined;
+  const first = scope.admit(estimatedTokens);
+  return first.allowed ? enterpriseGovernanceService.getApiKeyManager().checkContinuation({
+    keyId: request.enterpriseIdentity.apiKeyFingerprint, estimatedTokens,
+  }) : first;
+}
+
 export function applyVirtualKeyRequestGate({
   enterpriseGovernanceService,
   request,
@@ -2086,13 +2104,12 @@ export function applyVirtualKeyRequestGate({
 }) {
   const fingerprint = request?.enterpriseIdentity?.apiKeyFingerprint;
   if (!fingerprint) return false;
-  const manager = enterpriseGovernanceService?.getApiKeyManager?.();
   const estimatedInputTokens = aggregateInputEstimate ?? estimateTokens(gatewayInput).estimatedInputTokens;
   let decision;
   try {
     if (!Number.isSafeInteger(estimatedInputTokens) || estimatedInputTokens < 0) throw new Error("Invalid accounting estimate.");
-    if (typeof manager?.authorizeUsage !== "function" || typeof manager?.recordUsage !== "function") throw new Error("Accounting unavailable.");
-    decision = manager.authorizeUsage({ keyId: fingerprint, estimatedTokens: estimatedInputTokens });
+    decision = authorizeVirtualKeyRequest({ enterpriseGovernanceService, request, writeServiceLog,
+      path, estimatedTokens: estimatedInputTokens });
   } catch {
     writeJson(response, 503, errorFactory({ code: "VIRTUAL_KEY_ACCOUNTING_UNAVAILABLE", category: "internal", message: "Virtual key accounting is unavailable." }));
     return true;
@@ -2116,42 +2133,21 @@ export function applyVirtualKeyRequestGate({
   return true;
 }
 
-export function calculateVirtualKeyTextCharge(gatewayInput, reportedTotal, outputText) {
-  const reported = Number.isSafeInteger(reportedTotal) && reportedTotal > 0;
-  return Object.freeze({ version: 1, source: reported ? "reported" : "estimated",
-    totalTokens: reported ? reportedTotal : estimateTokens(gatewayInput).estimatedInputTokens + estimateTextTokens(String(outputText ?? "")) });
-}
-
-export function recordVirtualKeyUsage({
+async function recordCachedVirtualKeyUsage({
   enterpriseGovernanceService,
   request,
   writeServiceLog,
-  tokens,
+  billingSnapshot,
   path = CHAT_COMPLETIONS_PATH,
-  calculationSource = /** @type {"reported" | "estimated" | undefined} */ (undefined),
 }) {
-  const fingerprint = request?.enterpriseIdentity?.apiKeyFingerprint;
-  if (!fingerprint) return;
-  const manager = enterpriseGovernanceService?.getApiKeyManager?.();
-  if (!manager) return;
-  try {
-    const result = manager.recordUsage({ keyId: fingerprint, tokens });
-    if (calculationSource === "reported" || calculationSource === "estimated") {
-      writeServiceLog?.("virtual_key_usage_recorded", { path, keyFingerprint: fingerprint, tokens, calculationSource });
-    }
-    if (result.softBudgetExceeded) {
-      writeServiceLog?.("virtual_key_soft_budget", {
-        path,
-        keyFingerprint: fingerprint,
-        tokensUsed: result.budget?.tokensUsed ?? null,
-        limitTokens: result.budget?.limitTokens ?? null,
-      });
-    }
-  } catch {
-    // Already completed provider work must not be replayed because accounting
-    // failed. The manager retains usage and blocks admissions until it flushes.
-    writeServiceLog?.("virtual_key_accounting_failed", { path, code: "VIRTUAL_KEY_ACCOUNTING_UNAVAILABLE", keyFingerprint: fingerprint });
-  }
+  const scope = resolveVirtualKeyRequestAccounting({ enterpriseGovernanceService, request, writeServiceLog, path });
+  if (!scope) return;
+  const snapshot = readChatCacheBillingSnapshot({ billing: billingSnapshot });
+  if (!snapshot) throw Object.assign(new Error("Cached virtual key accounting is unavailable."),
+    { code: "VIRTUAL_KEY_ACCOUNTING_UNAVAILABLE", category: "internal", retryable: false });
+  // The full cached cost is already known before any response bytes are sent.
+  const invocation = scope.beginInvocation(snapshot.totalTokens);
+  await scope.settle(invocation, { tokens: snapshot.totalTokens, source: snapshot.source, incomplete: false });
 }
 
 async function handleMultiChoiceChatCompletion({
@@ -2266,12 +2262,6 @@ async function handleMultiChoiceChatCompletion({
   const selectedModel = settled[0].data?.selectedModel ?? gatewayInput.model;
   recordChatTokens(selectedModel, "input", promptTokens);
   recordChatTokens(selectedModel, "output", completionTokens);
-  recordVirtualKeyUsage({
-    enterpriseGovernanceService,
-    request,
-    writeServiceLog,
-    tokens: promptTokens + completionTokens,
-  });
   writeServiceLog?.("openai_chat_completed", {
     method: "POST",
     path: normalizedPath,
@@ -2334,6 +2324,8 @@ export async function streamOpenAiChatCompletion({
     : null;
   const cachedBilling = readChatCacheBillingSnapshot(cacheLookup?.payload);
   if (cacheLookup?.payload.kind === "sse" && (!request.enterpriseIdentity?.apiKeyFingerprint || cachedBilling)) {
+    await recordCachedVirtualKeyUsage({ enterpriseGovernanceService, request, writeServiceLog,
+      path: CHAT_COMPLETIONS_PATH, billingSnapshot: cachedBilling });
     writeSseHeaders(response);
     const hitLayer = cacheLookup.hitType === "semantic" ? "semantic" : "exact";
     recordChatRequest(CHAT_COMPLETIONS_PATH, true);
@@ -2356,14 +2348,6 @@ export async function streamOpenAiChatCompletion({
     if (body.stream_options?.include_usage === true && cacheLookup.payload.usageChunk !== undefined) {
       writeOpenAiSseData(response, cacheLookup.payload.usageChunk);
     }
-    recordVirtualKeyUsage({
-      enterpriseGovernanceService,
-      request,
-      writeServiceLog,
-      tokens: cachedBilling?.totalTokens ?? (Number(cacheLookup.payload.usageChunk?.usage?.total_tokens ?? 0)
-        || estimateTokens(gatewayInput).estimatedInputTokens),
-      calculationSource: cachedBilling?.source,
-    });
     writeServiceLog?.("openai_chat_stream_cache_hit", {
       method: request.method,
       path: CHAT_COMPLETIONS_PATH,
@@ -2379,7 +2363,7 @@ export async function streamOpenAiChatCompletion({
 
   const firstPrimedStream = await primeGatewayStream(gatewayService.executeStream(gatewayInput));
   const preflightError = readPrimedGatewayStreamError(firstPrimedStream);
-  const preflightStatus = resolveProviderDispatchHttpStatus(preflightError?.code);
+  const preflightStatus = resolveGatewayStreamPreflightStatus(preflightError?.code);
   if (preflightError && preflightStatus !== null) {
     await closePrimedGatewayStream(firstPrimedStream);
     writeServiceLog?.("openai_chat_stream_failed", {
@@ -2442,7 +2426,7 @@ export async function streamOpenAiChatCompletion({
   }
 
   if (!failed) {
-    capturedBilling = calculateVirtualKeyTextCharge(gatewayInput, finalEvent?.rawProviderMeta?.usage?.totalTokens, streamOutputText);
+    capturedBilling = getVirtualKeyBillingSnapshot(finalEvent);
     recordChatRequest(CHAT_COMPLETIONS_PATH, true);
     if (cacheCandidate) {
       recordChatCacheEvent("exact", cacheLookup ? "miss" : "bypassed");
@@ -2466,13 +2450,6 @@ export async function streamOpenAiChatCompletion({
       inputText: gatewayInput.messages?.at(-1)?.content ?? undefined,
       outputText: streamOutputText,
       virtualKeyFingerprint: request.enterpriseIdentity?.apiKeyFingerprint,
-    });
-    recordVirtualKeyUsage({
-      enterpriseGovernanceService,
-      request,
-      writeServiceLog,
-      tokens: capturedBilling.totalTokens,
-      calculationSource: capturedBilling.source,
     });
   }
 
@@ -2539,7 +2516,7 @@ async function streamOpenAiCompletion({
   });
   const firstPrimedStream = await primeGatewayStream(gatewayService.executeStream(gatewayInput));
   const preflightError = readPrimedGatewayStreamError(firstPrimedStream);
-  const preflightStatus = resolveProviderDispatchHttpStatus(preflightError?.code);
+  const preflightStatus = resolveGatewayStreamPreflightStatus(preflightError?.code);
   if (preflightError && preflightStatus !== null) {
     await closePrimedGatewayStream(firstPrimedStream);
     writeServiceLog?.("openai_completion_stream_failed", {
@@ -3436,6 +3413,7 @@ function writeOpenAiSseData(response, data) {
 }
 
 export function resolveOpenAiErrorStatus(error) {
+  if (error?.code === "VIRTUAL_KEY_ACCOUNTING_UNAVAILABLE") return 503;
   if (typeof error?.status === "number" && error.status >= 400 && error.status < 500) {
     return error.status;
   }

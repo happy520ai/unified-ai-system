@@ -76,6 +76,56 @@ describe("provider usage observations through actual protocol adapters", () => {
     expect(seen.at(-1).raw.usageObservation).toMatchObject({ totalTokens: 5, complete: false });
   });
 
+  it("retains sparse OpenAI input and output observations until DONE", async () => {
+    const chunks = await collect(readChatCompletionsStream(stream([
+      frame({ choices: [], usage: { prompt_tokens: 1000 } }),
+      frame({ choices: [], usage: { completion_tokens: 5 } }),
+      "data: [DONE]\n\n",
+    ]), request));
+    expect(chunks[0].raw.usageObservation).toMatchObject({ inputTokens: 1000, outputTokens: null, knownTokens: 1000 });
+    expect(chunks[1].raw.usageObservation).toMatchObject({ source: "components", inputTokens: 1000,
+      outputTokens: 5, totalTokens: 1005, complete: false });
+    expect(chunks.at(-1).raw.usageObservation).toMatchObject({ totalTokens: 1005, complete: true });
+  });
+
+  it("overwrites cumulative OpenAI components without adding snapshots, including the final buffered frame", async () => {
+    const chunks = await collect(readChatCompletionsStream(stream([
+      frame({ choices: [], usage: { prompt_tokens: 1000 } }),
+      frame({ choices: [], usage: { completion_tokens: 3 } }),
+      frame({ choices: [], usage: { prompt_tokens: 1200 } }),
+      frame({ choices: [], usage: { completion_tokens: 5 } }).trimEnd(),
+    ]), request));
+    expect(chunks.map(chunk => chunk.raw.usageObservation.knownTokens)).toEqual([1000, 1003, 1203, 1205]);
+    expect(chunks.at(-1).raw.usageObservation).toMatchObject({ source: "components", inputTokens: 1200,
+      outputTokens: 5, totalTokens: 1205, complete: false });
+  });
+
+  it("retains split nested OpenAI cache and reasoning details without replaying tool deltas", async () => {
+    const delta = [{ index: 0, id: "call-sparse", function: { name: "fixture", arguments: "{}" } }];
+    const chunks = await collect(readChatCompletionsStream(stream([
+      frame({ choices: [{ delta: { tool_calls: delta } }], usage: { prompt_tokens_details: { cached_tokens: 7 } } }),
+      frame({ choices: [], usage: { completion_tokens_details: { reasoning_tokens: 6 } } }),
+      frame({ choices: [], usage: { prompt_tokens: 10, completion_tokens: 8 } }),
+      frame({ choices: [], usage: { prompt_tokens_details: { audio_tokens: 2 }, completion_tokens_details: { audio_tokens: 1 } } }),
+      frame({ choices: [], usage: { total_tokens: 18 } }),
+      "data: [DONE]\n\n",
+    ]), request));
+    expect(chunks.at(-1).raw.usage).toMatchObject({ inputTokens: 10, outputTokens: 8, totalTokens: 18,
+      cacheReadInputTokens: 7, reasoningTokens: 6 });
+    expect(chunks.at(-1).raw.usageObservation).toMatchObject({ source: "reported", totalTokens: 18, invalid: false, complete: true });
+    expect(chunks.flatMap(chunk => chunk.raw.toolCallsDelta ?? [])).toEqual(delta);
+  });
+
+  it("does not treat an older aggregate total as a fresh total after a component changes", async () => {
+    const chunks = await collect(readChatCompletionsStream(stream([
+      frame({ choices: [], usage: { prompt_tokens: 1000, completion_tokens: 3, total_tokens: 1003 } }),
+      frame({ choices: [], usage: { completion_tokens: 5 } }),
+      "data: [DONE]\n\n",
+    ]), request));
+    expect(chunks.at(-1).raw.usageObservation).toMatchObject({ source: "components", inputTokens: 1000,
+      outputTokens: 5, totalTokens: 1005, invalid: false, complete: true });
+  });
+
   it("does not repeat a tool-call delta when carrying usage forward", async () => {
     const delta = [{ index: 0, id: "call-fixture", function: { name: "fixture", arguments: "{}" } }];
     const chunks = await collect(readChatCompletionsStream(stream([

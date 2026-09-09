@@ -130,6 +130,8 @@ export function createGeminiAdapter(modelConfig: GeminiModelConfig = {}, options
 
 interface GeminiPart {
   text?: string;
+  thought?: boolean;
+  functionCall?: { name?: string; args?: unknown };
   inlineData?: { mimeType: string; data: string };
 }
 
@@ -310,6 +312,7 @@ async function* streamGeminiApi(params: {
   signal?.addEventListener("abort", onExternalAbort, { once: true });
 
   let usageSnapshot = {};
+  let accountingToolIndex = 0;
   let finishReason: string | undefined;
 
   const emitUsageChunk = (complete = false, textDelta = "", usageOnly = false) => ({
@@ -393,11 +396,18 @@ async function* streamGeminiApi(params: {
           usageSnapshot = { ...usageSnapshot, ...usage };
         }
 
-        const textDelta = (candidate?.content?.parts ?? [])
+        const parts: GeminiPart[] = candidate?.content?.parts ?? [];
+        const textDelta = parts
           .map((part: GeminiPart) => part?.text ?? "")
           .join("");
-        if (textDelta || usage || candidate?.finishReason) yield emitUsageChunk(false, textDelta,
-          !textDelta && !candidate?.finishReason);
+        const accountingTextDelta = parts.filter(part => part?.thought !== true).map(part => part?.text ?? "").join("");
+        const reasoningDelta = parts.filter(part => part?.thought === true).map(part => part?.text ?? "").join("");
+        const accountingToolCallsDelta = parts.filter(part => part?.functionCall).map(part => ({ index: accountingToolIndex++,
+          name: part.functionCall?.name ?? "", arguments: JSON.stringify(part.functionCall?.args ?? {}) }));
+        if (textDelta || usage || candidate?.finishReason || accountingToolCallsDelta.length) yield {
+          ...emitUsageChunk(false, textDelta, !textDelta && !candidate?.finishReason),
+          accountingTextDelta, reasoningDelta, accountingToolCallsDelta,
+        };
       }
     }
 

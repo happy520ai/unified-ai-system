@@ -1,10 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 import { createErrorEnvelope, createOkEnvelope } from "@unified-ai-system/shared-utils";
 import { createRouteFailureEnvelope } from "../core/gatewayService.js";
-import { dispatchHttpRoutes06 } from "./httpServerRoutes06.js";
+import { dispatchHttpRoutes06 as dispatchNativeRoutes } from "./httpServerRoutes06.js";
+import { bindVirtualKeyTestGateway } from "./virtualKeyGateway.testHelper.ts";
 import { createIdempotencyCoordinator } from "./idempotencyCoordinator.ts";
 import { readJson, writeJson } from "./utils/responseUtils.js";
 import { createApiKeyManager } from "../enterprise/apiKeyManager.js";
+
+function dispatchHttpRoutes06(context: any) {
+  return dispatchNativeRoutes({ ...context, gatewayService: bindVirtualKeyTestGateway(context) });
+}
 
 function createResponse() {
   const headers = new Map<string, string>();
@@ -33,17 +38,17 @@ function createResponse() {
   };
 }
 
-function createRequest(key: string, body: unknown, virtualKey = false) {
+function createRequest(key: string, body: unknown, virtualKey: boolean | { tenantId: string; userId: string; apiKeyFingerprint: string } = false) {
   return {
     method: "POST",
     body,
     headers: { "idempotency-key": key, authorization: "Bearer test-tenant" },
     socket: { remoteAddress: "127.0.0.1" },
     ...(virtualKey ? {
-      enterpriseIdentity: {
+      enterpriseIdentity: typeof virtualKey === "object" ? virtualKey : {
         tenantId: "tenant-a",
-        userId: "api-key:vk-native",
-        apiKeyFingerprint: "vk-native",
+        userId: "api-key:aaaaaaaaaaaa",
+        apiKeyFingerprint: "aaaaaaaaaaaa",
       },
     } : {}),
   };
@@ -73,7 +78,7 @@ function createContext(
     enterpriseGovernanceService: manager
       ? { getApiKeyManager: () => manager }
       : undefined,
-    request: createRequest(key, body, Boolean(manager)),
+    request: createRequest(key, body, manager?.identity ?? false),
     response,
     url: new URL("http://127.0.0.1/chat"),
     startedAt: Date.now(),
@@ -190,10 +195,10 @@ describe("production POST /chat idempotency contract", () => {
 
     expect(context.response.statusCode).toBe(200);
     expect(manager.authorizeUsage).toHaveBeenCalledWith({
-      keyId: "vk-native",
+      keyId: manager.identity.apiKeyFingerprint,
       estimatedTokens: expect.any(Number),
     });
-    expect(manager.recordUsage).toHaveBeenCalledWith({ keyId: "vk-native", tokens: 9 });
+    expect(manager.recordUsage).toHaveBeenCalledWith({ keyId: manager.identity.apiKeyFingerprint, tokens: 9 });
   });
 
   it("blocks native chat before provider execution when the shared virtual-key budget is exhausted", async () => {
@@ -219,7 +224,7 @@ describe("production POST /chat idempotency contract", () => {
     const execute = vi.fn(async () => successfulBudgetResult());
     const body = { messages: [{ role: "user", content: "shared budget" }] };
     const first = createContext(execute, "budget-replay", body, manager);
-    const replay = { ...first, response: createResponse(), request: createRequest("budget-replay", body, true) };
+    const replay = { ...first, response: createResponse(), request: createRequest("budget-replay", body, manager.identity) };
     try {
       await dispatchHttpRoutes06(first);
       await dispatchHttpRoutes06(replay);
@@ -227,7 +232,7 @@ describe("production POST /chat idempotency contract", () => {
       expect(replay.response.headers.get("idempotency-replayed")).toBe("true");
       expect(execute).toHaveBeenCalledOnce();
       expect(manager.authorizeUsage).toHaveBeenCalledOnce();
-      expect(manager.recordUsage).toHaveBeenCalledExactlyOnceWith({ keyId: "vk-native", tokens: 9 });
+      expect(manager.recordUsage).toHaveBeenCalledExactlyOnceWith({ keyId: manager.identity.apiKeyFingerprint, tokens: 9 });
     } finally { first.idempotencyCoordinator.close(); }
   });
 
@@ -236,7 +241,7 @@ describe("production POST /chat idempotency contract", () => {
     const execute = vi.fn(async () => successfulBudgetResult());
     const body = { messages: [{ role: "user", content: "last allowed request" }] };
     const first = createContext(execute, "budget-last-response", body, manager);
-    const replay = { ...first, response: createResponse(), request: createRequest("budget-last-response", body, true) };
+    const replay = { ...first, response: createResponse(), request: createRequest("budget-last-response", body, manager.identity) };
     try {
       await dispatchHttpRoutes06(first);
       manager.authorizeUsage.mockReturnValue({ allowed: false, code: "VIRTUAL_KEY_BUDGET_EXHAUSTED", budget: null, rate: null });
@@ -254,7 +259,7 @@ describe("production POST /chat idempotency contract", () => {
     const execute = vi.fn(() => new Promise(resolve => { finish = resolve; }));
     const body = { messages: [{ role: "user", content: "concurrent shared request" }] };
     const first = createContext(execute, "budget-concurrent", body, manager);
-    const replay = { ...first, response: createResponse(), request: createRequest("budget-concurrent", body, true) };
+    const replay = { ...first, response: createResponse(), request: createRequest("budget-concurrent", body, manager.identity) };
     try {
       const running = dispatchHttpRoutes06(first);
       await vi.waitFor(() => expect(execute).toHaveBeenCalledOnce());
@@ -272,7 +277,7 @@ describe("production POST /chat idempotency contract", () => {
     const manager = createAccountingManager();
     const execute = vi.fn(async () => successfulBudgetResult());
     const first = createContext(execute, "budget-input-conflict", { messages: [{ role: "user", content: "first" }] }, manager);
-    const conflict = { ...first, response: createResponse(), request: createRequest("budget-input-conflict", { messages: [{ role: "user", content: "changed" }] }, true) };
+    const conflict = { ...first, response: createResponse(), request: createRequest("budget-input-conflict", { messages: [{ role: "user", content: "changed" }] }, manager.identity) };
     try {
       await dispatchHttpRoutes06(first);
       await dispatchHttpRoutes06(conflict);
@@ -316,8 +321,15 @@ function successfulBudgetResult() {
 }
 
 function createAccountingManager(authorization = { allowed: true, code: null as string | null }) {
-  return {
-    authorizeUsage: vi.fn(() => ({ ...authorization, budget: null, rate: null })),
-    recordUsage: vi.fn(() => ({ recorded: true, budget: null, softBudgetExceeded: false })),
-  };
+  const manager = createApiKeyManager({ storePath: null });
+  const { key, record } = manager.create({ tenantId: "tenant-a", budget: { limitTokens: 1_000_000, window: "daily" } });
+  if (!manager.validate(key).valid) throw new Error("Fixture authentication failed.");
+  const authorizeUsage = vi.spyOn(manager, "authorizeUsage");
+  const recordUsage = vi.spyOn(manager, "recordUsage");
+  if (!authorization.allowed) {
+    if (!authorization.code) throw new Error("Denied fixture authorization requires a code.");
+    authorizeUsage.mockReturnValue({ ...authorization, code: authorization.code, budget: null, rate: null });
+  }
+  return Object.assign(manager, { authorizeUsage, recordUsage,
+    identity: { tenantId: "tenant-a", userId: `api-key:${record.keyFingerprint}`, apiKeyFingerprint: record.keyFingerprint } });
 }

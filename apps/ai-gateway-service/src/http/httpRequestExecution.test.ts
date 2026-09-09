@@ -175,6 +175,64 @@ describe("HTTP request execution scope", () => {
     scope.cleanup();
   });
 
+  it("keeps the inner abort signal linked until a bound async generator finishes", async () => {
+    const transport = createTransport();
+    const scope = createHttpRequestExecutionScope({ ...transport, timeoutMs: 10_000 });
+    const inner = new AbortController();
+    const remove = vi.spyOn(inner.signal, "removeEventListener");
+    const service = { async *executeStream(_input: unknown, execution?: { signal?: AbortSignal }) {
+      yield "started";
+      execution?.signal?.throwIfAborted();
+      yield "unwanted";
+    } };
+    try {
+      const iterator = bindGatewayExecution(service, scope.context).executeStream({}, { signal: inner.signal });
+      expect(await iterator.next()).toEqual({ done: false, value: "started" });
+      expect(remove).not.toHaveBeenCalled();
+      const reason = new Error("synthetic route cancellation");
+      inner.abort(reason);
+      await expect(iterator.next()).rejects.toBe(reason);
+      expect(remove).toHaveBeenCalledOnce();
+    } finally { scope.cleanup(); }
+  });
+
+  it("disposes linked signals when a consumer returns before the first generator step", async () => {
+    const transport = createTransport();
+    const scope = createHttpRequestExecutionScope({ ...transport, timeoutMs: 10_000 });
+    const inner = new AbortController();
+    const remove = vi.spyOn(inner.signal, "removeEventListener");
+    const entered = vi.fn();
+    const service = { async *executeStream(_input: unknown, _execution?: { signal?: AbortSignal }) { entered(); yield "unused"; } };
+    try {
+      const iterator = bindGatewayExecution(service, scope.context).executeStream({}, { signal: inner.signal });
+      expect(remove).not.toHaveBeenCalled();
+      await iterator.return(undefined);
+      expect(entered).not.toHaveBeenCalled();
+      expect(remove).toHaveBeenCalledOnce();
+    } finally { scope.cleanup(); }
+  });
+
+  it.each(["return", "throw"] as const)("retains cancellation when %s yields an unfinished cleanup step", async operation => {
+    const transport = createTransport();
+    const scope = createHttpRequestExecutionScope({ ...transport, timeoutMs: 10_000 });
+    const inner = new AbortController();
+    const remove = vi.spyOn(inner.signal, "removeEventListener");
+    const service = { async *executeStream(_input: unknown, execution?: { signal?: AbortSignal }) {
+      try { yield "started"; }
+      finally { yield "cleanup"; execution?.signal?.throwIfAborted(); }
+    } };
+    try {
+      const iterator = bindGatewayExecution(service, scope.context).executeStream({}, { signal: inner.signal });
+      await iterator.next();
+      const step = operation === "return" ? await iterator.return(undefined) : await iterator.throw(new Error("synthetic consumer throw"));
+      expect(step).toEqual({ done: false, value: "cleanup" });
+      expect(remove).not.toHaveBeenCalled();
+      const reason = new Error("synthetic cleanup cancellation"); inner.abort(reason);
+      await expect(iterator.next()).rejects.toBe(reason);
+      expect(remove).toHaveBeenCalledOnce();
+    } finally { scope.cleanup(); }
+  });
+
   it("marks malformed idempotency headers without retaining their values", () => {
     const transport = createTransport();
     transport.request.headers = { "idempotency-key": "contains space" };

@@ -193,7 +193,8 @@ describe("anthropic-adapter generateStream", () => {
       finishReason: "stop",
       usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 },
       usageObservation: { version: 1, source: "components", totalTokens: 15, inputTokens: 10,
-        outputTokens: 5, knownTokens: 15, invalid: false, complete: true },
+        outputTokens: 5, knownTokens: 15, invalid: false, complete: true,
+        inputComplete: true, outputComplete: true, visibleOutputTokens: null, reasoningTokens: null },
     });
 
     const [, options] = vi.mocked(fetchWithAgent).mock.calls[0];
@@ -253,7 +254,8 @@ describe("anthropic-adapter generateStream", () => {
     expect(chunks.map((chunk) => chunk.textDelta)).toEqual(["", "partial", ""]);
     expect(chunks[2].raw.usage).toEqual({ inputTokens: 7, outputTokens: 0, totalTokens: 7, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 });
     expect(chunks[2].raw.usageObservation).toEqual({ version: 1, source: "partial", totalTokens: null,
-      inputTokens: 7, outputTokens: null, knownTokens: 7, invalid: false, complete: false });
+      inputTokens: 7, outputTokens: null, knownTokens: 7, invalid: false, complete: false,
+      inputComplete: true, outputComplete: false, visibleOutputTokens: null, reasoningTokens: null });
   });
 
   it("rejects when the API key is missing", async () => {

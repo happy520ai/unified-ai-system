@@ -6,6 +6,8 @@ import { HttpLLMProviderAdapter } from "../providers/httpLlmProviderAdapter.js";
 import { ProviderRegistry } from "../providers/providerRegistry.js";
 import { createWorkforceRoleProviderFactory, type WorkforceRoleRunContext } from "./workforceRoleProvider.ts";
 import { freezeWorkforceRoleExecutionProfile } from "./workforceRoleExecutionProfile.ts";
+import { createApiKeyManager } from "../enterprise/apiKeyManager.js";
+import { bindVirtualKeyRequestAccounting, createVirtualKeyRequestAccounting } from "../enterprise/virtualKeyRequestAccounting.ts";
 
 afterEach(() => { vi.restoreAllMocks(); connectionPool.destroyAllPools(); });
 
@@ -42,6 +44,23 @@ function fixture(selected = profile()) {
 }
 
 describe("per-run Workforce role Provider factory", () => {
+  it("preserves authenticated virtual-key accounting across two roles without a second RPM admission", async () => {
+    const f = fixture(profile(1, ["analysis", "review"]));
+    const manager = createApiKeyManager({ storePath: null });
+    const { record } = manager.create({ tenantId: "tenant-a", role: "operator", budget: { limitTokens: 1000, window: "daily" }, rateLimit: { requestsPerMinute: 1 } });
+    const admissions = vi.spyOn(manager, "authorizeUsage"); const charges = vi.spyOn(manager, "recordUsage");
+    const input = context(f.profile.profileHash);
+    input.identity = { ...input.identity, apiKeyFingerprint: record.keyFingerprint };
+    bindVirtualKeyRequestAccounting(input.requestExecution, createVirtualKeyRequestAccounting({ manager, keyFingerprint: record.keyFingerprint, onEvent: () => {} }));
+    const run = f.factory.forRun(input);
+    const receipts = await Promise.all(["analysis", "review"].map(roleId => run.createRoleAdapter(task(roleId)).generate(REQUEST)));
+    expect(receipts.every(receipt => receipt.workforceReceipt.status === "succeeded")).toBe(true);
+    expect(admissions).toHaveBeenCalledOnce(); expect(charges).toHaveBeenCalledTimes(2);
+    expect(manager.describeUsage({ keyId: record.keyId })!.usage).toMatchObject({ requestCount: 1,
+      rateRequestCount: 1, tokensUsed: charges.mock.calls.reduce((sum, [input]) => sum + input!.tokens!, 0) });
+    expect(charges.mock.calls.every(([charge]) => charge!.tokens! > 0)).toBe(true);
+  });
+
   it("keeps two concurrent tenants and their run/dispatch identities isolated", async () => {
     const f = fixture();
     const a = context(f.profile.profileHash, "a"); const b = context(f.profile.profileHash, "b");

@@ -11,6 +11,8 @@ import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { readJson, writeJson } from "./utils/responseUtils.js";
 import { createErrorEnvelope, createOkEnvelope } from "@unified-ai-system/shared-utils";
 import type { AgentGovernanceService } from "../agent-governance/agentGovernanceService.ts";
+import type { GatewayExecutionContext } from "./httpRequestExecution.ts";
+import { getVirtualKeyRequestAccounting, inheritVirtualKeyRequestAccounting } from "../enterprise/virtualKeyRequestAccounting.ts";
 
 interface AgentGovernanceDispatchContext {
   request: IncomingMessage & {
@@ -20,6 +22,7 @@ interface AgentGovernanceDispatchContext {
       userId?: string;
       role?: string;
       permissions?: string[];
+      apiKeyFingerprint?: unknown;
       /** Trusted server-bound Agent actor identity; never sourced from JSON. */
       actorAgentId?: unknown;
     };
@@ -32,6 +35,7 @@ interface AgentGovernanceDispatchContext {
   };
   writeServiceLog?: (event: string, data: Record<string, unknown>) => void;
   requestId?: string;
+  requestExecution?: GatewayExecutionContext;
 }
 
 export const AGENT_GOVERNANCE_ROUTE_DECLARATIONS = [
@@ -79,15 +83,23 @@ export async function dispatchAgentGovernanceRoutes(context: AgentGovernanceDisp
     role: identity?.role,
     permissions: Array.isArray(identity?.permissions) ? [...identity.permissions] : [],
     requestId: context.requestId,
+    ...(context.requestExecution ? { execution: context.requestExecution } : {}),
     ...(identity && Object.hasOwn(identity, "actorAgentId")
       ? { actorAgentId: identity.actorAgentId as string | null | undefined }
       : {}),
   };
+  inheritVirtualKeyRequestAccounting(request, ctx);
+  inheritVirtualKeyRequestAccounting(context.requestExecution, ctx);
 
   try {
     switch (route) {
       case "POST /v1/agents/generate": {
         requireIdentity(ctx);
+        if (identity?.apiKeyFingerprint && !getVirtualKeyRequestAccounting(ctx)) {
+          writeJson(response, 503, createErrorEnvelope("VIRTUAL_KEY_ACCOUNTING_UNAVAILABLE",
+            "Virtual key accounting context is unavailable.", { startedAt, category: "internal", retryable: false }));
+          return;
+        }
         const body = await readJson(request);
         const requestedTools = body?.requestedTools ?? body?.requested_tools;
         const ttlSeconds = body?.ttlSeconds ?? body?.ttl_seconds;
