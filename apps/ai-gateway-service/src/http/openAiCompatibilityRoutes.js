@@ -820,7 +820,10 @@ async function handleAnthropicMessages({
   // Guardrails（确定性本地扫描）：与 /v1/chat/completions 同一引擎，作用于
   // 归一化前的原始请求，拦截/脱敏覆盖 JSON、流式与缓存路径。
   const anthropicGuardrailsEngine = getGuardrailsEngine(request.enterpriseIdentity?.tenantId);
-  const anthropicGuardrailVerdict = anthropicGuardrailsEngine.inspectInput(body);
+  const anthropicGuardrailVerdict = anthropicGuardrailsEngine.inspectInput({ messages: [
+    { role: "system", content: body?.system },
+    ...(Array.isArray(body?.messages) ? body.messages : []),
+  ] });
   if (anthropicGuardrailVerdict.decision === "block") {
     recordGuardrailEvaluation("input", "block");
     for (const finding of anthropicGuardrailVerdict.findings) {
@@ -853,8 +856,10 @@ async function handleAnthropicMessages({
     });
   }
   for (const replacement of anthropicGuardrailVerdict.replacements) {
-    if (body.messages?.[replacement.index]) {
-      body.messages[replacement.index].content = replacement.content;
+    if (replacement.index === 0) {
+      body.system = replacement.content;
+    } else if (body.messages?.[replacement.index - 1]) {
+      body.messages[replacement.index - 1].content = replacement.content;
     }
   }
 
@@ -1409,7 +1414,9 @@ function normalizeAnthropicTextContent(content, param) {
         );
       }
     }
-    return readRequiredString(block.text, `${blockParam}.text`);
+    const generatedEmpty = consumeGuardrailsGeneratedEmptyText(block)
+      && typeof block.text === "string" && !block.text.trim();
+    return generatedEmpty ? "" : readRequiredString(block.text, `${blockParam}.text`);
   }).join("");
 }
 

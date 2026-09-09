@@ -71,6 +71,10 @@ the concatenated text parts of each message, places each replacement at the
 match's original start, and retains unrelated text and non-text parts at their
 existing positions. It does not inspect image bytes, tool arguments or other
 non-text fields. The engine returns replacements without changing its input.
+Anthropic top-level `system` strings and text blocks enter the same input rules
+before the conversation messages, including the shared length budget. Redaction
+preserves their block metadata, and only transformation-generated empty blocks
+are accepted; originally empty blocks still fail protocol validation.
 
 `input.limits: redact` applies one prefix budget after the other text
 replacements, in message order. It counts UTF-16 code units like JavaScript
@@ -174,6 +178,13 @@ document. It adds no dependency or persistent format. Roll back those changes
 together to restore the prior input profile; the request schemas and default
 rule actions are unchanged. The previous profile did not apply array-text
 redaction or the two input-only `redact` actions.
+
+The subsequent Anthropic system-field fix is a three-file route/test/document
+change. The existing ESM protocol adapter maps the field into the TypeScript
+engine and reuses its private empty-block proof; a second parser or runtime
+language would duplicate the same contract. No schema, dependency or persisted
+data changes. Reverting these three changes restores the previous system-field
+coverage gap without changing stored configuration or conversation data.
 
 This change crosses the scope checkpoint because six stream profiles, exact and
 approximate caches, stored Responses and their regression tests must agree.
