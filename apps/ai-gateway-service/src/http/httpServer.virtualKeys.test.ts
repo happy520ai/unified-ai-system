@@ -5,6 +5,8 @@ import { randomBytes } from "node:crypto";
 import { getEventListeners } from "node:events";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
+import { Client, JsonRpcTransportFactory } from "@a2a-js/sdk/client";
+import { GetTaskRequest, SendMessageRequest, TaskState, type AgentCard } from "@a2a-js/sdk";
 import { GatewayService, MANAGED_LOCAL_CLIENT_PROVIDER_PIN } from "../core/gatewayService.js";
 import { ProviderRegistry } from "../providers/providerRegistry.js";
 import { createFakeProvider } from "../providers/fakeProvider.js";
@@ -512,6 +514,49 @@ describe("managed A2A blocking SendMessage admission", () => {
         ...(header === null ? {} : { "x-ai-gateway-local-client-proof": header }) } });
     return { response, payload: await response.json() as any };
   }
+  it("uses the official A2A client transport with a fresh exact-byte proof and rejects tampering", async () => {
+    const f = await fixture(false, false, false, true, {});
+    const m = f.managedContext!;
+    const cardResponse = await fetch(f.url + "/.well-known/agent-card.json");
+    expect(cardResponse.status).toBe(200);
+    const card = await cardResponse.json() as AgentCard;
+    const signatures = new Set<string>();
+    let tamper = false;
+    let lastStatus = 0;
+    const signedFetch: typeof fetch = async (input, init) => {
+      const request = new Request(input, init);
+      expect(request.url).toBe(f.url + "/a2a/jsonrpc");
+      expect(request.method).toBe("POST");
+      const originalBytes = await request.text();
+      const proof = await m.sign(originalBytes);
+      signatures.add(proof);
+      const headers = new Headers(request.headers);
+      headers.set("authorization", `Bearer ${m.clients[0]!.key}`);
+      headers.set("x-ai-gateway-local-client-proof", proof);
+      headers.set("provider-dispatch-key", "official-managed-a2a");
+      const response = await fetch(request.url, { method: request.method, headers, signal: request.signal, redirect: "error",
+        body: tamper ? originalBytes.replace("managed-message", "tampered-message") : originalBytes });
+      lastStatus = response.status;
+      return response;
+    };
+    const transport = await new JsonRpcTransportFactory({ fetchImpl: signedFetch }).create(f.url + "/a2a/jsonrpc", card);
+    const client = new Client(transport, card);
+    const result = await client.sendMessage(SendMessageRequest.fromJSON(body().params));
+    expect(result).toMatchObject({ status: { state: TaskState.TASK_STATE_COMPLETED } });
+    expect(f.generate).toHaveBeenCalledOnce();
+    expect(f.executions.mock.calls[0]![0].enterpriseIdentity).toMatchObject({ tenantId: "managed-alpha", managedClientId: "desktop.alpha" });
+    tamper = true;
+    await expect(client.sendMessage(SendMessageRequest.fromJSON(body().params))).rejects.toThrow();
+    expect(lastStatus).toBe(401);
+    expect(signatures.size).toBe(2);
+    expect(f.generate).toHaveBeenCalledOnce();
+    tamper = false;
+    const taskId = "id" in result ? result.id : "";
+    expect(taskId).not.toBe("");
+    await expect(client.getTask(GetTaskRequest.fromJSON({ id: taskId }))).rejects.toThrow();
+    expect(lastStatus).toBe(403);
+    expect(f.generate).toHaveBeenCalledOnce();
+  });
   it("composes authenticated identity, exact-body proof, current policy pin and private fake fence", async () => {
     const f = await fixture(false, false, false, true, {});
     const input = body(); Object.assign(input.params.metadata.unifiedAi, { verified: true, managedClientId: "forged", clientRevision: 999,
