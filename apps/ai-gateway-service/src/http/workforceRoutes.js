@@ -8,6 +8,7 @@ import { stableStringify } from "@unified-ai-system/policy-engine";
 
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { redactSecretsInText } from "../security/secretSafety.js";
+import { rejectUnimplementedCodeDelivery } from "../workforce/workforceCodeDeliveryProfile.ts";
 
 const GOVERNED_WORKFORCE_TOOL_NAME = "workforce_execute";
 const GOVERNED_AGENT_ID_PATTERN = /^agt_[A-Za-z0-9_-]{1,128}$/u;
@@ -252,6 +253,12 @@ export function createWorkforceRoutes(application, helpers) {
       const userId = requireExecutionUserId(req);
       const tenantId = requireExecutionTenantId(req);
       const input = { ...body, userId, tenantId };
+      if (Object.hasOwn(input, "codeDelivery")) {
+        if (typeof workforceExecutor?.assertExecutionPrerequisites !== "function") rejectUnimplementedCodeDelivery();
+        await workforceExecutor.assertExecutionPrerequisites(input);
+        // A substituted executor cannot turn the first-batch preview into an executable lane.
+        rejectUnimplementedCodeDelivery();
+      }
       governedExecution = await authorizeGovernedWorkforceExecution(req, input);
       if (governedExecution?.approval) {
         approval = governedExecution.approval;
@@ -471,6 +478,11 @@ export function createWorkforceRoutes(application, helpers) {
     try {
       const userId = requireExecutionUserId(req);
       const tenantId = requireExecutionTenantId(req);
+      if (Object.hasOwn(body, "codeDelivery")) {
+        if (typeof workforceExecutor?.assertExecutionPrerequisites !== "function") rejectUnimplementedCodeDelivery();
+        await workforceExecutor.assertExecutionPrerequisites({ ...body, userId, tenantId });
+        rejectUnimplementedCodeDelivery();
+      }
       const result = await workforceExecutor.approveExecution(
         { ...body, userId, tenantId },
         userId,
@@ -644,6 +656,7 @@ function createSafeWorkforceGovernanceParams(input, descriptor) {
       templateSelected: typeof input?.selectedTemplate === "string" || typeof input?.templateId === "string",
       ...(descriptor.roleExecution ? { roleExecution: descriptor.roleExecution } : {}),
       ...(descriptor.selectionReview ? { selectionReview: descriptor.selectionReview } : {}),
+      ...(descriptor.codeDelivery ? { codeDelivery: descriptor.codeDelivery } : {}),
     }),
   });
 }
@@ -668,6 +681,7 @@ function createWorkforceApprovalReview(input, descriptor, params) {
     templateSelected: params.options.templateSelected,
     ...(params.options.roleExecution ? { roleExecution: params.options.roleExecution } : {}),
     ...(params.options.selectionReview ? { selectionReview: params.options.selectionReview } : {}),
+    ...(params.options.codeDelivery ? { codeDelivery: params.options.codeDelivery } : {}),
   });
   return Object.freeze({
     schemaVersion: 1,
@@ -714,6 +728,7 @@ function applyApprovedWorkforceInput(input, approvedParams) {
     goal: approvedParams.goal,
     planId: approvedParams.planId,
     autonomyMode: approvedParams.options.autonomyMode,
+    ...(approvedParams.options.codeDelivery ? { codeDelivery: { profileId: approvedParams.options.codeDelivery.profile.profileId } } : {}),
   };
 }
 

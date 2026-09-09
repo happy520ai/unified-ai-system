@@ -9,6 +9,7 @@
  */
 
 import { createHash, randomUUID } from "node:crypto";
+import { resolve } from "node:path";
 import { createRuntimeGatewayBrainAdapter } from "@unified-ai-system/employee-brain-adapter";
 
 import { createWorktreeIsolation } from "./worktreeIsolation.js";
@@ -26,6 +27,9 @@ import { createDiagnosticReadChannel } from "./diagnosticReadChannel.js";
 import { AUTONOMY_MODES, DEFAULT_AUTONOMY_MODE, resolveAutonomyModeFrom } from "./autonomyModes.js";
 import { createWorkforceExecutionDescriptor } from "./workforceExecutionAuthorization.ts";
 import { readFrozenWorkforceRoleExecutionProfile } from "./workforceRoleExecutionProfile.ts";
+import { CODE_DELIVERY_READINESS, codeDeliveryError, createWorkforceCodeDeliveryReview,
+  freezeWorkforceCodeDeliveryProfile, readWorkforceCodeDeliverySelector, rejectUnimplementedCodeDelivery,
+} from "./workforceCodeDeliveryProfile.ts";
 import { createWorkforceSelectionFeedback } from "./workforceSelectionReview.ts";
 import { executeWorkforceDag } from "./workforceDagExecutor.ts";
 import { createAutonomyTierGovernor, TIERS as TIER_VALUES } from "./autonomyTierGovernor.js";
@@ -157,6 +161,7 @@ async function reserveGovernedRoleStep(governedExecution) {
  * @param {ReturnType<typeof import("./workforceRoleProvider.ts").createWorkforceRoleProviderFactory> | null} [options.roleProviderFactory] — server-owned per-run role bindings
  * @param {ReturnType<typeof import("./workforceRoleSelection.ts").createConfiguredWorkforceRoleSelection> | null} [options.roleSelection] — explicit frozen server selection mode
  * @param {object} [options.forgeService] — optional isolated-root-aware Forge adapter
+ * @param {readonly import("@unified-ai-system/shared-contracts").WorkforceCodeDeliveryProfileInput[]} [options.codeDeliveryProfiles] — server-owned, non-executable reviewed intents
  * @param {object} [options.sandboxMerger] — injected sandbox merge boundary
  * @param {object} [options.tierGovernor] — injected autonomy tier governor
  * @param {object} [options.workspaceGuard] — injected workspace safety boundary
@@ -192,6 +197,21 @@ export function createControlledExecutor(options = {}) {
     );
   }
   const forgeService = options.forgeService ?? null;
+  const configuredCodeProfiles = options.codeDeliveryProfiles ?? [];
+  if (!Array.isArray(configuredCodeProfiles) || configuredCodeProfiles.length > 16) {
+    throw codeDeliveryError("WORKFORCE_CODE_DELIVERY_PROFILE_INVALID", 503, "At most sixteen server code delivery profiles may be configured.");
+  }
+  const codeDeliveryProfiles = new Map();
+  for (const source of configuredCodeProfiles) {
+    const profile = freezeWorkforceCodeDeliveryProfile(source);
+    if (codeDeliveryProfiles.has(profile.profileId)) {
+      throw codeDeliveryError("WORKFORCE_CODE_DELIVERY_PROFILE_INVALID", 503, "Code delivery profile identifiers must be unique.");
+    }
+    codeDeliveryProfiles.set(profile.profileId, profile);
+  }
+  const configuredRoot = codeDeliveryProfiles.size ? resolve(options.repoRoot ?? process.cwd()).replaceAll("\\", "/") : null;
+  const configuredRepositoryHash = configuredRoot === null ? null : "sha256:" + createHash("sha256")
+    .update(JSON.stringify(["workforce-code-repository-config/v1", process.platform === "win32" ? configuredRoot.toLowerCase() : configuredRoot])).digest("hex");
   const maxConcurrent = readBoundedInteger(env.WORKFORCE_MAX_CONCURRENT, DEFAULT_MAX_CONCURRENT_AGENTS, 1, 16);
   const timeoutMs = readBoundedInteger(
     env.WORKFORCE_EXECUTION_TIMEOUT_MS,
@@ -302,6 +322,11 @@ export function createControlledExecutor(options = {}) {
   }
 
   async function prepareExecution(input = {}) {
+    const codeProfileId = readWorkforceCodeDeliverySelector(input);
+    const codeProfile = codeProfileId === undefined ? null : codeDeliveryProfiles.get(codeProfileId);
+    if (codeProfileId !== undefined && !codeProfile) {
+      throw codeDeliveryError("WORKFORCE_CODE_DELIVERY_PROFILE_NOT_FOUND", 409, "The selected server code delivery profile is unavailable.");
+    }
     let plan = createWorkforcePlan(input);
     const autonomyMode = await resolveAutonomyModeAsync(input);
     if (roleSelection && ["selectionReview", "catalog", "candidates", "qualifications", "qualification", "employeeId", "providerId", "modelId", "roleExecution", "executionMode"].some(key => Object.hasOwn(input, key))) {
@@ -333,6 +358,8 @@ export function createControlledExecutor(options = {}) {
     const descriptor = createWorkforceExecutionDescriptor({ input, plan, autonomyMode,
       ...(selectedProfile ? { roleExecution: selectedProfile } : {}),
       ...(selection ? { selectionReview: selection.decision } : {}),
+      ...(codeProfile ? { codeDelivery: createWorkforceCodeDeliveryReview({ profile: codeProfile,
+        configuredRepositoryHash, roleExecution: selectedProfile }) } : {}),
     });
     return { plan, autonomyMode, descriptor, roleExecutionProfile: selectedProfile,
       roleProviderFactory: selection?.roleProviderFactory ?? roleProviderFactory, selectionReview: selection?.decision ?? null };
@@ -418,6 +445,7 @@ export function createControlledExecutor(options = {}) {
     async execute(input = {}, executionOptions = {}) {
       const startedAt = new Date();
       const { plan, autonomyMode: mode, descriptor, roleExecutionProfile, roleProviderFactory, selectionReview } = await prepareExecution(input);
+      if (descriptor.codeDelivery) rejectUnimplementedCodeDelivery();
       const governedExecution = normalizeGovernedExecution(executionOptions.agentGovernance);
       const executionSignal = combineWorkforceExecutionSignals(
         executionOptions.signal,
@@ -912,6 +940,7 @@ export function createControlledExecutor(options = {}) {
         throw error;
       }
       const { autonomyMode, descriptor } = await prepareExecution(input);
+      if (descriptor.codeDelivery) rejectUnimplementedCodeDelivery();
       if (autonomyMode === AUTONOMY_MODES.DRY_RUN) {
         const error = new Error("A non-dry-run autonomyMode is required for execution approval.");
         error.code = "WORKFORCE_EXECUTION_MODE_REQUIRED";
@@ -953,6 +982,7 @@ export function createControlledExecutor(options = {}) {
      */
     async checkApproval(input = {}, userId) {
       const { descriptor } = await prepareExecution(input);
+      if (descriptor.codeDelivery) rejectUnimplementedCodeDelivery();
       return approvalGate.check({
         planId: descriptor.planId,
         tenantId: typeof input.tenantId === "string" && input.tenantId.trim()
@@ -973,7 +1003,14 @@ export function createControlledExecutor(options = {}) {
 
     async describeExecution(input = {}) {
       const { descriptor } = await prepareExecution(input);
-      return descriptor;
+      return descriptor.codeDelivery
+        ? Object.freeze({ ...descriptor, codeDeliveryReadiness: CODE_DELIVERY_READINESS }) : descriptor;
+    },
+
+    /** Called before the HTTP Tool Proxy may consume its separate approval. */
+    async assertExecutionPrerequisites(input = {}) {
+      const { descriptor } = await prepareExecution(input);
+      if (descriptor.codeDelivery) rejectUnimplementedCodeDelivery();
     },
 
     /**

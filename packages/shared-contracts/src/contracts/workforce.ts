@@ -1,5 +1,58 @@
 import type { ContractMetadata, RequestContext, ResultEnvelope } from "./common.js";
 
+/** Server-configured, exact-file code delivery intent. This DTO grants no execution authority. */
+export interface WorkforceCodeDeliveryProfileInput {
+  readonly version: 1;
+  readonly mode: "forge-owned-worktree-artifact";
+  readonly profileId: string;
+  readonly projectId: string;
+  readonly baselineRevision: string;
+  readonly roleId: "backend-engineer";
+  readonly readPaths: readonly string[];
+  readonly writePaths: readonly string[];
+  readonly verification: {
+    readonly verificationId: string;
+    readonly command: string;
+    readonly immutableTests: readonly { readonly path: string; readonly sha256: string }[];
+    readonly image: string;
+    readonly workspaceMode: "ro";
+    readonly networkAccess: false;
+    readonly timeoutMs: number;
+    readonly maxMemoryMB: number;
+    readonly maxOutputBytes: number;
+    readonly pidsLimit: number;
+    readonly cpus: number;
+  };
+  readonly artifactLimits: {
+    readonly maxChangedFiles: number;
+    readonly maxFileBytes: number;
+    readonly maxDiffBytes: number;
+  };
+}
+
+export interface WorkforceCodeDeliveryProfile extends WorkforceCodeDeliveryProfileInput {
+  readonly profileHash: string;
+}
+
+export interface WorkforceCodeDeliveryReview {
+  readonly version: 1;
+  readonly profile: WorkforceCodeDeliveryProfile;
+  /** Configuration identity only; does not attest canonical filesystem ownership. */
+  readonly configuredRepositoryHash: string;
+  readonly roleProfileHash: string;
+}
+
+/** Until the real delivery factory is wired, all code approval and execution paths reject. */
+export interface WorkforceCodeDeliveryReadiness {
+  readonly version: 1;
+  readonly executionAllowed: false;
+  readonly implementation: "unavailable";
+  readonly container: "not-checked";
+  readonly policy: "not-checked";
+  readonly worktree: "not-created";
+  readonly verification: "not-run";
+}
+
 /** Server-selected binding; none of these fields carry credential values. */
 export interface WorkforceRoleExecutionBinding {
   readonly roleId: string;

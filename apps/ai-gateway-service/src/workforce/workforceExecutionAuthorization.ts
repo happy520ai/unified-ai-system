@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
 
 import { AUTONOMY_MODES } from "./autonomyModes.js";
-import type { WorkforceRoleExecutionProfile, WorkforceSelectionDecision } from "@unified-ai-system/shared-contracts";
+import type { WorkforceCodeDeliveryReadiness, WorkforceCodeDeliveryReview, WorkforceRoleExecutionProfile, WorkforceSelectionDecision } from "@unified-ai-system/shared-contracts";
 import { readFrozenWorkforceRoleExecutionProfile } from "./workforceRoleExecutionProfile.ts";
 import { readFrozenWorkforceSelectionReview } from "./workforceSelectionReview.ts";
+import { readWorkforceCodeDeliveryReview } from "./workforceCodeDeliveryProfile.ts";
 
 type JsonPrimitive = boolean | number | string | null;
 type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
@@ -21,6 +22,9 @@ export interface WorkforceExecutionDescriptor {
   requiredScopes: string[];
   roleExecution?: WorkforceRoleExecutionProfile;
   selectionReview?: WorkforceSelectionDecision;
+  codeDelivery?: WorkforceCodeDeliveryReview;
+  /** Display-only projection from describeExecution, never included in the approval digest. */
+  codeDeliveryReadiness?: WorkforceCodeDeliveryReadiness;
 }
 
 const PLAN_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/;
@@ -34,6 +38,8 @@ export function createWorkforceExecutionDescriptor(params: {
   roleExecution?: WorkforceRoleExecutionProfile;
   /** Only the server's frozen selection context, never input.selectionReview. */
   selectionReview?: WorkforceSelectionDecision;
+  /** Server-configured review only; input.codeDelivery is merely a selector. */
+  codeDelivery?: WorkforceCodeDeliveryReview;
 }): WorkforceExecutionDescriptor {
   const input = params.input ?? {};
   const planId = normalizeWorkforcePlanId(input.planId ?? params.plan.workforceId);
@@ -42,12 +48,18 @@ export function createWorkforceExecutionDescriptor(params: {
     ? undefined : readFrozenWorkforceRoleExecutionProfile(params.roleExecution);
   const selectionReview = params.selectionReview === undefined
     ? undefined : readFrozenWorkforceSelectionReview(params.selectionReview, roleExecution);
+  const codeDelivery = params.codeDelivery === undefined
+    ? undefined : readWorkforceCodeDeliveryReview(params.codeDelivery, roleExecution);
+  if (codeDelivery && params.autonomyMode !== AUTONOMY_MODES.DRY_RUN
+    && params.autonomyMode !== AUTONOMY_MODES.CONTROLLED_EXECUTION) {
+    throw createAuthorizationError("WORKFORCE_CODE_DELIVERY_BINDING_INVALID", "Code delivery does not support sandbox merge modes.");
+  }
   if (selectionReview && (!Array.isArray(params.plan.selectedRoles)
     || JSON.stringify([...params.plan.selectedRoles].sort()) !== JSON.stringify(selectionReview.roleIds))) {
     throw createAuthorizationError("WORKFORCE_SELECTION_REVIEW_INVALID", "The selected roles must match the complete execution plan.");
   }
   const digestPayload = canonicalize({
-    schema: selectionReview ? "workforce-execution-approval/v3" : roleExecution ? "workforce-execution-approval/v2" : "workforce-execution-approval/v1",
+    schema: codeDelivery ? "workforce-execution-approval/v4" : selectionReview ? "workforce-execution-approval/v3" : roleExecution ? "workforce-execution-approval/v2" : "workforce-execution-approval/v1",
     planId,
     tenantId: typeof input.tenantId === "string" && input.tenantId.trim()
       ? input.tenantId.trim()
@@ -61,6 +73,7 @@ export function createWorkforceExecutionDescriptor(params: {
     operationType: input.operationType ?? null,
     ...(roleExecution ? { roleExecution } : {}),
     ...(selectionReview ? { selectionReview } : {}),
+    ...(codeDelivery ? { codeDelivery } : {}),
   });
   const planDigest = createHash("sha256")
     .update(JSON.stringify(digestPayload), "utf8")
@@ -73,6 +86,7 @@ export function createWorkforceExecutionDescriptor(params: {
     requiredScopes: Object.freeze([...requiredScopes]) as unknown as string[],
     ...(roleExecution ? { roleExecution } : {}),
     ...(selectionReview ? { selectionReview } : {}),
+    ...(codeDelivery ? { codeDelivery } : {}),
   });
 }
 
