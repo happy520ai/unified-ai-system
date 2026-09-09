@@ -25,6 +25,7 @@ import { stableStringify } from "@unified-ai-system/policy-engine";
 import { containsSensitivePublicationText, redactSecretsInText } from "../security/secretSafety.js";
 import { createGovernanceStateFileBinding } from "./governanceStateAnchor.ts";
 import { readFrozenWorkforceRoleExecutionProfile } from "../workforce/workforceRoleExecutionProfile.ts";
+import { readFrozenWorkforceSelectionReview } from "../workforce/workforceSelectionReview.ts";
 
 const APPROVAL_KEY_INFO = "agent-governance-approval-args/v1";
 const DEFAULT_APPROVAL_TTL_SECONDS = 24 * 60 * 60;
@@ -884,7 +885,9 @@ function normalizeWorkforceOptions(value: unknown): NonNullable<AgentToolApprova
   }
   const source = value as Record<string, unknown>;
   const hasRoleExecution = Object.hasOwn(source, "roleExecution");
-  const expectedKeys = ["selectedRoleCount", "templateSelected", ...(hasRoleExecution ? ["roleExecution"] : [])];
+  const hasSelectionReview = Object.hasOwn(source, "selectionReview");
+  const expectedKeys = ["selectedRoleCount", "templateSelected", ...(hasRoleExecution ? ["roleExecution"] : []), ...(hasSelectionReview ? ["selectionReview"] : [])];
+  if (hasSelectionReview && !hasRoleExecution) throw corrupt("Workforce selection requires its complete execution profile.");
   if (Object.keys(source).sort().join("\0") !== expectedKeys.sort().join("\0")
     || (source.selectedRoleCount !== null
       && (!Number.isSafeInteger(source.selectedRoleCount)
@@ -896,7 +899,13 @@ function normalizeWorkforceOptions(value: unknown): NonNullable<AgentToolApprova
     selectedRoleCount: source.selectedRoleCount === null ? null : Number(source.selectedRoleCount),
     templateSelected: source.templateSelected,
     ...(hasRoleExecution ? { roleExecution: normalizeWorkforceRoleExecution(source.roleExecution) } : {}),
+    ...(hasSelectionReview ? { selectionReview: normalizeWorkforceSelection(source.selectionReview, source.roleExecution) } : {}),
   };
+}
+
+function normalizeWorkforceSelection(value: unknown, profile: unknown) {
+  try { return readFrozenWorkforceSelectionReview(value, profile); }
+  catch { throw corrupt("Workforce selection does not match its complete reviewed contract."); }
 }
 
 function normalizeWorkforceRoleExecution(value: unknown) {
@@ -1019,6 +1028,7 @@ function verifyWorkforceReviewMatchesArguments(review: AgentToolApprovalReview, 
       selectedRoleCount: options.selectedRoleCount,
       templateSelected: options.templateSelected,
       ...(options.roleExecution ? { roleExecution: options.roleExecution } : {}),
+      ...(options.selectionReview ? { selectionReview: options.selectionReview } : {}),
     }))) {
     throw corrupt("Workforce approval arguments do not match the complete operator review.");
   }
@@ -1030,8 +1040,10 @@ function normalizeWorkforceArgumentOptions(value: unknown) {
   }
   const source = value as Record<string, unknown>;
   const hasRoleExecution = Object.hasOwn(source, "roleExecution");
+  const hasSelectionReview = Object.hasOwn(source, "selectionReview");
   const expectedKeys = ["autonomyMode", "requiredScopes", "selectedRoleCount", "templateSelected",
-    ...(hasRoleExecution ? ["roleExecution"] : [])];
+    ...(hasRoleExecution ? ["roleExecution"] : []), ...(hasSelectionReview ? ["selectionReview"] : [])];
+  if (hasSelectionReview && !hasRoleExecution) throw corrupt("Workforce selection requires its complete execution profile.");
   if (Object.keys(source).sort().join("\0")
       !== expectedKeys.sort().join("\0")
     || !boundedSafeText(source.autonomyMode, 64)
@@ -1051,6 +1063,7 @@ function normalizeWorkforceArgumentOptions(value: unknown) {
     selectedRoleCount: source.selectedRoleCount === null ? null : Number(source.selectedRoleCount),
     templateSelected: source.templateSelected,
     ...(hasRoleExecution ? { roleExecution: normalizeWorkforceRoleExecution(source.roleExecution) } : {}),
+    ...(hasSelectionReview ? { selectionReview: normalizeWorkforceSelection(source.selectionReview, source.roleExecution) } : {}),
   };
 }
 

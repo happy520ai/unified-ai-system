@@ -882,15 +882,87 @@ microtask window without changing the manual v1 profile. The ninth affected file
 is this existing factory; keeping checks only in the new selection module was
 insufficient, as the retained failing dispatch tests demonstrated.
 
-S1 is an exported module seam, with owned synthetic Git/real governance,
-approval, claim and security components used in its fake contribution tests.
-It is not wired into production application selection or the preview API.
-The existing explicit profile, preview, Provider defaults and approval contracts
-are unchanged. Full selection-review integration and assessed quality feedback
-remain S2 work; cross-run employee capacity and real-model quality are not
-established by these tests. New selection logic is TypeScript, using existing
-Node APIs and no new dependency/service; rollback removes the additive module
-exports without changing the current explicit execution route.
+S1 provides the selector/profile module boundary, with owned synthetic Git,
+governance, approval, claim and security components used in fake contribution
+tests. The production opt-in below reuses that boundary; it does not alter the
+preview API or turn occupational catalog records into evaluated employees.
+
+### Governed employee selection and factual feedback (S2)
+
+Set `AI_GATEWAY_WORKFORCE_ROLE_SELECTION_JSON` to a bounded JSON object with
+exactly `version: 1`, `executionMode: "fake" | "real"`, and `catalog` containing
+the S1 configuration described above. The limit is 64 KiB. Configuration is
+absent by default; configuring both this value and
+`AI_GATEWAY_WORKFORCE_ROLE_EXECUTION_PROFILE_JSON` rejects at startup.
+`WORKFORCE_EXECUTION_ENABLED=true`, enabled Agent Governance and both existing
+approval layers remain required. Credential values and evaluation originals
+are not selection configuration. A server operator must independently accept
+the referenced qualification evidence before enrolling an assignment.
+
+The task type is the normalized plan template ID, such as `feature-development`;
+the request may name canonical `selectedRoles`, such as `["ceo"]`. Selection
+expands all required dependencies. The existing default seven-role plan exceeds
+this first selector's three-role bound and is refused; necessary dependencies
+are never silently dropped. Request JSON cannot supply selectionReview,
+qualification, catalog, employee or Provider/model authority. Synthetic
+qualifications permit only the fake lane, and `occupation_candidate` remains
+ineligible even when its display title matches a requested role.
+
+The frozen catalog produces immutable decisions cached by normalized task/role
+requirements, with a 128-context cap and explicit refusal at capacity. Approval
+and execution reuse these decisions; there is no ranking by current health,
+time, feedback or load, and no catalog hot reload. Each execution keeps its
+chosen factory in a local value and that factory creates separate per-run
+state. Provider unavailability or qualification expiry only blocks the chosen
+binding. A changed catalog revision invalidates the old approval even when
+the resulting employees and targets happen to be identical.
+
+Both approval layers carry complete `options.selectionReview` alongside the
+unchanged v1 role profile. It includes algorithm version 1, catalogHash,
+selectionHash, task requirements, every selected binding and budget, accepted
+qualification scope/mode/evidenceHash/validUntil, and all rejected candidates'
+reasons. The catalog hash covers the frozen rules, catalog revision and
+qualification records; the selection hash is recomputed from the complete
+decision, and the profile ID/bindings/budgets must match. Selection descriptors
+use approval digest domain v3. Manual profile v2 and original template v1
+digests remain unchanged. CLI approval text and JSON show every selection item
+and numeric budget, rather than hiding them behind hashes or generic redaction.
+
+`selectionFeedback` is built from actual server-owned contribution/receipt facts:
+employee/role/task/execution/profile/selection links, contribution text hash,
+and receipt status, mode, request ID, target, attempted flag and error code.
+Usage/request totals stay in the existing linked receipts. Feedback has
+`quality: "unassessed"` and `qualityScore: null`; it never grants qualification
+or changes a running selection. Successful task outputs, existing evidence
+deliverables, and terminal lifecycle summaries retain the feedback. Failed
+receipt facts are retained without pretending that a missing contribution or
+unattempted call succeeded; absent receipts do not generate invented feedback.
+The generic evidence redactor otherwise treats long hex strings as secrets.
+Only exact, deeply frozen feedback objects registered by the private constructor
+retain their public hashes and execution IDs during persistence; ordinary JSON,
+clones and forged source/request fields receive the existing redaction. This
+exception preserves factual links without disabling secret or long-hex masking.
+
+Validation uses the actual application configuration/descriptor and a matching
+executor with the same Gateway/ProviderRegistry bound to an owned temporary Git
+repository, then real local HTTP, enterprise authentication and both approval
+layers. It covers accepted fake contributions, failure facts, request-authority
+refusal, changed/expired selection, and exact persisted feedback. The temporary
+repository replacement is a test composition boundary: default-checkout
+production execution, real Provider calls, independently assessed role quality,
+cross-run employee capacity, hosted deployment and production recovery are
+separate evidence. No new route, CLI command, dependency, schema or service is
+introduced; the cross-owner files are necessary to close the same approval and
+execution chain. Rollback disables the selection configuration and restarts
+the application; preserve existing approval and execution history, whose
+selection-bound hashes cannot authorize a different manual profile.
+
+Language Selection: TypeScript owns the pure exact review and feedback contracts;
+existing JavaScript orchestrator, HTTP, factory and CLI receive bounded wiring.
+For domain/maintenance/operations/safety/migration/ecosystem, TypeScript scores
+5/5/5/5/5/5 (30), JavaScript-only 5/4/5/3/5/5 (27), and a separate runtime
+3/3/2/4/2/3 (17). This keeps the existing Node effect/fence path and avoids a
+second scheduler or cross-process credential boundary.
 
 ### Existing policy runtime
 

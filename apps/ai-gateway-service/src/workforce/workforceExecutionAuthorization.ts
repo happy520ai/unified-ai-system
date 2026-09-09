@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
 
 import { AUTONOMY_MODES } from "./autonomyModes.js";
-import type { WorkforceRoleExecutionProfile } from "@unified-ai-system/shared-contracts";
+import type { WorkforceRoleExecutionProfile, WorkforceSelectionDecision } from "@unified-ai-system/shared-contracts";
 import { readFrozenWorkforceRoleExecutionProfile } from "./workforceRoleExecutionProfile.ts";
+import { readFrozenWorkforceSelectionReview } from "./workforceSelectionReview.ts";
 
 type JsonPrimitive = boolean | number | string | null;
 type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
@@ -19,6 +20,7 @@ export interface WorkforceExecutionDescriptor {
   autonomyMode: string;
   requiredScopes: string[];
   roleExecution?: WorkforceRoleExecutionProfile;
+  selectionReview?: WorkforceSelectionDecision;
 }
 
 const PLAN_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/;
@@ -30,14 +32,22 @@ export function createWorkforceExecutionDescriptor(params: {
   autonomyMode: string;
   /** Server-owned profile; never read from input.roleExecution or other request JSON. */
   roleExecution?: WorkforceRoleExecutionProfile;
+  /** Only the server's frozen selection context, never input.selectionReview. */
+  selectionReview?: WorkforceSelectionDecision;
 }): WorkforceExecutionDescriptor {
   const input = params.input ?? {};
   const planId = normalizeWorkforcePlanId(input.planId ?? params.plan.workforceId);
   const requiredScopes = requiredScopesForMode(params.autonomyMode);
   const roleExecution = params.roleExecution === undefined
     ? undefined : readFrozenWorkforceRoleExecutionProfile(params.roleExecution);
+  const selectionReview = params.selectionReview === undefined
+    ? undefined : readFrozenWorkforceSelectionReview(params.selectionReview, roleExecution);
+  if (selectionReview && (!Array.isArray(params.plan.selectedRoles)
+    || JSON.stringify([...params.plan.selectedRoles].sort()) !== JSON.stringify(selectionReview.roleIds))) {
+    throw createAuthorizationError("WORKFORCE_SELECTION_REVIEW_INVALID", "The selected roles must match the complete execution plan.");
+  }
   const digestPayload = canonicalize({
-    schema: roleExecution ? "workforce-execution-approval/v2" : "workforce-execution-approval/v1",
+    schema: selectionReview ? "workforce-execution-approval/v3" : roleExecution ? "workforce-execution-approval/v2" : "workforce-execution-approval/v1",
     planId,
     tenantId: typeof input.tenantId === "string" && input.tenantId.trim()
       ? input.tenantId.trim()
@@ -50,6 +60,7 @@ export function createWorkforceExecutionDescriptor(params: {
     context: input.context ?? null,
     operationType: input.operationType ?? null,
     ...(roleExecution ? { roleExecution } : {}),
+    ...(selectionReview ? { selectionReview } : {}),
   });
   const planDigest = createHash("sha256")
     .update(JSON.stringify(digestPayload), "utf8")
@@ -61,6 +72,7 @@ export function createWorkforceExecutionDescriptor(params: {
     autonomyMode: params.autonomyMode,
     requiredScopes: Object.freeze([...requiredScopes]) as unknown as string[],
     ...(roleExecution ? { roleExecution } : {}),
+    ...(selectionReview ? { selectionReview } : {}),
   });
 }
 

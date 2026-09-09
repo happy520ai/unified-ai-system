@@ -44,6 +44,7 @@ import { createWorkforceService } from "../workforce/workforceService.js";
 import { createControlledExecutor } from "../workforce/workforceControlledExecutor.js";
 import { createWorkforceRoleProviderFactory } from "../workforce/workforceRoleProvider.ts";
 import { freezeWorkforceRoleExecutionProfile } from "../workforce/workforceRoleExecutionProfile.ts";
+import { createConfiguredWorkforceRoleSelection } from "../workforce/workforceRoleSelection.ts";
 import { createUserExperienceService } from "../capabilities/userExperienceService.js";
 import { createCapabilityRouterService } from "../capabilities/capabilityRouterService.js";
 import { createEnterpriseGovernanceService } from "../enterprise/enterpriseGovernanceService.js";
@@ -127,6 +128,15 @@ export function createGatewayApplicationForLocalClientFixtureTests(env = {}) {
 
 function createGatewayApplicationInternal(env, fixtureCapability) {
   let workforceRoleExecutionProfile = null;
+  let workforceRoleSelectionConfiguration = null;
+  const selectionJson = String(env.AI_GATEWAY_WORKFORCE_ROLE_SELECTION_JSON ?? "").trim();
+  if (selectionJson) {
+    if (String(env.AI_GATEWAY_WORKFORCE_ROLE_EXECUTION_PROFILE_JSON ?? "").trim() || Buffer.byteLength(selectionJson, "utf8") > 65_536) {
+      throw new Error("Configure one bounded Workforce role selection or manual profile, not both.");
+    }
+    try { workforceRoleSelectionConfiguration = JSON.parse(selectionJson); }
+    catch { throw new Error("AI_GATEWAY_WORKFORCE_ROLE_SELECTION_JSON must contain a valid server selection configuration."); }
+  }
   if (String(env.AI_GATEWAY_WORKFORCE_ROLE_EXECUTION_PROFILE_JSON ?? "").trim()) {
     let profileInput;
     try { profileInput = JSON.parse(env.AI_GATEWAY_WORKFORCE_ROLE_EXECUTION_PROFILE_JSON); }
@@ -307,6 +317,9 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
     executionDir: env.WORKFORCE_EXECUTION_DIR,
     roleProviderFactory: workforceRoleExecutionProfile ? createWorkforceRoleProviderFactory({
       gatewayService, providerRegistry, profile: workforceRoleExecutionProfile,
+    }) : null,
+    roleSelection: selectionJson ? createConfiguredWorkforceRoleSelection({
+      gatewayService, providerRegistry, configuration: workforceRoleSelectionConfiguration,
     }) : null,
   });
   const userExperienceService = createUserExperienceService({

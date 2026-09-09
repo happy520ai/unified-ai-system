@@ -453,6 +453,7 @@ test("agents approvals shows complete Workforce model bindings and the request v
   assert.match(plain.stdout, /Concurrent roles: 2/);
   assert.match(plain.stdout, /input estimate=8192; output parameter=2048; timeout=30000ms/);
   assert.match(plain.stdout, /upstream usage/); assert.match(plain.stdout, /Unknown usage and USD cost remain null/);
+  assert.doesNotMatch(plain.stdout, /Deterministic selection rules|Qualification|Rejected candidates/);
   const json = await runCliProcess([...args, "--json"], "", processOptions);
   assert.equal(json.code, 0, json.stderr);
   assert.equal(JSON.parse(json.stdout).data[0].review.workforce.options.roleExecution.bindings[0].maxInputTokens, 8192);
@@ -470,6 +471,111 @@ test("agents approvals keeps template output compatible and rejects an unreadabl
   const response = await runCliProcess(["agents", "approvals", "--url", invalid.url], "", processOptions);
   assert.notEqual(response.code, 0); assert.doesNotMatch(response.stdout + response.stderr, /sensitive-token-fixture/);
 });
+
+test("agents approvals shows the complete Workforce selection and preserves exact numeric qualification budgets", async (context) => {
+  const review = await workforceSelectionApprovalFixture();
+  const expected = structuredClone(review.workforce.options.selectionReview);
+  // Transport object-key order is not the deterministic decision's hash order.
+  for (const assignment of review.workforce.options.selectionReview.assignments) {
+    assignment.qualification = Object.fromEntries(Object.entries(assignment.qualification).reverse());
+    assignment.binding = Object.fromEntries(Object.entries(assignment.binding).reverse());
+  }
+  const { readFrozenWorkforceSelectionReview } = await import("../../ai-gateway-service/src/workforce/workforceSelectionReview.ts");
+  assert.deepEqual(readFrozenWorkforceSelectionReview(review.workforce.options.selectionReview, review.workforce.options.roleExecution), expected);
+  const gateway = await createAgentGovernanceMockGateway({ approvalReview: review }); context.after(gateway.close);
+  const args = ["agents", "approvals", "--url", gateway.url];
+  const processOptions = { env: { AGENT_CONSOLE_ADMIN_KEY: "uai-mock-admin-key" } };
+  const plain = await runCliProcess(args, "", processOptions);
+  assert.equal(plain.code, 0, plain.stderr);
+  for (const value of [expected.catalogHash, expected.selectionHash, expected.taskType, expected.executionMode]) assert.ok(plain.stdout.includes(value));
+  assert.match(plain.stdout, /Deterministic selection rules: v1/);
+  assert.match(plain.stdout, /Selected role scope: ceo, pm/);
+  assert.match(plain.stdout, /Request dispatch hard limit: 3; Concurrent roles: 2/);
+  for (const { binding, qualification } of expected.assignments) {
+    for (const key of ["employeeId", "roleId", "providerId", "modelId"]) assert.ok(plain.stdout.includes(binding[key]));
+    assert.ok(plain.stdout.includes(`requests<=${binding.maxRequests}; input estimate=${binding.maxInputTokens}; output parameter=${binding.maxOutputTokens}; timeout=${binding.timeoutMs}ms`));
+    for (const key of ["qualificationId", "status", "origin", "executionMode", "evidenceHash", "validUntil"]) assert.ok(plain.stdout.includes(qualification[key]));
+    assert.ok(plain.stdout.includes(`Qualified roles: ${qualification.roleIds.join(", ")}; task types: ${qualification.taskTypes.join(", ")}`));
+  }
+  assert.match(plain.stdout, /Rejected candidates: 3/);
+  for (const rejected of expected.rejected) assert.ok(plain.stdout.includes(`${rejected.employeeId}: ${rejected.reason}`));
+  // Expiry is displayed even for an old review; only the server controls admission.
+  assert.match(plain.stdout, /valid until: 2001-01-01T00:00:00.000Z/);
+  const json = await runCliProcess([...args, "--json"], "", processOptions);
+  assert.equal(json.code, 0, json.stderr);
+  const projected = JSON.parse(json.stdout).data[0].review;
+  assert.deepEqual(projected.workforce.options.selectionReview, expected);
+  assert.equal(projected.authorization, "[redacted]");
+  assert.doesNotMatch(plain.stdout + json.stdout, /private selection token-value|\[truncated\]/);
+});
+
+test("agents approvals rejects incomplete or replaced Workforce selection without leaking unsafe review data", async (context) => {
+  const baseline = await workforceSelectionApprovalFixture();
+  const unsafeIdentifier = "sk-" + "q".repeat(32);
+  const { freezeWorkforceRoleExecutionProfile } = await import("../../ai-gateway-service/src/workforce/workforceRoleExecutionProfile.ts");
+  const mutations = {
+    "selection hash": ({ selection }) => { selection.selectionHash = `sha256:${"0".repeat(64)}`; },
+    "catalog hash": ({ selection }) => { selection.catalogHash = `sha256:${"9".repeat(64)}`; },
+    "task type": ({ selection }) => { selection.taskType = "different-task"; },
+    "qualification mode": ({ selection }) => { selection.assignments[0].qualification.executionMode = "real"; },
+    "unknown selection field": ({ selection }) => { selection.credential = "private selection token-value"; },
+    "unknown qualification field": ({ selection }) => { selection.assignments[0].qualification.apiKey = "private selection token-value"; },
+    "string token budget": ({ selection }) => { selection.assignments[0].binding.maxInputTokens = "sensitive-token-fixture"; },
+    "profile binding replacement": ({ profile }) => { profile.bindings[0].modelId = "replacement-model"; },
+    "profile id replacement": ({ profile }) => { profile.profileId = "selection-" + "1".repeat(64); },
+    "profile hash replacement": ({ profile }) => { profile.profileHash = `sha256:${"2".repeat(64)}`; },
+    "missing assignment": ({ selection }) => { selection.assignments.pop(); },
+    "duplicate assignment": ({ selection }) => { selection.assignments[1] = selection.assignments[0]; },
+    "missing qualification evidence": ({ selection }) => { delete selection.assignments[0].qualification.evidenceHash; },
+    "invalid qualification date": ({ selection }) => { selection.assignments[0].qualification.validUntil = "invalid-date"; },
+    "unknown rejection reason": ({ selection }) => { selection.rejected[0].reason = "private selection token-value"; },
+    "selection without profile": ({ review }) => { delete review.workforce.options.roleExecution; },
+    "unreviewable selection": ({ review }) => { review.reviewable = false; },
+    "secret-like identifier with resealed hashes": ({ selection, profile }) => {
+      selection.assignments[0].qualification.qualificationId = unsafeIdentifier;
+      const { selectionHash: _selectionHash, ...decision } = selection;
+      selection.selectionHash = `sha256:${createHash("sha256").update(JSON.stringify(decision)).digest("hex")}`;
+      const { profileHash: _profileHash, ...profileInput } = profile;
+      Object.assign(profile, freezeWorkforceRoleExecutionProfile({ ...profileInput, profileId: `selection-${selection.selectionHash.slice(7)}` }));
+    },
+  };
+  for (const [label, mutate] of Object.entries(mutations)) {
+    const review = structuredClone(baseline);
+    mutate({ review, profile: review.workforce.options.roleExecution, selection: review.workforce.options.selectionReview });
+    const gateway = await createAgentGovernanceMockGateway({ approvalReview: review }); context.after(gateway.close);
+    const result = await runCliProcess(["agents", "approvals", "--url", gateway.url, "--json"], "", { env: { AGENT_CONSOLE_ADMIN_KEY: "uai-mock-admin-key" } });
+    assert.equal(result.code, 1, label);
+    assert.doesNotMatch(result.stdout + result.stderr, /private selection token-value|sensitive-token-fixture|replacement-model/, label);
+    assert.equal((result.stdout + result.stderr).includes(unsafeIdentifier), false, label);
+    assert.deepEqual(gateway.requests.map(({ method, path }) => `${method} ${path}`), ["GET /v1/approvals"], label);
+  }
+});
+
+async function workforceSelectionApprovalFixture() {
+  const { freezeWorkforceRoleExecutionProfile } = await import("../../ai-gateway-service/src/workforce/workforceRoleExecutionProfile.ts");
+  const bindings = ["ceo", "pm"].map((roleId, index) => ({
+    roleId, employeeId: `employee-${roleId}`, providerId: "approved-provider", modelId: `approved-model-${index}`,
+    maxRequests: index + 1, maxInputTokens: 8192 * (index + 1), maxOutputTokens: 2048 * (index + 1), timeoutMs: 30000 * (index + 1),
+  }));
+  const decision = {
+    version: 1, catalogHash: `sha256:${"d".repeat(64)}`, taskType: "implementation", roleIds: ["ceo", "pm"], executionMode: "fake",
+    assignments: bindings.map((binding, index) => ({ binding, qualification: {
+      qualificationId: `qualification-${binding.roleId}`, employeeId: binding.employeeId, providerId: binding.providerId, modelId: binding.modelId,
+      roleIds: [binding.roleId], taskTypes: ["analysis", "implementation"], status: "accepted", origin: "synthetic", executionMode: "fake",
+      evidenceHash: `sha256:${String(index + 1).repeat(64)}`, validUntil: "2001-01-01T00:00:00.000Z",
+    } })),
+    rejected: ["not_enabled", "not_qualified", "not_selected"].map((reason, index) => ({ employeeId: `rejected-${index}`, reason })),
+    maxConcurrentRoles: 2, maxTotalRequests: 3,
+  };
+  const selectionHash = `sha256:${createHash("sha256").update(JSON.stringify(decision)).digest("hex")}`;
+  const roleExecution = freezeWorkforceRoleExecutionProfile({ version: 1, mode: "gateway-llm-required", profileId: `selection-${selectionHash.slice(7)}`,
+    maxTotalRequests: 3, maxConcurrentRoles: 2, bindings });
+  return { schemaVersion: 1, reviewable: true, effectType: "workforce:execute", policyHash: `sha256:${"a".repeat(64)}`,
+    authorization: "private selection token-value",
+    workforce: { goal: "Review selected employee assignments", planId: "plan-selected", planDigest: `sha256:${"b".repeat(64)}`,
+      autonomyMode: "controlled-execution", options: { selectedRoleCount: 2, templateSelected: false, roleExecution,
+        selectionReview: { ...decision, selectionHash } } } };
+}
 
 test("agents run keeps transport alive beyond a shorter global timeout", async (context) => {
   const gateway = await createAgentGovernanceMockGateway({ runDelayMs: 350 });

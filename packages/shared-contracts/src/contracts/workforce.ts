@@ -116,6 +116,24 @@ export interface WorkforceSelectionDecision extends WorkforceSelectionTask {
   readonly rejected: readonly { readonly employeeId: string; readonly reason: "not_enabled" | "not_qualified" | "not_selected" }[];
 }
 
+/** References actual contribution receipts without converting protocol success into a quality score. */
+export interface WorkforceSelectionFeedback {
+  readonly version: 1;
+  readonly selectionHash: string;
+  readonly catalogHash: string;
+  readonly profileHash: string;
+  readonly executionId: string;
+  readonly roleId: string;
+  readonly employeeId: string;
+  readonly taskId: string;
+  /** Request/usage counters stay in the existing linked contribution receipt. */
+  readonly receipt: Pick<WorkforceRoleContributionReceipt, "status" | "executionMode" | "gatewayRequestId" |
+    "providerId" | "modelId" | "providerCallAttempted" | "errorCode">;
+  readonly contributionHash: string | null;
+  readonly quality: "unassessed";
+  readonly qualityScore: null;
+}
+
 export type WorkforceMode = "deterministic-plan-preview";
 
 export interface WorkforceAgent {

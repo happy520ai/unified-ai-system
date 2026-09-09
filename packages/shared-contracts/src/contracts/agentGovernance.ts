@@ -1,6 +1,6 @@
 import type { ContractMetadata, ResultEnvelope } from "./common.js";
 import type { RiskLevel } from "./governance.js";
-import type { WorkforceRoleExecutionProfile } from "./workforce.js";
+import type { WorkforceRoleExecutionProfile, WorkforceSelectionDecision } from "./workforce.js";
 
 /**
  * Agent Governance contracts.
@@ -430,6 +430,8 @@ export interface AgentToolApprovalReview {
       templateSelected: boolean;
       /** Absent preserves the original template approval; present is fully reviewed and sealed. */
       roleExecution?: WorkforceRoleExecutionProfile;
+      /** Complete server-selected v1 decision, bound to the same sealed profile and approval. */
+      selectionReview?: WorkforceSelectionDecision;
     };
   };
   workflow?: {

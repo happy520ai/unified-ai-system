@@ -4,8 +4,9 @@ import { createWorkforceRoleProviderFactory, type WorkforceRoleRunContext } from
 import { freezeWorkforceRoleExecutionProfile } from "./workforceRoleExecutionProfile.ts";
 import { listWorkforceRoles } from "./workforceRoles.js";
 import { getWorkforceRoleDependencies } from "./workforceRoleGraph.ts";
+import { inheritVirtualKeyRequestAccounting } from "../enterprise/virtualKeyRequestAccounting.ts";
 
-/** Module seam only. Production application/routes must opt in separately after S2 review. */
+/** A frozen server catalog; each resolved factory creates isolated per-run state. */
 export function createWorkforceRoleSelection(options: Omit<Parameters<typeof createWorkforceRoleProviderFactory>[0], "profile"> & {
   configuration: unknown; now?: () => number;
 }) {
@@ -52,8 +53,9 @@ export function createWorkforceRoleSelection(options: Omit<Parameters<typeof cre
       const fence = context?.agentFence;
       if (typeof fence?.assertActive !== "function") throw rejected("WORKFORCE_SELECTION_RUN_INVALID");
       const assertActive = fence.assertActive.bind(fence);
-      const run = factory.forRun({ ...context, requestExecution: { ...context.requestExecution,
-        deadlineAt: Math.min(context.requestExecution.deadlineAt, expiresAt) },
+      const requestExecution = { ...context.requestExecution, deadlineAt: Math.min(context.requestExecution.deadlineAt, expiresAt) };
+      inheritVirtualKeyRequestAccounting(context.requestExecution, requestExecution);
+      const run = factory.forRun({ ...context, requestExecution,
         agentFence: { signal: fence.signal, async assertActive(phase) { await assertActive(phase); assertTargets(); } },
       });
       return Object.freeze({ ...run, createRoleAdapter(role: Parameters<typeof run.createRoleAdapter>[0]) {
@@ -65,8 +67,33 @@ export function createWorkforceRoleSelection(options: Omit<Parameters<typeof cre
         } });
       } });
     } });
-    return Object.freeze({ decision, profile, roleProviderFactory });
+    return Object.freeze({ decision, profile, roleProviderFactory, assertCurrentQualification: assertExpiry });
   } });
+}
+
+/** Explicit production opt-in. Immutable decisions are reused across review/approval/execute. */
+export function createConfiguredWorkforceRoleSelection(options: Omit<Parameters<typeof createWorkforceRoleSelection>[0], "configuration"> & { configuration: unknown }) {
+  const value = options.configuration;
+  if (!value || typeof value !== "object" || Array.isArray(value) || ![Object.prototype, null].includes(Object.getPrototypeOf(value))
+    || Reflect.ownKeys(value).length !== 3 || Object.keys(value).sort().join("\0") !== ["catalog", "executionMode", "version"].join("\0")
+    || Object.values(Object.getOwnPropertyDescriptors(value)).some(property => !("value" in property))) throw rejected("WORKFORCE_SELECTION_CONFIG_INVALID");
+  const source = value as { version: unknown; executionMode: unknown; catalog: unknown };
+  if (source.version !== 1 || (source.executionMode !== "fake" && source.executionMode !== "real")) throw rejected("WORKFORCE_SELECTION_CONFIG_INVALID");
+  const executionMode = source.executionMode;
+  const selector = createWorkforceRoleSelection({ ...options, configuration: source.catalog });
+  const contexts = new Map<string, ReturnType<typeof selector.resolve>>();
+  return Object.freeze({ catalogHash: selector.catalogHash, executionMode,
+    resolve(task: Omit<WorkforceSelectionTask, "executionMode">) {
+      if (typeof task?.taskType !== "string" || !denseRoleIds(task.roleIds)) throw rejected("WORKFORCE_SELECTION_TASK_INVALID");
+      const key = JSON.stringify([task.taskType, [...task.roleIds].sort()]);
+      const stored = contexts.get(key);
+      if (stored) { stored.assertCurrentQualification(); return stored; }
+      if (contexts.size >= 128) throw rejected("WORKFORCE_SELECTION_CAPACITY");
+      const selected = selector.resolve({ taskType: task.taskType, roleIds: task.roleIds, executionMode });
+      contexts.set(key, selected);
+      return selected;
+    },
+  });
 }
 
 function denseRoleIds(value: unknown): value is readonly string[] {

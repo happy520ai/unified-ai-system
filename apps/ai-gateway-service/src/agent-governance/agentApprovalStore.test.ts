@@ -6,6 +6,7 @@ import { computeArgumentsHash, stableStringify } from "@unified-ai-system/policy
 import { createHash } from "node:crypto";
 import { createAgentApprovalStore, workflowArtifactApprovalArguments } from "./agentApprovalStore.ts";
 import { freezeWorkforceRoleExecutionProfile } from "../workforce/workforceRoleExecutionProfile.ts";
+import { createRuntimeEmployeeSelector } from "@unified-ai-system/workforce-scheduler";
 
 const REVIEW = {
   schemaVersion: 1 as const,
@@ -340,7 +341,8 @@ describe("agent governance approval store", () => {
     }
   });
 
-  it.each([false, true])("binds a complete Workforce goal/plan review to one sealed retry (role profile: %s)", async (includeProfile) => {
+  it.each(["template", "manual", "selected"])("binds a complete Workforce goal/plan review to one sealed retry (role profile: %s)", async (mode) => {
+    const includeProfile = mode !== "template";
     const root = await mkdtemp(join(tmpdir(), "agent-governance-approval-workforce-"));
     try {
       const store = createAgentApprovalStore({
@@ -356,9 +358,20 @@ describe("agent governance approval store", () => {
           maxRequests: 1, maxInputTokens: 8192, maxOutputTokens: 2048, timeoutMs: 30000,
         })),
       };
-      const roleExecution = freezeWorkforceRoleExecutionProfile(profileInput);
+      let roleExecution = freezeWorkforceRoleExecutionProfile(profileInput);
+      const candidates = profileInput.bindings.map(({ roleId, employeeId, providerId, modelId, ...limits }) => ({
+        roleIds: [roleId], employeeId, providerId, modelId, limits, status: "enabled", taskTypes: ["feature-development"], priority: 0,
+      }));
+      const selectionReview = mode === "selected" ? createRuntimeEmployeeSelector({ version: 1, catalogId: "accepted-fixture", catalogRevision: "r1",
+        maxCandidates: 5, maxSelectedRoles: 3, maxConcurrentRoles: 2, maxTotalRequests: 2, candidates,
+        qualifications: candidates.map(item => ({ qualificationId: "q-" + item.employeeId, employeeId: item.employeeId,
+          providerId: item.providerId, modelId: item.modelId, roleIds: item.roleIds, taskTypes: item.taskTypes,
+          status: "accepted", origin: "synthetic", executionMode: "fake", evidenceHash: "sha256:" + "e".repeat(64), validUntil: "2099-01-01T00:00:00.000Z" })),
+      }).select({ taskType: "feature-development", roleIds: profileInput.bindings.map(item => item.roleId), executionMode: "fake" }) : undefined;
+      if (selectionReview) roleExecution = freezeWorkforceRoleExecutionProfile({ ...profileInput, profileId: "selection-" + selectionReview.selectionHash.slice(7) });
       const reviewOptions = { selectedRoleCount: 2, templateSelected: true,
         ...(includeProfile ? { roleExecution } : {}),
+        ...(selectionReview ? { selectionReview } : {}),
       };
       const args = {
         goal,
@@ -402,7 +415,21 @@ describe("agent governance approval store", () => {
       const changedArgs = { ...args, options: { ...args.options, roleExecution: changedProfile } };
       await expect(store.create({ agentId: "agt_workforce", tenantId: "tenant_a",
         toolName: "workforce_execute", arguments: changedArgs, review,
-      })).rejects.toThrow("complete operator review");
+      })).rejects.toThrow(mode === "selected" ? "complete reviewed contract" : "complete operator review");
+      if (selectionReview) {
+        for (const change of ["catalog", "qualification", "binding"]) {
+          const altered = structuredClone(selectionReview);
+          if (change === "catalog") (altered as any).catalogHash = "sha256:" + "0".repeat(64);
+          if (change === "qualification") (altered.assignments[0].qualification as any).validUntil = "2098-01-01T00:00:00.000Z";
+          if (change === "binding") (altered.assignments[0].binding as any).modelId = "other-model";
+          const alteredOptions = { ...reviewOptions, selectionReview: altered };
+          const alteredReview = { ...review, workforce: { ...review.workforce, options: alteredOptions,
+            optionsHash: "sha256:" + createHash("sha256").update(stableStringify(alteredOptions)).digest("hex") } };
+          await expect(store.create({ agentId: "agt_workforce", tenantId: "tenant_a", toolName: "workforce_execute",
+            arguments: { ...args, options: { ...args.options, selectionReview: altered } }, review: alteredReview,
+          })).rejects.toThrow("complete reviewed contract");
+        }
+      }
       expect((await store.listPending())[0]?.review.workforce).toMatchObject({
         goal,
         planId: args.planId,

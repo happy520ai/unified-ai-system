@@ -643,6 +643,7 @@ function createSafeWorkforceGovernanceParams(input, descriptor) {
         : Array.isArray(input?.selectedRoles) ? input.selectedRoles.length : null,
       templateSelected: typeof input?.selectedTemplate === "string" || typeof input?.templateId === "string",
       ...(descriptor.roleExecution ? { roleExecution: descriptor.roleExecution } : {}),
+      ...(descriptor.selectionReview ? { selectionReview: descriptor.selectionReview } : {}),
     }),
   });
 }
@@ -666,6 +667,7 @@ function createWorkforceApprovalReview(input, descriptor, params) {
     selectedRoleCount: params.options.selectedRoleCount,
     templateSelected: params.options.templateSelected,
     ...(params.options.roleExecution ? { roleExecution: params.options.roleExecution } : {}),
+    ...(params.options.selectionReview ? { selectionReview: params.options.selectionReview } : {}),
   });
   return Object.freeze({
     schemaVersion: 1,

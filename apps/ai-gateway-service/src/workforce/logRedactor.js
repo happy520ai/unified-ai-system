@@ -16,6 +16,8 @@
  * - 提供 redactString(text) 和 redactObject(obj) 方法
  */
 
+import { isTrustedWorkforceSelectionFeedback } from "./workforceSelectionReview.ts";
+
 // 敏感信息检测正则表达式列表
 const REDACTION_PATTERNS = [
   {
@@ -176,6 +178,9 @@ export function createLogRedactor(options = {}) {
      * @returns {*} 脱敏后的对象
      */
     redactObject(obj, depth = 0) {
+      // Constructor-owned facts contain only exact safe metadata and hashes.
+      // JSON lookalikes/clones are never granted this exception.
+      if (isTrustedWorkforceSelectionFeedback(obj)) return obj;
       // 防止过深递归
       if (depth > 20) return obj;
 

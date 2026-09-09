@@ -26,6 +26,7 @@ import { createDiagnosticReadChannel } from "./diagnosticReadChannel.js";
 import { AUTONOMY_MODES, DEFAULT_AUTONOMY_MODE, resolveAutonomyModeFrom } from "./autonomyModes.js";
 import { createWorkforceExecutionDescriptor } from "./workforceExecutionAuthorization.ts";
 import { readFrozenWorkforceRoleExecutionProfile } from "./workforceRoleExecutionProfile.ts";
+import { createWorkforceSelectionFeedback } from "./workforceSelectionReview.ts";
 import { executeWorkforceDag } from "./workforceDagExecutor.ts";
 import { createAutonomyTierGovernor, TIERS as TIER_VALUES } from "./autonomyTierGovernor.js";
 import {
@@ -154,6 +155,7 @@ async function reserveGovernedRoleStep(governedExecution) {
  * @param {object} [options.env] — environment variables (defaults to process.env)
  * @param {object} [options.providerAdapter] — governed provider adapter
  * @param {ReturnType<typeof import("./workforceRoleProvider.ts").createWorkforceRoleProviderFactory> | null} [options.roleProviderFactory] — server-owned per-run role bindings
+ * @param {ReturnType<typeof import("./workforceRoleSelection.ts").createConfiguredWorkforceRoleSelection> | null} [options.roleSelection] — explicit frozen server selection mode
  * @param {object} [options.forgeService] — optional isolated-root-aware Forge adapter
  * @param {object} [options.sandboxMerger] — injected sandbox merge boundary
  * @param {object} [options.tierGovernor] — injected autonomy tier governor
@@ -173,11 +175,15 @@ export function createControlledExecutor(options = {}) {
   const executionEnabled = env.WORKFORCE_EXECUTION_ENABLED === "true";
   const dryRun = !executionEnabled || options.dryRun === true;
   const providerAdapter = options.providerAdapter ?? null;
+  const roleSelection = options.roleSelection ?? null;
   const roleProviderFactory = options.roleProviderFactory ?? null;
   const roleExecutionProfile = roleProviderFactory
     ? readFrozenWorkforceRoleExecutionProfile(roleProviderFactory.profile) : null;
   if (roleProviderFactory && (providerAdapter || typeof roleProviderFactory.forRun !== "function")) {
     throw Object.assign(new Error("A single governed Workforce role factory is required."), { code: "WORKFORCE_ROLE_FACTORY_INVALID" });
+  }
+  if (roleSelection && (roleProviderFactory || providerAdapter || typeof roleSelection.resolve !== "function")) {
+    throw Object.assign(new Error("Configure exactly one Workforce selection or manual role profile."), { code: "WORKFORCE_ROLE_FACTORY_INVALID" });
   }
   if (executionEnabled && providerAdapter && providerAdapter.governedProviderOperation !== true) {
     throw Object.assign(
@@ -298,9 +304,16 @@ export function createControlledExecutor(options = {}) {
   async function prepareExecution(input = {}) {
     let plan = createWorkforcePlan(input);
     const autonomyMode = await resolveAutonomyModeAsync(input);
-    if (roleExecutionProfile) {
-      const selected = roleExecutionProfile.bindings.map((binding) => binding.roleId).sort();
-      if (input.selectedRoles !== undefined && (!Array.isArray(input.selectedRoles)
+    if (roleSelection && ["selectionReview", "catalog", "candidates", "qualifications", "qualification", "employeeId", "providerId", "modelId", "roleExecution", "executionMode"].some(key => Object.hasOwn(input, key))) {
+      throw Object.assign(new Error("Workforce selection authority must come from the server configuration."), { code: "WORKFORCE_SELECTION_AUTHORITY_FORBIDDEN", statusCode: 400 });
+    }
+    const selection = roleSelection?.resolve({ taskType: plan.selectedTemplate.id,
+      roleIds: input.selectedRoles ?? plan.taskBreakdown.map(task => task.roleId),
+    });
+    const selectedProfile = selection?.profile ?? roleExecutionProfile;
+    if (selectedProfile) {
+      const selected = selectedProfile.bindings.map((binding) => binding.roleId).sort();
+      if (!selection && input.selectedRoles !== undefined && (!Array.isArray(input.selectedRoles)
         || JSON.stringify([...input.selectedRoles].sort()) !== JSON.stringify(selected))) {
         throw Object.assign(new Error("Requested roles must exactly match the server execution profile."), {
           code: "WORKFORCE_ROLE_BINDING_REQUIRED", statusCode: 409,
@@ -318,9 +331,11 @@ export function createControlledExecutor(options = {}) {
       plan = { ...plan, selectedRoles: selected, taskBreakdown: tasks };
     }
     const descriptor = createWorkforceExecutionDescriptor({ input, plan, autonomyMode,
-      ...(roleExecutionProfile ? { roleExecution: roleExecutionProfile } : {}),
+      ...(selectedProfile ? { roleExecution: selectedProfile } : {}),
+      ...(selection ? { selectionReview: selection.decision } : {}),
     });
-    return { plan, autonomyMode, descriptor };
+    return { plan, autonomyMode, descriptor, roleExecutionProfile: selectedProfile,
+      roleProviderFactory: selection?.roleProviderFactory ?? roleProviderFactory, selectionReview: selection?.decision ?? null };
   }
 
   return {
@@ -331,6 +346,7 @@ export function createControlledExecutor(options = {}) {
         executionEnabled,
         dryRun,
         roleExecution: roleExecutionProfile,
+        ...(roleSelection ? { selection: { catalogHash: roleSelection.catalogHash, executionMode: roleSelection.executionMode } } : {}),
         maxConcurrentAgents: maxConcurrent,
         timeoutMs,
         defaultAutonomyMode: DEFAULT_AUTONOMY_MODE,
@@ -401,7 +417,7 @@ export function createControlledExecutor(options = {}) {
      */
     async execute(input = {}, executionOptions = {}) {
       const startedAt = new Date();
-      const { plan, autonomyMode: mode, descriptor } = await prepareExecution(input);
+      const { plan, autonomyMode: mode, descriptor, roleExecutionProfile, roleProviderFactory, selectionReview } = await prepareExecution(input);
       const governedExecution = normalizeGovernedExecution(executionOptions.agentGovernance);
       const executionSignal = combineWorkforceExecutionSignals(
         executionOptions.signal,
@@ -639,12 +655,20 @@ export function createControlledExecutor(options = {}) {
                 legacyProviderCallsMade = true;
                 return providerAdapter.generate(...args);
               } } : null;
-              const result = roleAdapter
+              let result = roleAdapter
                 ? await executeRoleWithLLM(roleId, plan.goal, roleContext, roleAdapter,
                   { requireRuntimeContribution: Boolean(roleProviderRun) })
                 : await createRoleExecutor(roleId).analyze(plan.goal, roleContext);
+              if (selectionReview && result.workforceContribution) {
+                result = { ...result, selectionFeedback: createWorkforceSelectionFeedback({ selection: selectionReview,
+                  profile: roleExecutionProfile, executionId: executionScopeId, roleId,
+                  employeeId: result.workforceContribution.employeeId, taskId: task.queueTaskId,
+                  receipt: result.workforceContribution.receipt, contribution: result.workforceContribution }) };
+              }
               if (capture) {
-                capture.setOutput({ summary: summarizeEvidenceOutput(result, logRedactor) });
+                capture.setOutput({ summary: summarizeEvidenceOutput(result, logRedactor),
+                  ...(result.selectionFeedback ? { deliverables: [result.selectionFeedback] } : {}),
+                });
                 await capture.finish();
               }
               const lifecycleDecision = await lifecycle.onAgentCompleted(
@@ -657,7 +681,13 @@ export function createControlledExecutor(options = {}) {
             } catch (error) {
               if (capture) {
                 try {
-                  capture.setOutput({ summary: `failed: ${logRedactor.redactString?.(error?.message) ?? "role execution failed"}` });
+                  const binding = selectionReview && roleExecutionProfile.bindings.find(item => item.roleId === roleId);
+                  const feedback = binding && error?.workforceReceipt ? createWorkforceSelectionFeedback({ selection: selectionReview,
+                    profile: roleExecutionProfile, executionId: executionScopeId, roleId, employeeId: binding.employeeId,
+                    taskId: task.queueTaskId, receipt: error.workforceReceipt }) : null;
+                  capture.setOutput({ summary: `failed: ${logRedactor.redactString?.(error?.message) ?? "role execution failed"}`,
+                    ...(feedback ? { deliverables: [feedback] } : {}),
+                  });
                   await capture.finish();
                 } catch {
                   // Preserve the original execution or evidence failure.
@@ -788,6 +818,10 @@ export function createControlledExecutor(options = {}) {
       }
 
       // --- Step 11: Complete lifecycle ---
+      const selectionFeedback = selectionReview ? roleProviderRun.getReceipts().map(item => createWorkforceSelectionFeedback({
+        selection: selectionReview, profile: roleExecutionProfile, executionId: executionScopeId, ...item,
+        contribution: roleResults[item.roleId]?.workforceContribution ?? null,
+      })) : null;
       let finalStatus = requestedFinalStatus
         ?? (executionErrors.length === 0 ? "completed" : "failed");
       const lifecycleSnapshot = await lifecycle.getStatus(executionScopeId);
@@ -800,6 +834,7 @@ export function createControlledExecutor(options = {}) {
           errors: executionErrors,
           executionGraph,
           postScan: postScan.result,
+          ...(selectionFeedback ? { selectionFeedback } : {}),
         });
       }
 
@@ -818,6 +853,7 @@ export function createControlledExecutor(options = {}) {
         rolesExecuted: Object.keys(roleResults).length,
         totalRoles: tasks.length,
         roleResults,
+        ...(selectionReview ? { selectionFeedback } : {}),
         ...(roleProviderRun ? { agentRunId, roleExecution: {
           profile: roleExecutionProfile, receipts: roleProviderRun.getReceipts(),
           requestsDispatched: roleProviderRun.getUsage().totalRequests,

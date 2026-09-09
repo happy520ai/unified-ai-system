@@ -1315,17 +1315,32 @@ function formatSafeReview(value) {
   if (value.effectType === "workforce:execute" && value.reviewable === true && value.workforce?.options?.roleExecution) {
     const workforce = value.workforce;
     const profile = workforce.options.roleExecution;
+    const selection = workforce.options.selectionReview;
     const text = (item) => safeTerminalText(item, 256);
     return [
       `Workforce goal: ${safeTerminalBlock(workforce.goal, 4_000)}`,
       `Plan: ${text(workforce.planId)}; digest: ${text(workforce.planDigest)}; policy: ${text(value.policyHash)}`,
       `Employee model execution: required; profile: ${text(profile.profileId)}; hash: ${text(profile.profileHash)}`,
       `Request dispatch hard limit: ${profile.maxTotalRequests}; Concurrent roles: ${profile.maxConcurrentRoles}`,
+      ...(selection === undefined ? [] : [
+        `Deterministic selection rules: v${selection.version}; catalog/configuration hash: ${text(selection.catalogHash)}`,
+        `Selection hash: ${text(selection.selectionHash)}; task type: ${text(selection.taskType)}; execution mode: ${text(selection.executionMode)}`,
+        `Selected role scope: ${selection.roleIds.map(text).join(", ")}`,
+      ]),
       "Input tokens use an estimate before dispatch and upstream usage validation after completion.",
       "Output tokens use an upstream parameter limit and upstream usage validation after completion.",
       "Token limits do not guarantee a prepaid cap. Unknown usage and USD cost remain null; consumed tokens cannot be undone.",
       ...profile.bindings.map((binding) => `  ${text(binding.roleId)} / ${text(binding.employeeId)} -> ${text(binding.providerId)} / ${text(binding.modelId)}; `
         + `requests<=${binding.maxRequests}; input estimate=${binding.maxInputTokens}; output parameter=${binding.maxOutputTokens}; timeout=${binding.timeoutMs}ms`),
+      ...(selection === undefined ? [] : [
+        ...selection.assignments.map(({ binding, qualification }) =>
+          `  Qualification ${text(binding.roleId)} / ${text(binding.employeeId)}: ${text(qualification.qualificationId)}; `
+          + `status=${text(qualification.status)}; origin=${text(qualification.origin)}; execution mode=${text(qualification.executionMode)}\n`
+          + `    Qualified roles: ${qualification.roleIds.map(text).join(", ")}; task types: ${qualification.taskTypes.map(text).join(", ")}\n`
+          + `    Evidence: ${text(qualification.evidenceHash)}; valid until: ${text(qualification.validUntil)}`),
+        `Rejected candidates: ${selection.rejected.length}`,
+        ...selection.rejected.map(({ employeeId, reason }) => `  ${text(employeeId)}: ${text(reason)}`),
+      ]),
     ].join("\n");
   }
   if (value.effectType === "workflow:artifact-write" && value.reviewable === true && isPlainRecord(value.workflow)) {
@@ -1365,8 +1380,16 @@ function projectAgentApproval(value) {
         throw new Error("invalid or incomplete workflow approval review");
       }
     }
-    output.review = sanitizeAgentReview(value.review);
     const profile = value.review?.workforce?.options?.roleExecution;
+    const selectionSource = value.review?.workforce?.options?.selectionReview;
+    let selection;
+    if (selectionSource !== undefined) {
+      if (value.review.effectType !== "workforce:execute" || value.review.reviewable !== true || profile === undefined) {
+        throw new Error("invalid or incomplete Workforce selection review");
+      }
+      selection = projectWorkforceSelectionReview(selectionSource, profile);
+    }
+    output.review = sanitizeAgentReview(value.review);
     if (value.review?.effectType === "workforce:execute" && value.review.reviewable === true && profile !== undefined) {
       const bounded = (number, maximum) => Number.isSafeInteger(number) && number >= 1 && number <= maximum;
       if (!isPlainRecord(profile) || profile.version !== 1 || profile.mode !== "gateway-llm-required"
@@ -1384,8 +1407,89 @@ function projectAgentApproval(value) {
         ...sanitizeAgentReview(binding), maxInputTokens: binding.maxInputTokens, maxOutputTokens: binding.maxOutputTokens,
       }));
     }
+    // Restore only the exact validated decision, including numeric token limits.
+    if (selection !== undefined) output.review.workforce.options.selectionReview = selection;
   }
   return Object.freeze(output);
+}
+
+function projectWorkforceSelectionReview(value, profile) {
+  const invalid = () => { throw new Error("invalid or incomplete Workforce selection review"); };
+  const record = (value, keys) => {
+    if (!hasExactKeys(value, keys) || Reflect.ownKeys(value).length !== keys.length
+      || Object.values(Object.getOwnPropertyDescriptors(value)).some((property) => !("value" in property))) invalid();
+    return value;
+  };
+  const array = (value, maximum) => {
+    if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype || value.length > maximum
+      || Reflect.ownKeys(value).length !== value.length + 1) invalid();
+    for (let index = 0; index < value.length; index++) if (!("value" in (Object.getOwnPropertyDescriptor(value, String(index)) ?? {}))) invalid();
+    return value;
+  };
+  const identifier = (value) => {
+    if (typeof value !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$/u.test(value)
+      // Credential-like text is not printable selection evidence, even with a matching hash.
+      || /\b(?:xox[abprs]-[A-Za-z0-9-]{10,}|xapp-[A-Za-z0-9-]{20,}|(?:sk_live_|rk_live_|whsec_)[A-Za-z0-9]{16,}|npm_[A-Za-z0-9]{20,}|tp-[A-Za-z0-9_-]{20,}|nvapi-[A-Za-z0-9_-]{12,}|sk-[A-Za-z0-9_-]{16,}|AIza[0-9A-Za-z_-]{20,}|hf_[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|glpat-[A-Za-z0-9_-]{20,}|(?:AKIA|ASIA|AIDA|AROA|AIPA|ANPA|ANVA|ASCA)[A-Z0-9]{16})\b/iu.test(value)
+      || /\b[A-Z0-9_]*(?:API[_-]?KEY|TOKEN|SECRET|PASSWORD|PRIVATE[_-]?KEY|ACCESS[_-]?KEY)[A-Z0-9_]*:[A-Za-z0-9._:/-]{4,}/iu.test(value)) invalid();
+    return value;
+  };
+  const tags = (value, maximum) => {
+    const items = array(value, maximum).map(identifier);
+    if (!items.length || new Set(items).size !== items.length || JSON.stringify([...items].sort()) !== JSON.stringify(items)) invalid();
+    return items;
+  };
+  const sha = (value) => typeof value === "string" && /^sha256:[a-f0-9]{64}$/u.test(value);
+  const digest = (value) => `sha256:${createHash("sha256").update(value, "utf8").digest("hex")}`;
+  const bindingKeys = ["roleId", "employeeId", "providerId", "modelId", "maxRequests", "maxInputTokens", "maxOutputTokens", "timeoutMs"];
+  const profileKeys = ["version", "mode", "profileId", "maxTotalRequests", "maxConcurrentRoles", "bindings"];
+  record(profile, [...profileKeys, "profileHash"]);
+  const source = record(value, ["version", "catalogHash", "selectionHash", "taskType", "roleIds", "executionMode",
+    "assignments", "rejected", "maxConcurrentRoles", "maxTotalRequests"]);
+  if (source.version !== 1 || !sha(source.catalogHash) || !sha(source.selectionHash)
+    || !["fake", "real"].includes(source.executionMode)) invalid();
+  const taskType = identifier(source.taskType);
+  const roleIds = tags(source.roleIds, 3);
+  const bindings = array(profile.bindings, 3).map((value) => {
+    const binding = record(value, bindingKeys);
+    bindingKeys.slice(0, 4).forEach((key) => identifier(binding[key]));
+    if ([binding.roleId, binding.employeeId].some((value) => !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u.test(value))
+      || binding.timeoutMs < 1000) invalid();
+    return Object.fromEntries(bindingKeys.map((key) => [key, binding[key]]));
+  });
+  if (JSON.stringify(roleIds) !== JSON.stringify(bindings.map(({ roleId }) => roleId))
+    || source.maxConcurrentRoles !== profile.maxConcurrentRoles || source.maxTotalRequests !== profile.maxTotalRequests
+    || profile.maxTotalRequests < bindings.length || profile.maxTotalRequests > bindings.reduce((sum, binding) => sum + binding.maxRequests, 0)) invalid();
+  const assignments = array(source.assignments, 3).map((value, index) => {
+    const item = record(value, ["binding", "qualification"]);
+    const supplied = record(item.binding, bindingKeys); const binding = bindings[index];
+    if (!binding || bindingKeys.some((key) => supplied[key] !== binding[key])) invalid();
+    const q = record(item.qualification, ["qualificationId", "employeeId", "providerId", "modelId", "roleIds", "taskTypes",
+      "status", "origin", "executionMode", "evidenceHash", "validUntil"]);
+    const qualifiedRoles = tags(q.roleIds, 7); const taskTypes = tags(q.taskTypes, 16);
+    if (q.employeeId !== binding.employeeId || q.providerId !== binding.providerId || q.modelId !== binding.modelId
+      || !qualifiedRoles.includes(binding.roleId) || !taskTypes.includes(taskType) || q.status !== "accepted"
+      || q.executionMode !== source.executionMode || !["synthetic", "reviewed"].includes(q.origin)
+      || q.origin === "synthetic" && q.executionMode !== "fake" || !sha(q.evidenceHash)
+      || !validIsoDate(q.validUntil) || new Date(q.validUntil).toISOString() !== q.validUntil) invalid();
+    return { binding, qualification: { qualificationId: identifier(q.qualificationId), employeeId: binding.employeeId,
+      providerId: binding.providerId, modelId: binding.modelId, roleIds: qualifiedRoles, taskTypes, status: "accepted",
+      origin: q.origin, executionMode: q.executionMode, evidenceHash: q.evidenceHash, validUntil: q.validUntil } };
+  });
+  if (assignments.length !== bindings.length || new Set(bindings.map(({ employeeId }) => employeeId)).size !== bindings.length) invalid();
+  const rejected = array(source.rejected, 5).map((value) => {
+    const item = record(value, ["employeeId", "reason"]);
+    if (!["not_enabled", "not_qualified", "not_selected"].includes(item.reason)) invalid();
+    return { employeeId: identifier(item.employeeId), reason: item.reason };
+  });
+  if (assignments.length + rejected.length > 5 || new Set(rejected.map(({ employeeId }) => employeeId)).size !== rejected.length
+    || rejected.some((item) => bindings.some((binding) => binding.employeeId === item.employeeId))) invalid();
+  // S1 hashes this explicit order; the profile uses alphabetical canonical keys.
+  const decision = { version: 1, catalogHash: source.catalogHash, taskType, roleIds, executionMode: source.executionMode,
+    assignments, rejected, maxConcurrentRoles: profile.maxConcurrentRoles, maxTotalRequests: profile.maxTotalRequests };
+  const profileInput = { ...Object.fromEntries(profileKeys.map((key) => [key, profile[key]])), bindings };
+  if (source.selectionHash !== digest(JSON.stringify(decision)) || profile.profileId !== `selection-${source.selectionHash.slice(7)}`
+    || profile.profileHash !== digest(JSON.stringify(profileInput, [...new Set([...profileKeys, ...bindingKeys])].sort()))) invalid();
+  return Object.freeze({ ...decision, selectionHash: source.selectionHash });
 }
 
 function sanitizeAgentReview(value, depth = 0) {
