@@ -3,7 +3,7 @@ import { createRouteFailureEnvelope } from "../core/gatewayService.js";
 import { writeJson, writeSseHeaders, writeSseEvent, writeServiceLog } from "./utils/responseUtils.js";
 import { normalizeChatBody, extractChatPrompt } from "./utils/chatUtils.js";
 import { evaluateTaijiBeidouChatPreviewHook } from "../gateway/taijiBeidouChatPreviewHook.js";
-import { captureGuardrailsOutputPolicy, getGuardrailsEngine, inspectGuardrailsOutputStream } from "../guardrails/guardrailsEngine.ts";
+import { captureGuardrailsOutputPolicy, getGuardrailsEngine, inspectGuardrailsOutputStream, consumeGuardrailsGeneratedEmptyText } from "../guardrails/guardrailsEngine.ts";
 import {
   recordGuardrailEvaluation,
   recordGuardrailFinding,
@@ -43,8 +43,8 @@ export function createChatRoutes(ctx) {
     }
     for (const replacement of guardrailInputVerdict.replacements) {
       const message = streamInput?.messages?.[replacement.index];
-      if (message && typeof message.content === "string") {
-        message.content = replacement.content;
+      if (message) {
+        message.content = consumeGuardrailsGeneratedEmptyText(replacement.content) ? "" : replacement.content;
       }
     }
     const providerKey = streamInput?.providerId ?? streamInput?.provider ?? "gateway";
@@ -175,8 +175,8 @@ export function createChatRoutes(ctx) {
     }
     for (const replacement of chatGuardrailVerdict.replacements) {
       const message = chatInput?.messages?.[replacement.index];
-      if (message && typeof message.content === "string") {
-        message.content = replacement.content;
+      if (message) {
+        message.content = consumeGuardrailsGeneratedEmptyText(replacement.content) ? "" : replacement.content;
       }
     }
     const providerKey = chatInput?.providerId ?? chatInput?.provider ?? "gateway";

@@ -21,6 +21,7 @@ import {
   applyManagedLocalClientProviderRoute,
   authenticateManagedLocalClientProtocolRequest,
   normalizeOpenAiChatCompletionRequest,
+  applyNormalizedGuardrailsInputLimit,
   resolveManagedLocalClientProviderRoute,
   resolveOpenAiErrorStatus,
 } from "./openAiCompatibilityRoutes.js";
@@ -620,13 +621,19 @@ export async function dispatchGeminiCompatibilityRoutes(context: Record<string, 
       }
       for (const replacement of verdict.replacements) {
         const message = entryBody.messages?.[replacement.index];
-        if (message && typeof message.content === "string") {
+        if (message) {
           message.content = replacement.content;
         }
       }
       convertedEntries.push(entryBody);
     }
     const normalizedInputs = convertedEntries.map(entry => normalizeOpenAiChatCompletionRequest(entry, gatewayService.getProviderDescriptors()));
+    for (const [index, input] of normalizedInputs.entries()) {
+      if (!applyNormalizedGuardrailsInputLimit(input, batchGuardrails, [])) {
+        writeGeminiError(response, 400, `Request ${index} exceeds the configured input character limit.`);
+        return;
+      }
+    }
     const aggregateInputEstimate = normalizedInputs.reduce((sum, input) => sum + estimateTokens(input).estimatedInputTokens, 0);
     if (applyGeminiVirtualKeyGate({
       enterpriseGovernanceService,
@@ -721,7 +728,7 @@ export async function dispatchGeminiCompatibilityRoutes(context: Record<string, 
   }
   for (const replacement of guardrailInputVerdict.replacements) {
     const message = openAiBody.messages?.[replacement.index];
-    if (message && typeof message.content === "string") {
+    if (message) {
       message.content = replacement.content;
     }
   }
@@ -732,6 +739,10 @@ export async function dispatchGeminiCompatibilityRoutes(context: Record<string, 
       openAiBody,
       gatewayService.getProviderDescriptors(),
     );
+    if (!applyNormalizedGuardrailsInputLimit(gatewayInput, guardrailsEngine, guardrailInputVerdict.findings)) {
+      writeGeminiError(response, 400, "Normalized request exceeds the configured input character limit.");
+      return;
+    }
   } catch (error) {
     const validationError = readErrorDetails(error);
     writeServiceLog?.("gemini_generate_validation_failed", {

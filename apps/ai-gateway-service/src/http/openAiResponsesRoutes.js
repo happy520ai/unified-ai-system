@@ -256,7 +256,7 @@ export async function dispatchOpenAiResponsesRoutes(context) {
   }
   for (const replacement of guardrailInputVerdict.replacements) {
     const message = gatewayInput.messages?.[replacement.index];
-    if (message && typeof message.content === "string") {
+    if (message) {
       message.content = replacement.content;
     }
   }

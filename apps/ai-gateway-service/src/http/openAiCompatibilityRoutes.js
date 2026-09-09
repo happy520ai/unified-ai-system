@@ -2,7 +2,7 @@ import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { MANAGED_LOCAL_CLIENT_PROVIDER_PIN } from "../core/gatewayService.js";
 import { createLocalClientProviderDispatchBinding } from "../routing/localClientProviderDispatchBinding.ts";
 import { getChatResponseCacheIntegration, readChatCacheBillingSnapshot } from "../cache/chatResponseCacheIntegration.ts";
-import { captureGuardrailsOutputPolicy, getGuardrailsEngine, inspectGuardrailsOutputStream } from "../guardrails/guardrailsEngine.ts";
+import { captureGuardrailsOutputPolicy, getGuardrailsEngine, inspectGuardrailsOutputStream, inspectGuardrailsInputLimits, consumeGuardrailsGeneratedEmptyText } from "../guardrails/guardrailsEngine.ts";
 import { resolveProviderDispatchHttpStatus } from "./providerDispatchHttpStatus.ts";
 import {
   closePrimedGatewayStream,
@@ -369,7 +369,7 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
       });
     }
     for (const replacement of guardrailInputVerdict.replacements) {
-      if (typeof requestBody.messages?.[replacement.index]?.content === "string") {
+      if (requestBody.messages?.[replacement.index]) {
         requestBody.messages[replacement.index].content = replacement.content;
       }
     }
@@ -435,6 +435,11 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
       });
     }
 
+    if (!applyNormalizedGuardrailsInputLimit(gatewayInput, guardrailsEngine, guardrailInputVerdict.findings)) {
+      writeJson(response, 400, createOpenAiError({ code: "guardrail_blocked", category: "governance", param: "messages",
+        message: "Normalized request exceeds the configured input character limit." }));
+      return;
+    }
     const choiceCount = Number(gatewayInput.metadata?.openAiCompatibility?.choiceCount ?? 1);
     if (managedLocalClientRoute && choiceCount > 1) {
       writeJson(response, 409, createOpenAiError(createManagedLocalClientRouteError(
@@ -848,7 +853,7 @@ async function handleAnthropicMessages({
     });
   }
   for (const replacement of anthropicGuardrailVerdict.replacements) {
-    if (typeof body.messages?.[replacement.index]?.content === "string") {
+    if (body.messages?.[replacement.index]) {
       body.messages[replacement.index].content = replacement.content;
     }
   }
@@ -871,6 +876,11 @@ async function handleAnthropicMessages({
     return;
   }
 
+  if (!applyNormalizedGuardrailsInputLimit(gatewayInput, anthropicGuardrailsEngine, anthropicGuardrailVerdict.findings)) {
+    writeJson(response, 400, createAnthropicError({ code: "guardrail_blocked", category: "governance", param: "messages",
+      message: "Normalized request exceeds the configured input character limit." }));
+    return;
+  }
   if (managedLocalClientPrincipal) {
     try {
       const managedRoute = await resolveManagedLocalClientProviderRoute({
@@ -1227,7 +1237,9 @@ function normalizeAnthropicMessageBlocks(message, param) {
       throw createAnthropicValidationError(`${blockParam} must be an object.`, blockParam);
     }
     if (block.type === "text") {
-      textParts.push(readRequiredString(block.text, `${blockParam}.text`));
+      const generatedEmpty = consumeGuardrailsGeneratedEmptyText(block)
+        && typeof block.text === "string" && !block.text.trim();
+      textParts.push(generatedEmpty ? "" : readRequiredString(block.text, `${blockParam}.text`));
       return;
     }
     if (block.type === "tool_use") {
@@ -1753,6 +1765,17 @@ function normalizeChoiceCount(value) {
     throw createUnsupportedError(`n must be an integer between 1 and ${MAX_CHOICE_COUNT}.`, "n");
   }
   return count;
+}
+
+/** Apply only the final text budget, after separators/system/prompt context exist. */
+export function applyNormalizedGuardrailsInputLimit(gatewayInput, engine, priorFindings) {
+  const verdict = inspectGuardrailsInputLimits({ messages: gatewayInput.messages }, engine.readConfig());
+  if (verdict.findings.length && !priorFindings.some(finding => finding.rule === "input.limits")) {
+    recordGuardrailEvaluation("input", verdict.decision);
+    for (const finding of verdict.findings) recordGuardrailFinding(finding.rule, finding.action);
+  }
+  for (const replacement of verdict.replacements) gatewayInput.messages[replacement.index].content = replacement.content;
+  return verdict.decision !== "block";
 }
 
 export function normalizeOpenAiChatCompletionRequest(body, descriptors = []) {

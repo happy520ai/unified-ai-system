@@ -54,8 +54,8 @@ stored as a successful response. See [Responses sessions](openai-compatible-api.
 | `input.pii.email` | `redact` | Email addresses → `[redacted-email]` |
 | `input.pii.phone` | `redact` | E.164 / grouped phone forms → `[redacted-phone]` |
 | `input.secrets` | `block` | Pasted provider/cloud credentials (`sk-…`, `sk-ant-…`, `uai-…`, `AKIA…`, `ghp_…`, `AIza…`, `xox…`) |
-| `input.injection` | `warn` | Common instruction-override / system-prompt exfiltration phrasings |
-| `input.limits` | `block` | Cumulative characters across **all** messages above `maxInputChars` (default 200,000) |
+| `input.injection` | `warn` | Common instruction-override / system-prompt exfiltration phrasings; `redact` replaces matched phrases with `[redacted-injection]` |
+| `input.limits` | `block` | Cumulative characters across **all** messages above `maxInputChars` (default 200,000); `redact` keeps only the text prefix within that budget |
 | `output.pii.email` | `redact` | Emails echoed by the model |
 | `output.pii.phone` | `redact` | Phones echoed by the model |
 | `output.secrets` | `redact` | Credential-looking strings in responses |
@@ -65,11 +65,31 @@ Actions: `off | warn | redact | block`.
 
 Term matching is case-insensitive and literal, with the longest match taking
 precedence at the same position. Findings count non-overlapping matches.
-The input-only `input.injection` and `input.limits` rules currently implement
-`off`, `warn` and `block`; their accepted `redact` setting reports a finding
-without rewriting or truncating input. Use `block` when prevention is required
-for those two rules. This limitation does not apply to PII, secrets or term
-redaction.
+
+Input redaction supports strings and normalized text parts. It matches across
+the concatenated text parts of each message, places each replacement at the
+match's original start, and retains unrelated text and non-text parts at their
+existing positions. It does not inspect image bytes, tool arguments or other
+non-text fields. The engine returns replacements without changing its input.
+
+`input.limits: redact` applies one prefix budget after the other text
+replacements, in message order. It counts UTF-16 code units like JavaScript
+string length, never cuts a surrogate pair, and empties subsequent text after
+the first cut. Message roles, part containers and non-text content remain.
+Even a replacement marker may be truncated when the budget is very small.
+After protocol normalization, a limits-only check includes inserted separators,
+system messages and locally injected context in the final cumulative budget;
+it does not run PII or injection redaction again. The final text participates in
+the response cache key, while RAG requests retain their existing cache bypass.
+Anthropic text blocks made empty by this request's guardrail transformation are
+accepted during conversion; originally empty or whitespace-only blocks remain
+invalid. Native chat converts a proven guardrail-generated empty pure-text array
+to an empty string; originally invalid empty arrays remain invalid. The private
+proof cannot be supplied in JSON, and arrays with non-text parts are never collapsed.
+Findings report the configured rule; `warn` keeps the original text and `block`
+rejects the request. If preserving the entire prompt matters, choose `block`
+instead of truncation. Redacting a known injection phrase is still only the
+heuristic described below.
 
 ## Configuration
 
@@ -145,6 +165,15 @@ keeps the existing guardrail/cache contracts checked; local JS route changes
 reuse the same inspector. A new parser service or streaming state-machine
 framework would add ownership and cancellation boundaries without meeting an
 additional current requirement.
+
+Input conversion stays in the existing TypeScript engine; ESM/TypeScript
+routes only apply its replacement content. The nine-file input patch is
+necessary because five route modules consume that contract (including the
+actual native HTTP dispatcher), alongside the engine, unit/HTTP tests and this
+document. It adds no dependency or persistent format. Roll back those changes
+together to restore the prior input profile; the request schemas and default
+rule actions are unchanged. The previous profile did not apply array-text
+redaction or the two input-only `redact` actions.
 
 This change crosses the scope checkpoint because six stream profiles, exact and
 approximate caches, stored Responses and their regression tests must agree.

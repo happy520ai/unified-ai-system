@@ -1,7 +1,7 @@
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { resolveChatResultHttpStatus } from "./routes/chatRoutes.js";
 import { applyIdempotencyResponseHeaders } from "./idempotencyCoordinator.ts";
-import { getGuardrailsEngine } from "../guardrails/guardrailsEngine.ts";
+import { captureGuardrailsOutputPolicy, getGuardrailsEngine, inspectGuardrailsOutputStream, consumeGuardrailsGeneratedEmptyText } from "../guardrails/guardrailsEngine.ts";
 import {
   closePrimedGatewayStream,
   iteratePrimedGatewayStream,
@@ -443,6 +443,7 @@ export async function dispatchHttpRoutes06(context) {
     // Guardrails(确定性本地扫描):原生 /chat 与 /chat/stream 必须与 /v1/* 协议
     // lane 执行同一套租户隔离的输入策略——拦截秘密注入,脱敏 PII 后再进网关。
     const guardrailsEngine = getGuardrailsEngine(request.enterpriseIdentity?.tenantId);
+    const guardrailOutputPolicy = captureGuardrailsOutputPolicy(guardrailsEngine);
     const guardrailInputVerdict = guardrailsEngine.inspectInput({ messages: gatewayInput?.messages });
     if (guardrailInputVerdict.decision === "block") {
       writeServiceLog("chat_guardrail_blocked", {
@@ -458,8 +459,8 @@ export async function dispatchHttpRoutes06(context) {
       return;
     }
     for (const replacement of guardrailInputVerdict.replacements) {
-      if (typeof gatewayInput?.messages?.[replacement.index]?.content === "string") {
-        gatewayInput.messages[replacement.index].content = replacement.content;
+      if (gatewayInput?.messages?.[replacement.index]) {
+        gatewayInput.messages[replacement.index].content = consumeGuardrailsGeneratedEmptyText(replacement.content) ? "" : replacement.content;
       }
     }
 
@@ -479,7 +480,7 @@ export async function dispatchHttpRoutes06(context) {
       writeSseHeaders(response);
 
       let failed = false;
-      for await (const event of iteratePrimedGatewayStream(primedStream)) {
+      for await (const event of inspectGuardrailsOutputStream(iteratePrimedGatewayStream(primedStream), guardrailOutputPolicy, () => clientClosed)) {
         if (clientClosed) break;
         if (event.type === "error") {
           failed = true;
