@@ -855,6 +855,43 @@ without a new transport, dependency, credential store or background service.
 Rollback removes the optional profile configuration and restarts the runtime;
 old profile-bound approvals cannot authorize a different execution descriptor.
 
+### Evaluated employee selection module (S1)
+
+`createRuntimeEmployeeSelector` accepts a bounded server-owned configuration:
+at most five candidate assignments, three selected roles and 64 qualification
+records. `select` accepts only task type, role IDs and execution mode. Occupation
+candidates and preview employees remain ineligible, and enabled assignments
+need a separate accepted qualification matching their employee, role, task and
+Provider/model. Synthetic qualification records only permit the fake lane.
+The caller is responsible for accepting the referenced evaluation evidence;
+this parser does not independently establish occupational competence.
+
+The module snapshots the configuration, uses stable priority/employee-ID order
+and complete bounded assignment, and never consults live health when choosing.
+`createWorkforceRoleSelection` expands the existing role dependencies, refuses
+missing coverage or an over-budget dependency set, and compiles the decision
+into the unchanged v1 execution profile. It reuses the existing A/B role
+Provider and employee contribution interfaces. Qualification expiry or a target
+becoming unavailable blocks the original selection at the existing dispatch
+fence; it never substitutes another employee or Provider. The execution deadline
+is also tightened to the earliest qualification expiry.
+The existing role Provider factory has an optional synchronous dispatch check:
+selection rechecks its frozen targets after asynchronous Agent/task fences and
+immediately before incrementing the dispatch counter. This closes the observed
+microtask window without changing the manual v1 profile. The ninth affected file
+is this existing factory; keeping checks only in the new selection module was
+insufficient, as the retained failing dispatch tests demonstrated.
+
+S1 is an exported module seam, with owned synthetic Git/real governance,
+approval, claim and security components used in its fake contribution tests.
+It is not wired into production application selection or the preview API.
+The existing explicit profile, preview, Provider defaults and approval contracts
+are unchanged. Full selection-review integration and assessed quality feedback
+remain S2 work; cross-run employee capacity and real-model quality are not
+established by these tests. New selection logic is TypeScript, using existing
+Node APIs and no new dependency/service; rollback removes the additive module
+exports without changing the current explicit execution route.
+
 ### Existing policy runtime
 
 Workload: deterministic policy calculus (merge algebra, validation,

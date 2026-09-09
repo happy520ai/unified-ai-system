@@ -24,10 +24,13 @@ export interface WorkforceRoleRunContext {
 export function createWorkforceRoleProviderFactory(options: {
   gatewayService: GatewayPort; providerRegistry: { get(providerId: string): unknown };
   profile: WorkforceRoleExecutionProfile;
+  assertDispatch?: () => void;
 }) {
   const profile = readFrozenWorkforceRoleExecutionProfile(options.profile);
   const gatewayService = options.gatewayService;
   const providerRegistry = options.providerRegistry;
+  const assertDispatch = options.assertDispatch;
+  if (assertDispatch !== undefined && typeof assertDispatch !== "function") throw roleError("WORKFORCE_ROLE_PROVIDER_UNSUPPORTED");
   const bindings = new Map(profile.bindings.map((binding) => [binding.roleId, binding]));
   const resolveBinding = (roleId: string) => {
     const binding = bindings.get(roleId);
@@ -109,6 +112,13 @@ export function createWorkforceRoleProviderFactory(options: {
             onDispatch() {
               throwIfExecutionAborted(signal);
               if (!current || requests >= binding.maxRequests || totalRequests >= profile.maxTotalRequests) throw roleError("WORKFORCE_ROLE_REQUEST_LIMIT");
+              // Final synchronous check, after every asynchronous Agent/task fence.
+              try { if (assertDispatch?.() !== undefined) throw roleError("WORKFORCE_PROVIDER_DISPATCH_DENIED"); }
+              catch (error) {
+                const denied = roleError("WORKFORCE_PROVIDER_DISPATCH_DENIED");
+                Object.defineProperty(denied, "cause", { value: error });
+                throw denied;
+              }
               requests += 1; totalRequests += 1; current.dispatches += 1;
             },
           });

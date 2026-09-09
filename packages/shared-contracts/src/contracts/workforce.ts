@@ -58,6 +58,64 @@ export interface WorkforceRoleContribution {
   readonly receipt: WorkforceRoleContributionReceipt;
 }
 
+/** Server-enrolled assignment; occupation and preview records are not runtime candidates. */
+export interface WorkforceSelectionCandidate {
+  readonly employeeId: string;
+  readonly status: "enabled";
+  readonly roleIds: readonly string[];
+  readonly taskTypes: readonly string[];
+  readonly providerId: string;
+  readonly modelId: string;
+  readonly priority: number;
+  readonly limits: Pick<WorkforceRoleExecutionBinding, "maxRequests" | "maxInputTokens" | "maxOutputTokens" | "timeoutMs">;
+}
+
+/** Supplied by the trusted server after accepting evidence, never by a model or task request. */
+export interface WorkforceSelectionQualification {
+  readonly qualificationId: string;
+  readonly employeeId: string;
+  readonly providerId: string;
+  readonly modelId: string;
+  readonly roleIds: readonly string[];
+  readonly taskTypes: readonly string[];
+  readonly status: "accepted";
+  readonly origin: "synthetic" | "reviewed";
+  readonly executionMode: "fake" | "real";
+  readonly evidenceHash: string;
+  readonly validUntil: string;
+}
+
+export interface WorkforceSelectionConfiguration {
+  readonly version: 1;
+  readonly catalogId: string;
+  readonly catalogRevision: string;
+  readonly maxCandidates: number;
+  readonly maxSelectedRoles: number;
+  readonly maxConcurrentRoles: number;
+  readonly maxTotalRequests: number;
+  readonly candidates: readonly unknown[];
+  readonly qualifications: readonly unknown[];
+}
+
+export interface WorkforceSelectionTask {
+  readonly taskType: string;
+  readonly roleIds: readonly string[];
+  readonly executionMode: "fake" | "real";
+}
+
+export interface WorkforceSelectionDecision extends WorkforceSelectionTask {
+  readonly version: 1;
+  readonly catalogHash: string;
+  readonly selectionHash: string;
+  readonly maxConcurrentRoles: number;
+  readonly maxTotalRequests: number;
+  readonly assignments: readonly {
+    readonly binding: WorkforceRoleExecutionBinding;
+    readonly qualification: WorkforceSelectionQualification;
+  }[];
+  readonly rejected: readonly { readonly employeeId: string; readonly reason: "not_enabled" | "not_qualified" | "not_selected" }[];
+}
+
 export type WorkforceMode = "deterministic-plan-preview";
 
 export interface WorkforceAgent {
