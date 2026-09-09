@@ -31,6 +31,11 @@ These checks protect repository invocation and cleanup ownership. They assume
 the configured repository and worktree root remain under the operator's control;
 they do not isolate arbitrary host code or authorize model-generated code to run.
 Code delivery separately requires its approved scope, task claim and sandbox.
+Its internal factory may call `assertOwnedWorkforceWorktree` with the real manager,
+worktree ID, plan ID and approved baseline. A private manager binding rejects
+lookalike objects; each call rechecks the path, registration, branch and HEAD.
+This proof describes that moment only. The factory must recheck it together with
+its active task/Agent fences at subsequent effect boundaries.
 The existing explicit analysis-mode Git guard override remains observable as
 `forceSkipped`; it is not evidence that a code-delivery baseline was verified.
 

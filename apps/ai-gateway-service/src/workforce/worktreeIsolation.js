@@ -5,6 +5,7 @@ import { resolve, relative, isAbsolute, parse } from "node:path";
 import { createWorkforceGit } from "./workforceGit.ts";
 
 const DEFAULT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const ownedManagers = new WeakMap();
 const normalized = (path) => process.platform === "win32" ? resolve(path).toLowerCase() : resolve(path);
 async function pathState(path) {
   try { return await lstat(path); }
@@ -15,6 +16,22 @@ function assertDescendant(root, path) {
   if (!rel || rel === ".." || rel.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) || isAbsolute(rel)) {
     throw new Error("Worktree path is outside the owned root.");
   }
+}
+
+/** A server-only point-in-time proof. JSON or a lookalike manager cannot mint it.
+ * @param {unknown} manager
+ * @param {string} worktreeId
+ * @param {{planId: string, baselineRevision: string}} expected
+ */
+export async function assertOwnedWorkforceWorktree(manager, worktreeId, expected) {
+  const verify = manager && typeof manager === "object" ? ownedManagers.get(manager) : undefined;
+  if (!verify || typeof worktreeId !== "string" || !expected || typeof expected !== "object"
+    || Object.keys(expected).sort().join("\0") !== "baselineRevision\0planId"
+    || typeof expected.planId !== "string" || !expected.planId
+    || typeof expected.baselineRevision !== "string" || !/^[a-f0-9]{40}$/.test(expected.baselineRevision)) {
+    throw new Error("Workforce worktree ownership or baseline is invalid.");
+  }
+  return verify(worktreeId, Object.freeze({ planId: expected.planId, baselineRevision: expected.baselineRevision }));
 }
 
 export function createWorktreeIsolation(options = {}) {
@@ -159,5 +176,24 @@ export function createWorktreeIsolation(options = {}) {
         totalCleaned: results.filter((result) => result.success).length, results };
     },
   };
+  ownedManagers.set(manager, (worktreeId, expected) => exclusive(async () => {
+    const record = worktrees.get(worktreeId);
+    if (!record || record.planId !== expected.planId) throw new Error("Workforce worktree ownership is unavailable.");
+    const root = await ownedRoot();
+    assertDescendant(root, record.path);
+    const state = await pathState(record.path);
+    if (!state?.isDirectory() || state.isSymbolicLink()
+      || normalized(await realpath(record.path)) !== normalized(record.path)
+      || !await registered(record.path)) throw new Error("Owned worktree path or registration changed.");
+    const worktreeGit = createWorkforceGit(record.path);
+    await worktreeGit.assertSafe();
+    const ref = (await worktreeGit.run(["symbolic-ref", "--quiet", "HEAD"])).stdout.trim();
+    const baselineRevision = (await worktreeGit.run(["rev-parse", "--verify", "HEAD"])).stdout.trim();
+    if (ref !== `refs/heads/${record.branch}` || baselineRevision !== expected.baselineRevision) {
+      throw new Error("Owned worktree branch or approved baseline changed.");
+    }
+    return Object.freeze({ worktreeId, planId: record.planId, path: record.path, branch: record.branch,
+      baselineRevision, repositoryRoot: await realpath(repoRoot) });
+  }));
   return manager;
 }

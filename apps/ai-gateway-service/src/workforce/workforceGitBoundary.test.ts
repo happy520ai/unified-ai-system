@@ -55,6 +55,33 @@ afterEach(async () => {
 });
 
 describe('Workforce real Git ownership boundary', () => {
+  it('attests only its own current worktree, exact plan and approved baseline', async () => {
+    const { assertOwnedWorkforceWorktree } = await import('./worktreeIsolation.js');
+    expect(typeof assertOwnedWorkforceWorktree).toBe('function');
+    const manager = createWorktreeIsolation({ repoRoot: repo, worktreeRoot: trees });
+    const created = await manager.create({ planId: 'attested' });
+    assertCreated(created);
+    const baselineRevision = (await git(repo, ['rev-parse', 'HEAD'])).stdout.trim();
+    const expected = { planId: 'attested', baselineRevision };
+    const proof = await assertOwnedWorkforceWorktree(manager, created.worktree.worktreeId, expected);
+    expect(proof).toMatchObject({ ...expected, path: created.worktree.path, branch: created.worktree.branch });
+    expect(Object.isFrozen(proof)).toBe(true);
+    await expect(assertOwnedWorkforceWorktree(manager, created.worktree.worktreeId, { ...expected, planId: 'other-plan' })).rejects.toThrow();
+    await expect(assertOwnedWorkforceWorktree(manager, created.worktree.worktreeId, { ...expected, baselineRevision: 'f'.repeat(40) })).rejects.toThrow();
+    // @ts-expect-error Missing baseline must also fail at the runtime boundary.
+    await expect(assertOwnedWorkforceWorktree(manager, created.worktree.worktreeId, { planId: 'attested' })).rejects.toThrow();
+    let forgedCalls = 0;
+    await expect(assertOwnedWorkforceWorktree({ assertCurrent() { forgedCalls++; return proof; } }, created.worktree.worktreeId, expected)).rejects.toThrow();
+    expect(forgedCalls).toBe(0);
+    await writeFile(join(created.worktree.path, 'README.md'), 'candidate edit\n');
+    await expect(assertOwnedWorkforceWorktree(manager, created.worktree.worktreeId, expected)).resolves.toMatchObject(expected);
+    await git(created.worktree.path, ['add', 'README.md']);
+    await git(created.worktree.path, ['commit', '-q', '-m', 'unexpected commit']);
+    await expect(assertOwnedWorkforceWorktree(manager, created.worktree.worktreeId, expected)).rejects.toThrow();
+    expect((await manager.remove(created.worktree.worktreeId)).success).toBe(true);
+    await expect(assertOwnedWorkforceWorktree(manager, created.worktree.worktreeId, expected)).rejects.toThrow();
+  });
+
   it('ignores repository-redirection environment for both checks and creation', async () => {
     const other = join(root, 'other');
     await makeRepo(other);
