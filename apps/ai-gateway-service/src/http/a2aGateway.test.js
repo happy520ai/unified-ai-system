@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { A2A_PROTOCOL_VERSION } from "@a2a-js/sdk";
+import { A2A_PROTOCOL_VERSION, SendMessageRequest } from "@a2a-js/sdk";
 import { DefaultExecutionEventBusManager } from "@a2a-js/sdk/server";
 import { GatewayService } from "../core/gatewayService.js";
 import { ProviderRegistry } from "../providers/providerRegistry.js";
@@ -20,6 +20,22 @@ function createGateway(env = {}) {
     env,
   });
 }
+
+describe("A2A text validation before task mutation", () => {
+  it.each([{ parts: [] }, { parts: [{}] }, { parts: [{ text: "   " }] }, { parts: [{ data: { kind: "synthetic" } }] }])(
+    "rejects unsupported or empty parts without writing task state ($parts)", async ({ parts }) => {
+      const gateway = createGateway({ AI_GATEWAY_A2A_TASK_STORE_MODE: "memory" });
+      const writes = vi.spyOn(gateway.taskStore, "save");
+      try {
+        await expect(gateway.requestHandler.sendMessage(SendMessageRequest.fromJSON({ message: {
+          messageId: "invalid-text-message", role: "ROLE_USER", parts,
+        } }), { tenant: "fixture", user: { userName: "fixture", isAuthenticated: true }, state: new Map() }))
+          .rejects.toMatchObject({ reason: "CONTENT_TYPE_NOT_SUPPORTED" });
+        expect(writes).not.toHaveBeenCalled();
+      } finally { await gateway.close(); }
+    },
+  );
+});
 
 describe("managed A2A method admission before SDK task side effects", () => {
   it.each([

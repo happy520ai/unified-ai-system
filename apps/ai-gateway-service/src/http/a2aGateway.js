@@ -90,6 +90,13 @@ class ContextAwareA2ARequestHandler extends DefaultRequestHandler {
     this.contextAwareExecutor = agentExecutor;
   }
 
+  async sendMessage(params, context) {
+    // Validate the supported text profile before the SDK creates a task or runs
+    // its executor fallback, which can publish more than one terminal update.
+    if (params?.message) readTextMessage(params.message);
+    return super.sendMessage(params, context);
+  }
+
   async cancelTask(params, context) {
     if (
       typeof params?.id === "string"

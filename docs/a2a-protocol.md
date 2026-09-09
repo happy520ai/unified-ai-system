@@ -222,6 +222,9 @@ remain outside this first certification slice.
   and local cancellation aborts all active invocations of that owner/tenant task.
   Cancellation remains cooperative and cannot prove that a provider operation
   stopped before consuming tokens.
+- `SendMessage` validates the text-only profile before the SDK creates task
+  state. Empty or non-text parts retain their content-type error and do not
+  produce a second terminal update or alter an existing task.
 - Streaming, push notifications, gRPC, HTTP+JSON/REST, non-text parts, and a
   fence-aware irreversible side-effect sink are not enabled in this profile.
   Durable/distributed task storage and Agent Card signing remain explicit
@@ -253,6 +256,9 @@ receipt. No new streaming or paid Workforce mode is enabled by this integration.
 Language Selection: the private call/lifetime helper uses TypeScript and existing
 Core contracts. The existing JavaScript A2A adapter and Core entrypoints retain
 their ownership; no new service, dependency or persistent schema is introduced.
+The small request-handler override reuses the adapter's existing text validator.
+Reverting it restores the prior SDK error path; task state and fencing formats
+are unchanged.
 
 Run `pnpm verify:public-clone` for the credential-free official-client proof.
 The published `v0.5.0` gateway image contains the earlier A2A profile. The managed

@@ -551,6 +551,13 @@ describe("managed A2A blocking SendMessage admission", () => {
     expect(signatures.size).toBe(2);
     expect(f.generate).toHaveBeenCalledOnce();
     tamper = false;
+    const invalidText = body().params;
+    invalidText.message.parts = [{ text: "   " }];
+    await expect(client.sendMessage(SendMessageRequest.fromJSON(invalidText))).rejects.toMatchObject({
+      message: "A2A text input cannot be empty.",
+    });
+    expect(lastStatus).toBe(200);
+    expect(f.generate).toHaveBeenCalledOnce();
     const taskId = "id" in result ? result.id : "";
     expect(taskId).not.toBe("");
     await expect(client.getTask(GetTaskRequest.fromJSON({ id: taskId }))).rejects.toThrow();
