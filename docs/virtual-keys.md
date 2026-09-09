@@ -207,3 +207,31 @@ fallback/cancellation suites cover these interactions. There is no new state
 store, dependency, credential read or Provider selection rule. Revert this slice
 as a unit to preserve compatibility; doing so restores the old counting and
 missing-observation defects, so pause affected key traffic before rollback.
+
+### Request accounting capability (prepared, not activated)
+
+`apiKeyManager.checkContinuation` rechecks expiry, revocation and the remaining
+token budget, and repairs a retained failed write, without charging another
+request or checking RPM as a new admission. The private request-accounting module
+uses this operation for bounded child invocations. Server-created capabilities
+are bound through WeakMaps; JSON fields, cloned handles and object spreads cannot
+forge or transfer them. Trusted context projections must explicitly inherit the
+binding.
+
+One capability admits one logical request. Each child invocation has its own
+settlement promise shared by completion, error and cleanup paths. Known partial
+use is marked incomplete; unknown use emits a correlated audit event without
+recording a fictitious zero. Failed counter persistence retains the existing
+manager's charged state; audit failure blocks further work in that request.
+Neither failure becomes a retryable Provider error. Unsupported non-token
+operations reject token-budgeted capabilities; RPM-only capabilities still admit
+once and retain unknown token evidence. Fake work still consumes virtual quota.
+
+This module is not bound to HTTP/Core yet. Activation must land with removal of
+the old normal-execution charge hooks, while retaining explicit cache settlement
+and native idempotency replay. Its capability is request-local and provides no
+distributed or in-flight reservation. It adds no persistent schema or dependency.
+TypeScript expresses the private lifetime and receipt contracts; the existing JS
+manager only extracts its current checks so admission and continuation cannot
+drift. Once activation lands, roll it back together with this helper rather than
+removing a dependency under active request execution.

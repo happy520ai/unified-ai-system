@@ -256,63 +256,12 @@ export function createApiKeyManager(options = {}) {
      * @returns {{ allowed: boolean, code: string|null, budget: object|null, rate: object|null }}
      */
     authorizeUsage({ keyId, estimatedTokens = 0 } = {}) {
-      const record = findRecord({ keyId });
-      if (!record || record.revoked || isExpired(record.expiresAt)) {
-        return { allowed: false, code: "api_key_invalid", budget: null, rate: null };
-      }
-      if (!Number.isFinite(estimatedTokens) || estimatedTokens < 0 || !Number.isSafeInteger(Math.ceil(estimatedTokens))) {
-        throw validationError("api_key_invalid_usage_tokens", "Estimated token usage must be finite and non-negative.");
-      }
-      // A failed post-call write retains the charged counters in this process.
-      // Flush that complete snapshot before admitting any more provider work.
-      if (persistenceFailed) persistUsage();
+      return checkUsage(keyId, estimatedTokens, true);
+    },
 
-      if (record.rateLimit) {
-        rolloverIfNeeded(record, now());
-        const { requestsPerMinute } = record.rateLimit;
-        if (record.usageState.rateRequestCount + 1 > requestsPerMinute) {
-          return {
-            allowed: false,
-            code: "VIRTUAL_KEY_RATE_LIMITED",
-            budget: describeBudget(record),
-            rate: {
-              requestsPerMinute,
-              requestCount: record.usageState.rateRequestCount,
-              retryAfterMs: 60_000,
-            },
-          };
-        }
-      }
-
-      if (record.budget) {
-        rolloverIfNeeded(record, now());
-        const { limitTokens } = record.budget;
-        if (record.usageState.tokensUsed + Math.max(0, estimatedTokens) > limitTokens) {
-          return {
-            allowed: false,
-            code: "VIRTUAL_KEY_BUDGET_EXHAUSTED",
-            budget: describeBudget(record),
-            rate: null,
-          };
-        }
-      }
-
-      if (record.rateLimit || record.budget) {
-        if (!Number.isSafeInteger(record.usageState.requestCount + 1)
-          || (record.rateLimit && !Number.isSafeInteger(record.usageState.rateRequestCount + 1))) {
-          throw validationError("api_key_invalid_usage_tokens", "Request usage exceeds the supported integer range.");
-        }
-        record.usageState.requestCount += 1;
-        if (record.rateLimit) record.usageState.rateRequestCount += 1;
-        persistUsage();
-      }
-
-      return {
-        allowed: true,
-        code: null,
-        budget: record.budget ? describeBudget(record) : null,
-        rate: null,
-      };
+    /** Recheck key/budget and repair retained writes without another RPM admission. */
+    checkContinuation({ keyId, estimatedTokens = 0 } = {}) {
+      return checkUsage(keyId, estimatedTokens, false);
     },
 
     /**
@@ -389,6 +338,65 @@ export function createApiKeyManager(options = {}) {
   };
 
   // ---- 内部辅助函数 ----
+
+  function checkUsage(keyId, estimatedTokens, admit) {
+    const record = findRecord({ keyId });
+    if (!record || record.revoked || isExpired(record.expiresAt)) {
+      return { allowed: false, code: "api_key_invalid", budget: null, rate: null };
+    }
+    if (!Number.isFinite(estimatedTokens) || estimatedTokens < 0 || !Number.isSafeInteger(Math.ceil(estimatedTokens))) {
+      throw validationError("api_key_invalid_usage_tokens", "Estimated token usage must be finite and non-negative.");
+    }
+    // A failed post-call write retains the charged counters in this process.
+    // Flush that complete snapshot before admitting any more provider work.
+    if (persistenceFailed) persistUsage();
+
+    if (record.rateLimit || record.budget) rolloverIfNeeded(record, now());
+    if (admit && record.rateLimit) {
+      const { requestsPerMinute } = record.rateLimit;
+      if (record.usageState.rateRequestCount + 1 > requestsPerMinute) {
+        return {
+          allowed: false,
+          code: "VIRTUAL_KEY_RATE_LIMITED",
+          budget: describeBudget(record),
+          rate: {
+            requestsPerMinute,
+            requestCount: record.usageState.rateRequestCount,
+            retryAfterMs: 60_000,
+          },
+        };
+      }
+    }
+
+    if (record.budget) {
+      const { limitTokens } = record.budget;
+      if (record.usageState.tokensUsed + Math.max(0, estimatedTokens) > limitTokens) {
+        return {
+          allowed: false,
+          code: "VIRTUAL_KEY_BUDGET_EXHAUSTED",
+          budget: describeBudget(record),
+          rate: null,
+        };
+      }
+    }
+
+    if (admit && (record.rateLimit || record.budget)) {
+      if (!Number.isSafeInteger(record.usageState.requestCount + 1)
+        || (record.rateLimit && !Number.isSafeInteger(record.usageState.rateRequestCount + 1))) {
+        throw validationError("api_key_invalid_usage_tokens", "Request usage exceeds the supported integer range.");
+      }
+      record.usageState.requestCount += 1;
+      if (record.rateLimit) record.usageState.rateRequestCount += 1;
+      persistUsage();
+    }
+
+    return {
+      allowed: true,
+      code: null,
+      budget: record.budget ? describeBudget(record) : null,
+      rate: null,
+    };
+  }
 
   function persistUsage() {
     try {

@@ -18,6 +18,22 @@ function fixture() {
 }
 
 describe("virtual key accounting persistence", () => {
+  it("repairs a retained charge before continuation without a second admission or charge", () => {
+    const { open, storePath } = fixture();
+    const manager = open();
+    const { record } = manager.create({ budget: { limitTokens: 100, window: "daily" }, rateLimit: { requestsPerMinute: 1 } });
+    manager.authorizeUsage({ keyId: record.keyId });
+    renameSync(storePath, `${storePath}.preserved`);
+    mkdirSync(storePath);
+    expect(() => manager.recordUsage({ keyId: record.keyId, tokens: 80 })).toThrow();
+    expect(() => manager.checkContinuation({ keyId: record.keyId })).toThrowError(expect.objectContaining({ code: "VIRTUAL_KEY_ACCOUNTING_UNAVAILABLE" }));
+    rmSync(storePath, { recursive: true });
+    renameSync(`${storePath}.preserved`, storePath);
+    expect(manager.checkContinuation({ keyId: record.keyId, estimatedTokens: 20 }).allowed).toBe(true);
+    expect(open().describeUsage({ keyId: record.keyId })?.usage).toMatchObject({ tokensUsed: 80, requestCount: 1, rateRequestCount: 1 });
+    expect(manager.getHealth().status).toBe("ready");
+  });
+
   it("retains admissions and actual tokens without unrelated key-management writes", () => {
     const { open } = fixture();
     const manager = open();
