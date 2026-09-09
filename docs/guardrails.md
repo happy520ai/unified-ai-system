@@ -71,10 +71,13 @@ the concatenated text parts of each message, places each replacement at the
 match's original start, and retains unrelated text and non-text parts at their
 existing positions. It does not inspect image bytes, tool arguments or other
 non-text fields. The engine returns replacements without changing its input.
-Anthropic top-level `system` strings and text blocks enter the same input rules
-before the conversation messages, including the shared length budget. Redaction
-preserves their block metadata, and only transformation-generated empty blocks
-are accepted; originally empty blocks still fail protocol validation.
+Anthropic validates and normalizes the protocol before scanning its actual
+system, conversation and textual `tool_result` messages once. String and text-array
+tool results receive the same rules and shared length budget. Text block spaces
+are preserved so adjacent words do not become one token; tool-result text blocks
+retain their existing newline separator. Tool-call IDs and cache breakpoints stay
+in their normalized messages/options. Tool arguments and descriptions are not
+part of this text-only profile.
 
 `input.limits: redact` applies one prefix budget after the other text
 replacements, in message order. It counts UTF-16 code units like JavaScript
@@ -85,9 +88,9 @@ After protocol normalization, a limits-only check includes inserted separators,
 system messages and locally injected context in the final cumulative budget;
 it does not run PII or injection redaction again. The final text participates in
 the response cache key, while RAG requests retain their existing cache bypass.
-Anthropic text blocks made empty by this request's guardrail transformation are
-accepted during conversion; originally empty or whitespace-only blocks remain
-invalid. Native chat converts a proven guardrail-generated empty pure-text array
+Anthropic rejects originally empty or whitespace-only text blocks before applying
+redaction; the resulting normalized strings may become empty within the budget.
+Native chat converts a proven guardrail-generated empty pure-text array
 to an empty string; originally invalid empty arrays remain invalid. The private
 proof cannot be supplied in JSON, and arrays with non-text parts are never collapsed.
 Findings report the configured rule; `warn` keeps the original text and `block`
@@ -179,12 +182,14 @@ together to restore the prior input profile; the request schemas and default
 rule actions are unchanged. The previous profile did not apply array-text
 redaction or the two input-only `redact` actions.
 
-The subsequent Anthropic system-field fix is a three-file route/test/document
-change. The existing ESM protocol adapter maps the field into the TypeScript
-engine and reuses its private empty-block proof; a second parser or runtime
-language would duplicate the same contract. No schema, dependency or persisted
-data changes. Reverting these three changes restores the previous system-field
-coverage gap without changing stored configuration or conversation data.
+The Anthropic system and tool-result coverage changes stay in the existing ESM
+route, its actual HTTP test and this document. The adapter first validates and
+normalizes text, then passes those exact messages to the TypeScript engine.
+Preserving text-block spaces is necessary at this boundary: trimming them before
+inspection can join adjacent words and change rule matches. No schema, dependency
+or persisted data changes. Reverting the latest three-file change restores the
+prior raw-message inspection and tool-result gap; stored configuration and
+conversation data do not require migration.
 
 This change crosses the scope checkpoint because six stream profiles, exact and
 approximate caches, stored Responses and their regression tests must agree.

@@ -817,13 +817,28 @@ async function handleAnthropicMessages({
     return;
   }
 
-  // Guardrails（确定性本地扫描）：与 /v1/chat/completions 同一引擎，作用于
-  // 归一化前的原始请求，拦截/脱敏覆盖 JSON、流式与缓存路径。
+  let gatewayInput;
+  try {
+    gatewayInput = normalizeAnthropicMessageRequest(
+      body,
+      gatewayService.getProviderDescriptors(),
+    );
+  } catch (error) {
+    writeServiceLog?.("anthropic_messages_validation_failed", {
+      method: request.method,
+      path: ANTHROPIC_MESSAGES_PATH,
+      code: error?.code,
+      param: error?.param,
+      durationMs: Date.now() - startedAt,
+    });
+    writeJson(response, 400, createAnthropicError(error));
+    return;
+  }
+
+  // Inspect the actual normalized text once, including system and tool_result
+  // messages. Original malformed blocks have already failed protocol validation.
   const anthropicGuardrailsEngine = getGuardrailsEngine(request.enterpriseIdentity?.tenantId);
-  const anthropicGuardrailVerdict = anthropicGuardrailsEngine.inspectInput({ messages: [
-    { role: "system", content: body?.system },
-    ...(Array.isArray(body?.messages) ? body.messages : []),
-  ] });
+  const anthropicGuardrailVerdict = anthropicGuardrailsEngine.inspectInput({ messages: gatewayInput.messages });
   if (anthropicGuardrailVerdict.decision === "block") {
     recordGuardrailEvaluation("input", "block");
     for (const finding of anthropicGuardrailVerdict.findings) {
@@ -856,29 +871,7 @@ async function handleAnthropicMessages({
     });
   }
   for (const replacement of anthropicGuardrailVerdict.replacements) {
-    if (replacement.index === 0) {
-      body.system = replacement.content;
-    } else if (body.messages?.[replacement.index - 1]) {
-      body.messages[replacement.index - 1].content = replacement.content;
-    }
-  }
-
-  let gatewayInput;
-  try {
-    gatewayInput = normalizeAnthropicMessageRequest(
-      body,
-      gatewayService.getProviderDescriptors(),
-    );
-  } catch (error) {
-    writeServiceLog?.("anthropic_messages_validation_failed", {
-      method: request.method,
-      path: ANTHROPIC_MESSAGES_PATH,
-      code: error?.code,
-      param: error?.param,
-      durationMs: Date.now() - startedAt,
-    });
-    writeJson(response, 400, createAnthropicError(error));
-    return;
+    gatewayInput.messages[replacement.index].content = replacement.content;
   }
 
   if (!applyNormalizedGuardrailsInputLimit(gatewayInput, anthropicGuardrailsEngine, anthropicGuardrailVerdict.findings)) {
@@ -1244,7 +1237,8 @@ function normalizeAnthropicMessageBlocks(message, param) {
     if (block.type === "text") {
       const generatedEmpty = consumeGuardrailsGeneratedEmptyText(block)
         && typeof block.text === "string" && !block.text.trim();
-      textParts.push(generatedEmpty ? "" : readRequiredString(block.text, `${blockParam}.text`));
+      if (!generatedEmpty) readRequiredString(block.text, `${blockParam}.text`);
+      textParts.push(generatedEmpty ? "" : block.text);
       return;
     }
     if (block.type === "tool_use") {
@@ -1328,7 +1322,8 @@ function normalizeAnthropicToolResultContent(content, param) {
         blockParam,
       );
     }
-    return readRequiredString(block.text, `${blockParam}.text`);
+    readRequiredString(block.text, `${blockParam}.text`);
+    return block.text;
   }).join("\n");
 }
 
@@ -1416,7 +1411,8 @@ function normalizeAnthropicTextContent(content, param) {
     }
     const generatedEmpty = consumeGuardrailsGeneratedEmptyText(block)
       && typeof block.text === "string" && !block.text.trim();
-    return generatedEmpty ? "" : readRequiredString(block.text, `${blockParam}.text`);
+    if (!generatedEmpty) readRequiredString(block.text, `${blockParam}.text`);
+    return generatedEmpty ? "" : block.text;
   }).join("");
 }
 
