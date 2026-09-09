@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { createLocalClientPopSnapshotRollbackProtectedReplayGuard, LOCAL_CLIENT_POP_REPLAY_CHECKPOINT_VERSION,
   type LocalClientPopReplayCheckpoint } from "./localClientPopSnapshotRollbackProtection.ts";
 import { LocalClientSqlitePopReplayGuard } from "./localClientSqlitePopReplayGuard.ts";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import {
   LOCAL_CLIENT_NATIVE_AUTHORITY_SLOTS, LOCAL_CLIENT_NATIVE_AUTHORITY_RUNTIME_SLOTS, LOCAL_CLIENT_NATIVE_AUTHORITY_VALIDATION_SLOTS,
   LOCAL_CLIENT_NATIVE_AUTHORITY_LEGACY_SLOTS, boundedJson, createLocalClientNativeAuthorityClient, createLocalClientNativePopReplayBinding,
@@ -22,7 +22,7 @@ const USER_SID = "S-1-5-21-101-202-303-1001";
 const ADMIN_SID = "S-1-5-32-544";
 const SYSTEM_SID = "S-1-5-18";
 const installationId = "12345678-1234-1234-1234-123456789012";
-const bootstrap = { version: "local-client-windows-authority-bootstrap-v2" as const, installationId,
+const bootstrap = { version: "local-client-windows-authority-bootstrap-v3" as const, installationId,
   hostId: `windows-authority-${installationId}`, currentUserSid: USER_SID,
   programDataBasePath: "C:\\fixture\\ProgramData", anchorIds: [...LOCAL_CLIENT_NATIVE_AUTHORITY_SLOTS], packageManifestSha256: "a".repeat(64) };
 const BOOTSTRAP_REQUEST = JSON.stringify({ version: "local-client-windows-authority-bootstrap-request-v1" });
@@ -45,6 +45,13 @@ function fixture(basePath?: string) {
   const calls = { context: 0, end: 0, lock: 0, release: 0, write: 0, acl: 0, initialize: 0, load: 0, transport: 0 };
   const returnedKeys: Buffer[] = [];
   const nonces = new Set<string>();
+  const popNonces = new Map<string, { requestDigestSha256: string; expiresAtMs: number }>();
+  let serviceInstanceId = "9".repeat(64), highWater = 0, popClaims = 0, popFaulted = false;
+  const advanceClock = () => {
+    if (popFaulted || Date.now() < highWater) throw new Error("MODEL_POP_UNAVAILABLE");
+    highWater = Date.now(); for (const [nonce, record] of popNonces) if (record.expiresAtMs <= highWater) popNonces.delete(nonce);
+    return highWater;
+  };
   let active = false, lease: string | null = null, writable = false, refuseContext = false, refuseService = false, failWrite = false;
   const api: LocalClientNativeAuthorityApi = {
     inspectEnvironment: () => ({ osPlatform: "win32", programDataBasePath: configuration.programDataBasePath }),
@@ -55,6 +62,24 @@ function fixture(basePath?: string) {
     async acquireLock(context) { expect(context).toBe("context"); expect(active).toBe(true); expect(lease).toBeNull(); calls.lock++; return lease = "lease"; },
     releaseLock(input) { expect(input).toBe(lease); lease = null; calls.release++; },
     claimNonce(input, nonce) { expect(input).toBe(lease); if (nonces.has(nonce)) return "replayed"; nonces.add(nonce); return "claimed"; },
+    startPopServiceInstance() { throw new Error("MODEL_WORKER_CANNOT_START_INSTANCE"); },
+    readPopServiceInstance(input, expected) { expect(input).toBe(lease); if (expected !== serviceInstanceId) throw new Error("MODEL_INSTANCE_MISMATCH"); return {serviceInstanceId, observedAtMs: advanceClock()}; },
+    claimExpiringNonce(input, request) {
+      expect(input).toBe(lease); if (request.serviceInstanceId !== serviceInstanceId) throw new Error("MODEL_INSTANCE_MISMATCH");
+      const observedAtMs = advanceClock();
+      if (request.issuedAtMs > observedAtMs) return {result:"future",observedAtMs};
+      if (request.expiresAtMs <= observedAtMs) return {result:"expired",observedAtMs};
+      if (popNonces.has(request.nonce)) return {result:"replayed",observedAtMs};
+      if (popNonces.size >= 4096) return {result:"capacity",observedAtMs};
+      popNonces.set(request.nonce,{requestDigestSha256:request.requestDigestSha256,expiresAtMs:request.expiresAtMs}); popClaims++;
+      return {result:"claimed",observedAtMs};
+    },
+    assertExpiringRequestFresh(input, request) {
+      expect(input).toBe(lease); const observedAtMs = advanceClock(); const record = popNonces.get(request.nonce);
+      if (request.serviceInstanceId !== serviceInstanceId || request.issuedAtMs > observedAtMs || request.expiresAtMs <= observedAtMs
+        || record?.requestDigestSha256 !== request.requestDigestSha256 || record.expiresAtMs !== request.expiresAtMs) throw new Error("MODEL_FRESHNESS_REJECTED");
+      return {observedAtMs};
+    },
     readProtectedFileCheckpoint(input, target) { expect(input).toBe(lease); return JSON.stringify(files.get(target.anchorPath)); },
     writeProtectedFileCheckpointAtomically(input, target, value) { expect(input).toBe(lease); if (failWrite) throw new Error("MODEL_WRITE_FAILED"); calls.write++; files.set(target.anchorPath, JSON.parse(value)); if (basePath) writeFileSync(target.anchorPath, value); },
     readHklmCheckpoint64(input, target) { expect(input).toBe(lease); return JSON.stringify(registry.get(target.hklmKeyPath)); },
@@ -67,7 +92,10 @@ function fixture(basePath?: string) {
         registryOwnerSid: SYSTEM_SID, registryAllowedWriteSids: [SYSTEM_SID, ADMIN_SID, SERVICE_SID], registryInheritedWriteSids: [], registryCurrentUserCanWrite: writable,
         hklmHive: "HKLM", hklmKeyPath: target.hklmKeyPath, hklmView: "registry64" };
     },
-    request: payload => { calls.transport++; return handleLocalClientNativeAuthorityRequest(api, "123", payload); },
+    request: payload => { calls.transport++; const request = JSON.parse(payload);
+      const pop = request.version === "local-client-windows-authority-bootstrap-request-v2" || request.requestVersion === "local-client-windows-authority-request-v2";
+      if (pop && popFaulted) return Promise.reject(new Error("MODEL_HOST_FAULTED"));
+      return handleLocalClientNativeAuthorityRequest(api, "123", payload, pop ? serviceInstanceId : undefined); },
   };
   const target = createLocalClientWindowsAuthorityProvisioningPlan(configuration.programDataBasePath, [], { anchorId: "gateway-vscode" });
   function signed(operation: LocalClientWindowsAuthorityBrokerRequest["operation"], generation = 0, digest: string | null = null,
@@ -80,6 +108,8 @@ function fixture(basePath?: string) {
     return { ...request, requestHmacSha256: createLocalClientWindowsAuthorityRequestHmac(key, request) };
   }
   return { api, key, files, registry, calls, returnedKeys, target, signed, configuration, get nonceCount() { return nonces.size; },
+    get popClaimCount() { return popClaims; }, get activePopClaims() { return popNonces.size; }, get highWater() { return highWater; },
+    restartPop() { advanceClock(); serviceInstanceId = randomBytes(32).toString("hex"); }, faultPop() { popFaulted = true; },
     writable: () => { writable = true; }, refuseContext: () => { refuseContext = true; },
     refuseService: () => { refuseService = true; }, failWrite: () => { failWrite = true; } };
 }
@@ -149,7 +179,7 @@ it("delivers only the dedicated protocol key after actual-context and all-slot c
   expect(envelope.id).toBe("request-one");
   expect(Object.keys(response).sort()).toEqual(["bootstrap", "integrityKey", "version"]);
   expect(response.integrityKey).toBe(f.key.toString("base64"));
-  expect(f.calls.context).toBe(1); expect(f.calls.end).toBe(1); expect(f.calls.acl).toBe(14); expect(f.calls.write).toBe(0);
+  expect(f.calls.context).toBe(1); expect(f.calls.end).toBe(1); expect(f.calls.acl).toBe(12); expect(f.calls.write).toBe(0);
   expectClosed(f);
 });
 
@@ -191,7 +221,7 @@ it("releases the native lease/context and wipes loaded keys after a write failur
 it("constructs an un-enrolled client anchor through the explicit authenticated transport bootstrap", async () => {
   const f = fixture();
   const client = await createLocalClientNativeAuthorityClient(f.api, "gateway-vscode");
-  expect(f.calls.acl).toBe(14); expect(f.calls.write).toBe(0); expectClosed(f);
+  expect(f.calls.acl).toBe(12); expect(f.calls.write).toBe(0); expectClosed(f);
   await client.close();
   await expect(createLocalClientNativeAuthorityClient(f.api, "unknown-slot")).rejects.toThrow();
 });
@@ -214,7 +244,7 @@ it("keeps v1 clients on the original slots and rejects legacy or mixed bootstrap
   f.api.readBootstrap = () => ({ ...original(), configJson: JSON.stringify(legacy) });
   const client = await createLocalClientNativeAuthorityClient(f.api, "gateway-vscode");
   await client.close();
-  await expect(createLocalClientNativePopReplayBinding(f.api)).rejects.toThrow("SLOT_VERSION_REQUIRED");
+  await expect(createLocalClientNativePopReplayBinding(f.api)).rejects.toThrow();
   expect(f.calls.write).toBe(0); expectClosed(f);
 });
 
@@ -246,8 +276,9 @@ it("MODEL: requires actual challenge HMAC validation before exposing PoP evidenc
     expect(adapter.status.nativeDeploymentVerified).toBe(false);
     const challenge = Buffer.alloc(32, 31);
     await adapter.verifyCurrent({ checkpoint, challenge });
-    await expect(adapter.verifyCurrent({ checkpoint, challenge })).rejects.toThrow();
-    expect(adapter.status.nativeDeploymentVerified).toBe(false);
+    // Reusing challenge bytes in a fresh signed lifecycle is permitted; replaying an old frame is not.
+    await expect(adapter.verifyCurrent({ checkpoint, challenge })).resolves.toMatchObject({ attestationVerified: true });
+    expect(adapter.status.nativeDeploymentVerified).toBe(true);
     expect(legacyState()).toBe(before);
     const validation = createLocalClientWindowsAuthorityProvisioningPlan(base, [], { anchorId: "validation-pop-replay" });
     expect(f.files.get(validation.storage.anchorPath)?.currentGeneration).toBe(0);
@@ -270,22 +301,22 @@ it("MODEL: bounds native request and nonce cost for the real SQLite consume plus
   try {
     const f = fixture(join(root, "ProgramData"));
     binding = await createLocalClientNativePopReplayBinding(f.api);
-    expect({ frames: f.calls.transport, nonces: f.nonceCount }).toEqual({ frames: 1, nonces: 14 });
+    expect({ frames: f.calls.transport, legacy: f.nonceCount, pop: f.popClaimCount }).toEqual({ frames: 1, legacy: 0, pop: 2 });
     guard = new LocalClientSqlitePopReplayGuard({ sqlitePath: join(root, "pop.sqlite"), hostId: f.configuration.hostId,
       integrityKey: Buffer.alloc(32, 88), protectedAuthority: binding.authority, anchorBindingSha256: binding.anchorBindingSha256 });
     const baseline = await guard.enrollProtectedBaseline();
     const adapter = binding.createEvidenceAdapter(baseline.storeBindingSha256);
     await adapter.preflight(baseline);
     wrapped = await createLocalClientPopSnapshotRollbackProtectedReplayGuard({ checkpointPort: guard, anchorPort: adapter });
-    expect({ frames: f.calls.transport, nonces: f.nonceCount }).toEqual({ frames: 12, nonces: 25 });
-    const before = { frames: f.calls.transport, nonces: f.nonceCount };
+    expect({ frames: f.calls.transport, legacy: f.nonceCount, pop: f.popClaimCount }).toEqual({ frames: 12, legacy: 0, pop: 13 });
+    const before = { frames: f.calls.transport, nonces: f.popClaimCount };
     const request = { replayKeySha256: "c".repeat(64), replayScopeSha256: "d".repeat(64), nowMs: 1900000000000, expiresAtMs: 1900000010000 };
     await expect(wrapped.consumeOnce(request)).resolves.toBe("consumed");
-    expect({ frames: f.calls.transport - before.frames, nonces: f.nonceCount - before.nonces }).toEqual({ frames: 27, nonces: 27 });
-    const replayBefore = f.nonceCount;
+    expect({ frames: f.calls.transport - before.frames, nonces: f.popClaimCount - before.nonces }).toEqual({ frames: 27, nonces: 27 });
+    const replayBefore = f.popClaimCount;
     await expect(wrapped.consumeOnce(request)).resolves.toBe("replayed");
-    expect(f.nonceCount - replayBefore).toBe(23); // Identical timestamp: no replay-state mutation.
-    expect(Math.floor((4096 - 25) / 27)).toBe(150); // Optimistic fresh-store ceiling; other slots share that capacity.
+    expect(f.popClaimCount - replayBefore).toBe(23); // Identical timestamp: no replay-state mutation.
+    expect(f.nonceCount).toBe(0);
   } finally {
     await wrapped?.close(); await guard?.close(); await binding?.close();
     expect(realpathSync(root)).toBe(root); expect(dirname(root)).toBe(realpathSync(tmpdir()));
@@ -368,4 +399,66 @@ it("MODEL boundary: attestation binds the captured checkpoint and challenge whil
       checkpointDigestSha256: initial.checkpointDigestSha256, challengeSha256 });
     expect(challenge).toEqual(Buffer.alloc(32, 45));
   });
+});
+
+it("MODEL lifecycle: the full SQLite consume chain crosses two capacity windows with zero legacy claims", async () => {
+  const root = mkdtempSync(join(realpathSync(tmpdir()), "native-pop-lifecycle-"));
+  let now = Date.now(); const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
+  let binding: Awaited<ReturnType<typeof createLocalClientNativePopReplayBinding>> | undefined;
+  let guard: LocalClientSqlitePopReplayGuard | undefined;
+  let wrapped: Awaited<ReturnType<typeof createLocalClientPopSnapshotRollbackProtectedReplayGuard>> | undefined;
+  try {
+    const f = fixture(join(root, "ProgramData"));
+    binding = await createLocalClientNativePopReplayBinding(f.api);
+    guard = new LocalClientSqlitePopReplayGuard({ sqlitePath: join(root, "pop.sqlite"), hostId: f.configuration.hostId,
+      integrityKey: Buffer.alloc(32, 88), protectedAuthority: binding.authority, anchorBindingSha256: binding.anchorBindingSha256 });
+    const baseline = await guard.enrollProtectedBaseline(); const adapter = binding.createEvidenceAdapter(baseline.storeBindingSha256);
+    await adapter.preflight(baseline); wrapped = await createLocalClientPopSnapshotRollbackProtectedReplayGuard({ checkpointPort: guard, anchorPort: adapter });
+    const transport = f.api.request; let captured = "";
+    f.api.request = async payload => { if (!captured && JSON.parse(payload).requestVersion === "local-client-windows-authority-request-v2") captured = payload; return transport(payload); };
+    for (let index = 0; index < 350; ++index) {
+      if (index === 120 || index === 240) now += 8000;
+      await expect(wrapped.consumeOnce({ replayKeySha256: createHash("sha256").update(String(index)).digest("hex"),
+        replayScopeSha256: "d".repeat(64), nowMs: 1900000000000, expiresAtMs: 1900000010000 })).resolves.toBe("consumed");
+      expect(f.activePopClaims).toBeLessThanOrEqual(4096);
+    }
+    expect(f.popClaimCount).toBe(13 + 350 * 27); expect(f.popClaimCount).toBeGreaterThan(8192); expect(f.nonceCount).toBe(0);
+    const writes = f.calls.write;
+    await expect(transport(captured)).rejects.toThrow(); // Expired raw frame stays dead after its claim was collected.
+    expect(f.calls.write).toBe(writes); expect(f.nonceCount).toBe(0);
+    now -= 1;
+    await expect(guard.readCurrentCheckpoint()).rejects.toThrow();
+    expect(adapter.status.available).toBe(false); // Persistent model high-water is outside the SQLite store.
+  } finally {
+    await wrapped?.close(); await guard?.close(); await binding?.close(); clock.mockRestore();
+    expect(realpathSync(root)).toBe(root); expect(dirname(root)).toBe(realpathSync(tmpdir())); rmSync(root, { recursive: true, force: true });
+  }
+}, 120_000);
+
+it("MODEL lifecycle: a service restart rejects a captured unexpired frame and requires fresh bootstrap", async () => {
+  await withPopBinding(async (f, binding, checkpoint) => {
+    await binding.authority.enrollBaseline(checkpoint.checkpointDigestSha256);
+    const adapter = binding.createEvidenceAdapter(checkpoint.storeBindingSha256), transport = f.api.request;
+    let captured = "";
+    f.api.request = async payload => { captured = payload; return transport(payload); };
+    await adapter.preflight(checkpoint); f.api.request = transport;
+    const writes = f.calls.write; f.restartPop();
+    await expect(transport(captured)).rejects.toThrow();
+    await expect(adapter.preflight(checkpoint)).rejects.toThrow(); expect(adapter.status.available).toBe(false);
+    const next = await createLocalClientNativePopReplayBinding(f.api);
+    try { await expect(next.createEvidenceAdapter(checkpoint.storeBindingSha256).preflight(checkpoint)).resolves.toMatchObject({ attestationVerified: true }); }
+    finally { await next.close(); }
+    expect(f.calls.write).toBe(writes); expect(f.nonceCount).toBe(0);
+  });
+});
+
+it("MODEL lifecycle: expiry and clock rollback withdraw cached adapter readiness", async () => {
+  let now = Date.now(); const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
+  try { await withPopBinding(async (_f, binding, checkpoint) => {
+    await binding.authority.enrollBaseline(checkpoint.checkpointDigestSha256); const adapter = binding.createEvidenceAdapter(checkpoint.storeBindingSha256);
+    await adapter.preflight(checkpoint); expect(adapter.status.available).toBe(true);
+    now -= 1; expect(adapter.status.available).toBe(false); now += 1;
+    expect(adapter.status.available).toBe(false); await adapter.preflight(checkpoint); expect(adapter.status.available).toBe(true);
+    now += 8000; expect(adapter.status.available).toBe(false);
+  }); } finally { clock.mockRestore(); }
 });

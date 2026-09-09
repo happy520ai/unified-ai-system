@@ -16,13 +16,16 @@ const PRIVATE_LIMIT = 8 * 65_536;
 /** Private host envelope only; callers on the named pipe supply request text,
  * never a token handle or worker id. The native host constructs this envelope. */
 export async function handleLocalClientAuthorityWorkerEnvelope(native: LocalClientNativeAuthorityApi, envelope: unknown) {
-  exact(envelope, ["id", "callerTokenHandle", "request"]);
+  const withInstance = envelope !== null && typeof envelope === "object" && Object.hasOwn(envelope, "serviceInstanceId");
+  exact(envelope, ["id", "callerTokenHandle", "request", ...(withInstance ? ["serviceInstanceId"] : [])]);
   if (typeof envelope.id !== "string" || !/^[A-Za-z0-9-]{1,64}$/u.test(envelope.id)
     || typeof envelope.callerTokenHandle !== "string" || !/^[1-9][0-9]{0,19}$/u.test(envelope.callerTokenHandle)
-    || typeof envelope.request !== "string") fail();
+    || typeof envelope.request !== "string" || (withInstance && envelope.serviceInstanceId !== null
+      && (typeof envelope.serviceInstanceId !== "string" || !/^[a-f0-9]{64}$/u.test(envelope.serviceInstanceId)))) fail();
   parseBounded(envelope.request);
   return Object.freeze({ id: envelope.id,
-    response: await handleLocalClientNativeAuthorityRequest(native, envelope.callerTokenHandle, envelope.request) });
+    response: await handleLocalClientNativeAuthorityRequest(native, envelope.callerTokenHandle, envelope.request,
+      typeof envelope.serviceInstanceId === "string" ? envelope.serviceInstanceId : undefined) });
 }
 
 /** The installer sends its newly generated dedicated HMAC key through private
@@ -37,7 +40,7 @@ export function createLocalClientNativeAuthorityZeroCheckpoints(input: unknown) 
   try {
     if (key.byteLength !== 32 || key.toString("base64") !== input.integrityKey) fail();
     input.integrityKey = "";
-    const bootstrap = parseLocalClientNativeAuthorityBootstrap({ version: v2 ? "local-client-windows-authority-bootstrap-v2" : "local-client-windows-authority-bootstrap-v1",
+    const bootstrap = parseLocalClientNativeAuthorityBootstrap({ version: v2 ? "local-client-windows-authority-bootstrap-v3" : "local-client-windows-authority-bootstrap-v1",
       installationId: input.hostId.slice("windows-authority-".length), hostId: input.hostId,
       currentUserSid: input.currentUserSid, programDataBasePath: input.programDataBasePath, anchorIds: input.anchorIds,
       ...(v2 ? { packageManifestSha256: input.packageManifestSha256 } : {}) });
@@ -58,7 +61,7 @@ export function createLocalClientNativeAuthorityZeroCheckpoints(input: unknown) 
  * module from the gateway does not register or start a privileged service. */
 export async function runNativeAuthorityWorker() {
   let stage = "NATIVE_LOAD";
-  let firstFailure: { workerError: string; failureCode: string } | null = null;
+  let firstFailure: { workerError: string; failureCode: string; popFault: boolean } | null = null;
   const rememberFailure = (workerError: string, error: unknown) => {
     if (firstFailure !== null) return;
     let failureCode = "LOCAL_CLIENT_NATIVE_AUTHORITY_WORKER_REJECTED";
@@ -66,7 +69,8 @@ export async function runNativeAuthorityWorker() {
       const code = error !== null && typeof error === "object" ? (error as { code?: unknown }).code : undefined;
       if (typeof code === "string" && /^[A-Z0-9_]{1,128}$/u.test(code)) failureCode = code;
     } catch { /* Error properties are not diagnostic authority. */ }
-    firstFailure = { workerError, failureCode };
+    const knownRejection = /^LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_(?:REQUEST_INVALID|REQUEST_AUTHENTICATION_FAILED|REQUEST_BINDING_MISMATCH|NONCE_REPLAYED|REQUEST_EXPIRED|REQUEST_FUTURE|NONCE_CAPACITY|EXPECTATION_MISMATCH|PENDING_RECOVERY_REQUIRED)$/u.test(failureCode);
+    firstFailure = { workerError, failureCode, popFault: !knownRejection };
   };
   const nativeStages: Record<keyof LocalClientNativeAuthorityApi, string> = {
     inspectEnvironment: "NATIVE_INSPECT_ENVIRONMENT", initializeService: "NATIVE_INITIALIZE_SERVICE",
@@ -76,9 +80,12 @@ export async function runNativeAuthorityWorker() {
     writeProtectedFileCheckpointAtomically: "NATIVE_WRITE_PROTECTED_FILE_CHECKPOINT_ATOMICALLY",
     readHklmCheckpoint64: "NATIVE_READ_HKLM_CHECKPOINT_64", writeHklmCheckpoint64: "NATIVE_WRITE_HKLM_CHECKPOINT_64",
     inspectAclFacts: "NATIVE_INSPECT_ACL_FACTS", request: "NATIVE_REQUEST",
+    startPopServiceInstance: "NATIVE_START_POP_SERVICE_INSTANCE", readPopServiceInstance: "NATIVE_READ_POP_SERVICE_INSTANCE",
+    claimExpiringNonce: "NATIVE_CLAIM_EXPIRING_NONCE", assertExpiringRequestFresh: "NATIVE_ASSERT_EXPIRING_REQUEST_FRESH",
   };
   try {
-    if (process.argv.length !== 2 || process.platform !== "win32") fail();
+    const serviceStart = process.argv.length === 3 && process.argv[2] === "--start-pop-service-instance";
+    if ((!serviceStart && process.argv.length !== 2) || process.platform !== "win32") fail();
     const loaded = loadLocalClientNativeAuthority(join(dirname(fileURLToPath(import.meta.url)), "local-client-authority.node"));
     const native = new Proxy(loaded, { get(target, property) {
       const method = Reflect.get(target, property, target);
@@ -95,6 +102,18 @@ export async function runNativeAuthorityWorker() {
     } });
     stage = "PRIVATE_INPUT";
     const envelope = await readPrivateInput();
+    if (serviceStart) {
+      exact(envelope, ["control"]); if (envelope.control !== "start-pop-service-instance") fail();
+      const loadedBootstrap = native.readBootstrap();
+      try {
+        const bootstrap = parseLocalClientNativeAuthorityBootstrap(parseBounded(loadedBootstrap.configJson));
+        if (bootstrap.version !== "local-client-windows-authority-bootstrap-v3" || !native.startPopServiceInstance) fail();
+        native.initializeService({ hostId: bootstrap.hostId, currentUserSid: bootstrap.currentUserSid });
+        const serviceInstanceId = native.startPopServiceInstance();
+        if (!/^[a-f0-9]{64}$/u.test(serviceInstanceId)) fail();
+        await writePrivateOutput({ control: "pop-service-instance-ready", serviceInstanceId }); return;
+      } finally { loadedBootstrap.integrityKey.fill(0); }
+    }
     stage = "AUTHORITY_REQUEST";
     const response = await handleLocalClientAuthorityWorkerEnvelope(native, envelope);
     await writePrivateOutput(response);

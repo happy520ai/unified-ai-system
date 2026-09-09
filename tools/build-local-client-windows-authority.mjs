@@ -129,7 +129,7 @@ async function buildPackage(options) {
     const files = [];
     for (const name of names) { const artifact = join(bin, name); if (!(await stat(artifact)).isFile()) fail('WINDOWS_AUTHORITY_BUILD_ARTIFACT'); files.push({ path: 'bin/' + name, sha256: sha256(await readFile(artifact)) }); }
     if (!options.nativeOnly) for (const name of ['LICENSE.node', 'LICENSE.project']) files.push({ path: 'licenses/' + name, sha256: sha256(await readFile(join(options.output, 'licenses', name))) });
-    const manifest = { version: options.nativeOnly ? 'local-client-windows-authority-native-build-v2' : 'local-client-windows-authority-package-v2', files, anchorIds: slots };
+    const manifest = { version: options.nativeOnly ? 'local-client-windows-authority-native-build-v3' : 'local-client-windows-authority-package-v3', files, anchorIds: slots };
     const manifestBytes = JSON.stringify(manifest, null, 2) + '\n'; await writeFile(join(options.output, 'package-manifest.json'), manifestBytes, { flag: 'wx' });
     for (const file of files) if (sha256(await readFile(join(options.output, file.path))) !== file.sha256) fail('WINDOWS_AUTHORITY_BUILD_HASH_MISMATCH');
     succeeded = true;

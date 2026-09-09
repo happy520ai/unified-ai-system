@@ -15,6 +15,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
+#include <cmath>
 #include <deque>
 #include <functional>
 #include <future>
@@ -320,6 +321,7 @@ std::string privateBytes(const std::wstring& path, size_t maximum) {
 class Authority {
  public:
   std::wstring configuredCaller, configuredHost;
+  std::string configuredPopInstance;
   bool initialized = false;
   ~Authority() { stop(); }
   void start() {
@@ -411,6 +413,131 @@ std::string claimNonce(HANDLE caller, const std::string& nonce) {
   check(WriteFile(file.value, entry.data(), static_cast<DWORD>(entry.size()), &written, nullptr) != FALSE && written == entry.size());
   check(FlushFileBuffers(file.value) != FALSE); return "claimed";
 }
+
+// The complete PoP time floor and claims are one authenticated, atomic object.
+// Never recycle the timeless legacy ledger or create this file during startup.
+constexpr char POP_HEADER[] = "UAI-POP-REQUEST-REPLAY-V1\n";
+constexpr size_t POP_LEDGER_MAX = 1024 * 1024, POP_CAPACITY = 4096;
+constexpr uint64_t SAFE_INTEGER = 9007199254740991ULL, POP_TTL_MS = 8000;
+struct PopRecord { std::string nonce, digest; uint64_t expires; };
+struct PopLedger { std::string host, instance; uint64_t highWater = 0; std::vector<PopRecord> records; };
+struct PopRequest { std::string nonce, digest, instance; uint64_t issued, expires; };
+bool hex64(const std::string& value) {
+  return value.size() == 64 && std::all_of(value.begin(), value.end(), [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); });
+}
+void appendInteger(std::string& value, uint64_t number, size_t bytes) {
+  for (size_t i = 0; i < bytes; ++i) value.push_back(static_cast<char>(number >> (i * 8)));
+}
+uint64_t takeInteger(const std::string& value, size_t& offset, size_t bytes) {
+  check(offset <= value.size() && bytes <= value.size() - offset); uint64_t result = 0;
+  for (size_t i = 0; i < bytes; ++i) result |= static_cast<uint64_t>(static_cast<unsigned char>(value[offset++])) << (i * 8);
+  return result;
+}
+std::string encodePopLedger(const PopLedger& ledger) {
+  check(ledger.host.size() >= 1 && ledger.host.size() <= 128 && hex64(ledger.instance) && ledger.highWater <= SAFE_INTEGER && ledger.records.size() <= POP_CAPACITY);
+  std::string out(POP_HEADER); appendInteger(out, ledger.host.size(), 4); out += ledger.host; out += ledger.instance;
+  appendInteger(out, ledger.highWater, 8); appendInteger(out, ledger.records.size(), 4); std::set<std::string> seen;
+  for (const auto& record : ledger.records) {
+    check(hex64(record.nonce) && hex64(record.digest) && record.expires > ledger.highWater && record.expires <= SAFE_INTEGER && seen.insert(record.nonce).second);
+    out += record.nonce; out += record.digest; appendInteger(out, record.expires, 8);
+  }
+  check(out.size() <= POP_LEDGER_MAX); return out;
+}
+PopLedger decodePopLedger(const std::string& value) {
+  const std::string header(POP_HEADER); check(value.size() <= POP_LEDGER_MAX && value.rfind(header, 0) == 0); size_t offset = header.size();
+  const auto hostBytes = takeInteger(value, offset, 4); check(hostBytes >= 1 && hostBytes <= 128 && hostBytes <= value.size() - offset);
+  PopLedger ledger; ledger.host = value.substr(offset, static_cast<size_t>(hostBytes)); offset += static_cast<size_t>(hostBytes);
+  check(value.size() - offset >= 64); ledger.instance = value.substr(offset, 64); offset += 64;
+  ledger.highWater = takeInteger(value, offset, 8); const auto count = takeInteger(value, offset, 4);
+  check(count <= POP_CAPACITY && value.size() - offset == count * 136);
+  for (uint64_t i = 0; i < count; ++i) {
+    PopRecord record{value.substr(offset, 64), value.substr(offset + 64, 64), 0}; offset += 128;
+    record.expires = takeInteger(value, offset, 8); ledger.records.push_back(std::move(record));
+  }
+  check(encodePopLedger(ledger) == value); return ledger;
+}
+uint64_t utcMilliseconds() {
+  FILETIME value{}; GetSystemTimePreciseAsFileTime(&value);
+  const uint64_t ticks = (static_cast<uint64_t>(value.dwHighDateTime) << 32) | value.dwLowDateTime;
+  constexpr uint64_t unixEpoch = 116444736000000000ULL; check(ticks >= unixEpoch);
+  const uint64_t now = (ticks - unixEpoch) / 10000; check(now <= SAFE_INTEGER); return now;
+}
+PopLedger readPopLedger(HANDLE caller) {
+  const auto path = fixedRoot() + L"\\pop-request-replay.dpapi"; auto parents = pinParents(path, caller); check(!parents.callerCanReplaceAncestor);
+  auto file = openFile(path); const auto facts = acl(file.value, SE_FILE_OBJECT, caller, false, FILE_WRITES | FILE_GENERIC_READ | FILE_EXECUTE);
+  check(facts.strict && facts.writers.count(SERVICE_SID) == 1 && !facts.callerWritable);
+  std::string encrypted = readBytes(file.value, POP_LEDGER_MAX); DATA_BLOB input{static_cast<DWORD>(encrypted.size()), reinterpret_cast<BYTE*>(encrypted.data())}, output{};
+  check(CryptUnprotectData(&input, nullptr, nullptr, nullptr, nullptr, CRYPTPROTECT_UI_FORBIDDEN, &output) != FALSE); LocalMemory plain{output.pbData};
+  std::string decoded(reinterpret_cast<char*>(output.pbData), output.cbData); SecureZeroMemory(output.pbData, output.cbData);
+  try { auto ledger = decodePopLedger(decoded); SecureZeroMemory(decoded.data(), decoded.size()); return ledger; }
+  catch (...) { SecureZeroMemory(decoded.data(), decoded.size()); throw; }
+}
+void writePopLedger(HANDLE caller, const PopLedger& ledger) {
+  std::string plaintext = encodePopLedger(ledger); DATA_BLOB input{static_cast<DWORD>(plaintext.size()), reinterpret_cast<BYTE*>(plaintext.data())}, output{};
+  const BOOL protectedOk = CryptProtectData(&input, L"Unified AI PoP request replay", nullptr, nullptr, nullptr,
+    CRYPTPROTECT_LOCAL_MACHINE | CRYPTPROTECT_UI_FORBIDDEN, &output); SecureZeroMemory(plaintext.data(), plaintext.size()); check(protectedOk != FALSE);
+  LocalMemory encrypted{output.pbData}; check(output.cbData > 0 && output.cbData <= POP_LEDGER_MAX);
+  const auto path = fixedRoot() + L"\\pop-request-replay.dpapi", temporary = fixedRoot() + L"\\pop-request-replay.tmp-" + wide(randomId());
+  auto parents = pinParents(path, caller); check(!parents.callerCanReplaceAncestor); auto existing = openFile(path);
+  auto oldFacts = acl(existing.value, SE_FILE_OBJECT, caller, false, FILE_WRITES | FILE_GENERIC_READ | FILE_EXECUTE);
+  check(oldFacts.strict && !oldFacts.callerWritable && oldFacts.writers.count(SERVICE_SID) == 1);
+  LocalMemory security; const auto sddl = L"O:" + std::wstring(SERVICE_SID) + L"D:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;FA;;;" + std::wstring(SERVICE_SID) + L")";
+  check(ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl.c_str(), SDDL_REVISION_1, &security.value, nullptr) != FALSE);
+  SECURITY_ATTRIBUTES attributes{sizeof(attributes), security.value, FALSE}; bool temporaryOwned = false;
+  try {
+    Handle file(CreateFileW(temporary.c_str(), GENERIC_WRITE | READ_CONTROL | FILE_READ_ATTRIBUTES, FILE_SHARE_READ, &attributes, CREATE_NEW,
+      FILE_ATTRIBUTE_NORMAL | FILE_FLAG_WRITE_THROUGH | FILE_FLAG_OPEN_REPARSE_POINT, nullptr)); check(static_cast<bool>(file)); temporaryOwned = true;
+    validateHandle(file.value, temporary, false); DWORD written = 0;
+    check(WriteFile(file.value, output.pbData, output.cbData, &written, nullptr) != FALSE && written == output.cbData && FlushFileBuffers(file.value) != FALSE);
+    file.reset(); existing.reset(); check(MoveFileExW(temporary.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != FALSE); temporaryOwned = false;
+    auto committed = openFile(path, GENERIC_READ | GENERIC_WRITE | READ_CONTROL | FILE_READ_ATTRIBUTES);
+    check(FlushFileBuffers(committed.value) != FALSE); committed.reset();
+    check(encodePopLedger(readPopLedger(caller)) == encodePopLedger(ledger));
+  } catch (...) { if (temporaryOwned) DeleteFileW(temporary.c_str()); throw; }
+}
+void advancePopTime(PopLedger& ledger, uint64_t now) {
+  check(now >= ledger.highWater && now <= SAFE_INTEGER); ledger.highWater = now;
+  ledger.records.erase(std::remove_if(ledger.records.begin(), ledger.records.end(), [now](const PopRecord& value) { return value.expires <= now; }), ledger.records.end());
+}
+// This pure transition is also exercised by the isolated native model harness.
+std::string applyPopClaim(PopLedger& ledger, const PopRequest& request, uint64_t now, bool freshOnly) {
+  check(hex64(request.nonce) && hex64(request.digest) && request.instance == ledger.instance && hex64(request.instance)
+    && request.issued < request.expires && request.expires <= SAFE_INTEGER && request.expires - request.issued <= POP_TTL_MS);
+  advancePopTime(ledger, now);
+  if (request.issued > now) return "future";
+  if (request.expires <= now) return "expired";
+  const auto found = std::find_if(ledger.records.begin(), ledger.records.end(), [&](const PopRecord& item) { return item.nonce == request.nonce; });
+  if (freshOnly) {
+    check(found != ledger.records.end() && found->digest == request.digest && found->expires == request.expires); return "fresh";
+  }
+  if (found != ledger.records.end()) return "replayed";
+  if (ledger.records.size() == POP_CAPACITY) return "capacity";
+  ledger.records.push_back({request.nonce, request.digest, request.expires}); return "claimed";
+}
+std::pair<std::string, uint64_t> claimPop(HANDLE caller, const std::string& host, const std::string& active,
+  const PopRequest& request, bool freshOnly) {
+  check(hex64(active) && request.instance == active); auto ledger = readPopLedger(caller); check(ledger.host == host && ledger.instance == active);
+  const auto before = encodePopLedger(ledger); const auto now = utcMilliseconds(); const auto result = applyPopClaim(ledger, request, now, freshOnly);
+  // Even definitive expired/replayed/capacity responses first commit time and GC.
+  if (encodePopLedger(ledger) != before) writePopLedger(caller, ledger);
+  return {result, now};
+}
+std::string startPopInstance(const std::string& host) {
+  verifyServiceProcess(); ServiceHandle manager{OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT)}; check(manager.value != nullptr);
+  ServiceHandle service{OpenServiceW(manager.value, SERVICE, SERVICE_QUERY_STATUS)}; check(service.value != nullptr); SERVICE_STATUS_PROCESS status{}; DWORD needed = 0;
+  check(QueryServiceStatusEx(service.value, SC_STATUS_PROCESS_INFO, reinterpret_cast<BYTE*>(&status), sizeof(status), &needed) != FALSE
+    && status.dwCurrentState == SERVICE_START_PENDING && status.dwProcessId == parentPid());
+  // Initialization is callable only by the fixed host's startup child, never by a pipe worker while RUNNING.
+  LocalMemory security; const auto sddl = L"O:" + std::wstring(SERVICE_SID) + L"D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;" + std::wstring(SERVICE_SID) + L")";
+  check(ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl.c_str(), SDDL_REVISION_1, &security.value, nullptr) != FALSE);
+  SECURITY_ATTRIBUTES attributes{sizeof(attributes), security.value, FALSE}; Handle mutex(CreateMutexExW(&attributes, MUTEX, 0, SYNCHRONIZE | MUTEX_MODIFY_STATE | READ_CONTROL)); check(static_cast<bool>(mutex));
+  check(acl(mutex.value, SE_KERNEL_OBJECT, nullptr, false, MUTEX_MODIFY_STATE | WRITE_DAC | WRITE_OWNER).strict);
+  const auto acquired = WaitForSingleObject(mutex.value, 2000); if (acquired == WAIT_ABANDONED) { ReleaseMutex(mutex.value); fail(); } check(acquired == WAIT_OBJECT_0);
+  try {
+    auto ledger = readPopLedger(nullptr); check(ledger.host == host); advancePopTime(ledger, utcMilliseconds()); ledger.instance = randomId() + randomId();
+    writePopLedger(nullptr, ledger); check(ReleaseMutex(mutex.value) != FALSE); return ledger.instance;
+  } catch (...) { ReleaseMutex(mutex.value); throw; }
+}
 void writeCheckpoint(HANDLE caller, const Target& target, const std::string& json) {
   check(!json.empty() && json.size() <= MAX_BYTES); static_cast<void>(wide(json));
   auto secured = protection(target, caller); requireProtection(secured);
@@ -491,9 +618,15 @@ std::string stringValue(napi_env env, napi_value value, size_t maximum = MAX_BYT
 }
 napi_value jsString(napi_env env, const std::string& text) { napi_value value; napiCheck(napi_create_string_utf8(env, text.data(), text.size(), &value)); return value; }
 napi_value jsObject(napi_env env) { napi_value value; napiCheck(napi_create_object(env, &value)); return value; }
+uint64_t safeIntegerValue(napi_env env, napi_value value) {
+  napi_valuetype type; napiCheck(napi_typeof(env, value, &type)); check(type == napi_number); double number = 0;
+  napiCheck(napi_get_value_double(env, value, &number)); check(std::isfinite(number) && number >= 0 && number <= static_cast<double>(SAFE_INTEGER) && std::floor(number) == number);
+  return static_cast<uint64_t>(number);
+}
 void put(napi_env env, napi_value object, const char* key, napi_value value) { napiCheck(napi_set_named_property(env, object, key, value)); }
 void putString(napi_env env, napi_value object, const char* key, const std::string& value) { put(env, object, key, jsString(env, value)); }
 void putBool(napi_env env, napi_value object, const char* key, bool value) { napi_value item; napiCheck(napi_get_boolean(env, value, &item)); put(env, object, key, item); }
+void putInteger(napi_env env, napi_value object, const char* key, uint64_t value) { check(value <= SAFE_INTEGER); napi_value item; napiCheck(napi_create_double(env, static_cast<double>(value), &item)); put(env, object, key, item); }
 napi_value property(napi_env env, napi_value object, const char* key) { napi_value value; napiCheck(napi_get_named_property(env, object, key, &value)); return value; }
 void exactKeys(napi_env env, napi_value object, std::initializer_list<const char*> expected) {
   napi_valuetype type; napiCheck(napi_typeof(env, object, &type)); check(type == napi_object); bool array = false; napiCheck(napi_is_array(env, object, &array)); check(!array);
@@ -520,7 +653,16 @@ Target targetValue(napi_env env, napi_value value) {
 }
 std::shared_ptr<Authority> state(napi_env env) { void* value = nullptr; napiCheck(napi_get_instance_data(env, &value)); check(value != nullptr); return *static_cast<std::shared_ptr<Authority>*>(value); }
 napi_value undefined(napi_env env) { napi_value value; napiCheck(napi_get_undefined(env, &value)); return value; }
-template<typename F> napi_value guarded(napi_env env, F work) { try { return work(); } catch (...) { napi_throw_error(env, "LOCAL_CLIENT_WINDOWS_NATIVE_REJECTED", "Windows authority operation rejected."); return nullptr; } }
+template<typename F> napi_value guarded(napi_env env, F work) {
+  try { return work(); }
+  catch (const std::exception& error) {
+    const std::string code(error.what());
+    if (code == "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_REQUEST_EXPIRED" || code == "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_REQUEST_FUTURE")
+      napi_throw_error(env, code.c_str(), "The request lifetime ended; an earlier mutation may already have committed.");
+    else napi_throw_error(env, "LOCAL_CLIENT_WINDOWS_NATIVE_REJECTED", "Windows authority operation rejected.");
+    return nullptr;
+  } catch (...) { napi_throw_error(env, "LOCAL_CLIENT_WINDOWS_NATIVE_REJECTED", "Windows authority operation rejected."); return nullptr; }
+}
 struct AsyncCall { napi_env env; napi_async_work work = nullptr; napi_deferred deferred; std::function<std::string()> operation; std::string result; bool ok = false; };
 napi_value asynchronous(napi_env env, std::function<std::string()> operation) {
   auto call = std::make_unique<AsyncCall>(); call->env = env; call->operation = std::move(operation); napi_value promise;
@@ -557,11 +699,14 @@ napi_value inspectEnvironment(napi_env env, napi_callback_info info) {
 }
 napi_value initializeService(napi_env env, napi_callback_info info) {
   return guarded(env, [&] {
-    auto args = arguments(env, info, 1); exactKeys(env, args[0], {"hostId", "currentUserSid"}); auto instance = state(env); verifyServiceProcess();
+    auto args = arguments(env, info, 1); bool hasPop = false; napiCheck(napi_has_own_property(env, args[0], jsString(env, "serviceInstanceId"), &hasPop));
+    if (hasPop) exactKeys(env, args[0], {"hostId", "currentUserSid", "serviceInstanceId"}); else exactKeys(env, args[0], {"hostId", "currentUserSid"});
+    const auto pop = hasPop ? stringValue(env, property(env, args[0], "serviceInstanceId"), 64) : std::string(); check(!hasPop || hex64(pop));
+    auto instance = state(env); verifyServiceProcess();
     auto host = stringValue(env, property(env, args[0], "hostId"), 128); check(!host.empty() && std::all_of(host.begin(), host.end(), [](char c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '.' || c == '-' || c == '_'; }));
     auto caller = wide(stringValue(env, property(env, args[0], "currentUserSid"), 184)); LocalMemory sid; check(ConvertStringSidToSidW(caller.c_str(), &sid.value) != FALSE && sidText(sid.value) == caller && !privilegedSid(caller));
-    if (instance->initialized) check(instance->configuredHost == wide(host) && instance->configuredCaller == caller);
-    else { instance->configuredHost = wide(host); instance->configuredCaller = caller; instance->initialized = true; instance->start(); }
+    if (instance->initialized) check(instance->configuredHost == wide(host) && instance->configuredCaller == caller && instance->configuredPopInstance == pop);
+    else { instance->configuredHost = wide(host); instance->configuredCaller = caller; instance->configuredPopInstance = pop; instance->initialized = true; instance->start(); }
     auto result = jsObject(env); putString(env, result, "osPlatform", "win32"); putString(env, result, "hostId", host); putString(env, result, "serviceName", utf8(SERVICE)); putString(env, result, "serviceSid", utf8(SERVICE_SID));
     putString(env, result, "programDataBasePath", utf8(programData())); putString(env, result, "hklmView", "registry64"); putBool(env, result, "runningAsServiceSid", true); return result;
   });
@@ -581,6 +726,42 @@ napi_value nonceClaim(napi_env env, napi_callback_info info) {
   return guarded(env, [&] { auto args = arguments(env, info, 2); auto lease = stringValue(env, args[0], 32), nonce = stringValue(env, args[1], 64);
     return jsString(env, state(env)->locked(lease, [nonce](HANDLE caller) { return claimNonce(caller, nonce); })); });
 }
+PopRequest popRequestValue(napi_env env, napi_value value, const std::shared_ptr<Authority>& instance) {
+  exactKeys(env, value, {"hostId", "serviceSid", "nonce", "requestDigestSha256", "serviceInstanceId", "issuedAtMs", "expiresAtMs"});
+  check(wide(stringValue(env, property(env, value, "hostId"), 128)) == instance->configuredHost
+    && wide(stringValue(env, property(env, value, "serviceSid"), 184)) == SERVICE_SID);
+  PopRequest request{stringValue(env, property(env, value, "nonce"), 64), stringValue(env, property(env, value, "requestDigestSha256"), 64),
+    stringValue(env, property(env, value, "serviceInstanceId"), 64), safeIntegerValue(env, property(env, value, "issuedAtMs")), safeIntegerValue(env, property(env, value, "expiresAtMs"))};
+  check(hex64(request.nonce) && hex64(request.digest) && hex64(request.instance) && request.instance == instance->configuredPopInstance
+    && request.issued < request.expires && request.expires - request.issued <= POP_TTL_MS); return request;
+}
+napi_value startPopServiceInstance(napi_env env, napi_callback_info info) {
+  return guarded(env, [&] { arguments(env, info, 0); auto instance = state(env); check(instance->initialized && instance->configuredPopInstance.empty());
+    return jsString(env, startPopInstance(utf8(instance->configuredHost))); });
+}
+napi_value readPopServiceInstance(napi_env env, napi_callback_info info) {
+  return guarded(env, [&] { auto args = arguments(env, info, 2); const auto lease = stringValue(env, args[0], 32), expected = stringValue(env, args[1], 64); auto instance = state(env);
+    check(hex64(expected) && expected == instance->configuredPopInstance);
+    const auto now = instance->locked(lease, [instance, expected](HANDLE caller) {
+      auto ledger = readPopLedger(caller); check(ledger.host == utf8(instance->configuredHost) && ledger.instance == expected);
+      const auto before = encodePopLedger(ledger); const auto observed = utcMilliseconds(); advancePopTime(ledger, observed);
+      if (encodePopLedger(ledger) != before) writePopLedger(caller, ledger); return observed;
+    }); auto result = jsObject(env); putString(env, result, "serviceInstanceId", expected); putInteger(env, result, "observedAtMs", now); return result;
+  });
+}
+napi_value expiringNonce(napi_env env, napi_callback_info info, bool freshOnly) {
+  return guarded(env, [&] { auto args = arguments(env, info, 2); const auto lease = stringValue(env, args[0], 32); auto instance = state(env); auto requestValue = popRequestValue(env, args[1], instance);
+    const auto observed = instance->locked(lease, [instance, requestValue, freshOnly](HANDLE caller) {
+      return claimPop(caller, utf8(instance->configuredHost), instance->configuredPopInstance, requestValue, freshOnly);
+    });
+    if (freshOnly && observed.first == "expired") throw std::runtime_error("LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_REQUEST_EXPIRED");
+    if (freshOnly && observed.first == "future") throw std::runtime_error("LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_REQUEST_FUTURE");
+    if (freshOnly) check(observed.first == "fresh"); auto result = jsObject(env);
+    if (!freshOnly) putString(env, result, "result", observed.first); putInteger(env, result, "observedAtMs", observed.second); return result;
+  });
+}
+napi_value claimExpiringNonce(napi_env env, napi_callback_info info) { return expiringNonce(env, info, false); }
+napi_value assertExpiringRequestFresh(napi_env env, napi_callback_info info) { return expiringNonce(env, info, true); }
 napi_value fileRead(napi_env env, napi_callback_info info) {
   return guarded(env, [&] { auto args = arguments(env, info, 2); auto lease = stringValue(env, args[0], 32); auto target = targetValue(env, args[1]);
     return jsString(env, state(env)->locked(lease, [target](HANDLE caller) { auto value = protection(target, caller); requireProtection(value); auto text = readBytes(value.file.value, MAX_BYTES); static_cast<void>(wide(text)); return text; })); });
@@ -652,7 +833,9 @@ napi_value Init(napi_env env, napi_value exports) {
     struct Export { const char* name; napi_callback callback; };
     const Export functions[] = {{"inspectEnvironment", inspectEnvironment}, {"initializeService", initializeService}, {"beginRequest", beginRequest}, {"endRequest", endRequest},
       {"acquireLock", acquireLock}, {"releaseLock", releaseLock}, {"claimNonce", nonceClaim}, {"readProtectedFileCheckpoint", fileRead}, {"writeProtectedFileCheckpointAtomically", fileWrite},
-      {"readHklmCheckpoint64", registryRead}, {"writeHklmCheckpoint64", registryWrite}, {"inspectAclFacts", inspectAclFacts}, {"readBootstrap", readBootstrap}, {"request", request}};
+      {"readHklmCheckpoint64", registryRead}, {"writeHklmCheckpoint64", registryWrite}, {"inspectAclFacts", inspectAclFacts}, {"readBootstrap", readBootstrap}, {"request", request},
+      {"startPopServiceInstance", startPopServiceInstance}, {"readPopServiceInstance", readPopServiceInstance},
+      {"claimExpiringNonce", claimExpiringNonce}, {"assertExpiringRequestFresh", assertExpiringRequestFresh}};
     for (const auto& item : functions) { napi_value function; napiCheck(napi_create_function(env, item.name, NAPI_AUTO_LENGTH, item.callback, nullptr, &function)); put(env, exports, item.name, function); }
     return exports;
   });

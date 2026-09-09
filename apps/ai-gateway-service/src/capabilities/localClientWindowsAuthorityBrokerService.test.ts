@@ -3,11 +3,15 @@ import { describe, expect, it } from "vitest";
 import {
   LOCAL_CLIENT_WINDOWS_AUTHORITY_FILE_VERSION,
   LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_VERSION,
+  LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_V2_VERSION,
   createLocalClientWindowsAuthorityFileHmac,
   createLocalClientWindowsAuthorityRequestHmac,
   createLocalClientWindowsAuthorityResponseHmac,
+  createLocalClientWindowsAuthorityRequestDigest,
   type LocalClientWindowsAuthorityAclFacts,
   type LocalClientWindowsAuthorityBrokerRequest,
+  type LocalClientWindowsAuthorityRequestV1,
+  type LocalClientWindowsAuthorityRequestV2,
   type LocalClientWindowsAuthorityCheckpointState,
   type LocalClientWindowsAuthorityFileCheckpoint,
   type LocalClientWindowsAuthorityOperation,
@@ -27,6 +31,8 @@ import {
   type WindowsAuthorityOsPort,
   type WindowsAuthorityRuntimeIdentity,
   type WindowsAuthorityStorageTarget,
+  type WindowsAuthorityExpiringNonceInput,
+  type WindowsAuthorityExpiringNonceResult,
 } from "./localClientWindowsAuthorityBrokerService.ts";
 
 const PROGRAM_DATA = "C:\\ProgramData";
@@ -40,6 +46,121 @@ const DIGEST_ONE = "a".repeat(64);
 const DIGEST_TWO = "b".repeat(64);
 
 describe("LocalClientWindowsAuthorityBrokerService", () => {
+  it("PoP v2 uses its expiring ledger and binds the complete request in a v2 response", async () => {
+    const state = checkpoint(1, DIGEST_ONE);
+    const { broker, osPort } = createHarness(state, "pop-replay");
+    const now = Date.now();
+    const { requestHmacSha256: _legacyMac, ...base } = createRequest(broker.target, "inspect", state, 99);
+    const unsigned = { ...base, requestVersion: "local-client-windows-authority-request-v2" as const,
+      serviceInstanceId: "1".repeat(64), clientSessionId: "2".repeat(64), requestSequence: 1,
+      issuedAtMs: now, expiresAtMs: now + 8000, attestationContext: null };
+    Object.assign(osPort, {
+      async claimExpiringNonce() { osPort.operations.push("claim-expiring"); return { result: "claimed", observedAtMs: now }; },
+      async assertExpiringRequestFresh() { osPort.operations.push("assert-fresh"); return { observedAtMs: now }; },
+    });
+    const request = { ...unsigned, requestHmacSha256: createLocalClientWindowsAuthorityRequestHmac(KEY,
+      unsigned as unknown as Omit<LocalClientWindowsAuthorityBrokerRequest, "requestHmacSha256">) } as unknown as LocalClientWindowsAuthorityBrokerRequest;
+    await expect(broker.inspect(request)).resolves.toMatchObject({
+      brokerVersion: "local-client-windows-authority-broker-v2", serviceInstanceId: unsigned.serviceInstanceId,
+      clientSessionId: unsigned.clientSessionId, requestSequence: 1, issuedAtMs: now, expiresAtMs: now + 8000,
+      observedAtMs: now, requestDigestSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
+    });
+    expect(osPort.operations).toContain("claim-expiring");
+    expect(osPort.operations).toContain("assert-fresh");
+    expect(osPort.claimedNonces.size).toBe(0);
+  });
+
+  it.each(["pop-replay", "validation-pop-replay"])("routes every operation for %s exclusively through v2", async slot => {
+    const f = createPopHarness(checkpoint(0, null), slot);
+    await f.broker.enrollBaseline(createPopRequest(f.broker.target, "enroll-baseline", checkpoint(0, null), 1,
+      { nextGeneration: 1, nextDigest: DIGEST_ONE }));
+    await f.broker.inspect(createPopRequest(f.broker.target, "inspect", checkpoint(1, DIGEST_ONE), 2));
+    await f.broker.prepareNext(createPopRequest(f.broker.target, "prepare-next", checkpoint(1, DIGEST_ONE), 3,
+      { nextGeneration: 2, nextDigest: DIGEST_TWO }));
+    const request = createPopRequest(f.broker.target, "finalize", checkpoint(1, DIGEST_ONE, 2, DIGEST_TWO), 4);
+    const result = await f.broker.finalize(request);
+    const { requestHmacSha256: _mac, ...unsigned } = request;
+    expect(result).toMatchObject({ requestDigestSha256: createLocalClientWindowsAuthorityRequestDigest(unsigned),
+      fileCheckpoint: checkpoint(2, DIGEST_TWO), hklmCheckpoint: checkpoint(2, DIGEST_TWO) });
+    expect(f.claims).toHaveLength(4);
+    expect(f.freshness).toHaveLength(4);
+    expect(f.osPort.claimedNonces.size).toBe(0);
+    expect(f.osPort.operations).not.toContain("claim-nonce");
+  });
+
+  it.each(["expired", "future", "capacity", "replayed"] as const)("does not read or mutate authority after a v2 %s rejection", async result => {
+    const f = createPopHarness(checkpoint(1, DIGEST_ONE));
+    f.behavior.claimResult = result;
+    await expect(f.broker.prepareNext(createPopRequest(f.broker.target, "prepare-next", checkpoint(1, DIGEST_ONE), 1,
+      { nextGeneration: 2, nextDigest: DIGEST_TWO }))).rejects.toThrow();
+    expect(f.claims).toHaveLength(1);
+    expect(f.freshness).toHaveLength(0);
+    expect(f.osPort.operations).not.toContain("read-file");
+    expect(f.osPort.operations).not.toContain("write-file-atomic");
+    expect(f.osPort.claimedNonces.size).toBe(0);
+  });
+
+  it("rejects v1 on PoP and v2 on legacy before either ledger is used", async () => {
+    const pop = createPopHarness(checkpoint(1, DIGEST_ONE));
+    await expect(pop.broker.inspect(createRequest(pop.broker.target, "inspect", checkpoint(1, DIGEST_ONE), 1))).rejects.toThrow();
+    const legacy = createHarness(checkpoint(1, DIGEST_ONE), "gateway-vscode");
+    await expect(legacy.broker.inspect(createPopRequest(legacy.broker.target, "inspect", checkpoint(1, DIGEST_ONE), 2))).rejects.toThrow();
+    expect(pop.claims).toHaveLength(0);
+    expect(legacy.osPort.claimedNonces.size).toBe(0);
+  });
+
+  it.each([
+    { serviceInstanceId: "short" }, { clientSessionId: "short" }, { requestSequence: 0 }, { requestSequence: Number.MAX_SAFE_INTEGER + 1 },
+    { issuedAtMs: -1 }, { issuedAtMs: 1.5 }, { expiresAtMs: Number.MAX_SAFE_INTEGER + 1 },
+    { issuedAtMs: 1, expiresAtMs: 8002 }, { issuedAtMs: 8, expiresAtMs: 8 }, { attestationContext: {} },
+    { attestationContext: { unexpected: true } }, { unexpected: true },
+  ])("rejects malformed signed v2 context before claiming: %j", async malformed => {
+    const f = createPopHarness(checkpoint(1, DIGEST_ONE));
+    const { requestHmacSha256: _mac, ...base } = createPopRequest(f.broker.target, "inspect", checkpoint(1, DIGEST_ONE), 1);
+    const unsigned = { ...base, ...malformed };
+    const request = { ...unsigned, requestHmacSha256: createLocalClientWindowsAuthorityRequestHmac(KEY,
+      unsigned as unknown as LocalClientWindowsAuthorityRequestV2) } as unknown as LocalClientWindowsAuthorityRequestV2;
+    await expect(f.broker.inspect(request)).rejects.toThrow();
+    expect(f.claims).toHaveLength(0);
+  });
+
+  it("authenticates the complete nested challenge and rejects accessor payloads without invoking them", async () => {
+    const f = createPopHarness(checkpoint(1, DIGEST_ONE));
+    const context = { storeBindingSha256: "3".repeat(64), anchorBindingSha256: "4".repeat(64),
+      installedManifestSha256: "5".repeat(64), bindingSha256: "6".repeat(64),
+      generation: 1, digest: DIGEST_ONE, challengeSha256: "7".repeat(64) };
+    const request = createPopRequest(f.broker.target, "inspect", checkpoint(1, DIGEST_ONE), 1, { attestationContext: context });
+    await expect(f.broker.inspect({ ...request, attestationContext: { ...context, challengeSha256: "8".repeat(64) } })).rejects.toThrow();
+    let getterCalls = 0;
+    const accessor = { ...context };
+    Object.defineProperty(accessor, "challengeSha256", { enumerable: true, get() { getterCalls++; return context.challengeSha256; } });
+    await expect(f.broker.inspect({ ...request, attestationContext: accessor })).rejects.toThrow();
+    expect(getterCalls).toBe(0);
+    expect(f.claims).toHaveLength(0);
+    await expect(f.broker.inspect(request)).resolves.toMatchObject({ brokerVersion: "local-client-windows-authority-broker-v2" });
+  });
+
+  it("keeps a claimed mutation committed when final freshness fails, requiring fresh recovery", async () => {
+    const f = createPopHarness(checkpoint(1, DIGEST_ONE));
+    f.behavior.failFreshness = true;
+    const request = createPopRequest(f.broker.target, "prepare-next", checkpoint(1, DIGEST_ONE), 1,
+      { nextGeneration: 2, nextDigest: DIGEST_TWO });
+    await expect(f.broker.prepareNext(request)).rejects.toThrow();
+    expect(f.osPort.fileState()).toEqual(checkpoint(1, DIGEST_ONE, 2, DIGEST_TWO));
+    expect(f.claims).toHaveLength(1);
+    f.behavior.failFreshness = false;
+    await expect(f.broker.prepareNext(request)).rejects.toMatchObject({ code: "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_NONCE_REPLAYED" });
+    await expect(f.broker.inspect(createPopRequest(f.broker.target, "inspect", checkpoint(1, DIGEST_ONE, 2, DIGEST_TWO), 2)))
+      .resolves.toMatchObject({ fileCheckpoint: checkpoint(1, DIGEST_ONE, 2, DIGEST_TWO) });
+  });
+
+  it("refuses v2 without both native lifecycle capabilities before claiming", async () => {
+    const f = createHarness(checkpoint(1, DIGEST_ONE), "pop-replay");
+    await expect(f.broker.inspect(createPopRequest(f.broker.target, "inspect", checkpoint(1, DIGEST_ONE), 1)))
+      .rejects.toMatchObject({ code: "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_OS_PORT_UNAVAILABLE" });
+    expect(f.osPort.claimedNonces.size).toBe(0);
+  });
+
   it("exposes a fixed, check-only provisioning plan and requires both apply flags", () => {
     const plan = createLocalClientWindowsAuthorityProvisioningPlan(PROGRAM_DATA);
 
@@ -487,13 +608,45 @@ function createHarness(initialState: LocalClientWindowsAuthorityCheckpointState,
   return { broker, osPort };
 }
 
+function createPopHarness(initialState: LocalClientWindowsAuthorityCheckpointState, slot = "pop-replay") {
+  const f = createHarness(initialState, slot);
+  const claims: WindowsAuthorityExpiringNonceInput[] = [], freshness: WindowsAuthorityExpiringNonceInput[] = [];
+  const seen = new Set<string>();
+  const behavior = { claimResult: "claimed" as WindowsAuthorityExpiringNonceResult["result"], failFreshness: false };
+  Object.assign(f.osPort, {
+    async claimExpiringNonce(input: WindowsAuthorityExpiringNonceInput): Promise<WindowsAuthorityExpiringNonceResult> {
+      claims.push(input);
+      const result = seen.has(input.nonce) ? "replayed" : behavior.claimResult;
+      if (result === "claimed") seen.add(input.nonce);
+      return { result, observedAtMs: Date.now() };
+    },
+    async assertExpiringRequestFresh(input: WindowsAuthorityExpiringNonceInput) {
+      freshness.push(input);
+      if (behavior.failFreshness) throw new Error("native final freshness failure");
+      return { observedAtMs: Date.now() };
+    },
+  });
+  return { ...f, claims, freshness, behavior };
+}
+
+function createPopRequest(target: WindowsAuthorityStorageTarget, operation: LocalClientWindowsAuthorityOperation,
+  state: LocalClientWindowsAuthorityCheckpointState, nonceValue: number,
+  overrides: Partial<Omit<LocalClientWindowsAuthorityRequestV2, "requestHmacSha256">> = {}): LocalClientWindowsAuthorityRequestV2 {
+  const { requestHmacSha256: _mac, ...base } = createRequest(target, operation, state, nonceValue);
+  const now = Date.now();
+  const unsigned = { ...base, requestVersion: LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_V2_VERSION,
+    serviceInstanceId: "1".repeat(64), clientSessionId: "2".repeat(64), requestSequence: nonceValue,
+    issuedAtMs: now, expiresAtMs: now + 8000, attestationContext: null, ...overrides };
+  return { ...unsigned, requestHmacSha256: createLocalClientWindowsAuthorityRequestHmac(KEY, unsigned) };
+}
+
 function createRequest(
   target: WindowsAuthorityStorageTarget,
   operation: LocalClientWindowsAuthorityOperation,
   state: LocalClientWindowsAuthorityCheckpointState,
   nonceValue: number,
-  overrides: Partial<Omit<LocalClientWindowsAuthorityBrokerRequest, "requestHmacSha256">> = {},
-): LocalClientWindowsAuthorityBrokerRequest {
+  overrides: Partial<Omit<LocalClientWindowsAuthorityRequestV1, "requestHmacSha256">> = {},
+): LocalClientWindowsAuthorityRequestV1 {
   const unsigned = {
     requestVersion: LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_VERSION,
     operation,

@@ -5,9 +5,14 @@ import {
   LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_VERSION,
   LOCAL_CLIENT_WINDOWS_AUTHORITY_FILE_VERSION,
   LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_VERSION,
+  LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_V2_VERSION,
+  LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_V2_VERSION,
   createLocalClientWindowsAuthorityFileHmac,
   createLocalClientWindowsAuthorityRequestHmac,
   createLocalClientWindowsAuthorityResponseHmac,
+  createLocalClientWindowsAuthorityRequestDigest,
+  normalizeLocalClientWindowsAuthorityPopRequestFields,
+  isLocalClientWindowsAuthorityPopTarget,
   type LocalClientWindowsAuthorityAclFacts,
   type LocalClientWindowsAuthorityBrokerRequest,
   type LocalClientWindowsAuthorityBrokerResponse,
@@ -15,6 +20,9 @@ import {
   type LocalClientWindowsAuthorityFileCheckpoint,
   type LocalClientWindowsAuthorityOperation,
   type LocalClientWindowsAuthorityPrivilegedBrokerPort,
+  type LocalClientWindowsAuthorityRequestV2,
+  type LocalClientWindowsAuthorityUnsignedRequest,
+  type LocalClientWindowsAuthorityUnsignedResponse,
 } from "./localClientWindowsProtectedAuthorityAnchor.ts";
 
 /**
@@ -118,6 +126,16 @@ export interface WindowsAuthorityNonceClaimInput {
   readonly serviceSid: typeof LOCAL_CLIENT_WINDOWS_AUTHORITY_SERVICE_SID;
   readonly nonce: string;
 }
+export interface WindowsAuthorityExpiringNonceInput extends WindowsAuthorityNonceClaimInput {
+  readonly requestDigestSha256: string;
+  readonly serviceInstanceId: string;
+  readonly issuedAtMs: number;
+  readonly expiresAtMs: number;
+}
+export interface WindowsAuthorityExpiringNonceResult {
+  readonly result: "claimed" | "replayed" | "expired" | "future" | "capacity";
+  readonly observedAtMs: number;
+}
 
 /**
  * Native adapters must implement this port without command shells. In
@@ -132,6 +150,9 @@ export interface WindowsAuthorityOsPort {
   ): Promise<T>;
   inspectRuntimeIdentity(): Promise<WindowsAuthorityRuntimeIdentity>;
   claimNonce(input: WindowsAuthorityNonceClaimInput): Promise<"claimed" | "replayed">;
+  /** Native port persists the observed UTC high-water even for authenticated rejections. */
+  claimExpiringNonce?(input: WindowsAuthorityExpiringNonceInput): Promise<WindowsAuthorityExpiringNonceResult>;
+  assertExpiringRequestFresh?(input: WindowsAuthorityExpiringNonceInput): Promise<Readonly<{ observedAtMs: number }>>;
   readProtectedFileCheckpoint(target: WindowsAuthorityStorageTarget): Promise<unknown>;
   writeProtectedFileCheckpointAtomically(
     target: WindowsAuthorityStorageTarget,
@@ -162,6 +183,9 @@ export type LocalClientWindowsAuthorityBrokerErrorCode =
   | "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_REQUEST_AUTHENTICATION_FAILED"
   | "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_REQUEST_BINDING_MISMATCH"
   | "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_NONCE_REPLAYED"
+  | "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_REQUEST_EXPIRED"
+  | "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_REQUEST_FUTURE"
+  | "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_NONCE_CAPACITY"
   | "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_IDENTITY_MISMATCH"
   | "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_OS_PORT_UNAVAILABLE"
   | "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_CHECKPOINT_INVALID"
@@ -365,7 +389,7 @@ implements LocalClientWindowsAuthorityPrivilegedBrokerPort {
           if (invocationCount !== 1) throw osPortUnavailableError();
           this.#assertOpen();
           await this.#assertRuntimeIdentity();
-          await this.#claimNonce(request);
+          const claimedAtMs = await this.#claimNonce(request);
           const before = await this.#readSnapshot();
           assertRequestExpectation(request, before.state);
           const beforeAcl = await this.#readAndValidateAcl();
@@ -381,7 +405,17 @@ implements LocalClientWindowsAuthorityPrivilegedBrokerPort {
             after = await this.#writeTransition(createFinalizedState(request));
             responseAcl = await this.#readAndValidateAcl();
           }
-          return createResponse(this.#configuration, request, after, responseAcl);
+          let observedAtMs: number | undefined;
+          if (request.requestVersion === LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_V2_VERSION) {
+            const fresh = await this.#configuration.osPort.assertExpiringRequestFresh!(expiringInput(request));
+            assertExactDataRecord(fresh, ["observedAtMs"], osPortUnavailableError);
+            if (!Number.isSafeInteger(fresh.observedAtMs) || typeof fresh.observedAtMs !== "number"
+              || fresh.observedAtMs < request.issuedAtMs || fresh.observedAtMs >= request.expiresAtMs
+              || claimedAtMs === null || fresh.observedAtMs < claimedAtMs) throw osPortUnavailableError();
+            observedAtMs = fresh.observedAtMs;
+            this.#assertOpen();
+          }
+          return createResponse(this.#configuration, request, after, responseAcl, observedAtMs);
         },
       );
       if (invocationCount !== 1) throw osPortUnavailableError();
@@ -418,7 +452,22 @@ implements LocalClientWindowsAuthorityPrivilegedBrokerPort {
     ) throw identityMismatchError();
   }
 
-  async #claimNonce(request: LocalClientWindowsAuthorityBrokerRequest): Promise<void> {
+  async #claimNonce(request: LocalClientWindowsAuthorityBrokerRequest): Promise<number | null> {
+    if (request.requestVersion === LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_V2_VERSION) {
+      const port = this.#configuration.osPort;
+      if (typeof port.claimExpiringNonce !== "function" || typeof port.assertExpiringRequestFresh !== "function") throw osPortUnavailableError();
+      const claim = await port.claimExpiringNonce(expiringInput(request));
+      assertExactDataRecord(claim, ["result", "observedAtMs"], osPortUnavailableError);
+      if (typeof claim.observedAtMs !== "number" || !Number.isSafeInteger(claim.observedAtMs) || claim.observedAtMs < 0) throw osPortUnavailableError();
+      if (claim.result === "replayed") throw nonceReplayedError();
+      if (claim.result === "expired" || claim.result === "future" || claim.result === "capacity") {
+        const code = claim.result === "expired" ? "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_REQUEST_EXPIRED"
+          : claim.result === "future" ? "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_REQUEST_FUTURE" : "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_NONCE_CAPACITY";
+        throw brokerError({ code, category: "authentication", message: "The PoP authority request was not claimed." });
+      }
+      if (claim.result !== "claimed" || claim.observedAtMs < request.issuedAtMs || claim.observedAtMs >= request.expiresAtMs) throw osPortUnavailableError();
+      return claim.observedAtMs;
+    }
     let result: unknown;
     try {
       result = await this.#configuration.osPort.claimNonce(Object.freeze({
@@ -431,6 +480,7 @@ implements LocalClientWindowsAuthorityPrivilegedBrokerPort {
     }
     if (result === "replayed") throw nonceReplayedError();
     if (result !== "claimed") throw osPortUnavailableError();
+    return null;
   }
 
   async #readSnapshot(): Promise<CheckedSnapshot> {
@@ -574,6 +624,8 @@ function validateRequest(
   raw: unknown,
   operation: LocalClientWindowsAuthorityOperation,
 ): LocalClientWindowsAuthorityBrokerRequest {
+  const v2 = isPlainDataRecord(raw)
+    && Object.getOwnPropertyDescriptor(raw, "requestVersion")?.value === LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_V2_VERSION;
   assertExactDataRecord(raw, [
     "requestVersion",
     "operation",
@@ -590,15 +642,18 @@ function validateRequest(
     "nextGeneration",
     "nextDigest",
     "requestHmacSha256",
+    ...(v2 ? ["serviceInstanceId", "clientSessionId", "requestSequence", "issuedAtMs", "expiresAtMs", "attestationContext"] : []),
   ], requestInvalidError);
   if (
-    raw.requestVersion !== LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_VERSION
+    (!v2 && raw.requestVersion !== LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_VERSION)
     || raw.operation !== operation
     || typeof raw.nonce !== "string"
     || !NONCE_PATTERN.test(raw.nonce)
     || typeof raw.requestHmacSha256 !== "string"
     || !SHA256_PATTERN.test(raw.requestHmacSha256)
   ) throw requestInvalidError();
+  const popTarget = isLocalClientWindowsAuthorityPopTarget(configuration.target.programDataRoot, configuration.target.hklmKeyPath);
+  if (v2 !== popTarget) throw requestBindingMismatchError();
   if (
     raw.hostId !== configuration.hostId
     || raw.serviceSid !== LOCAL_CLIENT_WINDOWS_AUTHORITY_SERVICE_SID
@@ -626,8 +681,7 @@ function validateRequest(
     if (expectedCurrentGeneration !== 0 || nextGeneration !== 1 || nextDigest === null) throw requestInvalidError();
   } else if (operation !== "inspect"
     && (expectedCurrentGeneration === 0 || nextGeneration === null || nextDigest === null)) throw requestInvalidError();
-  const unsigned = {
-    requestVersion: LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_VERSION,
+  const common = {
     operation,
     nonce: raw.nonce,
     hostId: configuration.hostId,
@@ -642,6 +696,11 @@ function validateRequest(
     nextGeneration,
     nextDigest,
   };
+  let unsigned: LocalClientWindowsAuthorityUnsignedRequest;
+  if (v2) {
+    try { unsigned = { ...common, requestVersion: LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_V2_VERSION,
+      ...normalizeLocalClientWindowsAuthorityPopRequestFields(raw) }; } catch { throw requestInvalidError(); }
+  } else unsigned = { ...common, requestVersion: LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_VERSION };
   const expectedHmac = createLocalClientWindowsAuthorityRequestHmac(
     configuration.integrityKey,
     unsigned,
@@ -897,9 +956,9 @@ function createResponse(
   request: LocalClientWindowsAuthorityBrokerRequest,
   snapshot: CheckedSnapshot,
   acl: LocalClientWindowsAuthorityAclFacts,
+  observedAtMs?: number,
 ): LocalClientWindowsAuthorityBrokerResponse {
-  const unsigned = {
-    brokerVersion: LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_VERSION,
+  const common = {
     operation: request.operation,
     nonce: request.nonce,
     osPlatform: "win32" as const,
@@ -913,6 +972,15 @@ function createResponse(
     hklmCheckpoint: snapshot.state,
     acl,
   };
+  let unsigned: LocalClientWindowsAuthorityUnsignedResponse;
+  if (request.requestVersion === LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_V2_VERSION) {
+    if (observedAtMs === undefined) throw osPortUnavailableError();
+    const { requestHmacSha256: _mac, ...unsignedRequest } = request;
+    unsigned = { ...common, brokerVersion: LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_V2_VERSION,
+      serviceInstanceId: request.serviceInstanceId, clientSessionId: request.clientSessionId,
+      requestSequence: request.requestSequence, issuedAtMs: request.issuedAtMs, expiresAtMs: request.expiresAtMs,
+      requestDigestSha256: createLocalClientWindowsAuthorityRequestDigest(unsignedRequest), observedAtMs };
+  } else unsigned = { ...common, brokerVersion: LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_VERSION };
   return Object.freeze({
     ...unsigned,
     responseHmacSha256: createLocalClientWindowsAuthorityResponseHmac(
@@ -920,6 +988,13 @@ function createResponse(
       unsigned,
     ),
   });
+}
+
+function expiringInput(request: LocalClientWindowsAuthorityRequestV2): WindowsAuthorityExpiringNonceInput {
+  const { requestHmacSha256: _mac, ...unsigned } = request;
+  return Object.freeze({ hostId: request.hostId, serviceSid: LOCAL_CLIENT_WINDOWS_AUTHORITY_SERVICE_SID,
+    nonce: request.nonce, requestDigestSha256: createLocalClientWindowsAuthorityRequestDigest(unsigned),
+    serviceInstanceId: request.serviceInstanceId, issuedAtMs: request.issuedAtMs, expiresAtMs: request.expiresAtMs });
 }
 
 function checkpointProjection(

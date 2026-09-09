@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { lstat, open, realpath } from "node:fs/promises";
 import { win32 } from "node:path";
+import { performance } from "node:perf_hooks";
 
 export const LOCAL_CLIENT_WINDOWS_AUTHORITY_FILE_VERSION =
   "local-client-windows-authority-file-v1" as const;
@@ -8,6 +9,9 @@ export const LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_VERSION =
   "local-client-windows-authority-broker-v1" as const;
 export const LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_VERSION =
   "local-client-windows-authority-request-v1" as const;
+export const LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_V2_VERSION = "local-client-windows-authority-request-v2" as const;
+export const LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_V2_VERSION = "local-client-windows-authority-broker-v2" as const;
+export const LOCAL_CLIENT_WINDOWS_AUTHORITY_MAX_POP_TTL_MS = 8000;
 
 export const LOCAL_CLIENT_WINDOWS_PROTECTED_AUTHORITY_BOUNDARIES = Object.freeze({
   windowsOnly: true as const,
@@ -66,8 +70,7 @@ export interface LocalClientWindowsAuthorityAclFacts {
   readonly hklmView: "registry64";
 }
 
-export interface LocalClientWindowsAuthorityBrokerRequest {
-  readonly requestVersion: typeof LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_VERSION;
+interface AuthorityRequestFields {
   readonly operation: LocalClientWindowsAuthorityOperation;
   readonly nonce: string;
   readonly hostId: string;
@@ -83,9 +86,38 @@ export interface LocalClientWindowsAuthorityBrokerRequest {
   readonly nextDigest: string | null;
   readonly requestHmacSha256: string;
 }
+export interface LocalClientWindowsAuthorityRequestV1 extends AuthorityRequestFields {
+  readonly requestVersion: typeof LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_VERSION;
+}
+export interface LocalClientWindowsAuthorityAttestationContext {
+  readonly storeBindingSha256: string;
+  readonly anchorBindingSha256: string;
+  readonly installedManifestSha256: string;
+  readonly bindingSha256: string;
+  readonly generation: number;
+  readonly digest: string;
+  readonly challengeSha256: string;
+}
+export interface LocalClientWindowsAuthorityRequestV2 extends AuthorityRequestFields {
+  readonly requestVersion: typeof LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_V2_VERSION;
+  readonly serviceInstanceId: string;
+  readonly clientSessionId: string;
+  readonly requestSequence: number;
+  readonly issuedAtMs: number;
+  readonly expiresAtMs: number;
+  readonly attestationContext: LocalClientWindowsAuthorityAttestationContext | null;
+}
+export type LocalClientWindowsAuthorityBrokerRequest = LocalClientWindowsAuthorityRequestV1 | LocalClientWindowsAuthorityRequestV2;
+export type LocalClientWindowsAuthorityUnsignedRequest = Omit<LocalClientWindowsAuthorityRequestV1, "requestHmacSha256">
+  | Omit<LocalClientWindowsAuthorityRequestV2, "requestHmacSha256">;
+export interface LocalClientWindowsAuthorityPopProtocolOptions {
+  readonly serviceInstanceId: string;
+  readonly clientSessionId?: string;
+  readonly installedManifestSha256: string;
+  readonly anchorBindingSha256: string;
+}
 
-export interface LocalClientWindowsAuthorityBrokerResponse {
-  readonly brokerVersion: typeof LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_VERSION;
+interface AuthorityResponseFields {
   readonly operation: LocalClientWindowsAuthorityOperation;
   readonly nonce: string;
   readonly osPlatform: "win32";
@@ -100,6 +132,22 @@ export interface LocalClientWindowsAuthorityBrokerResponse {
   readonly acl: LocalClientWindowsAuthorityAclFacts;
   readonly responseHmacSha256: string;
 }
+export interface LocalClientWindowsAuthorityResponseV1 extends AuthorityResponseFields {
+  readonly brokerVersion: typeof LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_VERSION;
+}
+export interface LocalClientWindowsAuthorityResponseV2 extends AuthorityResponseFields {
+  readonly brokerVersion: typeof LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_V2_VERSION;
+  readonly serviceInstanceId: string;
+  readonly clientSessionId: string;
+  readonly requestSequence: number;
+  readonly requestDigestSha256: string;
+  readonly issuedAtMs: number;
+  readonly expiresAtMs: number;
+  readonly observedAtMs: number;
+}
+export type LocalClientWindowsAuthorityBrokerResponse = LocalClientWindowsAuthorityResponseV1 | LocalClientWindowsAuthorityResponseV2;
+export type LocalClientWindowsAuthorityUnsignedResponse = Omit<LocalClientWindowsAuthorityResponseV1, "responseHmacSha256">
+  | Omit<LocalClientWindowsAuthorityResponseV2, "responseHmacSha256">;
 
 export interface LocalClientWindowsAuthorityPrivilegedBrokerPort {
   /** Optional so existing read/advance brokers remain usable without enrollment support. */
@@ -130,6 +178,7 @@ export interface LocalClientWindowsProtectedAuthorityEnabledOptions {
   readonly allowedOwnerSids?: readonly string[];
   readonly allowedWriterSids?: readonly string[];
   readonly nonceFactory?: () => string;
+  readonly popProtocol?: LocalClientWindowsAuthorityPopProtocolOptions;
 }
 
 export interface LocalClientWindowsProtectedAuthorityDisabledOptions {
@@ -235,12 +284,17 @@ type NormalizedConfiguration = Readonly<{
   allowedOwnerSids: ReadonlySet<string>;
   allowedWriterSids: ReadonlySet<string>;
   nonceFactory: () => string;
+  popProtocol: Required<LocalClientWindowsAuthorityPopProtocolOptions> | null;
 }>;
 
 type StrictInspection = Readonly<{
   status: LocalClientWindowsProtectedAuthorityStatus;
   checkpoint: LocalClientWindowsAuthorityCheckpointState;
   attestationSha256: string;
+  nonce: string;
+  expiresAtMs?: number;
+  observedAtMs?: number;
+  serviceInstanceId?: string;
 }>;
 
 const SYSTEM_SID = "S-1-5-18";
@@ -264,6 +318,10 @@ const FILE_DOMAIN = "unified-ai/local-client-windows-authority/file/v1";
 export class LocalClientWindowsProtectedAuthorityAnchor {
   readonly #configuration: NormalizedConfiguration | null;
   readonly #usedNonces = new Set<string>();
+  readonly #requestDeadlines = new WeakMap<LocalClientWindowsAuthorityRequestV2, Readonly<{ start: number; deadline: number }>>();
+  #sequence = 0;
+  #clockHighWater = 0;
+  #clockFaulted = false;
   #closed = false;
 
   constructor(options: LocalClientWindowsProtectedAuthorityOptions = {}) {
@@ -287,7 +345,7 @@ export class LocalClientWindowsProtectedAuthorityAnchor {
 
   /** The supplied PoP challenge and binding enter the signed native nonce; status alone cannot satisfy this call. */
   async verifyCheckpointChallenge(input: Readonly<{ generation: number; digest: string;
-    challenge: Uint8Array; bindingSha256: string }>) {
+    challenge: Uint8Array; bindingSha256: string; storeBindingSha256?: string }>) {
     this.#assertOpen();
     const generation = assertGeneration(input?.generation, false), digest = assertDigest(input?.digest);
     if (!(input?.challenge instanceof Uint8Array) || input.challenge.byteLength !== 32
@@ -296,12 +354,20 @@ export class LocalClientWindowsProtectedAuthorityAnchor {
     const nonce = createHash("sha256").update(JSON.stringify([
       "local-client-pop-native-challenge-v1", input.bindingSha256, generation, digest, challengeSha256,
     ])).digest("hex");
-    const inspected = await this.#inspectStrict(nonce);
+    const pop = this.#requireConfiguration().popProtocol;
+    const context = pop ? normalizeLocalClientWindowsAuthorityAttestationContext({
+      storeBindingSha256: input.storeBindingSha256, anchorBindingSha256: pop.anchorBindingSha256,
+      installedManifestSha256: pop.installedManifestSha256, bindingSha256: input.bindingSha256,
+      generation, digest, challengeSha256,
+    }) : null;
+    const inspected = await this.#inspectStrict(pop ? undefined : nonce, context);
     if (inspected.status.state !== "ready" || !inspected.status.rollbackResistant
       || inspected.checkpoint.currentGeneration !== generation || inspected.checkpoint.currentDigest !== digest) {
       throw attestationError("CHECKPOINT_DIVERGED");
     }
-    return Object.freeze({ generation, digest, nonce, challengeSha256, attestationSha256: inspected.attestationSha256 });
+    return Object.freeze({ generation, digest, nonce: inspected.nonce, challengeSha256, attestationSha256: inspected.attestationSha256,
+      ...(pop ? { expiresAtMs: inspected.expiresAtMs, observedAtMs: inspected.observedAtMs,
+        serviceInstanceId: inspected.serviceInstanceId } : {}) });
   }
 
   async assertCurrent(
@@ -460,7 +526,8 @@ export class LocalClientWindowsProtectedAuthorityAnchor {
     this.#usedNonces.clear();
   }
 
-  async #inspectStrict(challengeNonce?: string): Promise<StrictInspection> {
+  async #inspectStrict(challengeNonce?: string,
+    attestationContext: LocalClientWindowsAuthorityAttestationContext | null = null): Promise<StrictInspection> {
     const configuration = this.#requireConfiguration();
     if (process.platform !== "win32") throw unavailableReason("NOT_WINDOWS");
     if (!configuration.broker) throw unavailableReason("BROKER_UNAVAILABLE");
@@ -471,14 +538,14 @@ export class LocalClientWindowsProtectedAuthorityAnchor {
       expectedCurrentDigest: localFile.currentDigest,
       nextGeneration: localFile.pendingGeneration,
       nextDigest: localFile.pendingDigest,
-    }, challengeNonce);
+    }, challengeNonce, attestationContext);
     let response: LocalClientWindowsAuthorityBrokerResponse;
     try {
       response = await configuration.broker.inspect(request);
     } catch {
       throw unavailableReason("BROKER_UNAVAILABLE");
     }
-    return validateAttestation(configuration, request, response, localFile);
+    return this.#validateResponse(request, response, localFile);
   }
 
   async #validateMutationResponse(
@@ -487,7 +554,33 @@ export class LocalClientWindowsProtectedAuthorityAnchor {
   ): Promise<StrictInspection> {
     const configuration = this.#requireConfiguration();
     const localFile = await readAndValidateAnchorFile(configuration);
-    return validateAttestation(configuration, request, response, localFile);
+    return this.#validateResponse(request, response, localFile);
+  }
+
+  #validateResponse(request: LocalClientWindowsAuthorityBrokerRequest,
+    response: LocalClientWindowsAuthorityBrokerResponse, localFile: LocalClientWindowsAuthorityFileCheckpoint): StrictInspection {
+    const inspected = validateAttestation(this.#requireConfiguration(), request, response, localFile);
+    if (request.requestVersion === LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_V2_VERSION) {
+      this.#assertOpen();
+      const deadline = this.#requestDeadlines.get(request);
+      this.#requestDeadlines.delete(request);
+      const now = this.#observePopClock(), tick = performance.now();
+      if (!deadline || !Number.isFinite(tick) || tick < deadline.start || tick >= deadline.deadline
+        || now < request.issuedAtMs || now >= request.expiresAtMs
+        || response.brokerVersion !== LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_V2_VERSION
+        || response.observedAtMs > now) throw attestationError("ATTESTATION_INVALID");
+    }
+    return inspected;
+  }
+
+  #observePopClock(): number {
+    const now = Date.now();
+    if (this.#clockFaulted || !Number.isSafeInteger(now) || now < 0 || now < this.#clockHighWater) {
+      this.#clockFaulted = true;
+      throw attestationError("ATTESTATION_INVALID");
+    }
+    this.#clockHighWater = now;
+    return now;
   }
 
   #createRequest(input: Readonly<{
@@ -496,11 +589,24 @@ export class LocalClientWindowsProtectedAuthorityAnchor {
     expectedCurrentDigest: string | null;
     nextGeneration: number | null;
     nextDigest: string | null;
-  }>, challengeNonce?: string): LocalClientWindowsAuthorityBrokerRequest {
+  }>, challengeNonce?: string,
+    attestationContext: LocalClientWindowsAuthorityAttestationContext | null = null): LocalClientWindowsAuthorityBrokerRequest {
     const configuration = this.#requireConfiguration();
-    const nonce = this.#nextNonce(configuration, challengeNonce);
-    const unsigned = {
-      requestVersion: LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_VERSION,
+    const pop = configuration.popProtocol;
+    const freshNonce = this.#nextNonce(configuration, pop ? undefined : challengeNonce);
+    let context: Omit<LocalClientWindowsAuthorityRequestV2, keyof AuthorityRequestFields | "requestVersion"> | null = null;
+    if (pop) {
+      this.#assertOpen();
+      const issuedAtMs = this.#observePopClock();
+      const expiresAtMs = issuedAtMs + LOCAL_CLIENT_WINDOWS_AUTHORITY_MAX_POP_TTL_MS;
+      if (!Number.isSafeInteger(expiresAtMs) || this.#sequence >= Number.MAX_SAFE_INTEGER) {
+        this.#clockFaulted = true; throw configurationError();
+      }
+      context = { serviceInstanceId: pop.serviceInstanceId, clientSessionId: pop.clientSessionId,
+        requestSequence: ++this.#sequence, issuedAtMs, expiresAtMs, attestationContext };
+    }
+    const nonce = context ? createHash("sha256").update(canonicalJson({ ...context, operation: input.operation, freshNonce })).digest("hex") : freshNonce;
+    const common = {
       operation: input.operation,
       nonce,
       hostId: configuration.hostId,
@@ -515,13 +621,17 @@ export class LocalClientWindowsProtectedAuthorityAnchor {
       nextGeneration: input.nextGeneration,
       nextDigest: input.nextDigest,
     };
-    return Object.freeze({
-      ...unsigned,
-      requestHmacSha256: createLocalClientWindowsAuthorityRequestHmac(
-        configuration.integrityKey,
-        unsigned,
-      ),
-    });
+    const unsigned: LocalClientWindowsAuthorityUnsignedRequest = context
+      ? { ...common, requestVersion: LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_V2_VERSION, ...context }
+      : { ...common, requestVersion: LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_VERSION };
+    const request = Object.freeze({ ...unsigned,
+      requestHmacSha256: createLocalClientWindowsAuthorityRequestHmac(configuration.integrityKey, unsigned) });
+    if (request.requestVersion === LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_V2_VERSION) {
+      const start = performance.now();
+      if (!Number.isFinite(start)) throw configurationError();
+      this.#requestDeadlines.set(request, Object.freeze({ start, deadline: start + LOCAL_CLIENT_WINDOWS_AUTHORITY_MAX_POP_TTL_MS }));
+    }
+    return request;
   }
 
   #nextNonce(configuration: NormalizedConfiguration, challengeNonce?: string): string {
@@ -566,14 +676,20 @@ export function createLocalClientWindowsAuthorityRequestHmac(
   key: Uint8Array,
   request: Omit<LocalClientWindowsAuthorityBrokerRequest, "requestHmacSha256">,
 ): string {
-  return keyedDigest(key, REQUEST_DOMAIN, request);
+  return keyedDigest(key, request.requestVersion === LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_V2_VERSION
+    ? "unified-ai/local-client-windows-authority/request/v2" : REQUEST_DOMAIN, request);
+}
+
+export function createLocalClientWindowsAuthorityRequestDigest(request: LocalClientWindowsAuthorityUnsignedRequest): string {
+  return createHash("sha256").update(canonicalJson(request), "utf8").digest("hex");
 }
 
 export function createLocalClientWindowsAuthorityResponseHmac(
   key: Uint8Array,
   response: Omit<LocalClientWindowsAuthorityBrokerResponse, "responseHmacSha256">,
 ): string {
-  return keyedDigest(key, RESPONSE_DOMAIN, response);
+  return keyedDigest(key, response.brokerVersion === LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_V2_VERSION
+    ? "unified-ai/local-client-windows-authority/response/v2" : RESPONSE_DOMAIN, response);
 }
 
 export function createLocalClientWindowsAuthorityFileHmac(
@@ -701,6 +817,19 @@ function validateAttestation(
   if (!safeDigestEqual(responseHmacSha256, expectedHmac)) {
     throw attestationError("ATTESTATION_INVALID");
   }
+  if (request.requestVersion === LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_V2_VERSION) {
+    const { requestHmacSha256: _mac, ...unsignedRequest } = request;
+    if (response.brokerVersion !== LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_V2_VERSION
+      || response.serviceInstanceId !== request.serviceInstanceId
+      || response.clientSessionId !== request.clientSessionId || response.requestSequence !== request.requestSequence
+      || response.issuedAtMs !== request.issuedAtMs || response.expiresAtMs !== request.expiresAtMs
+      || response.observedAtMs < request.issuedAtMs || response.observedAtMs >= request.expiresAtMs
+      || !safeDigestEqual(response.requestDigestSha256, createLocalClientWindowsAuthorityRequestDigest(unsignedRequest))) {
+      throw attestationError("ATTESTATION_BINDING_MISMATCH");
+    }
+  } else if (response.brokerVersion !== LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_VERSION) {
+    throw attestationError("ATTESTATION_BINDING_MISMATCH");
+  }
   if (
     response.operation !== request.operation
     || response.nonce !== request.nonce
@@ -720,11 +849,15 @@ function validateAttestation(
   }
   validateAclFacts(configuration, response.acl);
   const status = statusFromCheckpoint(configuration, fileState);
-  return Object.freeze({ status, checkpoint: fileState,
-    attestationSha256: createHash("sha256").update(JSON.stringify(response)).digest("hex") });
+  return Object.freeze({ status, checkpoint: fileState, nonce: request.nonce,
+    attestationSha256: createHash("sha256").update(JSON.stringify(response)).digest("hex"),
+    ...(response.brokerVersion === LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_V2_VERSION
+      ? { expiresAtMs: response.expiresAtMs, observedAtMs: response.observedAtMs, serviceInstanceId: response.serviceInstanceId } : {}) });
 }
 
 function validateResponseShape(response: unknown): asserts response is LocalClientWindowsAuthorityBrokerResponse {
+  const v2 = isPlainRecord(response)
+    && Object.getOwnPropertyDescriptor(response, "brokerVersion")?.value === LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_V2_VERSION;
   assertExactRecord(response, [
     "brokerVersion",
     "operation",
@@ -740,9 +873,18 @@ function validateResponseShape(response: unknown): asserts response is LocalClie
     "hklmCheckpoint",
     "acl",
     "responseHmacSha256",
+    ...(v2 ? ["serviceInstanceId", "clientSessionId", "requestSequence", "requestDigestSha256", "issuedAtMs", "expiresAtMs", "observedAtMs"] : []),
   ], "ATTESTATION_INVALID");
+  if (v2) {
+    assertDataProperties(response);
+    if (typeof response.serviceInstanceId !== "string" || !SHA256_PATTERN.test(response.serviceInstanceId)
+      || typeof response.clientSessionId !== "string" || !SHA256_PATTERN.test(response.clientSessionId)
+      || typeof response.requestDigestSha256 !== "string" || !SHA256_PATTERN.test(response.requestDigestSha256) || !positiveSafeInteger(response.requestSequence)
+      || !validRequestTimes(response.issuedAtMs, response.expiresAtMs)
+      || !nonnegativeSafeInteger(response.observedAtMs)) throw attestationError("ATTESTATION_INVALID");
+  }
   if (
-    response.brokerVersion !== LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_VERSION
+    (!v2 && response.brokerVersion !== LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_VERSION)
     || !new Set(["inspect", "prepare-next", "finalize", "enroll-baseline"]).has(String(response.operation ?? ""))
     || typeof response.nonce !== "string"
     || !NONCE_PATTERN.test(response.nonce)
@@ -752,6 +894,49 @@ function validateResponseShape(response: unknown): asserts response is LocalClie
     || !isPlainRecord(response.hklmCheckpoint)
     || !isPlainRecord(response.acl)
   ) throw attestationError("ATTESTATION_INVALID");
+}
+
+/** Fixed PoP slots only; this does not create or authenticate a native binding. */
+export function isLocalClientWindowsAuthorityPopTarget(programDataRoot: string, hklmKeyPath: string): boolean {
+  const slot = win32.basename(programDataRoot).toLowerCase();
+  return (slot === "pop-replay" || slot === "validation-pop-replay")
+    && win32.basename(win32.dirname(programDataRoot)).toLowerCase() === "anchors"
+    && hklmKeyPath.toLowerCase().endsWith(`\\anchors\\${slot}`);
+}
+
+export function normalizeLocalClientWindowsAuthorityAttestationContext(raw: unknown): LocalClientWindowsAuthorityAttestationContext | null {
+  if (raw === null) return null;
+  assertExactRecord(raw, ["storeBindingSha256", "anchorBindingSha256", "installedManifestSha256", "bindingSha256",
+    "generation", "digest", "challengeSha256"], "ATTESTATION_INVALID");
+  assertDataProperties(raw);
+  for (const field of ["storeBindingSha256", "anchorBindingSha256", "installedManifestSha256", "bindingSha256", "digest", "challengeSha256"]) {
+    if (typeof raw[field] !== "string" || !SHA256_PATTERN.test(raw[field])) throw configurationError();
+  }
+  if (!positiveSafeInteger(raw.generation)) throw configurationError();
+  return Object.freeze({ storeBindingSha256: String(raw.storeBindingSha256), anchorBindingSha256: String(raw.anchorBindingSha256),
+    installedManifestSha256: String(raw.installedManifestSha256), bindingSha256: String(raw.bindingSha256),
+    generation: Number(raw.generation), digest: String(raw.digest), challengeSha256: String(raw.challengeSha256) });
+}
+
+export function normalizeLocalClientWindowsAuthorityPopRequestFields(raw: Record<string, unknown>) {
+  if (typeof raw.serviceInstanceId !== "string" || !SHA256_PATTERN.test(raw.serviceInstanceId)
+    || typeof raw.clientSessionId !== "string" || !SHA256_PATTERN.test(raw.clientSessionId)
+    || !positiveSafeInteger(raw.requestSequence) || !validRequestTimes(raw.issuedAtMs, raw.expiresAtMs)) throw configurationError();
+  const attestationContext = normalizeLocalClientWindowsAuthorityAttestationContext(raw.attestationContext);
+  if (attestationContext && (raw.operation !== "inspect" || attestationContext.generation !== raw.expectedCurrentGeneration
+    || attestationContext.digest !== raw.expectedCurrentDigest || raw.nextGeneration !== null || raw.nextDigest !== null)) throw configurationError();
+  return Object.freeze({ serviceInstanceId: raw.serviceInstanceId, clientSessionId: raw.clientSessionId,
+    requestSequence: Number(raw.requestSequence), issuedAtMs: Number(raw.issuedAtMs), expiresAtMs: Number(raw.expiresAtMs), attestationContext });
+}
+
+function positiveSafeInteger(value: unknown): value is number { return typeof value === "number" && Number.isSafeInteger(value) && value > 0; }
+function nonnegativeSafeInteger(value: unknown): value is number { return typeof value === "number" && Number.isSafeInteger(value) && value >= 0; }
+function validRequestTimes(issued: unknown, expiry: unknown): boolean {
+  return nonnegativeSafeInteger(issued) && nonnegativeSafeInteger(expiry)
+    && expiry > issued && expiry - issued <= LOCAL_CLIENT_WINDOWS_AUTHORITY_MAX_POP_TTL_MS;
+}
+function assertDataProperties(raw: Record<string, unknown>): void {
+  if (Object.values(Object.getOwnPropertyDescriptors(raw)).some(property => !("value" in property))) throw configurationError();
 }
 
 function validateAclFacts(
@@ -907,6 +1092,18 @@ function normalizeConfiguration(
     throw configurationError();
   }
   const hklmKeyPath = assertHklmKeyPath(options.hklmKeyPath);
+  let popProtocol: Required<LocalClientWindowsAuthorityPopProtocolOptions> | null = null;
+  const popTarget = isLocalClientWindowsAuthorityPopTarget(programDataRoot, hklmKeyPath);
+  if (options.popProtocol !== undefined) {
+    const pop = options.popProtocol;
+    if (!popTarget || !isPlainRecord(pop)) throw configurationError();
+    assertExactRecord(pop, ["serviceInstanceId", "installedManifestSha256", "anchorBindingSha256",
+      ...(Object.hasOwn(pop, "clientSessionId") ? ["clientSessionId"] : [])], "ATTESTATION_INVALID");
+    assertDataProperties(pop);
+    for (const value of Object.values(pop)) if (typeof value !== "string" || !SHA256_PATTERN.test(value)) throw configurationError();
+    popProtocol = Object.freeze({ serviceInstanceId: pop.serviceInstanceId, installedManifestSha256: pop.installedManifestSha256,
+      anchorBindingSha256: pop.anchorBindingSha256, clientSessionId: pop.clientSessionId ?? randomBytes(32).toString("hex") });
+  } else if (popTarget) throw configurationError();
   const hostId = boundedText(options.hostId, 256);
   const serviceSid = normalizeSid(options.serviceSid);
   if (!SERVICE_SID_PATTERN.test(serviceSid)) throw configurationError();
@@ -950,6 +1147,7 @@ function normalizeConfiguration(
     allowedOwnerSids,
     allowedWriterSids,
     nonceFactory: options.nonceFactory ?? (() => randomBytes(32).toString("hex")),
+    popProtocol,
   });
 }
 
@@ -972,8 +1170,9 @@ function assertExactOptions(options: LocalClientWindowsProtectedAuthorityOptions
     "allowedOwnerSids",
     "allowedWriterSids",
     "nonceFactory",
+    "popProtocol",
   ];
-  const optional = new Set(["broker", "allowedOwnerSids", "allowedWriterSids", "nonceFactory"]);
+  const optional = new Set(["broker", "allowedOwnerSids", "allowedWriterSids", "nonceFactory", "popProtocol"]);
   const keys = Reflect.ownKeys(options);
   if (
     keys.some((key) => typeof key !== "string" || !allowed.includes(key))

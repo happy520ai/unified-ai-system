@@ -33,6 +33,65 @@ const CHECKPOINT_ONE = "4".repeat(64);
 const CHECKPOINT_TWO = "5".repeat(64);
 
 describe("managed-client PoP snapshot rollback protection", () => {
+  it("refreshes an expired anchor observation through the real resolver during consume without manual preflight", async () => {
+    const checkpointPort = new FixtureCheckpointPort();
+    const anchorPort = new FixtureAnchorPort();
+    anchorPort.refreshExpiry = true;
+    const guard = await createLocalClientPopSnapshotRollbackProtectedReplayGuard({ checkpointPort, anchorPort });
+    expect(anchorPort.verifyCount).toBe(1);
+    anchorPort.nowMs += 8001;
+    expect(anchorPort.status.available).toBe(false);
+    await expect(guard.consumeOnce(consumeInput())).resolves.toBe("consumed");
+    expect(anchorPort.verifyCount).toBe(3);
+    expect(checkpointPort.consumeCount).toBe(1);
+    expect(guard.status.snapshotRollbackProtected).toBe(true);
+    await guard.close();
+  });
+
+  it("does not reuse previous readiness when the fresh verification after idle fails", async () => {
+    const checkpointPort = new FixtureCheckpointPort();
+    const anchorPort = new FixtureAnchorPort();
+    anchorPort.refreshExpiry = true;
+    const guard = await createLocalClientPopSnapshotRollbackProtectedReplayGuard({ checkpointPort, anchorPort });
+    anchorPort.nowMs += 8001;
+    anchorPort.failAtVerification = 2;
+    await expect(guard.consumeOnce(consumeInput())).rejects.toMatchObject({ blockers: ["protected_anchor_evidence_unavailable"] });
+    expect(anchorPort.verifyCount).toBe(2);
+    expect(checkpointPort.consumeCount).toBe(0);
+    expect(guard.status).toMatchObject({ available: false, snapshotRollbackProtected: false });
+    await guard.close();
+  });
+
+  it("still rejects unavailable storage and invalid binding before asking an expired anchor for evidence", async () => {
+    const checkpointPort = new FixtureCheckpointPort();
+    checkpointPort.checkpointStatus = { ...checkpointPort.checkpointStatus, available: false };
+    const anchorPort = new FixtureAnchorPort();
+    anchorPort.expiresAtMs = 0;
+    anchorPort.refreshExpiry = true;
+    const result = await resolveLocalClientPopSnapshotRollbackProtection({ checkpointPort, anchorPort });
+    expect(result.blockers).toContain("checkpoint_port_unavailable");
+    expect(anchorPort.verifyCount).toBe(0);
+    checkpointPort.checkpointStatus = { ...checkpointPort.checkpointStatus, available: true };
+    anchorPort.status = { ...anchorPort.status, anchorBindingSha256: "invalid" };
+    const invalid = await resolveLocalClientPopSnapshotRollbackProtection({ checkpointPort, anchorPort });
+    expect(invalid.blockers).toContain("anchor_binding_invalid");
+    expect(anchorPort.verifyCount).toBe(0);
+  });
+
+  it("does not allow refreshing readiness to change the configured anchor binding", async () => {
+    const checkpointPort = new FixtureCheckpointPort();
+    const anchorPort = new FixtureAnchorPort();
+    anchorPort.expiresAtMs = 0;
+    anchorPort.refreshExpiry = true;
+    anchorPort.evidenceTransform = evidence => {
+      anchorPort.status = { ...anchorPort.status, anchorBindingSha256: "f".repeat(64) };
+      return evidence;
+    };
+    const result = await resolveLocalClientPopSnapshotRollbackProtection({ checkpointPort, anchorPort });
+    expect(result.blockers).toEqual(["anchor_status_changed_during_attestation"]);
+    expect(result.ready).toBe(false);
+  });
+
   it("keeps the current SQLite and Windows broker implementation boundary explicitly blocked", () => {
     expect(LOCAL_CLIENT_SQLITE_POP_REPLAY_BOUNDARIES.snapshotRollbackProtected).toBe(false);
     expect(LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_BOUNDARIES).toMatchObject({
@@ -294,7 +353,7 @@ class FixtureCheckpointPort implements LocalClientPopAnchoredReplayCheckpointPor
 }
 
 class FixtureAnchorPort implements LocalClientPopExternalMonotonicAnchorPort {
-  status: LocalClientPopExternalMonotonicAnchorStatus = Object.freeze({
+  #status: LocalClientPopExternalMonotonicAnchorStatus = Object.freeze({
     available: true,
     mode: "fixture-native-protected-anchor",
     anchorBindingSha256: ANCHOR_BINDING,
@@ -305,6 +364,16 @@ class FixtureAnchorPort implements LocalClientPopExternalMonotonicAnchorPort {
     protectedFromReplayStoreWriter: true,
     challengeAttestation: true,
   });
+  nowMs = 1_000;
+  expiresAtMs: number | null = null;
+  refreshExpiry = false;
+  get status(): LocalClientPopExternalMonotonicAnchorStatus {
+    if (this.expiresAtMs !== null && this.nowMs >= this.expiresAtMs) return { ...this.#status,
+      available: false, nativeDeploymentVerified: false, monotonic: false, externalToReplayStoreSnapshot: false,
+      protectedFromReplayStoreWriter: false, challengeAttestation: false };
+    return this.#status;
+  }
+  set status(value: LocalClientPopExternalMonotonicAnchorStatus) { this.#status = value; }
 
   verifyCount = 0;
   failAtVerification: number | null = null;
@@ -318,6 +387,7 @@ class FixtureAnchorPort implements LocalClientPopExternalMonotonicAnchorPort {
   }>): Promise<LocalClientPopProtectedAnchorEvidence> => {
     this.verifyCount += 1;
     if (this.verifyCount === this.failAtVerification) throw new Error("fixture anchor unavailable");
+    if (this.refreshExpiry) this.expiresAtMs = this.nowMs + 8000;
     const evidence = Object.freeze({
       evidenceVersion: LOCAL_CLIENT_POP_PROTECTED_ANCHOR_EVIDENCE_VERSION,
       evidenceKind: "native-protected-external-monotonic-anchor" as const,

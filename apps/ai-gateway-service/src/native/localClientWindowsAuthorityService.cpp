@@ -37,8 +37,8 @@ constexpr wchar_t ServiceAccount[] = L"NT SERVICE\\UnifiedAiSystemLocalClientAut
 constexpr wchar_t ServiceSid[] = L"S-1-5-80-2517572854-3647151239-2500651488-2982019916-1580030387";
 constexpr wchar_t PipeName[] = L"\\\\.\\pipe\\UnifiedAiSystemLocalClientAuthorityBroker-v1";
 constexpr wchar_t RegistryRoot[] = L"Software\\UnifiedAISystem\\LocalClientAuthority";
-constexpr char PackageVersion[] = "local-client-windows-authority-package-v2";
-constexpr char BootstrapVersion[] = "local-client-windows-authority-bootstrap-v2";
+constexpr char PackageVersion[] = "local-client-windows-authority-package-v3";
+constexpr char BootstrapVersion[] = "local-client-windows-authority-bootstrap-v3";
 constexpr char OwnershipVersion[] = "local-client-windows-authority-installation-v1";
 constexpr char NonceHeader[] = "UAI-AUTHORITY-NONCES-V1\n";
 constexpr size_t MaxFrame = 65536, MaxPrivateFrame = 8 * MaxFrame;
@@ -710,6 +710,16 @@ void Install(Package& package, const std::wstring& base, Operator& caller) {
     + ",\"packageManifestSha256\":" + QuoteJson(package.manifestHash) + '}';
   WriteNewFile(Join(root, L"bootstrap.json"), bootstrap, privateState);
   WriteNewFile(Join(root, L"request-nonces.bin"), std::string(NonceHeader), privateState);
+  // Only explicit fresh installation creates the PoP ledger. The native startup
+  // reader refuses a missing/damaged object and never substitutes empty state.
+  std::string popPlain = "UAI-POP-REQUEST-REPLAY-V1\n";
+  const auto popInteger = [&](uint64_t value, size_t bytes) { for (size_t i = 0; i < bytes; ++i) popPlain.push_back(static_cast<char>(value >> (i * 8))); };
+  popInteger(hostId.size(), 4); popPlain += hostId; popPlain += std::string(64, '0'); popInteger(0, 8); popInteger(0, 4);
+  DATA_BLOB popInput{static_cast<DWORD>(popPlain.size()), reinterpret_cast<BYTE*>(popPlain.data())}, popEncrypted{};
+  const BOOL popProtected = CryptProtectData(&popInput, L"Unified AI PoP request replay", nullptr, nullptr, nullptr,
+    CRYPTPROTECT_LOCAL_MACHINE | CRYPTPROTECT_UI_FORBIDDEN, &popEncrypted); SecureZeroMemory(popPlain.data(), popPlain.size());
+  Require(popProtected, "POP_LEDGER_PROTECTION_FAILED"); LocalMemory popMemory; popMemory.value = popEncrypted.pbData;
+  WriteNewFile(Join(root, L"pop-request-replay.dpapi"), reinterpret_cast<const char*>(popEncrypted.pbData), popEncrypted.cbData, privateState);
   PrivateText encoded; encoded.value = Base64(key.bytes);
   PrivateText helperInput; helperInput.value = "{\"hostId\":" + QuoteJson(hostId) + ",\"currentUserSid\":" + QuoteJson(Utf8(caller.sid))
     + ",\"programDataBasePath\":" + QuoteJson(Utf8(base)) + ",\"anchorIds\":" + AnchorsJson()
@@ -801,6 +811,9 @@ Handle StopEvent;
 SERVICE_STATUS_HANDLE ServiceStatusHandle = nullptr;
 SERVICE_STATUS Status{};
 std::mutex StatusMutex;
+enum class PopHostState { Disabled, Ready, Faulted };
+PopHostState PopState = PopHostState::Disabled;
+std::string PopServiceInstance;
 void PublishStatus(DWORD state, DWORD error = NO_ERROR) {
   std::lock_guard<std::mutex> lock(StatusMutex);
   Status.dwServiceType = SERVICE_WIN32_OWN_PROCESS; Status.dwCurrentState = state; Status.dwWin32ExitCode = error;
@@ -846,28 +859,63 @@ void ServeConnection(HANDLE pipe, const InstalledRuntime& runtime) {
   const uint32_t size = static_cast<uint32_t>(length[0]) | (static_cast<uint32_t>(length[1]) << 8)
     | (static_cast<uint32_t>(length[2]) << 16) | (static_cast<uint32_t>(length[3]) << 24);
   Require(size && size <= MaxFrame, "PIPE_FRAME_INVALID"); PrivateText request; request.value.resize(size);
-  PipeTransfer(pipe, request.value.data(), request.value.size(), false, deadline); Require(JsonParser(request.value).parse().kind == Json::Object, "PIPE_REQUEST_INVALID");
+  PipeTransfer(pipe, request.value.data(), request.value.size(), false, deadline); const auto parsed = JsonParser(request.value).parse(); Require(parsed.kind == Json::Object, "PIPE_REQUEST_INVALID");
+  const auto stringField = [&](const char* field) { const auto found = parsed.members.find(field); return found != parsed.members.end() && found->second.kind == Json::String ? found->second.text : std::string(); };
+  const auto path = stringField("anchorPath");
+  const bool popTarget = path == Utf8(Join(runtime.root, L"anchors\\pop-replay\\authority.json")) || path == Utf8(Join(runtime.root, L"anchors\\validation-pop-replay\\authority.json"));
+  const bool popBootstrap = stringField("version") == "local-client-windows-authority-bootstrap-request-v2";
+  const bool popProtocol = stringField("requestVersion") == "local-client-windows-authority-request-v2";
+  const bool pop = popBootstrap || popProtocol || popTarget;
+  Require(!popTarget || popProtocol, "POP_REQUEST_V2_REQUIRED");
+  Require(!pop || (PopState == PopHostState::Ready && Hex(PopServiceInstance, 64)), "POP_SERVICE_INSTANCE_UNAVAILABLE");
+  // Reject stale bindings before dispatch. An old client's first request after
+  // restart cannot poison the fresh instance or prevent a new bootstrap.
+  Require(!popProtocol || (popTarget && stringField("serviceInstanceId") == PopServiceInstance), "POP_REQUEST_BINDING_MISMATCH");
+  if (popProtocol) {
+    const auto operation = stringField("operation");
+    Require(operation == "inspect" || operation == "prepare-next" || operation == "finalize" || operation == "enroll-baseline", "POP_OPERATION_INVALID");
+  }
+  if (popBootstrap) {
+    parsed.exact({"version", "challenge", "clientSessionId", "issuedAtMs", "expiresAtMs"});
+    Require(Hex(stringField("challenge"), 64) && Hex(stringField("clientSessionId"), 64), "POP_BOOTSTRAP_INVALID");
+    const auto timeField = [&](const char* name) {
+      const auto& value = parsed.at(name); Require(value.kind == Json::Number && !value.text.empty()
+        && value.text.front() != '-' && value.text.size() <= 16, "POP_BOOTSTRAP_TIME_INVALID");
+      const auto number = std::stoull(value.text); Require(number <= 9007199254740991ULL, "POP_BOOTSTRAP_TIME_INVALID"); return number;
+    };
+    const auto issued = timeField("issuedAtMs"), expires = timeField("expiresAtMs");
+    Require(issued < expires && expires - issued <= 8000, "POP_BOOTSTRAP_TIME_INVALID");
+  }
   auto caller = AuthenticatePipeCaller(pipe, runtime.caller); Require(PeerConnected(pipe), "PIPE_TRAILING_DATA"); auto id = RandomId();
-  auto raw = RunWorker(runtime.root, L"authority-worker.mjs", [&](HANDLE child) {
+  std::string raw;
+  try { raw = RunWorker(runtime.root, L"authority-worker.mjs", [&](HANDLE child) {
     HANDLE duplicated = nullptr; Require(DuplicateHandle(GetCurrentProcess(), caller.value, child, &duplicated, TOKEN_QUERY, FALSE, 0), "CALLER_TRANSFER_FAILED");
     return "{\"id\":" + QuoteJson(id) + ",\"callerTokenHandle\":" + QuoteJson(std::to_string(reinterpret_cast<uintptr_t>(duplicated)))
-      + ",\"request\":" + QuoteJson(request.value) + '}';
+      + ",\"request\":" + QuoteJson(request.value) + ",\"serviceInstanceId\":" + (pop ? QuoteJson(PopServiceInstance) : "null") + '}';
   }, StopEvent.value, pipe, nullptr, deadline);
+  } catch (...) { if (pop) PopState = PopHostState::Faulted; throw; }
+  // Malformed or missing private output after dispatch has uncertain write state.
+  bool privateValidated = false;
+  try {
   auto envelope = JsonParser(raw).parse();
   if (envelope.kind == Json::Object && envelope.members.count("workerError")) {
-    envelope.exact({"workerError", "failureCode"});
+    envelope.exact({"workerError", "failureCode", "popFault"});
+    Require(envelope.at("popFault").kind == Json::Boolean, "WORKER_FAILURE_FRAME_INVALID");
+    if (pop && envelope.at("popFault").text == "true") PopState = PopHostState::Faulted;
     const auto& stage = envelope.at("workerError").string(); const auto& code = envelope.at("failureCode").string();
     const auto fixedCode = [](const std::string& value, size_t maximum) {
       return !value.empty() && value.size() <= maximum && std::all_of(value.begin(), value.end(), [](char c) {
         return (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_'; });
     };
     Require(fixedCode(stage, 64) && fixedCode(code, 128), "WORKER_FAILURE_FRAME_INVALID");
+    privateValidated = true;
     const auto diagnostic = "WORKER_" + stage + '_' + code;
     Reject((diagnostic.size() <= 128 ? diagnostic : "WORKER_" + stage).c_str());
   }
   envelope.exact({"id", "response"});
   Require(envelope.at("id").string() == id, "WORKER_RESPONSE_BINDING_MISMATCH"); PrivateText response; response.value = envelope.at("response").string();
   Require(!response.value.empty() && response.value.size() <= MaxFrame && JsonParser(response.value).parse().kind == Json::Object, "WORKER_RESPONSE_INVALID");
+  privateValidated = true;
   uint32_t responseSize = static_cast<uint32_t>(response.value.size()); for (size_t i = 0; i < length.size(); ++i) length[i] = static_cast<unsigned char>(responseSize >> (8 * i));
   PipeTransfer(pipe, length.data(), length.size(), true, deadline); PipeTransfer(pipe, response.value.data(), response.value.size(), true, deadline);
   // Disconnect discards unread data. Let the client finish its final server-PID
@@ -877,6 +925,7 @@ void ServeConnection(HANDLE pipe, const InstalledRuntime& runtime) {
     Require(remaining && WaitForSingleObject(StopEvent.value, std::min<DWORD>(remaining, 10)) == WAIT_TIMEOUT,
       "PIPE_DELIVERY_DEADLINE");
   }
+  } catch (...) { if (pop && !privateValidated) PopState = PopHostState::Faulted; throw; }
 }
 void SendConnectionFailure(HANDLE pipe, const char* message = nullptr) noexcept {
   try {
@@ -921,6 +970,17 @@ void WINAPI ServiceMain(DWORD, LPWSTR*) {
       && daclPresent && processDacl && IsValidAcl(processDacl), "SERVICE_PROCESS_DACL_INVALID");
     Require(SetSecurityInfo(GetCurrentProcess(), SE_KERNEL_OBJECT, DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
       nullptr, nullptr, processDacl, nullptr) == ERROR_SUCCESS, "SERVICE_PROCESS_QUERY_ACCESS_FAILED");
+    // The long-lived host owns readiness across workers. Only START_PENDING may
+    // generate an instance; a failed startup leaves legacy slots available.
+    PopState = PopHostState::Disabled; PopServiceInstance.clear();
+    try {
+      const auto started = JsonParser(RunWorker(root, L"authority-worker.mjs", [](HANDLE) {
+        return std::string("{\"control\":\"start-pop-service-instance\"}");
+      }, StopEvent.value, nullptr, L"--start-pop-service-instance")).parse();
+      started.exact({"control", "serviceInstanceId"});
+      Require(started.at("control").string() == "pop-service-instance-ready" && Hex(started.at("serviceInstanceId").string(), 64), "POP_STARTUP_REPLY_INVALID");
+      PopServiceInstance = started.at("serviceInstanceId").string(); PopState = PopHostState::Ready;
+    } catch (...) { PopState = PopHostState::Disabled; PopServiceInstance.clear(); }
     Security pipeSecurity(L"D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;" + std::wstring(ServiceSid) + L")(A;;GRGW;;;" + runtime.caller + L")");
     Handle pipe(CreateNamedPipeW(PipeName, PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED | FILE_FLAG_FIRST_PIPE_INSTANCE,
       PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS, 1, static_cast<DWORD>(MaxFrame + 4),
