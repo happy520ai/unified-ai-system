@@ -1,14 +1,19 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
+import { assertDependencyReleaseGate } from "./dependency-vulnerability-gate.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const { parse: parseYaml } = createRequire(new URL("../apps/ai-gateway-service/package.json", import.meta.url))("yaml");
 const outputJson = process.argv.includes("--json");
 const requiredOverrides = Object.freeze({
   "brace-expansion@2": "2.1.4",
   "brace-expansion@5": "5.0.9",
   "postcss@8": "8.5.26",
   "vite@8": "8.0.16",
+  "@xmldom/xmldom@0.8": "0.8.15",
+  "hono@4": "4.13.5",
 });
 
 function readText(relativePath) {
@@ -24,7 +29,7 @@ function extractTopLevelMapping(source, key) {
   for (const line of lines.slice(start + 1)) {
     if (line && !/^\s/.test(line)) break;
     const match = line.match(/^\s{2}([^:#][^:]*):\s*["']?([^"'#\s]+)["']?\s*(?:#.*)?$/);
-    if (match) values[match[1].trim()] = match[2].trim();
+    if (match) values[match[1].trim().replace(/^["']|["']$/g, "")] = match[2].trim();
   }
   return values;
 }
@@ -64,6 +69,12 @@ const issues = [];
 const dockerWorkflowSource = readText(".github/workflows/docker-build-push.yml");
 const dockerfileSource = readText("Dockerfile");
 const composeSource = readText("docker-compose.yml");
+try {
+  assertDependencyReleaseGate({ securityWorkflow: parseYaml(readText(".github/workflows/security-scan.yml")),
+    dockerWorkflow: parseYaml(dockerWorkflowSource) });
+} catch (error) {
+  issues.push({ code: "dependency_release_gate_missing", reason: error.message });
+}
 
 if (!pnpmVersion) {
   issues.push({ code: "package_manager_not_exact", expected: "pnpm@<major>.<minor>.<patch>" });

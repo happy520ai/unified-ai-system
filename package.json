@@ -68,7 +68,8 @@
     "check:vision-invariants": "node ./tools/check-vision-invariants.mjs",
     "check:critical-js": "node tools/check-critical-js.mjs",
     "verify:windows": "node tools/verify-windows.mjs",
-    "test:verification-tools": "node --test tools/check-critical-js.test.mjs tools/verify-windows.test.mjs tools/check-language-policy.test.mjs tools/render-gateway-service.test.mjs"
+    "test:verification-tools": "node --test tools/check-critical-js.test.mjs tools/verify-windows.test.mjs tools/check-language-policy.test.mjs tools/render-gateway-service.test.mjs tools/dependency-vulnerability-gate.test.mjs",
+    "check:dependency-vulnerabilities": "node tools/dependency-vulnerability-gate.mjs"
   },
   "engines": {
     "node": ">=22.18.0",
@@ -83,6 +84,6 @@
     "openai": "7.4.0",
     "pg": "8.23.0",
     "typescript": "^5.6.3",
-    "vitest": "^4.1.10"
+    "vitest": "4.1.11"
   }
 }

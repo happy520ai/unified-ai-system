@@ -27,8 +27,14 @@ env:
   MCP_PUBLISHER_LINUX_AMD64_SHA256: 1370446bbe74d562608e8005a6ccce02d146a661fbd78674e11cc70b9618d6cf
 
 jobs:
+  dependency-security:
+    uses: ./.github/workflows/security-scan.yml
+    permissions:
+      contents: read
+
   build-and-push:
     name: Build and push Docker image
+    needs: dependency-security
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
