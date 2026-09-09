@@ -2,6 +2,10 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { LocalClientProtectedSqliteCheckpoint } from "./localClientProtectedSqliteCheckpoint.ts";
+import type { LocalClientWindowsProtectedAuthorityAnchor } from "./localClientWindowsProtectedAuthorityAnchor.ts";
+import { LOCAL_CLIENT_POP_ANCHORED_MUTATION_PROTOCOL, LOCAL_CLIENT_POP_REPLAY_CHECKPOINT_VERSION,
+  type LocalClientPopReplayCheckpoint } from "./localClientPopSnapshotRollbackProtection.ts";
 
 import type {
   ManagedLocalClientPopReplayConsumeInput,
@@ -10,6 +14,15 @@ import type {
 } from "./localClientPopIdentityAuthority.ts";
 
 export const LOCAL_CLIENT_SQLITE_POP_REPLAY_SCHEMA_VERSION = 3 as const;
+export const LOCAL_CLIENT_SQLITE_POP_REPLAY_PROTECTED_SCHEMA_VERSION = 4 as const;
+const INTENT_TABLE = "local_client_pop_replay_intent";
+const INTENT_SCHEMA = `CREATE TABLE ${INTENT_TABLE} (id INTEGER PRIMARY KEY CHECK (id = 1), body TEXT NOT NULL, mac TEXT NOT NULL) STRICT`;
+type ReplayResult = "consumed" | "replayed" | "capacity";
+type Checkpoint = Readonly<{ generation: number; digest: string }>;
+type ReplayIntent = { state: "idle" } | {
+  state: "pending" | "committed"; baseGeneration: number; baseDigest: string;
+  request: NormalizedConsumeInput; targetGeneration: number | null; targetDigest: string | null; result: ReplayResult | null;
+};
 
 export const LOCAL_CLIENT_SQLITE_POP_REPLAY_BOUNDARIES = Object.freeze({
   storageMode: "single-host-sqlite-pop-replay" as const,
@@ -57,6 +70,9 @@ export interface LocalClientSqlitePopReplayGuardOptions {
    */
   readonly maxEntriesPerScope?: number;
   readonly busyTimeoutMs?: number;
+  /** Explicit protected format; never upgrades an existing schema-3 database. Authority ownership stays with the caller. */
+  readonly protectedAuthority?: LocalClientWindowsProtectedAuthorityAnchor;
+  readonly anchorBindingSha256?: string;
 }
 
 export type LocalClientSqlitePopReplayGuardErrorCode =
@@ -168,6 +184,14 @@ implements ManagedLocalClientPopReplayGuard {
   readonly #maxEntriesPerScope!: number;
   readonly #busyTimeoutMs!: number;
   readonly #defensiveEnabled!: boolean;
+  readonly #schemaVersion!: number;
+  readonly #storeBinding!: string;
+  readonly #anchorBinding!: string | null;
+  #checkpoint: LocalClientProtectedSqliteCheckpoint | null = null;
+  #protectedVerified = false;
+  #tail: Promise<void> = Promise.resolve();
+  #closing = false;
+  #closePromise: Promise<void> | null = null;
   #closed = false;
   #available = true;
 
@@ -176,6 +200,9 @@ implements ManagedLocalClientPopReplayGuard {
     let internalKey: Buffer | null = null;
     try {
       assertOptions(options);
+      this.#schemaVersion = options.protectedAuthority === undefined ? LOCAL_CLIENT_SQLITE_POP_REPLAY_SCHEMA_VERSION
+        : LOCAL_CLIENT_SQLITE_POP_REPLAY_PROTECTED_SCHEMA_VERSION;
+      this.#anchorBinding = options.anchorBindingSha256 ?? null;
       const sqlitePath = resolveSqlitePath(options.sqlitePath);
       const hostId = assertHostId(options.hostId);
       const namespace = assertNamespace(options.namespace ?? DEFAULT_NAMESPACE);
@@ -196,10 +223,10 @@ implements ManagedLocalClientPopReplayGuard {
       this.#hostBindingHmac = keyedDigest(this.#key, "host-binding", hostId);
       this.#namespaceBindingHmac = keyedDigest(this.#key, "namespace-binding", namespace);
       this.#keyBindingHmac = keyedDigest(this.#key, "key-binding", canonicalJson({
-        schemaVersion: LOCAL_CLIENT_SQLITE_POP_REPLAY_SCHEMA_VERSION,
+        schemaVersion: this.#schemaVersion,
       }));
       this.#configFingerprint = keyedDigest(this.#key, "config-fingerprint", canonicalJson({
-        schemaVersion: LOCAL_CLIENT_SQLITE_POP_REPLAY_SCHEMA_VERSION,
+        schemaVersion: this.#schemaVersion,
         maxEntries,
         maxEntriesPerScope,
         busyTimeoutMs,
@@ -209,6 +236,9 @@ implements ManagedLocalClientPopReplayGuard {
       this.#maxEntries = maxEntries;
       this.#maxEntriesPerScope = maxEntriesPerScope;
       this.#busyTimeoutMs = busyTimeoutMs;
+      this.#storeBinding = keyedDigest(this.#key, "protected-store-binding", canonicalJson({
+        host: this.#hostBindingHmac, namespace: this.#namespaceBindingHmac, configuration: this.#configFingerprint,
+      }));
 
       const sqliteDirectory = dirname(sqlitePath);
       const sqliteDirectoryExisted = existsSync(sqliteDirectory);
@@ -237,6 +267,12 @@ implements ManagedLocalClientPopReplayGuard {
       if (this.#defensiveEnabled) Reflect.apply(defensive!, this.#db, [true]);
       this.#assertConnectionHardening();
       this.#assertDatabaseHealthy();
+      if (options.protectedAuthority) {
+        this.#readIntent();
+        this.#checkpoint = new LocalClientProtectedSqliteCheckpoint({ db: this.#db, integrityKey: this.#key,
+          bindingId: `pop:${this.#storeBinding}:${this.#anchorBinding}`, authority: options.protectedAuthority,
+          readDataDigest: () => { this.#assertConnectionHardening(); this.#assertDatabaseHealthy(); this.#readIntent(); return this.#readMetadata()!.metadata_hmac; } });
+      }
       try { chmodSync(sqlitePath, 0o600); } catch { /* Best effort on Windows. */ }
       internalKey = null;
     } catch (error) {
@@ -251,7 +287,7 @@ implements ManagedLocalClientPopReplayGuard {
 
   get status(): ManagedLocalClientPopReplayGuardStatus {
     return Object.freeze({
-      available: !this.#closed && this.#available,
+      available: !this.#closed && !this.#closing && this.#available && (!this.#checkpoint || this.#protectedVerified),
       durable: true,
       distributed: false,
       mode: DEFENSIVE_MODE,
@@ -269,12 +305,153 @@ implements ManagedLocalClientPopReplayGuard {
     return this.#defensiveEnabled;
   }
 
+  get checkpointStatus() {
+    const configured = this.#checkpoint !== null;
+    return Object.freeze({ available: configured && this.status.available,
+      protocolVersion: LOCAL_CLIENT_POP_REPLAY_CHECKPOINT_VERSION, storeBindingSha256: this.#storeBinding,
+      anchorBindingSha256: this.#anchorBinding ?? "", authenticatedCheckpoint: configured,
+      monotonicGeneration: configured, anchorsEveryMutation: configured, crashConsistentRecovery: configured,
+      mutationProtocol: LOCAL_CLIENT_POP_ANCHORED_MUTATION_PROTOCOL });
+  }
+
+  /** Explicit enrollment only; ordinary construction and consume never create a baseline. */
+  readonly enrollProtectedBaseline = (): Promise<LocalClientPopReplayCheckpoint> => this.#enqueueProtected(async () => {
+    this.#assertIdleIntent();
+    const checkpoint = await this.#checkpoint!.enrollBaseline();
+    this.#protectedVerified = true; this.#available = true;
+    return this.#checkpointResult(checkpoint);
+  });
+
+  /** Finalize committed state or abandon a proven unchanged intent; never execute its request. */
+  readonly recoverProtectedCheckpoint = (): Promise<LocalClientPopReplayCheckpoint> => this.#enqueueProtected(async () => {
+    const intent = this.#readIntent();
+    await this.#checkpoint!.recover();
+    const checkpoint = await this.#checkpoint!.run(() => {
+      if (canonicalJson(this.#readIntent()) !== canonicalJson(intent)) throw integrityError();
+      const current = this.#checkpointRow();
+      if (intent.state !== "idle") {
+        const generation = intent.state === "pending" ? intent.baseGeneration : intent.targetGeneration;
+        const digest = intent.state === "pending" ? intent.baseDigest : intent.targetDigest;
+        if (current.generation !== generation || current.digest !== digest) throw integrityError();
+        this.#writeIntent({ state: "idle" });
+      }
+      return current;
+    });
+    this.#protectedVerified = true; this.#available = true;
+    return this.#checkpointResult(checkpoint);
+  });
+
+  readonly readCurrentCheckpoint = (): Promise<LocalClientPopReplayCheckpoint> => this.#enqueueProtected(async () => {
+    if (!this.#protectedVerified) throw storeUnavailableError();
+    const checkpoint = await this.#checkpoint!.run(() => { this.#assertIdleIntent(); return this.#checkpointRow(); });
+    return this.#checkpointResult(checkpoint);
+  });
+
+  #enqueueProtected<T>(operation: () => Promise<T>): Promise<T> {
+    this.#assertOpen();
+    if (!this.#checkpoint) return Promise.reject(configurationError());
+    const result = this.#tail.then(operation).catch(error => {
+      this.#protectedVerified = false; this.#available = false; throw error;
+    });
+    this.#tail = result.then(() => undefined, () => undefined);
+    return result;
+  }
+
+  async #consumeProtected(request: NormalizedConsumeInput): Promise<ReplayResult> {
+    if (!this.#protectedVerified) throw storeUnavailableError();
+    this.#protectedVerified = false;
+    // This first committed transaction changes only authenticated intent bookkeeping,
+    // not the replay digest. It therefore precedes the coordinator's anchor prepare.
+    const pending = await this.#checkpoint!.run((): ReplayIntent => {
+      this.#assertIdleIntent();
+      const before = this.#checkpointRow();
+      const intent: ReplayIntent = { state: "pending", baseGeneration: before.generation, baseDigest: before.digest,
+        request, targetGeneration: null, targetDigest: null, result: null };
+      this.#writeIntent(intent);
+      return intent;
+    });
+    const result = await this.#checkpoint!.run(() => {
+      const current = this.#readIntent();
+      if (current.state !== "pending" || canonicalJson(current) !== canonicalJson(pending)) throw integrityError();
+      const before = this.#checkpointRow();
+      if (before.generation !== current.baseGeneration || before.digest !== current.baseDigest) throw integrityError();
+      const outcome = this.#consumeNormalized(current.request);
+      const digest = this.#readMetadata()!.metadata_hmac;
+      const generation = before.generation + (digest === before.digest ? 0 : 1);
+      if (!Number.isSafeInteger(generation)) throw integrityError();
+      // Replay rows, clock, generation and this committed receipt share one SQL commit.
+      this.#writeIntent({ ...current, state: "committed", targetGeneration: generation, targetDigest: digest, result: outcome });
+      return outcome;
+    });
+    await this.#checkpoint!.run(() => {
+      const intent = this.#readIntent(); const current = this.#checkpointRow();
+      if (intent.state !== "committed" || current.generation !== intent.targetGeneration
+        || current.digest !== intent.targetDigest || intent.result !== result || pending.state !== "pending"
+        || intent.baseGeneration !== pending.baseGeneration || intent.baseDigest !== pending.baseDigest
+        || canonicalJson(intent.request) !== canonicalJson(pending.request)) throw integrityError();
+      this.#writeIntent({ state: "idle" });
+    });
+    this.#protectedVerified = true; this.#available = true;
+    return result;
+  }
+
+  #checkpointResult(checkpoint: Checkpoint): LocalClientPopReplayCheckpoint {
+    return Object.freeze({ checkpointVersion: LOCAL_CLIENT_POP_REPLAY_CHECKPOINT_VERSION, state: "ready",
+      storeBindingSha256: this.#storeBinding, anchorBindingSha256: this.#anchorBinding!, generation: checkpoint.generation,
+      checkpointDigestSha256: checkpoint.digest });
+  }
+
+  #checkpointRow(): Checkpoint {
+    const row = this.#db.prepare("SELECT generation, digest FROM local_client_protected_checkpoint WHERE id = 1").get();
+    if (!row || !isSafePositiveInteger(row.generation) || !isDigest(row.digest)) throw integrityError();
+    return { generation: row.generation as number, digest: row.digest };
+  }
+
+  #assertIdleIntent(): void { if (this.#readIntent().state !== "idle") throw storeUnavailableError(); }
+
+  #intentMac(body: string): string {
+    return keyedDigest(this.#key, "protected-mutation-intent-v1", canonicalJson([this.#storeBinding, this.#anchorBinding, body]));
+  }
+
+  #writeIntent(intent: ReplayIntent): void {
+    const body = canonicalJson(intent);
+    this.#db.prepare(`INSERT INTO ${INTENT_TABLE} (id, body, mac) VALUES (1, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET body = excluded.body, mac = excluded.mac`).run(body, this.#intentMac(body));
+  }
+
+  #readIntent(): ReplayIntent {
+    const schema = this.#db.prepare("SELECT type, sql FROM sqlite_schema WHERE name = ?").get(INTENT_TABLE);
+    if (schema?.type !== "table" || schema.sql !== INTENT_SCHEMA) throw schemaError();
+    const rows = this.#db.prepare(`SELECT id, substr(body, 1, 2049) AS body, length(body) AS size, mac FROM ${INTENT_TABLE} LIMIT 2`).all();
+    const row = rows[0];
+    if (rows.length !== 1 || row?.id !== 1 || typeof row.body !== "string" || Number(row.size) > 2048
+      || !isDigest(row.mac) || !safeDigestEqual(row.mac, this.#intentMac(row.body))) throw integrityError();
+    const value = JSON.parse(row.body) as ReplayIntent;
+    if (!isPlainRecord(value)) throw integrityError();
+    if (value.state === "idle" && Object.keys(value).length === 1) return value;
+    if ((value.state !== "pending" && value.state !== "committed")
+      || Object.keys(value).sort().join(",") !== "baseDigest,baseGeneration,request,result,state,targetDigest,targetGeneration"
+      || !isSafePositiveInteger(value.baseGeneration) || !isDigest(value.baseDigest)
+      || !isPlainRecord(value.request) || Object.keys(value.request).sort().join(",") !== "expiresAtMs,nowMs,replayKeyHmac,scopeHmac"
+      || !isDigest(value.request.replayKeyHmac) || !isDigest(value.request.scopeHmac)
+      || !isSafeNonNegativeInteger(value.request.nowMs) || !isSafePositiveInteger(value.request.expiresAtMs)
+      || value.request.expiresAtMs > MAX_DATE_MS || value.request.expiresAtMs <= value.request.nowMs) throw integrityError();
+    if (value.state === "pending" ? value.targetGeneration !== null || value.targetDigest !== null || value.result !== null
+      : !isSafePositiveInteger(value.targetGeneration) || ![value.baseGeneration, value.baseGeneration + 1].includes(value.targetGeneration)
+        || !isDigest(value.targetDigest) || !["consumed", "replayed", "capacity"].includes(value.result ?? "")) throw integrityError();
+    return value;
+  }
+
   readonly consumeOnce = (
     input: ManagedLocalClientPopReplayConsumeInput,
-  ): "consumed" | "replayed" | "capacity" => {
+  ): ReplayResult | Promise<ReplayResult> => {
     this.#assertOpen();
     const normalized = normalizeConsumeInput(this.#key, input);
-    return this.#transaction(() => {
+    return this.#checkpoint ? this.#enqueueProtected(() => this.#consumeProtected(normalized))
+      : this.#transaction(() => this.#consumeNormalized(normalized));
+  };
+
+  #consumeNormalized(normalized: NormalizedConsumeInput): ReplayResult {
       const metadata = this.#readMetadata();
       if (!metadata) throw integrityError();
       this.#assertMetadata(metadata);
@@ -338,10 +515,20 @@ implements ManagedLocalClientPopReplayGuard {
       );
       this.#assertReplaySetCount(updatedMetadata);
       return "consumed";
-    });
+  }
+
+  readonly close = (): void | Promise<void> => {
+    if (this.#checkpoint) {
+      if (this.#closePromise) return this.#closePromise;
+      this.#closing = true;
+      return this.#closePromise = this.#tail.then(async () => {
+        try { await this.#checkpoint!.close(); } finally { this.#closeDatabase(); }
+      });
+    }
+    this.#closeDatabase();
   };
 
-  readonly close = (): void => {
+  #closeDatabase(): void {
     if (this.#closed) return;
     this.#closed = true;
     this.#available = false;
@@ -350,14 +537,17 @@ implements ManagedLocalClientPopReplayGuard {
     } finally {
       this.#key.fill(0);
     }
-  };
+  }
 
   #initializeSchema(): void {
     this.#rawTransaction(() => {
       const userVersion = readPragmaInteger(this.#db, "user_version");
-      if (userVersion !== 0 && userVersion !== LOCAL_CLIENT_SQLITE_POP_REPLAY_SCHEMA_VERSION) {
+      if (userVersion !== 0 && userVersion !== this.#schemaVersion) {
         throw schemaError();
       }
+      if (this.#schemaVersion === 3 && this.#db.prepare(
+        "SELECT name FROM sqlite_schema WHERE name IN ('local_client_pop_replay_intent', 'local_client_protected_checkpoint') LIMIT 1",
+      ).get()) throw schemaError();
       this.#db.exec(`
         CREATE TABLE IF NOT EXISTS local_client_pop_replay_metadata (
           singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
@@ -394,6 +584,7 @@ implements ManagedLocalClientPopReplayGuard {
         if (metadata || this.#countRows() !== 0) throw schemaError();
         const emptySet = emptyReplaySet(this.#key);
         const initial = createMetadataRow(this.#key, {
+          schemaVersion: this.#schemaVersion,
           keyBindingHmac: this.#keyBindingHmac,
           hostBindingHmac: this.#hostBindingHmac,
           namespaceBindingHmac: this.#namespaceBindingHmac,
@@ -428,7 +619,8 @@ implements ManagedLocalClientPopReplayGuard {
           initial.metadata_hmac,
         );
         if (Number(inserted.changes) !== 1) throw schemaError();
-        this.#db.exec(`PRAGMA user_version = ${LOCAL_CLIENT_SQLITE_POP_REPLAY_SCHEMA_VERSION}`);
+        if (this.#schemaVersion === 4) { this.#db.exec(INTENT_SCHEMA); this.#writeIntent({ state: "idle" }); }
+        this.#db.exec(`PRAGMA user_version = ${this.#schemaVersion}`);
       } else {
         if (!metadata) throw schemaError();
         this.#assertMetadata(metadata);
@@ -448,7 +640,7 @@ implements ManagedLocalClientPopReplayGuard {
 
   #assertMetadata(row: MetadataRow): void {
     if (
-      row.schema_version !== LOCAL_CLIENT_SQLITE_POP_REPLAY_SCHEMA_VERSION
+      row.schema_version !== this.#schemaVersion
       || !isDigest(row.key_binding_hmac)
       || !isDigest(row.host_binding_hmac)
       || !isDigest(row.namespace_binding_hmac)
@@ -467,6 +659,7 @@ implements ManagedLocalClientPopReplayGuard {
     if (!safeDigestEqual(row.key_binding_hmac, this.#keyBindingHmac)) throw keyMismatchError();
 
     const expectedHmac = createMetadataRow(this.#key, {
+      schemaVersion: this.#schemaVersion,
       keyBindingHmac: row.key_binding_hmac,
       hostBindingHmac: row.host_binding_hmac,
       namespaceBindingHmac: row.namespace_binding_hmac,
@@ -579,6 +772,7 @@ implements ManagedLocalClientPopReplayGuard {
       && safeDigestEqual(previous.entry_accumulator_hmac, replaySet.accumulatorHmac)
     ) return previous;
     const updated = createMetadataRow(this.#key, {
+      schemaVersion: this.#schemaVersion,
       keyBindingHmac: previous.key_binding_hmac,
       hostBindingHmac: previous.host_binding_hmac,
       namespaceBindingHmac: previous.namespace_binding_hmac,
@@ -632,7 +826,8 @@ implements ManagedLocalClientPopReplayGuard {
       SELECT COUNT(*) AS count
       FROM sqlite_schema
       WHERE type = 'trigger'
-        AND tbl_name IN ('local_client_pop_replay_metadata', 'local_client_pop_replay_entries')
+        AND tbl_name IN ('local_client_pop_replay_metadata', 'local_client_pop_replay_entries',
+          'local_client_pop_replay_intent', 'local_client_protected_checkpoint')
     `).get() as { count?: unknown } | undefined;
     if (Number(row?.count) !== 0) throw schemaError();
   }
@@ -682,7 +877,7 @@ implements ManagedLocalClientPopReplayGuard {
   }
 
   #assertOpen(): void {
-    if (this.#closed) throw closedError();
+    if (this.#closed || this.#closing) throw closedError();
   }
 }
 
@@ -710,6 +905,8 @@ function assertOptions(options: LocalClientSqlitePopReplayGuardOptions): void {
     "maxEntries",
     "maxEntriesPerScope",
     "busyTimeoutMs",
+    "protectedAuthority",
+    "anchorBindingSha256",
   ];
   if (
     Reflect.ownKeys(options).some((key) => typeof key !== "string" || !allowed.includes(key))
@@ -720,6 +917,9 @@ function assertOptions(options: LocalClientSqlitePopReplayGuardOptions): void {
     || options.integrityKey.length < MIN_KEY_BYTES
     || options.integrityKey.length > MAX_KEY_BYTES
   ) throw configurationError();
+  if (options.protectedAuthority === undefined ? options.anchorBindingSha256 !== undefined
+    : !isDigest(options.anchorBindingSha256) || ["inspect", "assertCurrent", "prepareNext", "finalize", "enrollBaseline"]
+      .some(name => typeof (options.protectedAuthority as unknown as Record<string, unknown>)?.[name] !== "function")) throw configurationError();
 }
 
 function resolveSqlitePath(value: unknown): string {
@@ -812,6 +1012,7 @@ function normalizeConsumeInput(
 function createMetadataRow(
   key: Buffer,
   input: Readonly<{
+    schemaVersion?: number;
     keyBindingHmac: string;
     hostBindingHmac: string;
     namespaceBindingHmac: string;
@@ -825,7 +1026,7 @@ function createMetadataRow(
   }>,
 ): MetadataRow {
   const unsigned = {
-    schemaVersion: LOCAL_CLIENT_SQLITE_POP_REPLAY_SCHEMA_VERSION,
+    schemaVersion: input.schemaVersion ?? LOCAL_CLIENT_SQLITE_POP_REPLAY_SCHEMA_VERSION,
     keyBindingHmac: input.keyBindingHmac,
     hostBindingHmac: input.hostBindingHmac,
     namespaceBindingHmac: input.namespaceBindingHmac,
@@ -838,7 +1039,7 @@ function createMetadataRow(
     entryAccumulatorHmac: input.entryAccumulatorHmac,
   };
   return {
-    schema_version: LOCAL_CLIENT_SQLITE_POP_REPLAY_SCHEMA_VERSION,
+    schema_version: input.schemaVersion ?? LOCAL_CLIENT_SQLITE_POP_REPLAY_SCHEMA_VERSION,
     key_binding_hmac: input.keyBindingHmac,
     host_binding_hmac: input.hostBindingHmac,
     namespace_binding_hmac: input.namespaceBindingHmac,

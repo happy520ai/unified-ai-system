@@ -922,6 +922,44 @@ target; the next admitted operation starts and fences the new session. Existing
 editor ports await these calls, and shutdown drains them before erasing keys.
 The checkpoint diagnostic remains distinct from native OS protection/readiness.
 
+### Optional anchored SQLite PoP storage component
+
+`LocalClientSqlitePopReplayGuard` accepts an explicit `protectedAuthority` and
+`anchorBindingSha256`. This selects schema 4 for a new database; the ordinary
+schema-3 profile remains unprotected against complete snapshot rollback. Neither
+profile upgrades or downgrades the other's database, including when the schema
+marker is removed. Preserve the caller's stable host, namespace, limits, key and
+authority binding. Construction consumes and wipes the supplied integrity-key
+Buffer; closing drains admitted operations before closing SQLite and wiping its
+internal key. The caller retains ownership of the supplied authority.
+
+Protected construction starts unavailable. Call `enrollProtectedBaseline()` only
+for an explicit initial enrollment, or `recoverProtectedCheckpoint()` for an
+existing store. Ordinary consume/read does neither. A signed intent commits
+before anchor preparation; replay state and the committed-intent checkpoint
+share the next SQLite commit; admission is released only after finalization and
+operation-bound intent cleanup. Expiry, clock and quota-result mutations use the
+same path. Recovery never invokes a consume callback: a committed target may be
+finalized, a proven unchanged intent may be abandoned, and local base plus pending
+anchor remains blocked. `readCurrentCheckpoint()` accepts only idle signed state.
+
+The store's `snapshotRollbackProtected` remains false. Its checkpoint port can
+compose with the existing snapshot-protection wrapper, but native challenge
+evidence, dedicated native slots and gateway startup wiring are separate work.
+Model-authority/SQLite tests do not prove native deployment, power-loss behavior
+or production readiness. This component does not migrate outstanding proofs or
+authorize replacement of an active replay database. Rollback disables the optional
+profile and preserves its database/intent/authority state; legacy code must not
+open the protected DB.
+
+Language Selection: TypeScript reuses the existing checked SQLite and authority
+interfaces and checkpoint coordinator; no native code, dependency, service or
+general transaction framework is added. The optional schema is necessary for
+authenticated generation and durable intent and has no silent migration path.
+This three-file change crosses the 500-line checkpoint because the storage
+protocol, ten fault windows, concurrent intent ownership, wrapper integration and
+operator lifecycle must be implemented and verified together.
+
 ### Optional Windows authority package
 
 The native package contains five runtime files and two license notices. The
