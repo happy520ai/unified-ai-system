@@ -200,6 +200,41 @@ describe("input guardrails over real HTTP", () => {
       const events = redactedOutput.split("\n").filter(line => line.startsWith("data: ")).map(line => JSON.parse(line.slice(6)));
       expect(events.find(event => event.type === "done").outputText)
         .toBe(events.filter(event => event.type === "chunk").map(event => event.textDelta).join(""));
+      let providerWaiting = false; let providerAborted = false; let providerClosed = false;
+      let releaseProvider = () => {};
+      streamed.mockClear();
+      streamed.mockImplementationOnce(async function* (input: unknown) {
+        const signal = (input as { execution?: { signal?: AbortSignal } }).execution?.signal;
+        if (!signal) throw new Error("The fixture provider must receive the request cancellation signal.");
+        const pending = new Promise<void>(resolve => { releaseProvider = resolve; });
+        const aborted = () => { providerAborted = true; releaseProvider(); };
+        signal.addEventListener("abort", aborted, { once: true });
+        try {
+          if (signal.aborted) aborted();
+          yield { textDelta: "withheld-until-complete", raw: { fake: true } };
+          providerWaiting = true;
+          await pending;
+        } finally { signal.removeEventListener("abort", aborted); providerClosed = true; }
+      });
+      let readWrittenText = () => "";
+      server.once("request", (_request, response) => {
+        const writes = vi.spyOn(response, "write");
+        readWrittenText = () => writes.mock.calls.map(([chunk]) => String(chunk)).join("");
+      });
+      const cancellation = new AbortController();
+      const disconnected = fetch(`${baseUrl}/chat/stream`, { method: "POST", signal: cancellation.signal,
+        headers: { authorization: `Bearer ${key.key}`, "content-type": "application/json" },
+        body: JSON.stringify({ providerId: "local-fake-provider", model: "local-fake-model", messages: [{ role: "user", content: "Cancel while output is buffered." }] }),
+      }).then(async response => ({ text: await response.text() })).catch(error => ({ error }));
+      try {
+        await vi.waitFor(() => expect(providerWaiting).toBe(true));
+        expect(readWrittenText()).not.toContain("withheld-until-complete");
+        cancellation.abort();
+        expect(await disconnected).toMatchObject({ error: { name: "AbortError" } });
+        await vi.waitFor(() => expect({ providerAborted, providerClosed }).toEqual({ providerAborted: true, providerClosed: true }));
+        expect(readWrittenText()).not.toContain("withheld-until-complete");
+        expect(streamed).toHaveBeenCalledOnce();
+      } finally { cancellation.abort(); releaseProvider(); await disconnected; }
     } finally {
       if (server) {
         await new Promise<void>((resolve, reject) => {
