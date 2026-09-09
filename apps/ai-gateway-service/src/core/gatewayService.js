@@ -39,6 +39,12 @@ export const MANAGED_LOCAL_CLIENT_PROVIDER_PIN = Symbol("managed-local-client-pr
 /** Server-owned Agent attribution; JSON callers cannot construct this symbol. */
 export const AGENT_GOVERNANCE_EXECUTION_CONTEXT = Symbol("agent-governance-execution-context");
 const fakeProviderExecutions = new WeakMap();
+const providerCallObservations = new WeakMap();
+
+/** Actual whole-execution facts; JSON copies and caller flags carry no proof. */
+export function readGatewayProviderCallAttempted(result) {
+  return result && typeof result === "object" ? providerCallObservations.get(result) : undefined;
+}
 
 /** Restrictive server capability: JSON flags cannot create or replace it. */
 export function bindFakeProviderExecution(execution, target) {
@@ -89,6 +95,7 @@ export class GatewayService {
     let request;
     let selection;
     let compactionWarnings = [];
+    let providerCallAttempted = false;
 
     try {
       throwIfExecutionAborted(execution.signal);
@@ -126,6 +133,7 @@ export class GatewayService {
         onAttemptSelected: (attemptSelection) => {
           selection = attemptSelection;
         },
+        onProviderCallStarted: () => { providerCallAttempted = true; },
       });
       selection = attemptResult.selection;
       const providerResult = attemptResult.providerResult;
@@ -148,6 +156,7 @@ export class GatewayService {
         startedAt,
       });
       inheritVirtualKeyBilling(providerResult, envelope);
+      providerCallObservations.set(envelope, providerCallAttempted);
       return envelope;
     } catch (error) {
       const cancellation = findExecutionAbortError(error, execution.signal);
@@ -169,12 +178,14 @@ export class GatewayService {
         message: error instanceof Error ? error.message : "Gateway route execution failed.",
         durationMs: Date.now() - startedAt,
       });
-      return createRouteFailureEnvelope(error, {
+      const envelope = createRouteFailureEnvelope(error, {
         request,
         selection,
         startedAt,
         runtimeConfig: this.runtimeConfig,
       });
+      providerCallObservations.set(envelope, providerCallAttempted);
+      return envelope;
     }
   }
 

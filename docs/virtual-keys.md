@@ -70,7 +70,7 @@ The tenant header is not required — the key's own tenant is used.
 | Native idempotency | Replaying a completed non-streaming `/chat` request under its original idempotency key does not consume another request admission or token charge; concurrent duplicates share the same execution. This remains true when the key's budget is later exhausted. |
 | Rate limit | Optional per-key requests-per-minute fixed window; rejects with 429 `VIRTUAL_KEY_RATE_LIMITED`. |
 | Soft budget | When usage crosses `softThreshold` (default 0.8) a `virtual_key_soft_budget` service log event is emitted once per crossing. |
-| Execution scope | Native chat, OpenAI chat/Responses, Anthropic Messages, Gemini normal/SSE/batch, WebSocket chat and A2A chat enter the same Gateway accounting boundary. Trusted Agent proposer, Workforce role and shadow-call projections retain the request capability. |
+| Execution scope | Native chat, OpenAI chat/Responses, Anthropic Messages, Gemini normal/SSE/batch, WebSocket chat and A2A chat enter the same Gateway accounting boundary. Forge model steps, AgentExec, LLM prompt enhancement, trusted Agent proposer, Workforce role and shadow-call projections retain the request capability. |
 
 Gemini batches perform one request/RPM admission using the sum of normalized
 input estimates; each actual item attempt contributes its own settlement. This is
@@ -96,6 +96,15 @@ Incomplete usage or a failed counter/audit write cannot create an exact-billing
 cache entry. A shadow or failed fallback attempt keeps its separate settlement;
 the response cache saves the successful response's own charge. WebSocket ping
 and control-plane reads do not consume a model request admission.
+
+The existing `POST /prompts/enhance-llm` requires `chat:use`. When it actually
+uses a model, its request-bound Gateway applies the same admission and per-attempt
+settlement. Deterministic enhancement and fallback without a Provider make no
+model admission. Internal adapters derive `providerCallAttempted` from private
+Core execution facts: a later fallback denial cannot erase an earlier call.
+Unmarked or copied results remain unknown; an error code alone cannot prove that
+no Provider work occurred. These observations describe adapter dispatch, not
+receipt of an upstream paid request or a Provider invoice.
 
 A2A `SendMessage` keeps its authenticated accounting capability and execution
 deadline until the actual invocation finishes, including when
@@ -197,6 +206,15 @@ back as a unit, pause key traffic and preserve counters; reverting only the Core
 or HTTP half causes missing or duplicate charges. Synthetic tests do not establish
 Provider invoices, complete interrupted usage, distributed reservations or
 production billing accuracy.
+
+The internal-entry update keeps the existing JS Core and permission owner, with
+its TS declaration, adapter and regression tests. Its nine files include this
+documentation because the HTTP mapping, private execution observation and
+consumer interpretation must ship together. It adds no dependency or persistent
+structure. Revert these changes as a unit; removing only the Core observation
+leaves internal adapter outcomes unknown. Local HTTP tests cover separate keys
+through one Forge service, actual multi-call settlement, zero-call enhancement,
+permission and quota denial, and cancellation.
 
 The A2A addition uses one TypeScript helper for the private server-context
 transfer and per-invocation lifetime, with local changes to the existing JS

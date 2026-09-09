@@ -43,6 +43,7 @@ async function a2aRpc(f: Awaited<ReturnType<typeof fixture>>, method: string, pa
 
 async function fixture(cache = false, compact = false, agent = false, a2a = false) {
   const directory = mkdtempSync(join(tmpdir(), "gateway-key-http-"));
+  const agentWorkDirectory = join(directory, "agent-workspace"); mkdirSync(agentWorkDirectory);
   cleanups.push(async () => { rmSync(directory, { recursive: true, force: true }); });
   const managementToken = randomBytes(24).toString("base64url");
   const env = { PME_ENTERPRISE_AUTH_ENABLED: "true", PME_AUTH_TOKEN: managementToken,
@@ -84,15 +85,17 @@ async function fixture(cache = false, compact = false, agent = false, a2a = fals
     summary: join(directory, "cache-summary.json"), audit: join(directory, "cache-audit.jsonl") }, auditFlushIntervalMs: 0 });
   cleanups.push(async () => { await store.close(); });
   setChatResponseCacheIntegrationForTests(createChatResponseCacheIntegration({ env: { AI_GATEWAY_RESPONSE_CACHE_ENABLED: String(cache) }, store }));
-  const server = createGatewayHttpServer({ runtimeEnv: env, config: { aiGatewayService: { providerMode: "fake", realProviderEnabled: false,
+  const application = { runtimeEnv: env, config: { aiGatewayService: { providerMode: "fake", realProviderEnabled: false,
     providerSelection: { mode: "fixed", defaultProviderId: providerId, defaultModelId: modelId },
     providerModels: [{ providerId, modelId }] } },
     gatewayService: gateway, providerRegistry: registry, enterpriseGovernanceService: governance, agentGovernance,
+    agentExecWorkingDirectory: agentWorkDirectory,
     multimodalAdapter: { generateImage },
     knowledgeService: { getHealth: () => ({ status: "ready" }) }, knowledgeInfra: { getReadiness: () => ({ status: "ready" }) },
     workflowService: { getHealth: () => ({ status: "ready" }) }, workforceService: { getHealth: () => ({ status: "ready" }) },
     requestLogger: { getStats: () => ({}) }, healthScorer: { getAllScores: () => ({}) },
-    userExperienceService: { getDashboard: () => ({}) } }) as ReturnType<typeof createGatewayHttpServer> & {
+    userExperienceService: { getDashboard: () => ({}) } };
+  const server = createGatewayHttpServer(application) as ReturnType<typeof createGatewayHttpServer> & {
       closeRealtimeConnections?: () => void; shutdownResources?: () => Promise<void>;
     };
   cleanups.push(async () => {
@@ -107,13 +110,13 @@ async function fixture(cache = false, compact = false, agent = false, a2a = fals
     return fetch(url + path, { method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "application/json", ...headers },
       body: JSON.stringify(body), signal: AbortSignal.timeout(8000) });
   }
-  async function createKey(limit: number | null = 10_000, rpm = 50) {
-    const response = await post("/enterprise/virtual-keys", { role: "operator", tenantId: "default", ...(limit === null ? {} : { budget: { limitTokens: limit, window: "daily" } }), rateLimit: { requestsPerMinute: rpm } });
+  async function createKey(limit: number | null = 10_000, rpm = 50, role = "operator") {
+    const response = await post("/enterprise/virtual-keys", { role, tenantId: "default", ...(limit === null ? {} : { budget: { limitTokens: limit, window: "daily" } }), rateLimit: { requestsPerMinute: rpm } });
     expect(response.status).toBe(200);
     const body = await response.json() as any;
     return body.data as { key: string; record: { keyId: string; keyFingerprint: string } };
   }
-  return { directory, server, url, post, createKey, manager, admissions, charges, audits, generate, generateStream, generateImage, gateway, executions, agentGovernance,
+  return { directory, application, server, url, post, createKey, manager, admissions, charges, audits, generate, generateStream, generateImage, gateway, executions, agentGovernance,
     usage: (id: string) => manager.describeUsage({ keyId: id })!.usage };
 }
 
@@ -448,5 +451,120 @@ describe("actual authenticated A2A HTTP virtual-key accounting", () => {
     expect(f.generate).toHaveBeenCalledOnce(); expect(f.admissions).toHaveBeenCalledOnce();
     expect(f.usage(key.record.keyId).requestCount).toBe(1);
     expect(f.usage(key.record.keyId).tokensUsed).toBe(0);
+  }, 30_000);
+});
+
+describe("actual authenticated internal entry virtual-key accounting", () => {
+  it("requires authentication and chat:use before LLM enhancement", async () => {
+    const f = await fixture(); const viewer = await f.createKey(10_000, 50, "viewer");
+    const body = { input: "Explain this fixture.", providerId: "meter-fixture", modelId: "meter-model" };
+    const anonymous = await fetch(f.url + "/prompts/enhance-llm", { method: "POST",
+      headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    expect(anonymous.status).toBe(401); expect((await anonymous.json() as any).error.code).toBe("enterprise_auth_required");
+    const denied = await f.post("/prompts/enhance-llm", body, viewer.key);
+    expect(denied.status).toBe(403); expect((await denied.json() as any).error.code).toBe("enterprise_permission_forbidden");
+    expect(f.generate).not.toHaveBeenCalled(); expect(f.admissions).not.toHaveBeenCalled(); expect(f.charges).not.toHaveBeenCalled();
+    expect(f.usage(viewer.record.keyId)).toMatchObject({ requestCount: 0, tokensUsed: 0 });
+  }, 30_000);
+
+  it.each([
+    { name: "Forge polish", path: "/forge/polish", body: { content: "x", task: { prompt: "Refine this fixture only." }, passes: 2 }, multiple: true },
+    { name: "AgentExec", path: "/agent-exec/run", body: { goal: "Answer this synthetic request.", providerId: "meter-fixture", modelId: "meter-model", toolMode: "none", maxIterations: 1, timeoutMs: 10_000 }, multiple: false },
+    { name: "LLM prompt enhancement", path: "/prompts/enhance-llm", body: { input: "Explain the fixture route.", providerId: "meter-fixture", modelId: "meter-model" }, multiple: false },
+  ])("admits one $name request and charges its actual N provider calls", async ({ path, body, multiple }) => {
+    const f = await fixture(); const key = await f.createKey(100_000); const other = await f.createKey(100_000);
+    const reported: number[] = [];
+    f.generate.mockImplementation(async () => {
+      const tokens = 12 + reported.length; reported.push(tokens);
+      return result(multiple ? "x" : "A complete synthetic final answer.", tokens);
+    });
+    const response = await f.post(path, { ...body, enterpriseIdentity: { apiKeyFingerprint: other.record.keyFingerprint, tenantId: "forged-tenant" } }, key.key);
+    const payload = await response.json() as any;
+    expect(response.status, JSON.stringify(payload)).toBe(200); expect(payload.status).toBe("ok");
+    const calls = f.generate.mock.calls.length;
+    expect(calls).toBeGreaterThanOrEqual(multiple ? 2 : 1);
+    expect(f.admissions).toHaveBeenCalledOnce(); expect(f.charges).toHaveBeenCalledTimes(calls);
+    for (const [input] of f.generate.mock.calls) expect(input!.request.enterpriseIdentity)
+      .toMatchObject({ apiKeyFingerprint: key.record.keyFingerprint, tenantId: "default" });
+    expect(f.charges.mock.calls.map(([input]) => input?.tokens)).toEqual(reported);
+    expect(f.usage(key.record.keyId)).toMatchObject({ requestCount: 1, rateRequestCount: 1, tokensUsed: reported.reduce((sum, count) => sum + count, 0) });
+    expect(f.usage(other.record.keyId)).toMatchObject({ requestCount: 0, tokensUsed: 0 });
+    if (path === "/agent-exec/run") expect(payload.data.status).toBe("completed");
+    if (path === "/prompts/enhance-llm") expect(payload.data).toMatchObject({ llmEnhanced: true, metadata: { providerCalled: true } });
+  }, 30_000);
+
+  it.each(["/prompts/enhance", "/prompts/enhance-llm"])("does not admit or charge the deterministic/no-provider path %s", async path => {
+    const f = await fixture(); const key = await f.createKey(1, 1);
+    const response = await f.post(path, { input: "Explain this synthetic fixture." }, key.key);
+    const payload = await response.json() as any;
+    expect(response.status).toBe(200); expect(payload.status).toBe("ok");
+    expect(f.generate).not.toHaveBeenCalled(); expect(f.admissions).not.toHaveBeenCalled(); expect(f.charges).not.toHaveBeenCalled();
+    expect(f.usage(key.record.keyId)).toMatchObject({ requestCount: 0, rateRequestCount: 0, tokensUsed: 0 });
+    if (path.endsWith("-llm")) expect(payload.data).toMatchObject({ llmEnhanced: false, llmFallbackReason: "no_provider", metadata: { providerCalled: false } });
+  }, 30_000);
+
+  it.each(["budget", "RPM"])("reports no provider attempt when prompt enhancement is rejected by %s", async gate => {
+    const f = await fixture(); const key = await f.createKey(gate === "budget" ? 1 : 10_000, gate === "RPM" ? 1 : 50);
+    if (gate === "RPM") {
+      const seed = await f.post("/chat", { messages: [{ role: "user", content: "seed" }] }, key.key);
+      expect(seed.status).toBe(200); expect((await seed.json() as any).success).toBe(true);
+    }
+    const beforeCalls = f.generate.mock.calls.length; const beforeCharges = f.charges.mock.calls.length;
+    const before = f.usage(key.record.keyId);
+    const response = await f.post("/prompts/enhance-llm", { input: "Explain this synthetic fixture.", providerId: "meter-fixture", modelId: "meter-model" }, key.key);
+    const payload = await response.json() as any;
+    expect(response.status).toBe(200); expect(payload.status).toBe("ok");
+    expect(f.generate).toHaveBeenCalledTimes(beforeCalls); expect(f.charges).toHaveBeenCalledTimes(beforeCharges);
+    expect(f.usage(key.record.keyId)).toMatchObject({ requestCount: before.requestCount, rateRequestCount: before.rateRequestCount, tokensUsed: before.tokensUsed });
+    expect(payload.data).toMatchObject({ llmEnhanced: false, metadata: { providerCalled: false, providerCallOutcomeUnknown: false,
+      llmError: gate === "budget" ? "VIRTUAL_KEY_BUDGET_EXHAUSTED" : "VIRTUAL_KEY_RATE_LIMITED" } });
+  }, 30_000);
+
+  it("keeps two virtual keys separate while reusing the same Forge singleton", async () => {
+    const f = await fixture(); const first = await f.createKey(100_000); const second = await f.createKey(100_000);
+    f.generate.mockImplementation(async () => result("x"));
+    const body = { content: "x", task: { prompt: "Refine this fixture only." }, passes: 2 };
+    const initial = await f.post("/forge/polish", body, first.key);
+    expect(initial.status).toBe(200); expect((await initial.json() as any).status).toBe("ok");
+    const singleton = (f.application as any).__forgeGatewayService;
+    expect(singleton).toBeDefined();
+    const firstCalls = f.generate.mock.calls.length;
+    const following = await f.post("/forge/polish", body, second.key);
+    expect(following.status).toBe(200); expect((await following.json() as any).status).toBe("ok");
+    expect((f.application as any).__forgeGatewayService).toBe(singleton);
+    const secondCalls = f.generate.mock.calls.length - firstCalls;
+    expect(firstCalls).toBeGreaterThan(1); expect(secondCalls).toBeGreaterThan(1);
+    expect(f.admissions).toHaveBeenCalledTimes(2); expect(f.charges).toHaveBeenCalledTimes(firstCalls + secondCalls);
+    expect(f.usage(first.record.keyId)).toMatchObject({ requestCount: 1, tokensUsed: 12 * firstCalls });
+    expect(f.usage(second.record.keyId)).toMatchObject({ requestCount: 1, tokensUsed: 12 * secondCalls });
+    for (const [input] of f.generate.mock.calls.slice(firstCalls)) expect(input!.request.enterpriseIdentity.apiKeyFingerprint).toBe(second.record.keyFingerprint);
+  }, 30_000);
+
+  it("settles one unknown AgentExec attempt on internal cancellation without charging invented tokens", async () => {
+    const f = await fixture(); const key = await f.createKey(100_000); const gate = deferredProvider();
+    const controller = new AbortController(); const aborted = vi.fn();
+    let started!: () => void; const providerStarted = new Promise<void>(resolve => { started = resolve; });
+    f.generate.mockImplementationOnce(async (input: any) => {
+      const signal = input.execution?.signal as AbortSignal;
+      expect(signal).toBeInstanceOf(AbortSignal);
+      const onAbort = () => { aborted(); gate.release(); };
+      if (signal.aborted) onAbort(); else signal.addEventListener("abort", onAbort, { once: true });
+      started();
+      try { await gate.pending; signal.throwIfAborted(); throw new Error("Fixture resumed without cancellation."); }
+      finally { signal.removeEventListener("abort", onAbort); }
+    });
+    const pending = fetch(f.url + "/agent-exec/run", { method: "POST", headers: { authorization: `Bearer ${key.key}`, "content-type": "application/json" },
+      body: JSON.stringify({ goal: "Wait for cancellation.", providerId: "meter-fixture", modelId: "meter-model", toolMode: "none", maxIterations: 1, timeoutMs: 10_000 }), signal: controller.signal })
+      .then(response => response.json(), error => error);
+    cleanups.push(async () => { controller.abort(); gate.release(); await pending; });
+    await providerStarted; controller.abort();
+    expect(await pending).toMatchObject({ name: "AbortError" });
+    await vi.waitFor(() => expect(aborted).toHaveBeenCalledOnce());
+    await Promise.allSettled(f.executions.mock.results.map(call => call.value));
+    await vi.waitFor(() => expect(f.audits.mock.calls.map(([event]) => event)
+      .filter(event => (event as { code?: string }).code === "VIRTUAL_KEY_USAGE_SETTLED"))
+      .toEqual([expect.objectContaining({ details: expect.objectContaining({ source: "unknown", tokens: null, incomplete: true }) })]));
+    expect(f.generate).toHaveBeenCalledOnce(); expect(f.admissions).toHaveBeenCalledOnce(); expect(f.charges).not.toHaveBeenCalled();
+    expect(f.usage(key.record.keyId)).toMatchObject({ requestCount: 1, rateRequestCount: 1, tokensUsed: 0 });
   }, 30_000);
 });

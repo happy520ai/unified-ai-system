@@ -1,4 +1,4 @@
-import { AGENT_GOVERNANCE_EXECUTION_CONTEXT } from "../core/gatewayService.js";
+import { AGENT_GOVERNANCE_EXECUTION_CONTEXT, readGatewayProviderCallAttempted } from "../core/gatewayService.js";
 
 type GatewayServiceLike = {
   execute(input: Record<string, unknown>, execution?: Record<string, unknown>): Promise<any>;
@@ -32,17 +32,6 @@ type LowLevelProviderRequest = {
   };
   execution?: Record<string, unknown>;
 };
-
-const DEFINITELY_PRE_PROVIDER_CODES = new Set([
-  "REAL_PROVIDER_EXECUTION_BLOCKED",
-  "USAGE_LEDGER_UNAVAILABLE",
-  "PROVIDER_AUDIT_UNAVAILABLE",
-  "PROVIDER_AUDIT_WRITE_FAILED",
-  "COST_GUARD_BLOCKED",
-  "CONTENT_GUARDRAIL_BLOCKED",
-  "MODEL_ACCESS_DENIED",
-  "VALIDATION_ERROR",
-]);
 
 export function createGatewayBackedProviderAdapter({
   gatewayService,
@@ -163,8 +152,7 @@ function normalizeAgentExecutionContext(input: NonNullable<GatewayBackedProvider
 function createGatewayExecutionError(result: any) {
   const routeError = result?.error ?? {};
   const code = routeError.code ?? result?.code ?? "GATEWAY_BACKED_PROVIDER_FAILED";
-  const definitelyPreProvider = String(code).startsWith("PROVIDER_DISPATCH_")
-    || DEFINITELY_PRE_PROVIDER_CODES.has(String(code));
+  const providerCallAttempted = readGatewayProviderCallAttempted(result);
   return Object.assign(
     new Error(routeError.message ?? result?.message ?? "Governed gateway provider execution failed."),
     {
@@ -172,7 +160,7 @@ function createGatewayExecutionError(result: any) {
       category: routeError.type ?? routeError.category ?? "provider",
       retryable: routeError.retryable === true,
       details: routeError.details ?? {},
-      providerCallAttempted: definitelyPreProvider ? false : null,
+      providerCallAttempted: providerCallAttempted ?? null,
     },
   );
 }
@@ -200,5 +188,5 @@ function boundedIdentity(value: unknown, name: string) {
 }
 
 function configurationError(code: string, message: string) {
-  return Object.assign(new Error(message), { code, category: "configuration", retryable: false });
+  return Object.assign(new Error(message), { code, category: "configuration", retryable: false, providerCallAttempted: false });
 }

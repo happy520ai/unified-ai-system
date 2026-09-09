@@ -505,6 +505,7 @@ export function resolvePermission(method, pathname) {
     normalizedPath === "/completions" ||
     normalizedPath === "/responses" ||
     normalizedPath === "/prompts/enhance"
+    || (normalizedMethod === "POST" && normalizedPath === "/prompts/enhance-llm")
     || normalizedPath === "/v1/chat/completions"
     || normalizedPath === "/v1/completions"
     || normalizedPath === "/v1/responses"
