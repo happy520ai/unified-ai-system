@@ -624,6 +624,43 @@ exercises explicit recovery and is not evidence of a real process kill or power
 loss. These fixtures do not prove native client loading, real Provider calls,
 clean-machine installation, production durability, YAML or TOML support.
 
+## Codex TOML source codec (integration pending)
+
+`localClientCodexToml.ts` provides a pure source codec for the proposed
+`codex-mcp-toml-v1` profile. It is not registered in onboarding, startup
+configuration, receipt contracts or CLI commands yet. It does not read a user's
+Codex configuration, change native login/model settings, start a client or write
+files. Full governed TOML onboarding and native-client certification remain
+separate work; JSON/JSONC profiles keep their existing behavior.
+
+The codec pins `toml-eslint-parser` 1.0.3 (MIT) and explicitly selects TOML 1.0;
+the parser's default 1.1 is not silently adopted. Its one runtime dependency is
+the locked `eslint-visitor-keys` 5.0.1 (Apache-2.0); no ESLint runner is added.
+Input is at most 64 KiB of valid UTF-8. This first profile rejects a BOM, dates,
+nonfinite/unsafe numbers, duplicate or forbidden keys, and excessive nesting.
+It accepts one ordinary `mcp_servers."unified-ai-system"` table with only
+`command`, string `args`, and `cwd`; managed inline/dotted/array-table forms,
+descendants, legacy `unified_ai_system`, and extra transport/credential/policy
+fields are refused. These are editor-profile limits, not a statement that the
+native client rejects every such TOML feature.
+
+AST token ranges change only the owned syntax. Comments, unrelated slices,
+newline convention and final-newline state remain; the complete result is
+reparsed against the original expected semantic object. Unsupported managed
+types and unsafe values are rejected before conversion to JavaScript objects.
+The codec snapshots input bytes and rejects accessor-bearing operation data.
+Parser failures expose a fixed error instead of source text. Parsing is bounded
+by input size and structural limits, without a claim of a formal CPU bound.
+
+Language Selection: TypeScript keeps this pure codec within the existing Node
+runtime and checked operation types. Domain/maintenance/operations/safety/
+migration/ecosystem scores are TS 5/5/5/5/5/5 (30), JS 5/4/5/3/5/5 (27), and a
+separate runtime 3/3/2/4/2/3 (17). An AST parser is necessary to preserve source
+trivia; parse/stringify alone cannot satisfy that requirement. Rollback removes
+these codec exports and their two dependencies; no user configuration or state
+migration is involved. Synthetic tests verify bytes and semantics; they do not
+prove the unconnected transaction/approval/native-client path.
+
 ## Language Selection
 
 - **Workload:** gateway runtime policy, registry state, route planning, and a
