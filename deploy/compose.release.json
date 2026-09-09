@@ -8,7 +8,8 @@
         "AI_GATEWAY_PROVIDER_MODE": "fake",
         "AI_GATEWAY_SHUTDOWN_TIMEOUT_MS": "10000",
         "PME_ENTERPRISE_AUTH_ENABLED": "true",
-        "PME_AUTH_TOKEN": "${PME_AUTH_TOKEN:?Set PME_AUTH_TOKEN in the explicit private environment file}"
+        "PME_AUTH_TOKEN": "${PME_AUTH_TOKEN:?Set PME_AUTH_TOKEN in the explicit private environment file}",
+        "AI_GATEWAY_MODEL_LIBRARY_STATE_PATH": "/app/.data/model-library/state.json"
       },
       "ports": ["127.0.0.1:${UAI_GATEWAY_PORT:-3100}:3100"],
       "user": "node",

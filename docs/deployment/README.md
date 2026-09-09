@@ -5,6 +5,15 @@ image digest, a loopback-only port, the existing two data volumes and the local
 fake provider. It is a standalone release profile: do not combine it with the
 development `docker-compose.yml`, which has a source build and optional `.env`.
 
+The profile explicitly stores model-library state at
+`/app/.data/model-library/state.json` through
+`AI_GATEWAY_MODEL_LIBRARY_STATE_PATH`. This uses the existing `gateway-data`
+volume, so catalog refreshes can persist under the read-only root filesystem and
+survive container replacement. The configuration verifier requires this exact
+path in both the source profile and Compose's normalized output. Select an image
+that supports this environment setting; configuration validation alone cannot
+prove the selected image uses it.
+
 The Docker publishing workflow checks out its exact event commit and runs
 `pnpm check`, `pnpm test`, `pnpm check:public` and `pnpm verify:public-clone`
 in the same job before container smoke tests, registry login and image pushes.
@@ -81,6 +90,15 @@ backup of both data volumes with the host's backup tooling; include permissions
 and any separately configured storage. Verify a restore in an isolated environment
 before relying on the backup. Backups can contain private data and credentials and
 must stay in protected storage outside the repository and evidence directories.
+
+If an older deployment used the legacy
+`apps/ai-gateway-service/evidence/phase-312a-model-library-state.json` location,
+stop it and back up that state before enabling the new profile. Restore the
+compatible state into the new path in the same project's `gateway-data` volume
+with ownership for the image's `node` user and private permissions. Verify the
+model library and an offline catalog refresh in an isolated restored instance.
+No automatic migration, deletion or merge of existing state is performed. Keep
+the old backup available for a compatible image rollback.
 
 Upgrade by changing only the digest in the private file, validating that digest,
 then repeating `pull` and `up` with the same project. To roll back, restore the

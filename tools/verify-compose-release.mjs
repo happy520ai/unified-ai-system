@@ -37,6 +37,7 @@ function checkModel(model, imageReference, port, normalized) {
   requireCondition(service.restart === "unless-stopped" && service.stop_grace_period === "15s", "Expected restart policy and bounded shutdown grace.");
   requireCondition(service.healthcheck?.test?.join(" ").includes("http://127.0.0.1:3100/ready"), "Readiness must be the container health probe.");
   requireCondition(service.environment?.PME_ENTERPRISE_AUTH_ENABLED === "true" && service.environment?.AI_GATEWAY_PROVIDER_MODE === "fake", "Authenticated fake-provider defaults are required.");
+  requireCondition(service.environment?.AI_GATEWAY_MODEL_LIBRARY_STATE_PATH === "/app/.data/model-library/state.json", "Model-library state must use the existing writable Gateway data volume.");
   requireCondition(Object.keys(model.volumes ?? {}).sort().join() === "gateway-data,gateway-service-data", "Expected both existing Gateway data volumes.");
   if (!normalized) {
     requireCondition(Object.values(model.volumes).every((volume) => volume && Object.keys(volume).length === 0), "Data volumes must use the default named-volume configuration.");
