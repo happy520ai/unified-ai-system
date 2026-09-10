@@ -1,29 +1,34 @@
-export function createBrowserExecutor(page) {
+import { validateBrowserAction } from "./llmBrain.js";
+
+export function createBrowserExecutor(page, options = {}) {
   return {
     execute(action) {
-      return executeAction(page, action);
+      return executeAction(page, action, options);
     },
   };
 }
 
-export async function executeAction(page, action = {}) {
-  const type = action.type || action.action || "extractText";
-  if (type === "goto") {
-    await page.goto(action.url, { waitUntil: "domcontentloaded", timeout: action.timeoutMs ?? 30000 });
-    return { type, url: page.url() };
+export async function executeAction(page, action, options = {}) {
+  action = validateBrowserAction(action);
+  if (action.type === "done") throw new Error("WEB_DONE_REQUIRES_GOAL_VERIFIER");
+  if (typeof options.resolveTarget !== "function") throw new Error("WEB_TARGET_RESOLVER_REQUIRED");
+  const timeout = options.timeoutMs ?? 5000;
+  if (!Number.isInteger(timeout) || timeout < 1 || timeout > 10000) throw new Error("WEB_ACTION_LIMIT_INVALID");
+  options.signal?.throwIfAborted();
+  // The trusted resolver must return the observed element handle, never rebind
+  // a model-provided selector to a different element after authorization.
+  const element = await options.resolveTarget(page, action);
+  options.signal?.throwIfAborted();
+  if (!element) throw new Error("WEB_TARGET_UNAVAILABLE");
+  if (action.type === "click") await element.click({ timeout });
+  else if (action.type === "fill") await element.fill(action.value, { timeout });
+  else {
+    const text = await element.evaluate((node) => (node.innerText ?? node.textContent ?? "").slice(0, 8001));
+    options.signal?.throwIfAborted();
+    if (!text.trim()) throw new Error("WEB_EMPTY_EXTRACTION");
+    if (Buffer.byteLength(text, "utf8") > 8000) throw new Error("WEB_RESULT_TOO_LARGE");
+    return { type: action.type, targetId: action.targetId, text };
   }
-  if (type === "click") {
-    await page.click(action.selector, { timeout: action.timeoutMs ?? 10000 });
-    return { type, selector: action.selector };
-  }
-  if (type === "fill") {
-    await page.fill(action.selector, String(action.value ?? ""), { timeout: action.timeoutMs ?? 10000 });
-    return { type, selector: action.selector };
-  }
-  if (type === "wait") {
-    await page.waitForTimeout(action.ms ?? 1000);
-    return { type, ms: action.ms ?? 1000 };
-  }
-  const text = await page.locator(action.selector || "body").innerText({ timeout: action.timeoutMs ?? 10000 }).catch(() => "");
-  return { type: "extractText", selector: action.selector || "body", text };
+  options.signal?.throwIfAborted();
+  return { type: action.type, targetId: action.targetId };
 }

@@ -674,6 +674,9 @@ export function createForgeGatewayService({
             signal: combinedSignal.signal,
           }),
         );
+        if (governedExecution?.webTask && result.status !== "completed") {
+          throw createForgeGatewayError("FORGE_WEB_GOAL_NOT_VERIFIED", "The approved webpage goal did not complete.");
+        }
         throwIfForgeGatewayAborted(combinedSignal.signal);
         forgeRuns.set(runId, {
           tenantKey,
@@ -688,10 +691,12 @@ export function createForgeGatewayService({
         });
         return { ok: true, runId, result, governance, workspace: { configured: !temporaryWorkspace } };
       } catch (error) {
+        const webResult = governedExecution?.webTask?.getResult?.();
         const aborted = combinedSignal.signal?.aborted
           || error?.name === "AbortError"
           || error?.code === "FORGE_RUN_ABORTED";
-        const code = aborted ? "FORGE_RUN_ABORTED" : (error?.code ?? "FORGE_RUN_FAILED");
+        const code = webResult?.outcomeUnknown ? "FORGE_ACTION_OUTCOME_UNCERTAIN"
+          : (aborted ? "FORGE_RUN_ABORTED" : (error?.code ?? "FORGE_RUN_FAILED"));
         const safeMessage = safeForgeErrorMessage(error?.message);
         forgeRuns.set(runId, {
           tenantKey,
@@ -704,7 +709,8 @@ export function createForgeGatewayService({
           error: { message: safeMessage, code },
           governance,
         });
-        return { ok: false, runId, code, reason: safeMessage, governance };
+        return { ok: false, runId, code, reason: safeMessage, governance,
+          ...(webResult ? { web: webResult } : {}) };
       } finally {
         const cleanupErrors = [];
         try {

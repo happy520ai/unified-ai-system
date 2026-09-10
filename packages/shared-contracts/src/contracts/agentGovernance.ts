@@ -347,6 +347,24 @@ export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED" | "EXPIRED" | "
  * remain inside the authenticated encrypted execution envelope. Any external
  * text that will actually be published must be present here in full.
  */
+export interface ForgeWebTaskReview {
+  readonly profile: Readonly<{
+    id: string;
+    tenantId: string;
+    origin: string;
+    startPath: string;
+    searchPath: string;
+    detailPath: string;
+    targets: Readonly<Record<"query" | "search" | "details" | "result", string>>;
+    browserChannel?: "chrome" | "msedge";
+    maxSteps: number;
+    timeoutMs: number;
+  }>;
+  readonly profileHash: string;
+  readonly itemId: string;
+  readonly expectedText: string;
+}
+
 export interface AgentToolApprovalReview {
   schemaVersion: 1;
   reviewable: boolean;
@@ -413,6 +431,8 @@ export interface AgentToolApprovalReview {
         maxMinutes?: number;
       };
       checkpointAfter?: string[];
+      /** Complete server-resolved profile and exact expected result, sealed with the goal. */
+      webTask?: ForgeWebTaskReview;
     };
   };
   workforce?: {

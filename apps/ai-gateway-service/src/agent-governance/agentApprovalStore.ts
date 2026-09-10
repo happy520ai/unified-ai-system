@@ -27,6 +27,7 @@ import { createGovernanceStateFileBinding } from "./governanceStateAnchor.ts";
 import { readFrozenWorkforceRoleExecutionProfile } from "../workforce/workforceRoleExecutionProfile.ts";
 import { readFrozenWorkforceSelectionReview } from "../workforce/workforceSelectionReview.ts";
 import { readWorkforceCodeDeliveryReview } from "../workforce/workforceCodeDeliveryProfile.ts";
+import { readGovernedWebTaskReview } from "../forge/governedWebTaskRuntime.ts";
 
 const APPROVAL_KEY_INFO = "agent-governance-approval-args/v1";
 const DEFAULT_APPROVAL_TTL_SECONDS = 24 * 60 * 60;
@@ -786,11 +787,20 @@ function normalizeForgeOptions(value: AgentToolApprovalReview["forge"] extends i
     throw corrupt("Forge approval options are malformed.");
   }
   const source = value as Record<string, unknown>;
-  const allowedKeys = new Set(["enableCodeIntel", "useRefiner", "maxConcurrent", "budget", "checkpointAfter"]);
+  const allowedKeys = new Set(["enableCodeIntel", "useRefiner", "maxConcurrent", "budget", "checkpointAfter", "webTask"]);
   if (Object.keys(source).some((key) => !allowedKeys.has(key)) || source.enableCodeIntel !== false) {
     throw corrupt("Forge approval options contain an unsupported or unsafe field.");
   }
   const options: NonNullable<AgentToolApprovalReview["forge"]>["options"] = { enableCodeIntel: false };
+  if (source.webTask !== undefined) {
+    const review = readGovernedWebTaskReview(source.webTask);
+    const profile = review.profile;
+    if (![review.itemId, review.expectedText, profile.id, profile.tenantId, profile.origin, profile.startPath,
+      profile.searchPath, profile.detailPath, ...Object.values(profile.targets)].every(isSafePublishedText)) {
+      throw corrupt("Webpage approval review contains unsafe text.");
+    }
+    options.webTask = review;
+  }
   if (source.useRefiner !== undefined) {
     if (typeof source.useRefiner !== "boolean") throw corrupt("Forge useRefiner approval option is malformed.");
     options.useRefiner = source.useRefiner;

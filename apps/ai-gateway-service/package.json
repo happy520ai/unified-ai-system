@@ -36,7 +36,8 @@
     "ws": "8.21.3",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "yaml": "2.9.0",
-    "zod": "4.4.3"
+    "zod": "4.4.3",
+    "@unified-ai-system/web-agent": "workspace:*"
   },
   "scripts": {
     "start": "node ./src/index.js",

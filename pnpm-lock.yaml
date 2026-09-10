@@ -115,6 +115,9 @@ importers:
       '@unified-ai-system/taiji-beidou-engine':
         specifier: workspace:*
         version: link:../../packages/taiji-beidou-engine
+      '@unified-ai-system/web-agent':
+        specifier: workspace:*
+        version: link:../../packages/web-agent
       '@unified-ai-system/workforce-scheduler':
         specifier: workspace:*
         version: link:../../packages/workforce-scheduler
@@ -247,9 +250,6 @@ importers:
 
   packages/web-agent:
     dependencies:
-      '@unified-ai-system/ai-gateway-service':
-        specifier: workspace:*
-        version: link:../../apps/ai-gateway-service
       playwright:
         specifier: ^1.62.1
         version: 1.62.1

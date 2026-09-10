@@ -115,6 +115,19 @@ function usesDirectFetch(source) {
   return /\bfetch\s*\(/.test(source) || /globalThis\.fetch\b/.test(source);
 }
 
+function checkApprovedBrowserFetch(source) {
+  // The local browser uses Playwright's response interception, not native
+  // fetch. Admit one fixed no-redirect/no-retry/cancellable call only. Runtime
+  // browser/HTTP tests additionally prove the target and interaction boundary.
+  const call = /\broute\.fetch\(\{ maxRedirects: 0, maxRetries: 0, timeout: 5000, signal \}\)/g;
+  const matches = [...source.matchAll(call)];
+  const guards = ["resolveGovernedWebTaskRequest", "outgoing.url() === expectedRequest", "allowedUrls.has(outgoing.url())",
+    "outgoing.frame() === page.mainFrame()", "expectedRequest = null; networkRequests++", 'governed("browser_navigate"',
+    "fetched.status() >= 300", "body.length > 262144"];
+  return matches.length === 1 && !usesDirectFetch(source.replace(call, "approvedBrowserFetch()"))
+    && guards.every(marker => source.includes(marker));
+}
+
 function walk(directory) {
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const absolute = path.join(directory, entry.name);
@@ -128,7 +141,9 @@ for (const absolute of walk(sourceDir)) {
   const relative = path.relative(sourceDir, absolute).split(path.sep).join("/");
   if (/\.(?:test|security\.test)\./.test(relative)) continue;
   const source = fs.readFileSync(absolute, "utf8");
-  if (usesDirectFetch(source) && !allowedDirectFetchFiles.has(relative)) {
+  if (relative === "forge/governedWebTaskRuntime.ts") {
+    if (!checkApprovedBrowserFetch(source)) failures.push(`${relative}: bounded Playwright response interception contract is missing or another fetch was added`);
+  } else if (usesDirectFetch(source) && !allowedDirectFetchFiles.has(relative)) {
     failures.push(`${relative}: direct fetch() or globalThis.fetch bypasses safeOutboundFetch`);
   }
   for (const rule of governedMcpDirectUseRules) {
