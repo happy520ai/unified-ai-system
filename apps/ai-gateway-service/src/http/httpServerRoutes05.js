@@ -113,7 +113,8 @@ export async function dispatchHttpRoutes05(context) {
     try {
       const planId = decodeURIComponent(workforcePlanMatch[1]);
       const result = workforcePlanMatch[2]
-        ? await workforceService.exportPlan(planId, request.enterpriseIdentity?.tenantId)
+        ? await workforceService.exportPlan(planId, request.enterpriseIdentity?.tenantId, { identity: request.enterpriseIdentity,
+          signal: requestExecution?.signal, deadlineAt: requestExecution?.deadlineAt })
         : await workforceService.getPlan(planId, request.enterpriseIdentity?.tenantId);
       writeJson(response, 200, createOkEnvelope(result, { startedAt }));
     } catch (error) {

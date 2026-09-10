@@ -1223,6 +1223,7 @@ function createGatewayHttpServerWithOwnerLease(application, governanceOwnerLease
         () => rateLimiter.close(),
         () => a2aGateway.close?.(),
         () => application.workforceExecutor?.close?.(),
+        () => application.workforceService?.close?.(),
         () => application.requestLogger?.close?.(),
         () => application.providerDispatchGate?.close?.(),
         () => application.agentGovernance?.registryStore?.close?.(),

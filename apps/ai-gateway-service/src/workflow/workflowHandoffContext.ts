@@ -1,11 +1,13 @@
 import { stableStringify } from "@unified-ai-system/policy-engine";
+import { throwIfExecutionAborted } from "@unified-ai-system/shared-utils";
 import { assertWorkforceCodeTaskFence } from "../workforce/workforceDagExecutor.ts";
 import { assertWorkflowHandoffOrigin, readWorkflowHandoffMetadata, readWorkflowHandoffOrigin, workflowHandoffError,
-  workflowHandoffHash, workflowHandoffOwner, workflowHandoffRequest, type WorkflowHandoffMetadata, type WorkflowHandoffOrigin } from "../workforce/workforceWorkflowHandoffBinding.ts";
+  workflowHandoffHash, workflowHandoffOwner, workflowHandoffRequest, workflowHandoffHookIntent, type WorkflowHandoffMetadata, type WorkflowHandoffOrigin } from "../workforce/workforceWorkflowHandoffBinding.ts";
+import { isRuntimeWorkforceHookReceipt, type createWorkforceLifecycleHooks } from "../workforce/workforceLifecycleHooks.ts";
 import type { WorkflowRunInspection } from "@unified-ai-system/shared-contracts";
 import type { WorkflowExecutionCallbacks } from "./durableWorkflowRunStore.ts";
 
-type Identity = { tenantId: string; userId: string };
+type Identity = { tenantId: string; userId: string; permissions?: readonly string[] };
 type Data = Record<string, any>;
 type Bound = { origin: WorkflowHandoffOrigin; request: Data; used: boolean; assertActive(): Promise<unknown> };
 
@@ -13,6 +15,7 @@ type Bound = { origin: WorkflowHandoffOrigin; request: Data; used: boolean; asse
 export function createWorkflowHandoffContexts(options: {
   outputRootHash: string;
   inspect(workflowId: string, identity: Identity): WorkflowRunInspection;
+  lifecycleHooks?: ReturnType<typeof createWorkforceLifecycleHooks>;
 }) {
   const contexts = new WeakMap<object, Bound>(), usedFences = new WeakSet<object>();
   const identityOf = (identity: Identity) => {
@@ -32,20 +35,41 @@ export function createWorkflowHandoffContexts(options: {
   };
   return {
     async initial(input: { executionId: string; metadata: WorkflowHandoffMetadata; identity: Identity; taskId: string;
-      agentRunId: string | null; taskFence: object; agentFence: unknown }) {
+      agentRunId: string | null; taskFence: object; agentFence: unknown; signal?: AbortSignal; deadlineAt?: number }) {
       const identity = identityOf(input.identity), metadata = metadataOf(input.metadata);
       const request = workflowHandoffRequest(input.executionId, metadata);
       const expected = { executionId: input.executionId, taskId: input.taskId, roleId: metadata.review.roleId,
         agentId: metadata.agentId, agentRunId: input.agentRunId ?? "", agentFence: input.agentFence };
-      const assertActive = () => assertWorkforceCodeTaskFence(input.taskFence, expected, "commit");
+      const assertSignal = () => {
+        throwIfExecutionAborted(input.signal);
+        if (input.deadlineAt !== undefined && (!Number.isSafeInteger(input.deadlineAt) || Date.now() >= input.deadlineAt)) {
+          throw workflowHandoffError("WORKFORCE_WORKFLOW_DEADLINE_EXCEEDED", "The original handoff deadline has expired.", 408);
+        }
+      };
+      const assertActive = async () => { assertSignal(); await assertWorkforceCodeTaskFence(input.taskFence, expected, "commit"); assertSignal(); };
       await assertActive();
       if (usedFences.has(input.taskFence)) throw workflowHandoffError("WORKFORCE_WORKFLOW_CLAIM_REUSED", "This task claim already handed off its workflow.", 403);
       usedFences.add(input.taskFence);
-      const origin = readWorkflowHandoffOrigin({ version: 1, workflowId: request.workflowId,
+      let origin = readWorkflowHandoffOrigin({ version: 1, workflowId: request.workflowId,
         executionId: input.executionId, planId: metadata.planId, planDigest: metadata.planDigest, agentId: metadata.agentId,
         agentRunId: input.agentRunId, taskId: input.taskId, roleId: metadata.review.roleId,
         tenantFingerprint: workflowHandoffOwner("tenant", identity.tenantId), subjectFingerprint: workflowHandoffOwner("subject", identity.userId),
         reviewHash: metadata.review.reviewHash, claimFingerprint: workflowHandoffHash((input.taskFence as { fencingToken?: string }).fencingToken) });
+      if (options.lifecycleHooks) {
+        const payload = Object.freeze({ goal: metadata.review.goal, planId: metadata.planId, workflowId: request.workflowId,
+          taskId: input.taskId, agentId: metadata.agentId, reviewHash: metadata.review.reviewHash, outputRootHash: metadata.review.outputRootHash });
+        const operation = options.lifecycleHooks.begin({ ...workflowHandoffHookIntent(origin, payload),
+          identity: { ...identity, permissions: input.identity.permissions ?? [] },
+          ...(input.signal ? { signal: input.signal } : {}), ...(input.deadlineAt === undefined ? {} : { deadlineAt: input.deadlineAt }) });
+        if (operation) {
+          const { receipt } = await options.lifecycleHooks.run(operation.handle, "beforeWorkflowRun", payload);
+          if (!isRuntimeWorkforceHookReceipt(receipt)) throw workflowHandoffError("WORKFORCE_WORKFLOW_HOOK_RECEIPT_INVALID", "A server runtime hook receipt is required for initial handoff.", 403);
+          origin = assertWorkflowHandoffOrigin({ ...origin, version: 2, hookReceipt: receipt }, { executionId: input.executionId, planId: metadata.planId, metadata, identity });
+          await assertActive();
+        } else if (options.lifecycleHooks.getInfo().enabled) {
+          throw workflowHandoffError("WORKFORCE_WORKFLOW_HOOK_RECEIPT_INVALID", "The enabled workflow hook did not produce an operation binding.", 403);
+        }
+      }
       return register({ origin, request, assertActive });
     },
     recovery(input: { executionId: string; metadata: WorkflowHandoffMetadata; identity: Identity; workflowId: string; taskId: string;

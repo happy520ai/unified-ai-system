@@ -56,13 +56,15 @@ export interface WorkforceService {
   getHealth(): WorkforceHealth;
   listAgents(): Record<string, unknown>;
   plan(input: { goal: string } & Record<string, unknown>): WorkforcePlan;
+  planAndSave(input: Record<string, unknown>, scope?: Record<string, unknown>): Promise<{ plan: WorkforcePlan; saved: Record<string, any>; replayed: boolean }>;
+  close(): void;
   execute(input: { goal: string } | string, options?: Record<string, unknown>): Promise<WorkforceExecutionResult>;
-  runLocal(input?: Record<string, unknown>): Promise<WorkforceLocalRunResult>;
-  savePlan(input: Record<string, unknown>, tenantId: string): Promise<{ planId: string; taskPackage: WorkforceTaskPackage; [key: string]: unknown }>;
+  runLocal(input?: Record<string, unknown>, options?: Record<string, unknown>): Promise<WorkforceLocalRunResult>;
+  savePlan(input: Record<string, unknown>, tenantId: string, scope?: Record<string, unknown>): Promise<{ planId: string; taskPackage: WorkforceTaskPackage; [key: string]: unknown }>;
   listPlans(tenantId: string): Promise<Record<string, unknown>>;
   getPlan(planId: string, tenantId: string): Promise<{ plan: WorkforceTaskPackage; taskPackage: WorkforceTaskPackage; [key: string]: unknown }>;
   deletePlan(planId: string, tenantId: string): Promise<Record<string, unknown>>;
-  exportPlan(planId: string, tenantId: string): Promise<{ markdown: string; taskPackage: WorkforceTaskPackage; [key: string]: unknown }>;
+  exportPlan(planId: string, tenantId: string, scope?: Record<string, unknown>): Promise<{ markdown: string; taskPackage: WorkforceTaskPackage; [key: string]: unknown }>;
   answerClarifications(planId: string, input: Record<string, unknown>, tenantId: string): Promise<Record<string, unknown>>;
   updatePlanLifecycle(planId: string, input: Record<string, unknown>, tenantId: string): Promise<Record<string, unknown>>;
   getPlanReviewPackage(planId: string, tenantId: string): Promise<Record<string, unknown>>;

@@ -1,6 +1,46 @@
 import type { ContractMetadata, RequestContext, ResultEnvelope } from "./common.js";
 import type { WorkflowRunResponse, WorkflowRunStatus } from "./workflow.js";
 
+export type WorkforceHookEvent = "beforePlan" | "afterPlan" | "beforeExport" | "beforeWorkflowRun";
+export type WorkforceHookKind = "plan" | "export" | "workflow";
+export interface WorkforceHookCatalogEntry {
+  readonly kind: WorkforceHookKind; readonly event: WorkforceHookEvent;
+  readonly handlerId: "goal.guard" | "plan.audit" | "export.guard" | "workflow.guard";
+  readonly access: "read-only" | "plan-record";
+}
+export interface WorkforceHookBinding {
+  readonly kind: WorkforceHookKind; readonly operationId: string; readonly requestHash: string;
+  readonly tenantFingerprint: string; readonly subjectFingerprint: string;
+}
+export interface WorkforceHookPayloads {
+  beforePlan: { readonly goal: string };
+  afterPlan: { readonly goal: string; readonly workforceId: string; readonly roleCount: number; readonly previewOnly: true };
+  beforeExport: { readonly goal: string; readonly workforceId: string; readonly planId: string; readonly previewOnly: true };
+  beforeWorkflowRun: { readonly goal: string; readonly planId: string; readonly workflowId: string; readonly taskId: string;
+    readonly agentId: string; readonly reviewHash: string; readonly outputRootHash: string };
+}
+/** Hash-bound local evidence, not a replacement for request identity, Agent approval or execution authority. */
+export interface WorkforceHookReceipt {
+  readonly version: 1; readonly event: WorkforceHookEvent; readonly handlerId: WorkforceHookCatalogEntry["handlerId"];
+  readonly access: WorkforceHookCatalogEntry["access"]; readonly operationId: string; readonly requestHash: string;
+  readonly tenantFingerprint: string; readonly subjectFingerprint: string;
+  /** Null is allowed only for a rejected/cancelled payload that could not be safely projected. */
+  readonly payload: WorkforceHookPayloads[WorkforceHookEvent] | null; readonly payloadHash: string;
+  readonly outcome: "passed" | "failed" | "cancelled" | "unknown"; readonly code: string | null;
+  readonly recordedAt: string; readonly receiptHash: string;
+}
+export interface WorkforceLifecycleHookInfo {
+  readonly version: 1; readonly enabled: boolean; readonly enabledByDefault: false;
+  readonly mode: "fixed-workforce-lifecycle"; readonly catalog: readonly WorkforceHookCatalogEntry[];
+}
+/** Server-created evidence for one saved planning operation; uploaded JSON grants no hook authority. */
+export interface WorkforcePlanHookAudit {
+  readonly version: 1;
+  readonly binding: WorkforceHookBinding;
+  readonly receipts: readonly WorkforceHookReceipt[];
+  readonly auditHash: string;
+}
+
 export type WorkforceConsensusPerspective = "Critic" | "Planner" | "Architect";
 export interface WorkforceConsensusPerspectiveBinding {
   readonly perspective: WorkforceConsensusPerspective;
@@ -367,6 +407,8 @@ export interface WorkforceAgentsResponse {
 export interface WorkforcePlanRequest {
   context?: RequestContext;
   goal: string;
+  /** Stable caller key, required by HTTP planning only when server lifecycle hooks are enabled. */
+  operationId?: string;
   selectedTemplate?: WorkforceProductTemplateId;
   templateId?: WorkforceProductTemplateId;
   clarificationAnswers?: WorkforceClarificationAnswer[];
@@ -940,6 +982,9 @@ export interface WorkforceOmxHandoffPreview {
 
 export interface WorkforcePlanResponse {
   success: true;
+  /** Present when the server completed the hooked planning/save operation. */
+  hookAudit?: WorkforcePlanHookAudit;
+  hookReplayed?: boolean;
   phase: "phase-102a-agent-workforce-skeleton";
   planVersion: string;
   createdAt: string;
@@ -1002,6 +1047,7 @@ export interface WorkforcePlanStoreSafety {
 
 export interface WorkforceTaskPackage {
   planId: string;
+  hookAudit?: WorkforcePlanHookAudit;
   workforceId: string;
   goal: string;
   summary: string;
@@ -1053,6 +1099,8 @@ export interface WorkforcePlanSaveRequest {
   context?: RequestContext;
   plan?: WorkforcePlanResponse;
   goal?: string;
+  /** Required for save({ goal }) when server lifecycle hooks are enabled; reuse on recovery. */
+  operationId?: string;
   metadata?: ContractMetadata;
 }
 
@@ -1064,6 +1112,7 @@ export interface WorkforcePlanSaveResponse {
   planId: string;
   savedAt: string;
   taskPackage: WorkforceTaskPackage;
+  hookReplayed?: boolean;
   safety: WorkforcePlanStoreSafety;
 }
 
@@ -1128,6 +1177,8 @@ export interface WorkforcePlanExportResponse {
   taskPackage: WorkforceTaskPackage;
   json: WorkforceTaskPackage;
   markdown: string;
+  /** This export guard receipt is returned to the caller without updating the saved plan. */
+  lifecycleHooks?: { readonly persisted: false; readonly receipts: readonly WorkforceHookReceipt[] };
   safety: WorkforcePlanStoreSafety;
 }
 

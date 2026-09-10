@@ -9,14 +9,15 @@ export const WORKFORCE_REAL_LOCAL_RUN_EVIDENCE_PATH =
 export const WORKFORCE_REAL_LOCAL_RUN_MARKDOWN_PATH =
   "apps/ai-gateway-service/evidence/phase1961a/workforce-real-local-run-result.md";
 
-export async function runWorkforceRealLocal(input = {}, { planStore, now = () => new Date() } = {}) {
+export async function runWorkforceRealLocal(input = {}, { planStore, planAndSave, now = () => new Date() } = {}) {
   if (!planStore || typeof planStore.save !== "function") {
     throw createRunnerError("WORKFORCE_PLAN_STORE_REQUIRED", "Workforce plan store is required for local execution.");
   }
 
   const startedAt = now().toISOString();
-  const plan = createWorkforcePlan(input);
-  const saved = await planStore.save(plan);
+  const prepared = planAndSave ? await planAndSave(input) : null;
+  const plan = prepared?.plan ?? createWorkforcePlan(input);
+  const saved = prepared?.saved ?? await planStore.save(plan);
   const runId = createRunId(plan, saved.planId, startedAt);
   const taskQueue = createLocalTaskQueue(plan, runId, startedAt, plan.goal);
   const completedAt = now().toISOString();
@@ -35,6 +36,7 @@ export async function runWorkforceRealLocal(input = {}, { planStore, now = () =>
     runId,
     workforceId: plan.workforceId,
     planId: saved.planId,
+    ...(prepared ? { hookAudit: plan.hookAudit, hookReplayed: prepared.replayed } : {}),
     goal: plan.goal,
     startedAt,
     completedAt,

@@ -14,7 +14,7 @@ import { runCli } from "../../../agent-console/src/cli-core.js";
 
 const cleanups: (() => Promise<unknown>)[] = [];
 afterEach(async () => { for (const cleanup of cleanups.splice(0).reverse()) await cleanup(); vi.restoreAllMocks(); });
-async function fixture(fileDecision: "allow" | "require_approval" = "require_approval") {
+async function fixture(fileDecision: "allow" | "require_approval" = "require_approval", lifecycleHooks = false) {
   const root = await mkdtemp(join(await realpath(tmpdir()), "workflow-handoff-http-"));
   cleanups.push(async () => { expect(await realpath(root)).toBe(root); expect(dirname(root)).toBe(await realpath(tmpdir())); await rm(root, { recursive: true, force: true }); });
   const repo = join(root, "repo"); await mkdir(repo); await writeFile(join(repo, "README.md"), "Owned workflow fixture.\n");
@@ -23,6 +23,7 @@ async function fixture(fileDecision: "allow" | "require_approval" = "require_app
   await git.run(["-c", "user.name=Handoff Fixture", "-c", "user.email=handoff@example.invalid", "-c", "commit.gpgSign=false", "commit", "-m", "Owned workflow fixture"]);
   const token = "local-workflow-handoff-fixture", identity = { tenantId: "handoff-tenant", userId: "handoff-owner", role: "admin", permissions: ["*"] };
   const env = { NODE_ENV: "test", AI_GATEWAY_PROVIDER_MODE: "fake", AI_GATEWAY_REAL_PROVIDER_ENABLED: "false",
+    AI_GATEWAY_WORKFORCE_LIFECYCLE_HOOKS_ENABLED: String(lifecycleHooks),
     PME_RUNTIME_CREDENTIAL_STORE_MODE: "memory", KNOWLEDGE_STORAGE_MODE: "memory", AI_GATEWAY_RATE_LIMIT_WHITELIST: "127.0.0.1",
     AI_GATEWAY_MODEL_LIBRARY_STATE_PATH: join(root, "models.json"), WORKFLOW_OUTPUT_DIR: join(root, "artifacts"),
     WORKFORCE_PLAN_STORE_PATH: join(root, "plans.json"), WORKFORCE_EXECUTION_DIR: join(root, "execution"),
@@ -114,8 +115,8 @@ it("uses both actual HTTP approvals, backwrites the child reference, and recover
   expect((await f.git.run(["status", "--porcelain=v1"])).stdout).toBe("");
 }, 60000);
 
-it("completes the actual parent task with a verified report and rejects JSON handoff authority", async () => {
-  const f = await fixture("allow");
+it.each([false, true])("completes the actual parent task with a verified report and rejects JSON handoff authority (hooks=%s)", async (enabled) => {
+  const f = await fixture("allow", enabled);
   for (const key of ["workforceHandoff", "workflowHandoffContext"]) {
     const forbidden = await f.send("/workflow/run", { workflowId: "forged-handoff", agentId: f.input.agentId, goal: f.input.goal, [key]: {} });
     expect(forbidden.status, JSON.stringify(forbidden.payload)).toBe(403);
@@ -131,6 +132,11 @@ it("completes the actual parent task with a verified report and rejects JSON han
   expect(result.payload.data).toMatchObject({ success: true, executionStatus: "completed", worktree: { cleanedUp: true },
     roleResults: { ceo: { workflowHandoff: { status: "completed", artifactVerified: true } } },
     workflowHandoff: { status: "completed", artifactVerified: true }, safety: { workflowArtifactWrite: true, providerCallsMade: false } });
+  const origin = result.payload.data.workflowHandoff.request.workforceHandoff;
+  expect(origin.version).toBe(enabled ? 2 : 1);
+  if (enabled) expect(origin.hookReceipt).toMatchObject({ event: "beforeWorkflowRun", outcome: "passed", access: "read-only",
+    payload: { goal: f.input.goal, planId: f.input.planId, agentId: f.input.agentId, taskId: result.payload.data.workflowHandoff.taskId } });
+  else expect(origin.hookReceipt).toBeUndefined();
   expect(f.retrieve).toHaveBeenCalledOnce(); expect(f.generate).not.toHaveBeenCalled();
   expect((await f.git.run(["status", "--porcelain=v1"])).stdout).toBe("");
 }, 60000);

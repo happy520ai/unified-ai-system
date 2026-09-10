@@ -42,6 +42,7 @@ import {
 import { createLocalWorkflowService } from "../workflow/localWorkflowService.js";
 import { createWorkflowRunHandoff } from "../workforce/workflowRunHandoff.js";
 import { createWorkforceService } from "../workforce/workforceService.js";
+import { createWorkforceLifecycleHooks } from "../workforce/workforceLifecycleHooks.ts";
 import { createControlledExecutor } from "../workforce/workforceControlledExecutor.js";
 import { createWorkforceRoleProviderFactory } from "../workforce/workforceRoleProvider.ts";
 import { freezeWorkforceRoleExecutionProfile } from "../workforce/workforceRoleExecutionProfile.ts";
@@ -136,6 +137,11 @@ export function createGatewayApplicationForLocalClientFixtureTests(env = {}) {
 }
 
 function createGatewayApplicationInternal(env, fixtureCapability) {
+  const hookSetting = env.AI_GATEWAY_WORKFORCE_LIFECYCLE_HOOKS_ENABLED;
+  if (hookSetting !== undefined && hookSetting !== "true" && hookSetting !== "false") {
+    throw Object.assign(new Error("Workforce lifecycle hooks must be explicitly true or false."), { code: "WORKFORCE_HOOK_CONFIGURATION_INVALID" });
+  }
+  const workforceLifecycleHooks = createWorkforceLifecycleHooks({ enabled: hookSetting === "true" });
   let workforceCodeDeliveryProfiles = [];
   const codeDeliveryJson = String(env.AI_GATEWAY_WORKFORCE_CODE_DELIVERY_PROFILES_JSON ?? "").trim();
   if (codeDeliveryJson) {
@@ -328,11 +334,13 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
   const knowledgeInfra = createKnowledgeInfra(env);
   const workflowService = createLocalWorkflowService({
     env,
+    lifecycleHooks: workforceLifecycleHooks,
     knowledgeService,
     outputDir: env.WORKFLOW_OUTPUT_DIR,
   });
   const workforceService = createWorkforceService({
     env,
+    lifecycleHooks: workforceLifecycleHooks,
   });
   const workforceExecutor = createControlledExecutor({
     env,
@@ -512,6 +520,7 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
       agentGovernance?.registryStore,
       externalEffectGate,
       workforceExecutor,
+      workforceService,
       requestLogger,
       providerDispatchGate,
       mcpGatewayService,
@@ -564,6 +573,7 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
       agentGovernance?.registryStore,
       externalEffectGate,
       workforceExecutor,
+      workforceService,
       requestLogger,
       providerDispatchGate,
       mcpGatewayService,
@@ -611,6 +621,7 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
       agentGovernance?.registryStore,
       externalEffectGate,
       workforceExecutor,
+      workforceService,
       requestLogger,
       providerDispatchGate,
       mcpGatewayService,
@@ -659,6 +670,7 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
       agentGovernance?.registryStore,
       externalEffectGate,
       workforceExecutor,
+      workforceService,
       requestLogger,
       providerDispatchGate,
       mcpGatewayService,
@@ -713,6 +725,7 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
       agentGovernance?.registryStore,
       externalEffectGate,
       workforceExecutor,
+      workforceService,
       requestLogger,
       providerDispatchGate,
       mcpGatewayService,

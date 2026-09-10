@@ -22,7 +22,7 @@ export async function dispatchHttpRoutes04(context) {
     readEnterpriseJson, writeEnterpriseError, writeCapabilityError, normalizeChatBody,
     normalizeRagChatBody, extractChatPrompt, createRagRetrieveRequest, createRagCitations,
     createRagPrompt, createRagChatData, OWNER_AUTOMATION_CHAT_PROPOSAL_FLAG, application,
-    request, response, url, startedAt,
+    request, response, url, startedAt, requestExecution,
     approvalStore, fileContextStore, phase319LocalOperation, connectorFeishuDryRun,
     connectorWeComDryRun, capabilityRouterService, codexExecCrsRuntimeCandidate, enterpriseGovernanceService,
     enterpriseOpsService, fiveCapabilityActivationService, gatewayService, knowledgeService,
@@ -310,11 +310,14 @@ export async function dispatchHttpRoutes04(context) {
     if (!body) return;
 
       try {
-        const result = workforceService.plan(body);
-        const autoSaveResult = await workforceService.savePlan({ plan: result }, request.enterpriseIdentity?.tenantId);
+        const operation = await workforceService.planAndSave(body, { identity: request.enterpriseIdentity,
+          signal: requestExecution?.signal, deadlineAt: requestExecution?.deadlineAt });
+        const result = operation.plan;
+        const autoSaveResult = operation.saved;
         const responseData = {
           ...result,
           autoSaved: true,
+          hookReplayed: operation.replayed,
           planId: autoSaveResult.planId,
           autoSave: {
             phase: "phase-225a-agent-workforce-auto-save-latest-plan",
@@ -369,7 +372,8 @@ export async function dispatchHttpRoutes04(context) {
     if (!body) return;
 
     try {
-      const result = await workforceService.runLocal(body, { tenantId: request.enterpriseIdentity?.tenantId });
+      const result = await workforceService.runLocal(body, { tenantId: request.enterpriseIdentity?.tenantId, identity: request.enterpriseIdentity,
+        signal: requestExecution?.signal, deadlineAt: requestExecution?.deadlineAt });
       writeServiceLog("workforce_real_local_run_completed", {
         method: request.method,
         path: url.pathname,
@@ -398,7 +402,8 @@ export async function dispatchHttpRoutes04(context) {
     if (!body) return;
 
     try {
-      const result = await workforceService.savePlan(body, request.enterpriseIdentity?.tenantId);
+      const result = await workforceService.savePlan(body, request.enterpriseIdentity?.tenantId, { identity: request.enterpriseIdentity,
+        signal: requestExecution?.signal, deadlineAt: requestExecution?.deadlineAt });
       writeServiceLog("workforce_plan_saved", {
         method: request.method,
         path: url.pathname,

@@ -37,8 +37,9 @@ const ACTIONS = [
 ];
 
 /** @param {{ knowledgeService?: { retrieve: Function }, env?: Record<string, string | undefined>, outputDir?: string,
- * workflowStateOptions?: { clock?: () => number, leaseMs?: number, onInitialization?: () => void }, workflowHooks?: Record<string, () => Promise<void>> }} [options] */
-export function createLocalWorkflowService({ knowledgeService, env = {}, outputDir, workflowStateOptions = {}, workflowHooks = {} } = {}) {
+ * workflowStateOptions?: { clock?: () => number, leaseMs?: number, onInitialization?: () => void }, workflowHooks?: Record<string, () => Promise<void>>,
+ * lifecycleHooks?: ReturnType<typeof import("../workforce/workforceLifecycleHooks.ts").createWorkforceLifecycleHooks> }} [options] */
+export function createLocalWorkflowService({ knowledgeService, env = {}, outputDir, workflowStateOptions = {}, workflowHooks = {}, lifecycleHooks } = {}) {
   if (!knowledgeService || typeof knowledgeService.retrieve !== "function") {
     throw new Error("Local workflow service requires a knowledgeService with retrieve().");
   }
@@ -46,7 +47,7 @@ export function createLocalWorkflowService({ knowledgeService, env = {}, outputD
   const managedOutputDir = resolve(outputDir ?? env.WORKFLOW_OUTPUT_DIR ?? DEFAULT_OUTPUT_DIR);
   const runStore = new DurableWorkflowRunStore(managedOutputDir, workflowStateOptions);
   const outputRootHash = workflowHandoffHash(managedOutputDir);
-  const handoffContexts = createWorkflowHandoffContexts({ outputRootHash,
+  const handoffContexts = createWorkflowHandoffContexts({ outputRootHash, lifecycleHooks,
     inspect: (workflowId, identity) => runStore.inspect(workflowId, identity) });
 
   function getHealth() {

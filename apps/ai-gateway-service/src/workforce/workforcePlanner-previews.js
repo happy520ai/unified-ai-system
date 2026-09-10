@@ -39,26 +39,26 @@ export function createHookEventsPreview() {
     {
       event: "beforePlan",
       enabled: false,
-      purpose: "Preview the shape of a future pre-plan validation hook.",
-      payloadSchema: ["workforceId", "goal", "clarifyQuestions"],
+      purpose: "Schema preview for the fixed goal guard; actual calls are recorded in hookAudit.",
+      payloadSchema: ["goal"],
     },
     {
       event: "afterPlan",
       enabled: false,
-      purpose: "Preview the shape of a future post-plan audit hook.",
-      payloadSchema: ["workforceId", "planState", "consensusPreview"],
+      purpose: "Schema preview for the fixed plan audit; actual calls are recorded in hookAudit.",
+      payloadSchema: ["goal", "workforceId", "roleCount", "previewOnly"],
     },
     {
       event: "beforeExport",
       enabled: false,
-      purpose: "Preview export readiness checks without running handlers.",
-      payloadSchema: ["workforceId", "formats", "safety"],
+      purpose: "Schema preview for the read-only export guard; actual calls accompany the export response.",
+      payloadSchema: ["goal", "workforceId", "planId", "previewOnly"],
     },
     {
       event: "beforeWorkflowRun",
       enabled: false,
-      purpose: "Document the future handoff point while keeping workflow run disconnected.",
-      payloadSchema: ["workforceId", "workflowRunHandoff", "requiredApprovals"],
+      purpose: "Schema preview for the governed workflow guard; actual calls are stored with the original workflow origin.",
+      payloadSchema: ["goal", "planId", "workflowId", "taskId", "agentId", "reviewHash", "outputRootHash"],
     },
   ];
 }
@@ -68,11 +68,11 @@ export function createEventLedgerPreview({ createdAt, workforceId, goal }) {
     ["workforce.plan.beforeCreate", `Plan preview requested for ${goal}.`],
     ["workforce.plan.afterCreate", `Plan preview created for ${workforceId}.`],
     ["workforce.plan.beforeSave", "Save event is previewed and will be recorded as metadata when a plan is saved."],
-    ["workforce.plan.afterSave", "Saved-plan event is previewed; no hook handler will run."],
-    ["workforce.plan.beforeExport", "Export event is previewed and will remain metadata only."],
+    ["workforce.plan.afterSave", "Preview metadata; inspect hookAudit for an actual planning invocation."],
+    ["workforce.plan.beforeExport", "Preview metadata; inspect the export response for an actual guard invocation."],
     ["workforce.review.requested", "Review package may be requested for a saved plan without execution."],
     ["workforce.approval.recorded", "Approval gate decisions are metadata only and do not grant execution."],
-    ["workforce.workflowRun.blocked", "Workflow run handoff is disabled for Agent Workforce."],
+    ["workforce.workflowRun.blocked", "Preview metadata grants no handoff permission; actual workflow hooks require the approved execution path."],
     ["workforce.omxHandoff.generated", "OMX-compatible handoff suggestions were generated as preview metadata."],
   ];
 
