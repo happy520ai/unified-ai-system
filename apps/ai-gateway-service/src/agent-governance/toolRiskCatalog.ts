@@ -28,6 +28,10 @@ function descriptor(input: {
 }
 
 const BUILT_IN_TOOL_DESCRIPTORS: ToolGovernanceDescriptor[] = [
+  descriptor({ name: "taiji_inspect", actionType: "read", riskTraits: [], riskLevel: "low", defaultDecision: "allow",
+    description: "Read owned Taiji candidates or recorded results with record metering." }),
+  descriptor({ name: "taiji_capability", actionType: "write", riskTraits: ["write_capable"], riskLevel: "medium", defaultDecision: "require_approval",
+    description: "Evaluate, activate, or invoke a fixed local Taiji data adapter with a complete one-shot operator review; never accepts executable code." }),
   descriptor({ name: "file_read", actionType: "read", riskTraits: [], riskLevel: "low", defaultDecision: "allow" }),
   descriptor({ name: "glob", actionType: "read", riskTraits: [], riskLevel: "low", defaultDecision: "allow" }),
   descriptor({ name: "grep", actionType: "read", riskTraits: [], riskLevel: "low", defaultDecision: "allow" }),

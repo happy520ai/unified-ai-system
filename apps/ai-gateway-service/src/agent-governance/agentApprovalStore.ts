@@ -29,6 +29,7 @@ import { readFrozenWorkforceSelectionReview } from "../workforce/workforceSelect
 import { readWorkforceCodeDeliveryReview } from "../workforce/workforceCodeDeliveryProfile.ts";
 import { readGovernedWebTaskReview } from "../forge/governedWebTaskRuntime.ts";
 import { readForgeModelSelection, readForgeOutputTokenLimit } from "../forge/forgeModelSelection.ts";
+import { readTaijiApprovalReview, assertTaijiReviewArguments } from "../real-capabilities/taijiCapabilityReview.ts";
 
 const APPROVAL_KEY_INFO = "agent-governance-approval-args/v1";
 const DEFAULT_APPROVAL_TTL_SECONDS = 24 * 60 * 60;
@@ -575,6 +576,7 @@ const KNOWN_REVIEWABLE_EFFECTS = new Set([
   "forge:orchestrate",
   "workforce:execute",
   "workflow:artifact-write",
+  "taiji:capability",
 ]);
 
 function normalizeApprovalReview(input: unknown): AgentToolApprovalReview {
@@ -600,6 +602,7 @@ function normalizeApprovalReview(input: unknown): AgentToolApprovalReview {
     throw corrupt("Approval review attempts to mark an unsupported external effect as reviewable.");
   }
   if (source.effectType === "mcp:upstream-tool-call") return normalizeMcpApprovalReview(source);
+  if (source.effectType === "taiji:capability") return readTaijiApprovalReview(source);
   if (source.effectType === "forge:orchestrate") return normalizeForgeApprovalReview(source);
   if (source.effectType === "workforce:execute") return normalizeWorkforceApprovalReview(source);
   if (source.effectType === "workflow:artifact-write") return normalizeWorkflowApprovalReview(source);
@@ -994,6 +997,10 @@ function normalizeWorkflowApprovalReview(source: AgentToolApprovalReview): Agent
 }
 
 function verifyReviewMatchesArguments(review: AgentToolApprovalReview, value: unknown, toolName: string): void {
+  if (review.effectType === "taiji:capability") {
+    assertTaijiReviewArguments(review, value, toolName);
+    return;
+  }
   if (review.effectType === "workflow:artifact-write") {
     if (toolName !== "file_write" || !review.workflow
       || stableStringify(value) !== stableStringify(workflowArtifactApprovalArguments(review.workflow))) {

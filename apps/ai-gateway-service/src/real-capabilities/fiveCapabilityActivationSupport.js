@@ -32,9 +32,10 @@ export function buildStatusCapabilities({ codex, opencode }) {
     {
       id: "taijiBeidou",
       label: "Taiji/Beidou 引擎",
-      status: "ready",
-      mode: "real-local-sandbox-runtime",
-      route: "POST /real-capabilities/activate-five",
+      status: "approval-required",
+      mode: "governed-local-capability-runtime",
+      route: "POST /taiji/capabilities/evaluate",
+      executionVerified: false,
     },
     {
       id: "gvc",
@@ -163,7 +164,7 @@ async function writeJson(rootPath, relativePath, data) {
   await writeFile(absolutePath, `${JSON.stringify(redactSecrets(data), null, 2)}\n`, "utf8");
 }
 
-async function writeText(rootPath, relativePath, text) {
+export async function writeText(rootPath, relativePath, text) {
   const absolutePath = resolve(rootPath, relativePath);
   await mkdir(dirname(absolutePath), { recursive: true });
   await writeFile(absolutePath, `${String(text).trimEnd()}\n`, "utf8");

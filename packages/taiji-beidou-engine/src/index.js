@@ -252,6 +252,7 @@ export {
 export { reviewCapabilityRuntimeEligibility, reviewRuntimeEligibility } from "./runtimeEligibilityReview.js";
 export { buildRuntimeRegistry } from "./registryAdmissionGate.js";
 export { executeSandboxAutoRuntime } from "./sandboxAutoRuntimeExecutor.js";
+export { describeRuntimeProfiles, normalizeProfileArguments, normalizeProfileParameters, runtimeProfileHash } from "./sandboxRuntimeProfiles.ts";
 export { scheduleRuntimeExecutions } from "./runtimeScheduler.js";
 export { createRuntimeLease, validateRuntimeLease } from "./runtimeLeaseManager.js";
 export { evaluateRuntimeBudget } from "./runtimeBudgetGuard.js";

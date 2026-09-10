@@ -55,6 +55,7 @@ import { createResponseSessionStore } from "../responses/responseSessionStore.js
 import { createEnterpriseOpsService } from "../enterprise/enterpriseOpsService.js";
 import { createCodexExecCrsRuntimeCandidate } from "../runtime-candidate/codexExecCrsRuntimeCandidate.js";
 import { createFiveCapabilityActivationService } from "../real-capabilities/fiveCapabilityActivationService.js";
+import { createTaijiCapabilityService } from "../real-capabilities/taijiCapabilityService.ts";
 import {
   createLocalClientManagementService,
   preflightLocalClientRegistryIntegrity,
@@ -164,6 +165,7 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
     fixtureCapability === LOCAL_CLIENT_FIXTURE_RECEIPT_CLOSURE_CAPABILITY;
   const parsedLocalClientOnboardingConfiguration = resolveLocalClientOnboardingConfiguration(env);
   const imConnectorConfiguration = readImConnectorConfiguration(env);
+  const taijiRuntimeEnabled = readStrictBoolean(env.TAIJI_BEIDOU_AUTO_RUNTIME_ENABLED, false, "TAIJI_BEIDOU_AUTO_RUNTIME_ENABLED");
   const localClientSmartManagementSchedulerConfiguration =
     resolveLocalClientSmartManagementSchedulerConfig(env);
   const localClientProtocolPrincipalConfiguration =
@@ -178,6 +180,9 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
     false,
     "AI_GATEWAY_MULTI_INSTANCE",
   );
+  if (taijiRuntimeEnabled && localClientMultiInstanceRequested) {
+    throw Object.assign(new Error("Taiji capability state currently requires a single gateway process."), { code: "TAIJI_STORAGE_PROFILE_UNSUPPORTED" });
+  }
   validateLocalClientStaticConfiguration(env);
   validateLocalClientFeedbackDedupConfiguration(env, localClientExecutionRequested);
   validateLocalClientExecutionFeedbackOutboxConfiguration(env, localClientExecutionRequested);
@@ -363,6 +368,7 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
   // AI_GATEWAY_AGENT_GOVERNANCE_ENABLED=false 可整体关闭。
   const agentGovernanceEnabled = agentGovernanceRuntime.enabled;
   let agentGovernance = null;
+  let taijiCapabilityService = null;
   if (agentGovernanceEnabled) {
     const agentGovernanceDataDir = env.AI_GATEWAY_AGENT_GOVERNANCE_DATA_DIR
       ? (isAbsolute(env.AI_GATEWAY_AGENT_GOVERNANCE_DATA_DIR)
@@ -398,6 +404,9 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
       repoRoot,
       agentGovernanceDataDir,
     );
+    if (taijiRuntimeEnabled && registryConfiguration.mode === "postgres") {
+      throw Object.assign(new Error("Taiji capability state currently requires the local governance profile."), { code: "TAIJI_STORAGE_PROFILE_UNSUPPORTED" });
+    }
     // Establish the no-link/private-ACL governance root before a database can
     // create its authority/checkpoint files in that directory.
     const governanceSecret = resolveGovernanceSecret({ env, dataDir: agentGovernanceDataDir });
@@ -439,6 +448,13 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
             pathExposed: false,
           });
       },
+    });
+  }
+  if (agentGovernance) {
+    taijiCapabilityService = createTaijiCapabilityService({
+      dataDir: agentGovernance.dataDir,
+      secret: resolveGovernanceSecret({ env, dataDir: agentGovernance.dataDir }),
+      enabled: () => taijiRuntimeEnabled,
     });
   }
   const enterpriseOpsService = createEnterpriseOpsService({
@@ -969,10 +985,12 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
     repoRoot,
     workforceService,
     workforceExecutor,
+    taijiCapabilityService,
   });
 
   return {
     agentGovernance,
+    taijiCapabilityService,
     agentExecWorkingDirectory,
     auditHashChain: enterpriseGovernanceService.getAuditHashChain(),
     capabilityRouterService,

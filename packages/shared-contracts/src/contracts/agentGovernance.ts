@@ -371,6 +371,12 @@ export interface AgentToolApprovalReview {
   reviewable: boolean;
   effectType: string;
   policyHash: string;
+  taiji?: {
+    operation: "evaluate" | "activate" | "execute" | "repair" | "reweight" | "prune";
+    params: ContractMetadata;
+    paramsHash: string;
+    effect: string;
+  };
   unavailableReason?: string;
   repository?: {
     displayName: string;

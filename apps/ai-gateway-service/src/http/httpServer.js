@@ -1205,6 +1205,7 @@ function createGatewayHttpServerWithOwnerLease(application, governanceOwnerLease
         failures.push(error);
       }
       const closeOperations = [
+        () => application.taijiCapabilityService?.close?.(),
         () => application.imConnectorRuntime?.close?.(),
         () => application.localClientExecutionReceiptJournalRegistry?.close?.(),
         () => application.localClientPopIdentityAuthority?.close?.(),
