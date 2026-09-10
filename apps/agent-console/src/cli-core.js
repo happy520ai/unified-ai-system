@@ -16,7 +16,7 @@ import {
 import { fileURLToPath } from "node:url";
 import { readVerificationSource, readWindowsVerificationHistory } from "./verificationHistory.ts";
 import { projectWorkforceCodeDeliveryReview, formatWorkforceCodeDeliveryReview } from "./workforceCodeDeliveryReview.ts";
-import { runOperatorCommand, validateOperatorOptions, projectForgeApprovalReview } from "./operatorCommands.ts";
+import { runOperatorCommand, validateOperatorOptions, projectForgeApprovalReview, projectTaijiApprovalReview } from "./operatorCommands.ts";
 
 import {
   createGatewayChatRequest,
@@ -56,6 +56,7 @@ const COMMANDS = new Set([
   "serve",
   "spend",
   "status",
+  "taiji",
   "version",
   "verification",
   "workflow",
@@ -843,6 +844,7 @@ export async function runCli(
       case "forge":
       case "knowledge":
       case "routing":
+      case "taiji":
         return await runOperatorCommand(options, output);
       default:
         throw new CliUsageError(`Unknown command: ${options.command}`);
@@ -1347,6 +1349,9 @@ function formatSafeRecord(value) {
 
 function formatSafeReview(value) {
   if (!isPlainRecord(value)) return "unavailable";
+  if (value.effectType === "taiji:capability" && value.reviewable === true) {
+    return `Taiji: ${value.taiji.effect}\nPolicy: ${value.policyHash}\nRequest hash: ${value.taiji.paramsHash}\n${JSON.stringify(value.taiji.params, null, 2)}`;
+  }
   if (value.effectType === "forge:orchestrate" && value.reviewable === true) {
     return `Forge goal: ${safeTerminalBlock(value.forge.goal, 65536)}\nGoal digest: ${value.forge.goalDigest}\nPolicy: ${safeTerminalText(value.policyHash, 160)}\nOptions hash: ${value.forge.optionsHash}\n${JSON.stringify(value.forge.options, null, 2)}`;
   }
@@ -1440,6 +1445,9 @@ function projectAgentApproval(value) {
     output.review = sanitizeAgentReview(value.review);
     if (value.review?.effectType === "forge:orchestrate" && value.review.reviewable === true) {
       output.review = projectForgeApprovalReview(value.review);
+    }
+    if (value.review?.effectType === "taiji:capability" && value.review.reviewable === true) {
+      output.review = projectTaijiApprovalReview(value.review);
     }
     if (value.review?.effectType === "workforce:execute" && value.review.reviewable === true && profile !== undefined) {
       const bounded = (number, maximum) => Number.isSafeInteger(number) && number >= 1 && number <= maximum;
@@ -3929,6 +3937,7 @@ Commands:
   knowledge          health, sources, load, retrieve
   routing            modes, preview (local simulation; no model call)
   forge              status, runs, polish, quality, memory, recall, orchestrate, taiji, workforce
+  taiji              status, run <id>, evaluate, activate, execute, revoke, repair, reweight, prune
   chat [prompt]    Send one chat request to a running gateway
   spend            Show per-key token spend and budget status
   doctor           Check the local toolchain and gateway connection
@@ -3946,7 +3955,7 @@ Options:
   --allow-real-provider       Authorize one chat command to use a real provider
   --admin-key <uai-…>         Scoped gateway key for authenticated operator commands
   --manifest <json>           Bounded control-center desired-state manifest
-  --input <json>              Bounded JSON payload for knowledge/routing/Forge
+  --input <json>              Bounded JSON payload for knowledge/routing/Forge/Taiji
   --mode <mode>               keyword/vector retrieval or answer-path/quality-cost preview
   --source-id <id>            Knowledge retrieval source filter (repeatable)
   --passes <1..10>            Forge polish pass limit
@@ -4093,7 +4102,7 @@ function validateOptions(options) {
   }
 
   if (
-    !["chat", "demo", "enhance", "clients", "clients-onboarding", "control-center", "agents", "forge", "workflow", "providers", "knowledge", "routing"].includes(options.command)
+    !["chat", "demo", "enhance", "clients", "clients-onboarding", "control-center", "agents", "forge", "workflow", "providers", "knowledge", "routing", "taiji"].includes(options.command)
     && (options.prompt !== null || options.positionals.length > 0)
   ) {
     throw new CliUsageError(
@@ -4129,9 +4138,9 @@ function validateOptions(options) {
   if (options.command !== "control-center" && options.controlCenterManifestFile !== null) {
     throw new CliUsageError("--manifest is only valid with control-center configure.");
   }
-  const operatorCommand = ["knowledge", "routing", "forge"].includes(options.command);
+  const operatorCommand = ["knowledge", "routing", "taiji", "forge"].includes(options.command);
   if (!operatorCommand && (options.operatorInput !== null || options.operatorMode !== null || options.operatorSources.length || options.operatorPasses !== null || options.operatorMaxOutputTokens !== null)) {
-    throw new CliUsageError("--input, --mode, --source-id and --passes are only valid with knowledge, routing or Forge operations.");
+    throw new CliUsageError("--input, --mode, --source-id and --passes are only valid with knowledge, routing, Forge or Taiji operations.");
   }
   const lifecycleOptionsUsed = localClientLifecycleOptionsUsed(operatorCommand ? { ...options, lifecycleLimit: null, lifecycleOffset: null }
     : options.command === "workflow" ? { ...options, lifecycleLimit: null } : options);
@@ -4144,6 +4153,7 @@ function validateOptions(options) {
     );
   }
   const agentOptionsUsed = agentGovernanceOptionsUsed(options.command === "forge" ? { ...options, agentId: null, agentGoal: null, agentProviderId: null, agentModelId: null }
+    : options.command === "taiji" ? { ...options, agentId: null }
     : options.command === "workflow" ? { ...options, agentId: null, agentGoal: null }
     : options.command === "providers" ? { ...options, agentProviderId: null } : options);
   if (options.command !== "agents" && agentOptionsUsed) {
@@ -4152,7 +4162,7 @@ function validateOptions(options) {
   if (options.agentReason !== null && !new Set(["agents", "clients"]).has(options.command)) {
     throw new CliUsageError("--reason is only valid with agents or clients.");
   }
-  if (!new Set(["clients", "clients-onboarding", "control-center", "agents", "knowledge", "forge"]).has(options.command) && options.confirmed) {
+  if (!new Set(["clients", "clients-onboarding", "control-center", "agents", "knowledge", "forge", "taiji"]).has(options.command) && options.confirmed) {
     throw new CliUsageError("--yes is only valid with governed mutations.");
   }
   if (options.command === "clients-onboarding") {
@@ -4224,7 +4234,7 @@ function validateOptions(options) {
   }
   if (
     (options.urlProvided || options.timeoutProvided)
-    && !["agents", "chat", "clients", "clients-onboarding", "control-center", "doctor", "enhance", "forge", "spend", "status", "workflow", "providers", "knowledge", "routing"].includes(options.command)
+    && !["agents", "chat", "clients", "clients-onboarding", "control-center", "doctor", "enhance", "forge", "spend", "status", "workflow", "providers", "knowledge", "routing", "taiji"].includes(options.command)
   ) {
     throw new CliUsageError(
       "--url and --timeout are only valid with networked gateway commands.",
@@ -4234,7 +4244,7 @@ function validateOptions(options) {
     throw new CliUsageError("--json is not supported by serve.");
   }
 
-  if (["agents", "chat", "clients", "clients-onboarding", "control-center", "doctor", "enhance", "forge", "spend", "status", "workflow", "providers", "knowledge", "routing"].includes(options.command)) {
+  if (["agents", "chat", "clients", "clients-onboarding", "control-center", "doctor", "enhance", "forge", "spend", "status", "workflow", "providers", "knowledge", "routing", "taiji"].includes(options.command)) {
     let parsedUrl;
     try {
       parsedUrl = new URL(options.url);

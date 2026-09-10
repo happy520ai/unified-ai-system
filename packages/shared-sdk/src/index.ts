@@ -12,6 +12,15 @@ import type {
   ForgeStatusResult,
   ForgeRunsResult,
   TaijiCompileResult,
+  TaijiStatusResult,
+  TaijiOperationResult,
+  TaijiEvaluateRequest,
+  TaijiActivateRequest,
+  TaijiExecuteRequest,
+  TaijiSelectedExecuteRequest,
+  TaijiFeedbackRequest,
+  TaijiRepairRequest,
+  TaijiRevokeRequest,
   WorkforcePreviewResult,
   ImConnectorId,
   ImConnectorMessage,
@@ -471,6 +480,15 @@ export interface GatewayClient {
   forgeRecall(request: { query: string; limit?: number }): Promise<ForgeOperationResult>;
   forgeOrchestrate(request: ForgeOrchestrateRequest): Promise<ForgeOrchestrateResult>;
   taijiCompile(request: { request: string; capabilityId?: string; displayName?: string }): Promise<TaijiCompileResult>;
+  taijiCapabilities(agentId: string, options?: { limit?: number; offset?: number }): Promise<TaijiStatusResult>;
+  taijiCapabilityRun(agentId: string, runId: string): Promise<TaijiOperationResult>;
+  evaluateTaijiCapability(request: TaijiEvaluateRequest): Promise<TaijiOperationResult>;
+  activateTaijiCapability(request: TaijiActivateRequest): Promise<TaijiOperationResult>;
+  executeTaijiCapability(request: TaijiExecuteRequest | TaijiSelectedExecuteRequest): Promise<TaijiOperationResult>;
+  revokeTaijiCapability(request: TaijiRevokeRequest): Promise<TaijiOperationResult>;
+  repairTaijiCapability(request: TaijiRepairRequest): Promise<TaijiOperationResult>;
+  reweightTaijiCapability(request: TaijiFeedbackRequest): Promise<TaijiOperationResult>;
+  pruneTaijiCapability(request: TaijiFeedbackRequest): Promise<TaijiOperationResult>;
   workforcePreview(request: { task: string }): Promise<WorkforcePreviewResult>;
   knowledgeLoad(request: KnowledgeLoadRequest): Promise<KnowledgeLoadResult>;
   knowledgeInfraReadiness(): Promise<KnowledgeInfraReadinessResult>;

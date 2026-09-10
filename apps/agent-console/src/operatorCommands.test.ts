@@ -7,7 +7,7 @@ import { mkdtemp, realpath, rm, writeFile, link } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { runCli, parseCliArgs, CliUsageError } from "./cli-core.js";
-import { projectForgeApprovalReview } from "./operatorCommands.ts";
+import { projectForgeApprovalReview, projectTaijiApprovalReview } from "./operatorCommands.ts";
 
 type Call = { path: string; body: any; authorization?: string; dispatchKey?: string };
 async function fixture() {
@@ -33,6 +33,16 @@ async function fixture() {
     if (request.url === "/forge/memory") data = body.action === "remember" ? { ok: true, id: "memory-one" } : { ok: true, working: { entries: [{ content: "memo" }] }, semantic: [] };
     if (request.url === "/taiji/compile") data = { spec: { description: body.request }, risk: { level: "low" }, manifest: { status: "draft" } };
     if (request.url === "/workforce/preview") data = { route: "/workforce/preview", preview: { mode: "dry-run", task: body.task } };
+    if (request.url?.startsWith("/taiji/capabilities?")) data = { enabled: true, profiles: [], capabilities: [], runs: [], capabilityCount: 0, runCount: 0 };
+    if (request.url?.startsWith("/taiji/capabilities/runs/") || request.url === "/taiji/capabilities/execute") {
+      const content = '{"key":"approved","value":false}';
+      data = { status: "passed", run: { id: body?.runId ?? "run_fixture", capabilityId: body?.capabilityId ?? "facts", revision: 1, status: "passed", result: { actualExecution: true, workerClosed: true,
+        modelUsage: { unit: "tokens", total: 0, requests: 0 }, artifact: { content: variant === "bad-taiji-artifact" ? "changed" : content,
+          mediaType: "application/x-ndjson", bytes: Buffer.byteLength(content), sha256: "sha256:" + createHash("sha256").update(content).digest("hex") } } } };
+    }
+    if (["/taiji/capabilities/evaluate", "/taiji/capabilities/activate"].includes(request.url!)) {
+      response.statusCode = 202; data = { status: "approval_required", approvalId: "apr_taiji", agentId: body.agentId, toolName: "taiji_capability" };
+    }
     if (request.url === "/forge/orchestrate") {
       if (variant === "approval") { response.statusCode = 202; data = { outcome: "approval_required", approvalId: "apr_fixture", agentId: body.agentId, toolName: "forge_orchestrate", code: "TOOL_APPROVAL_REQUIRED" }; }
       else data = { ok: true, runId: "forge_fixture", result: { status: "completed", completedTasks: 1, failedTasks: 0 } };
@@ -158,4 +168,41 @@ test("Forge static tools, session memory and previews report their actual result
     gateway.variant("bad-quality"); const result = await gateway.run(["forge", "quality", "bad code"]);
     assert.equal(result.code, 1); assert.equal(result.data.status, "not_completed");
   } finally { await gateway.close(); }
+});
+
+test("Taiji CLI previews mutations, preserves Agent targets, handles approval and verifies recorded bytes", async () => {
+  const gateway = await fixture(), parent = await realpath(tmpdir()), root = await mkdtemp(join(parent, "uai-operator-taiji-"));
+  try {
+    const file = join(root, "operation.json");
+    await writeFile(file, JSON.stringify({ capabilityId: "facts", expectedLifecycleRevision: 0, request: "Preserve facts", profileId: "context-jsonl-v1" }));
+    const args = ["taiji", "evaluate", "--agent-id", "agt_fixture", "--input", file];
+    const preview = await gateway.run(args); assert.equal(preview.code, 0, preview.err); assert.equal(preview.data.status, "preview"); assert.equal(gateway.calls.length, 0);
+    const approval = await gateway.run([...args, "--yes"]); assert.equal(approval.code, 3, approval.err); assert.equal(approval.data.data.approvalId, "apr_taiji");
+    assert.equal(approval.data.requestDigest, preview.data.requestDigest); assert.equal(gateway.calls[0].body.agentId, "agt_fixture");
+    const status = await gateway.run(["taiji", "status", "--agent-id", "agt_fixture", "--limit", "1", "--offset", "0"]);
+    assert.equal(status.code, 0, status.err); assert.equal(gateway.calls[1].path, "/taiji/capabilities?agentId=agt_fixture&limit=1&offset=0");
+    const run = await gateway.run(["taiji", "run", "run_fixture", "--agent-id", "agt_fixture"]);
+    assert.equal(run.code, 0, run.err); assert.equal(run.data.data.run.result.modelUsage.total, 0);
+    gateway.variant("bad-taiji-artifact");
+    const corrupt = await gateway.run(["taiji", "run", "run_fixture", "--agent-id", "agt_fixture"]);
+    assert.equal(corrupt.code, 1); assert.equal(corrupt.data.code, "OPERATOR_RESPONSE_INVALID"); assert.equal(corrupt.data.retryAllowed, false);
+    assert.equal(gateway.calls.length, 4);
+    for (const invalidArgs of [["taiji", "status", "--yes"], ["taiji", "run", "../run", "--agent-id", "agt_fixture"],
+      ["taiji", "evaluate", "--input", file, "--allow-real-provider"], ["taiji", "status", "--agent-id", "agt_fixture", "--limit", "101"]]) assert.throws(() => parseCliArgs(invalidArgs, {}));
+  } finally {
+    await gateway.close(); const target = await realpath(root);
+    assert.equal(dirname(target), parent); assert.ok(basename(target).startsWith("uai-operator-taiji-")); await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Taiji approval display rejects changed parameters and retains the complete reviewed data", () => {
+  const sha = (value: string) => "sha256:" + createHash("sha256").update(value).digest("hex");
+  const args = { facts: [{ key: "value", value: false }] };
+  const params = Object.fromEntries(Object.entries({ authorityEpoch: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", lifecycleRevision: 2, operation: "execute", ownerHash: sha("owner"), revision: 1,
+    capabilityId: "facts", profileId: "context-jsonl-v1", implementationHash: sha("implementation"), parameters: {}, candidateHash: sha("candidate"), activationEpoch: 2,
+    runId: "run_fixture", arguments: args, argumentsHash: sha(JSON.stringify(args)) }).sort(([a], [b]) => a.localeCompare(b)));
+  const review = { schemaVersion: 1, reviewable: true, effectType: "taiji:capability", policyHash: sha("policy"), taiji: {
+    operation: "execute", params, paramsHash: sha(JSON.stringify(params)), effect: "Execute reviewed local data" } };
+  assert.deepEqual(projectTaijiApprovalReview(review).taiji.params, params);
+  assert.throws(() => projectTaijiApprovalReview({ ...review, taiji: { ...review.taiji, params: { ...params, revision: 2 } } }));
 });

@@ -12,3 +12,4 @@ export * from "./workflow.js";
 export * from "./workforce.js";
 export * from "./imConnector.js";
 export * from "./forge.js";
+export * from "./taiji.js";

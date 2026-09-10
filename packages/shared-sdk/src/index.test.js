@@ -660,6 +660,36 @@ test("operator mutations never follow redirects or advertise an uncertain reques
   } finally { await closeServer(source.server); await closeServer(target.server); }
 });
 
+test("Taiji SDK uses fixed paths, scoped read parameters and non-retryable mutations", async () => {
+  const calls = [];
+  const { server, baseUrl } = await startServer(async (request, response) => {
+    let raw = ""; for await (const chunk of request) raw += chunk;
+    calls.push({ path: request.url, body: raw ? JSON.parse(raw) : null, auth: request.headers.authorization, dispatch: request.headers["provider-dispatch-key"] });
+    response.writeHead(request.url.endsWith("/revoke") ? 503 : 200, { "content-type": "application/json" });
+    response.end(JSON.stringify({ status: "ok", data: { status: "fixture" } }));
+  });
+  try {
+    const client = createGatewayClient({ baseUrl, headers: { authorization: "Bearer taiji-sdk-fixture" } });
+    await client.taijiCapabilities("agt_fixture", { limit: 2, offset: 1 });
+    await client.taijiCapabilityRun("agt_fixture", "run-1");
+    const body = { agentId: "agt_fixture", capabilityId: "facts", expectedLifecycleRevision: 0 };
+    await client.evaluateTaijiCapability({ ...body, request: "Preserve facts", profileId: "context-jsonl-v1" });
+    await client.activateTaijiCapability({ ...body, revision: 1 });
+    await client.executeTaijiCapability({ ...body, revision: 1, runId: "run-1", arguments: { facts: [{ key: "x", value: false }] } });
+    await assert.rejects(client.revokeTaijiCapability({ ...body, revision: 1 }), error => error instanceof GatewayClientError && error.retryable === false);
+    await client.repairTaijiCapability({ ...body, revision: 1, sourceRunId: "failed", sourceArguments: { text: "ship production", expectedSignals: ["deploy_release"] }, addRiskKeywords: { deploy_release: ["ship production"] } });
+    await client.reweightTaijiCapability({ ...body, revision: 1, sourceRunId: "failed" });
+    await client.pruneTaijiCapability({ ...body, revision: 1, sourceRunId: "failed" });
+    assert.deepEqual(calls.map(call => call.path), ["/taiji/capabilities?agentId=agt_fixture&limit=2&offset=1", "/taiji/capabilities/runs/run-1?agentId=agt_fixture",
+      "/taiji/capabilities/evaluate", "/taiji/capabilities/activate", "/taiji/capabilities/execute", "/taiji/capabilities/revoke",
+      "/taiji/capabilities/repair", "/taiji/capabilities/reweight", "/taiji/capabilities/prune"]);
+    assert.ok(calls.every(call => call.auth === "Bearer taiji-sdk-fixture" && call.dispatch === undefined));
+    assert.equal(calls[4].body.arguments.facts[0].value, false);
+    assert.throws(() => client.taijiCapabilities("agt_fixture", { limit: 0 }));
+    assert.throws(() => client.taijiCapabilityRun("agt_fixture", "../secrets")); assert.equal(calls.length, 9);
+  } finally { await closeServer(server); }
+});
+
 test("IM SDK carries an explicit operation key and treats unknown results as non-retryable", async () => {
   const calls = [];
   const { server, baseUrl } = await startServer(async (request, response) => {

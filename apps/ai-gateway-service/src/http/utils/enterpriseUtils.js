@@ -413,6 +413,8 @@ export function resolvePermission(method, pathname) {
 
   if (
     normalizedPath === "/taiji/compile"
+    || normalizedPath === "/taiji/capabilities"
+    || normalizedPath.startsWith("/taiji/capabilities/")
     || normalizedPath === "/workforce/preview"
     || normalizedPath === "/forge/quality"
     || normalizedPath === "/forge/orchestrate"

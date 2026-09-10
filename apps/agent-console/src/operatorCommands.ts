@@ -16,6 +16,7 @@ type Data = Record<string, any>;
 const OPERATIONS: Record<string, readonly string[]> = {
   knowledge: ["health", "sources", "load", "retrieve"], routing: ["modes", "preview"],
   forge: ["status", "runs", "polish", "quality", "memory", "recall", "orchestrate", "taiji", "workforce"],
+  taiji: ["status", "run", "evaluate", "activate", "execute", "revoke", "repair", "reweight", "prune"],
 };
 const SECRET_KEYS = /^(?:(?:api|provider|signing|encryption)[-_]?key|(?:client[-_]?)?secret|password|authorization|credentials?|private[-_]?key|access[-_]?token|refresh[-_]?token|token|cookies?)$/iu;
 const SECRET_TEXT = /\b(?:sk-[A-Za-z0-9_-]{20,}|AIza[A-Za-z0-9_-]{25,}|gh[pousr]_[A-Za-z0-9]{20,}|Bearer\s+[A-Za-z0-9._~+/-]{8,}|(?:api[-_]?key|password|secret|access[-_]?token)\s*[:=]\s*[^\s,;"'}]{8,})/giu;
@@ -83,6 +84,22 @@ function readPayload(path: string): Data {
 export function validateOperatorOptions(options: OperatorOptions): void {
   const operation = options.positionals[0];
   if (!OPERATIONS[options.command]?.includes(operation)) invalid(`${options.command} supports: ${OPERATIONS[options.command]?.join(", ") ?? "none"}.`);
+  if (options.command === "taiji") {
+    const mutation = ["evaluate", "activate", "execute", "revoke", "repair", "reweight", "prune"].includes(operation);
+    if (options.prompt !== null || options.agentGoal !== null || options.allowRealProvider || options.agentProviderId !== null
+      || options.agentModelId !== null || options.operatorMaxOutputTokens !== null || options.operatorMode !== null
+      || options.operatorSources.length || options.operatorPasses !== null) invalid("Taiji uses a fixed local profile and a JSON operation file.");
+    if (options.positionals.length !== (operation === "run" ? 2 : 1) || mutation !== Boolean(options.operatorInput)) invalid("Use --input for Taiji mutations, or taiji run <run-id> for a recorded result.");
+    if (options.confirmed && !mutation) invalid("--yes is only valid with a Taiji mutation.");
+    if ((options.lifecycleLimit !== null || options.lifecycleOffset !== null) && operation !== "status") invalid("Taiji pagination is only valid with status.");
+    if ((options.lifecycleLimit !== null && (options.lifecycleLimit < 1 || options.lifecycleLimit > 100))
+      || (options.lifecycleOffset !== null && options.lifecycleOffset > 1000)) invalid("Taiji limit is 1–100 and offset is 0–1000.");
+    if (!mutation && (!options.agentId || !AGENT.test(options.agentId))) invalid("Taiji inspection requires --agent-id.");
+    if (operation === "run" && !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(options.positionals[1])) invalid("Invalid Taiji run ID.");
+    try { const url = new URL(options.url); if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.search || url.hash) invalid("Invalid gateway URL."); }
+    catch { invalid("Invalid gateway URL."); }
+    return;
+  }
   const textual = options.command === "knowledge" && operation === "retrieve" || options.command === "routing" && operation === "preview"
     || options.command === "forge" && ["polish", "quality", "memory", "recall", "taiji", "workforce"].includes(operation);
   if (!textual && (options.positionals.length !== 1 || options.prompt !== null)) invalid("This operation does not accept prompt text.");
@@ -129,7 +146,29 @@ function buildRequest(options: OperatorOptions): { body: Data | undefined; mutat
   const text = options.prompt ?? options.positionals.slice(1).join(" ");
   const requiredText = () => { if (!boundedText(text)) invalid("Provide non-empty text of at most 16000 UTF-8 bytes."); return text; };
   let body: Data | undefined, mutation = false, preview = false;
-  if (options.command === "knowledge" && operation === "load") {
+  if (options.command === "taiji") {
+    mutation = ["evaluate", "activate", "execute", "revoke", "repair", "reweight", "prune"].includes(operation);
+    body = input ?? {};
+    if (options.agentId !== null && body.agentId !== undefined && body.agentId !== options.agentId) invalid("Agent ID conflicts with the input file.");
+    body.agentId = options.agentId ?? body.agentId;
+    if (!AGENT.test(body.agentId ?? "")) invalid("Taiji requires an owned root Agent ID.");
+    if (operation === "run") body.runId = options.positionals[1];
+    if (operation === "execute" && body.selection !== undefined) {
+      keys(body, ["agentId", "selection", "runId", "arguments"]); keys(body.selection, ["profileId"]);
+      if (!["risk-classification-v1", "context-jsonl-v1", "evidence-summary-v1"].includes(body.selection.profileId)
+        || !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(body.runId) || !record(body.arguments)) invalid("Invalid automatic capability selection request.");
+    } else if (mutation) {
+      const required = ["agentId", "capabilityId", "expectedLifecycleRevision", ...(operation === "evaluate" ? ["request", "profileId"] : ["revision"]),
+        ...(operation === "execute" ? ["runId", "arguments"] : []),
+        ...(["repair", "reweight", "prune"].includes(operation) ? ["sourceRunId"] : []),
+        ...(operation === "repair" ? ["sourceArguments", "addRiskKeywords"] : [])];
+      keys(body, required, operation === "activate" ? ["limits"] : operation === "revoke" ? ["reason"] : operation === "evaluate" ? ["parameters"] : []);
+      if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(body.capabilityId) || !count(body.expectedLifecycleRevision)
+        || operation !== "evaluate" && (!Number.isSafeInteger(body.revision) || body.revision < 1 || body.revision > 20)) invalid("Invalid capability identity or revision; inspect taiji status first.");
+      if (operation === "evaluate" && (!boundedText(body.request, 4000) || !["risk-classification-v1", "context-jsonl-v1", "evidence-summary-v1"].includes(body.profileId))) invalid("Invalid capability profile or request.");
+      if (operation === "execute" && (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(body.runId) || !record(body.arguments))) invalid("Execution requires a unique run ID and JSON arguments.");
+    }
+  } else if (options.command === "knowledge" && operation === "load") {
     body = input!; keys(body, ["sourceId", "documents"], ["sourceTitle", "metadata"]);
     if (typeof body.sourceId !== "string" || !IDENTIFIER.test(body.sourceId) || !Array.isArray(body.documents) || !body.documents.length) invalid("Knowledge load requires a source ID and document array.");
     for (const document of body.documents) { keys(document, [], ["documentId", "title", "uri", "text", "content", "metadata"]); if (!boundedText(document.content ?? document.text, 262144)) invalid("Every document requires non-empty content."); }
@@ -211,8 +250,61 @@ export function projectForgeApprovalReview(value: unknown): Data {
   }
   return safeData(value, true);
 }
+export function projectTaijiApprovalReview(value: unknown): Data {
+  keys(value, ["schemaVersion", "reviewable", "effectType", "policyHash", "taiji"], ["redactedFields"]);
+  const taiji = value.taiji; keys(taiji, ["operation", "params", "paramsHash", "effect"]);
+  if (value.schemaVersion !== 1 || value.reviewable !== true || value.effectType !== "taiji:capability" || !/^sha256:[a-f0-9]{64}$/.test(value.policyHash)
+    || !["evaluate", "activate", "execute", "repair", "reweight", "prune"].includes(taiji.operation) || !record(taiji.params) || taiji.params.operation !== taiji.operation
+    || taiji.paramsHash !== "sha256:" + createHash("sha256").update(canonical(taiji.params)).digest("hex")
+    || !boundedText(taiji.effect, 512) || Buffer.byteLength(canonical(value)) > 80000) invalid("Taiji review is incomplete or has changed.");
+  if (!/^sha256:[a-f0-9]{64}$/.test(taiji.params.ownerHash) || !/^[a-f0-9-]{36}$/.test(taiji.params.authorityEpoch)
+    || !count(taiji.params.lifecycleRevision) || !Number.isSafeInteger(taiji.params.revision) || taiji.params.revision < 1) invalid("Taiji review has no valid owner/version binding.");
+  const common = ["operation", "capabilityId", "lifecycleRevision", "revision", "profileId", "implementationHash", "ownerHash", "authorityEpoch", "parameters"];
+  const extra = taiji.operation === "evaluate" ? ["request", "compiledSpec", "suiteHash"]
+    : taiji.operation === "repair" ? ["request", "compiledSpec", "suiteHash", "baseRevision", "regression", "addRiskKeywords", "feedback"]
+      : taiji.operation === "activate" ? ["candidateHash", "evaluationHash", "limits"]
+        : taiji.operation === "reweight" || taiji.operation === "prune" ? ["candidateHash", "feedback", "previousWeight", "proposedWeight"]
+          : ["candidateHash", "activationEpoch", "runId", "arguments", "argumentsHash"];
+  keys(taiji.params, [...common, ...extra], taiji.operation === "execute" ? ["selection"] : []);
+  return safeData(value, true);
+}
+function validTaijiResult(operation: string, value: Data, body?: Data): void {
+  const bad = (): never => { throw Object.assign(new Error("Taiji returned incomplete or mismatched execution evidence."), { code: "OPERATOR_RESPONSE_INVALID" }); };
+  if (operation === "status") {
+    if (typeof value.enabled !== "boolean" || !Array.isArray(value.profiles) || !Array.isArray(value.capabilities) || !Array.isArray(value.runs)
+      || !count(value.capabilityCount) || !count(value.runCount) || value.capabilities.length > value.capabilityCount || value.runs.length > value.runCount
+      || value.capabilities.some((capability: any) => !record(capability) || !boundedText(capability.id, 128) || !count(capability.lifecycleRevision))) bad();
+    return;
+  }
+  if (value.status === "approval_required") {
+    if (!boundedText(value.approvalId, 160) || value.agentId !== body?.agentId || value.toolName !== "taiji_capability") bad(); return;
+  }
+  if (["evaluate", "activate", "revoke", "repair", "reweight", "prune"].includes(operation)) {
+    if (!record(value.capability) || value.capability.id !== body?.capabilityId || !count(value.capability.lifecycleRevision)
+      || !Array.isArray(value.capability.versions) || !["evaluated", "active", "revoked", "failed", "unknown", "pruned", "reweighted"].includes(value.status)) bad();
+    if (value.status === "active" && (operation !== "activate" || value.capability.activation?.revision !== body?.revision)) bad();
+    if (value.status === "evaluated" && (!["evaluate", "repair"].includes(operation) || value.capability.versions.at(-1)?.evaluation?.passed !== true
+      || !value.capability.versions.at(-1)?.evaluation?.tests?.length)) bad();
+    if (value.status === "revoked" && (operation !== "revoke" || !value.capability.versions.some((version: any) => version.revision === body?.revision && version.status === "revoked"))) bad();
+    if (value.status === "pruned" && (operation !== "prune" || !value.capability.versions.some((version: any) => version.revision === body?.revision && version.status === "revoked" && version.weight === 0))) bad();
+    if (value.status === "reweighted" && (operation !== "reweight" || !value.capability.versions.some((version: any) => version.revision === body?.revision && typeof version.weight === "number"))) bad();
+    return;
+  }
+  const run = value.run;
+  if (!record(run) || run.id !== body?.runId || !boundedText(run.capabilityId, 128) || !Number.isSafeInteger(run.revision) || run.revision < 1
+    || body?.capabilityId !== undefined && (run.capabilityId !== body.capabilityId || run.revision !== body.revision)
+    || !["running", "passed", "failed", "cancelled", "unknown"].includes(run.status)) bad();
+  if (run.status === "passed") {
+    const artifact = run.result?.artifact;
+    if (!record(artifact) || typeof artifact.content !== "string" || artifact.bytes !== Buffer.byteLength(artifact.content)
+      || artifact.sha256 !== "sha256:" + createHash("sha256").update(artifact.content).digest("hex")
+      || run.result.actualExecution !== true || run.result.workerClosed !== true || run.result.modelUsage?.unit !== "tokens"
+      || run.result.modelUsage.total !== 0 || run.result.modelUsage.requests !== 0) bad();
+  }
+}
 function validResult(command: string, operation: string, data: Data, body?: Data): void {
   const bad = () => { throw Object.assign(new Error("Gateway returned an incomplete or inconsistent result."), { code: "OPERATOR_RESPONSE_INVALID" }); };
+  if (command === "taiji") { validTaijiResult(operation, data, body); return; }
   if (command === "knowledge") {
     if (operation === "health" && (!boundedText(data.status, 80) || ![data.sourceCount, data.documentCount, data.chunkCount].every(count))) bad();
     if (operation === "sources" && (!Array.isArray(data.sources) || data.sources.some((row: any) => !record(row) || !boundedText(row.sourceId, 256) || !count(row.documentCount)))) bad();
@@ -248,8 +340,9 @@ function validResult(command: string, operation: string, data: Data, body?: Data
 
 export async function runOperatorCommand(options: OperatorOptions, output: Output): Promise<number> {
   const operation = options.positionals[0]; let dispatched = false, mutation = false, requestDigest: string | undefined;
+  let requestBody: Data | undefined;
   try {
-    const request = buildRequest(options); mutation = request.mutation;
+    const request = buildRequest(options); mutation = request.mutation; requestBody = request.body;
     requestDigest = createHash("sha256").update(canonical({ command: options.command, operation, gatewayUrl: options.url, body: request.body ?? null })).digest("hex");
     if (mutation && !options.confirmed) {
       const review = options.command === "knowledge" ? { sourceId: request.body!.sourceId, documentCount: request.body!.documents.length,
@@ -269,7 +362,14 @@ export async function runOperatorCommand(options: OperatorOptions, output: Outpu
     const body = request.body as any;
     let envelope: unknown;
     dispatched = true;
-    if (options.command === "knowledge") {
+    if (options.command === "taiji") {
+      const handlers: Record<string, () => Promise<unknown>> = {
+        status: () => client.taijiCapabilities(body.agentId, { ...(options.lifecycleLimit !== null ? { limit: options.lifecycleLimit } : {}), ...(options.lifecycleOffset !== null ? { offset: options.lifecycleOffset } : {}) }),
+        run: () => client.taijiCapabilityRun(body.agentId, body.runId), evaluate: () => client.evaluateTaijiCapability(body),
+        activate: () => client.activateTaijiCapability(body), execute: () => client.executeTaijiCapability(body), revoke: () => client.revokeTaijiCapability(body),
+        repair: () => client.repairTaijiCapability(body), reweight: () => client.reweightTaijiCapability(body), prune: () => client.pruneTaijiCapability(body),
+      }; envelope = await handlers[operation]();
+    } else if (options.command === "knowledge") {
       if (operation === "health") envelope = await client.knowledgeHealth();
       else if (operation === "sources") envelope = await client.knowledgeSources();
       else if (operation === "load") envelope = await client.knowledgeLoad(body);
@@ -282,13 +382,15 @@ export async function runOperatorCommand(options: OperatorOptions, output: Outpu
       envelope = await handlers[operation]();
     }
     const raw = unwrap(envelope); validResult(options.command, operation, raw, body);
-    const data = safeData(raw), approval = data.outcome === "approval_required";
+    const data = safeData(raw), approval = data.outcome === "approval_required" || options.command === "taiji" && data.status === "approval_required";
     if (operation === "sources") { const total = data.sources.length; data.sources = data.sources.slice(options.lifecycleOffset ?? 0, (options.lifecycleOffset ?? 0) + (options.lifecycleLimit ?? 50))
       .map((source: any) => ({ sourceId: source.sourceId, title: source.title, documentCount: source.documentCount })); data.total = total; }
     if (operation === "runs") data.runs = data.runs.slice(-(options.lifecycleLimit ?? 50));
     const ok = !approval && data.ok !== false && !(operation === "quality" && data.evaluation.passed === false)
+      && !(options.command === "taiji" && ["failed", "cancelled", "unknown", "running"].includes(data.run?.status ?? data.status))
       && !(options.command === "routing" && data.shouldBlock === true) && !(operation === "orchestrate" && data.result?.status !== "completed");
     const nextAction = approval ? `Inspect agents approvals --agent-id ${body.agentId}; approve the exact request, then repeat this command. Do not approve automatically.`
+      : options.command === "taiji" ? "Inspect taiji status for current revisions, and taiji run <run-id> for recorded artifacts. Revoked versions require a newly evaluated version and approval."
       : options.command === "routing" ? "Preview only: no model was called. Actual execution checks current provider availability and policy."
         : operation === "load" ? "Use knowledge sources and knowledge retrieve to verify the imported documents."
           : operation === "orchestrate" ? "Inspect forge runs and keep the returned run ID; unknown outcomes must not be retried automatically."
@@ -300,17 +402,28 @@ export async function runOperatorCommand(options: OperatorOptions, output: Outpu
     output.write(options.json ? JSON.stringify(result, null, 2) + "\n" : render(result));
     return approval ? 3 : ok ? 0 : 1;
   } catch (error: any) {
+    if (options.command === "taiji" && error.statusCode === 422 && record(error.responseBody?.data)) {
+      try {
+        validTaijiResult(operation, error.responseBody.data, requestBody);
+        const result = { ok: false, command: "taiji", operation, status: "not_completed", retryAllowed: false, requestDigest,
+          data: safeData(error.responseBody.data), nextAction: "Read the recorded run and first failure before changing input or requesting another approval." };
+        output.write(options.json ? JSON.stringify(result, null, 2) + "\n" : render(result)); return 1;
+      } catch { /* A malformed recorded failure follows the normal fail-closed response path. */ }
+    }
     const remote = record(error?.responseBody?.error) ? error.responseBody.error : record(error?.responseBody?.data) ? error.responseBody.data : {};
     const code = typeof (remote.code ?? error.code) === "string" && /^[A-Za-z][A-Za-z0-9_:-]{0,127}$/u.test(remote.code ?? error.code) ? remote.code ?? error.code : "OPERATOR_REQUEST_FAILED";
     const unknown = dispatched && mutation && (remote.details?.outcomeUnknown === true || !Number.isInteger(error.statusCode) || error.statusCode >= 500);
     const causeCode = typeof remote.details?.causeCode === "string" && /^[A-Za-z][A-Za-z0-9_:-]{0,127}$/u.test(remote.details.causeCode) ? remote.details.causeCode : null;
     const failure = { ok: false, command: options.command, operation, code, causeCode, status: unknown ? "unknown-reconcile-required" : "rejected", retryAllowed: false,
       httpStatus: Number.isInteger(error.statusCode) ? error.statusCode : null,
-      requestDigest, message: code === "OPERATOR_INPUT_INVALID" ? error.message : "Gateway operation did not return a verified result.",
-      runId: typeof remote.details?.reconciliation?.runId === "string" && /^[A-Za-z0-9_.:-]{1,160}$/u.test(remote.details.reconciliation.runId) ? remote.details.reconciliation.runId : undefined,
+      requestDigest, message: code === "OPERATOR_INPUT_INVALID" ? error.message
+        : options.command === "taiji" && boundedText(remote.message, 2000) ? remote.message : "Gateway operation did not return a verified result.",
+      runId: typeof remote.details?.reconciliation?.runId === "string" && /^[A-Za-z0-9_.:-]{1,160}$/u.test(remote.details.reconciliation.runId) ? remote.details.reconciliation.runId
+        : options.command === "taiji" && typeof requestBody?.runId === "string" && /^[A-Za-z0-9_.:-]{1,128}$/u.test(requestBody.runId) ? requestBody.runId : undefined,
       nextAction: causeCode === "COST_GUARD_BLOCKED" ? "Reduce --max-output-tokens to fit the gateway policy, then review before another model request."
         : options.command === "knowledge" ? "Check the scoped gateway key, knowledge health and sources; inspect existing documents before repeating a load."
         : options.command === "forge" ? "Inspect forge status, forge runs and agents approvals. Keep the same goal and inspect unknown effects before another execution."
+          : options.command === "taiji" ? "Inspect taiji status and the returned run ID. Do not resubmit an unknown operation; read its persisted state first."
           : "Check gateway authentication and preview inputs; no automatic retry is performed." };
     output.writeError(options.json ? JSON.stringify(safeData(failure), null, 2) + "\n" : `${code}${causeCode ? ` (${causeCode})` : ""}: ${safeData(failure.message)}\n${failure.nextAction}\n`);
     return code === "OPERATOR_INPUT_INVALID" ? 2 : 1;
@@ -320,7 +433,16 @@ export async function runOperatorCommand(options: OperatorOptions, output: Outpu
 function render(result: any): string {
   const { command, operation, data } = result;
   const lines = [`${command} ${operation}: ${result.status}`];
-  if (command === "knowledge" && operation === "health") lines.push(`${data.status}; ${data.sourceCount} sources, ${data.documentCount} documents; ${data.mode}`);
+  if (command === "taiji") {
+    if (data.status === "approval_required") lines.push(`Approval required: ${data.approvalId}`);
+    else if (operation === "status") lines.push(`Taiji is ${data.enabled ? "enabled" : "disabled"}; Agent ${data.agentStatus ?? "unknown"}; ${data.capabilityCount} capabilities, ${data.runCount} recorded runs.`,
+      ...data.capabilities.map((capability: any) => `${capability.id}: lifecycle revision ${capability.lifecycleRevision}; active version ${capability.activation?.revision ?? "none"}`));
+    else if (data.run) lines.push(`Run ${data.run.id}: ${data.run.status}; capability ${data.run.capabilityId} v${data.run.revision}`,
+      ...(data.run.result?.blockedReason ? [`Reason: ${data.run.result.blockedReason}`] : []),
+      ...(data.run.result?.artifact ? [data.run.result.artifact.content, `Artifact SHA-256: ${data.run.result.artifact.sha256}`] : []));
+    else lines.push(`Capability ${data.capability.id}: ${data.status}; lifecycle revision ${data.capability.lifecycleRevision}`);
+  }
+  else if (command === "knowledge" && operation === "health") lines.push(`${data.status}; ${data.sourceCount} sources, ${data.documentCount} documents; ${data.mode}`);
   else if (operation === "sources") lines.push(...data.sources.map((row: any) => `${row.sourceId}: ${row.documentCount} documents (${row.title ?? row.sourceId})`), `Showing ${data.sources.length} of ${data.total} sources.`);
   else if (command === "knowledge" && operation === "load") lines.push(`Source ${data.sourceId}: loaded ${data.loadedCount} documents; current total ${data.documentCount}.`);
   else if (operation === "retrieve") lines.push(...data.chunks.map((chunk: any, index: number) => `${index + 1}. ${chunk.document.sourceId}/${chunk.document.documentId}\n${chunk.snippet ?? chunk.text}`));

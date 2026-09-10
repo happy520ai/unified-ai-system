@@ -97,8 +97,10 @@ uai forge orchestrate --input forge-request.json --yes
 `status` 字段进一步区分 `preview`、`completed`、`approval_required` 和失败，脚本不能只凭退出码把
 预览当作执行。未知的导入或模型结果不会自动重发；按返回的运行 ID、知识来源或审批记录先核对。
 
-`forge quality` 是静态代码检查；`taiji` 只生成能力草案，`workforce` 只生成本地分工预览，均不调用模型
-或激活能力。`memory/recall` 操作当前 Forge 会话内存，不承诺重启持久化。
+`forge quality` 是静态代码检查；`forge taiji` 只生成能力草案，`workforce` 只生成本地分工预览，均不调用模型或激活能力。
+`memory/recall` 操作当前 Forge 会话内存，不承诺重启持久化。
+
+太极的实际候选评估、激活、执行、反馈修复及撤销使用独立的 `uai taiji` 命令族，参见[太极能力运行手册](./taiji-capabilities.md)。
 
 ## 性能(更流畅)
 

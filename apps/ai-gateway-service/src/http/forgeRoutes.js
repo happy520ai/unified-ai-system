@@ -23,10 +23,12 @@ import { runRealTaskWorkforceDryRun } from "../workforce-preview/workforcePrevie
 import { redactSecretsInText } from "../security/secretSafety.js";
 import { resolveGovernedWebTaskRequest, createGovernedWebTaskExecution } from "../forge/governedWebTaskRuntime.ts";
 import { readForgeModelSelection, readForgeOutputTokenLimit } from "../forge/forgeModelSelection.ts";
+import { dispatchTaijiCapabilityRoutes } from "./taijiCapabilityRoutes.ts";
 
 export function isForgeRoute(pathname) {
   const path = String(pathname ?? "");
-  return path.startsWith("/forge/") || path === "/taiji/compile" || path === "/workforce/preview";
+  return path.startsWith("/forge/") || path === "/taiji/compile" || path === "/taiji/capabilities"
+    || path.startsWith("/taiji/capabilities/") || path === "/workforce/preview";
 }
 
 function buildForgeGovernanceIdentity(request, agentId, requestId) {
@@ -448,6 +450,7 @@ export async function dispatchForgeRoutes(context) {
     requestId,
   } = context;
   if (!isForgeRoute(url.pathname)) return ROUTE_NOT_HANDLED;
+  if (url.pathname === "/taiji/capabilities" || url.pathname.startsWith("/taiji/capabilities/")) return dispatchTaijiCapabilityRoutes(context);
 
   // 服务实例挂在 application 上(与 knowledgeService 等同生命周期),惰性构造。
   const gatewayService = context.gatewayService ?? application?.gatewayService;
