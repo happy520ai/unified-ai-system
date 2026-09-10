@@ -58,7 +58,7 @@ function safeData(value: any, input = false, depth = 0, budget = { nodes: 0 }): 
   }
   return output;
 }
-function readPayload(path: string): Data {
+function readPayload(path: string, parse: (text: string) => unknown = JSON.parse): Data {
   const absolute = resolve(path);
   if (/^(?:\.env(?:\..*)?|\.mcp\.json|auth\.json|secret\.key)$/iu.test(basename(absolute))) invalid("Protected configuration files are not operation payloads.");
   let descriptor: number | undefined;
@@ -72,7 +72,7 @@ function readPayload(path: string): Data {
     if (length !== Number(opened.size)) invalid("Input file changed while reading.");
     const raw = bytes.subarray(0, length).toString("utf8"), after = fstatSync(descriptor, { bigint: true }), named = lstatSync(absolute, { bigint: true });
     if (after.size !== opened.size || after.mtimeNs !== opened.mtimeNs || named.dev !== opened.dev || named.ino !== opened.ino || named.nlink !== 1n) invalid("Input file changed while reading.");
-    const value: unknown = JSON.parse(raw.replace(/^\uFEFF/u, ""));
+    const value: unknown = parse(raw.replace(/^\uFEFF/u, ""));
     if (!record(value)) invalid("Input must contain one JSON object.");
     return safeData(value, true);
   } catch (error) {
@@ -80,6 +80,9 @@ function readPayload(path: string): Data {
     return invalid("Cannot read a stable, valid JSON operation file.");
   } finally { if (descriptor !== undefined) closeSync(descriptor); }
 }
+
+export { readPayload as readOperatorPayload, safeData as sanitizeOperatorData };
+export type { OperatorOptions, Output };
 
 export function validateOperatorOptions(options: OperatorOptions): void {
   const operation = options.positionals[0];

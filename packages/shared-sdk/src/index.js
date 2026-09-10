@@ -855,6 +855,7 @@ export function createGatewayClient(options = {}) {
         body: prepared.body,
         headers: prepared.headers,
         timeoutMs,
+        redirect: request?.contextCodec === undefined ? "follow" : "error",
       });
     },
     managedLocalClientChat(request, proofOptions) {
@@ -888,6 +889,7 @@ export function createGatewayClient(options = {}) {
         body: prepared.body,
         headers: prepared.headers,
         timeoutMs,
+        redirect: request?.contextCodec === undefined ? "follow" : "error",
       });
     },
     knowledgeRetrieve(request) {
@@ -2386,12 +2388,14 @@ async function* requestSseImpl({
   headers,
   signal,
   timeoutMs,
+  redirect = /** @type {"follow" | "error" | "manual"} */ ("follow"),
 }) {
   const requestController = createRequestController({ signal, timeoutMs });
 
   try {
     const response = await fetch(`${baseUrl}${path}`, {
       method,
+      redirect,
       headers: {
         "content-type": "application/json",
         ...headers,

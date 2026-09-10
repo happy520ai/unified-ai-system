@@ -70,6 +70,32 @@ test("operator flags remain scoped and unknown operations fail before requests",
     ["forge", "status", "--agent-id", "agt_fixture"], ["forge", "shell"], ["knowledge", "sources", "--url", "http://user:password@127.0.0.1"]]) assert.throws(() => parseCliArgs(args, {}), CliUsageError);
 });
 
+test("codec previews exact data and output limits without HTTP, and rejects ambiguous or unsafe cases", async () => {
+  const gateway = await fixture(), temporaryRoot = await realpath(tmpdir()), root = await mkdtemp(join(temporaryRoot, "uai-operator-input-"));
+  try {
+    const source = JSON.stringify(Array.from({ length: 8 }, (_, index) => ({ count: index, ref: `doc://${index}` })), null, 8);
+    const input = join(root, "case.json");
+    const payload = { request: { messages: [{ role: "user", content: source }], options: { maxOutputTokens: 100 } },
+      profile: "compact_trace", targets: [{ messageIndex: 0 }], expectedJson: { count: 3, ref: "doc://3" } };
+    await writeFile(input, JSON.stringify(payload));
+    for (const operation of ["preview", "compare"]) {
+      const result = await gateway.run(["codec", operation, "--input", input]);
+      assert.equal(result.code, 0, result.err || result.out); assert.equal(result.data.status, "preview");
+      assert.equal(result.data.contextCodec.targets[0].contentSha256, createHash("sha256").update(source).digest("hex"));
+      assert.equal(result.data.maxProviderRequests, 2); assert.equal(result.data.maxOutputTokensPerRequest, 100);
+      assert.equal(result.data.localCodec.modelQuality, "not-evaluated");
+    }
+    assert.equal(gateway.calls.length, 0);
+    assert.throws(() => parseCliArgs(["codec", "preview", "--input", input, "--yes"], {}), CliUsageError);
+    assert.throws(() => parseCliArgs(["codec", "compare", "--input", input, "--agent-id", "agt_fixture"], {}), CliUsageError);
+    const conflict = await gateway.run(["codec", "compare", "--input", input, "--max-output-tokens", "200", "--yes"]);
+    assert.equal(conflict.code, 1); assert.equal(conflict.data.providerOutcome, "not_called");
+    await writeFile(input, '{"request":{},"request":{},"profile":"yaml_state","targets":[],"expectedJson":null}');
+    assert.equal((await gateway.run(["codec", "preview", "--input", input])).code, 1);
+    assert.equal(gateway.calls.length, 0);
+  } finally { await gateway.close(); const owned = await realpath(root); assert.equal(dirname(owned), temporaryRoot); assert.ok(basename(owned).startsWith("uai-operator-input-")); await rm(owned, { recursive: true, force: true }); }
+});
+
 test("knowledge import is a concrete preview until confirmed and verification uses the same SDK", async () => {
   const gateway = await fixture(), temporaryRoot = await realpath(tmpdir()), root = await mkdtemp(join(temporaryRoot, "uai-operator-input-"));
   try {

@@ -660,6 +660,23 @@ test("operator mutations never follow redirects or advertise an uncertain reques
   } finally { await closeServer(source.server); await closeServer(target.server); }
 });
 
+test("explicit Context Codec chat and streams refuse redirects before forwarding their data", async () => {
+  let received = 0, redirected = 0;
+  const target = await startServer((_request, response) => { redirected++; response.end("unexpected"); });
+  const origin = await startServer(async (request, response) => {
+    for await (const _chunk of request) { /* consume only the owned synthetic request */ }
+    received++; response.writeHead(307, { location: target.baseUrl }); response.end();
+  });
+  try {
+    const client = createGatewayClient({ baseUrl: origin.baseUrl, headers: { authorization: "Bearer codec-sdk-fixture" } });
+    const body = { taskType: "chat", providerId: "fixture", model: "fixture-model", messages: [{ role: "user", content: "synthetic context" }], contextCodec: { profile: "off" } };
+    await assert.rejects(client.chat(body), error => error.code === "GATEWAY_NETWORK_ERROR");
+    await assert.rejects(async () => { for await (const _event of client.chatStream(body)) { assert.fail("A redirect must not produce a stream event."); } },
+      error => error.code === "GATEWAY_NETWORK_ERROR");
+    assert.equal(received, 2); assert.equal(redirected, 0);
+  } finally { await closeServer(origin.server); await closeServer(target.server); }
+});
+
 test("Taiji SDK uses fixed paths, scoped read parameters and non-retryable mutations", async () => {
   const calls = [];
   const { server, baseUrl } = await startServer(async (request, response) => {

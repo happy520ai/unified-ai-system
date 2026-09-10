@@ -19,6 +19,8 @@ export interface GatewayRuntimeConfig {
   shadowTimeoutMs?: number;
   requireDurableUsageLedger?: boolean;
   requireProviderDispatchGate?: boolean;
+  chatContextCompaction?: { thresholdMessages?: number; maxContextTokens?: number; keepRecentTurns?: number;
+    codecEnabled?: boolean; codecMinEstimatedSavingPercent?: number };
 }
 
 /**

@@ -156,6 +156,35 @@ export interface GatewayGenerationOptions {
   stream?: boolean;
 }
 
+/** Only explicitly selected JSON data is re-encoded; ordinary message text is preserved. */
+export type GatewayContextCodecSelection = { profile: "off" } | {
+  profile: "yaml_state" | "jsonl_facts" | "compact_trace";
+  targets: Array<{ messageIndex: number; partIndex?: number; contentSha256: string }>;
+};
+
+export interface GatewayContextCodecReport {
+  version: "context-codec-request-v1";
+  profile: GatewayContextCodecSelection["profile"];
+  status: "applied" | "original";
+  reason: string;
+  inputHash: string;
+  providerInputHash: string;
+  policyHash: string;
+  enabled: boolean;
+  minEstimatedSavingPercent: number;
+  originalMessageCount: number;
+  selectedTextBytesBefore: number;
+  selectedTextBytesAfter: number;
+  estimatedTokensBefore: number;
+  estimatedTokensAfter: number;
+  estimatedSavingPercent: number;
+  estimator: "utf16-length-divided-by-four";
+  modelQuality: "not-evaluated";
+  recovery: "exact-json-data" | "not-applied";
+  targets: Array<{ messageIndex: number; partIndex?: number; sourceTextHash: string;
+    encodedTextHash: string; sourceDataHash: string; factCount: number }>;
+}
+
 export interface GatewayRequest {
   context?: RequestContext;
   taskType: AiTaskType;
@@ -166,6 +195,7 @@ export interface GatewayRequest {
   tools?: GatewayFunctionTool[];
   toolChoice?: GatewayToolChoice;
   parallelToolCalls?: boolean;
+  contextCodec?: GatewayContextCodecSelection;
   requiredCapabilities?: ProviderCapability[];
   promptEnhancement?: PromptEnhancementOptions;
   knowledge?: {

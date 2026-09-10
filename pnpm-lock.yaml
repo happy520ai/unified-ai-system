@@ -46,6 +46,9 @@ importers:
 
   apps/agent-console:
     dependencies:
+      '@unified-ai-system/context-codec-core':
+        specifier: workspace:*
+        version: link:../../packages/context-codec-core
       '@unified-ai-system/shared-sdk':
         specifier: workspace:*
         version: link:../../packages/shared-sdk
@@ -157,7 +160,14 @@ importers:
 
   packages/codex-context-gateway: {}
 
-  packages/context-codec-core: {}
+  packages/context-codec-core:
+    dependencies:
+      jsonc-parser:
+        specifier: 3.3.1
+        version: 3.3.1
+      yaml:
+        specifier: 2.9.0
+        version: 2.9.0
 
   packages/employee-brain-adapter:
     dependencies:

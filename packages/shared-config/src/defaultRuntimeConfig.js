@@ -442,6 +442,8 @@ export const DEFAULT_RUNTIME_CONFIG = {
       thresholdMessages: 60,
       maxContextTokens: 24_000,
       keepRecentTurns: 10,
+      codecEnabled: false,
+      codecMinEstimatedSavingPercent: 30,
     },
   },
 };

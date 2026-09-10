@@ -8,6 +8,7 @@ Public documentation is grouped by task so the repo stays easy to scan.
 - [Terminal CLI](cli.md)
 - [Local AI control center](local-ai-control-center.md)
 - [Natural-language prompt enhancement](prompt-enhancement.md)
+- [Context Codec: actual requests and model comparison](context-codec.md)
 - [OpenAI-compatible API](openai-compatible-api.md)
 - [Secure inline image input](openai-inline-image-input.md)
 - [OpenAI 兼容 API（中文）](openai-compatible-api.zh-CN.md)

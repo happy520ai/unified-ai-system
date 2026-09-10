@@ -13,6 +13,7 @@ import {
   writeGatewayLog,
 } from "./gatewayServiceHelpers.js";
 import { normalizeGatewayRequest } from "./requestNormalizer.js";
+import { applyGatewayContextCodec, assertContextCodecInput, readContextCodecReport, validateContextCodecRuntimeConfig } from "../gateway/contextCodecRuntime.ts";
 import { enforceTokenCostGuard } from "../cost/tokenCostGuard.js";
 import {
   compactMessageHistory,
@@ -84,10 +85,21 @@ function assertFakeProviderExecution(execution, selection) {
   }
 }
 
+function bindContextCodecExecution(request, execution) {
+  if (request.contextCodec === undefined) return;
+  const required = providerSelectionExecutions.get(execution);
+  if (required && (required.providerId !== request.providerId || required.modelId !== request.model)) {
+    throw Object.assign(new Error("Context Codec target conflicts with the existing execution restriction."),
+      { code: "PROVIDER_EXECUTION_BINDING_CONFLICT", category: "governance", retryable: false });
+  }
+  if (!required) bindExactProviderExecution(execution, { providerId: request.providerId, modelId: request.model });
+}
+
 export class GatewayService {
   constructor({ providerRegistry, runtimeConfig = {}, healthScorer = null, requestLogger = null, enterpriseAudit = null, governance = null, contentGuardrails = null, weightedTrafficPolicy = null, providerDispatchGate = null }) {
     this.providerRegistry = providerRegistry;
     this.runtimeConfig = runtimeConfig;
+    validateContextCodecRuntimeConfig(runtimeConfig.chatContextCompaction);
     // Optional health scorer — when present, provider call outcomes are recorded
     // to power health-weighted selection in providerSelectionPolicy.
     this.healthScorer = healthScorer;
@@ -120,7 +132,9 @@ export class GatewayService {
     try {
       throwIfExecutionAborted(execution.signal);
       request = normalizeGatewayRequest(input);
+      if (request.contextCodec !== undefined) this.#enforceContentGuardrails(request);
       compactionWarnings = this.#applyContextCompaction(request);
+      bindContextCodecExecution(request, execution);
       this.#enforceContentGuardrails(request);
       if (this.runtimeConfig.costGuardEnforce) {
         this.#enforceCostGuard(request);
@@ -165,6 +179,7 @@ export class GatewayService {
         executionStatus: providerResult.executionStatus ?? "success",
         durationMs: Date.now() - startedAt,
       });
+      assertContextCodecInput(request);
       const response = createGatewayResponse(request, selection, providerResult, startedAt, this.runtimeConfig, [...compactionWarnings, ...attemptResult.warnings]);
 
       // 影子流量:主响应已定,旁路复制到 shadow provider,仅观测不影响主响应。
@@ -221,7 +236,9 @@ export class GatewayService {
     try {
       throwIfExecutionAborted(execution.signal);
       request = normalizeGatewayRequest(input);
+      if (request.contextCodec !== undefined) this.#enforceContentGuardrails(request);
       this.#applyContextCompaction(request);
+      bindContextCodecExecution(request, execution);
       this.#enforceContentGuardrails(request);
       if (this.runtimeConfig.costGuardEnforce) {
         this.#enforceCostGuard(request);
@@ -289,6 +306,7 @@ export class GatewayService {
             startedAt,
             shadow: execution.shadow === true,
           });
+          assertContextCodecInput(request);
           providerCallStarted = true;
           for await (const providerChunk of selection.selected.provider.generateStream({
             ...createProviderRequest({
@@ -351,6 +369,7 @@ export class GatewayService {
             usageAttemptId,
           });
 
+          assertContextCodecInput(request);
           const doneEvent = createStreamEvent("done", {
             request,
             selection,
@@ -648,6 +667,7 @@ export class GatewayService {
         });
         const workforceFence = execution.workforceDispatchFence === undefined ? null
           : await assertWorkforceProviderAttempt(execution, attemptSelection.selected.target, "commit");
+        assertContextCodecInput(request);
         if (workforceFence && attemptSelection.selected.providerType === "fake") workforceFence.onDispatch();
         writeGatewayLog("provider_call_start", {
           requestId: request.context.requestId,
@@ -796,6 +816,13 @@ export class GatewayService {
   // error never blocks the request. Returns a warnings array for the response.
   #applyContextCompaction(request) {
     const config = this.runtimeConfig?.chatContextCompaction;
+    if (request.contextCodec !== undefined) {
+      applyGatewayContextCodec(request, config);
+      const report = readContextCodecReport(request);
+      return [{ code: report.status === "applied" ? "context_codec_applied" : "context_codec_original",
+        message: report.status === "applied" ? "Selected JSON context data was re-encoded and verified." : "Original context was retained.",
+        details: { profile: report.profile, status: report.status, reason: report.reason } }];
+    }
     if (!config || !Array.isArray(request.messages)) return [];
     const thresholdMessages = Number(config.thresholdMessages ?? 0);
     const maxContextTokens = Number(config.maxContextTokens ?? 0);

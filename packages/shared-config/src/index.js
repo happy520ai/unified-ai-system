@@ -137,6 +137,8 @@ export function loadRuntimeConfig(env = process.env) {
         thresholdMessages: readNumber(env.AI_GATEWAY_CHAT_COMPACTION_THRESHOLD_MESSAGES, DEFAULT_RUNTIME_CONFIG.aiGatewayService.chatContextCompaction.thresholdMessages),
         maxContextTokens: readNumber(env.AI_GATEWAY_CHAT_COMPACTION_MAX_TOKENS, DEFAULT_RUNTIME_CONFIG.aiGatewayService.chatContextCompaction.maxContextTokens),
         keepRecentTurns: readNumber(env.AI_GATEWAY_CHAT_COMPACTION_KEEP_RECENT_TURNS, DEFAULT_RUNTIME_CONFIG.aiGatewayService.chatContextCompaction.keepRecentTurns),
+        codecEnabled: readBoolean(env.AI_GATEWAY_CONTEXT_CODEC_ENABLED, DEFAULT_RUNTIME_CONFIG.aiGatewayService.chatContextCompaction.codecEnabled),
+        codecMinEstimatedSavingPercent: readNumber(env.AI_GATEWAY_CONTEXT_CODEC_MIN_ESTIMATED_SAVING_PERCENT, DEFAULT_RUNTIME_CONFIG.aiGatewayService.chatContextCompaction.codecMinEstimatedSavingPercent),
       },
     },
   };

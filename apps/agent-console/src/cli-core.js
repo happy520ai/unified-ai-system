@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import { readVerificationSource, readWindowsVerificationHistory } from "./verificationHistory.ts";
 import { projectWorkforceCodeDeliveryReview, formatWorkforceCodeDeliveryReview } from "./workforceCodeDeliveryReview.ts";
 import { runOperatorCommand, validateOperatorOptions, projectForgeApprovalReview, projectTaijiApprovalReview } from "./operatorCommands.ts";
+import { runContextCodecCommand, validateContextCodecOptions } from "./contextCodecCommands.ts";
 
 import {
   createGatewayChatRequest,
@@ -42,6 +43,7 @@ export const DEFAULT_GATEWAY_URL =
 const COMMANDS = new Set([
   "agents",
   "chat",
+  "codec",
   "clients",
   "clients-onboarding",
   "control-center",
@@ -833,6 +835,8 @@ export async function runCli(
         return await runEnhance(options, output, runtime.stdin ?? process.stdin);
       case "chat":
         return await runChat(options, output, runtime.stdin ?? process.stdin);
+      case "codec":
+        return await runContextCodecCommand(options, output);
       case "clients":
         return await runClients(options, output);
       case "clients-onboarding":
@@ -3934,6 +3938,7 @@ Commands:
   serve            Start the local gateway
   status           Inspect gateway and chat readiness
   enhance [prompt] Preview a structured prompt without calling a model
+  codec <operation>  preview, compare --input case.json (explicit data/model comparison)
   knowledge          health, sources, load, retrieve
   routing            modes, preview (local simulation; no model call)
   forge              status, runs, polish, quality, memory, recall, orchestrate, taiji, workforce
@@ -4060,6 +4065,8 @@ Safety:
   Provider clearing removes only the runtime override; environment keys, upstream keys, in-flight requests and other processes remain separate.
   These explicit workflow/provider commands use the supplied ID as intent and add no --yes requirement.
   knowledge load and forge polish/memory/orchestrate preview locally until --yes is supplied.
+  codec preview --input case.json performs local encoding only. codec compare --input case.json --yes makes at most two exact-model requests.
+  Codec compares a supplied expected JSON answer and reported usage; fake observations remain synthetic, and unknown outcomes are never retried automatically.
   Forge model calls select local-fake-provider/local-fake-model by default; non-fake selection requires --allow-real-provider.
   Forge orchestration may return approval-required (exit 3); use agents approvals/approve and repeat the exact request.
   routing preview, Forge quality, taiji and workforce preview do not run a model or activate a capability.
@@ -4102,7 +4109,7 @@ function validateOptions(options) {
   }
 
   if (
-    !["chat", "demo", "enhance", "clients", "clients-onboarding", "control-center", "agents", "forge", "workflow", "providers", "knowledge", "routing", "taiji"].includes(options.command)
+    !["chat", "demo", "enhance", "clients", "clients-onboarding", "control-center", "agents", "forge", "workflow", "providers", "knowledge", "routing", "taiji", "codec"].includes(options.command)
     && (options.prompt !== null || options.positionals.length > 0)
   ) {
     throw new CliUsageError(
@@ -4138,7 +4145,7 @@ function validateOptions(options) {
   if (options.command !== "control-center" && options.controlCenterManifestFile !== null) {
     throw new CliUsageError("--manifest is only valid with control-center configure.");
   }
-  const operatorCommand = ["knowledge", "routing", "taiji", "forge"].includes(options.command);
+  const operatorCommand = ["knowledge", "routing", "taiji", "forge", "codec"].includes(options.command);
   if (!operatorCommand && (options.operatorInput !== null || options.operatorMode !== null || options.operatorSources.length || options.operatorPasses !== null || options.operatorMaxOutputTokens !== null)) {
     throw new CliUsageError("--input, --mode, --source-id and --passes are only valid with knowledge, routing, Forge or Taiji operations.");
   }
@@ -4152,7 +4159,7 @@ function validateOptions(options) {
       "Local-client lifecycle options are only valid with the clients command.",
     );
   }
-  const agentOptionsUsed = agentGovernanceOptionsUsed(options.command === "forge" ? { ...options, agentId: null, agentGoal: null, agentProviderId: null, agentModelId: null }
+  const agentOptionsUsed = agentGovernanceOptionsUsed(["forge", "codec"].includes(options.command) ? { ...options, agentId: null, agentGoal: null, agentProviderId: null, agentModelId: null }
     : options.command === "taiji" ? { ...options, agentId: null }
     : options.command === "workflow" ? { ...options, agentId: null, agentGoal: null }
     : options.command === "providers" ? { ...options, agentProviderId: null } : options);
@@ -4162,7 +4169,7 @@ function validateOptions(options) {
   if (options.agentReason !== null && !new Set(["agents", "clients"]).has(options.command)) {
     throw new CliUsageError("--reason is only valid with agents or clients.");
   }
-  if (!new Set(["clients", "clients-onboarding", "control-center", "agents", "knowledge", "forge", "taiji"]).has(options.command) && options.confirmed) {
+  if (!new Set(["clients", "clients-onboarding", "control-center", "agents", "knowledge", "forge", "taiji", "codec"]).has(options.command) && options.confirmed) {
     throw new CliUsageError("--yes is only valid with governed mutations.");
   }
   if (options.command === "clients-onboarding") {
@@ -4175,7 +4182,10 @@ function validateOptions(options) {
     validateAgentGovernanceOptions(options);
   }
   if (operatorCommand) {
-    try { validateOperatorOptions(options); } catch (error) { throw new CliUsageError(error.message); }
+    try {
+      if (options.command === "codec") validateContextCodecOptions(options);
+      else validateOperatorOptions(options);
+    } catch (error) { throw new CliUsageError(error.message); }
   }
   if (options.command === "control-center") {
     validateControlCenterOptions(options);
@@ -4234,7 +4244,7 @@ function validateOptions(options) {
   }
   if (
     (options.urlProvided || options.timeoutProvided)
-    && !["agents", "chat", "clients", "clients-onboarding", "control-center", "doctor", "enhance", "forge", "spend", "status", "workflow", "providers", "knowledge", "routing", "taiji"].includes(options.command)
+    && !["agents", "chat", "clients", "clients-onboarding", "control-center", "doctor", "enhance", "forge", "spend", "status", "workflow", "providers", "knowledge", "routing", "taiji", "codec"].includes(options.command)
   ) {
     throw new CliUsageError(
       "--url and --timeout are only valid with networked gateway commands.",
@@ -4244,7 +4254,7 @@ function validateOptions(options) {
     throw new CliUsageError("--json is not supported by serve.");
   }
 
-  if (["agents", "chat", "clients", "clients-onboarding", "control-center", "doctor", "enhance", "forge", "spend", "status", "workflow", "providers", "knowledge", "routing", "taiji"].includes(options.command)) {
+  if (["agents", "chat", "clients", "clients-onboarding", "control-center", "doctor", "enhance", "forge", "spend", "status", "workflow", "providers", "knowledge", "routing", "taiji", "codec"].includes(options.command)) {
     let parsedUrl;
     try {
       parsedUrl = new URL(options.url);
