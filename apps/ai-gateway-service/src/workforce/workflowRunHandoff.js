@@ -1,116 +1,23 @@
-// Workflow run handoff.
-//
-// 真实的 workforce → workflow 交接：凭有效的一次性 task claim token，把
-// 已批准的计划任务交给 workflowService.run 执行，全程挂在可取消的执行
-// 生命周期上。缺令牌、令牌无效、或执行被取消都会如实返回；没有任何
-// “占位成功”。默认仍需显式调用（governance：不改变任何默认行为）。
+import { isLocalWorkflowService } from "../workflow/localWorkflowService.js";
+import { createWorkforceWorkflowHandoff } from "./workforceWorkflowHandoffRuntime.ts";
 
-// This library exists, but the application uses workforceControlledExecutor;
-// no production route currently constructs this separate handoff factory.
+/** Saved planning data never carries runtime authority. */
 export function normalizeWorkflowHandoffPreviewState(state = {}) {
-  const reason = "Workflow run handoff has a library implementation but is not connected to production routes; this preview never executes it.";
+  const reason = "This plan is a preview; workflow handoff requires the governed /workforce/execute path, an explicit workflowHandoff selector and current approvals.";
   const hud = state.hud && typeof state.hud === "object" ? state.hud : null;
-  return {
-    ...state,
-    ...(hud ? { hud: {
-      ...hud,
-      blockers: (Array.isArray(hud.blockers) ? hud.blockers : []).map((message) =>
-        typeof message === "string" && /workflow run handoff/i.test(message) ? reason : message),
-    } } : {}),
-    workflowRunHandoff: {
-      status: "module-only",
-      lifecycleStatus: "handoff-disabled",
-      implemented: true,
-      runtimeConnected: false,
-      enabled: false,
-      enabledByDefault: false,
-      reason,
-    },
-  };
+  return { ...state, ...(hud ? { hud: { ...hud, blockers: (Array.isArray(hud.blockers) ? hud.blockers : []).map(message =>
+    typeof message === "string" && /workflow run handoff/i.test(message) ? reason : message) } } : {}),
+    workflowRunHandoff: { status: "preview-only", lifecycleStatus: "handoff-disabled", implemented: true,
+      runtimeConnected: false, enabled: false, enabledByDefault: false, executionRoute: "/workforce/execute", reason } };
 }
 
-export function createWorkflowRunHandoff({
-  workflowService,
-  claimTokens,
-  lifecycle,
-} = {}) {
-  return {
-    implemented: true,
-    enabledByDefault: false,
-    requires: ["validTaskClaimToken", "workflowService", "cancellableExecution"],
-
-    getStatus() {
-      return {
-        implemented: true,
-        workflowServiceAvailable: Boolean(workflowService),
-        claimTokens: claimTokens?.getStatus?.() ?? null,
-        lifecycle: lifecycle?.getStatus?.() ?? null,
-      };
-    },
-
-    async handoff({
-      planId,
-      taskId,
-      claimToken,
-      workflowRequest = {},
-      requestContext = {},
-    } = {}) {
-      if (!workflowService || typeof workflowService.run !== "function") {
-        return handoffRefused("HANDOFF_NO_WORKFLOW_SERVICE", "workflowService is not available.");
-      }
-      if (!claimTokens || typeof claimTokens.consumeTaskClaimToken !== "function") {
-        return handoffRefused("HANDOFF_NO_CLAIM_SERVICE", "task claim token service is not available.");
-      }
-      if (!lifecycle || typeof lifecycle.startExecution !== "function") {
-        return handoffRefused("HANDOFF_NO_LIFECYCLE", "execution lifecycle service is not available.");
-      }
-
-      const claim = claimTokens.consumeTaskClaimToken({ planId, taskId, token: claimToken });
-      if (!claim.valid) {
-        return handoffRefused(claim.code, `Task claim rejected: ${claim.reason}`);
-      }
-
-      const execution = lifecycle.startExecution({ planId, taskId, meta: { via: "workflow-run-handoff" } });
-      if (!execution.started) {
-        return handoffRefused(execution.code, execution.reason);
-      }
-
-      try {
-        const result = await workflowService.run(
-          {
-            ...workflowRequest,
-            planId,
-            taskId,
-          },
-          { ...requestContext, signal: execution.signal, runId: execution.runId },
-        );
-        lifecycle.finishExecution(execution.runId, { status: "completed", result });
-        return {
-          handedOff: true,
-          runId: execution.runId,
-          status: "completed",
-          result,
-        };
-      } catch (error) {
-        const cancelled = execution.signal.aborted;
-        lifecycle.finishExecution(execution.runId, {
-          status: cancelled ? "cancelled" : "failed",
-          error,
-        });
-        return {
-          handedOff: true,
-          runId: execution.runId,
-          status: cancelled ? "cancelled" : "failed",
-          error: {
-            message: error?.message ?? String(error),
-            code: error?.code ?? null,
-          },
-        };
-      }
-    },
-  };
-}
-
-function handoffRefused(code, reason) {
-  return { handedOff: false, status: "refused", code, reason };
+/** One concrete implementation. Legacy standalone claim strings cannot authorize real workflow effects. */
+export function createWorkflowRunHandoff({ workflowService } = {}) {
+  if (isLocalWorkflowService(workflowService)) return createWorkforceWorkflowHandoff(workflowService);
+  return Object.freeze({ implemented: true, enabledByDefault: false,
+    getStatus: () => ({ implemented: true, runtimeConnected: false, workflowServiceAvailable: Boolean(workflowService) }),
+    async handoff() {
+      return { handedOff: false, status: "refused", code: workflowService ? "HANDOFF_GOVERNED_CONTEXT_REQUIRED" : "HANDOFF_NO_WORKFLOW_SERVICE",
+        reason: "A concrete local workflow, authenticated Agent and live DAG task capability are required." };
+    } });
 }

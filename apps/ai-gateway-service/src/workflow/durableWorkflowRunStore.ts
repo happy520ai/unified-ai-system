@@ -37,8 +37,8 @@ type StoredRun = {
   attempt: number; claimId: string; leaseUntil: number; createdAt: number; updatedAt: number;
   draft: WorkflowDraft | null; publication: { fileName: string; authorization?: WorkflowPublicationAuthorization } | null; result: WorkflowRunResponse | null;
   governancePending: boolean; recoveryVerified: boolean; reconciliation: { status: "verified" | "unresolved"; at: string } | null;
-  error: { code: string; attempt: number; at: string } | null;
-  history: Array<{ code: string; attempt: number; at: string }>;
+  error: { code: string; attempt: number; at: string; approvalId?: string } | null;
+  history: Array<{ code: string; attempt: number; at: string; approvalId?: string }>;
 };
 export type WorkflowClaim = { key: string; claimId: string; record: StoredRun; replayed: boolean };
 type Identity = { path: string; dev: bigint; ino: bigint };
@@ -211,7 +211,8 @@ export class DurableWorkflowRunStore {
       record.leaseUntil = 0;
       const code = (error as { code?: unknown })?.code;
       this.#recordError(record, cancelled ? "WORKFLOW_RUN_CANCELLED" : typeof code === "string"
-        && (/^WORKFLOW_[A-Z_]+$/.test(code) || ["TOOL_APPROVAL_REQUIRED", "APPROVAL_REVIEW_UNAVAILABLE"].includes(code)) ? code : "WORKFLOW_EXECUTION_FAILED");
+        && (/^WORKFLOW_[A-Z_]+$/.test(code) || ["TOOL_APPROVAL_REQUIRED", "APPROVAL_REVIEW_UNAVAILABLE"].includes(code)) ? code : "WORKFLOW_EXECUTION_FAILED",
+        !cancelled && code === "TOOL_APPROVAL_REQUIRED" ? (error as { details?: { approvalId?: unknown } })?.details?.approvalId : undefined);
       if ((error as { cleanupError?: unknown })?.cleanupError) this.#recordError(record, "WORKFLOW_STAGING_CLEANUP_REQUIRED");
       this.#save(db, claim.key, record);
     });
@@ -253,6 +254,24 @@ export class DurableWorkflowRunStore {
     try { const record = this.#read(db, key); this.#observedSuccess(false); if (!record) throw notFound(); return this.#project(record); }
     catch (error) { throw this.observeFailure(error, false); }
     finally { db.close(); }
+  }
+
+  async verifyCompletedArtifact(workflowId: unknown, scope: WorkflowScope,
+    reconcile: (draft: WorkflowDraft, fileName: string) => Promise<WorkflowRunResponse | null>): Promise<WorkflowRunResponse> {
+    const key = hash(JSON.stringify([ownerScope(scope), validateWorkflowId(workflowId)]));
+    const db = this.#open(false);
+    if (!db) throw notFound();
+    let record: StoredRun | null;
+    try { record = this.#read(db, key); } finally { db.close(); }
+    if (!record) throw notFound();
+    if (record.status !== "completed" || record.governancePending || !record.draft || !record.publication || !record.result) {
+      throw workflowStateError("ARTIFACT_NOT_VERIFIED", "A completed governed workflow receipt is required.");
+    }
+    const verified = await reconcile(record.draft, record.publication.fileName);
+    if (!verified || JSON.stringify(verified.artifact) !== JSON.stringify(record.result.artifact)) {
+      throw workflowStateError("ARTIFACT_NOT_VERIFIED", "The current artifact does not match its recorded publication.");
+    }
+    return record.result;
   }
 
   list(scope: WorkflowScope, limit = 50): { runs: WorkflowRunInspection[] } {
@@ -306,8 +325,9 @@ export class DurableWorkflowRunStore {
     }
     return record;
   }
-  #recordError(record: StoredRun, code: string): void {
-    record.error = { code, attempt: record.attempt, at: new Date(this.#now()).toISOString() };
+  #recordError(record: StoredRun, code: string, approvalId?: unknown): void {
+    record.error = { code, attempt: record.attempt, at: new Date(this.#now()).toISOString(),
+      ...(typeof approvalId === "string" && /^appr_[A-Za-z0-9_-]{1,128}$/u.test(approvalId) ? { approvalId } : {}) };
     if (record.history.length < 64) record.history.push(record.error);
   }
   #project(record: StoredRun, includeResult = true): WorkflowRunInspection {

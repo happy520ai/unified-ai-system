@@ -27,6 +27,7 @@ import { createGovernanceStateFileBinding } from "./governanceStateAnchor.ts";
 import { readFrozenWorkforceRoleExecutionProfile } from "../workforce/workforceRoleExecutionProfile.ts";
 import { readFrozenWorkforceSelectionReview } from "../workforce/workforceSelectionReview.ts";
 import { readWorkforceCodeDeliveryReview } from "../workforce/workforceCodeDeliveryProfile.ts";
+import { readWorkforceWorkflowHandoffReview } from "../workforce/workforceWorkflowHandoffProfile.ts";
 import { readGovernedWebTaskReview } from "../forge/governedWebTaskRuntime.ts";
 import { readForgeModelSelection, readForgeOutputTokenLimit } from "../forge/forgeModelSelection.ts";
 import { readTaijiApprovalReview, assertTaijiReviewArguments } from "../real-capabilities/taijiCapabilityReview.ts";
@@ -882,6 +883,7 @@ function normalizeWorkforceApprovalReview(source: AgentToolApprovalReview): Agen
     throw corrupt("Workforce approval review is malformed or unsafe.");
   }
   const options = normalizeWorkforceOptions(workforce.options);
+  if (options.workflowHandoff && options.workflowHandoff.goal !== workforce.goal) throw corrupt("Workflow handoff must keep the complete reviewed Workforce goal.");
   if (workforce.optionsHash !== digestText(stableStringify(options))) {
     throw corrupt("Workforce approval options do not match their authenticated review hash.");
   }
@@ -912,7 +914,8 @@ function normalizeWorkforceOptions(value: unknown): NonNullable<AgentToolApprova
   const hasRoleExecution = Object.hasOwn(source, "roleExecution");
   const hasSelectionReview = Object.hasOwn(source, "selectionReview");
   const hasCodeDelivery = Object.hasOwn(source, "codeDelivery");
-  const expectedKeys = ["selectedRoleCount", "templateSelected", ...(hasRoleExecution ? ["roleExecution"] : []), ...(hasSelectionReview ? ["selectionReview"] : []), ...(hasCodeDelivery ? ["codeDelivery"] : [])];
+  const hasWorkflowHandoff = Object.hasOwn(source, "workflowHandoff");
+  const expectedKeys = ["selectedRoleCount", "templateSelected", ...(hasRoleExecution ? ["roleExecution"] : []), ...(hasSelectionReview ? ["selectionReview"] : []), ...(hasCodeDelivery ? ["codeDelivery"] : []), ...(hasWorkflowHandoff ? ["workflowHandoff"] : [])];
   if (hasSelectionReview && !hasRoleExecution) throw corrupt("Workforce selection requires its complete execution profile.");
   if (hasCodeDelivery && !hasRoleExecution) throw corrupt("Code delivery requires its complete employee profile.");
   if (Object.keys(source).sort().join("\0") !== expectedKeys.sort().join("\0")
@@ -928,12 +931,18 @@ function normalizeWorkforceOptions(value: unknown): NonNullable<AgentToolApprova
     ...(hasRoleExecution ? { roleExecution: normalizeWorkforceRoleExecution(source.roleExecution) } : {}),
     ...(hasSelectionReview ? { selectionReview: normalizeWorkforceSelection(source.selectionReview, source.roleExecution) } : {}),
     ...(hasCodeDelivery ? { codeDelivery: normalizeWorkforceCodeDelivery(source.codeDelivery, source.roleExecution) } : {}),
+    ...(hasWorkflowHandoff ? { workflowHandoff: normalizeWorkforceWorkflowHandoff(source.workflowHandoff) } : {}),
   };
 }
 
 function normalizeWorkforceCodeDelivery(value: unknown, profile: unknown) {
   try { return readWorkforceCodeDeliveryReview(value, readFrozenWorkforceRoleExecutionProfile(profile)); }
   catch { throw corrupt("Code delivery does not match its complete reviewed contract."); }
+}
+
+function normalizeWorkforceWorkflowHandoff(value: unknown) {
+  try { return readWorkforceWorkflowHandoffReview(value); }
+  catch { throw corrupt("Workflow handoff does not match its complete reviewed contract."); }
 }
 
 function normalizeWorkforceSelection(value: unknown, profile: unknown) {
@@ -1067,6 +1076,7 @@ function verifyWorkforceReviewMatchesArguments(review: AgentToolApprovalReview, 
       ...(options.roleExecution ? { roleExecution: options.roleExecution } : {}),
       ...(options.selectionReview ? { selectionReview: options.selectionReview } : {}),
       ...(options.codeDelivery ? { codeDelivery: options.codeDelivery } : {}),
+      ...(options.workflowHandoff ? { workflowHandoff: options.workflowHandoff } : {}),
     }))) {
     throw corrupt("Workforce approval arguments do not match the complete operator review.");
   }
@@ -1080,8 +1090,9 @@ function normalizeWorkforceArgumentOptions(value: unknown) {
   const hasRoleExecution = Object.hasOwn(source, "roleExecution");
   const hasSelectionReview = Object.hasOwn(source, "selectionReview");
   const hasCodeDelivery = Object.hasOwn(source, "codeDelivery");
+  const hasWorkflowHandoff = Object.hasOwn(source, "workflowHandoff");
   const expectedKeys = ["autonomyMode", "requiredScopes", "selectedRoleCount", "templateSelected",
-    ...(hasRoleExecution ? ["roleExecution"] : []), ...(hasSelectionReview ? ["selectionReview"] : []), ...(hasCodeDelivery ? ["codeDelivery"] : [])];
+    ...(hasRoleExecution ? ["roleExecution"] : []), ...(hasSelectionReview ? ["selectionReview"] : []), ...(hasCodeDelivery ? ["codeDelivery"] : []), ...(hasWorkflowHandoff ? ["workflowHandoff"] : [])];
   if (hasSelectionReview && !hasRoleExecution) throw corrupt("Workforce selection requires its complete execution profile.");
   if (hasCodeDelivery && !hasRoleExecution) throw corrupt("Code delivery requires its complete employee profile.");
   if (Object.keys(source).sort().join("\0")
@@ -1105,6 +1116,7 @@ function normalizeWorkforceArgumentOptions(value: unknown) {
     ...(hasRoleExecution ? { roleExecution: normalizeWorkforceRoleExecution(source.roleExecution) } : {}),
     ...(hasSelectionReview ? { selectionReview: normalizeWorkforceSelection(source.selectionReview, source.roleExecution) } : {}),
     ...(hasCodeDelivery ? { codeDelivery: normalizeWorkforceCodeDelivery(source.codeDelivery, source.roleExecution) } : {}),
+    ...(hasWorkflowHandoff ? { workflowHandoff: normalizeWorkforceWorkflowHandoff(source.workflowHandoff) } : {}),
   };
 }
 

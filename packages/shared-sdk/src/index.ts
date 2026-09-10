@@ -117,6 +117,9 @@ import type {
   RevokeGovernedAgentResult,
   RunGovernedAgentRequest,
   WorkforceAgentsResult,
+  WorkforceExecutionStatusResult,
+  WorkforceWorkflowRecoveryRequest,
+  WorkforceWorkflowRecoveryResult,
   WorkforceHealthResult,
   WorkforcePlanDeleteResult,
   WorkforcePlanExportResult,
@@ -505,6 +508,8 @@ export interface GatewayClient {
   workflowRunStatus(workflowId: string): Promise<WorkflowRunInspectionResult>;
   recoverWorkflowRun(workflowId: string): Promise<WorkflowRunInspectionResult>;
   workforceHealth(): Promise<WorkforceHealthResult>;
+  workforceExecutionStatus(executionId: string): Promise<WorkforceExecutionStatusResult>;
+  recoverWorkforceWorkflow(request: WorkforceWorkflowRecoveryRequest): Promise<WorkforceWorkflowRecoveryResult>;
   workforceAgents(): Promise<WorkforceAgentsResult>;
   workforcePlan(request: WorkforcePlanRequest): Promise<WorkforcePlanResult>;
   workforcePlanSave(request: WorkforcePlanSaveRequest): Promise<WorkforcePlanSaveResult>;

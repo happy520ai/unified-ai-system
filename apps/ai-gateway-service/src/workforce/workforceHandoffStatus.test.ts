@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { createWorkforceService } from "./workforceService.js";
 
 function expectModuleOnly(state: unknown) {
-  expect(state).toMatchObject({ workflowRunHandoff: { status: "module-only", implemented: true,
+  expect(state).toMatchObject({ workflowRunHandoff: { status: "preview-only", implemented: true,
     runtimeConnected: false, enabled: false, enabledByDefault: false, lifecycleStatus: "handoff-disabled" }, drivesExecution: false });
   expect(JSON.stringify(state)).not.toContain("Workflow run handoff is not implemented.");
 }
@@ -23,7 +23,7 @@ describe("Workforce handoff capability consistency", () => {
       expectModuleOnly(read.plan.planState);
       const exported = await service.exportPlan(saved.planId, "status-test");
       expectModuleOnly(exported.taskPackage.planState);
-      expect(exported.markdown).toContain("module-only");
+      expect(exported.markdown).toContain("preview-only");
     } finally {
       await rm(root, { recursive: true, force: true });
     }

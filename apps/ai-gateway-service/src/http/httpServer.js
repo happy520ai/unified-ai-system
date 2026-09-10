@@ -1264,6 +1264,7 @@ function isAgentGovernanceRuntimePath(pathname) {
   return pathname === "/agent-exec/run"
     || pathname === "/mcp/call"
     || pathname === "/workforce/execute"
+    || pathname === "/workforce/execute/handoff/recover"
     || pathname === "/forge/orchestrate"
     || pathname === "/workflow/run"
     || pathname === "/workforce/run-local"

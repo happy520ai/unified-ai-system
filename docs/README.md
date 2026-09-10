@@ -42,6 +42,7 @@ Public documentation is grouped by task so the repo stays easy to scan.
 - [Installable Agent Skill](https://skills.sh/happy520ai/unified-ai-system/unified-ai-gateway)
 - [Readiness & observability](readiness-observability-guide.md)
 - [Task handoff loop](task-handoff-loop.md)
+- [Workforce workflow handoff and recovery](workforce-workflow-handoff.md)
 - [Forge container sandbox](forge-container-sandbox.md)
 - [Forge vision quickstart](forge-quickstart.md)
 - [Gateway-driven external runner (design only)](gateway-driven-external-runner-design.md)

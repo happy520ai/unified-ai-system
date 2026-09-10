@@ -40,6 +40,7 @@ import {
   readRegistryAuthoritySwitchMarkerSync,
 } from "../agent-governance/registryAuthoritySwitch.ts";
 import { createLocalWorkflowService } from "../workflow/localWorkflowService.js";
+import { createWorkflowRunHandoff } from "../workforce/workflowRunHandoff.js";
 import { createWorkforceService } from "../workforce/workforceService.js";
 import { createControlledExecutor } from "../workforce/workforceControlledExecutor.js";
 import { createWorkforceRoleProviderFactory } from "../workforce/workforceRoleProvider.ts";
@@ -337,6 +338,7 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
     env,
     repoRoot,
     executionDir: env.WORKFORCE_EXECUTION_DIR,
+    workflowHandoffRuntime: createWorkflowRunHandoff({ workflowService }),
     codeDeliveryProfiles: workforceCodeDeliveryProfiles,
     codeDeliveryFactory: env.AI_GATEWAY_WORKFORCE_CODE_DELIVERY_ENABLED === "true"
       ? createWorkforceCodeDeliveryFactory({ repoRoot,

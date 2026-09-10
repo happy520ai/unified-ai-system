@@ -111,8 +111,8 @@ export interface WorkflowRunInspection {
   canResume: boolean;
   resumeAction: "run-safe-remaining-stages" | "recheck-governance-only" | null;
   outcomeUnknown: boolean;
-  error: { code: string; attempt: number; at: string } | null;
-  history: Array<{ code: string; attempt: number; at: string }>;
+  error: { code: string; attempt: number; at: string; approvalId?: string } | null;
+  history: Array<{ code: string; attempt: number; at: string; approvalId?: string }>;
   reconciliation: { status: "verified" | "unresolved"; at: string } | null;
   result?: WorkflowRunResponse;
   persistence: {

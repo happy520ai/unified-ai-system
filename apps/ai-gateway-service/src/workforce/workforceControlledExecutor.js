@@ -33,6 +33,9 @@ import { CODE_DELIVERY_READINESS, codeDeliveryError, createWorkforceCodeDelivery
 import { assertWorkforceCodeDeliveryPreflight, createWorkforceCodeDeliveryEvidenceIndex, isWorkforceCodeDeliveryFactory, preflightWorkforceCodeDelivery,
   runWorkforceCodeDelivery } from "./workforceCodeDeliveryRuntime.ts";
 import { createWorkforceSelectionFeedback } from "./workforceSelectionReview.ts";
+import { createWorkforceWorkflowHandoffReview } from "./workforceWorkflowHandoffProfile.ts";
+import { isWorkforceWorkflowHandoff } from "./workforceWorkflowHandoffRuntime.ts";
+import { readWorkflowHandoffMetadata, workflowHandoffError } from "./workforceWorkflowHandoffBinding.ts";
 import { executeWorkforceDag } from "./workforceDagExecutor.ts";
 import { createAutonomyTierGovernor, TIERS as TIER_VALUES } from "./autonomyTierGovernor.js";
 import {
@@ -165,6 +168,7 @@ async function reserveGovernedRoleStep(governedExecution) {
  * @param {object} [options.forgeService] — optional isolated-root-aware Forge adapter
  * @param {readonly import("@unified-ai-system/shared-contracts").WorkforceCodeDeliveryProfileInput[]} [options.codeDeliveryProfiles] — server-owned, non-executable reviewed intents
  * @param {import("./workforceCodeDeliveryRuntime.ts").WorkforceCodeDeliveryFactory | null} [options.codeDeliveryFactory] — concrete local delivery implementation
+ * @param {ReturnType<typeof import("./workforceWorkflowHandoffRuntime.ts").createWorkforceWorkflowHandoff> | null} [options.workflowHandoffRuntime] — concrete governed workflow implementation
  * @param {object} [options.sandboxMerger] — injected sandbox merge boundary
  * @param {object} [options.tierGovernor] — injected autonomy tier governor
  * @param {object} [options.workspaceGuard] — injected workspace safety boundary
@@ -201,6 +205,7 @@ export function createControlledExecutor(options = {}) {
   }
   const forgeService = options.forgeService ?? null;
   const codeDeliveryFactory = options.codeDeliveryFactory ?? null;
+  const workflowHandoffRuntime = options.workflowHandoffRuntime ?? null;
   const configuredCodeProfiles = options.codeDeliveryProfiles ?? [];
   if (!Array.isArray(configuredCodeProfiles) || configuredCodeProfiles.length > 16) {
     throw codeDeliveryError("WORKFORCE_CODE_DELIVERY_PROFILE_INVALID", 503, "At most sixteen server code delivery profiles may be configured.");
@@ -367,7 +372,15 @@ export function createControlledExecutor(options = {}) {
       }
       plan = { ...plan, selectedRoles: selected, taskBreakdown: tasks };
     }
+    let workflowHandoff;
+    if (Object.hasOwn(input, "workflowHandoff")) {
+      if (!isWorkforceWorkflowHandoff(workflowHandoffRuntime)) throw workflowHandoffError("WORKFORCE_WORKFLOW_UNAVAILABLE", "The existing local workflow must be connected before reviewing a handoff.", 503);
+      // The legacy planner lists display names; execution and handoff bind the actual task role IDs.
+      plan = { ...plan, selectedRoles: plan.taskBreakdown.map(task => task.roleId) };
+      workflowHandoff = createWorkforceWorkflowHandoffReview({ input, plan, outputRootHash: workflowHandoffRuntime.getInfo().outputRootHash });
+    }
     const descriptor = createWorkforceExecutionDescriptor({ input, plan, autonomyMode,
+      ...(workflowHandoff ? { workflowHandoff } : {}),
       ...(selectedProfile ? { roleExecution: selectedProfile } : {}),
       ...(selection ? { selectionReview: selection.decision } : {}),
       ...(codeProfile ? { codeDelivery: createWorkforceCodeDeliveryReview({ profile: codeProfile,
@@ -385,6 +398,8 @@ export function createControlledExecutor(options = {}) {
         executionEnabled,
         dryRun,
         roleExecution: roleExecutionProfile,
+        workflowHandoff: isWorkforceWorkflowHandoff(workflowHandoffRuntime) ? workflowHandoffRuntime.getInfo()
+          : { implemented: true, runtimeConnected: false, enabledByDefault: false },
         ...(roleSelection ? { selection: { catalogHash: roleSelection.catalogHash, executionMode: roleSelection.executionMode } } : {}),
         maxConcurrentAgents: maxConcurrent,
         timeoutMs,
@@ -515,6 +530,13 @@ export function createControlledExecutor(options = {}) {
         return createBlockedResult(plan, planId, "execution_identity_required",
           "Real workforce execution requires an authenticated identity.", { approval: descriptor });
       }
+      if (descriptor.workflowHandoff && (!governedExecution || !executionOptions.workflowGovernance
+        || executionOptions.identity?.tenantId !== tenantId || executionOptions.identity?.userId !== userId
+        || governedExecution.context.tenantId !== tenantId || governedExecution.context.userId !== userId)) {
+        throw workflowHandoffError("WORKFORCE_WORKFLOW_GOVERNANCE_REQUIRED", "Workflow handoff requires the authenticated Workforce and Agent execution boundary.", 403);
+      }
+      const workflowMetadata = descriptor.workflowHandoff ? readWorkflowHandoffMetadata({ version: 1,
+        agentId: governedExecution.context.agentId, planId, planDigest: descriptor.planDigest, review: descriptor.workflowHandoff }) : null;
       if (roleProviderFactory && (!governedExecution || !executionOptions.requestExecution || !executionOptions.identity
         || executionOptions.identity.tenantId !== tenantId || executionOptions.identity.userId !== userId
         || governedExecution.context.tenantId !== tenantId || governedExecution.context.userId !== userId)) {
@@ -610,6 +632,7 @@ export function createControlledExecutor(options = {}) {
         roleCount: (plan.selectedRoles ?? []).length,
         ...(agentRunId ? { agentRunId, profileHash: roleExecutionProfile.profileHash } : {}),
         ...(descriptor.codeDelivery ? { codeDelivery: true } : {}),
+        ...(workflowMetadata ? { workflowHandoff: workflowMetadata } : {}),
         startedAt: startedAt.toISOString(),
       });
       await lifecycle.start(executionScopeId);
@@ -637,7 +660,7 @@ export function createControlledExecutor(options = {}) {
       const context = {
         plan,
         priorOutputs: {},
-        ...(descriptor.codeDelivery ? { executionId: executionScopeId, agentRunId } : {}),
+        ...(descriptor.codeDelivery || workflowMetadata ? { executionId: executionScopeId, agentRunId } : {}),
         ...(governedExecution ? { governedAgentId: governedExecution.context.agentId } : {}),
       };
       let executionGraph = null;
@@ -647,6 +670,7 @@ export function createControlledExecutor(options = {}) {
       let codeDeliveryResult = null;
       let codeFailure = null;
       let codeDeliveryEvidence = null;
+      let workflowHandoffOutcome = null;
 
       try {
         let _timeoutTimer;
@@ -686,7 +710,7 @@ export function createControlledExecutor(options = {}) {
               planId: executionScopeId,
               agentId: governedExecution?.context.agentId ?? roleId,
               role: roleId,
-              ...(descriptor.codeDelivery ? { taskId: task.queueTaskId } : {}),
+              ...(descriptor.codeDelivery || workflowMetadata ? { taskId: task.queueTaskId } : {}),
               goal: plan.goal,
               context: {
                 publicPlanId: planId,
@@ -725,6 +749,19 @@ export function createControlledExecutor(options = {}) {
                   forgeExecuted = true;
                 } catch (error) { codeFailure = error.details ?? { recoveryRequired: true, projectFileWrites: null }; throw error; }
               }
+              if (workflowMetadata?.review.roleId === roleId) {
+                try {
+                  workflowHandoffOutcome = await workflowHandoffRuntime.run({ executionId: executionScopeId, metadata: workflowMetadata,
+                    identity: executionOptions.identity, taskId: task.queueTaskId, agentRunId, taskFence: roleContext.externalEffectFence,
+                    agentFence: governedExecution.executionLease, governance: executionOptions.workflowGovernance, signal: roleContext.signal });
+                  result = { ...result, workflowHandoff: { workflowId: workflowHandoffOutcome.workflowId, taskId: task.queueTaskId,
+                    roleId, status: "completed", artifactVerified: true } };
+                } catch (error) {
+                  try { workflowHandoffOutcome = await workflowHandoffRuntime.inspect({ executionId: executionScopeId, metadata: workflowMetadata, identity: executionOptions.identity }); }
+                  catch { workflowHandoffOutcome = { status: "unknown", originVerified: false, artifactVerified: null }; }
+                  throw error;
+                }
+              }
               if (selectionReview && result.workforceContribution) {
                 result = { ...result, selectionFeedback: createWorkforceSelectionFeedback({ selection: selectionReview,
                   profile: roleExecutionProfile, executionId: executionScopeId, roleId,
@@ -733,7 +770,7 @@ export function createControlledExecutor(options = {}) {
               }
               if (capture) {
                 capture.setOutput({ summary: summarizeEvidenceOutput(result, logRedactor),
-                  ...(result.selectionFeedback ? { deliverables: [result.selectionFeedback] } : {}),
+                  ...((result.selectionFeedback || result.workflowHandoff) ? { deliverables: [result.selectionFeedback, result.workflowHandoff].filter(Boolean) } : {}),
                   ...(result.codeDelivery ? { codeDelivery: result.codeDelivery } : {}),
                 });
                 await capture.finish();
@@ -766,7 +803,9 @@ export function createControlledExecutor(options = {}) {
                     profile: roleExecutionProfile, executionId: executionScopeId, roleId, employeeId: binding.employeeId,
                     taskId: task.queueTaskId, receipt: error.workforceReceipt }) : null;
                   capture.setOutput({ summary: `failed: ${logRedactor.redactString?.(error?.message) ?? "role execution failed"}`,
-                    ...(feedback ? { deliverables: [feedback] } : {}),
+                    ...((feedback || workflowHandoffOutcome) ? { deliverables: [feedback, workflowHandoffOutcome ? {
+                      workflowId: workflowHandoffOutcome.workflowId ?? null, taskId: task.queueTaskId,
+                      status: workflowHandoffOutcome.status, approvalId: workflowHandoffOutcome.error?.approvalId ?? null } : null].filter(Boolean) } : {}),
                   });
                   await capture.finish();
                 } catch {
@@ -938,6 +977,7 @@ export function createControlledExecutor(options = {}) {
         totalRoles: tasks.length,
         roleResults,
         ...(selectionReview ? { selectionFeedback } : {}),
+        ...(workflowMetadata ? { workflowHandoff: workflowHandoffOutcome } : {}),
         ...(descriptor.codeDelivery ? { codeDelivery: codeDeliveryResult,
           recoveryRequired: !worktreeCleanedUp, ...(codeFailure ? { codeDeliveryFailure: codeFailure } : {}) } : {}),
         ...(roleProviderRun ? { agentRunId, roleExecution: {
@@ -972,6 +1012,8 @@ export function createControlledExecutor(options = {}) {
           projectFileWrites: descriptor.codeDelivery ? codeDeliveryResult ? true
             : codeFailure && Object.hasOwn(codeFailure, "projectFileWrites") ? codeFailure.projectFileWrites : false : forgeExecuted,
           projectWritesIsolated: descriptor.codeDelivery ? codeDeliveryResult || codeFailure?.projectWriteAttempted === true ? true : null : forgeExecuted ? true : null,
+          ...(workflowMetadata ? { workflowArtifactWrite: workflowHandoffOutcome?.artifactVerified === true ? true
+            : workflowHandoffOutcome?.outcomeUnknown || !workflowHandoffOutcome?.originVerified ? null : false } : {}),
           deployExecuted: false,
           releaseExecuted: false,
         },
@@ -1095,6 +1137,10 @@ export function createControlledExecutor(options = {}) {
       const snapshot = await lifecycle.getStatus(executionId);
       assertExecutionAccess(snapshot, identity);
       const { tenantFingerprint: _tenant, subjectFingerprint: _subject, ...safe } = snapshot;
+      if (snapshot.workflowHandoff) {
+        if (!isWorkforceWorkflowHandoff(workflowHandoffRuntime)) throw workflowHandoffError("WORKFORCE_WORKFLOW_UNAVAILABLE", "The workflow journal is unavailable.", 503);
+        safe.workflowHandoff = await workflowHandoffRuntime.inspect({ executionId, metadata: snapshot.workflowHandoff, identity });
+      }
       if (snapshot.codeDelivery) {
         const index = snapshot.codeDelivery.evidence;
         let codeDelivery = null;
@@ -1112,6 +1158,15 @@ export function createControlledExecutor(options = {}) {
           recoveryRequired: snapshot.codeDelivery.recoveryRequired === true };
       }
       return safe;
+    },
+
+    async recoverWorkflowHandoff(input, identity, governance, signal) {
+      const snapshot = await lifecycle.getStatus(input.executionId);
+      assertExecutionAccess(snapshot, identity);
+      if (["running", "pending", "paused"].includes(snapshot.status)) throw workflowHandoffError("WORKFORCE_WORKFLOW_PARENT_ACTIVE", "The original Workforce execution has not reached a terminal state.");
+      if (!snapshot.workflowHandoff || !isWorkforceWorkflowHandoff(workflowHandoffRuntime)) throw workflowHandoffError("WORKFORCE_WORKFLOW_UNAVAILABLE", "This execution has no recorded workflow handoff.");
+      const result = await workflowHandoffRuntime.recover({ ...input, identity, governance, signal, metadata: snapshot.workflowHandoff });
+      return { ...result, parentExecutionStatus: snapshot.status, parentExecutionResumed: false, employeeRolesRerun: false };
     },
 
     /**

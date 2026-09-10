@@ -20,6 +20,7 @@ const ACTIVE_EXECUTION_ROUTES = new Set([
   "POST /workforce/execute/revoke",
   "POST /workforce/execute/status",
   "POST /workforce/execute/cancel",
+  "POST /workforce/execute/handoff/recover",
 ]);
 
 export async function dispatchWorkforceExecutionRoutes(context) {
@@ -254,7 +255,7 @@ export function createWorkforceRoutes(application, helpers) {
       const userId = requireExecutionUserId(req);
       const tenantId = requireExecutionTenantId(req);
       const input = { ...body, userId, tenantId };
-      if (Object.hasOwn(input, "codeDelivery")) {
+      if (Object.hasOwn(input, "codeDelivery") || Object.hasOwn(input, "workflowHandoff")) {
         if (typeof workforceExecutor?.assertExecutionPrerequisites !== "function") rejectUnimplementedCodeDelivery();
         await workforceExecutor.assertExecutionPrerequisites(input);
       }
@@ -272,6 +273,7 @@ export function createWorkforceRoutes(application, helpers) {
               identity: req.enterpriseIdentity,
               codeDeliveryPreflight: governedExecution.codeDeliveryPreflight,
               codeDeliveryToolProxy: agentGovernance.toolProxy,
+              workflowGovernance: agentGovernance,
               agentGovernance: {
                 context: governedExecution.context,
                 policy: governedExecution.policy,
@@ -311,6 +313,9 @@ export function createWorkforceRoutes(application, helpers) {
           }
           if (completedResult?.codeDelivery && JSON.stringify(metered.result?.codeDelivery) !== JSON.stringify(completedResult.codeDelivery)) {
             throw workforceGovernanceError("WORKFORCE_CODE_RESULT_UNAVAILABLE", "The complete code artifact could not be returned after terminal governance.", 503);
+          }
+          if (completedResult?.workflowHandoff && JSON.stringify(metered.result?.workflowHandoff) !== JSON.stringify(completedResult.workflowHandoff)) {
+            throw workforceGovernanceError("WORKFORCE_WORKFLOW_RESULT_UNAVAILABLE", "The complete workflow handoff receipt could not be returned after governance.", 503);
           }
           output = metered.result;
         }
@@ -563,6 +568,19 @@ export function createWorkforceRoutes(application, helpers) {
     }
   }
 
+  async function handleWorkforceHandoffRecover(req, res, { startedAt, body }) {
+    if (!body || Object.keys(body).sort().join() !== "executionId,taskId,workflowId"
+      || ![body.executionId, body.taskId, body.workflowId].every(value => typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,511}$/u.test(value))) {
+      throw workforceGovernanceError("WORKFORCE_WORKFLOW_RECOVERY_INVALID", "Recovery requires the exact executionId, taskId and workflowId.", 400);
+    }
+    if (!agentGovernance?.service || !agentGovernance?.toolProxy) throw workforceGovernanceError("WORKFORCE_WORKFLOW_GOVERNANCE_REQUIRED", "Agent Governance is required for handoff recovery.", 503);
+    try {
+      const identity = { ...requireExecutionIdentity(req), permissions: req.enterpriseIdentity?.permissions ?? [] };
+      const result = await workforceExecutor.recoverWorkflowHandoff(body, identity, agentGovernance, requestExecution?.signal);
+      writeJson(res, 200, createOkEnvelope(result, { startedAt }));
+    } catch (error) { writeErrorResponse({ response: res, error, startedAt, fallbackCode: "workflow_handoff_recovery_failed" }); }
+  }
+
   // ── POST /workforce/plans/save ──
   async function handleWorkforcePlansSave(req, res, { startedAt, body }) {
     if (!body) body = await readCapabilityJson({ request: req, response: res, startedAt, code: "plans_save_bad" });
@@ -607,6 +625,7 @@ export function createWorkforceRoutes(application, helpers) {
     ["POST /workforce/execute/revoke", { handler: handleWorkforceExecuteRevoke, public: false, permission: "workflow:approve" }],
     ["POST /workforce/execute/status", { handler: handleWorkforceExecuteStatus, public: false, permission: "dashboard:read" }],
     ["POST /workforce/execute/cancel", { handler: handleWorkforceExecuteCancel, public: false, permission: "workflow:run" }],
+    ["POST /workforce/execute/handoff/recover", { handler: handleWorkforceHandoffRecover, public: false, permission: "workflow:run" }],
     ["POST /workforce/plans/save", { handler: handleWorkforcePlansSave, public: false, permission: "workflow:run" }],
     ["GET /workforce/plans", { handler: handleWorkforcePlans, public: false, permission: "dashboard:read" }],
   ]);
@@ -690,6 +709,7 @@ function createSafeWorkforceGovernanceParams(input, descriptor) {
       ...(descriptor.roleExecution ? { roleExecution: descriptor.roleExecution } : {}),
       ...(descriptor.selectionReview ? { selectionReview: descriptor.selectionReview } : {}),
       ...(descriptor.codeDelivery ? { codeDelivery: descriptor.codeDelivery } : {}),
+      ...(descriptor.workflowHandoff ? { workflowHandoff: descriptor.workflowHandoff } : {}),
     }),
   });
 }
@@ -715,6 +735,7 @@ function createWorkforceApprovalReview(input, descriptor, params) {
     ...(params.options.roleExecution ? { roleExecution: params.options.roleExecution } : {}),
     ...(params.options.selectionReview ? { selectionReview: params.options.selectionReview } : {}),
     ...(params.options.codeDelivery ? { codeDelivery: params.options.codeDelivery } : {}),
+    ...(params.options.workflowHandoff ? { workflowHandoff: params.options.workflowHandoff } : {}),
   });
   return Object.freeze({
     schemaVersion: 1,
@@ -762,6 +783,8 @@ function applyApprovedWorkforceInput(input, approvedParams) {
     planId: approvedParams.planId,
     autonomyMode: approvedParams.options.autonomyMode,
     ...(approvedParams.options.codeDelivery ? { codeDelivery: { profileId: approvedParams.options.codeDelivery.profile.profileId } } : {}),
+    ...(approvedParams.options.workflowHandoff ? { workflowHandoff: { roleId: approvedParams.options.workflowHandoff.roleId,
+      query: approvedParams.options.workflowHandoff.query, topK: approvedParams.options.workflowHandoff.topK, sourceIds: approvedParams.options.workflowHandoff.sourceIds } } : {}),
   };
 }
 

@@ -4,12 +4,16 @@ import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequestId, throwIfExecutionAborted } from "@unified-ai-system/shared-utils";
 import { DurableWorkflowRunStore, executeDurableWorkflow, validateWorkflowId, workflowStateError, workflowTargetFingerprint } from "./durableWorkflowRunStore.ts";
+import { createWorkflowHandoffContexts } from "./workflowHandoffContext.ts";
+import { workflowHandoffHash } from "../workforce/workforceWorkflowHandoffBinding.ts";
 
 const PHASE = "phase-30a-local-workflow-automation";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../..");
 const DEFAULT_OUTPUT_DIR = resolve(repoRoot, ".data", "workflows");
 const DEFAULT_TOP_K = 3;
+const localWorkflowServices = new WeakSet();
+export function isLocalWorkflowService(value) { return Boolean(value && typeof value === "object" && localWorkflowServices.has(value)); }
 
 const ACTIONS = [
   {
@@ -41,6 +45,9 @@ export function createLocalWorkflowService({ knowledgeService, env = {}, outputD
 
   const managedOutputDir = resolve(outputDir ?? env.WORKFLOW_OUTPUT_DIR ?? DEFAULT_OUTPUT_DIR);
   const runStore = new DurableWorkflowRunStore(managedOutputDir, workflowStateOptions);
+  const outputRootHash = workflowHandoffHash(managedOutputDir);
+  const handoffContexts = createWorkflowHandoffContexts({ outputRootHash,
+    inspect: (workflowId, identity) => runStore.inspect(workflowId, identity) });
 
   function getHealth() {
     return {
@@ -98,13 +105,19 @@ export function createLocalWorkflowService({ knowledgeService, env = {}, outputD
     }
     const tenantId = requireTenantId(requestContext);
     const workflowPlan = plan(request);
+    if (["workforceHandoff", "workflowHandoffContext"].some(key => Object.hasOwn(request, key))) {
+      throw workflowStateError("HANDOFF_CONTEXT_INVALID", "Workflow handoff authority cannot come from request JSON.", 403);
+    }
+    const normalizedRequest = { goal: workflowPlan.goal, query: workflowPlan.query, topK: workflowPlan.topK,
+      sourceIds: workflowPlan.sourceIds ?? [], artifactName: createSafeArtifactName(request.artifactName ?? `${workflowPlan.workflowId}.md`) };
+    const handoff = requestContext.workflowHandoffContext === undefined ? { origin: null, callbacks }
+      : await handoffContexts.consume(requestContext.workflowHandoffContext,
+        { workflowId: workflowPlan.workflowId, ...normalizedRequest }, requestContext, callbacks);
+    callbacks = handoff.callbacks;
     const paths = { rootDir: managedOutputDir, outputDir: resolve(managedOutputDir, tenantPartition(tenantId)) };
     return executeDurableWorkflow({
       store: runStore, workflowId: workflowPlan.workflowId, scope: requestContext, signal: requestContext.signal,
-      request: {
-        goal: workflowPlan.goal, query: workflowPlan.query, topK: workflowPlan.topK,
-        sourceIds: workflowPlan.sourceIds ?? [], artifactName: createSafeArtifactName(request.artifactName ?? `${workflowPlan.workflowId}.md`),
-      },
+      request: { ...normalizedRequest, ...(handoff.origin ? { workforceHandoff: handoff.origin } : {}) },
       prepare: async (claim) => {
         const startedAt = Date.now();
         const retrieve = await knowledgeService.retrieve({
@@ -181,7 +194,7 @@ export function createLocalWorkflowService({ knowledgeService, env = {}, outputD
     }));
   }
 
-  return {
+  const service = {
     getHealth,
     listActions,
     plan,
@@ -189,9 +202,17 @@ export function createLocalWorkflowService({ knowledgeService, env = {}, outputD
     getRun,
     listRuns,
     recoverRun,
+    getWorkforceHandoffInfo: () => ({ mode: "single-host-sqlite", outputRootHash }),
+    verifyWorkforceHandoffArtifact: (workflowId, requestContext = {}) => runStore.verifyCompletedArtifact(workflowId, requestContext,
+      (draft, fileName) => reconcileManagedArtifact({ rootDir: managedOutputDir,
+        outputDir: resolve(managedOutputDir, tenantPartition(requireTenantId(requestContext))), draft, fileName, cleanupStaging: false })),
+    createWorkforceHandoffContext: (input) => handoffContexts.initial(input),
+    createWorkforceHandoffRecoveryContext: (input) => handoffContexts.recovery(input),
     markGovernanceUncertain: (workflowId, requestContext) => runStore.markGovernanceUncertain(workflowId, requestContext),
     confirmGovernanceComplete: (workflowId, requestContext, deliveredResult) => runStore.confirmGovernanceComplete(workflowId, requestContext, deliveredResult),
   };
+  localWorkflowServices.add(service);
+  return service;
 }
 
 function normalizeGoal(value) {

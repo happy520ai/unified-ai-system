@@ -1,4 +1,52 @@
 import type { ContractMetadata, RequestContext, ResultEnvelope } from "./common.js";
+import type { WorkflowRunResponse, WorkflowRunStatus } from "./workflow.js";
+
+export type WorkforceExecutionStatus = "pending" | "running" | "paused" | "completed" | "failed" | "cancelled" | "force_stopped";
+export interface WorkforceWorkflowRecoveryRequest { executionId: string; taskId: string; workflowId: string }
+/** Joins the original parent task to its existing workflow journal and artifact verification. */
+export interface WorkforceWorkflowHandoffInspection {
+  workflowId: string;
+  taskId: string | null;
+  roleId: string;
+  originalPlanId: string;
+  status: WorkflowRunStatus | "not_observed";
+  originVerified: boolean;
+  parentExecutionId?: string;
+  artifactVerified?: boolean | null;
+  artifactError?: string | null;
+  canResume: boolean;
+  outcomeUnknown?: boolean;
+  error?: { code: string; approvalId?: string } | null;
+  resumeAction?: "run-safe-remaining-stages" | "recheck-governance-only" | null;
+  result: WorkflowRunResponse | null;
+}
+export interface WorkforceExecutionStatusResponse {
+  /** Historical lifecycle field name; this value is the requested executionId. */
+  planId: string;
+  status: WorkforceExecutionStatus;
+  workflowHandoff?: WorkforceWorkflowHandoffInspection | null;
+}
+export type WorkforceWorkflowRecoveryResponse = WorkforceWorkflowHandoffInspection & {
+  status: "completed"; taskId: string; parentExecutionId: string; parentExecutionStatus: WorkforceExecutionStatus;
+  originVerified: true; artifactVerified: true; result: WorkflowRunResponse;
+  parentExecutionResumed: false; employeeRolesRerun: false;
+};
+export type WorkforceExecutionStatusResult = ResultEnvelope<WorkforceExecutionStatusResponse>;
+export type WorkforceWorkflowRecoveryResult = ResultEnvelope<WorkforceWorkflowRecoveryResponse>;
+
+/** Frozen intent for the existing managed local report workflow; not execution authority. */
+export interface WorkforceWorkflowHandoffReview {
+  readonly version: 1;
+  readonly kind: "local-knowledge-report";
+  readonly roleId: string;
+  readonly goal: string;
+  readonly query: string;
+  readonly topK: number;
+  readonly sourceIds: readonly string[];
+  /** Server-owned output configuration identity, encoded as lowercase SHA-256 hex. */
+  readonly outputRootHash: string;
+  readonly reviewHash: string;
+}
 
 /** Server-configured, exact-file code delivery intent. This DTO grants no execution authority. */
 export interface WorkforceCodeDeliveryProfileInput {

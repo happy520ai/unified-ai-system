@@ -5,6 +5,7 @@ import type {
   WorkforceClaimPostgresPool as PostgresPool,
 } from "./postgresTaskClaimLease.ts";
 import { createLogRedactor } from "./logRedactor.js";
+import { readWorkflowHandoffMetadata } from "./workforceWorkflowHandoffBinding.ts";
 
 export const POSTGRES_EXECUTION_STATUS = Object.freeze({
   PENDING: "pending",
@@ -596,6 +597,7 @@ function normalizeOptions(options: PostgresExecutionLifecycleOptions) {
 
 function encodeState(state: LifecycleState, maxStateBytes: number) {
   const sanitized = redactor.redactObject(state);
+  if (state.metadata?.workflowHandoff) (sanitized as LifecycleState).metadata.workflowHandoff = readWorkflowHandoffMetadata(state.metadata.workflowHandoff);
   let json: string;
   try {
     json = JSON.stringify(sanitized);
@@ -673,13 +675,16 @@ function statusProjection(executionId: string, state: LifecycleState, version: n
     transitions: state.transitions,
     tenantFingerprint: state.metadata?.tenantFingerprint ?? null,
     subjectFingerprint: state.metadata?.subjectFingerprint ?? null,
+    ...(state.metadata?.workflowHandoff ? { workflowHandoff: state.metadata.workflowHandoff } : {}),
     version,
   };
 }
 
 function sanitizeMetadata(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-  return redactor.redactObject(value) as Record<string, unknown>;
+  const metadata = redactor.redactObject(value) as Record<string, unknown>;
+  if ((value as Record<string, unknown>).workflowHandoff) metadata.workflowHandoff = readWorkflowHandoffMetadata((value as Record<string, unknown>).workflowHandoff);
+  return metadata;
 }
 
 function executionIdentity(executionId: string) {

@@ -482,6 +482,7 @@ export function resolvePermission(method, pathname) {
     normalizedPath === "/workforce/plan" ||
     normalizedPath === "/workforce/execute" ||
     normalizedPath === "/workforce/execute/cancel" ||
+    normalizedPath === "/workforce/execute/handoff/recover" ||
     normalizedPath === "/workforce/run-local" ||
     normalizedPath === "/real-capabilities/activate-five" ||
     normalizedPath === "/workforce/plans/save" ||

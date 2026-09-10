@@ -518,6 +518,24 @@ function requireWorkflowRunId(value) {
   return value;
 }
 
+function requireWorkforceRecordId(value) {
+  if (typeof value !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,511}$/u.test(value)) {
+    throw createGatewayProtocolError("Workforce record ID must be a bounded portable identifier.");
+  }
+  return value;
+}
+
+function workforceRecoveryRequest(value) {
+  const keys = ["executionId", "taskId", "workflowId"];
+  if (!value || typeof value !== "object" || Array.isArray(value) || ![Object.prototype, null].includes(Object.getPrototypeOf(value))
+    || Reflect.ownKeys(value).length !== keys.length) throw createGatewayProtocolError("Recovery requires only the three original record IDs.");
+  return Object.fromEntries(keys.map(key => {
+    const field = Object.getOwnPropertyDescriptor(value, key);
+    if (!field || !("value" in field) || !field.enumerable) throw createGatewayProtocolError("Recovery IDs must be plain data.");
+    return [key, requireWorkforceRecordId(field.value)];
+  }));
+}
+
 export function createGatewayClient(options = {}) {
   const baseUrl = normalizeBaseUrl(options.baseUrl);
   const headers = options.headers ?? {};
@@ -1154,6 +1172,12 @@ export function createGatewayClient(options = {}) {
         path: `/workflow/runs/${encodeURIComponent(requireWorkflowRunId(workflowId))}/recover`,
         method: "POST", body: {}, redirect: "error",
       });
+    },
+    workforceExecutionStatus(executionId) {
+      return operatorPost("/workforce/execute/status", { executionId: requireWorkforceRecordId(executionId) });
+    },
+    recoverWorkforceWorkflow(request) {
+      return operatorPost("/workforce/execute/handoff/recover", workforceRecoveryRequest(request));
     },
     workforceHealth() {
       return requestJson({

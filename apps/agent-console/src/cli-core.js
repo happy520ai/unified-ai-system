@@ -16,8 +16,10 @@ import {
 import { fileURLToPath } from "node:url";
 import { readVerificationSource, readWindowsVerificationHistory } from "./verificationHistory.ts";
 import { projectWorkforceCodeDeliveryReview, formatWorkforceCodeDeliveryReview } from "./workforceCodeDeliveryReview.ts";
+import { projectWorkforceWorkflowHandoffReview, formatWorkforceWorkflowHandoffReview, assertWorkforceWorkflowOptionsHash } from "./workforceWorkflowHandoffReview.ts";
 import { runOperatorCommand, validateOperatorOptions, projectForgeApprovalReview, projectTaijiApprovalReview } from "./operatorCommands.ts";
 import { runContextCodecCommand, validateContextCodecOptions } from "./contextCodecCommands.ts";
+import { runWorkforceCommands, validateWorkforceOptions } from "./workforceCommands.ts";
 
 import {
   createGatewayChatRequest,
@@ -62,6 +64,7 @@ const COMMANDS = new Set([
   "version",
   "verification",
   "workflow",
+  "workforce",
 ]);
 const WORKFLOW_OPERATIONS = new Set(["run", "list", "status", "recover"]);
 const WORKFLOW_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$/u;
@@ -837,6 +840,8 @@ export async function runCli(
         return await runChat(options, output, runtime.stdin ?? process.stdin);
       case "codec":
         return await runContextCodecCommand(options, output);
+      case "workforce":
+        return await runWorkforceCommands(options, output);
       case "clients":
         return await runClients(options, output);
       case "clients-onboarding":
@@ -1359,11 +1364,20 @@ function formatSafeReview(value) {
   if (value.effectType === "forge:orchestrate" && value.reviewable === true) {
     return `Forge goal: ${safeTerminalBlock(value.forge.goal, 65536)}\nGoal digest: ${value.forge.goalDigest}\nPolicy: ${safeTerminalText(value.policyHash, 160)}\nOptions hash: ${value.forge.optionsHash}\n${JSON.stringify(value.forge.options, null, 2)}`;
   }
+  if (value.effectType === "workforce:execute" && value.reviewable === true
+    && value.workforce?.options?.workflowHandoff && !value.workforce.options.roleExecution) {
+    const workforce = value.workforce;
+    return [`Workforce goal: ${safeTerminalBlock(workforce.goal, 4_000)}`,
+      `Plan: ${safeTerminalText(workforce.planId, 160)}; digest: ${safeTerminalText(workforce.planDigest, 160)}; policy: ${safeTerminalText(value.policyHash, 160)}`,
+      `Options hash: ${workforce.optionsHash}`,
+      ...formatWorkforceWorkflowHandoffReview(workforce.options.workflowHandoff)].join("\n");
+  }
   if (value.effectType === "workforce:execute" && value.reviewable === true && value.workforce?.options?.roleExecution) {
     const workforce = value.workforce;
     const profile = workforce.options.roleExecution;
     const selection = workforce.options.selectionReview;
     const codeDelivery = workforce.options.codeDelivery;
+    const workflowHandoff = workforce.options.workflowHandoff;
     const text = (item) => safeTerminalText(item, 256);
     return [
       `Workforce goal: ${safeTerminalBlock(workforce.goal, 4_000)}`,
@@ -1371,6 +1385,7 @@ function formatSafeReview(value) {
       `Employee model execution: required; profile: ${text(profile.profileId)}; hash: ${text(profile.profileHash)}`,
       `Request dispatch hard limit: ${profile.maxTotalRequests}; Concurrent roles: ${profile.maxConcurrentRoles}`,
       ...(codeDelivery === undefined ? [] : formatWorkforceCodeDeliveryReview(codeDelivery)),
+      ...(workflowHandoff === undefined ? [] : [`Options hash: ${workforce.optionsHash}`, ...formatWorkforceWorkflowHandoffReview(workflowHandoff)]),
       ...(selection === undefined ? [] : [
         `Deterministic selection rules: v${selection.version}; catalog/configuration hash: ${text(selection.catalogHash)}`,
         `Selection hash: ${text(selection.selectionHash)}; task type: ${text(selection.taskType)}; execution mode: ${text(selection.executionMode)}`,
@@ -1432,6 +1447,16 @@ function projectAgentApproval(value) {
     const profile = value.review?.workforce?.options?.roleExecution;
     const selectionSource = value.review?.workforce?.options?.selectionReview;
     const codeSource = value.review?.workforce?.options?.codeDelivery;
+    const handoffSource = value.review?.workforce?.options?.workflowHandoff;
+    let workflowHandoff;
+    if (handoffSource !== undefined) {
+      if (value.review.effectType !== "workforce:execute" || value.review.reviewable !== true) {
+        throw new Error("invalid or incomplete Workforce workflow handoff review");
+      }
+      workflowHandoff = projectWorkforceWorkflowHandoffReview(handoffSource);
+      if (workflowHandoff.goal !== value.review.workforce.goal) throw new Error("invalid Workforce workflow handoff goal");
+      assertWorkforceWorkflowOptionsHash(value.review.workforce.options, value.review.workforce.optionsHash);
+    }
     let codeDelivery;
     if (codeSource !== undefined) {
       if (value.review.effectType !== "workforce:execute" || value.review.reviewable !== true || profile === undefined) {
@@ -1473,6 +1498,10 @@ function projectAgentApproval(value) {
     // Restore only the exact validated decision, including numeric token limits.
     if (selection !== undefined) output.review.workforce.options.selectionReview = selection;
     if (codeDelivery !== undefined) output.review.workforce.options.codeDelivery = codeDelivery;
+    if (workflowHandoff !== undefined) {
+      output.review.workforce.options.workflowHandoff = workflowHandoff;
+      assertWorkforceWorkflowOptionsHash(output.review.workforce.options, output.review.workforce.optionsHash);
+    }
   }
   return Object.freeze(output);
 }
@@ -3943,6 +3972,7 @@ Commands:
   routing            modes, preview (local simulation; no model call)
   forge              status, runs, polish, quality, memory, recall, orchestrate, taiji, workforce
   taiji              status, run <id>, evaluate, activate, execute, revoke, repair, reweight, prune
+  workforce          status <execution-id>, handoff-recover --input recovery.json --yes
   chat [prompt]    Send one chat request to a running gateway
   spend            Show per-key token spend and budget status
   doctor           Check the local toolchain and gateway connection
@@ -3960,7 +3990,7 @@ Options:
   --allow-real-provider       Authorize one chat command to use a real provider
   --admin-key <uai-…>         Scoped gateway key for authenticated operator commands
   --manifest <json>           Bounded control-center desired-state manifest
-  --input <json>              Bounded JSON payload for knowledge/routing/Forge/Taiji
+  --input <json>              Bounded JSON payload for knowledge/routing/Forge/Taiji/Workforce
   --mode <mode>               keyword/vector retrieval or answer-path/quality-cost preview
   --source-id <id>            Knowledge retrieval source filter (repeatable)
   --passes <1..10>            Forge polish pass limit
@@ -4065,6 +4095,7 @@ Safety:
   Provider clearing removes only the runtime override; environment keys, upstream keys, in-flight requests and other processes remain separate.
   These explicit workflow/provider commands use the supplied ID as intent and add no --yes requirement.
   knowledge load and forge polish/memory/orchestrate preview locally until --yes is supplied.
+  workforce handoff-recover previews the three original IDs until --yes; recovery may write the approved report but never reruns employees or resumes the parent.
   codec preview --input case.json performs local encoding only. codec compare --input case.json --yes makes at most two exact-model requests.
   Codec compares a supplied expected JSON answer and reported usage; fake observations remain synthetic, and unknown outcomes are never retried automatically.
   Forge model calls select local-fake-provider/local-fake-model by default; non-fake selection requires --allow-real-provider.
@@ -4109,7 +4140,7 @@ function validateOptions(options) {
   }
 
   if (
-    !["chat", "demo", "enhance", "clients", "clients-onboarding", "control-center", "agents", "forge", "workflow", "providers", "knowledge", "routing", "taiji", "codec"].includes(options.command)
+    !["chat", "demo", "enhance", "clients", "clients-onboarding", "control-center", "agents", "forge", "workflow", "workforce", "providers", "knowledge", "routing", "taiji", "codec"].includes(options.command)
     && (options.prompt !== null || options.positionals.length > 0)
   ) {
     throw new CliUsageError(
@@ -4145,7 +4176,7 @@ function validateOptions(options) {
   if (options.command !== "control-center" && options.controlCenterManifestFile !== null) {
     throw new CliUsageError("--manifest is only valid with control-center configure.");
   }
-  const operatorCommand = ["knowledge", "routing", "taiji", "forge", "codec"].includes(options.command);
+  const operatorCommand = ["knowledge", "routing", "taiji", "forge", "codec", "workforce"].includes(options.command);
   if (!operatorCommand && (options.operatorInput !== null || options.operatorMode !== null || options.operatorSources.length || options.operatorPasses !== null || options.operatorMaxOutputTokens !== null)) {
     throw new CliUsageError("--input, --mode, --source-id and --passes are only valid with knowledge, routing, Forge or Taiji operations.");
   }
@@ -4169,7 +4200,7 @@ function validateOptions(options) {
   if (options.agentReason !== null && !new Set(["agents", "clients"]).has(options.command)) {
     throw new CliUsageError("--reason is only valid with agents or clients.");
   }
-  if (!new Set(["clients", "clients-onboarding", "control-center", "agents", "knowledge", "forge", "taiji", "codec"]).has(options.command) && options.confirmed) {
+  if (!new Set(["clients", "clients-onboarding", "control-center", "agents", "knowledge", "forge", "taiji", "codec", "workforce"]).has(options.command) && options.confirmed) {
     throw new CliUsageError("--yes is only valid with governed mutations.");
   }
   if (options.command === "clients-onboarding") {
@@ -4184,6 +4215,7 @@ function validateOptions(options) {
   if (operatorCommand) {
     try {
       if (options.command === "codec") validateContextCodecOptions(options);
+      else if (options.command === "workforce") validateWorkforceOptions(options);
       else validateOperatorOptions(options);
     } catch (error) { throw new CliUsageError(error.message); }
   }
@@ -4244,7 +4276,7 @@ function validateOptions(options) {
   }
   if (
     (options.urlProvided || options.timeoutProvided)
-    && !["agents", "chat", "clients", "clients-onboarding", "control-center", "doctor", "enhance", "forge", "spend", "status", "workflow", "providers", "knowledge", "routing", "taiji", "codec"].includes(options.command)
+    && !["agents", "chat", "clients", "clients-onboarding", "control-center", "doctor", "enhance", "forge", "spend", "status", "workflow", "workforce", "providers", "knowledge", "routing", "taiji", "codec"].includes(options.command)
   ) {
     throw new CliUsageError(
       "--url and --timeout are only valid with networked gateway commands.",
@@ -4254,7 +4286,7 @@ function validateOptions(options) {
     throw new CliUsageError("--json is not supported by serve.");
   }
 
-  if (["agents", "chat", "clients", "clients-onboarding", "control-center", "doctor", "enhance", "forge", "spend", "status", "workflow", "providers", "knowledge", "routing", "taiji", "codec"].includes(options.command)) {
+  if (["agents", "chat", "clients", "clients-onboarding", "control-center", "doctor", "enhance", "forge", "spend", "status", "workflow", "workforce", "providers", "knowledge", "routing", "taiji", "codec"].includes(options.command)) {
     let parsedUrl;
     try {
       parsedUrl = new URL(options.url);

@@ -800,6 +800,37 @@ test("workflow run and recovery refuse redirects without another request or auto
   } finally { await closeServer(server); }
 });
 
+test("Workforce status and atomic workflow recovery preserve exact original IDs and cancellation", async () => {
+  const ids = { executionId: "wf-scope-fixture", taskId: "task-report", workflowId: "workflow-report" }, requests = [];
+  const { server, baseUrl } = await startServer(async (request, response) => {
+    let raw = ""; for await (const chunk of request) raw += chunk;
+    requests.push({ path: request.url, method: request.method, body: JSON.parse(raw), authorization: request.headers.authorization });
+    response.writeHead(200, { "content-type": "application/json" }); response.end(JSON.stringify({ status: "ok", data: ids }));
+  });
+  const controller = new AbortController(), client = createGatewayClient({ baseUrl, signal: controller.signal, headers: { authorization: "Bearer workforce-sdk-fixture" } });
+  try {
+    await client.workforceExecutionStatus(ids.executionId); await client.recoverWorkforceWorkflow(ids);
+    assert.deepEqual(requests, [
+      { path: "/workforce/execute/status", method: "POST", body: { executionId: ids.executionId }, authorization: "Bearer workforce-sdk-fixture" },
+      { path: "/workforce/execute/handoff/recover", method: "POST", body: ids, authorization: "Bearer workforce-sdk-fixture" },
+    ]);
+    for (const value of [null, "", "../escape", "x".repeat(513)]) assert.throws(() => client.workforceExecutionStatus(value), GatewayClientError);
+    for (const value of [null, { ...ids, goal: "new goal" }, { ...ids, taskId: "../escape" }, { executionId: ids.executionId }]) assert.throws(() => client.recoverWorkforceWorkflow(value), GatewayClientError);
+    controller.abort(); await assert.rejects(client.recoverWorkforceWorkflow(ids), GatewayClientAbortError); assert.equal(requests.length, 2);
+  } finally { await closeServer(server); }
+});
+
+test("Workforce status and recovery reject redirects without forwarding IDs or retrying", async () => {
+  const requests = [];
+  const { server, baseUrl } = await startServer((request, response) => { requests.push(request.url); response.writeHead(307, { location: "/unexpected-redirect" }); response.end(); });
+  const client = createGatewayClient({ baseUrl });
+  try {
+    await assert.rejects(client.workforceExecutionStatus("wf-scope-fixture"), error => error instanceof GatewayClientError && error.retryable === false);
+    await assert.rejects(client.recoverWorkforceWorkflow({ executionId: "wf-scope-fixture", taskId: "task-report", workflowId: "workflow-report" }), error => error instanceof GatewayClientError && error.retryable === false);
+    assert.deepEqual(requests, ["/workforce/execute/status", "/workforce/execute/handoff/recover"]);
+  } finally { await closeServer(server); }
+});
+
 test("validates and normalizes the gateway base URL", () => {
   assert.throws(
     () => createGatewayClient(),

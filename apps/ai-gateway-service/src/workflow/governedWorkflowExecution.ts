@@ -68,6 +68,7 @@ export async function executeGovernedWorkflowRun(input: {
       ...input.requestContext,
       tenantId: identity.tenantId,
       userId: identity.userId,
+      governedAgentId: agentId,
       workflowGovernancePending: true,
       signal: runSignal,
     }, {
