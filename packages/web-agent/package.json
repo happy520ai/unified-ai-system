@@ -16,7 +16,7 @@
   "scripts": {
     "check": "node --check src/index.js",
     "render:social-preview": "node test/render-social-preview.mjs",
-    "test": "node --test test/web-agent-boundary.test.js && node test/prompt-lab-smoke.test.js"
+    "test": "node --test test/web-agent-boundary.test.ts && node test/prompt-lab-smoke.test.js"
   },
   "dependencies": {
     "playwright": "^1.62.1"

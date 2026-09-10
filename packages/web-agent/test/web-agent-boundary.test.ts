@@ -3,6 +3,9 @@ import test from "node:test";
 import { createLlmBrain, validateBrowserAction } from "../src/llmBrain.js";
 import { executeAction } from "../src/browserExecutor.js";
 import { createWebAgent } from "../src/webAgent.js";
+import type { Page } from "playwright";
+
+type ModelInput = { messages: Array<{ content: string }> };
 
 test("an absent model cannot produce a browser decision", async () => {
   await assert.rejects(async () => createLlmBrain().decide({}), /WEB_MODEL_REQUIRED/);
@@ -50,18 +53,18 @@ test("real Chromium observes changing controls, verifies the DOM, and closes eac
   t.after(async () => { await browser.close(); assert.equal(browser.isConnected(), false); });
   const html = `<input data-target="query"><button data-target="search" onclick="document.querySelector('#results').innerHTML='<button data-target=detail onclick=showDetail()>Details</button>'">Search</button><div id="results"></div><div data-target="result"></div>
     <script>function showDetail(){ const node=document.querySelector('[data-target=result]'); node.dataset.itemId=document.querySelector('input').value; node.textContent='Approved details'; }</script>`;
-  function options(extra = {}) {
-    return { browser, initialize: ({ page }) => page.setContent(html),
-      observe: async (page) => ({ targets: await page.$$eval("[data-target]", (nodes) => nodes.map((node) => node.dataset.target)) }),
-      resolveTarget: (page, action) => page.$(`[data-target="${action.targetId}"]`),
-      verifyGoal: async (page) => await page.locator('[data-target="result"]').getAttribute("data-item-id") === "approved-item"
+  function options(extra: Record<string, unknown> = {}) {
+    return { browser, initialize: ({ page }: { page: Page }) => page.setContent(html),
+      observe: async (page: Page) => ({ targets: await page.$$eval("[data-target]", (nodes) => nodes.map((node) => (node as HTMLElement).dataset.target)) }),
+      resolveTarget: (page: Page, action: { targetId: string }) => page.$(`[data-target="${action.targetId}"]`),
+      verifyGoal: async (page: Page) => await page.locator('[data-target="result"]').getAttribute("data-item-id") === "approved-item"
         && await page.locator('[data-target="result"]').innerText() === "Approved details", ...extra };
   }
   const decisions = [{ type: "fill", targetId: "query", value: "approved-item" }, { type: "click", targetId: "search" },
     { type: "click", targetId: "detail" }, { type: "extractText", targetId: "result" }, { type: "done" }];
   await t.test("dynamic search and detail extraction uses fresh observations and real element operations", async () => {
-    const seen = []; let next = 0;
-    const agent = createWebAgent(options({ generate: async ({ messages }) => {
+    const seen: Array<{ observationId: string; targets: string[] }> = []; let next = 0;
+    const agent = createWebAgent(options({ generate: async ({ messages }: ModelInput) => {
       const { snapshot } = JSON.parse(messages[1].content); seen.push(snapshot);
       const action = decisions[next++];
       if (action.targetId) assert.ok(snapshot.targets.includes(action.targetId));
@@ -84,7 +87,7 @@ test("real Chromium observes changing controls, verifies the DOM, and closes eac
   await t.test("done alone, a failed predicate and a consumed action budget cannot report success", async () => {
     for (const scenario of ["done-only", "wrong-item", "budget"]) {
       let next = 0;
-      const agent = createWebAgent(options({ limits: { maxSteps: scenario === "budget" ? 1 : 3 }, generate: async ({ messages }) => {
+      const agent = createWebAgent(options({ limits: { maxSteps: scenario === "budget" ? 1 : 3 }, generate: async ({ messages }: ModelInput) => {
         const { observationId } = JSON.parse(messages[1].content).snapshot;
         const action = next++ === 0 && scenario !== "done-only" ? { type: "click", targetId: "search" } : { type: "done" };
         return { content: JSON.stringify({ ...action, observationId }) };
@@ -95,13 +98,13 @@ test("real Chromium observes changing controls, verifies the DOM, and closes eac
     }
   });
   await t.test("empty extraction fails rather than becoming a completed action", async () => {
-    const agent = createWebAgent(options({ generate: async ({ messages }) => ({ content: JSON.stringify({ type: "extractText", targetId: "result", observationId: JSON.parse(messages[1].content).snapshot.observationId }) }) }));
+    const agent = createWebAgent(options({ generate: async ({ messages }: ModelInput) => ({ content: JSON.stringify({ type: "extractText", targetId: "result", observationId: JSON.parse(messages[1].content).snapshot.observationId }) }) }));
     await assert.rejects(() => agent.run({ goal: "Read result" }), /WEB_EMPTY_EXTRACTION/);
     assert.equal(browser.contexts().length, 0);
   });
   await t.test("cancelling a pending model closes the context and a late decision cannot act", async () => {
-    const controller = new AbortController(); let effects = 0; let completeModel;
-    let entered; const modelEntered = new Promise((resolve) => { entered = resolve; });
+    const controller = new AbortController(); let effects = 0; let completeModel!: (value: { content: string }) => void;
+    let entered!: () => void; const modelEntered = new Promise<void>((resolve) => { entered = resolve; });
     const agent = createWebAgent(options({ signal: controller.signal, execute: async () => { effects++; return {}; },
       generate: async () => { entered(); return new Promise((resolve) => { completeModel = resolve; }); } }));
     const pending = agent.run({ goal: "Search" }); const rejected = assert.rejects(pending, /cancel-fixture/);
@@ -116,6 +119,6 @@ test("context cleanup failure preserves the first execution failure and never re
   const failure = new Error("first-action-failure");
   const agent = createWebAgent({ browser: { newContext: async () => ({ newPage: async () => ({}), close: async () => { closes++; throw new Error("cleanup-failure"); } }) },
     generate: async () => ({}), verifyGoal: async () => true, execute: async () => ({}), initialize: async () => { throw failure; } });
-  await assert.rejects(() => agent.run({ goal: "Search" }), (error) => error === failure && error.cleanupError === "WEB_CONTEXT_CLEANUP_FAILED");
+  await assert.rejects(() => agent.run({ goal: "Search" }), (error) => error === failure && (error as Error & { cleanupError?: string }).cleanupError === "WEB_CONTEXT_CLEANUP_FAILED");
   assert.equal(closes, 1);
 });
