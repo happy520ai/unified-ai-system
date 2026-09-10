@@ -72,6 +72,12 @@ function sealWorkforcePreviewNode(value, state, depth) {
       if (key === "execution" && typeof item === "string" && item.toLowerCase() === "enabled") {
         return [key, "disabled"];
       }
+      if (key === "satisfied" && value.checkId === "consensus-reviewed") return [key, false];
+      if (key === "consensus" && item && typeof item === "object" && !Array.isArray(item)) {
+        const consensus = sealWorkforcePreviewNode(item, state, depth + 1);
+        return [key, { ...consensus, ready: false, previewOnly: true,
+          previewComplete: ["Planner", "Architect", "Critic"].every(role => Array.isArray(consensus.roles) && consensus.roles.includes(role)) }];
+      }
       return [key, sealWorkforcePreviewNode(item, state, depth + 1)];
     }));
   state.seen.delete(value);

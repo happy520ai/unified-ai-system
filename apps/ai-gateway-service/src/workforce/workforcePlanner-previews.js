@@ -236,8 +236,8 @@ export function createApprovalGatePreview(plan) {
       },
       {
         checkId: "consensus-reviewed",
-        label: "Consensus reviewed",
-        satisfied: plan.consensusPreview.length === 3,
+        label: "Independent consensus review has not run",
+        satisfied: false,
         previewOnly: true,
       },
       {
@@ -322,7 +322,9 @@ export function createWorkforceHudPreview({
       total: clarifyQuestions.length,
     },
     consensus: {
-      ready: ["Planner", "Architect", "Critic"].every((role) => consensusRoles.includes(role)),
+      ready: false,
+      previewComplete: ["Planner", "Architect", "Critic"].every((role) => consensusRoles.includes(role)),
+      previewOnly: true,
       roles: consensusRoles,
     },
     reviewPackage: {

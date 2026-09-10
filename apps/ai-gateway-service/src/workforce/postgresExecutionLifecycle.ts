@@ -6,6 +6,7 @@ import type {
 } from "./postgresTaskClaimLease.ts";
 import { createLogRedactor } from "./logRedactor.js";
 import { readWorkflowHandoffMetadata } from "./workforceWorkflowHandoffBinding.ts";
+import { attachWorkforceConsensusResult, readWorkforceConsensusMetadata, readWorkforceConsensusReport } from "./workforceConsensusReport.ts";
 
 export const POSTGRES_EXECUTION_STATUS = Object.freeze({
   PENDING: "pending",
@@ -327,6 +328,12 @@ export function createPostgresExecutionLifecycle(rawOptions: PostgresExecutionLi
       });
     },
 
+    async recordConsensusResult(executionId: unknown, report: unknown) {
+      const id = normalizeExecutionId(executionId);
+      return mutate(id, state => { state.summary = attachWorkforceConsensusResult(state, id, report);
+        return { success: true, reportHash: state.summary.consensusReport.reportHash }; });
+    },
+
     async complete(executionId: unknown, finalStatusInput?: unknown, summaryInput: unknown = {}) {
       const targetStatus = normalizeTerminalStatus(finalStatusInput ?? "completed");
       return mutate(executionId, (state, timestamp) => {
@@ -598,6 +605,12 @@ function normalizeOptions(options: PostgresExecutionLifecycleOptions) {
 function encodeState(state: LifecycleState, maxStateBytes: number) {
   const sanitized = redactor.redactObject(state);
   if (state.metadata?.workflowHandoff) (sanitized as LifecycleState).metadata.workflowHandoff = readWorkflowHandoffMetadata(state.metadata.workflowHandoff);
+  if (state.metadata?.consensusReview) {
+    const metadata = readWorkforceConsensusMetadata(state.metadata.consensusReview);
+    (sanitized as LifecycleState).metadata.consensusReview = metadata;
+    if (state.summary?.consensusReport) (sanitized as LifecycleState).summary.consensusReport = readWorkforceConsensusReport(state.summary.consensusReport,
+      { executionId: state.summary.consensusReport.executionId, metadata });
+  }
   let json: string;
   try {
     json = JSON.stringify(sanitized);
@@ -676,6 +689,8 @@ function statusProjection(executionId: string, state: LifecycleState, version: n
     tenantFingerprint: state.metadata?.tenantFingerprint ?? null,
     subjectFingerprint: state.metadata?.subjectFingerprint ?? null,
     ...(state.metadata?.workflowHandoff ? { workflowHandoff: state.metadata.workflowHandoff } : {}),
+    ...(state.metadata?.consensusReview ? { consensusReview: state.metadata.consensusReview,
+      consensusReport: state.summary?.consensusReport ?? null } : {}),
     version,
   };
 }
@@ -684,6 +699,7 @@ function sanitizeMetadata(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const metadata = redactor.redactObject(value) as Record<string, unknown>;
   if ((value as Record<string, unknown>).workflowHandoff) metadata.workflowHandoff = readWorkflowHandoffMetadata((value as Record<string, unknown>).workflowHandoff);
+  if ((value as Record<string, unknown>).consensusReview) metadata.consensusReview = readWorkforceConsensusMetadata((value as Record<string, unknown>).consensusReview);
   return metadata;
 }
 

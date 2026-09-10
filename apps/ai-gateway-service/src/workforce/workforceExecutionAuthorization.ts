@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 
 import { AUTONOMY_MODES } from "./autonomyModes.js";
-import type { WorkforceCodeDeliveryReadiness, WorkforceCodeDeliveryReview, WorkforceRoleExecutionProfile, WorkforceSelectionDecision, WorkforceWorkflowHandoffReview } from "@unified-ai-system/shared-contracts";
+import type { WorkforceCodeDeliveryReadiness, WorkforceCodeDeliveryReview, WorkforceRoleExecutionProfile, WorkforceSelectionDecision, WorkforceWorkflowHandoffReview, WorkforceConsensusReview } from "@unified-ai-system/shared-contracts";
+import { compileConsensusReview, readConsensusReview } from "./workforceConsensusReview.ts";
 import { readWorkforceWorkflowHandoffReview } from "./workforceWorkflowHandoffProfile.ts";
 import { readFrozenWorkforceRoleExecutionProfile } from "./workforceRoleExecutionProfile.ts";
 import { readFrozenWorkforceSelectionReview } from "./workforceSelectionReview.ts";
@@ -25,6 +26,7 @@ export interface WorkforceExecutionDescriptor {
   selectionReview?: WorkforceSelectionDecision;
   codeDelivery?: WorkforceCodeDeliveryReview;
   workflowHandoff?: WorkforceWorkflowHandoffReview;
+  consensusReview?: WorkforceConsensusReview;
   /** Display-only projection from describeExecution, never included in the approval digest. */
   codeDeliveryReadiness?: WorkforceCodeDeliveryReadiness;
 }
@@ -43,6 +45,7 @@ export function createWorkforceExecutionDescriptor(params: {
   /** Server-configured review only; input.codeDelivery is merely a selector. */
   codeDelivery?: WorkforceCodeDeliveryReview;
   workflowHandoff?: WorkforceWorkflowHandoffReview;
+  consensusReview?: WorkforceConsensusReview;
 }): WorkforceExecutionDescriptor {
   const input = params.input ?? {};
   const planId = normalizeWorkforcePlanId(input.planId ?? params.plan.workforceId);
@@ -54,6 +57,14 @@ export function createWorkforceExecutionDescriptor(params: {
   const codeDelivery = params.codeDelivery === undefined
     ? undefined : readWorkforceCodeDeliveryReview(params.codeDelivery, roleExecution);
   const workflowHandoff = params.workflowHandoff === undefined ? undefined : readWorkforceWorkflowHandoffReview(params.workflowHandoff);
+  const consensusReview = params.consensusReview === undefined ? undefined : readConsensusReview(params.consensusReview);
+  if (consensusReview && (!roleExecution || codeDelivery || workflowHandoff || params.plan.goal !== consensusReview.goal
+    || params.autonomyMode !== AUTONOMY_MODES.DRY_RUN && params.autonomyMode !== AUTONOMY_MODES.CONTROLLED_EXECUTION
+    || JSON.stringify(compileConsensusReview({ input: { consensusReview: {
+      proposal: consensusReview.proposal, criteria: consensusReview.criteria,
+      evidence: consensusReview.evidence.map(({ sha256: _hash, ...source }) => source) } }, plan: params.plan, profile: roleExecution })) !== JSON.stringify(consensusReview))) {
+    throw createAuthorizationError("WORKFORCE_CONSENSUS_REVIEW_INVALID", "Consensus review requires this exact three-role model profile and a separate review-only plan.");
+  }
   if (workflowHandoff && (params.plan.goal !== workflowHandoff.goal || !Array.isArray(params.plan.selectedRoles)
     || !params.plan.selectedRoles.includes(workflowHandoff.roleId)
     || params.autonomyMode !== AUTONOMY_MODES.DRY_RUN && params.autonomyMode !== AUTONOMY_MODES.CONTROLLED_EXECUTION)) {
@@ -68,7 +79,7 @@ export function createWorkforceExecutionDescriptor(params: {
     throw createAuthorizationError("WORKFORCE_SELECTION_REVIEW_INVALID", "The selected roles must match the complete execution plan.");
   }
   const digestPayload = canonicalize({
-    schema: workflowHandoff ? "workforce-execution-approval/v5" : codeDelivery ? "workforce-execution-approval/v4" : selectionReview ? "workforce-execution-approval/v3" : roleExecution ? "workforce-execution-approval/v2" : "workforce-execution-approval/v1",
+    schema: consensusReview ? "workforce-execution-approval/v6" : workflowHandoff ? "workforce-execution-approval/v5" : codeDelivery ? "workforce-execution-approval/v4" : selectionReview ? "workforce-execution-approval/v3" : roleExecution ? "workforce-execution-approval/v2" : "workforce-execution-approval/v1",
     planId,
     tenantId: typeof input.tenantId === "string" && input.tenantId.trim()
       ? input.tenantId.trim()
@@ -84,6 +95,7 @@ export function createWorkforceExecutionDescriptor(params: {
     ...(selectionReview ? { selectionReview } : {}),
     ...(codeDelivery ? { codeDelivery } : {}),
     ...(workflowHandoff ? { workflowHandoff } : {}),
+    ...(consensusReview ? { consensusReview } : {}),
   });
   const planDigest = createHash("sha256")
     .update(JSON.stringify(digestPayload), "utf8")
@@ -98,6 +110,7 @@ export function createWorkforceExecutionDescriptor(params: {
     ...(selectionReview ? { selectionReview } : {}),
     ...(codeDelivery ? { codeDelivery } : {}),
     ...(workflowHandoff ? { workflowHandoff } : {}),
+    ...(consensusReview ? { consensusReview } : {}),
   });
 }
 

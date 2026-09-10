@@ -17,7 +17,11 @@ interface CodeRoleBinding {
   agentId: string; agentRunId: string; taskId: string; roleId: string;
   agentFence: unknown; taskFence: unknown;
 }
-const codeRoleOperations = new WeakMap<object, CodeRoleBinding & { generate(input: any): Promise<any> }>();
+export interface WorkforceRoleInputReceipt {
+  version: 1; sourceMessagesHash: string; gatewayInputHash: string; providerInputHash: string; messageCount: number;
+  gatewayRequestId: string; profile: "off";
+}
+const codeRoleOperations = new WeakMap<object, CodeRoleBinding & { generate(input: any): Promise<any>; getInputReceipt(): WorkforceRoleInputReceipt | null }>();
 
 /** Returns the fixed budgeted operation only for the same server-bound run and task. */
 export function readWorkforceCodeRoleOperation(value: unknown, expected: CodeRoleBinding) {
@@ -25,7 +29,7 @@ export function readWorkforceCodeRoleOperation(value: unknown, expected: CodeRol
   if (!operation || Object.entries(expected).some(([key, entry]) => operation[key as keyof CodeRoleBinding] !== entry)) {
     throw roleError("WORKFORCE_CODE_ROLE_OPERATION_INVALID");
   }
-  return Object.freeze({ generate: operation.generate });
+  return Object.freeze({ generate: operation.generate, getInputReceipt: operation.getInputReceipt });
 }
 export interface WorkforceRoleRunContext {
   identity: { tenantId: string; userId: string; role: string; permissions: readonly string[]; apiKeyFingerprint?: string };
@@ -34,6 +38,8 @@ export interface WorkforceRoleRunContext {
   requestExecution: GatewayExecutionContext;
   signal: AbortSignal;
   agentFence: Fence;
+  /** Server-owned review lane: preserve the entire reviewed input through the existing codec off profile. */
+  preserveMessages?: boolean;
 }
 
 /** Dormant until the application explicitly supplies an approved execution profile. */
@@ -88,6 +94,7 @@ export function createWorkforceRoleProviderFactory(options: {
         && !/^[a-f0-9]{64}$/.test(http.providerDispatchKeyHash)) || http.providerDispatchRoute !== "/workforce/execute"
         || !Number.isFinite(http.deadlineAt)) throw roleError("WORKFORCE_ROLE_DISPATCH_CONTEXT_INVALID");
       const runSignal = AbortSignal.any([http.signal, input.signal, ...(input.agentFence.signal ? [input.agentFence.signal] : [])]);
+      const preserveMessages = input.preserveMessages === true;
       const assertAgentActive = input.agentFence.assertActive.bind(input.agentFence);
       const boundRoles = new Set<string>();
       const receipts: Readonly<{ roleId: string; employeeId: string; taskId: string; receipt: WorkforceRoleContributionReceipt }>[] = [];
@@ -116,6 +123,7 @@ export function createWorkforceRoleProviderFactory(options: {
           let requests = 0;
           let busy = false;
           let current: { dispatches: number; result: Record<string, unknown> | null } | null = null;
+          let lastInputReceipt: WorkforceRoleInputReceipt | null = null;
           const saveReceipt = (receipt: WorkforceRoleContributionReceipt) => receipts.push(Object.freeze({
             roleId: binding.roleId, employeeId: binding.employeeId, taskId, receipt,
           }));
@@ -151,7 +159,7 @@ export function createWorkforceRoleProviderFactory(options: {
           const adapter = createGatewayBackedProviderAdapter({ providerId: binding.providerId, modelId: binding.modelId,
             source: `workforce-role:${binding.roleId}`, agentExecutionContext: agentContext,
             gatewayService: { async execute(request, execution) {
-              const result = await boundGateway.execute(request, execution);
+              const result = await boundGateway.execute(preserveMessages ? { ...request, contextCodec: { profile: "off" } } : request, execution);
               if (current) current.result = record(result);
               return result;
             } },
@@ -168,6 +176,7 @@ export function createWorkforceRoleProviderFactory(options: {
                 throw Object.assign(roleError("WORKFORCE_ROLE_CONCURRENCY_LIMIT"), { workforceReceipt: receipt });
               }
               busy = true; activeRoles += 1; current = { dispatches: 0, result: null };
+              lastInputReceipt = null;
               let control: ReturnType<typeof createLinkedAbortController> | null = null;
               try {
                 const remaining = Math.min(binding.timeoutMs, http.deadlineAt - Date.now());
@@ -186,6 +195,15 @@ export function createWorkforceRoleProviderFactory(options: {
                 if (!current.dispatches || data.providerId !== binding.providerId || data.model !== binding.modelId
                   || !["fake", "real"].includes(String(data.executionMode)) || data.executionStatus !== "success") throw roleError("WORKFORCE_ROLE_RECEIPT_UNCONFIRMED");
                 const receipt = projectReceipt(current.result, current.dispatches, "succeeded", null);
+                if (preserveMessages) {
+                  const codec = record(record(data.metadata).contextCodec);
+                  if (codec.profile !== "off" || codec.status !== "original" || codec.originalMessageCount !== messages.length
+                    || typeof codec.inputHash !== "string" || !/^[a-f0-9]{64}$/u.test(codec.inputHash)
+                    || codec.inputHash !== codec.providerInputHash || !receipt.gatewayRequestId) throw roleError("WORKFORCE_ROLE_INPUT_UNCONFIRMED");
+                  lastInputReceipt = Object.freeze({ version: 1, profile: "off", messageCount: messages.length,
+                    sourceMessagesHash: "sha256:" + createHash("sha256").update(JSON.stringify(messages)).digest("hex"),
+                    gatewayInputHash: codec.inputHash, providerInputHash: codec.providerInputHash, gatewayRequestId: receipt.gatewayRequestId });
+                }
                 const observation = record(record(record(data.metadata).rawProviderMeta).workforceObservation);
                 if (typeof response.text !== "string" || !response.text.trim()
                   || data.executionMode === "real" && observation.contentPresent !== true
@@ -213,7 +231,7 @@ export function createWorkforceRoleProviderFactory(options: {
             },
           });
           codeRoleOperations.set(operation, { ...codeRunBinding, taskId, roleId: binding.roleId,
-            taskFence, generate: operation.generate.bind(operation) });
+            taskFence, generate: operation.generate.bind(operation), getInputReceipt: () => lastInputReceipt ? { ...lastInputReceipt } : null });
           return operation;
         },
       });

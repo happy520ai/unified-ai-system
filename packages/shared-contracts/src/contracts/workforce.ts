@@ -1,6 +1,99 @@
 import type { ContractMetadata, RequestContext, ResultEnvelope } from "./common.js";
 import type { WorkflowRunResponse, WorkflowRunStatus } from "./workflow.js";
 
+export type WorkforceConsensusPerspective = "Critic" | "Planner" | "Architect";
+export interface WorkforceConsensusPerspectiveBinding {
+  readonly perspective: WorkforceConsensusPerspective;
+  readonly roleId: "ceo" | "pm" | "architect";
+  readonly employeeId: string;
+  readonly providerId: string;
+  readonly modelId: string;
+}
+export interface WorkforceConsensusProposalStep { readonly id: string; readonly title: string; readonly verification: string }
+export interface WorkforceConsensusCriterion { readonly id: string; readonly question: string; readonly verification: string }
+export interface WorkforceConsensusEvidence { readonly id: string; readonly title: string; readonly content: string; readonly sha256: string }
+export interface WorkforceConsensusReview {
+  readonly version: 1;
+  readonly rule: "any-objection-holds-plan-v1";
+  readonly goal: string;
+  readonly perspectives: readonly WorkforceConsensusPerspectiveBinding[];
+  readonly proposal: readonly WorkforceConsensusProposalStep[];
+  readonly criteria: readonly WorkforceConsensusCriterion[];
+  readonly evidence: readonly WorkforceConsensusEvidence[];
+  readonly sourceHash: string;
+  readonly reviewHash: string;
+}
+export interface WorkforceConsensusCriterionOpinion {
+  readonly criterionId: string;
+  readonly verdict: "supported" | "contradicted" | "insufficient";
+  readonly support: readonly { readonly evidenceId: string; readonly quote: string }[];
+  readonly reason: string;
+  readonly proposedChange: string | null;
+}
+export interface WorkforceConsensusOpinion {
+  readonly version: 1;
+  readonly perspective: WorkforceConsensusPerspective;
+  readonly criteria: readonly WorkforceConsensusCriterionOpinion[];
+}
+/** Quoted-source integrity and deterministic aggregation do not establish semantic truth or execution authority. */
+export interface WorkforceConsensusDecision {
+  readonly version: 1;
+  readonly rule: "any-objection-holds-plan-v1";
+  readonly sourceHash: string;
+  readonly reviewHash: string;
+  readonly status: "incomplete" | "recommend-proceed" | "revise";
+  readonly missingPerspectives: readonly WorkforceConsensusPerspective[];
+  readonly criteria: readonly {
+    readonly criterionId: string;
+    readonly disagreement: boolean;
+    readonly assessments: readonly (WorkforceConsensusCriterionOpinion & { readonly perspective: WorkforceConsensusPerspective })[];
+  }[];
+  readonly proposedPlan: {
+    readonly goal: string;
+    readonly steps: readonly WorkforceConsensusProposalStep[];
+    readonly requiredRevisions: readonly { readonly criterionId: string; readonly perspective: WorkforceConsensusPerspective;
+      readonly proposedChange: string; readonly reason: string }[];
+  };
+  readonly holdExecution: true;
+  readonly requiresNewApproval: true;
+}
+
+export interface WorkforceConsensusInputReceipt {
+  readonly version: 1;
+  readonly profile: "off";
+  readonly messageCount: number;
+  readonly sourceMessagesHash: string;
+  readonly gatewayInputHash: string;
+  readonly providerInputHash: string;
+  readonly gatewayRequestId: string;
+}
+export interface WorkforceConsensusReportMetadata {
+  readonly version: 1; readonly agentId: string; readonly agentRunId: string; readonly planId: string;
+  readonly planDigest: string; readonly profileHash: string; readonly review: WorkforceConsensusReview;
+}
+export interface WorkforceConsensusReportEntry {
+  readonly roleId: string; readonly taskId: string | null; readonly perspective: WorkforceConsensusPerspective;
+  readonly employeeId: string; readonly responseText: string | null; readonly responseHash: string | null;
+  readonly errorCode: string | null; readonly inputReceipt: WorkforceConsensusInputReceipt | null;
+  readonly opinion: WorkforceConsensusOpinion | null; readonly contributionStatus: "opinion" | "failed" | "not_observed";
+}
+export interface WorkforceConsensusReceiptObservation {
+  readonly roleId: string; readonly employeeId: string; readonly taskId: string; readonly receipt: WorkforceRoleContributionReceipt;
+}
+/** Recorded model opinions and observed usage; this DTO is not semantic truth or execution approval. */
+export interface WorkforceConsensusReport {
+  readonly version: 1; readonly executionId: string; readonly metadata: WorkforceConsensusReportMetadata;
+  readonly executionStatus: "completed" | "failed" | "cancelled" | "force_stopped";
+  readonly status: "complete" | "incomplete"; readonly independentInputsVerified: boolean;
+  readonly evidenceLevel: "real-model-responses" | "synthetic-or-incomplete-responses";
+  readonly semanticTruthVerified: false; readonly automaticallyExecutedPlan: false;
+  readonly decision: WorkforceConsensusDecision; readonly entries: readonly WorkforceConsensusReportEntry[];
+  readonly receipts: readonly WorkforceConsensusReceiptObservation[]; readonly dispatchCount: number;
+  readonly usage: { readonly source: "gateway-provider-operation-receipts"; readonly networkRetryCountKnown: false;
+    readonly costUsd: null; readonly inputTokens: number | null; readonly outputTokens: number | null };
+  readonly reportHash: string;
+}
+
 export type WorkforceExecutionStatus = "pending" | "running" | "paused" | "completed" | "failed" | "cancelled" | "force_stopped";
 export interface WorkforceWorkflowRecoveryRequest { executionId: string; taskId: string; workflowId: string }
 /** Joins the original parent task to its existing workflow journal and artifact verification. */
@@ -25,6 +118,8 @@ export interface WorkforceExecutionStatusResponse {
   planId: string;
   status: WorkforceExecutionStatus;
   workflowHandoff?: WorkforceWorkflowHandoffInspection | null;
+  consensusReport?: WorkforceConsensusReport | null;
+  consensusObservation?: "recorded" | "not-recorded-no-automatic-redispatch";
 }
 export type WorkforceWorkflowRecoveryResponse = WorkforceWorkflowHandoffInspection & {
   status: "completed"; taskId: string; parentExecutionId: string; parentExecutionStatus: WorkforceExecutionStatus;
@@ -521,6 +616,8 @@ export interface WorkforceHudPreview {
   };
   consensus: {
     ready: boolean;
+    previewComplete?: boolean;
+    previewOnly?: true;
     roles: string[];
   };
   reviewPackage: {

@@ -47,6 +47,10 @@ describe("workforce preview safety contract", () => {
 
     expectSealed(plan);
     expectSealed(plan.exportableJson);
+    expect(plan.workforceHudPreview).toMatchObject({ consensus: { ready: false } });
+    expect(plan.approvalGatePreview).toMatchObject({ gateChecks: expect.arrayContaining([
+      expect.objectContaining({ checkId: "consensus-reviewed", satisfied: false }),
+    ]) });
     expect(plan.markdown).not.toContain("Execution enabled: true");
     expect(plan.markdown).not.toContain("Runner enabled: true");
     expect(plan.markdown).not.toContain("Workflow run enabled: true");
@@ -66,6 +70,8 @@ describe("workforce preview safety contract", () => {
     plan.runnerRequestQueuePreview.queuePolicy.externalRunnerDispatchEnabled = true;
     plan.eventLedgerPreview[0].execution = "enabled";
     plan.safety.previewOnly = false;
+    plan.workforceHudPreview.consensus.ready = true;
+    plan.approvalGatePreview.gateChecks.find((item: any) => item.checkId === "consensus-reviewed").satisfied = true;
 
     const saved = await service.savePlan({ plan }, tenantId);
     expectSealed(saved.taskPackage);
@@ -80,6 +86,8 @@ describe("workforce preview safety contract", () => {
     const retrieved = await service.getPlan(saved.planId, tenantId);
     expectSealed(retrieved.taskPackage);
     expectSealed(retrieved.plan);
+    expect(retrieved.taskPackage.workforceHudPreview.consensus).toMatchObject({ ready: false, previewOnly: true });
+    expect(retrieved.taskPackage.approvalGatePreview.gateChecks.find((item: any) => item.checkId === "consensus-reviewed").satisfied).toBe(false);
 
     const exported = await service.exportPlan(saved.planId, tenantId);
     expectSealed(exported.taskPackage);

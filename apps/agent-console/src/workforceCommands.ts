@@ -1,5 +1,6 @@
 import { createGatewayClient } from "@unified-ai-system/shared-sdk";
 import { readOperatorPayload, sanitizeOperatorData, type OperatorOptions, type Output } from "./operatorCommands.ts";
+import { projectWorkforceConsensusReport } from "./workforceConsensusReview.ts";
 
 type Data = Record<string, any>;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,511}$/u;
@@ -92,10 +93,20 @@ export async function runWorkforceCommands(options: OperatorOptions, output: Out
       // The existing lifecycle calls its execution identity planId; verify it before projecting a clearer label.
       data = { executionId: raw.planId, parentExecutionStatus: raw.status,
         workflowHandoff: raw.workflowHandoff == null ? null : projectWorkflow(raw.workflowHandoff, ids.executionId) };
+      if (raw.consensusReport !== undefined || raw.consensusObservation !== undefined) {
+        const observation = raw.consensusReport === null ? "not-recorded-no-automatic-redispatch" : "recorded";
+        if (raw.consensusObservation !== observation) invalid("Consensus observation does not match the recorded report.", true);
+        data.consensusReport = raw.consensusReport === null ? null : projectWorkforceConsensusReport(raw.consensusReport, ids.executionId, raw.status);
+        data.consensusObservation = observation;
+      }
     }
     const approvalId = data.workflowHandoff?.error?.approvalId;
-    const result = { ok: true, operation, status: recover ? "completed" : "observed", ...ids, retryAllowed: false, data,
+    const consensus = data.consensusReport;
+    const adviceReady = consensus?.status === "complete" && consensus.decision.status === "recommend-proceed";
+    const result = { ok: true, operation, status: recover ? "completed" : consensus ? adviceReady ? "advice-recorded" : consensus.decision.status === "revise" ? "revision-required" : "incomplete" : "observed", ...ids, retryAllowed: false, data,
       nextAction: recover ? "The original parent state is retained. Inspect workforce status before any further action."
+        : consensus ? `${adviceReady ? "Three model opinions recommend proceeding." : "Review the recorded objections, missing opinions and required revisions."} These are model opinions, not verified semantic truth. Plan execution remains on hold and requires new approval.`
+        : data.consensusObservation ? "No consensus report was recorded. Preserve the execution ID; no automatic redispatch is permitted."
         : approvalId ? `Inspect agents approvals and review ${approvalId}. If correct, use agents approve --approval-id ${approvalId} --yes, then request handoff-recover with the original executionId, taskId and workflowId.`
           : "Inspect the recorded workflow and its original IDs before requesting recovery." };
     output.write(options.json ? JSON.stringify(result, null, 2) + "\n" : render(result)); return 0;

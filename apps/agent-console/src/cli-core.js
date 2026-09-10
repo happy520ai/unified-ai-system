@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import { readVerificationSource, readWindowsVerificationHistory } from "./verificationHistory.ts";
 import { projectWorkforceCodeDeliveryReview, formatWorkforceCodeDeliveryReview } from "./workforceCodeDeliveryReview.ts";
 import { projectWorkforceWorkflowHandoffReview, formatWorkforceWorkflowHandoffReview, assertWorkforceWorkflowOptionsHash } from "./workforceWorkflowHandoffReview.ts";
+import { projectWorkforceConsensusApproval, formatWorkforceConsensusReview, assertConsensusOptionsHash } from "./workforceConsensusReview.ts";
 import { runOperatorCommand, validateOperatorOptions, projectForgeApprovalReview, projectTaijiApprovalReview } from "./operatorCommands.ts";
 import { runContextCodecCommand, validateContextCodecOptions } from "./contextCodecCommands.ts";
 import { runWorkforceCommands, validateWorkforceOptions } from "./workforceCommands.ts";
@@ -1378,6 +1379,7 @@ function formatSafeReview(value) {
     const selection = workforce.options.selectionReview;
     const codeDelivery = workforce.options.codeDelivery;
     const workflowHandoff = workforce.options.workflowHandoff;
+    const consensusReview = workforce.options.consensusReview;
     const text = (item) => safeTerminalText(item, 256);
     return [
       `Workforce goal: ${safeTerminalBlock(workforce.goal, 4_000)}`,
@@ -1386,6 +1388,7 @@ function formatSafeReview(value) {
       `Request dispatch hard limit: ${profile.maxTotalRequests}; Concurrent roles: ${profile.maxConcurrentRoles}`,
       ...(codeDelivery === undefined ? [] : formatWorkforceCodeDeliveryReview(codeDelivery)),
       ...(workflowHandoff === undefined ? [] : [`Options hash: ${workforce.optionsHash}`, ...formatWorkforceWorkflowHandoffReview(workflowHandoff)]),
+      ...(consensusReview === undefined ? [] : [`Options hash: ${workforce.optionsHash}`, ...formatWorkforceConsensusReview(consensusReview)]),
       ...(selection === undefined ? [] : [
         `Deterministic selection rules: v${selection.version}; catalog/configuration hash: ${text(selection.catalogHash)}`,
         `Selection hash: ${text(selection.selectionHash)}; task type: ${text(selection.taskType)}; execution mode: ${text(selection.executionMode)}`,
@@ -1448,6 +1451,12 @@ function projectAgentApproval(value) {
     const selectionSource = value.review?.workforce?.options?.selectionReview;
     const codeSource = value.review?.workforce?.options?.codeDelivery;
     const handoffSource = value.review?.workforce?.options?.workflowHandoff;
+    const consensusSource = value.review?.workforce?.options?.consensusReview;
+    let consensusReview;
+    if (consensusSource !== undefined) {
+      if (value.review.effectType !== "workforce:execute" || value.review.reviewable !== true) throw new Error("Invalid Workforce consensus approval review.");
+      consensusReview = projectWorkforceConsensusApproval(value.review.workforce);
+    }
     let workflowHandoff;
     if (handoffSource !== undefined) {
       if (value.review.effectType !== "workforce:execute" || value.review.reviewable !== true) {
@@ -1501,6 +1510,10 @@ function projectAgentApproval(value) {
     if (workflowHandoff !== undefined) {
       output.review.workforce.options.workflowHandoff = workflowHandoff;
       assertWorkforceWorkflowOptionsHash(output.review.workforce.options, output.review.workforce.optionsHash);
+    }
+    if (consensusReview !== undefined) {
+      output.review.workforce.options.consensusReview = consensusReview;
+      assertConsensusOptionsHash(output.review.workforce.options, output.review.workforce.optionsHash);
     }
   }
   return Object.freeze(output);

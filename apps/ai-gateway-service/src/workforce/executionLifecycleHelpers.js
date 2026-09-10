@@ -12,6 +12,7 @@ import { resolve } from "node:path";
 import { createLogRedactor } from "./logRedactor.js";
 import { readTrustedWorkforceCodeDeliveryEvidenceIndex } from "./workforceCodeDeliveryRuntime.ts";
 import { readWorkflowHandoffMetadata } from "./workforceWorkflowHandoffBinding.ts";
+import { readWorkforceConsensusMetadata, readWorkforceConsensusReport } from "./workforceConsensusReport.ts";
 
 const MAX_LIFECYCLE_BYTES = 1024 * 1024;
 const lifecycleWriteTails = new Map();
@@ -86,6 +87,11 @@ export async function persistState(lifecycleDir, planId, state) {
   const filePath = createLifecycleStatePath(lifecycleDir, planId);
   const persistedState = lifecycleRedactor.redactObject(state);
   if (state.metadata?.workflowHandoff) persistedState.metadata.workflowHandoff = readWorkflowHandoffMetadata(state.metadata.workflowHandoff);
+  if (state.metadata?.consensusReview) {
+    persistedState.metadata.consensusReview = readWorkforceConsensusMetadata(state.metadata.consensusReview);
+    if (state.summary?.consensusReport) persistedState.summary.consensusReport = readWorkforceConsensusReport(state.summary.consensusReport,
+      { executionId: planId, metadata: state.metadata.consensusReview });
+  }
   const codeIndex = readTrustedWorkforceCodeDeliveryEvidenceIndex(state.summary?.codeDeliveryEvidence);
   if (codeIndex && state.metadata?.codeDelivery === true && codeIndex.executionId === planId) {
     persistedState.summary.codeDeliveryEvidence = codeIndex;

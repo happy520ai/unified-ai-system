@@ -5,6 +5,7 @@
  */
 
 import { resolve } from "node:path";
+import { attachWorkforceConsensusResult } from "./workforceConsensusReport.ts";
 import {
   buildValidTransitions,
   validateTransition as validateTransitionImpl,
@@ -318,6 +319,14 @@ export function createExecutionLifecycle(options = {}) {
      * @param {object} [summary] - 执行摘要
      * @returns {Promise<object>} 完成结果
      */
+    async recordConsensusResult(planId, report) {
+      const state = getState(planId), previous = state.summary;
+      state.summary = attachWorkforceConsensusResult(state, planId, report);
+      try { await persistState(lifecycleDir, planId, state); }
+      catch (error) { state.summary = previous; throw error; }
+      return { success: true, reportHash: state.summary.consensusReport.reportHash };
+    },
+
     async complete(planId, finalStatus, summary = {}) {
       const state = getState(planId);
       const targetStatus = finalStatus || EXECUTION_STATUS.COMPLETED;
@@ -387,6 +396,8 @@ export function createExecutionLifecycle(options = {}) {
           tenantFingerprint: memState.metadata?.tenantFingerprint ?? null,
           subjectFingerprint: memState.metadata?.subjectFingerprint ?? null,
           ...(memState.metadata?.workflowHandoff ? { workflowHandoff: memState.metadata.workflowHandoff } : {}),
+          ...(memState.metadata?.consensusReview ? { consensusReview: memState.metadata.consensusReview,
+            consensusReport: memState.summary?.consensusReport ?? null } : {}),
           ...(memState.metadata?.codeDelivery === true ? { codeDelivery: {
             evidence: memState.summary?.codeDeliveryEvidence ?? null,
             recoveryRequired: memState.summary?.recoveryRequired !== false } } : {}),
@@ -411,6 +422,8 @@ export function createExecutionLifecycle(options = {}) {
           tenantFingerprint: diskState.metadata?.tenantFingerprint ?? null,
           subjectFingerprint: diskState.metadata?.subjectFingerprint ?? null,
           ...(diskState.metadata?.workflowHandoff ? { workflowHandoff: diskState.metadata.workflowHandoff } : {}),
+          ...(diskState.metadata?.consensusReview ? { consensusReview: diskState.metadata.consensusReview,
+            consensusReport: diskState.summary?.consensusReport ?? null } : {}),
           ...(diskState.metadata?.codeDelivery === true ? { codeDelivery: {
             evidence: diskState.summary?.codeDeliveryEvidence ?? null,
             recoveryRequired: diskState.summary?.recoveryRequired !== false } } : {}),

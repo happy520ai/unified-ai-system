@@ -255,7 +255,7 @@ export function createWorkforceRoutes(application, helpers) {
       const userId = requireExecutionUserId(req);
       const tenantId = requireExecutionTenantId(req);
       const input = { ...body, userId, tenantId };
-      if (Object.hasOwn(input, "codeDelivery") || Object.hasOwn(input, "workflowHandoff")) {
+      if (Object.hasOwn(input, "codeDelivery") || Object.hasOwn(input, "workflowHandoff") || Object.hasOwn(input, "consensusReview")) {
         if (typeof workforceExecutor?.assertExecutionPrerequisites !== "function") rejectUnimplementedCodeDelivery();
         await workforceExecutor.assertExecutionPrerequisites(input);
       }
@@ -316,6 +316,9 @@ export function createWorkforceRoutes(application, helpers) {
           }
           if (completedResult?.workflowHandoff && JSON.stringify(metered.result?.workflowHandoff) !== JSON.stringify(completedResult.workflowHandoff)) {
             throw workforceGovernanceError("WORKFORCE_WORKFLOW_RESULT_UNAVAILABLE", "The complete workflow handoff receipt could not be returned after governance.", 503);
+          }
+          if (completedResult?.consensusReport && JSON.stringify(metered.result?.consensusReport) !== JSON.stringify(completedResult.consensusReport)) {
+            throw workforceGovernanceError("WORKFORCE_CONSENSUS_RESULT_UNAVAILABLE", "The complete consensus report could not be returned after governance.", 503);
           }
           output = metered.result;
         }
@@ -710,6 +713,7 @@ function createSafeWorkforceGovernanceParams(input, descriptor) {
       ...(descriptor.selectionReview ? { selectionReview: descriptor.selectionReview } : {}),
       ...(descriptor.codeDelivery ? { codeDelivery: descriptor.codeDelivery } : {}),
       ...(descriptor.workflowHandoff ? { workflowHandoff: descriptor.workflowHandoff } : {}),
+      ...(descriptor.consensusReview ? { consensusReview: descriptor.consensusReview } : {}),
     }),
   });
 }
@@ -736,6 +740,7 @@ function createWorkforceApprovalReview(input, descriptor, params) {
     ...(params.options.selectionReview ? { selectionReview: params.options.selectionReview } : {}),
     ...(params.options.codeDelivery ? { codeDelivery: params.options.codeDelivery } : {}),
     ...(params.options.workflowHandoff ? { workflowHandoff: params.options.workflowHandoff } : {}),
+    ...(params.options.consensusReview ? { consensusReview: params.options.consensusReview } : {}),
   });
   return Object.freeze({
     schemaVersion: 1,
@@ -785,6 +790,9 @@ function applyApprovedWorkforceInput(input, approvedParams) {
     ...(approvedParams.options.codeDelivery ? { codeDelivery: { profileId: approvedParams.options.codeDelivery.profile.profileId } } : {}),
     ...(approvedParams.options.workflowHandoff ? { workflowHandoff: { roleId: approvedParams.options.workflowHandoff.roleId,
       query: approvedParams.options.workflowHandoff.query, topK: approvedParams.options.workflowHandoff.topK, sourceIds: approvedParams.options.workflowHandoff.sourceIds } } : {}),
+    ...(approvedParams.options.consensusReview ? { consensusReview: {
+      proposal: approvedParams.options.consensusReview.proposal, criteria: approvedParams.options.consensusReview.criteria,
+      evidence: approvedParams.options.consensusReview.evidence.map(({ sha256: _hash, ...source }) => source) } } : {}),
   };
 }
 

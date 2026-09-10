@@ -32,6 +32,7 @@ import {
 import { isSafePublicObjectKey, redactSecretsInText } from "../security/secretSafety.js";
 import { createToolRiskCatalog } from "./toolRiskCatalog.ts";
 import { readFrozenWorkforceRoleExecutionProfile } from "../workforce/workforceRoleExecutionProfile.ts";
+import { readWorkforceConsensusReport } from "../workforce/workforceConsensusReport.ts";
 import { consumeWorkforceSnapshotCapability, WORKFORCE_VERIFY_SNAPSHOT_TOOL } from "../workforce/workforceCodeDeliveryRuntime.ts";
 
 export interface AgentGovernanceCallContext {
@@ -585,7 +586,20 @@ function workforceCounterAllowance(result: unknown, agentId: string): (path: Arr
     profile = readFrozenWorkforceRoleExecutionProfile({ ...source, bindings });
   } catch { return deny; }
   const bindings = new Map(profile.bindings.map((binding) => [binding.roleId, binding]));
+  let consensus: Record<string, any> | null = null;
+  try {
+    const report = readWorkforceConsensusReport(ownData(result, "consensusReport"));
+    if (report.executionId === ownData(result, "executionId") && report.metadata.agentId === agentId
+      && report.metadata.agentRunId === ownData(result, "agentRunId") && report.metadata.planId === ownData(result, "planId")
+      && report.metadata.profileHash === profile.profileHash) consensus = report;
+  } catch { /* Other outputs retain the original counter rules. */ }
   return (path, key, value) => {
+    if (consensus && ["inputTokens", "outputTokens", "totalTokens"].includes(key)) {
+      if (path.length === 2 && path[0] === "consensusReport" && path[1] === "usage"
+        && ["inputTokens", "outputTokens"].includes(key) && consensus.usage[key] === value) return true;
+      if (path.length === 4 && path[0] === "consensusReport" && path[1] === "receipts"
+        && typeof path[2] === "number" && path[3] === "receipt" && consensus.receipts[path[2]]?.receipt[key] === value) return true;
+    }
     if (path.length !== 4) return false;
     if (path[0] === "roleExecution" && path[1] === "profile" && path[2] === "bindings" && typeof path[3] === "number") {
       const binding = profile.bindings[path[3]];

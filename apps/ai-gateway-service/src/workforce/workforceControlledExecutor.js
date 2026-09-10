@@ -37,6 +37,9 @@ import { createWorkforceWorkflowHandoffReview } from "./workforceWorkflowHandoff
 import { isWorkforceWorkflowHandoff } from "./workforceWorkflowHandoffRuntime.ts";
 import { readWorkflowHandoffMetadata, workflowHandoffError } from "./workforceWorkflowHandoffBinding.ts";
 import { executeWorkforceDag } from "./workforceDagExecutor.ts";
+import { compileConsensusReview } from "./workforceConsensusReview.ts";
+import { createWorkforceConsensusSession } from "./workforceConsensusRuntime.ts";
+import { consensusError, readWorkforceConsensusMetadata, readWorkforceConsensusReport } from "./workforceConsensusReport.ts";
 import { createAutonomyTierGovernor, TIERS as TIER_VALUES } from "./autonomyTierGovernor.js";
 import {
   CONTROLLED_EXECUTION_PHASE,
@@ -380,6 +383,7 @@ export function createControlledExecutor(options = {}) {
       workflowHandoff = createWorkforceWorkflowHandoffReview({ input, plan, outputRootHash: workflowHandoffRuntime.getInfo().outputRootHash });
     }
     const descriptor = createWorkforceExecutionDescriptor({ input, plan, autonomyMode,
+      ...(Object.hasOwn(input, "consensusReview") ? { consensusReview: compileConsensusReview({ input, plan, profile: selectedProfile }) } : {}),
       ...(workflowHandoff ? { workflowHandoff } : {}),
       ...(selectedProfile ? { roleExecution: selectedProfile } : {}),
       ...(selection ? { selectionReview: selection.decision } : {}),
@@ -581,7 +585,13 @@ export function createControlledExecutor(options = {}) {
         executionId: executionScopeId, planId, planDigest: descriptor.planDigest,
         profileHash: roleExecutionProfile.profileHash, requestExecution: executionOptions.requestExecution,
         signal: executionSignal, agentFence: governedExecution.executionLease,
+        ...(descriptor.consensusReview ? { preserveMessages: true } : {}),
       });
+      const consensusMetadata = descriptor.consensusReview ? readWorkforceConsensusMetadata({ version: 1,
+        agentId: governedExecution.context.agentId, agentRunId, planId, planDigest: descriptor.planDigest,
+        profileHash: roleExecutionProfile.profileHash, review: descriptor.consensusReview }) : null;
+      const consensusSession = consensusMetadata ? createWorkforceConsensusSession({ executionId: executionScopeId,
+        metadata: consensusMetadata, agentFence: governedExecution.executionLease }) : null;
       roleProviderRun?.validateRoles((plan.taskBreakdown ?? []).map((task) => task.roleId));
 
       if (mode === AUTONOMY_MODES.SANDBOX_MERGE || mode === AUTONOMY_MODES.SANDBOX_MERGE_AUTO) {
@@ -633,6 +643,7 @@ export function createControlledExecutor(options = {}) {
         ...(agentRunId ? { agentRunId, profileHash: roleExecutionProfile.profileHash } : {}),
         ...(descriptor.codeDelivery ? { codeDelivery: true } : {}),
         ...(workflowMetadata ? { workflowHandoff: workflowMetadata } : {}),
+        ...(consensusMetadata ? { consensusReview: consensusMetadata } : {}),
         startedAt: startedAt.toISOString(),
       });
       await lifecycle.start(executionScopeId);
@@ -660,7 +671,7 @@ export function createControlledExecutor(options = {}) {
       const context = {
         plan,
         priorOutputs: {},
-        ...(descriptor.codeDelivery || workflowMetadata ? { executionId: executionScopeId, agentRunId } : {}),
+        ...(descriptor.codeDelivery || workflowMetadata || consensusMetadata ? { executionId: executionScopeId, agentRunId } : {}),
         ...(governedExecution ? { governedAgentId: governedExecution.context.agentId } : {}),
       };
       let executionGraph = null;
@@ -710,7 +721,7 @@ export function createControlledExecutor(options = {}) {
               planId: executionScopeId,
               agentId: governedExecution?.context.agentId ?? roleId,
               role: roleId,
-              ...(descriptor.codeDelivery || workflowMetadata ? { taskId: task.queueTaskId } : {}),
+              ...(descriptor.codeDelivery || workflowMetadata || consensusMetadata ? { taskId: task.queueTaskId } : {}),
               goal: plan.goal,
               context: {
                 publicPlanId: planId,
@@ -733,7 +744,9 @@ export function createControlledExecutor(options = {}) {
                 legacyProviderCallsMade = true;
                 return providerAdapter.generate(...args);
               } } : null;
-              let result = roleAdapter
+              let result = consensusSession
+                ? await consensusSession.runRole(roleId, task.queueTaskId, rawRoleAdapter, roleContext.externalEffectFence, roleContext.signal)
+                : roleAdapter
                 ? await executeRoleWithLLM(roleId, plan.goal, roleContext, roleAdapter,
                   { requireRuntimeContribution: Boolean(roleProviderRun) })
                 : await createRoleExecutor(roleId).analyze(plan.goal, roleContext);
@@ -961,6 +974,14 @@ export function createControlledExecutor(options = {}) {
         });
       }
 
+      let consensusReport = null;
+      if (consensusSession) {
+        if (typeof lifecycle.recordConsensusResult !== "function") throw consensusError("WORKFORCE_CONSENSUS_PERSISTENCE_UNAVAILABLE", "The original lifecycle cannot record the complete review.", 503);
+        consensusReport = consensusSession.finish(finalStatus, roleProviderRun);
+        await lifecycle.recordConsensusResult(executionScopeId, consensusReport);
+        const persisted = await lifecycle.getStatus(executionScopeId);
+        consensusReport = readWorkforceConsensusReport(persisted.consensusReport, { executionId: executionScopeId, metadata: consensusMetadata });
+      }
       const completedAt = new Date();
       return {
         success: finalStatus === "completed",
@@ -978,6 +999,7 @@ export function createControlledExecutor(options = {}) {
         roleResults,
         ...(selectionReview ? { selectionFeedback } : {}),
         ...(workflowMetadata ? { workflowHandoff: workflowHandoffOutcome } : {}),
+        ...(consensusMetadata ? { consensusReport } : {}),
         ...(descriptor.codeDelivery ? { codeDelivery: codeDeliveryResult,
           recoveryRequired: !worktreeCleanedUp, ...(codeFailure ? { codeDeliveryFailure: codeFailure } : {}) } : {}),
         ...(roleProviderRun ? { agentRunId, roleExecution: {
@@ -1137,6 +1159,13 @@ export function createControlledExecutor(options = {}) {
       const snapshot = await lifecycle.getStatus(executionId);
       assertExecutionAccess(snapshot, identity);
       const { tenantFingerprint: _tenant, subjectFingerprint: _subject, ...safe } = snapshot;
+      if (snapshot.consensusReview) {
+        const metadata = readWorkforceConsensusMetadata(snapshot.consensusReview);
+        delete safe.consensusReview;
+        safe.consensusReport = snapshot.consensusReport
+          ? readWorkforceConsensusReport(snapshot.consensusReport, { executionId, metadata }) : null;
+        safe.consensusObservation = safe.consensusReport ? "recorded" : "not-recorded-no-automatic-redispatch";
+      }
       if (snapshot.workflowHandoff) {
         if (!isWorkforceWorkflowHandoff(workflowHandoffRuntime)) throw workflowHandoffError("WORKFORCE_WORKFLOW_UNAVAILABLE", "The workflow journal is unavailable.", 503);
         safe.workflowHandoff = await workflowHandoffRuntime.inspect({ executionId, metadata: snapshot.workflowHandoff, identity });
