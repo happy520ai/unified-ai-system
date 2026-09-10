@@ -70,6 +70,7 @@ import {
   createLocalClientLoopbackVerificationProbe,
 } from "../capabilities/localClientLoopbackAdapter.ts";
 import { createCredentialResolver } from "../credentials/credentialResolver.js";
+import { createImConnectorRuntime, readImConnectorConfiguration } from "../connectors/imConnectorRuntime.ts";
 import { createWorkforceExecutionControl } from "../workforce/workforceExecutionControlFactory.ts";
 import { createLocalClientProviderRuntimeRouter } from "../routing/localClientProviderRuntimeRouter.ts";
 import { createConfiguredLocalClientProviderPolicyResolver } from "../routing/localClientProviderPolicyConfig.ts";
@@ -162,6 +163,7 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
   const localClientFixtureReceiptClosure =
     fixtureCapability === LOCAL_CLIENT_FIXTURE_RECEIPT_CLOSURE_CAPABILITY;
   const parsedLocalClientOnboardingConfiguration = resolveLocalClientOnboardingConfiguration(env);
+  const imConnectorConfiguration = readImConnectorConfiguration(env);
   const localClientSmartManagementSchedulerConfiguration =
     resolveLocalClientSmartManagementSchedulerConfig(env);
   const localClientProtocolPrincipalConfiguration =
@@ -1125,6 +1127,7 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
     providerRegistry,
     providerStatementReconciliationService,
     responseSessionStore,
+    imConnectorRuntime: createImConnectorRuntime({ env, gate: externalEffectGate, configuration: imConnectorConfiguration }),
     runtimeEnv: env,
     runtimeCredentialStore,
     requestLogger,
@@ -1170,6 +1173,7 @@ function resolveExternalEffectEnabled(env, localClientOnboardingEnabled = false)
     || localClientOnboardingEnabled === true
     || String(env.AI_GATEWAY_LOCAL_CLIENT_EXECUTION_ENABLED ?? "").trim().toLowerCase() === "true"
     || String(env.AI_GATEWAY_LOCAL_CLIENT_EXECUTION_ENABLED ?? "").trim() === "1"
+    || env.FEISHU_CONNECTOR_MODE === "api"
     || Boolean(String(env.FEISHU_WEBHOOK_URL ?? "").trim())
     || Boolean(String(env.WECOM_WEBHOOK_URL ?? "").trim())
     || hasConfiguredMcpUpstreams(env.MCP_UPSTREAM_SERVERS_JSON);

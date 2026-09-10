@@ -891,6 +891,24 @@ export function createGatewayClient(options = {}) {
         timeoutMs,
       });
     },
+    connectors() {
+      return requestJson({ path: "/connectors", redirect: "error" });
+    },
+    async sendConnectorMessage(connectorId, request, executionOptions) {
+      if (connectorId !== "feishu" && connectorId !== "wecom") throw createProviderKeyConfigurationError("Unsupported IM connector.");
+      if (Object.keys(headers).some(name => name.toLowerCase() === "external-effect-key")) {
+        throw createProviderKeyConfigurationError("Set the IM operation key through send options, not shared headers.");
+      }
+      const keyedHeaders = prepareRequiredIdempotencyHeaders(headers, { idempotencyKey: executionOptions?.externalEffectKey }, "IM message send");
+      const { "idempotency-key": operationKey, ...otherHeaders } = keyedHeaders;
+      try {
+        return await requestJson({ path: `/connectors/${connectorId}/send`, method: "POST", body: request,
+          headers: { ...otherHeaders, "external-effect-key": operationKey }, redirect: "error" });
+      } catch (error) {
+        if (error instanceof GatewayClientError) error.retryable = false;
+        throw error;
+      }
+    },
     knowledgeLoad(request) {
       return requestJson({
         baseUrl,

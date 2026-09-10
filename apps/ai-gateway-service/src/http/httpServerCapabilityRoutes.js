@@ -1,6 +1,5 @@
 import { createErrorEnvelope, createOkEnvelope } from "@unified-ai-system/shared-utils";
 import { safeOutboundFetch } from "../security/safeOutboundFetch.ts";
-import { reserveWebhookExternalEffect } from "../external-effects/externalEffectWebhookGuard.ts";
 import {
   writeJson,
   readJson,
@@ -220,109 +219,30 @@ export function createHttpServerCapabilityRoutes(ctx) {
   });
 
   // ── Connectors ──
-  handlers.set("GET /connectors", async (_request, response, { startedAt }) => {
-    writeJson(
-      response,
-      200,
-      createOkEnvelope(
-        {
-          connectors: [
-            {
-              connectorId: "explicit-text",
-              title: "Explicit Text Connector",
-              mode: "manual-input",
-              safety: "No crawling, no broad file scan, no background sync.",
-            },
-            {
-              connectorId: "feishu",
-              title: "Feishu / Lark",
-              mode: "webhook",
-              status: connectorFeishuDryRun ? "dry-run" : "ready",
-              webhookConfigured: !connectorFeishuDryRun,
-              dryRun: connectorFeishuDryRun,
-            },
-            {
-              connectorId: "wecom",
-              title: "WeCom / Enterprise WeChat",
-              mode: "webhook",
-              status: connectorWeComDryRun ? "dry-run" : "ready",
-              webhookConfigured: !connectorWeComDryRun,
-              dryRun: connectorWeComDryRun,
-            },
-          ],
-        },
-        { startedAt },
-      ),
-    );
+  handlers.set("GET /connectors", async (request, response, { startedAt }) => {
+    writeJson(response, 200, createOkEnvelope(application.imConnectorRuntime.getHealth(request.enterpriseIdentity?.tenantId), { startedAt }));
   });
 
-  handlers.set("POST /connectors/feishu/send", async (request, response, { startedAt }) => {
+  handlers.set("POST /connectors/feishu/send", async (request, response, { startedAt, requestExecution }) => {
     const body = await readCapabilityJson({ request, response, startedAt, code: "feishu_send_invalid_json" });
     if (!body) return;
-    const webhookUrl = application.runtimeEnv?.FEISHU_WEBHOOK_URL || process.env.FEISHU_WEBHOOK_URL || "";
-    const dryRun = !webhookUrl;
-    if (dryRun) {
-      writeJson(response, 200, createOkEnvelope({
-        route: "/connectors/feishu/send", delivered: false, dryRun: true,
-        metadata: { connectorId: "feishu", messagePreview: (body.body || body.text || "").slice(0, 100) },
-      }, { startedAt }));
-    } else {
-      try {
-        const payload = { msg_type: "text", content: { text: `[${body.title || "AI Gateway"}]\n${body.body || body.text || ""}` } };
-        const reservation = await reserveWebhookExternalEffect({
-          gate: application.externalEffectGate,
-          request,
-          route: "/connectors/feishu/send",
-          effectType: "webhook:feishu",
-          webhookUrl,
-          payload,
-          tenantId: request.enterpriseIdentity?.tenantId ?? request.enterpriseIdentity?.tenant ?? "default",
-        });
-        await reservation.commit();
-        const resp = await safeOutboundFetch(webhookUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
-        const result = await resp.json().catch(() => ({}));
-        writeJson(response, 200, createOkEnvelope({
-          route: "/connectors/feishu/send", delivered: resp.ok && result.code === 0, dryRun: false,
-          externalMessageId: result.message_id || null,
-        }, { startedAt }));
-      } catch (error) {
-        writeErrorResponse({ response, error, startedAt, fallbackCode: "feishu_send_failed" });
-      }
+    try {
+      const result = await application.imConnectorRuntime.send("feishu", body, request, requestExecution?.signal);
+      writeJson(response, 200, createOkEnvelope(result, { startedAt }));
+    } catch (error) {
+      writeErrorResponse({ response, error, startedAt, fallbackCode: "feishu_send_failed" });
     }
   });
 
-  handlers.set("POST /connectors/wecom/send", async (request, response, { startedAt }) => {
+
+  handlers.set("POST /connectors/wecom/send", async (request, response, { startedAt, requestExecution }) => {
     const body = await readCapabilityJson({ request, response, startedAt, code: "wecom_send_invalid_json" });
     if (!body) return;
-    const webhookUrl = application.runtimeEnv?.WECOM_WEBHOOK_URL || process.env.WECOM_WEBHOOK_URL || "";
-    const dryRun = !webhookUrl;
-    if (dryRun) {
-      writeJson(response, 200, createOkEnvelope({
-        route: "/connectors/wecom/send", delivered: false, dryRun: true,
-        metadata: { connectorId: "wecom", messagePreview: (body.body || body.text || "").slice(0, 100) },
-      }, { startedAt }));
-    } else {
-      try {
-        const payload = { msgtype: "text", text: { content: `[${body.title || "AI Gateway"}]\n${body.body || body.text || ""}` } };
-        const reservation = await reserveWebhookExternalEffect({
-          gate: application.externalEffectGate,
-          request,
-          route: "/connectors/wecom/send",
-          effectType: "webhook:wecom",
-          webhookUrl,
-          payload,
-          tenantId: request.enterpriseIdentity?.tenantId ?? request.enterpriseIdentity?.tenant ?? "default",
-        });
-        await reservation.commit();
-        const resp = await safeOutboundFetch(webhookUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
-        const result = await resp.json().catch(() => ({}));
-        writeJson(response, 200, createOkEnvelope({
-          route: "/connectors/wecom/send", delivered: resp.ok && result.errcode === 0, dryRun: false,
-          externalMessageId: result.msgid || null,
-        }, { startedAt }));
-      } catch (error) {
-        writeErrorResponse({ response, error, startedAt, fallbackCode: "wecom_send_failed" });
-      }
+    try {
+      const result = await application.imConnectorRuntime.send("wecom", body, request, requestExecution?.signal);
+      writeJson(response, 200, createOkEnvelope(result, { startedAt }));
+    } catch (error) {
+      writeErrorResponse({ response, error, startedAt, fallbackCode: "wecom_send_failed" });
     }
   });
 

@@ -615,6 +615,50 @@ async function closeServer(server) {
   }
 }
 
+test("IM SDK carries an explicit operation key and treats unknown results as non-retryable", async () => {
+  const calls = [];
+  const { server, baseUrl } = await startServer(async (request, response) => {
+    let raw = ""; for await (const chunk of request) raw += chunk;
+    calls.push({ path: request.url, headers: request.headers, body: raw ? JSON.parse(raw) : null });
+    const unknown = raw.includes("unknown");
+    response.writeHead(unknown ? 502 : 200, { "content-type": "application/json" });
+    response.end(JSON.stringify(unknown ? { ok: false, error: { code: "IM_SEND_OUTCOME_UNKNOWN", details: { outcomeUnknown: true } } }
+      : { ok: true, data: request.method === "GET" ? { connectors: [] } : { status: "accepted", delivered: true } }));
+  });
+  try {
+    const client = createGatewayClient({ baseUrl, headers: { authorization: "Bearer fixture-user" } });
+    await client.connectors();
+    await client.sendConnectorMessage("feishu", { body: "message", targetId: "fixture", receiveIdType: "chat_id" }, { externalEffectKey: "stable-operation" });
+    assert.equal(calls[1].path, "/connectors/feishu/send");
+    assert.equal(calls[1].headers["external-effect-key"], "stable-operation");
+    assert.equal(calls[1].headers["idempotency-key"], undefined);
+    assert.equal(calls[1].headers.authorization, "Bearer fixture-user");
+    assert.equal(calls[1].body.body, "message");
+    await assert.rejects(client.sendConnectorMessage("wecom", { body: "unknown" }, { externalEffectKey: "unknown-operation" }),
+      error => error instanceof GatewayClientError && error.retryable === false && error.statusCode === 502);
+    assert.equal(calls.length, 3);
+    for (const headers of [{ "Idempotency-Key": "conflicting" }, { "External-Effect-Key": "conflicting" }]) {
+      await assert.rejects(createGatewayClient({ baseUrl, headers }).sendConnectorMessage("feishu", { body: "x" }, { externalEffectKey: "caller-key" }),
+        { code: GATEWAY_CLIENT_ERROR_CODES.PROTOCOL });
+    }
+    await assert.rejects(client.sendConnectorMessage("other", { body: "x" }, { externalEffectKey: "caller-key" }), { code: GATEWAY_CLIENT_ERROR_CODES.PROTOCOL });
+    await assert.rejects(client.sendConnectorMessage("feishu", { body: "x" }, {}), { code: GATEWAY_CLIENT_ERROR_CODES.PROTOCOL });
+    assert.equal(calls.length, 3);
+  } finally { await closeServer(server); }
+});
+
+test("IM SDK never follows a message redirect", async () => {
+  let forwarded = 0;
+  const target = await startServer((_request, response) => { forwarded++; response.end("unexpected"); });
+  const source = await startServer((_request, response) => { response.writeHead(307, { location: target.baseUrl + "/forward" }); response.end(); });
+  try {
+    const client = createGatewayClient({ baseUrl: source.baseUrl });
+    await assert.rejects(client.sendConnectorMessage("feishu", { body: "message" }, { externalEffectKey: "redirect-operation" }),
+      error => error instanceof GatewayClientError && error.retryable === false);
+    assert.equal(forwarded, 0);
+  } finally { await closeServer(source.server); await closeServer(target.server); }
+});
+
 test("workflow history SDK methods preserve identity headers, stable IDs and caller cancellation", async () => {
   const requests = [];
   const { server, baseUrl } = await startServer(async (request, response) => {

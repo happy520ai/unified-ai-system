@@ -1,6 +1,5 @@
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { getChatResponseCacheIntegration } from "../cache/chatResponseCacheIntegration.ts";
-import { reserveWebhookExternalEffect } from "../external-effects/externalEffectWebhookGuard.ts";
 import { readExternalEffectKeyContext } from "../external-effects/externalEffectHttpContext.ts";
 import { takeRawJsonRequestBody } from "./utils/responseUtils.js";
 import { hasActiveLocalClientReceiptRecoveryFailure } from "./utils/healthUtils.js";
@@ -912,74 +911,18 @@ export async function dispatchHttpRoutes03(context) {
   }
 
   if (request.method === "GET" && url.pathname === "/connectors") {
-    writeJson(
-      response,
-      200,
-      createOkEnvelope(
-        {
-          connectors: [
-            {
-              connectorId: "explicit-text",
-              title: "Explicit Text Connector",
-              mode: "manual-input",
-              safety: "No crawling, no broad file scan, no background sync.",
-            },
-            {
-              connectorId: "feishu",
-              title: "Feishu / Lark",
-              mode: "webhook",
-              status: connectorFeishuDryRun ? "dry-run" : "ready",
-              webhookConfigured: !connectorFeishuDryRun,
-              dryRun: connectorFeishuDryRun,
-            },
-            {
-              connectorId: "wecom",
-              title: "WeCom / Enterprise WeChat",
-              mode: "webhook",
-              status: connectorWeComDryRun ? "dry-run" : "ready",
-              webhookConfigured: !connectorWeComDryRun,
-              dryRun: connectorWeComDryRun,
-            },
-          ],
-        },
-        { startedAt },
-      ),
-    );
+    writeJson(response, 200, createOkEnvelope(application.imConnectorRuntime.getHealth(request.enterpriseIdentity?.tenantId), { startedAt }));
     return;
   }
 
   if (request.method === "POST" && url.pathname === "/connectors/feishu/send") {
     const body = await readCapabilityJson({ request, response, startedAt, code: "feishu_send_invalid_json" });
     if (!body) return;
-    const webhookUrl = application.runtimeEnv?.FEISHU_WEBHOOK_URL || process.env.FEISHU_WEBHOOK_URL || "";
-    const dryRun = !webhookUrl;
-    if (dryRun) {
-      writeJson(response, 200, createOkEnvelope({
-        route: "/connectors/feishu/send", delivered: false, dryRun: true,
-        metadata: { connectorId: "feishu", messagePreview: (body.body || body.text || "").slice(0, 100) },
-      }, { startedAt }));
-    } else {
-      try {
-        const payload = { msg_type: "text", content: { text: `[${body.title || "AI Gateway"}]\n${body.body || body.text || ""}` } };
-        const reservation = await reserveWebhookExternalEffect({
-          gate: application.externalEffectGate,
-          request,
-          route: "/connectors/feishu/send",
-          effectType: "webhook:feishu",
-          webhookUrl,
-          payload,
-          tenantId: request.enterpriseIdentity?.tenantId ?? request.enterpriseIdentity?.tenant ?? "default",
-        });
-        await reservation.commit();
-        const resp = await safeOutboundFetch(webhookUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
-        const result = await resp.json().catch(() => ({}));
-        writeJson(response, 200, createOkEnvelope({
-          route: "/connectors/feishu/send", delivered: resp.ok && result.code === 0, dryRun: false,
-          externalMessageId: result.message_id || null,
-        }, { startedAt }));
-      } catch (error) {
-        writeCapabilityError({ response, error, startedAt, fallbackCode: "feishu_send_failed" });
-      }
+    try {
+      const result = await application.imConnectorRuntime.send("feishu", body, request, requestExecution?.signal);
+      writeJson(response, 200, createOkEnvelope(result, { startedAt }));
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "feishu_send_failed" });
     }
     return;
   }
@@ -987,35 +930,11 @@ export async function dispatchHttpRoutes03(context) {
   if (request.method === "POST" && url.pathname === "/connectors/wecom/send") {
     const body = await readCapabilityJson({ request, response, startedAt, code: "wecom_send_invalid_json" });
     if (!body) return;
-    const webhookUrl = application.runtimeEnv?.WECOM_WEBHOOK_URL || process.env.WECOM_WEBHOOK_URL || "";
-    const dryRun = !webhookUrl;
-    if (dryRun) {
-      writeJson(response, 200, createOkEnvelope({
-        route: "/connectors/wecom/send", delivered: false, dryRun: true,
-        metadata: { connectorId: "wecom", messagePreview: (body.body || body.text || "").slice(0, 100) },
-      }, { startedAt }));
-    } else {
-      try {
-        const payload = { msgtype: "text", text: { content: `[${body.title || "AI Gateway"}]\n${body.body || body.text || ""}` } };
-        const reservation = await reserveWebhookExternalEffect({
-          gate: application.externalEffectGate,
-          request,
-          route: "/connectors/wecom/send",
-          effectType: "webhook:wecom",
-          webhookUrl,
-          payload,
-          tenantId: request.enterpriseIdentity?.tenantId ?? request.enterpriseIdentity?.tenant ?? "default",
-        });
-        await reservation.commit();
-        const resp = await safeOutboundFetch(webhookUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
-        const result = await resp.json().catch(() => ({}));
-        writeJson(response, 200, createOkEnvelope({
-          route: "/connectors/wecom/send", delivered: resp.ok && result.errcode === 0, dryRun: false,
-          externalMessageId: result.msgid || null,
-        }, { startedAt }));
-      } catch (error) {
-        writeCapabilityError({ response, error, startedAt, fallbackCode: "wecom_send_failed" });
-      }
+    try {
+      const result = await application.imConnectorRuntime.send("wecom", body, request, requestExecution?.signal);
+      writeJson(response, 200, createOkEnvelope(result, { startedAt }));
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "wecom_send_failed" });
     }
     return;
   }
@@ -1042,4 +961,3 @@ function setLocalClientIdempotencyHeaders(response, outcome) {
   exposed.add("Idempotency-Replayable");
   response.setHeader("Access-Control-Expose-Headers", [...exposed].join(", "));
 }
-import { safeOutboundFetch } from "../security/safeOutboundFetch.ts";

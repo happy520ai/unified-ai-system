@@ -14,13 +14,16 @@ vi.mock("../security/safeOutboundFetch.ts", () => ({
 
 import { createExternalEffectGate, type ExternalEffectGate } from "../external-effects/externalEffectGate.ts";
 import { dispatchHttpRoutes03 } from "./httpServerRoutes03.js";
+import { createImConnectorRuntime } from "../connectors/imConnectorRuntime.ts";
 
 const temporaryDirectories: string[] = [];
 const openGates: ExternalEffectGate[] = [];
+const runtimes: ReturnType<typeof createImConnectorRuntime>[] = [];
 const SHARED_SECRET = "active-route-external-effect-test".padEnd(64, "x");
 
 afterEach(async () => {
   mocks.safeOutboundFetch.mockReset();
+  await Promise.all(runtimes.splice(0).map(runtime => runtime.close()));
   await Promise.allSettled(openGates.splice(0).map((gate) => gate.close()));
   for (const directory of temporaryDirectories.splice(0)) {
     rmSync(directory, { recursive: true, force: true });
@@ -60,13 +63,16 @@ async function dispatch({
     headers,
     enterpriseIdentity: { tenantId: "tenant-a" },
   };
+  const runtimeEnv = {
+    FEISHU_WEBHOOK_URL: "https://open.feishu.cn/open-apis/bot/v2/hook/test-target",
+    WECOM_WEBHOOK_URL: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test-target",
+  };
+  const imConnectorRuntime = createImConnectorRuntime({ env: runtimeEnv, gate });
+  runtimes.push(imConnectorRuntime);
   await dispatchHttpRoutes03({
     application: {
       externalEffectGate: gate,
-      runtimeEnv: {
-        FEISHU_WEBHOOK_URL: "https://open.feishu.cn/open-apis/bot/v2/hook/test-target",
-        WECOM_WEBHOOK_URL: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test-target",
-      },
+      runtimeEnv, imConnectorRuntime,
     },
     request,
     response,
@@ -94,11 +100,7 @@ async function dispatch({
 describe("active connector routes use durable external-effect reservations", () => {
   it("does not send Feishu without a key and consumes one keyed payload only once", async () => {
     const gate = createGate();
-    mocks.safeOutboundFetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({ code: 0, message_id: "feishu-message-1" }),
-    });
+    mocks.safeOutboundFetch.mockImplementation(async () => Response.json({ code: 0, message_id: "feishu-message-1" }));
 
     const missing = await dispatch({
       gate,
@@ -149,11 +151,7 @@ describe("active connector routes use durable external-effect reservations", () 
 
   it("accepts the dedicated key header on the active WeCom route", async () => {
     const gate = createGate();
-    mocks.safeOutboundFetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({ errcode: 0, msgid: "wecom-message-1" }),
-    });
+    mocks.safeOutboundFetch.mockImplementation(async () => Response.json({ errcode: 0, msgid: "wecom-message-1" }));
 
     const first = await dispatch({
       gate,

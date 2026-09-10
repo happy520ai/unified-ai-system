@@ -1,4 +1,9 @@
 import type {
+  ImConnectorId,
+  ImConnectorMessage,
+  ImConnectorSendOptions,
+  ImConnectorSendResult,
+  ImConnectorListResult,
   ClearRuntimeProviderCredentialRequest,
   ClearRuntimeProviderCredentialResult,
   ContractMetadata,
@@ -442,6 +447,9 @@ export interface GatewayClient {
   knowledgeRetrieve(request: KnowledgeRetrieveRequest): Promise<KnowledgeRetrieveResult>;
   knowledgeLoad(request: KnowledgeLoadRequest): Promise<KnowledgeLoadResult>;
   knowledgeInfraReadiness(): Promise<KnowledgeInfraReadinessResult>;
+  connectors(): Promise<ResultEnvelope<ImConnectorListResult>>;
+  /** Performs a single send with an explicit key and rejects redirects; errors never invite automatic retries. */
+  sendConnectorMessage(connectorId: ImConnectorId, request: ImConnectorMessage, options: ImConnectorSendOptions): Promise<ResultEnvelope<ImConnectorSendResult>>;
   modelImportPreview(request: ModelImportPreviewRequest): Promise<ResultEnvelope<ModelImportPreviewResult>>;
   modelImportConfirm(request: ModelImportConfirmRequest): Promise<ResultEnvelope<ModelImportConfirmResult>>;
   workflowHealth(): Promise<ResultEnvelope<Record<string, unknown>>>;
