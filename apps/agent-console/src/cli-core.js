@@ -18,6 +18,7 @@ import { readVerificationSource, readWindowsVerificationHistory } from "./verifi
 import { projectWorkforceCodeDeliveryReview, formatWorkforceCodeDeliveryReview } from "./workforceCodeDeliveryReview.ts";
 import { projectWorkforceWorkflowHandoffReview, formatWorkforceWorkflowHandoffReview, assertWorkforceWorkflowOptionsHash } from "./workforceWorkflowHandoffReview.ts";
 import { projectWorkforceConsensusApproval, formatWorkforceConsensusReview, assertConsensusOptionsHash } from "./workforceConsensusReview.ts";
+import { projectWorkforceExternalRunnerApproval, formatWorkforceExternalRunnerReview } from "./workforceExternalRunnerReview.ts";
 import { runOperatorCommand, validateOperatorOptions, projectForgeApprovalReview, projectTaijiApprovalReview } from "./operatorCommands.ts";
 import { runContextCodecCommand, validateContextCodecOptions } from "./contextCodecCommands.ts";
 import { runWorkforceCommands, validateWorkforceOptions } from "./workforceCommands.ts";
@@ -1366,6 +1367,12 @@ function formatSafeReview(value) {
     return `Forge goal: ${safeTerminalBlock(value.forge.goal, 65536)}\nGoal digest: ${value.forge.goalDigest}\nPolicy: ${safeTerminalText(value.policyHash, 160)}\nOptions hash: ${value.forge.optionsHash}\n${JSON.stringify(value.forge.options, null, 2)}`;
   }
   if (value.effectType === "workforce:execute" && value.reviewable === true
+    && value.workforce?.options?.externalRunner) {
+    const workforce = value.workforce;
+    return [`Workforce goal: ${workforce.goal}`, `Plan: ${workforce.planId}; digest: ${workforce.planDigest}; policy: ${value.policyHash}`,
+      `Options hash: ${workforce.optionsHash}`, ...formatWorkforceExternalRunnerReview(workforce.options.externalRunner)].join("\n");
+  }
+  if (value.effectType === "workforce:execute" && value.reviewable === true
     && value.workforce?.options?.workflowHandoff && !value.workforce.options.roleExecution) {
     const workforce = value.workforce;
     return [`Workforce goal: ${safeTerminalBlock(workforce.goal, 4_000)}`,
@@ -1452,6 +1459,13 @@ function projectAgentApproval(value) {
     const codeSource = value.review?.workforce?.options?.codeDelivery;
     const handoffSource = value.review?.workforce?.options?.workflowHandoff;
     const consensusSource = value.review?.workforce?.options?.consensusReview;
+    const externalSource = value.review?.workforce?.options?.externalRunner;
+    let externalRunner;
+    if (externalSource !== undefined) {
+      if (value.review.effectType !== "workforce:execute" || value.review.reviewable !== true
+        || typeof value.review.policyHash !== "string" || !/^sha256:[a-f0-9]{64}$/u.test(value.review.policyHash)) throw new Error("Invalid Workforce external runner approval review.");
+      externalRunner = projectWorkforceExternalRunnerApproval(value.review.workforce);
+    }
     let consensusReview;
     if (consensusSource !== undefined) {
       if (value.review.effectType !== "workforce:execute" || value.review.reviewable !== true) throw new Error("Invalid Workforce consensus approval review.");
@@ -1515,6 +1529,8 @@ function projectAgentApproval(value) {
       output.review.workforce.options.consensusReview = consensusReview;
       assertConsensusOptionsHash(output.review.workforce.options, output.review.workforce.optionsHash);
     }
+    // This path has independently validated every native field; retain the entire prompt beyond generic display limits.
+    if (externalRunner !== undefined) output.review.workforce = externalRunner;
   }
   return Object.freeze(output);
 }
@@ -3985,7 +4001,7 @@ Commands:
   routing            modes, preview (local simulation; no model call)
   forge              status, runs, polish, quality, memory, recall, orchestrate, taiji, workforce
   taiji              status, run <id>, evaluate, activate, execute, revoke, repair, reweight, prune
-  workforce          status <execution-id>, handoff-recover --input recovery.json --yes
+  workforce          status <execution-id>, handoff-recover or native-recover --input recovery.json --yes
   chat [prompt]    Send one chat request to a running gateway
   spend            Show per-key token spend and budget status
   doctor           Check the local toolchain and gateway connection
@@ -4109,6 +4125,7 @@ Safety:
   These explicit workflow/provider commands use the supplied ID as intent and add no --yes requirement.
   knowledge load and forge polish/memory/orchestrate preview locally until --yes is supplied.
   workforce handoff-recover previews the three original IDs until --yes; recovery may write the approved report but never reruns employees or resumes the parent.
+  workforce native-recover requires only original executionId, operationId and agentId; it never starts another native turn or automatically resumes the parent.
   codec preview --input case.json performs local encoding only. codec compare --input case.json --yes makes at most two exact-model requests.
   Codec compares a supplied expected JSON answer and reported usage; fake observations remain synthetic, and unknown outcomes are never retried automatically.
   Forge model calls select local-fake-provider/local-fake-model by default; non-fake selection requires --allow-real-provider.

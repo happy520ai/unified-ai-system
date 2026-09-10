@@ -831,6 +831,72 @@ test("Workforce status and recovery reject redirects without forwarding IDs or r
   } finally { await closeServer(server); }
 });
 
+test("Workforce native review, execution and original recovery preserve exact selectors, full review and IDs", async () => {
+  const request = { goal: "Implement the reviewed change", planId: "native-plan", agentId: "agt_native", autonomyMode: "controlled-execution",
+    externalRunner: { profileId: "native-fixture" } };
+  const recovery = { executionId: "wf-scope-native", operationId: "wfr_" + "a".repeat(64), agentId: request.agentId };
+  const fullReview = { profile: { artifact: { readPaths: ["src/value.mjs", "test/value.mjs"], writePaths: ["src/value.mjs"] } },
+    prompt: "BEGIN " + "x".repeat(524276) + " END" };
+  const requests = [];
+  const { server, baseUrl } = await startServer(async (incoming, response) => {
+    let raw = ""; for await (const chunk of incoming) raw += chunk;
+    requests.push({ path: incoming.url, method: incoming.method, body: JSON.parse(raw) });
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify({ status: "ok", data: { selectedRoleCount: 8, externalRunner: fullReview } }));
+  });
+  const controller = new AbortController(), client = createGatewayClient({ baseUrl, signal: controller.signal });
+  try {
+    const result = await client.workforceExecutionReview(request); assert.deepEqual(result.data.externalRunner, fullReview);
+    assert.equal(result.data.selectedRoleCount, 8);
+    await client.workforceExecute(request); await client.recoverWorkforceExternalRunner(recovery);
+    assert.deepEqual(requests, [
+      { path: "/workforce/execute/review", method: "POST", body: request },
+      { path: "/workforce/execute", method: "POST", body: request },
+      { path: "/workforce/execute/external-runner/recover", method: "POST", body: recovery },
+    ]);
+    controller.abort(); await assert.rejects(client.recoverWorkforceExternalRunner(recovery), GatewayClientAbortError);
+    assert.equal(requests.length, 3);
+  } finally { await closeServer(server); }
+});
+
+test("Workforce native methods reject model or launch overrides, incomplete IDs, accessors and mixing before dispatch", () => {
+  const client = createGatewayClient({ baseUrl: "http://127.0.0.1:1" });
+  const valid = { goal: "Keep the approved scope", agentId: "agt_native", externalRunner: { profileId: "native-fixture" } };
+  const forbidden = [{ ...valid, modelId: "override" }, { ...valid, providerId: "override" }, { ...valid, roleExecution: {} },
+    { ...valid, externalRunner: { profileId: "native-fixture", nativeModel: { modelId: "override" } } },
+    { ...valid, externalRunner: { profileId: "native-fixture", binary: "other-program" } },
+    { ...valid, externalRunner: { profileId: "native-fixture", args: [] } }, { ...valid, codeDelivery: { profileId: "forge" } },
+    { ...valid, workflowHandoff: {} }, { ...valid, consensusReview: {} }, { ...valid, autonomyMode: "sandbox-merge" },
+    { goal: valid.goal, externalRunner: valid.externalRunner }];
+  let accessed = false;
+  const getter = { ...valid }; Object.defineProperty(getter, "goal", { enumerable: true, get() { accessed = true; return "changed"; } });
+  const nested = { ...valid, context: Object.defineProperty({}, "getter", { enumerable: true, get() { accessed = true; return true; } }) };
+  const sparse = Array(1); sparse.custom = "ignored";
+  for (const value of [...forbidden, getter, nested, { ...valid, selectedRoles: sparse }]) {
+    assert.throws(() => client.workforceExecutionReview(value), GatewayClientError);
+    assert.throws(() => client.workforceExecute(value), GatewayClientError);
+  }
+  assert.equal(accessed, false);
+  const ids = { executionId: "execution", operationId: "operation", agentId: "agt_native" };
+  for (const value of [null, { ...ids, goal: "new goal" }, { ...ids, threadId: "another-thread" },
+    { ...ids, operationId: "../escape" }, { ...ids, agentId: "not-agent" }, { executionId: ids.executionId },
+    { ...ids, executionId: "x".repeat(257) }]) assert.throws(() => client.recoverWorkforceExternalRunner(value), GatewayClientError);
+});
+
+test("Workforce native methods reject redirects with zero forwarding and no retries", async () => {
+  const requests = [];
+  const { server, baseUrl } = await startServer((request, response) => { requests.push(request.url); response.writeHead(307, { location: "/unexpected" }); response.end(); });
+  const client = createGatewayClient({ baseUrl });
+  const input = { goal: "Keep reviewed task", agentId: "agt_native", externalRunner: { profileId: "native-fixture" } };
+  try {
+    for (const call of [() => client.workforceExecutionReview(input), () => client.workforceExecute(input),
+      () => client.recoverWorkforceExternalRunner({ executionId: "execution", operationId: "operation", agentId: "agt_native" })]) {
+      await assert.rejects(call(), error => error instanceof GatewayClientError && error.retryable === false);
+    }
+    assert.deepEqual(requests, ["/workforce/execute/review", "/workforce/execute", "/workforce/execute/external-runner/recover"]);
+  } finally { await closeServer(server); }
+});
+
 test("validates and normalizes the gateway base URL", () => {
   assert.throws(
     () => createGatewayClient(),

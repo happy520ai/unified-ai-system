@@ -145,6 +145,20 @@
       "migrationPlan": "Remove these exact native files and this exception when the optional Windows authority is withdrawn. At the 2026-12-08 compatibility review, retain only measured Win32 primitives that still lack a TypeScript facility; protocol and coordination logic must stay TypeScript. Renewal requires the recorded native validation evidence.",
       "issueId": "T-002",
       "notes": "Source/build authorization only. No service deployment or protection-readiness claim follows from this exception."
+    },
+    {
+      "type": "fileSet",
+      "value": "t-064-workforce-native-job-ownership",
+      "files": [
+        "apps/ai-gateway-service/src/native/workforceNativeJobHost.cpp",
+        "apps/ai-gateway-service/src/native/workforceNativeJobHost.fixture.cpp"
+      ],
+      "justification": "T-064 requires Windows Job Objects, suspended child creation, inherited-handle whitelists and parent-handle monitoring that the existing Node.js API cannot provide. Only the fixed per-task process owner and its child-tree fixture use the existing C++ boundary; protocol, approvals, recovery and artifact verification remain TypeScript.",
+      "owner": "ai-gateway-service/workforce",
+      "removalBy": "2026-12-11",
+      "migrationPlan": "At the 2026-12-11 compatibility review, retain only the measured Win32 process primitives still unavailable in the TypeScript runtime, with the bounded native process and descendant-cleanup evidence. Remove these exact files and the exception if the optional native Workforce runner is withdrawn; no business protocol moves into C++.",
+      "issueId": "T-064",
+      "notes": "Exact source/build scope only. The helper is a finite child process, not an installed service; this exception does not grant native account execution, deployment or filesystem-isolation readiness."
     }
   ]
 }

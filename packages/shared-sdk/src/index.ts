@@ -120,6 +120,11 @@ import type {
   WorkforceExecutionStatusResult,
   WorkforceWorkflowRecoveryRequest,
   WorkforceWorkflowRecoveryResult,
+  WorkforceExternalRunnerRecoveryRequest,
+  WorkforceExternalRunnerRecoveryResult,
+  WorkforceExecuteRequest,
+  WorkforceExecuteResult,
+  WorkforceExecutionReviewResult,
   WorkforceHealthResult,
   WorkforcePlanDeleteResult,
   WorkforcePlanExportResult,
@@ -172,6 +177,20 @@ export type {
   RevokeGovernedAgentRequest,
   RevokeGovernedAgentResult,
   RunGovernedAgentRequest,
+  WorkforceExternalRunnerReview,
+  WorkforceExternalRunnerProfile,
+  WorkforceExternalRunnerSelector,
+  WorkforceExternalRunnerState,
+  WorkforceExternalRunnerNativeUsage,
+  WorkforceExternalRunnerTokenCounts,
+  WorkforceExternalRunnerInspection,
+  WorkforceExternalRunnerRecoveryRequest,
+  WorkforceExternalRunnerRecoveryResponse,
+  WorkforceExternalRunnerRecoveryResult,
+  WorkforceExecuteRequest,
+  WorkforceExecuteResult,
+  WorkforceExecutionReviewResponse,
+  WorkforceExecutionReviewResult,
 } from "@unified-ai-system/shared-contracts";
 
 export interface GatewayClientOptions {
@@ -510,6 +529,11 @@ export interface GatewayClient {
   workforceHealth(): Promise<WorkforceHealthResult>;
   workforceExecutionStatus(executionId: string): Promise<WorkforceExecutionStatusResult>;
   recoverWorkforceWorkflow(request: WorkforceWorkflowRecoveryRequest): Promise<WorkforceWorkflowRecoveryResult>;
+  /** Reviews the complete configured intent without dispatching a native turn. */
+  workforceExecutionReview(request: WorkforceExecuteRequest): Promise<WorkforceExecutionReviewResult>;
+  /** Executes only after the gateway's current plan and Agent approvals; never retries automatically. */
+  workforceExecute(request: WorkforceExecuteRequest): Promise<WorkforceExecuteResult>;
+  recoverWorkforceExternalRunner(request: WorkforceExternalRunnerRecoveryRequest): Promise<WorkforceExternalRunnerRecoveryResult>;
   workforceAgents(): Promise<WorkforceAgentsResult>;
   workforcePlan(request: WorkforcePlanRequest): Promise<WorkforcePlanResult>;
   workforcePlanSave(request: WorkforcePlanSaveRequest): Promise<WorkforcePlanSaveResult>;

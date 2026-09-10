@@ -160,6 +160,7 @@ export interface WorkforceExecutionStatusResponse {
   workflowHandoff?: WorkforceWorkflowHandoffInspection | null;
   consensusReport?: WorkforceConsensusReport | null;
   consensusObservation?: "recorded" | "not-recorded-no-automatic-redispatch";
+  externalRunner?: WorkforceExternalRunnerInspection | null;
 }
 export type WorkforceWorkflowRecoveryResponse = WorkforceWorkflowHandoffInspection & {
   status: "completed"; taskId: string; parentExecutionId: string; parentExecutionStatus: WorkforceExecutionStatus;
@@ -216,6 +217,98 @@ export interface WorkforceCodeDeliveryProfileInput {
 export interface WorkforceCodeDeliveryProfile extends WorkforceCodeDeliveryProfileInput {
   readonly profileHash: string;
 }
+
+/** Server-owned native runner intent; no executable arguments, credentials or authority are supplied by a request. */
+export interface WorkforceExternalRunnerProfileInput {
+  readonly version: 1;
+  readonly mode: "codex-app-server-owned-worktree";
+  readonly profileId: string;
+  readonly projectId: string;
+  readonly roleId: "backend-engineer";
+  readonly baselineRevision: string;
+  readonly binary: { readonly path: string; readonly sha256: string; readonly version: "0.153.4";
+    readonly platform: "win32" | "linux" | "darwin" };
+  /** Expected native metadata only; these values are never model or provider overrides. */
+  readonly nativeModel: { readonly modelId: string; readonly providerId: string };
+  readonly disabledMcpServers: readonly string[];
+  readonly limits: { readonly timeoutMs: number; readonly maxInputBytes: number; readonly maxMessageBytes: number; readonly maxEvents: number };
+  readonly artifact: Pick<WorkforceCodeDeliveryProfileInput, "readPaths" | "writePaths" | "verification" | "artifactLimits">;
+}
+export interface WorkforceExternalRunnerProfile extends WorkforceExternalRunnerProfileInput {
+  readonly profileHash: string;
+}
+export interface WorkforceExternalRunnerSelector { readonly profileId: string }
+/** Complete approved prompt and original source snapshot; hashes do not attest runtime execution. */
+export interface WorkforceExternalRunnerReview {
+  readonly version: 1;
+  readonly profile: WorkforceExternalRunnerProfile;
+  readonly configuredRepositoryHash: string;
+  readonly goal: string;
+  readonly prompt: string;
+  readonly sourceFilesHash: string;
+  readonly reviewHash: string;
+}
+
+export type WorkforceExternalRunnerStatus = "prepared" | "starting" | "thread_ready" | "dispatching" | "running"
+  | "native_completed" | "verifying" | "verified" | "failed" | "cancelled" | "unknown";
+export interface WorkforceExternalRunnerTokenCounts {
+  inputTokens: number; cachedInputTokens: number; cacheWriteInputTokens: number;
+  outputTokens: number; reasoningOutputTokens: number; totalTokens: number;
+}
+export interface WorkforceExternalRunnerNativeUsage {
+  source: "native-thread-notification"; final: false; turnId: string;
+  total: WorkforceExternalRunnerTokenCounts; last: WorkforceExternalRunnerTokenCounts; modelContextWindow: number | null;
+}
+/** Original lifecycle observation; hashes and JSON alone confer no recovery or execution authority. */
+export interface WorkforceExternalRunnerState {
+  version: 1; operationId: string; executionId: string; taskId: string; agentId: string; planId: string; reviewHash: string;
+  tenantFingerprint: string; subjectFingerprint: string; clientUserMessageId: string;
+  worktree: { worktreeId: string; path: string; directoryHash: string; baselineRevision: string; sourceFilesHash: string };
+  sequence: number; previousHash: string | null; stateHash: string; status: WorkforceExternalRunnerStatus;
+  threadId: string | null; turnId: string | null; nativeStatus: "none" | "inProgress" | "completed" | "failed" | "interrupted" | "unknown";
+  processIdentity: { kind: "windows-job" | "posix-process-group"; hostPid: number; childPid: number; hostCreated: string | null; childCreated: string | null } | null;
+  ownerProcess: { pid: number; created: string } | null;
+  recoveryProcesses: Array<{ identity: WorkforceExternalRunnerState["processIdentity"]; closed: boolean }>;
+  processClosed: boolean; eventsObserved: number; eventsHash: string;
+  fileApprovals: Array<{ itemId: string; changesHash: string; beforeFilesHash: string; completedFilesHash: string | null }>;
+  nativeUsage: WorkforceExternalRunnerNativeUsage | null;
+  lastEvent: { method: string; itemId: string | null; itemType: string | null } | null;
+  startedAt: string; updatedAt: string; artifact: ContractMetadata | null; verification: ContractMetadata | null;
+  error: { code: string; outcomeUnknown: boolean } | null;
+}
+export interface WorkforceExternalRunnerInspection {
+  metadata: { version: 1; agentId: string; planId: string; planDigest: string; review: WorkforceExternalRunnerReview };
+  state: WorkforceExternalRunnerState | null;
+}
+export interface WorkforceExternalRunnerRecoveryRequest { executionId: string; operationId: string; agentId: string }
+export interface WorkforceExternalRunnerRecoveryResponse {
+  state: WorkforceExternalRunnerState & { status: "verified"; nativeStatus: "completed"; processClosed: true };
+  recoveredOriginal: true; newNativeTurns: 0; parentAutomaticallyResumed: false;
+  parentExecutionStatus: WorkforceExecutionStatus; parentExecutionResumed: false; employeeRolesRerun: false;
+}
+export type WorkforceExternalRunnerRecoveryResult = ResultEnvelope<WorkforceExternalRunnerRecoveryResponse>;
+/** Native launch settings and model overrides are never supplied by an execution request. */
+export interface WorkforceExecuteRequest extends WorkforcePlanRequest {
+  agentId?: string; planId?: string; selectedRoles?: string[];
+  autonomyMode?: "dry-run" | "controlled-execution" | "sandbox-merge" | "sandbox-merge-auto";
+  operationType?: string;
+  externalRunner?: WorkforceExternalRunnerSelector;
+  codeDelivery?: { profileId: string };
+  workflowHandoff?: { roleId: string; query: string; topK: number; sourceIds: string[] };
+  consensusReview?: { proposal: readonly WorkforceConsensusProposalStep[]; criteria: readonly WorkforceConsensusCriterion[];
+    evidence: readonly Omit<WorkforceConsensusEvidence, "sha256">[] };
+}
+export interface WorkforceExecutionReviewResponse {
+  planId: string; planDigest: string; autonomyMode: string; requiredScopes: string[];
+  /** Actual server plan role count, independent of a request's selectedRoles projection. */
+  selectedRoleCount?: number;
+  roleExecution?: WorkforceRoleExecutionProfile; selectionReview?: WorkforceSelectionDecision;
+  codeDelivery?: WorkforceCodeDeliveryReview; codeDeliveryReadiness?: WorkforceCodeDeliveryReadiness;
+  workflowHandoff?: WorkforceWorkflowHandoffReview; consensusReview?: WorkforceConsensusReview;
+  externalRunner?: WorkforceExternalRunnerReview;
+}
+export type WorkforceExecutionReviewResult = ResultEnvelope<WorkforceExecutionReviewResponse>;
+export type WorkforceExecuteResult = ResultEnvelope<Record<string, unknown> & { externalRunner?: WorkforceExternalRunnerInspection | null }>;
 
 export interface WorkforceCodeDeliveryReview {
   readonly version: 1;

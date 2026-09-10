@@ -13,6 +13,7 @@ import { createLogRedactor } from "./logRedactor.js";
 import { readTrustedWorkforceCodeDeliveryEvidenceIndex } from "./workforceCodeDeliveryRuntime.ts";
 import { readWorkflowHandoffMetadata } from "./workforceWorkflowHandoffBinding.ts";
 import { readWorkforceConsensusMetadata, readWorkforceConsensusReport } from "./workforceConsensusReport.ts";
+import { externalRunnerLifecycleProjection } from "./workforceExternalRunnerState.ts";
 
 const MAX_LIFECYCLE_BYTES = 1024 * 1024;
 const lifecycleWriteTails = new Map();
@@ -86,6 +87,11 @@ export function sanitizePlanId(id) {
 export async function persistState(lifecycleDir, planId, state) {
   const filePath = createLifecycleStatePath(lifecycleDir, planId);
   const persistedState = lifecycleRedactor.redactObject(state);
+  if (state.metadata?.externalRunner) {
+    const { externalRunner } = externalRunnerLifecycleProjection(state, planId);
+    persistedState.metadata.externalRunner = externalRunner.metadata;
+    if (externalRunner.state) persistedState.summary.externalRunnerState = externalRunner.state;
+  }
   if (state.metadata?.workflowHandoff) persistedState.metadata.workflowHandoff = readWorkflowHandoffMetadata(state.metadata.workflowHandoff);
   if (state.metadata?.consensusReview) {
     persistedState.metadata.consensusReview = readWorkforceConsensusMetadata(state.metadata.consensusReview);

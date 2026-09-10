@@ -29,6 +29,7 @@ import { readFrozenWorkforceSelectionReview } from "../workforce/workforceSelect
 import { readWorkforceCodeDeliveryReview } from "../workforce/workforceCodeDeliveryProfile.ts";
 import { readWorkforceWorkflowHandoffReview } from "../workforce/workforceWorkflowHandoffProfile.ts";
 import { compileConsensusReview, readConsensusReview } from "../workforce/workforceConsensusReview.ts";
+import { readWorkforceExternalRunnerReview } from "../workforce/workforceExternalRunnerProfile.ts";
 import { readGovernedWebTaskReview } from "../forge/governedWebTaskRuntime.ts";
 import { readForgeModelSelection, readForgeOutputTokenLimit } from "../forge/forgeModelSelection.ts";
 import { readTaijiApprovalReview, assertTaijiReviewArguments } from "../real-capabilities/taijiCapabilityReview.ts";
@@ -886,6 +887,8 @@ function normalizeWorkforceApprovalReview(source: AgentToolApprovalReview): Agen
   const options = normalizeWorkforceOptions(workforce.options);
   if (options.workflowHandoff && options.workflowHandoff.goal !== workforce.goal) throw corrupt("Workflow handoff must keep the complete reviewed Workforce goal.");
   if (options.consensusReview && options.consensusReview.goal !== workforce.goal) throw corrupt("Consensus review must keep the complete reviewed Workforce goal.");
+  if (options.externalRunner && (options.externalRunner.goal !== workforce.goal
+    || !["dry-run", "controlled-execution"].includes(workforce.autonomyMode))) throw corrupt("External runner must keep the complete reviewed Workforce goal and controlled mode.");
   if (workforce.optionsHash !== digestText(stableStringify(options))) {
     throw corrupt("Workforce approval options do not match their authenticated review hash.");
   }
@@ -918,7 +921,10 @@ function normalizeWorkforceOptions(value: unknown): NonNullable<AgentToolApprova
   const hasCodeDelivery = Object.hasOwn(source, "codeDelivery");
   const hasWorkflowHandoff = Object.hasOwn(source, "workflowHandoff");
   const hasConsensus = Object.hasOwn(source, "consensusReview");
-  const expectedKeys = ["selectedRoleCount", "templateSelected", ...(hasRoleExecution ? ["roleExecution"] : []), ...(hasSelectionReview ? ["selectionReview"] : []), ...(hasCodeDelivery ? ["codeDelivery"] : []), ...(hasWorkflowHandoff ? ["workflowHandoff"] : []), ...(hasConsensus ? ["consensusReview"] : [])];
+  const hasExternalRunner = Object.hasOwn(source, "externalRunner");
+  const expectedKeys = ["selectedRoleCount", "templateSelected", ...(hasRoleExecution ? ["roleExecution"] : []), ...(hasSelectionReview ? ["selectionReview"] : []), ...(hasCodeDelivery ? ["codeDelivery"] : []), ...(hasWorkflowHandoff ? ["workflowHandoff"] : []), ...(hasConsensus ? ["consensusReview"] : []), ...(hasExternalRunner ? ["externalRunner"] : [])];
+  if (hasExternalRunner && (hasRoleExecution || hasSelectionReview || hasCodeDelivery || hasWorkflowHandoff || hasConsensus
+    || !Number.isSafeInteger(source.selectedRoleCount) || Number(source.selectedRoleCount) < 1)) throw corrupt("External runner requires one separate reviewed execution profile.");
   if (hasSelectionReview && !hasRoleExecution) throw corrupt("Workforce selection requires its complete execution profile.");
   if (hasCodeDelivery && !hasRoleExecution) throw corrupt("Code delivery requires its complete employee profile.");
   if (Object.keys(source).sort().join("\0") !== expectedKeys.sort().join("\0")
@@ -936,6 +942,7 @@ function normalizeWorkforceOptions(value: unknown): NonNullable<AgentToolApprova
     ...(hasCodeDelivery ? { codeDelivery: normalizeWorkforceCodeDelivery(source.codeDelivery, source.roleExecution) } : {}),
     ...(hasWorkflowHandoff ? { workflowHandoff: normalizeWorkforceWorkflowHandoff(source.workflowHandoff) } : {}),
     ...(hasConsensus ? { consensusReview: normalizeWorkforceConsensus(source.consensusReview, source.roleExecution) } : {}),
+    ...(hasExternalRunner ? { externalRunner: normalizeWorkforceExternalRunner(source.externalRunner) } : {}),
   };
 }
 
@@ -947,6 +954,10 @@ function normalizeWorkforceCodeDelivery(value: unknown, profile: unknown) {
 function normalizeWorkforceWorkflowHandoff(value: unknown) {
   try { return readWorkforceWorkflowHandoffReview(value); }
   catch { throw corrupt("Workflow handoff does not match its complete reviewed contract."); }
+}
+function normalizeWorkforceExternalRunner(value: unknown) {
+  try { return readWorkforceExternalRunnerReview(value); }
+  catch { throw corrupt("External runner does not match its complete reviewed profile, prompt and source."); }
 }
 function normalizeWorkforceConsensus(value: unknown, profile: unknown) {
   try {
@@ -1092,6 +1103,7 @@ function verifyWorkforceReviewMatchesArguments(review: AgentToolApprovalReview, 
       ...(options.codeDelivery ? { codeDelivery: options.codeDelivery } : {}),
       ...(options.workflowHandoff ? { workflowHandoff: options.workflowHandoff } : {}),
       ...(options.consensusReview ? { consensusReview: options.consensusReview } : {}),
+      ...(options.externalRunner ? { externalRunner: options.externalRunner } : {}),
     }))) {
     throw corrupt("Workforce approval arguments do not match the complete operator review.");
   }
@@ -1107,8 +1119,12 @@ function normalizeWorkforceArgumentOptions(value: unknown) {
   const hasCodeDelivery = Object.hasOwn(source, "codeDelivery");
   const hasWorkflowHandoff = Object.hasOwn(source, "workflowHandoff");
   const hasConsensus = Object.hasOwn(source, "consensusReview");
+  const hasExternalRunner = Object.hasOwn(source, "externalRunner");
   const expectedKeys = ["autonomyMode", "requiredScopes", "selectedRoleCount", "templateSelected",
-    ...(hasRoleExecution ? ["roleExecution"] : []), ...(hasSelectionReview ? ["selectionReview"] : []), ...(hasCodeDelivery ? ["codeDelivery"] : []), ...(hasWorkflowHandoff ? ["workflowHandoff"] : []), ...(hasConsensus ? ["consensusReview"] : [])];
+    ...(hasRoleExecution ? ["roleExecution"] : []), ...(hasSelectionReview ? ["selectionReview"] : []), ...(hasCodeDelivery ? ["codeDelivery"] : []), ...(hasWorkflowHandoff ? ["workflowHandoff"] : []), ...(hasConsensus ? ["consensusReview"] : []), ...(hasExternalRunner ? ["externalRunner"] : [])];
+  if (hasExternalRunner && (hasRoleExecution || hasSelectionReview || hasCodeDelivery || hasWorkflowHandoff || hasConsensus
+    || typeof source.autonomyMode !== "string" || !["dry-run", "controlled-execution"].includes(source.autonomyMode)
+    || !Number.isSafeInteger(source.selectedRoleCount) || Number(source.selectedRoleCount) < 1)) throw corrupt("External runner requires one separate controlled execution profile.");
   if (hasSelectionReview && !hasRoleExecution) throw corrupt("Workforce selection requires its complete execution profile.");
   if (hasCodeDelivery && !hasRoleExecution) throw corrupt("Code delivery requires its complete employee profile.");
   if (Object.keys(source).sort().join("\0")
@@ -1134,6 +1150,7 @@ function normalizeWorkforceArgumentOptions(value: unknown) {
     ...(hasCodeDelivery ? { codeDelivery: normalizeWorkforceCodeDelivery(source.codeDelivery, source.roleExecution) } : {}),
     ...(hasWorkflowHandoff ? { workflowHandoff: normalizeWorkforceWorkflowHandoff(source.workflowHandoff) } : {}),
     ...(hasConsensus ? { consensusReview: normalizeWorkforceConsensus(source.consensusReview, source.roleExecution) } : {}),
+    ...(hasExternalRunner ? { externalRunner: normalizeWorkforceExternalRunner(source.externalRunner) } : {}),
   };
 }
 

@@ -525,8 +525,7 @@ function requireWorkforceRecordId(value) {
   return value;
 }
 
-function workforceRecoveryRequest(value) {
-  const keys = ["executionId", "taskId", "workflowId"];
+function workforceRecoveryRequest(value, keys = ["executionId", "taskId", "workflowId"]) {
   if (!value || typeof value !== "object" || Array.isArray(value) || ![Object.prototype, null].includes(Object.getPrototypeOf(value))
     || Reflect.ownKeys(value).length !== keys.length) throw createGatewayProtocolError("Recovery requires only the three original record IDs.");
   return Object.fromEntries(keys.map(key => {
@@ -534,6 +533,46 @@ function workforceRecoveryRequest(value) {
     if (!field || !("value" in field) || !field.enumerable) throw createGatewayProtocolError("Recovery IDs must be plain data.");
     return [key, requireWorkforceRecordId(field.value)];
   }));
+}
+
+function workforceExecutionRequest(value) {
+  const allowed = ["goal", "agentId", "planId", "autonomyMode", "selectedRoles", "selectedTemplate", "templateId", "clarificationAnswers",
+    "context", "metadata", "operationId", "operationType", "externalRunner", "codeDelivery", "workflowHandoff", "consensusReview"];
+  const invalid = () => { throw createGatewayProtocolError("Workforce execution accepts reviewed intent and profile selectors, not native settings or model overrides."); };
+  let nodes = 0, chars = 0;
+  const seen = new WeakSet();
+  const inspect = (item, depth = 0) => {
+    if (++nodes > 20000 || depth > 16) invalid();
+    if (typeof item === "string") { chars += item.length; if (chars > 1048576) invalid(); return; }
+    if (item === null || typeof item === "boolean" || typeof item === "number" && Number.isFinite(item)) return;
+    if (!item || typeof item !== "object" || seen.has(item)) invalid();
+    seen.add(item);
+    const array = Array.isArray(item), keys = Reflect.ownKeys(item);
+    if (array ? Object.getPrototypeOf(item) !== Array.prototype || keys.length !== item.length + 1
+      : ![Object.prototype, null].includes(Object.getPrototypeOf(item))) invalid();
+    for (const key of keys) {
+      if (array && key === "length") continue;
+      const field = Object.getOwnPropertyDescriptor(item, key);
+      if (typeof key !== "string" || array && (!/^(0|[1-9][0-9]*)$/u.test(key) || Number(key) >= item.length)
+        || ["__proto__", "prototype", "constructor"].includes(key) || !field?.enumerable || !("value" in field)) invalid();
+      inspect(field.value, depth + 1);
+    }
+    seen.delete(item);
+  };
+  inspect(value);
+  if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).some(key => !allowed.includes(key))
+    || typeof value.goal !== "string" || !value.goal.trim() || value.goal.length > 4000
+    || value.agentId !== undefined && (typeof value.agentId !== "string" || !/^agt_[A-Za-z0-9_-]{1,128}$/u.test(value.agentId))
+    || value.planId !== undefined && (typeof value.planId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/u.test(value.planId))
+    || value.autonomyMode !== undefined && !["dry-run", "controlled-execution", "sandbox-merge", "sandbox-merge-auto"].includes(value.autonomyMode)) invalid();
+  if (Object.hasOwn(value, "externalRunner")) {
+    const selector = value.externalRunner;
+    if (!selector || typeof selector !== "object" || Array.isArray(selector) || Object.keys(selector).join() !== "profileId"
+      || typeof selector.profileId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u.test(selector.profileId)
+      || !value.agentId || ["codeDelivery", "workflowHandoff", "consensusReview"].some(key => Object.hasOwn(value, key))
+      || value.autonomyMode !== undefined && !["dry-run", "controlled-execution"].includes(value.autonomyMode)) invalid();
+  }
+  return JSON.parse(JSON.stringify(value));
 }
 
 export function createGatewayClient(options = {}) {
@@ -1178,6 +1217,19 @@ export function createGatewayClient(options = {}) {
     },
     recoverWorkforceWorkflow(request) {
       return operatorPost("/workforce/execute/handoff/recover", workforceRecoveryRequest(request));
+    },
+    workforceExecutionReview(request) {
+      return operatorPost("/workforce/execute/review", workforceExecutionRequest(request));
+    },
+    workforceExecute(request) {
+      return operatorPost("/workforce/execute", workforceExecutionRequest(request));
+    },
+    recoverWorkforceExternalRunner(request) {
+      const body = workforceRecoveryRequest(request, ["executionId", "operationId", "agentId"]);
+      if (!/^agt_[A-Za-z0-9_-]{1,128}$/u.test(body.agentId) || body.executionId.length > 256 || body.operationId.length > 256) {
+        throw createGatewayProtocolError("Native recovery requires the exact original execution, operation and owning Agent IDs.");
+      }
+      return operatorPost("/workforce/execute/external-runner/recover", body);
     },
     workforceHealth() {
       return requestJson({

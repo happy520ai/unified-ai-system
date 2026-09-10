@@ -2,6 +2,8 @@
 
 An explicitly configured code profile can produce a complete patch and run its fixed test command in a real container. The implementation uses the existing plan approval, signed Agent policy, claimed role execution, Gateway Provider operation and Forge action hooks. Success requires durable artifact readback and confirmed cleanup. The local fake Provider remains the default; this feature does not enable a real Provider, deploy, commit, merge or publish code.
 
+For an explicitly selected local Codex task using its native model and login, see [Workforce native runner](workforce-native-runner.md). That path has its own approval, process, usage and original-task recovery records, and reuses the immutable snapshot verifier described here.
+
 ## Configuration and approval
 
 The application accepts `AI_GATEWAY_WORKFORCE_CODE_DELIVERY_PROFILES_JSON`, a bounded array of at most sixteen server profiles. Each binds exact relative read/write files, immutable test hashes, baseline revision, fixed command, digest-pinned image and artifact/resource limits. The request selects only `codeDelivery: { profileId }`. Request JSON cannot supply a root, implementation, callback, container authority or readiness capability.

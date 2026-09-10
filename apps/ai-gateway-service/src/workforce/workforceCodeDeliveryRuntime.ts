@@ -4,12 +4,12 @@ import { realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { ContainerSandboxBackend } from "@unified-ai-system/forge-core";
 import { stableStringify } from "@unified-ai-system/policy-engine";
-import type { EffectiveAgentPolicy, WorkforceCodeDeliveryReview, WorkforceRoleExecutionProfile } from "@unified-ai-system/shared-contracts";
+import type { EffectiveAgentPolicy, WorkforceCodeDeliveryProfile, WorkforceCodeDeliveryReview, WorkforceRoleExecutionProfile } from "@unified-ai-system/shared-contracts";
 import { createForgeGatewayService, createForgeGovernedExecution } from "../forge/forgeGatewayService.js";
 import { effectiveGovernedToolDecision, evaluateGovernedToolScope, readWorkforceCodeDeliveryToolProxy } from "../agent-governance/toolProxy.ts";
 import { assertOwnedWorkforceWorktree } from "./worktreeIsolation.js";
 import { createWorkforceGit } from "./workforceGit.ts";
-import { readWorkforceCodeDeliveryReview, codeDeliveryError } from "./workforceCodeDeliveryProfile.ts";
+import { readWorkforceCodeDeliveryReview, readFrozenWorkforceCodeDeliveryProfile, codeDeliveryError } from "./workforceCodeDeliveryProfile.ts";
 import { readFrozenWorkforceRoleExecutionProfile } from "./workforceRoleExecutionProfile.ts";
 import { captureApprovedCodeFiles, createApprovedCodeSnapshot, createCodeDeliveryArtifact } from "./workforceCodeDeliveryArtifacts.ts";
 import { assertWorkforceCodeTaskFence } from "./workforceDagExecutor.ts";
@@ -135,6 +135,99 @@ export async function consumeWorkforceSnapshotCapability(capability: unknown, co
   return true;
 }
 
+/** Both concrete code runners use this private-capability, immutable container verification boundary. */
+export async function verifyWorkforceCodeSnapshot(input: {
+  source: Awaited<ReturnType<typeof captureApprovedCodeFiles>>; profile: WorkforceCodeDeliveryProfile;
+  scratchRoot: string; enginePath: string; context: Context; policyHash: string; planId: string; planDigest: string;
+  executionId: string; taskId: string; toolProxy: ToolProxy; signal: AbortSignal; deadlineAt: number;
+  assertActive(phase?: "reserve" | "commit"): Promise<unknown>;
+}): Promise<Readonly<{ status: "passed"; command: string; image: string; snapshotHash: string;
+  exitCode: 0; cleanupConfirmed: true; stdout: string; stderr: string }>> {
+  let snapshot: Awaited<ReturnType<typeof createApprovedCodeSnapshot>> | null = null;
+  let cleanupUncertain = false, verificationStarted = false, outcomeUnknown = false, preparationRetained = false;
+  const capability = Object.freeze(Object.create(null));
+  let lease: any, failure: Error | undefined;
+  try {
+    const operations = readWorkforceCodeDeliveryToolProxy(input.toolProxy);
+    if (!operations) throw fail("TOOL_PROXY_REQUIRED", 403);
+    const profile = readFrozenWorkforceCodeDeliveryProfile(input.profile), { source, signal, deadlineAt } = input;
+    const context = freezeContext(input.context);
+    if (!isAbsolute(input.enginePath) || !isAbsolute(input.scratchRoot) || source.profileHash !== profile.profileHash
+      || !/^sha256:[a-f0-9]{64}$/u.test(input.policyHash) || !/^[a-f0-9]{64}$/u.test(input.planDigest)
+      || !input.planId || !input.executionId || !input.taskId || typeof input.assertActive !== "function") throw fail("BINDING_INVALID");
+    const check = async (phase: "reserve" | "commit" = "commit") => {
+      active(signal, deadlineAt); await input.assertActive(phase); active(signal, deadlineAt);
+    };
+    await check();
+    snapshot = await createApprovedCodeSnapshot(source, input.scratchRoot, signal);
+    const snapshotContext = Object.freeze({ ...context, requestId: "wf-verify-" + randomUUID() });
+    const params = Object.freeze({ executionId: input.executionId, taskId: input.taskId, planId: input.planId,
+      planDigest: input.planDigest, profileHash: profile.profileHash, verificationId: profile.verification.verificationId,
+      command: profile.verification.command, image: profile.verification.image, snapshotHash: snapshot.filesHash });
+    const backend = new ContainerSandboxBackend({ enginePath: input.enginePath, image: profile.verification.image,
+      workspaceRoots: [snapshot.workspace], allowNetwork: false });
+    const runBackend = backend.run.bind(backend), capturedSnapshot = snapshot;
+    const call: SnapshotCall = { context: snapshotContext, policyHash: input.policyHash, paramsHash: hash(stableStringify(params)),
+      admitted: false, used: false, toolProxy: input.toolProxy, assertActive: () => check(), run: () => runBackend({
+        command: profile.verification.command, workspace: capturedSnapshot.workspace, workspaceMode: "ro", networkAccess: false, env: {},
+        timeoutMs: Math.min(profile.verification.timeoutMs, deadlineAt - Date.now()),
+        maxMemoryMB: profile.verification.maxMemoryMB, maxOutputBytes: profile.verification.maxOutputBytes,
+        pidsLimit: profile.verification.pidsLimit, cpus: profile.verification.cpus, signal }) };
+    snapshotCalls.set(capability, call);
+    await check("reserve");
+    const verdict = await operations.enforce({ context: snapshotContext, toolName: WORKFORCE_VERIFY_SNAPSHOT_TOOL, params,
+      resourceContext: { resourceKeys: { projectId: profile.projectId, planId: input.planId, taskId: input.taskId },
+        resources: [...profile.readPaths], workforceSnapshotCapability: capability } });
+    lease = verdict?.executionLease;
+    if (verdict?.outcome !== "allow" || !verdict.policy || typeof lease?.release !== "function" || !call.admitted || call.used) throw fail("SNAPSHOT_ADMISSION_REQUIRED", 403);
+    call.used = true;
+    await check();
+    if ((await captureApprovedCodeFiles(snapshot.workspace, profile, signal)).filesHash !== snapshot.filesHash) throw fail("SNAPSHOT_CHANGED");
+    verificationStarted = true;
+    let verification;
+    try { verification = await call.run(); }
+    catch (error) { cleanupUncertain = (error as { cleanupUncertain?: unknown })?.cleanupUncertain === true; throw fail("VERIFICATION_FAILED", 503); }
+    cleanupUncertain = verification.cleanupUncertain !== false;
+    if (verification.exitCode !== 0 || verification.killed || verification.oomKilled || verification.truncated
+      || cleanupUncertain || verification.backend !== "container") throw fail("VERIFICATION_FAILED", 503);
+    const verifiedResult = { status: "passed" as const, command: profile.verification.command, image: profile.verification.image,
+      snapshotHash: snapshot.filesHash, exitCode: 0 as const, cleanupConfirmed: true as const,
+      stdout: verification.stdout, stderr: verification.stderr };
+    let audited;
+    try { audited = await operations.enforceResult({ context: snapshotContext, toolName: WORKFORCE_VERIFY_SNAPSHOT_TOOL,
+      policy: verdict.policy, result: verifiedResult, descriptor: { kind: "zero-records" } }); }
+    catch { outcomeUnknown = true; throw fail("OUTCOME_UNKNOWN", 503); }
+    if (!audited || !Object.hasOwn(audited, "result") || audited.verdict === "replace") { outcomeUnknown = true; throw fail("OUTCOME_UNKNOWN", 503); }
+    if (["status", "command", "image", "snapshotHash", "exitCode", "cleanupConfirmed"].some(key =>
+      (audited.result as Record<string, unknown>)?.[key] !== verifiedResult[key as keyof typeof verifiedResult])) throw fail("EVIDENCE_UNREVIEWABLE", 503);
+    await check();
+    if ((await captureApprovedCodeFiles(snapshot.workspace, profile, signal)).filesHash !== snapshot.filesHash) throw fail("SNAPSHOT_CHANGED");
+    if ((await captureApprovedCodeFiles(source.root, profile, signal)).filesHash !== source.filesHash) throw fail("VALIDATED_SOURCE_CHANGED");
+    await snapshot.cleanup(); snapshot = null;
+    return Object.freeze({ ...(audited.result as Record<string, unknown>) }) as Readonly<typeof verifiedResult>;
+  } catch (error) {
+    preparationRetained = (error as { code?: unknown })?.code === "WORKFORCE_CODE_SNAPSHOT_CLEANUP_UNCERTAIN";
+    cleanupUncertain ||= preparationRetained;
+    if (snapshot && !cleanupUncertain) {
+      try { await snapshot.cleanup(); snapshot = null; } catch { cleanupUncertain = true; }
+    }
+    failure = Object.assign(error instanceof Error ? error : fail("FAILED"), {
+      snapshotRetained: snapshot !== null || preparationRetained, cleanupUncertain, verificationStarted,
+      outcomeUnknown: outcomeUnknown || cleanupUncertain,
+    });
+    throw failure;
+  } finally {
+    snapshotCalls.delete(capability);
+    try { await lease?.release?.(); }
+    catch {
+      if (failure) Object.assign(failure, { outcomeUnknown: true });
+      else throw Object.assign(fail("OUTCOME_UNKNOWN", 503), {
+        snapshotRetained: snapshot !== null, cleanupUncertain, verificationStarted, outcomeUnknown: true,
+      });
+    }
+  }
+}
+
 export async function runWorkforceCodeDelivery(factory: WorkforceCodeDeliveryFactory, token: WorkforceCodeDeliveryPreflight, task: {
   executionId: string; taskId: string; agentRunId: string; planApprovalId: string; manager: unknown; worktreeId: string;
   roleProviderOperation: RoleOperation; agentFence: Fence; taskFence: Fence; toolProxy: ToolProxy;
@@ -166,8 +259,7 @@ export async function runWorkforceCodeDelivery(factory: WorkforceCodeDeliveryFac
   const assertAgent = task.agentFence.assertActive.bind(task.agentFence);
   const { enforce, enforceResult } = operations;
   let poisoned: Error | null = null, outcomeUnknown = false, mutationAttempted = false, writesObserved = false, verificationStarted = false;
-  let snapshot: Awaited<ReturnType<typeof createApprovedCodeSnapshot>> | null = null;
-  let snapshotCleanupAllowed = true;
+  let snapshotRetained = false, snapshotCleanupAllowed = true;
   const pending = new Set<Promise<unknown>>(), modelReceipts: unknown[] = [];
   const poison = (error: Error) => { poisoned ??= error; task.abort(error); };
   const check = async (phase: "reserve" | "commit" = "commit") => {
@@ -261,74 +353,31 @@ export async function runWorkforceCodeDelivery(factory: WorkforceCodeDeliveryFac
     await assertChangedPaths(owned.path, profile.writePaths);
     const after = await captureApprovedCodeFiles(owned.path, profile, signal);
     const artifact = createCodeDeliveryArtifact(before, after, profile);
-    snapshot = await createApprovedCodeSnapshot(after, config.scratchRoot, signal);
-    const snapshotContext = Object.freeze({ ...context, requestId: "wf-verify-" + randomUUID() });
-    const params = Object.freeze({ executionId: task.executionId, taskId: task.taskId, planId: prepared.planId,
-      planDigest: prepared.planDigest, profileHash: profile.profileHash, verificationId: profile.verification.verificationId,
-      command: profile.verification.command, image: profile.verification.image, snapshotHash: snapshot.filesHash });
-    const backend = new ContainerSandboxBackend({ enginePath: config.enginePath, image: profile.verification.image,
-      workspaceRoots: [snapshot.workspace], allowNetwork: false });
-    const runBackend = backend.run.bind(backend);
-    const capability = Object.freeze(Object.create(null));
-    const capturedSnapshot = snapshot;
-    const call: SnapshotCall = { context: snapshotContext, policyHash: prepared.policyHash, paramsHash: hash(stableStringify(params)),
-      admitted: false, used: false, toolProxy: prepared.toolProxy, assertActive: () => check(), run: () => runBackend({
-        command: profile.verification.command, workspace: capturedSnapshot.workspace, workspaceMode: "ro", networkAccess: false, env: {},
-        timeoutMs: Math.min(profile.verification.timeoutMs, prepared.deadlineAt - Date.now()),
-        maxMemoryMB: profile.verification.maxMemoryMB, maxOutputBytes: profile.verification.maxOutputBytes,
-        pidsLimit: profile.verification.pidsLimit, cpus: profile.verification.cpus, signal }) };
-    snapshotCalls.set(capability, call);
-    let lease: any;
-    try {
-      await check("reserve");
-      const verdict = await enforce({ context: snapshotContext, toolName: WORKFORCE_VERIFY_SNAPSHOT_TOOL, params,
-        resourceContext: { resourceKeys: { projectId: profile.projectId, planId: prepared.planId, taskId: task.taskId },
-          resources: [...profile.readPaths], workforceSnapshotCapability: capability } });
-      lease = verdict?.executionLease;
-      if (verdict?.outcome !== "allow" || !verdict.policy || typeof lease?.release !== "function" || !call.admitted || call.used) throw fail("SNAPSHOT_ADMISSION_REQUIRED", 403);
-      call.used = true;
-      await check();
-      if ((await captureApprovedCodeFiles(snapshot.workspace, profile, signal)).filesHash !== snapshot.filesHash) throw fail("SNAPSHOT_CHANGED");
-      verificationStarted = true;
-      let verification;
-      try { verification = await call.run(); }
-      catch (error) { snapshotCleanupAllowed = (error as { cleanupUncertain?: unknown })?.cleanupUncertain !== true; throw fail("VERIFICATION_FAILED", 503); }
-      snapshotCleanupAllowed = verification.cleanupUncertain === false;
-      if (verification.exitCode !== 0 || verification.killed || verification.oomKilled || verification.truncated
-        || !snapshotCleanupAllowed || verification.backend !== "container") throw fail("VERIFICATION_FAILED", 503);
-      const verifiedResult = { status: "passed", command: profile.verification.command, image: profile.verification.image,
-        snapshotHash: snapshot.filesHash, exitCode: verification.exitCode, cleanupConfirmed: true,
-        stdout: verification.stdout, stderr: verification.stderr };
-      const audited = await enforceResult({ context: snapshotContext, toolName: WORKFORCE_VERIFY_SNAPSHOT_TOOL,
-        policy: verdict.policy, result: verifiedResult, descriptor: { kind: "zero-records" } });
-      if (!audited || !Object.hasOwn(audited, "result") || audited.verdict === "replace") { outcomeUnknown = true; throw fail("OUTCOME_UNKNOWN", 503); }
-      if (["status", "command", "image", "snapshotHash", "exitCode", "cleanupConfirmed"].some(key =>
-        (audited.result as Record<string, unknown>)?.[key] !== verifiedResult[key as keyof typeof verifiedResult])) throw fail("EVIDENCE_UNREVIEWABLE", 503);
-      await check();
-      if ((await captureApprovedCodeFiles(snapshot.workspace, profile, signal)).filesHash !== snapshot.filesHash) throw fail("SNAPSHOT_CHANGED");
-      const unchanged = await captureApprovedCodeFiles(owned.path, profile, signal);
-      if (unchanged.filesHash !== after.filesHash) throw fail("VALIDATED_SOURCE_CHANGED");
-      await snapshot.cleanup(); snapshot = null;
-      const completed = Object.freeze({ version: 1, status: "verified", forgeRunId: result.runId, baselineRevision: profile.baselineRevision,
-        profileHash: profile.profileHash, artifact, verification: Object.freeze({ ...(audited.result as Record<string, unknown>) }), modelRequestCount: modelReceipts.length,
-        projectFileWrites: true, verificationStarted, outcomeUnknown: false, localQuiescenceConfirmed: true });
-      verifiedResults.set(completed, Object.freeze({ executionId: task.executionId, taskId: task.taskId,
-        agentId: prepared.context.agentId, planId: prepared.planId, planDigest: prepared.planDigest,
-        profileHash: profile.profileHash, baselineRevision: profile.baselineRevision,
-        artifact, verification: Object.freeze({ ...verifiedResult }), completed }));
-      return completed;
-    } finally { snapshotCalls.delete(capability); await lease?.release?.(); }
+    const verification = await verifyWorkforceCodeSnapshot({ source: after, profile, scratchRoot: config.scratchRoot,
+      enginePath: config.enginePath, context, policyHash: prepared.policyHash, planId: prepared.planId,
+      planDigest: prepared.planDigest, executionId: task.executionId, taskId: task.taskId, toolProxy: task.toolProxy,
+      signal, deadlineAt: prepared.deadlineAt, assertActive: check });
+    verificationStarted = true;
+    const completed = Object.freeze({ version: 1, status: "verified", forgeRunId: result.runId, baselineRevision: profile.baselineRevision,
+      profileHash: profile.profileHash, artifact, verification, modelRequestCount: modelReceipts.length,
+      projectFileWrites: true, verificationStarted, outcomeUnknown: false, localQuiescenceConfirmed: true });
+    verifiedResults.set(completed, Object.freeze({ executionId: task.executionId, taskId: task.taskId,
+      agentId: prepared.context.agentId, planId: prepared.planId, planDigest: prepared.planDigest,
+      profileHash: profile.profileHash, baselineRevision: profile.baselineRevision, artifact, verification, completed }));
+    return completed;
   } catch (error) {
+    const snapshotFailure = error as { snapshotRetained?: boolean; cleanupUncertain?: boolean; verificationStarted?: boolean; outcomeUnknown?: boolean };
+    snapshotRetained = snapshotFailure?.snapshotRetained === true;
+    snapshotCleanupAllowed = snapshotFailure?.cleanupUncertain !== true;
+    verificationStarted ||= snapshotFailure?.verificationStarted === true;
+    outcomeUnknown ||= snapshotFailure?.outcomeUnknown === true;
     poison(error instanceof Error ? error : fail("FAILED"));
     const drained = await drain(pending, config.drainTimeoutMs);
-    if (snapshot && snapshotCleanupAllowed) {
-      try { await snapshot.cleanup(); snapshot = null; } catch { snapshotCleanupAllowed = false; }
-    }
     const failure = fail(outcomeUnknown || !drained || !snapshotCleanupAllowed ? "OUTCOME_UNKNOWN" : "FAILED", 503);
     Object.assign(failure, { details: { outcomeUnknown: outcomeUnknown || !drained || !snapshotCleanupAllowed,
       quiescenceUncertain: !drained || !snapshotCleanupAllowed, recoveryRequired: mutationAttempted || verificationStarted,
       projectFileWrites: writesObserved ? true : mutationAttempted ? null : false,
-      projectWriteAttempted: mutationAttempted, snapshotRetained: snapshot !== null, verificationStarted, retrySafe: false } });
+      projectWriteAttempted: mutationAttempted, snapshotRetained, verificationStarted, retrySafe: false } });
     throw failure;
   }
 }

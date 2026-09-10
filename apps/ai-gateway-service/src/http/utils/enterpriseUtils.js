@@ -470,7 +470,7 @@ export function resolvePermission(method, pathname) {
     return "workflow:approve";
   }
 
-  if (normalizedMethod === "POST" && normalizedPath === "/workforce/execute/status") {
+  if (normalizedMethod === "POST" && ["/workforce/execute/status", "/workforce/execute/review"].includes(normalizedPath)) {
     return "dashboard:read";
   }
 
@@ -483,6 +483,7 @@ export function resolvePermission(method, pathname) {
     normalizedPath === "/workforce/execute" ||
     normalizedPath === "/workforce/execute/cancel" ||
     normalizedPath === "/workforce/execute/handoff/recover" ||
+    normalizedPath === "/workforce/execute/external-runner/recover" ||
     normalizedPath === "/workforce/run-local" ||
     normalizedPath === "/real-capabilities/activate-five" ||
     normalizedPath === "/workforce/plans/save" ||

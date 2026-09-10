@@ -49,6 +49,8 @@ import { freezeWorkforceRoleExecutionProfile } from "../workforce/workforceRoleE
 import { createConfiguredWorkforceRoleSelection } from "../workforce/workforceRoleSelection.ts";
 import { freezeWorkforceCodeDeliveryProfile } from "../workforce/workforceCodeDeliveryProfile.ts";
 import { createWorkforceCodeDeliveryFactory } from "../workforce/workforceCodeDeliveryRuntime.ts";
+import { freezeWorkforceExternalRunnerProfile } from "../workforce/workforceExternalRunnerProfile.ts";
+import { createWorkforceExternalRunnerFactory } from "../workforce/workforceExternalRunnerRuntime.ts";
 import { createUserExperienceService } from "../capabilities/userExperienceService.js";
 import { createCapabilityRouterService } from "../capabilities/capabilityRouterService.js";
 import { createEnterpriseGovernanceService } from "../enterprise/enterpriseGovernanceService.js";
@@ -142,6 +144,19 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
     throw Object.assign(new Error("Workforce lifecycle hooks must be explicitly true or false."), { code: "WORKFORCE_HOOK_CONFIGURATION_INVALID" });
   }
   const workforceLifecycleHooks = createWorkforceLifecycleHooks({ enabled: hookSetting === "true" });
+  const externalRunnerSetting = env.AI_GATEWAY_WORKFORCE_EXTERNAL_RUNNER_ENABLED;
+  if (externalRunnerSetting !== undefined && externalRunnerSetting !== "true" && externalRunnerSetting !== "false") {
+    throw Object.assign(new Error("Native Workforce execution must be explicitly true or false."), { code: "WORKFORCE_EXTERNAL_RUNNER_CONFIGURATION_INVALID" });
+  }
+  let workforceExternalRunnerProfiles = [];
+  const externalRunnerJson = String(env.AI_GATEWAY_WORKFORCE_EXTERNAL_RUNNER_PROFILES_JSON ?? "").trim();
+  if (externalRunnerJson) {
+    if (Buffer.byteLength(externalRunnerJson, "utf8") > 262144) throw new Error("Native Workforce profile configuration exceeds its limit.");
+    let profiles;
+    try { profiles = JSON.parse(externalRunnerJson); } catch { throw new Error("Native Workforce profiles must be a JSON array."); }
+    if (!Array.isArray(profiles) || profiles.length > 16) throw new Error("At most sixteen native Workforce profiles may be configured.");
+    workforceExternalRunnerProfiles = profiles.map(profile => { freezeWorkforceExternalRunnerProfile(profile); return profile; });
+  }
   let workforceCodeDeliveryProfiles = [];
   const codeDeliveryJson = String(env.AI_GATEWAY_WORKFORCE_CODE_DELIVERY_PROFILES_JSON ?? "").trim();
   if (codeDeliveryJson) {
@@ -347,6 +362,11 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
     repoRoot,
     executionDir: env.WORKFORCE_EXECUTION_DIR,
     workflowHandoffRuntime: createWorkflowRunHandoff({ workflowService }),
+    externalRunnerProfiles: workforceExternalRunnerProfiles,
+    externalRunnerFactory: externalRunnerSetting === "true" ? createWorkforceExternalRunnerFactory({ repoRoot,
+      enginePath: env.AI_GATEWAY_WORKFORCE_EXTERNAL_RUNNER_ENGINE_PATH,
+      windowsHost: { path: env.AI_GATEWAY_WORKFORCE_EXTERNAL_RUNNER_HOST_PATH, sha256: env.AI_GATEWAY_WORKFORCE_EXTERNAL_RUNNER_HOST_SHA256 },
+      ...(env.AI_GATEWAY_WORKFORCE_EXTERNAL_RUNNER_SCRATCH_ROOT ? { scratchRoot: env.AI_GATEWAY_WORKFORCE_EXTERNAL_RUNNER_SCRATCH_ROOT } : {}) }) : null,
     codeDeliveryProfiles: workforceCodeDeliveryProfiles,
     codeDeliveryFactory: env.AI_GATEWAY_WORKFORCE_CODE_DELIVERY_ENABLED === "true"
       ? createWorkforceCodeDeliveryFactory({ repoRoot,

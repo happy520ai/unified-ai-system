@@ -25,7 +25,15 @@ export function projectWorkforceCodeDeliveryReview(value: unknown, roleValue: un
     maxConcurrentRoles: integer(role.maxConcurrentRoles, 1, Math.min(8, bindings.length)), bindings };
   const roleHash = hash(canonicalRole);
   if (role.profileHash !== roleHash || source.roleProfileHash !== roleHash) invalid();
-  const p = record(source.profile, [...PROFILE, 'profileHash']);
+  const backend = bindings.find(binding => binding.roleId === 'backend-engineer');
+  if (!backend || backend.maxRequests < 3 || backend.maxOutputTokens < 16384 || canonicalRole.maxTotalRequests < bindings.length + 2) invalid();
+  return Object.freeze({ version: 1, profile: projectWorkforceCodeDeliveryProfile(source.profile),
+    configuredRepositoryHash: sha(source.configuredRepositoryHash), roleProfileHash: roleHash });
+}
+
+/** Shared exact-file validation for Forge and native-runner transport reviews. */
+export function projectWorkforceCodeDeliveryProfile(value: unknown) {
+  const p = record(value, [...PROFILE, 'profileHash']);
   const v = record(p.verification, VERIFY), limits = record(p.artifactLimits, ['maxChangedFiles', 'maxFileBytes', 'maxDiffBytes']);
   if (p.version !== 1 || p.mode !== 'forge-owned-worktree-artifact' || p.roleId !== 'backend-engineer'
     || v.workspaceMode !== 'ro' || v.networkAccess !== false || typeof p.baselineRevision !== 'string'
@@ -43,8 +51,6 @@ export function projectWorkforceCodeDeliveryReview(value: unknown, roleValue: un
   const image = text(v.image, 256);
   if (!/^[A-Za-z0-9][A-Za-z0-9._/:-]*@sha256:[a-f0-9]{64}$/u.test(image)
     || typeof v.cpus !== 'number' || !Number.isFinite(v.cpus) || v.cpus < 0.1 || v.cpus > 1) invalid();
-  const backend = bindings.find(binding => binding.roleId === 'backend-engineer');
-  if (!backend || backend.maxRequests < 3 || backend.maxOutputTokens < 16384 || canonicalRole.maxTotalRequests < bindings.length + 2) invalid();
   const profile = { version: 1, mode: 'forge-owned-worktree-artifact', profileId: identifier(p.profileId), projectId: identifier(p.projectId),
     baselineRevision: p.baselineRevision, roleId: 'backend-engineer', readPaths: Object.freeze(readPaths), writePaths: Object.freeze(writePaths),
     verification: Object.freeze({ verificationId: identifier(v.verificationId), command: text(v.command, 512), immutableTests: Object.freeze(immutableTests),
@@ -54,8 +60,7 @@ export function projectWorkforceCodeDeliveryReview(value: unknown, roleValue: un
     artifactLimits: Object.freeze({ maxChangedFiles: integer(limits.maxChangedFiles, 1, writePaths.length),
       maxFileBytes: integer(limits.maxFileBytes, 1, 65536), maxDiffBytes: integer(limits.maxDiffBytes, 1, 262144) }) };
   if (p.profileHash !== hash(profile)) invalid();
-  return Object.freeze({ version: 1, profile: Object.freeze({ ...profile, profileHash: p.profileHash }),
-    configuredRepositoryHash: sha(source.configuredRepositoryHash), roleProfileHash: roleHash });
+  return Object.freeze({ ...profile, profileHash: p.profileHash });
 }
 
 export function formatWorkforceCodeDeliveryReview(review: ReturnType<typeof projectWorkforceCodeDeliveryReview>) {

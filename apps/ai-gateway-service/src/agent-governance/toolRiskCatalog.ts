@@ -44,6 +44,10 @@ const BUILT_IN_TOOL_DESCRIPTORS: ToolGovernanceDescriptor[] = [
     riskLevel: "critical", defaultDecision: "allow",
     description: "Server-only validation of an approved Workforce exact-file snapshot; requires its private one-shot capability." }),
     riskTraits: Object.freeze(["code_execution"]) as unknown as ToolGovernanceDescriptor["riskTraits"] }),
+  Object.freeze({ ...descriptor({ name: "workforce_external_runner_recover", actionType: "write", riskTraits: ["code_execution"],
+    riskLevel: "critical", defaultDecision: "allow",
+    description: "Reconcile the original native task through its read-only observer and independently governed immutable snapshot verification; requires explicit effective policy permission and never submits a new native turn." }),
+    riskTraits: Object.freeze(["code_execution"]) as unknown as ToolGovernanceDescriptor["riskTraits"] }),
   descriptor({ name: "web_fetch", actionType: "read", riskTraits: ["external_communication"], riskLevel: "medium", defaultDecision: "allow" }),
   descriptor({ name: "web_search", actionType: "read", riskTraits: ["external_communication"], riskLevel: "low", defaultDecision: "allow" }),
   descriptor({ name: "browser_navigate", actionType: "read", riskTraits: ["external_communication"], riskLevel: "medium", defaultDecision: "allow", description: "Navigate within a server-owned approved local web profile." }),
@@ -102,14 +106,15 @@ export function createToolRiskCatalog(options: { extra?: ToolGovernanceDescripto
   for (const item of BUILT_IN_TOOL_DESCRIPTORS) {
     byName.set(item.name, item);
   }
-  const reservedSnapshot = (name: string) => name === "workforce_verify_snapshot" || name.startsWith("workforce_verify_snapshot:");
+  const reservedWorkforce = (name: string) => ["workforce_verify_snapshot", "workforce_external_runner_recover"]
+    .some(fixed => name === fixed || name.startsWith(fixed + ":"));
   for (const item of options.extra ?? []) {
-    if (reservedSnapshot(item.name)) throw new Error("The Workforce snapshot validator is server-owned and cannot be replaced.");
+    if (reservedWorkforce(item.name)) throw new Error("The Workforce validation and original recovery tools are server-owned and cannot be replaced.");
     byName.set(item.name, item);
   }
   return {
     lookup(toolName: string) {
-      if (toolName.startsWith("workforce_verify_snapshot:")) return null;
+      if (toolName.includes(":") && reservedWorkforce(toolName)) return null;
       const direct = byName.get(toolName);
       if (direct) return direct;
       // Namespaced tools (mcp:<server>:<tool> and similar) inherit the
@@ -123,7 +128,7 @@ export function createToolRiskCatalog(options: { extra?: ToolGovernanceDescripto
       return null;
     },
     register(input: ToolGovernanceDescriptor) {
-      if (reservedSnapshot(input.name)) throw new Error("The Workforce snapshot validator is server-owned and cannot be replaced.");
+      if (reservedWorkforce(input.name)) throw new Error("The Workforce validation and original recovery tools are server-owned and cannot be replaced.");
       byName.set(input.name, input);
     },
     asMap() {

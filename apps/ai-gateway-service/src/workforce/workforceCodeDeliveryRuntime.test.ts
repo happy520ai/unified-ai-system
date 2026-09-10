@@ -1,8 +1,14 @@
-import { resolve } from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { createHash } from "node:crypto";
+import { chmod, mkdir, mkdtemp, readdir, realpath, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { ContainerSandboxBackend } from "@unified-ai-system/forge-core";
 import { createAgentGovernanceToolProxy, readWorkforceCodeDeliveryToolProxy } from "../agent-governance/toolProxy.ts";
 import { createWorkforceCodeDeliveryFactory, isWorkforceCodeDeliveryFactory,
-  preflightWorkforceCodeDelivery, runWorkforceCodeDelivery, consumeWorkforceSnapshotCapability } from "./workforceCodeDeliveryRuntime.ts";
+  preflightWorkforceCodeDelivery, runWorkforceCodeDelivery, consumeWorkforceSnapshotCapability, verifyWorkforceCodeSnapshot } from "./workforceCodeDeliveryRuntime.ts";
+import { captureApprovedCodeFiles } from "./workforceCodeDeliveryArtifacts.ts";
+import { freezeWorkforceCodeDeliveryProfile } from "./workforceCodeDeliveryProfile.ts";
 import { assertWorkforceCodeTaskFence, executeWorkforceDag } from "./workforceDagExecutor.ts";
 import { createToolRiskCatalog } from "../agent-governance/toolRiskCatalog.ts";
 
@@ -86,5 +92,134 @@ describe("code delivery implementation provenance", () => {
     await expect(preflightWorkforceCodeDelivery(factory, { toolProxy: { enforce: allow, enforceResult: allow } } as any))
       .rejects.toMatchObject({ code: "WORKFORCE_CODE_DELIVERY_TOOL_PROXY_REQUIRED" });
     expect(allow).not.toHaveBeenCalled();
+  });
+});
+
+describe("shared approved snapshot verification", () => {
+  const roots: string[] = [];
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    for (const root of roots.splice(0)) {
+      expect(await realpath(root)).toBe(root); expect(dirname(root)).toBe(await realpath(tmpdir()));
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+  async function fixture() {
+    const root = await mkdtemp(join(await realpath(tmpdir()), "code-verifier-unit-")); roots.push(root);
+    const workspace = join(root, "project"), scratchRoot = join(root, "scratch");
+    await mkdir(workspace); await mkdir(scratchRoot);
+    const testText = "console.log('fixed fixture');\n";
+    await writeFile(join(workspace, "source.mjs"), "export const value = 2;\n");
+    await writeFile(join(workspace, "test.mjs"), testText);
+    const profile = freezeWorkforceCodeDeliveryProfile({ version: 1, mode: "forge-owned-worktree-artifact",
+      profileId: "verifier", projectId: "fixture", baselineRevision: "a".repeat(40), roleId: "backend-engineer",
+      readPaths: ["source.mjs", "test.mjs"], writePaths: ["source.mjs"],
+      verification: { verificationId: "fixed-tests", command: "node test.mjs",
+        immutableTests: [{ path: "test.mjs", sha256: createHash("sha256").update(testText).digest("hex") }],
+        image: "node@sha256:" + "b".repeat(64), workspaceMode: "ro", networkAccess: false,
+        timeoutMs: 10000, maxMemoryMB: 128, maxOutputBytes: 4096, pidsLimit: 32, cpus: 1 },
+      artifactLimits: { maxChangedFiles: 1, maxFileBytes: 4096, maxDiffBytes: 8192 } });
+    const context = { agentId: "agt_fixture", tenantId: "tenant", userId: "owner" };
+    const policy: any = { agentId: context.agentId, expiresAt: "2099-01-01T00:00:00Z", policyHash: "sha256:" + "f".repeat(64),
+      grantedTools: ["workforce_verify_snapshot"], toolDecisions: { workforce_verify_snapshot: "allow" },
+      permissions: { canWrite: true, canExecuteCode: true }, requirements: {}, limits: {}, scope: {} };
+    const release = vi.fn(async () => {});
+    const service: any = { expireAgents: async () => {}, getAgent: async () => ({ status: "ACTIVE" }),
+      loadVerifiedPolicy: async () => ({ policy }), emitAudit: vi.fn(async () => {}),
+      reserveUsage: vi.fn(async () => ({ allowed: true })), acquireToolExecutionLease: async () => ({ release }) };
+    const toolProxy = createAgentGovernanceToolProxy({ service });
+    const input = { source: await captureApprovedCodeFiles(workspace, profile), profile, scratchRoot,
+      enginePath: resolve("fixture-engine"), context, policyHash: policy.policyHash, planId: "plan", planDigest: "b".repeat(64),
+      executionId: "execution", taskId: "task", toolProxy, signal: new AbortController().signal,
+      deadlineAt: Date.now() + 30000, assertActive: vi.fn(async () => {}) };
+    const passed = { exitCode: 0, killed: false, oomKilled: false, truncated: false, cleanupUncertain: false,
+      backend: "container", stdout: "fixed tests passed", stderr: "" };
+    return { input, workspace, service, policy, release, passed };
+  }
+
+  it("uses actual proxy methods and the pinned read-only networkless backend, then removes its snapshot", async () => {
+    const f = await fixture();
+    const run = vi.spyOn(ContainerSandboxBackend.prototype, "run").mockResolvedValue(f.passed as any);
+    const fake = vi.fn(async () => ({ outcome: "allow", result: {} }));
+    f.input.toolProxy.enforce = fake as any; f.input.toolProxy.enforceResult = fake as any;
+    const verified = await verifyWorkforceCodeSnapshot(f.input);
+    expect(verified).toEqual({ status: "passed", command: f.input.profile.verification.command,
+      image: f.input.profile.verification.image, snapshotHash: f.input.source.filesHash,
+      exitCode: 0, cleanupConfirmed: true, stdout: f.passed.stdout, stderr: "" });
+    expect(run).toHaveBeenCalledOnce();
+    expect(run.mock.calls[0]![0]).toMatchObject({ command: f.input.profile.verification.command,
+      workspaceMode: "ro", networkAccess: false, env: {}, maxMemoryMB: 128, maxOutputBytes: 4096, pidsLimit: 32, cpus: 1 });
+    expect(f.service.reserveUsage).toHaveBeenCalledOnce(); expect(fake).not.toHaveBeenCalled();
+    expect(f.release).toHaveBeenCalledOnce(); expect(await readdir(f.input.scratchRoot)).toEqual([]);
+    expect(Object.isFrozen(verified)).toBe(true);
+  });
+
+  it("rejects an unrecognized proxy before filesystem work and cleans up a mismatched policy admission", async () => {
+    const fake = vi.fn(async () => ({ outcome: "allow" }));
+    await expect(verifyWorkforceCodeSnapshot({ toolProxy: { enforce: fake, enforceResult: fake } } as any))
+      .rejects.toMatchObject({ code: "WORKFORCE_CODE_DELIVERY_TOOL_PROXY_REQUIRED", snapshotRetained: false, verificationStarted: false });
+    const f = await fixture(), run = vi.spyOn(ContainerSandboxBackend.prototype, "run");
+    await expect(verifyWorkforceCodeSnapshot({ ...f.input, policyHash: "sha256:" + "a".repeat(64) }))
+      .rejects.toMatchObject({ code: "WORKFORCE_CODE_DELIVERY_SNAPSHOT_ADMISSION_REQUIRED", snapshotRetained: false, verificationStarted: false });
+    expect(fake).not.toHaveBeenCalled(); expect(run).not.toHaveBeenCalled();
+    expect(f.service.reserveUsage).not.toHaveBeenCalled(); expect(await readdir(f.input.scratchRoot)).toEqual([]);
+  });
+
+  it.each(["before-snapshot", "after-snapshot", "source"])("rejects %s mutation without returning verified evidence", async (scenario) => {
+    const f = await fixture();
+    const mutateSnapshot = async () => {
+      const [directory] = await readdir(f.input.scratchRoot);
+      const path = join(f.input.scratchRoot, directory!, "workspace", "source.mjs");
+      await chmod(path, 0o644); await writeFile(path, "export const value = 99;\n");
+    };
+    const run = vi.spyOn(ContainerSandboxBackend.prototype, "run").mockImplementation(async () => {
+      if (scenario === "after-snapshot") await mutateSnapshot();
+      if (scenario === "source") await writeFile(join(f.workspace, "source.mjs"), "export const value = 99;\n");
+      return f.passed as any;
+    });
+    if (scenario === "before-snapshot") f.input.assertActive.mockImplementation(async () => {
+      if ((await readdir(f.input.scratchRoot)).length) await mutateSnapshot();
+    });
+    await expect(verifyWorkforceCodeSnapshot(f.input)).rejects.toMatchObject({
+      code: scenario === "source" ? "WORKFORCE_CODE_DELIVERY_VALIDATED_SOURCE_CHANGED" : "WORKFORCE_CODE_DELIVERY_SNAPSHOT_CHANGED",
+      verificationStarted: scenario !== "before-snapshot", snapshotRetained: false, cleanupUncertain: false });
+    expect(run).toHaveBeenCalledTimes(scenario === "before-snapshot" ? 0 : 1);
+    expect(await readdir(f.input.scratchRoot)).toEqual([]);
+  });
+
+  it.each(["result", "throw"])("retains the snapshot when backend %s reports uncertain cleanup", async (scenario) => {
+    const f = await fixture(), run = vi.spyOn(ContainerSandboxBackend.prototype, "run");
+    if (scenario === "throw") run.mockRejectedValue(Object.assign(new Error("fixture backend failure"), { cleanupUncertain: true }));
+    else run.mockResolvedValue({ ...f.passed, cleanupUncertain: true } as any);
+    await expect(verifyWorkforceCodeSnapshot(f.input)).rejects.toMatchObject({ code: "WORKFORCE_CODE_DELIVERY_VERIFICATION_FAILED",
+      snapshotRetained: true, cleanupUncertain: true, verificationStarted: true, outcomeUnknown: true });
+    expect(await readdir(f.input.scratchRoot)).toHaveLength(1); expect(f.release).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the first verification failure when lease release also fails and performs no hidden retry", async () => {
+    const f = await fixture(); f.release.mockRejectedValue(new Error("fixture lease release failure"));
+    const run = vi.spyOn(ContainerSandboxBackend.prototype, "run").mockResolvedValue({ ...f.passed, exitCode: 1 } as any);
+    await expect(verifyWorkforceCodeSnapshot(f.input)).rejects.toMatchObject({ code: "WORKFORCE_CODE_DELIVERY_VERIFICATION_FAILED",
+      snapshotRetained: false, verificationStarted: true, outcomeUnknown: true });
+    expect(run).toHaveBeenCalledOnce(); expect(await readdir(f.input.scratchRoot)).toEqual([]);
+  });
+
+  it.each(["result-audit", "binding", "cancel"])("rejects %s failure after actual backend success", async (scenario) => {
+    const f = await fixture(), controller = new AbortController(); f.input.signal = controller.signal;
+    f.policy.requirements.auditRequired = true;
+    f.service.emitAudit.mockImplementation(async (event: any) => {
+      if (scenario === "result-audit" && event.eventType === "TOOL_COMPLETED") throw new Error("fixture outcome audit failed");
+    });
+    if (scenario === "binding") f.policy.scope.deniedOutputFields = ["snapshotHash"];
+    vi.spyOn(ContainerSandboxBackend.prototype, "run").mockImplementation(async () => {
+      if (scenario === "cancel") controller.abort();
+      return f.passed as any;
+    });
+    await expect(verifyWorkforceCodeSnapshot(f.input)).rejects.toMatchObject({
+      code: scenario === "result-audit" ? "WORKFORCE_CODE_DELIVERY_OUTCOME_UNKNOWN"
+        : scenario === "binding" ? "WORKFORCE_CODE_DELIVERY_EVIDENCE_UNREVIEWABLE" : "WORKFORCE_CODE_DELIVERY_CANCELLED",
+      verificationStarted: true, snapshotRetained: false, cleanupUncertain: false,
+    });
+    expect(f.release).toHaveBeenCalledOnce(); expect(await readdir(f.input.scratchRoot)).toEqual([]);
   });
 });

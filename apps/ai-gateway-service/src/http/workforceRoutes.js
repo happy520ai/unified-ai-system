@@ -10,17 +10,21 @@ import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { redactSecretsInText } from "../security/secretSafety.js";
 import { rejectUnimplementedCodeDelivery } from "../workforce/workforceCodeDeliveryProfile.ts";
 import { assertWorkforceCodeDeliveryPreflight } from "../workforce/workforceCodeDeliveryRuntime.ts";
+import { assertWorkforceExternalRunnerPreflight } from "../workforce/workforceExternalRunnerRuntime.ts";
+import { effectiveGovernedToolDecision } from "../agent-governance/toolProxy.ts";
 
 const GOVERNED_WORKFORCE_TOOL_NAME = "workforce_execute";
 const GOVERNED_AGENT_ID_PATTERN = /^agt_[A-Za-z0-9_-]{1,128}$/u;
 
 const ACTIVE_EXECUTION_ROUTES = new Set([
   "POST /workforce/execute",
+  "POST /workforce/execute/review",
   "POST /workforce/execute/approve",
   "POST /workforce/execute/revoke",
   "POST /workforce/execute/status",
   "POST /workforce/execute/cancel",
   "POST /workforce/execute/handoff/recover",
+  "POST /workforce/execute/external-runner/recover",
 ]);
 
 export async function dispatchWorkforceExecutionRoutes(context) {
@@ -255,7 +259,7 @@ export function createWorkforceRoutes(application, helpers) {
       const userId = requireExecutionUserId(req);
       const tenantId = requireExecutionTenantId(req);
       const input = { ...body, userId, tenantId };
-      if (Object.hasOwn(input, "codeDelivery") || Object.hasOwn(input, "workflowHandoff") || Object.hasOwn(input, "consensusReview")) {
+      if (Object.hasOwn(input, "codeDelivery") || Object.hasOwn(input, "workflowHandoff") || Object.hasOwn(input, "consensusReview") || Object.hasOwn(input, "externalRunner")) {
         if (typeof workforceExecutor?.assertExecutionPrerequisites !== "function") rejectUnimplementedCodeDelivery();
         await workforceExecutor.assertExecutionPrerequisites(input);
       }
@@ -273,6 +277,8 @@ export function createWorkforceRoutes(application, helpers) {
               identity: req.enterpriseIdentity,
               codeDeliveryPreflight: governedExecution.codeDeliveryPreflight,
               codeDeliveryToolProxy: agentGovernance.toolProxy,
+              externalRunnerPreflight: governedExecution.externalRunnerPreflight,
+              externalRunnerToolProxy: agentGovernance.toolProxy,
               workflowGovernance: agentGovernance,
               agentGovernance: {
                 context: governedExecution.context,
@@ -319,6 +325,9 @@ export function createWorkforceRoutes(application, helpers) {
           }
           if (completedResult?.consensusReport && JSON.stringify(metered.result?.consensusReport) !== JSON.stringify(completedResult.consensusReport)) {
             throw workforceGovernanceError("WORKFORCE_CONSENSUS_RESULT_UNAVAILABLE", "The complete consensus report could not be returned after governance.", 503);
+          }
+          if (completedResult?.externalRunner && JSON.stringify(metered.result?.externalRunner) !== JSON.stringify(completedResult.externalRunner)) {
+            throw workforceGovernanceError("WORKFORCE_EXTERNAL_RUNNER_RESULT_UNAVAILABLE", "The complete native task record could not be returned after governance.", 503);
           }
           output = metered.result;
         }
@@ -413,7 +422,11 @@ export function createWorkforceRoutes(application, helpers) {
       }
       descriptor = await workforceExecutor.describeExecution(input);
       const codeDeliveryPreflight = descriptor.codeDelivery ? await prepareCodeAdmission(request, input, context, authorized.policy) : null;
+      const externalRunnerPreflight = descriptor.externalRunner ? await prepareExternalAdmission(request, input, context, authorized.policy) : null;
       if (descriptor.codeDelivery) assertWorkforceCodeDeliveryPreflight(codeDeliveryPreflight, {
+        tenantId: context.tenantId, userId: context.userId, agentId: context.agentId,
+        policyHash: authorized.policy.policyHash, planId: descriptor.planId, planDigest: descriptor.planDigest });
+      if (descriptor.externalRunner) assertWorkforceExternalRunnerPreflight(externalRunnerPreflight, {
         tenantId: context.tenantId, userId: context.userId, agentId: context.agentId,
         policyHash: authorized.policy.policyHash, planId: descriptor.planId, planDigest: descriptor.planDigest });
       const requestedParams = createSafeWorkforceGovernanceParams(input, descriptor);
@@ -482,6 +495,7 @@ export function createWorkforceRoutes(application, helpers) {
         remainingSteps,
         reserveStep: () => service.reserveUsage(context.agentId, authorized.policy.limits, { steps: 1 }),
         codeDeliveryPreflight,
+        externalRunnerPreflight,
       };
     } catch (error) {
       toolExecutionLease?.release?.();
@@ -497,6 +511,38 @@ export function createWorkforceRoutes(application, helpers) {
       context, policy, usage: await service.getUsage(context.agentId), signal: requestExecution.signal,
       deadlineAt: requestExecution.deadlineAt, toolProxy: agentGovernance.toolProxy });
   }
+  async function prepareExternalAdmission(request, input, context, policy) {
+    const service = agentGovernance?.service;
+    if (typeof workforceExecutor?.prepareExternalRunnerAdmission !== "function" || !service?.getUsage || !requestExecution?.signal) {
+      throw workforceGovernanceError("WORKFORCE_EXTERNAL_RUNNER_UNAVAILABLE", "The native runner requires the authenticated Agent and request boundary.", 503);
+    }
+    return workforceExecutor.prepareExternalRunnerAdmission(input, { identity: request.enterpriseIdentity,
+      context, policy, usage: await service.getUsage(context.agentId), signal: requestExecution.signal,
+      deadlineAt: requestExecution.deadlineAt, toolProxy: agentGovernance.toolProxy });
+  }
+
+  async function owningRootPolicy(request, agentId) {
+    const context = buildGovernedWorkforceContext(request, agentId), service = agentGovernance?.service;
+    if (!context || !service?.getAgent || !service?.loadVerifiedPolicy) throw workforceGovernanceError("WORKFORCE_EXTERNAL_RUNNER_AGENT_REQUIRED", "Native task review requires the authenticated owning root Agent.", 403);
+    const record = await service.getAgent(context.agentId, context.tenantId);
+    const loaded = record && await service.loadVerifiedPolicy(context.agentId);
+    if (!record || record.status !== "ACTIVE" || record.parentAgentId !== null || record.generationDepth !== 0
+      || record.ownerUserId !== context.userId || !loaded?.policy || !Number.isFinite(Date.parse(loaded.policy.expiresAt))
+      || Date.parse(loaded.policy.expiresAt) <= Date.now()) throw workforceGovernanceError("WORKFORCE_EXTERNAL_RUNNER_AGENT_REQUIRED", "Native task review requires the active owning root Agent and its verified policy.", 403);
+    return { context, policy: loaded.policy };
+  }
+
+  async function handleWorkforceExecutionReview(req, res, { startedAt, body }) {
+    try {
+      const input = { ...body, userId: requireExecutionUserId(req), tenantId: requireExecutionTenantId(req) };
+      if (Object.hasOwn(input, "externalRunner")) {
+        const { context, policy } = await owningRootPolicy(req, input.agentId);
+        await prepareExternalAdmission(req, input, context, policy);
+      }
+      const descriptor = await workforceExecutor.describeExecution(input);
+      writeJson(res, 200, createOkEnvelope(descriptor, { startedAt }));
+    } catch (error) { writeErrorResponse({ response: res, error, startedAt, fallbackCode: "workforce_execution_review_failed" }); }
+  }
 
   async function handleWorkforceExecuteApprove(req, res, { startedAt, body }) {
     if (!body) return;
@@ -504,6 +550,15 @@ export function createWorkforceRoutes(application, helpers) {
       const userId = requireExecutionUserId(req);
       const tenantId = requireExecutionTenantId(req);
       let codeOptions = {};
+      if (Object.hasOwn(body, "externalRunner")) {
+        const { context, policy } = await owningRootPolicy(req, body.agentId);
+        const input = { ...body, userId, tenantId };
+        const externalRunnerPreflight = await prepareExternalAdmission(req, input, context, policy);
+        const descriptor = await workforceExecutor.describeExecution(input);
+        assertWorkforceExternalRunnerPreflight(externalRunnerPreflight, { tenantId, userId, agentId: context.agentId,
+          policyHash: policy.policyHash, planId: descriptor.planId, planDigest: descriptor.planDigest });
+        codeOptions = { externalRunnerPreflight, context, policy };
+      }
       if (Object.hasOwn(body, "codeDelivery")) {
         if (typeof workforceExecutor?.assertExecutionPrerequisites !== "function") rejectUnimplementedCodeDelivery();
         await workforceExecutor.assertExecutionPrerequisites({ ...body, userId, tenantId });
@@ -584,6 +639,42 @@ export function createWorkforceRoutes(application, helpers) {
     } catch (error) { writeErrorResponse({ response: res, error, startedAt, fallbackCode: "workflow_handoff_recovery_failed" }); }
   }
 
+  async function handleWorkforceExternalRunnerRecover(req, res, { startedAt, body }) {
+    let authorized, toolLease, completed, primaryError;
+    try {
+      if (!body || Object.keys(body).sort().join() !== "agentId,executionId,operationId"
+        || !GOVERNED_AGENT_ID_PATTERN.test(body.agentId)
+        || ![body.executionId, body.operationId].every(value => typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/u.test(value))) {
+        throw workforceGovernanceError("WORKFORCE_EXTERNAL_RUNNER_RECOVERY_INVALID", "Recovery requires the exact executionId, operationId and owning agentId.", 400);
+      }
+      const { context, policy } = await owningRootPolicy(req, body.agentId);
+      const service = agentGovernance.service, toolProxy = agentGovernance.toolProxy;
+      if (!requestExecution?.signal || !toolProxy || effectiveGovernedToolDecision(policy, "workforce_external_runner_recover") !== "allow") {
+        throw workforceGovernanceError("WORKFORCE_EXTERNAL_RUNNER_RECOVERY_DENIED", "The active Agent policy must permit original native task recovery.", 403);
+      }
+      authorized = await service.authorizeAgentExecution(context.agentId, context);
+      if (!authorized?.executionLease?.signal || authorized.policy?.policyHash !== policy.policyHash) throw workforceGovernanceError("WORKFORCE_EXTERNAL_RUNNER_RECOVERY_DENIED", "The Agent policy changed before recovery.", 403);
+      const verdict = await toolProxy.enforce({ context, toolName: "workforce_external_runner_recover", params: body,
+        resourceContext: { resourceKeys: { executionId: body.executionId, operationId: body.operationId }, resources: [`workforce:execution:${body.executionId}`] } });
+      toolLease = verdict?.executionLease;
+      if (verdict?.outcome !== "allow" || !verdict.policy || typeof toolLease?.release !== "function") throw workforceGovernanceError("WORKFORCE_EXTERNAL_RUNNER_RECOVERY_DENIED", "The original native task recovery was not admitted.", 403);
+      const identity = { ...req.enterpriseIdentity, ...requireExecutionIdentity(req), permissions: req.enterpriseIdentity?.permissions ?? [] };
+      completed = await workforceExecutor.recoverExternalRunner(body, identity, { context, policy,
+        toolProxy, signal: AbortSignal.any([requestExecution.signal, authorized.executionLease.signal]), deadlineAt: requestExecution.deadlineAt,
+        assertActive: phase => authorized.executionLease.assertActive(phase ?? "commit") });
+      const audited = await toolProxy.enforceResult({ context, toolName: "workforce_external_runner_recover", policy: verdict.policy,
+        result: completed, descriptor: null });
+      if (!audited || audited.verdict === "replace" || stableStringify(audited.result) !== stableStringify(completed)) {
+        throw workforceGovernanceError("WORKFORCE_EXTERNAL_RUNNER_RECOVERY_RESULT_UNAVAILABLE", "The original recovery completed but its complete record could not be returned.", 503);
+      }
+    } catch (error) { primaryError = error; }
+    for (const lease of [toolLease, authorized?.executionLease]) {
+      try { await lease?.release?.(); } catch (error) { primaryError ??= error; }
+    }
+    if (primaryError) writeErrorResponse({ response: res, error: primaryError, startedAt, fallbackCode: "external_runner_recovery_failed" });
+    else writeJson(res, 200, createOkEnvelope(completed, { startedAt }));
+  }
+
   // ── POST /workforce/plans/save ──
   async function handleWorkforcePlansSave(req, res, { startedAt, body }) {
     if (!body) body = await readCapabilityJson({ request: req, response: res, startedAt, code: "plans_save_bad" });
@@ -624,11 +715,13 @@ export function createWorkforceRoutes(application, helpers) {
     ["POST /workforce/autonomy/token/revoke", { handler: handleAutonomyTokenRevoke, public: false, permission: "workflow:run" }],
     ["POST /workforce/diagnostic/read", { handler: handleDiagnosticRead, public: false, permission: "audit:read" }],
     ["POST /workforce/execute", { handler: handleWorkforceExecute, public: false, permission: "workflow:run" }],
+    ["POST /workforce/execute/review", { handler: handleWorkforceExecutionReview, public: false, permission: "dashboard:read" }],
     ["POST /workforce/execute/approve", { handler: handleWorkforceExecuteApprove, public: false, permission: "workflow:approve" }],
     ["POST /workforce/execute/revoke", { handler: handleWorkforceExecuteRevoke, public: false, permission: "workflow:approve" }],
     ["POST /workforce/execute/status", { handler: handleWorkforceExecuteStatus, public: false, permission: "dashboard:read" }],
     ["POST /workforce/execute/cancel", { handler: handleWorkforceExecuteCancel, public: false, permission: "workflow:run" }],
     ["POST /workforce/execute/handoff/recover", { handler: handleWorkforceHandoffRecover, public: false, permission: "workflow:run" }],
+    ["POST /workforce/execute/external-runner/recover", { handler: handleWorkforceExternalRunnerRecover, public: false, permission: "workflow:run" }],
     ["POST /workforce/plans/save", { handler: handleWorkforcePlansSave, public: false, permission: "workflow:run" }],
     ["GET /workforce/plans", { handler: handleWorkforcePlans, public: false, permission: "dashboard:read" }],
   ]);
@@ -706,7 +799,7 @@ function createSafeWorkforceGovernanceParams(input, descriptor) {
     options: Object.freeze({
       autonomyMode: typeof descriptor?.autonomyMode === "string" ? descriptor.autonomyMode : "unknown",
       requiredScopes: Object.freeze(Array.isArray(descriptor?.requiredScopes) ? [...descriptor.requiredScopes] : []),
-      selectedRoleCount: descriptor.roleExecution ? descriptor.roleExecution.bindings.length
+      selectedRoleCount: descriptor.externalRunner ? descriptor.selectedRoleCount : descriptor.roleExecution ? descriptor.roleExecution.bindings.length
         : Array.isArray(input?.selectedRoles) ? input.selectedRoles.length : null,
       templateSelected: typeof input?.selectedTemplate === "string" || typeof input?.templateId === "string",
       ...(descriptor.roleExecution ? { roleExecution: descriptor.roleExecution } : {}),
@@ -714,6 +807,7 @@ function createSafeWorkforceGovernanceParams(input, descriptor) {
       ...(descriptor.codeDelivery ? { codeDelivery: descriptor.codeDelivery } : {}),
       ...(descriptor.workflowHandoff ? { workflowHandoff: descriptor.workflowHandoff } : {}),
       ...(descriptor.consensusReview ? { consensusReview: descriptor.consensusReview } : {}),
+      ...(descriptor.externalRunner ? { externalRunner: descriptor.externalRunner } : {}),
     }),
   });
 }
@@ -741,6 +835,7 @@ function createWorkforceApprovalReview(input, descriptor, params) {
     ...(params.options.codeDelivery ? { codeDelivery: params.options.codeDelivery } : {}),
     ...(params.options.workflowHandoff ? { workflowHandoff: params.options.workflowHandoff } : {}),
     ...(params.options.consensusReview ? { consensusReview: params.options.consensusReview } : {}),
+    ...(params.options.externalRunner ? { externalRunner: params.options.externalRunner } : {}),
   });
   return Object.freeze({
     schemaVersion: 1,
@@ -788,6 +883,7 @@ function applyApprovedWorkforceInput(input, approvedParams) {
     planId: approvedParams.planId,
     autonomyMode: approvedParams.options.autonomyMode,
     ...(approvedParams.options.codeDelivery ? { codeDelivery: { profileId: approvedParams.options.codeDelivery.profile.profileId } } : {}),
+    ...(approvedParams.options.externalRunner ? { externalRunner: { profileId: approvedParams.options.externalRunner.profile.profileId } } : {}),
     ...(approvedParams.options.workflowHandoff ? { workflowHandoff: { roleId: approvedParams.options.workflowHandoff.roleId,
       query: approvedParams.options.workflowHandoff.query, topK: approvedParams.options.workflowHandoff.topK, sourceIds: approvedParams.options.workflowHandoff.sourceIds } } : {}),
     ...(approvedParams.options.consensusReview ? { consensusReview: {

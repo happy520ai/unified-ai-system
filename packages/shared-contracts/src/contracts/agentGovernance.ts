@@ -1,7 +1,7 @@
 import type { ContractMetadata, ResultEnvelope } from "./common.js";
 import type { RiskLevel } from "./governance.js";
 import type { ProviderTarget } from "./routing.js";
-import type { WorkforceCodeDeliveryReview, WorkforceRoleExecutionProfile, WorkforceSelectionDecision, WorkforceWorkflowHandoffReview, WorkforceConsensusReview } from "./workforce.js";
+import type { WorkforceCodeDeliveryReview, WorkforceRoleExecutionProfile, WorkforceSelectionDecision, WorkforceWorkflowHandoffReview, WorkforceConsensusReview, WorkforceExternalRunnerReview } from "./workforce.js";
 
 /**
  * Agent Governance contracts.
@@ -466,6 +466,7 @@ export interface AgentToolApprovalReview {
       codeDelivery?: WorkforceCodeDeliveryReview;
       workflowHandoff?: WorkforceWorkflowHandoffReview;
       consensusReview?: WorkforceConsensusReview;
+      externalRunner?: WorkforceExternalRunnerReview;
     };
   };
   workflow?: {

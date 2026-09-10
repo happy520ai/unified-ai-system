@@ -7,6 +7,7 @@ import { createHash } from "node:crypto";
 import { createAgentApprovalStore, workflowArtifactApprovalArguments } from "./agentApprovalStore.ts";
 import { freezeWorkforceRoleExecutionProfile } from "../workforce/workforceRoleExecutionProfile.ts";
 import { createRuntimeEmployeeSelector } from "@unified-ai-system/workforce-scheduler";
+import { createWorkforceExternalRunnerReview, freezeWorkforceExternalRunnerProfile } from "../workforce/workforceExternalRunnerProfile.ts";
 
 const REVIEW = {
   schemaVersion: 1 as const,
@@ -19,6 +20,57 @@ const REVIEW = {
   destination: { branch: "main" },
   options: { setUpstream: false, forceMode: "none" as const },
 };
+
+it("persists and consumes the complete 512 KiB native review without truncation and rejects substitutions", async () => {
+  const root = await mkdtemp(join(tmpdir(), "agent-native-review-"));
+  try {
+    const storeOptions = { storePath: join(root, "approvals.json"), secret: "test-only-native-approval-material" };
+    const store = createAgentApprovalStore(storeOptions);
+    const profile = freezeWorkforceExternalRunnerProfile({ version: 1, mode: "codex-app-server-owned-worktree",
+      profileId: "native-fixture", projectId: "fixture", roleId: "backend-engineer", baselineRevision: "a".repeat(40),
+      binary: { path: "E:/Pinned Codex/codex.exe", sha256: "b".repeat(64), version: "0.153.4", platform: "win32" },
+      nativeModel: { modelId: "gpt-6-astra", providerId: "openai" }, disabledMcpServers: [],
+      limits: { timeoutMs: 30000, maxInputBytes: 524288, maxMessageBytes: 1048576, maxEvents: 64 },
+      artifact: { readPaths: ["source.mjs", "test.mjs"], writePaths: ["source.mjs"],
+        verification: { verificationId: "fixed-tests", command: "node test.mjs", immutableTests: [{ path: "test.mjs", sha256: "c".repeat(64) }],
+          image: "node@sha256:" + "d".repeat(64), workspaceMode: "ro", networkAccess: false,
+          timeoutMs: 10000, maxMemoryMB: 128, maxOutputBytes: 4096, pidsLimit: 32, cpus: 1 },
+        artifactLimits: { maxChangedFiles: 1, maxFileBytes: 4096, maxDiffBytes: 8192 } } });
+    const nativeInput = { profile, goal: "Implement the exact reviewed source change", prompt: "N".repeat(524287) + "Z",
+      configuredRepositoryHash: "sha256:" + "e".repeat(64), sourceFilesHash: "f".repeat(64) };
+    const externalRunner = createWorkforceExternalRunnerReview(nativeInput);
+    const reviewOptions = { selectedRoleCount: 8, templateSelected: true, externalRunner };
+    const args = { goal: nativeInput.goal, goalDigest: createHash("sha256").update(nativeInput.goal).digest("hex"),
+      goalBytes: Buffer.byteLength(nativeInput.goal), planId: "native-plan", planDigest: "0".repeat(64),
+      options: { autonomyMode: "controlled-execution", requiredScopes: ["workforce:execute"], ...reviewOptions } };
+    const review = { schemaVersion: 1 as const, reviewable: true, effectType: "workforce:execute", policyHash: REVIEW.policyHash,
+      workforce: { goal: args.goal, goalDigest: "sha256:" + args.goalDigest, goalBytes: args.goalBytes, planId: args.planId,
+        planDigest: "sha256:" + args.planDigest, autonomyMode: args.options.autonomyMode, requiredScopes: args.options.requiredScopes,
+        options: reviewOptions, optionsHash: "sha256:" + createHash("sha256").update(stableStringify(reviewOptions)).digest("hex") } };
+    const input = { agentId: "agt_native", tenantId: "tenant-native", toolName: "workforce_execute", arguments: args, review };
+    const created = await store.create(input);
+    expect(created.review.workforce?.options.externalRunner).toEqual(externalRunner);
+    expect((await createAgentApprovalStore(storeOptions).listPending())[0]?.review.workforce?.options.externalRunner).toEqual(externalRunner);
+    for (const altered of [{ ...externalRunner, prompt: nativeInput.prompt.slice(0, -1) },
+      { ...externalRunner, sourceFilesHash: "1".repeat(64) }, { ...externalRunner, profile: { ...profile, nativeModel: { ...profile.nativeModel, modelId: "override" } } }]) {
+      await expect(store.create({ ...input, arguments: { ...args, options: { ...args.options, externalRunner: altered } } }))
+        .rejects.toThrow(/complete reviewed|complete operator/);
+    }
+    for (const key of ["roleExecution", "selectionReview", "codeDelivery", "workflowHandoff", "consensusReview"]) {
+      await expect(store.create({ ...input, arguments: { ...args, options: { ...args.options, [key]: {} } } })).rejects.toThrow(/separate|reviewed/);
+    }
+    await expect(store.create({ ...input, review: { ...review, workforce: { ...review.workforce, optionsHash: "sha256:" + "1".repeat(64) } } }))
+      .rejects.toThrow("authenticated review hash");
+    const changed = createWorkforceExternalRunnerReview({ ...nativeInput, prompt: nativeInput.prompt.slice(0, -1) + "Y" });
+    await expect(store.create({ ...input, arguments: { ...args, options: { ...args.options, externalRunner: changed } } })).rejects.toThrow("complete operator review");
+    expect(() => createWorkforceExternalRunnerReview({ ...nativeInput, prompt: nativeInput.prompt + "x" })).toThrow();
+    await store.decide(created.id, "approve", "operator");
+    const consumed = await createAgentApprovalStore(storeOptions).consumeApproved({ approvalId: created.id, agentId: input.agentId,
+      tenantId: input.tenantId, toolName: input.toolName, argumentsHash: computeArgumentsHash(args), policyHash: review.policyHash, executionId: "native-original" });
+    expect((consumed?.args as any).options.externalRunner).toEqual(externalRunner);
+    expect(consumed?.review.workforce?.options.externalRunner?.prompt).toHaveLength(524288);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
 
 function workflowReview(content = "# Exact workflow report\nOnly these bytes are approved.\n") {
   return { schemaVersion: 1 as const, reviewable: true, effectType: "workflow:artifact-write", policyHash: REVIEW.policyHash,

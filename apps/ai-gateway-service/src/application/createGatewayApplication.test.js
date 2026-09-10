@@ -49,6 +49,7 @@ describe("gateway-application", () => {
       execute: expect.any(Function),
       getInfo: expect.any(Function),
     }));
+    expect(app.workforceExecutor.getInfo().externalRunner).toEqual({ configured: false, enabledByDefault: false, profiles: [] });
     expect(app.enterpriseGovernanceService).toBeDefined();
     expect(app.modelImportService).toBeDefined();
     expect(app.modelLibraryStore).toBeDefined();
@@ -163,6 +164,11 @@ describe("gateway-application", () => {
     expect(app.capabilityRouterService).toBeDefined();
     expect(app.providerDispatchGate.status).toMatchObject({ enabled: false, mode: "disabled" });
     expect(app.externalEffectGate.status).toMatchObject({ enabled: false, mode: "disabled" });
+  });
+  it("requires explicit bounded native runner configuration without launching a process", () => {
+    expect(() => createGatewayApplication({ AI_GATEWAY_WORKFORCE_EXTERNAL_RUNNER_ENABLED: "auto" })).toThrow("explicitly true or false");
+    expect(() => createGatewayApplication({ AI_GATEWAY_WORKFORCE_EXTERNAL_RUNNER_PROFILES_JSON: "{bad" })).toThrow("JSON array");
+    expect(() => createGatewayApplication({ AI_GATEWAY_WORKFORCE_EXTERNAL_RUNNER_PROFILES_JSON: "[{}]" })).toThrow("malformed, unsafe or inconsistent");
   });
 
   it("has correct config", () => {

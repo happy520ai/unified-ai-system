@@ -1,6 +1,7 @@
 import { createGatewayClient } from "@unified-ai-system/shared-sdk";
 import { readOperatorPayload, sanitizeOperatorData, type OperatorOptions, type Output } from "./operatorCommands.ts";
 import { projectWorkforceConsensusReport } from "./workforceConsensusReview.ts";
+import { projectWorkforceExternalRunnerInspection, projectWorkforceExternalRunnerState } from "./workforceExternalRunnerReview.ts";
 
 type Data = Record<string, any>;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,511}$/u;
@@ -12,9 +13,9 @@ function invalid(message: string, response = false): never {
   throw Object.assign(new Error(message), { code: response ? "WORKFORCE_RESPONSE_INVALID" : "WORKFORCE_INPUT_INVALID" });
 }
 export function validateWorkforceOptions(options: OperatorOptions): void {
-  const recover = options.positionals[0] === "handoff-recover";
+  const recover = ["handoff-recover", "native-recover"].includes(options.positionals[0]!);
   if (!recover && options.positionals[0] !== "status" || options.positionals.length !== (recover ? 1 : 2)
-    || recover !== Boolean(options.operatorInput) || !recover && !id(options.positionals[1])) invalid("Use workforce status <execution-id> or handoff-recover --input recovery.json.");
+    || recover !== Boolean(options.operatorInput) || !recover && !id(options.positionals[1])) invalid("Use workforce status <execution-id>, handoff-recover or native-recover --input recovery.json.");
   if (options.prompt !== null || options.agentGoal !== null || options.agentId !== null || options.allowRealProvider
     || options.agentProviderId !== null || options.agentModelId !== null || options.operatorMode !== null || options.operatorSources.length
     || options.operatorPasses !== null || options.operatorMaxOutputTokens !== null || options.lifecycleLimit !== null || options.lifecycleOffset !== null
@@ -22,8 +23,14 @@ export function validateWorkforceOptions(options: OperatorOptions): void {
   try { const url = new URL(options.url); if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.search || url.hash) invalid("Invalid gateway URL."); }
   catch { invalid("Invalid gateway URL."); }
 }
-function recoveryInput(path: string): { executionId: string; taskId: string; workflowId: string } {
+function recoveryInput(path: string, native = false): Data {
   const value = readOperatorPayload(path);
+  if (native) {
+    if (Object.keys(value).sort().join() !== "agentId,executionId,operationId"
+      || ![value.executionId, value.operationId].every(item => id(item) && item.length <= 256)
+      || typeof value.agentId !== "string" || !/^agt_[A-Za-z0-9_-]{1,128}$/u.test(value.agentId)) invalid("Native recovery JSON must contain only original executionId, operationId and agentId.");
+    return { executionId: value.executionId, operationId: value.operationId, agentId: value.agentId };
+  }
   if (Object.keys(value).sort().join() !== "executionId,taskId,workflowId" || ![value.executionId, value.taskId, value.workflowId].every(id)) invalid("Recovery JSON must contain only executionId, taskId and workflowId.");
   return { executionId: value.executionId, taskId: value.taskId, workflowId: value.workflowId };
 }
@@ -61,29 +68,39 @@ function render(result: Data): string {
   const lines = [`Workforce ${result.operation}: ${result.status}`, `Execution ID: ${result.executionId}`];
   if (result.taskId) lines.push(`Task ID: ${result.taskId}`);
   if (result.workflowId) lines.push(`Workflow ID: ${result.workflowId}`);
+  if (result.operationId) lines.push(`Native operation ID: ${result.operationId}`);
+  if (result.agentId) lines.push(`Owning Agent ID: ${result.agentId}`);
   if (result.data) lines.push(JSON.stringify(result.data, null, 2));
   if (result.message) lines.push(result.message);
   lines.push(result.nextAction, "Automatic retry: disabled.");
   return lines.join("\n") + "\n";
 }
 export async function runWorkforceCommands(options: OperatorOptions, output: Output): Promise<number> {
-  const operation = options.positionals[0], recover = operation === "handoff-recover";
+  const operation = options.positionals[0], nativeRecover = operation === "native-recover", recover = nativeRecover || operation === "handoff-recover";
   let ids: Data = recover ? {} : { executionId: options.positionals[1] }, dispatched = false;
   try {
-    if (recover) ids = recoveryInput(options.operatorInput!);
+    if (recover) ids = recoveryInput(options.operatorInput!, nativeRecover);
     if (recover && !options.confirmed) {
       const result = { ok: true, operation, status: "preview", ...ids, retryAllowed: false,
-        nextAction: "Review these exact IDs, then add --yes. Recovery may publish the approved report; it cannot rerun employees or resume the parent." };
+        nextAction: nativeRecover ? "Review these exact original IDs, then add --yes. Recovery reads the original native task and revalidates its artifact; it cannot start another native turn or automatically resume the parent."
+          : "Review these exact IDs, then add --yes. Recovery may publish the approved report; it cannot rerun employees or resume the parent." };
       output.write(options.json ? JSON.stringify(result, null, 2) + "\n" : render(result)); return 0;
     }
     if (!options.adminKey) invalid("Workforce status and recovery require a scoped admin key.");
     const client = createGatewayClient({ baseUrl: options.url, timeoutMs: options.timeoutMs, headers: { authorization: `Bearer ${options.adminKey}` } });
     dispatched = true;
-    const envelope = recover ? await client.recoverWorkforceWorkflow(ids as any) : await client.workforceExecutionStatus(ids.executionId);
+    const envelope = nativeRecover ? await client.recoverWorkforceExternalRunner(ids as any)
+      : recover ? await client.recoverWorkforceWorkflow(ids as any) : await client.workforceExecutionStatus(ids.executionId);
     if (!record(envelope) || envelope.status !== "ok" || !record(envelope.data)) invalid("Gateway did not return a verified response envelope.", true);
     const raw = envelope.data as Data;
     let data: Data;
-    if (recover) {
+    if (nativeRecover) {
+      const state = projectWorkforceExternalRunnerState(raw.state, ids.executionId, ids as { operationId: string; agentId: string });
+      if (state.status !== "verified" || raw.recoveredOriginal !== true || raw.newNativeTurns !== 0 || raw.parentAutomaticallyResumed !== false
+        || raw.parentExecutionResumed !== false || raw.employeeRolesRerun !== false || !PARENT.has(raw.parentExecutionStatus)) invalid("Native recovery did not prove a verified original task with zero new turns and no parent resume.", true);
+      data = { state, recoveredOriginal: true, newNativeTurns: 0, parentAutomaticallyResumed: false,
+        parentExecutionStatus: raw.parentExecutionStatus, parentExecutionResumed: false, employeeRolesRerun: false };
+    } else if (recover) {
       data = projectWorkflow(raw, ids.executionId, ids as any);
       if (data.status !== "completed" || !data.artifactVerified || raw.parentExecutionResumed !== false || raw.employeeRolesRerun !== false
         || !PARENT.has(raw.parentExecutionStatus) || ["pending", "running", "paused"].includes(raw.parentExecutionStatus)) invalid("Recovery did not prove a completed workflow without parent or employee execution.", true);
@@ -93,6 +110,8 @@ export async function runWorkforceCommands(options: OperatorOptions, output: Out
       // The existing lifecycle calls its execution identity planId; verify it before projecting a clearer label.
       data = { executionId: raw.planId, parentExecutionStatus: raw.status,
         workflowHandoff: raw.workflowHandoff == null ? null : projectWorkflow(raw.workflowHandoff, ids.executionId) };
+      if (Object.hasOwn(raw, "externalRunner")) data.externalRunner = raw.externalRunner === null ? null
+        : projectWorkforceExternalRunnerInspection(raw.externalRunner, ids.executionId);
       if (raw.consensusReport !== undefined || raw.consensusObservation !== undefined) {
         const observation = raw.consensusReport === null ? "not-recorded-no-automatic-redispatch" : "recorded";
         if (raw.consensusObservation !== observation) invalid("Consensus observation does not match the recorded report.", true);
@@ -105,6 +124,7 @@ export async function runWorkforceCommands(options: OperatorOptions, output: Out
     const adviceReady = consensus?.status === "complete" && consensus.decision.status === "recommend-proceed";
     const result = { ok: true, operation, status: recover ? "completed" : consensus ? adviceReady ? "advice-recorded" : consensus.decision.status === "revise" ? "revision-required" : "incomplete" : "observed", ...ids, retryAllowed: false, data,
       nextAction: recover ? "The original parent state is retained. Inspect workforce status before any further action."
+        : data.externalRunner ? "Inspect the original native state and its executionId, operationId and agentId before native-recover. Recovery never dispatches another native turn or automatically resumes the parent."
         : consensus ? `${adviceReady ? "Three model opinions recommend proceeding." : "Review the recorded objections, missing opinions and required revisions."} These are model opinions, not verified semantic truth. Plan execution remains on hold and requires new approval.`
         : data.consensusObservation ? "No consensus report was recorded. Preserve the execution ID; no automatic redispatch is permitted."
         : approvalId ? `Inspect agents approvals and review ${approvalId}. If correct, use agents approve --approval-id ${approvalId} --yes, then request handoff-recover with the original executionId, taskId and workflowId.`
