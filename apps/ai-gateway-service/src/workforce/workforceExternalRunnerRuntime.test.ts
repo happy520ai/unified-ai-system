@@ -1,3 +1,4 @@
+// @test-isolation process
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
@@ -28,29 +29,63 @@ const testText = "import test from 'node:test';\nimport assert from 'node:assert
 const patchItem = { id: "patch-original", type: "fileChange", status: "inProgress", changes: [{ path: "src/value.mjs", kind: { type: "update", move_path: null },
   diff: "--- a/src/value.mjs\n+++ b/src/value.mjs\n@@ -1 +1 @@\n-export const value = 1;\n+export const value = 2;\n" }] };
 type Mode = "approved" | "text-only" | "unapproved-mutation" | "wrong-permission" | "revoke" | "cancel" | "bad-value" | "close-unknown" | "filesystem-blocked";
-const disposals: Array<() => Promise<void>> = [];
+type FixtureScope = { signal: AbortSignal; teardown: AbortController; pending: Set<Promise<unknown>>;
+  disposals: Array<() => Promise<void>>; drained: boolean };
+const scopes = new WeakMap<object, FixtureScope>();
+let currentScope: FixtureScope | undefined;
+function track<T>(scope: FixtureScope, operation: () => Promise<T>): Promise<T> {
+  const pending = Promise.resolve().then(async () => {
+    scope.signal.throwIfAborted(); const value = await operation(); scope.signal.throwIfAborted(); return value;
+  });
+  scope.pending.add(pending);
+  void pending.then(() => scope.pending.delete(pending), () => scope.pending.delete(pending));
+  return pending;
+}
 let backendRun: ReturnType<typeof vi.spyOn>;
-beforeEach(() => {
+beforeEach(context => {
+  // A timed-out hook must not install new mocks while the previous fixture is still draining.
+  if (currentScope && !currentScope.drained) throw new Error("Previous native fixture teardown is not quiescent.");
+  const teardown = new AbortController();
+  const scope: FixtureScope = { signal: AbortSignal.any([context.signal, teardown.signal]), teardown, pending: new Set(), disposals: [], drained: false };
+  scopes.set(context, scope); currentScope = scope;
   vi.clearAllMocks(); native.configuration.mockResolvedValue(undefined); native.liveness.mockResolvedValue("stopped");
   native.owner.mockResolvedValue({ pid: 8800, created: "134335350000000000" }); native.ownerLiveness.mockResolvedValue("stopped");
   vi.spyOn(ContainerSandboxBackend.prototype, "attest").mockResolvedValue({} as any);
   backendRun = vi.spyOn(ContainerSandboxBackend.prototype, "run").mockImplementation(async (request: any) => {
     expect(request).toMatchObject({ command: "node --test test/value.test.mjs", workspaceMode: "ro", networkAccess: false, env: {} });
     let stdout = "", stderr = "", exitCode = 0;
-    try { ({ stdout, stderr } = await runFile(process.execPath, ["--test", "test/value.test.mjs"], { cwd: request.workspace, env: {}, windowsHide: true, timeout: 5000 })); }
+    try { ({ stdout, stderr } = await runFile(process.execPath, ["--test", "test/value.test.mjs"], { cwd: request.workspace, env: {}, windowsHide: true, timeout: 5000, signal: scope.signal })); }
     catch (error: any) { stdout = error.stdout ?? ""; stderr = error.stderr ?? ""; exitCode = typeof error.code === "number" ? error.code : 1; }
     return { exitCode, stdout, stderr, killed: false, oomKilled: false, truncated: false, cleanupUncertain: false, backend: "container" } as any;
   });
 });
-afterEach(async () => { for (const dispose of disposals.splice(0).reverse()) await dispose(); vi.restoreAllMocks(); });
+afterEach(async context => {
+  const scope = scopes.get(context); if (!scope) return;
+  scope.teardown.abort(new Error("Owned native fixture teardown."));
+  while (scope.pending.size) await Promise.allSettled([...scope.pending]);
+  try { for (const dispose of scope.disposals.splice(0).reverse()) await dispose(); }
+  finally { vi.restoreAllMocks(); scope.drained = true; }
+});
 
-async function fixture(mode: Mode = "approved") {
+function fixture(mode: Mode = "approved") {
+  const scope = currentScope!;
+  return track(scope, () => createFixture(scope, mode));
+}
+async function createFixture(scope: FixtureScope, mode: Mode) {
   const root = await mkdtemp(join(await realpath(tmpdir()), "external-runner-runtime-"));
+  scope.disposals.push(async () => {
+    expect(await realpath(root)).toBe(root); expect(dirname(root)).toBe(await realpath(tmpdir())); await rm(root, { recursive: true, force: false });
+  });
+  scope.signal.throwIfAborted();
   const repo = join(root, "repo"), scratch = join(root, "scratch");
   await mkdir(join(repo, "src"), { recursive: true }); await mkdir(join(repo, "test")); await mkdir(scratch);
   await writeFile(join(repo, "src/value.mjs"), beforeText); await writeFile(join(repo, "test/value.test.mjs"), testText);
   await writeFile(join(repo, "unapproved.txt"), "fixture outside approved read paths\n");
-  const git = createWorkforceGit(repo);
+  const scopedGit = (directory: string) => {
+    const ownedGit = createWorkforceGit(directory);
+    return { ...ownedGit, run: (...args: Parameters<typeof ownedGit.run>) => track(scope, () => ownedGit.run(...args)) };
+  };
+  const git = scopedGit(repo);
   await git.run(["-c", "init.templateDir=", "init", "--initial-branch=main"]);
   await git.run(["add", "src/value.mjs", "test/value.test.mjs", "unapproved.txt"]);
   await git.run(["-c", "user.name=Native Runtime Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgSign=false", "commit", "-m", "Owned test baseline"]);
@@ -65,7 +100,7 @@ async function fixture(mode: Mode = "approved") {
         image: "node@sha256:" + "c".repeat(64), workspaceMode: "ro", networkAccess: false, timeoutMs: 10000, maxMemoryMB: 128, maxOutputBytes: 8192, pidsLimit: 32, cpus: 1 },
       artifactLimits: { maxChangedFiles: 1, maxFileBytes: 8192, maxDiffBytes: 16384 } } });
   const factoryOptions = { repoRoot: repo, scratchRoot: scratch, enginePath: resolve(root, "fixture-engine"), windowsHost: { path: join(root, "workforce-native-job-host.exe"), sha256: "d".repeat(64) } };
-  const factory = createWorkforceExternalRunnerFactory(factoryOptions), review = await reviewWorkforceExternalRunner(factory, profile, "Implement the approved value change");
+  const factory = createWorkforceExternalRunnerFactory(factoryOptions), review = await reviewWorkforceExternalRunner(factory, profile, "Implement the approved value change", scope.signal);
   const identity = { tenantId: "tenant", userId: "owner", role: "admin", permissions: ["*"] };
   const context = { agentId: "agt_native_fixture", tenantId: identity.tenantId, userId: identity.userId };
   const planId = "plan-native", planDigest = "e".repeat(64), planApprovalId = "approval-native", agentRunId = "agr_native_fixture";
@@ -80,31 +115,32 @@ async function fixture(mode: Mode = "approved") {
     reserveUsage: async (_id: string, _limits: unknown, delta: unknown) => { reservations.push(delta); return { allowed: true }; },
     acquireToolExecutionLease: async () => agentStatus === "ACTIVE" ? { release: async () => { leasesReleased++; } } : null, releaseUsage: async () => {} };
   const proxy = createAgentGovernanceToolProxy({ service });
-  const controller = new AbortController(), agentFence = { signal: controller.signal, async assertActive() {
+  const controller = new AbortController(), signal = AbortSignal.any([scope.signal, controller.signal]), agentFence = { signal, async assertActive() {
     if (agentStatus !== "ACTIVE") throw Object.assign(new Error("Fixture Agent revoked"), { code: "AGENT_EXECUTION_FENCED" });
-    if (controller.signal.aborted) throw controller.signal.reason;
+    signal.throwIfAborted();
   } };
   const manager = createWorktreeIsolation({ repoRoot: repo, worktreeRoot: join(root, "worktrees") });
+  scope.disposals.push(async () => { for (const item of manager.list().worktrees) expect((await manager.remove(item.worktreeId)).success).toBe(true); });
   const created = await manager.create({ planId: executionId }); expect(created.success).toBe(true); const worktree = created.worktree!;
-  const queue = new TaskQueueManager({ dataDir: join(root, "queue"), env: {} }); await queue.init();
+  scope.signal.throwIfAborted();
+  const queue = new TaskQueueManager({ dataDir: join(root, "queue"), env: {} }); scope.disposals.push(() => queue.close()); await queue.init();
   const task = await queue.enqueue({ title: "Owned native implementation", planId: executionId, tenantId: identity.tenantId, ownerId: identity.userId, dependsOnRoleIds: [] });
-  disposals.push(async () => {
-    await queue.close();
-    for (const item of manager.list().worktrees) expect((await manager.remove(item.worktreeId)).success).toBe(true);
-    expect(await realpath(root)).toBe(root); expect(dirname(root)).toBe(await realpath(tmpdir())); await rm(root, { recursive: true, force: false });
-  });
+  scope.signal.throwIfAborted();
   const records: ExternalRunnerState[] = [], saved = join(root, "state.json"), metadata = createExternalRunnerMetadata({ review, agentId: context.agentId, planId, planDigest });
   let persistHook: ((state: ExternalRunnerState) => Promise<void>) | undefined;
   const persist = async (state: ExternalRunnerState) => { records.push(state); await writeFile(saved, JSON.stringify(state)); await persistHook?.(state); };
   const methods: string[] = [], decisions: string[] = [], nativeInputs: any[] = [];
+  let writeHook: (() => Promise<void>) | undefined;
   let original: any, readHistory: any, writes = 0, loopError: unknown, processCount = 0, closeUnknown = mode === "close-unknown";
   function transport(input: any) {
     processCount++; nativeInputs.push(input);
     const stdout = new PassThrough(); let inputBuffer = "", closed = false, pendingApproval: ((decision: string) => void) | undefined;
+    const handlers = new Set<Promise<void>>(); let finishing: Promise<any> | undefined;
     let done!: (value: any) => void; const completed = new Promise(resolve => { done = resolve; });
     const send = (value: any) => { if (!closed) stdout.write(Buffer.from(JSON.stringify(value) + "\n")); };
     const notify = (method: string, params: any) => send({ method, params });
     async function handle(message: any) {
+      if (closed || input.signal.aborted) return;
       if (!message.method) {
         if (message.id === "approval-original") {
           const decision = message.result?.decision;
@@ -140,16 +176,17 @@ async function fixture(mode: Mode = "approved") {
       send({ id: message.id, result: { turn: original } }); notify("turn/started", { threadId: "thread-original", turn: original });
       if (!["text-only", "unapproved-mutation"].includes(mode)) {
         notify("item/started", { threadId: "thread-original", turnId: original.id, item: patchItem, startedAtMs: 1000 });
+        const approval = new Promise<string>(resolveDecision => { pendingApproval = resolveDecision; });
         if (mode === "revoke") agentStatus = "REVOKED";
         if (mode === "cancel") controller.abort(Object.assign(new Error("Fixture cancelled"), { code: "WORKFORCE_EXECUTION_CANCELLED" }));
-        const approval = new Promise<string>(resolveDecision => { pendingApproval = resolveDecision; });
         send({ id: "approval-original", method: "item/fileChange/requestApproval", params: { threadId: "thread-original", turnId: original.id, itemId: patchItem.id, startedAtMs: 1000, grantRoot: null } });
         if (await approval === "accept") {
-          writes++; await writeFile(join(input.cwd, "src/value.mjs"), mode === "bad-value" ? "export const value = 3;\n" : afterText);
+          await writeHook?.(); if (closed || input.signal.aborted) return;
+          writes++; await writeFile(join(input.cwd, "src/value.mjs"), mode === "bad-value" ? "export const value = 3;\n" : afterText, { signal: input.signal });
           const item = { ...patchItem, status: "completed" }; original.items.push(item);
           notify("item/completed", { threadId: "thread-original", turnId: original.id, item });
         }
-      } else if (mode === "unapproved-mutation") { writes++; await writeFile(join(input.cwd, "src/value.mjs"), afterText); }
+      } else if (mode === "unapproved-mutation") { writes++; await writeFile(join(input.cwd, "src/value.mjs"), afterText, { signal: input.signal }); }
       notify("item/agentMessage/delta", { threadId: "thread-original", turnId: original.id, delta: "native-final-only-marker" });
       const counters = { inputTokens: 21, cachedInputTokens: 5, cacheWriteInputTokens: 0, outputTokens: 8, reasoningOutputTokens: 3, totalTokens: 29 };
       notify("thread/tokenUsage/updated", { threadId: "thread-original", turnId: original.id, tokenUsage: { total: counters, last: counters, modelContextWindow: 128000 } });
@@ -159,21 +196,24 @@ async function fixture(mode: Mode = "approved") {
       inputBuffer += chunk.toString("utf8");
       for (let index; (index = inputBuffer.indexOf("\n")) >= 0;) {
         const line = inputBuffer.slice(0, index); inputBuffer = inputBuffer.slice(index + 1);
-        void handle(JSON.parse(line)).catch(error => { loopError = error; stdout.destroy(new Error("Fixture transport failed")); });
+        // Register before invoking the handler: cancellation can re-enter finish synchronously.
+        const handling = Promise.resolve().then(() => handle(JSON.parse(line))).catch(error => { loopError = error; stdout.destroy(new Error("Fixture transport failed")); });
+        handlers.add(handling); void handling.then(() => handlers.delete(handling));
       }
       callback();
     } });
-    const finish = async () => {
-      closed = true; pendingApproval?.("cancel"); stdout.end(); stdin.end();
+    const finish = () => finishing ??= (async () => {
+      closed = true; pendingApproval?.("cancel"); stdin.end();
+      await Promise.allSettled([...handlers]); stdout.end();
       const result = { closed: true, quiescent: !closeUnknown, status: closeUnknown ? "unknown" : "exited", exitCode: 0 }; done(result); return result;
-    };
+    })();
     return { stdout, stdin, identity: { kind: "windows-job", hostPid: 9000 + processCount * 2, childPid: 9001 + processCount * 2,
       hostCreated: "134335354337170864", childCreated: "134335354337632843" }, completed, close: finish, cancel: finish };
   }
   native.create.mockImplementation(async input => transport(input));
   const preflightInput = { review, identity, context, policy, usage: { toolCalls: 0, steps: 0, records: 0 }, roleCount: 1, planId, planDigest,
-    signal: controller.signal, deadlineAt: Date.now() + 30000, toolProxy: proxy };
-  async function run() {
+    signal, deadlineAt: Date.now() + 30000, toolProxy: proxy };
+  const run = () => track(scope, async () => {
     const token = await preflightWorkforceExternalRunner(factory, preflightInput);
     let result: any, error: any;
     try {
@@ -183,26 +223,49 @@ async function fixture(mode: Mode = "approved") {
           try { result = await runWorkforceExternalRunner(factory, token, { executionId, taskId: task.taskId, agentRunId, planApprovalId,
             manager, worktreeId: worktree.worktreeId, agentFence,
             taskFence: taskContext.externalEffectFence as Parameters<typeof runWorkforceExternalRunner>[2]["taskFence"], toolProxy: proxy,
-            signal: controller.signal, abort: reason => controller.abort(reason), persist }); return result; }
+            signal, abort: reason => controller.abort(reason), persist }); return result; }
           catch (caught) { error = caught; throw caught; }
         } });
     } catch (caught) { error ??= caught; }
     return { result, error };
-  }
-  async function recovery(overrides: Record<string, unknown> = {}) {
+  });
+  const recovery = (overrides: Record<string, unknown> = {}) => track(scope, async () => {
     const persisted = JSON.parse(await readFile(saved, "utf8"));
     const state = readExternalRunnerState(persisted, { executionId, metadata });
     return recoverWorkforceExternalRunner(createWorkforceExternalRunnerFactory(factoryOptions), { metadata: JSON.parse(JSON.stringify(metadata)), state,
-      identity, context, policy, toolProxy: proxy, signal: new AbortController().signal, deadlineAt: Date.now() + 30000,
-      assertActive: async () => { if (agentStatus !== "ACTIVE") throw new Error("Fixture revoked"); }, persist, ...overrides } as any);
-  }
-  return { root, repo, scratch, git, worktree, profile, factory, review, metadata, identity, context, policy, proxy, preflightInput, run, recovery,
+      identity, context, policy, toolProxy: proxy, deadlineAt: Date.now() + 30000,
+      assertActive: async () => { if (agentStatus !== "ACTIVE") throw new Error("Fixture revoked"); }, persist, ...overrides,
+      signal: AbortSignal.any([scope.signal, ...(overrides.signal instanceof AbortSignal ? [overrides.signal] : [])]) } as any);
+  });
+  return { root, repo, scratch, git, scopedGit, worktree, profile, factory, review, metadata, identity, context, policy, proxy, preflightInput, run, recovery,
     setPersistHook: (hook: (state: ExternalRunnerState) => Promise<void>) => { persistHook = hook; }, abort: () => controller.abort(),
+    setWriteHook: (hook: () => Promise<void>) => { writeHook = hook; },
     records, methods, decisions, nativeInputs, audit, reservations, getWrites: () => writes, loopError: () => loopError, getReleased: () => leasesReleased,
     setCloseKnown: () => { closeUnknown = false; }, setHistory: (value: unknown) => { readHistory = value; }, executionId, taskId: task.taskId };
 }
 
 describe("governed native runner runtime with real owned Git worktrees", () => {
+  it("joins a pending native write before reporting quiescence and rejects teardown cancellation instead of resuming the test", async () => {
+    const scope = currentScope!, f = await fixture();
+    let enter!: () => void, release!: () => void;
+    const entered = new Promise<void>(resolve => { enter = resolve; }), released = new Promise<void>(resolve => { release = resolve; });
+    f.setWriteHook(async () => { enter(); await released; });
+    const running = f.run();
+    await Promise.race([entered, running.then(() => { throw new Error("Native fixture ended before the approved write."); })]);
+    const child = await native.create.mock.results[0]!.value;
+    let closed = false; void child.completed.then(() => { closed = true; });
+    const reason = new Error("Fixture teardown cancellation");
+    try {
+      scope.teardown.abort(reason);
+      await new Promise<void>(resolve => setImmediate(resolve));
+      expect(closed).toBe(false); expect(f.getWrites()).toBe(0);
+      expect(await readFile(join(f.worktree.path, "src/value.mjs"), "utf8")).toBe(beforeText);
+    } finally { release(); }
+    await expect(running).rejects.toBe(reason);
+    expect(await child.completed).toMatchObject({ closed: true, quiescent: true });
+    expect(f.getWrites()).toBe(0); expect(scope.pending.size).toBe(0); expect(f.loopError()).toBeUndefined();
+  }, 30000);
+
   it("surfaces the native filesystem support requirement without sending a turn or exposing native error text", async () => {
     const f = await fixture("filesystem-blocked"), { result, error } = await f.run();
     expect(result).toBeUndefined(); expect(error.details).toMatchObject({ causeCode: "WORKFORCE_EXTERNAL_RUNNER_NATIVE_FILESYSTEM_SUPPORT_REQUIRED", outcomeUnknown: false, processClosed: true, projectFileWrites: null });
@@ -337,11 +400,11 @@ describe("governed native runner runtime with real owned Git worktrees", () => {
   }, 30000);
 
   it("rejects changed baseline and immutable source during original recovery", async () => {
-    const f = await fixture("close-unknown"); await f.run(); f.setCloseKnown();
-    await writeFile(join(f.worktree.path, "test/value.test.mjs"), "console.log('changed immutable fixture');\n");
+    const scope = currentScope!, f = await fixture("close-unknown"); await f.run(); f.setCloseKnown();
+    await track(scope, () => writeFile(join(f.worktree.path, "test/value.test.mjs"), "console.log('changed immutable fixture');\n"));
     await expect(f.recovery()).rejects.toMatchObject({ code: "WORKFORCE_EXTERNAL_RUNNER_RECOVERY_UNKNOWN" }); expect(backendRun).not.toHaveBeenCalled();
-    await writeFile(join(f.worktree.path, "test/value.test.mjs"), testText);
-    const git = createWorkforceGit(f.worktree.path); await git.run(["add", "src/value.mjs"]);
+    await track(scope, () => writeFile(join(f.worktree.path, "test/value.test.mjs"), testText));
+    const git = f.scopedGit(f.worktree.path); await git.run(["add", "src/value.mjs"]);
     await git.run(["-c", "user.name=Native Runtime Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgSign=false", "commit", "-m", "Changed owned baseline"]);
     const calls = native.create.mock.calls.length;
     await expect(f.recovery()).rejects.toMatchObject({ code: "WORKFORCE_EXTERNAL_RUNNER_BASELINE_CHANGED" }); expect(native.create).toHaveBeenCalledTimes(calls);

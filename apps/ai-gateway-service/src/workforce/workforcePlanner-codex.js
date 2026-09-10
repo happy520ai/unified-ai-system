@@ -29,7 +29,7 @@ export function createCodexDesktopHandoffPack(plan) {
       `Agent Workforce Preview generated a plan for: ${plan.goal}`,
       `Selected template: ${plan.selectedTemplate?.name || plan.templateContext?.selectedTemplateName || "Feature Development"}`,
       "This handoff is a manual copy/paste package only.",
-      "The web service does not invoke Codex CLI and does not dispatch an external runner.",
+      "This manual export does not invoke Codex CLI or authorize an external runner. The separately configured native profile requires its own full review and governed execution.",
     ],
     allowedFiles,
     forbiddenActions: [
@@ -80,7 +80,7 @@ export function createCodexDesktopHandoffPack(plan) {
     ],
     blockedReasons: [
       "Codex handoff is manual-only",
-      "Web service does not invoke Codex CLI",
+      "This manual export does not invoke Codex CLI; governed native execution is a separate explicitly selected path",
       "real external runner dispatch is disabled",
       "approval-preview is not execution approval",
     ],
