@@ -32,6 +32,7 @@ import {
   buildProviderRequest, buildResult, createErrorResult, syncMcpToolsToRegistry,
 } from "./agenticCodingLoop-helpers.js";
 import { createStreamEvent, truncateForEvent } from "./agenticCodingLoop-stream.js";
+import { buildAgenticCheckpointBinding, openAgenticCheckpointSession } from "./agenticCheckpoint.ts";
 
 const MAX_CHECKPOINT_SIZE = 10 * 1024 * 1024;
 
@@ -69,7 +70,6 @@ export async function readCheckpointForResume(checkpointInput, workingDirectory)
 /**
  * Create an Agentic Coding Loop instance.
  * @param {Object} options
- * @returns {Object} agenticLoop instance
  */
 export function createAgenticLoop(options = {}) {
   const maxIterations = options.maxIterations ?? DEFAULT_MAX_ITERATIONS;
@@ -172,9 +172,13 @@ export function createAgenticLoop(options = {}) {
   async function execute(input) {
     if (!input || typeof input !== "object") return createErrorResult("AGENTIC_INPUT_INVALID", "Input must be an object with a 'goal' property.");
     let sessionId = randomUUID();
-    const startedAt = Date.now();
+    let startedAt = Date.now();
     const goal = typeof input.goal === "string" ? input.goal : String(input.goal ?? "");
     if (!goal.trim()) return createErrorResult("AGENTIC_GOAL_EMPTY", "Goal is required and must be a non-empty string.");
+    const resuming = input.resumeFromCheckpoint !== undefined;
+    if (resuming && agentGovernanceRequired) {
+      throw Object.assign(new Error("Direct disk checkpoints cannot authorize governed continuation."), { code: "CHECKPOINT_GOVERNED_RESUME_REJECTED" });
+    }
     // Governed identity flows per request into every tool call.
     const governanceCallContext = input.agentGovernance ?? options.agentGovernance ?? null;
     if (agentGovernanceRequired
@@ -186,74 +190,103 @@ export function createAgenticLoop(options = {}) {
       throw error;
     }
 
-    const enhancedPrompt = await enhancePrompt(systemPrompt, goal);
-    const taskComplexity = analyzeComplexity(goal);
-    const messages = buildInitialMessages(enhancedPrompt, goal, input.messages);
-    const tools = getOpenAITools(toolRegistry, input.toolAllowlist);
+    const providerId = input.providerId || "openai", modelId = input.modelId || "gpt-4o";
+    const originalMessages = checkpointDir || resuming ? structuredClone(input.messages ?? []) : input.messages;
+    const listedTools = getOpenAITools(toolRegistry, input.toolAllowlist);
+    const tools = checkpointDir || resuming ? structuredClone(listedTools) : listedTools;
     const runAllowedTools = freezeRunToolAllowlist(input.toolAllowlist);
-    const trace = [];
-    const allToolResults = [];
-    let totalUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+    let checkpointSession = null;
+    if (checkpointDir || resuming) {
+      const binding = await buildAgenticCheckpointBinding({ workingDirectory, goal, providerId, modelId, tools,
+        maxIterations, maxTokensPerTurn, tokenBudget: options.tokenBudget ?? 100_000,
+        configuration: { systemPrompt, initialMessages: originalMessages, permissionMode, planningEnabled, maxPlanSteps,
+          selfReflectionEnabled, selfReflectionInterval, errorRecoveryEnabled, dynamicBudgetEnabled, promptOptimizeEnabled,
+          maxContextTokens: options.maxContextTokens ?? 32_000, recentTurnsToKeep: options.recentTurnsToKeep ?? 5,
+          enableHighRiskTools: options.enableHighRiskTools === true, highRiskToolAllowlist: options.highRiskToolAllowlist ?? null,
+          toolAllowlist: runAllowedTools ? [...runAllowedTools].sort() : null } });
+      checkpointSession = await openAgenticCheckpointSession(binding, { checkpointDir, resumePath: input.resumeFromCheckpoint, sessionId });
+    }
+    try {
+    const restored = checkpointSession?.restored?.state;
+    if (checkpointSession?.restored?.phase === "terminal") {
+      if (!restored?.terminalResult) throw Object.assign(new Error("The saved terminal result is missing."), { code: "CHECKPOINT_FORMAT_REJECTED" });
+      return structuredClone(restored.terminalResult);
+    }
+    if (restored) { sessionId = restored.sessionId; startedAt = restored.startedAt; }
+    // Disk validation precedes all project-context and session-memory reads.
+    const enhancedPrompt = restored ? null : await enhancePrompt(systemPrompt, goal);
+    const messages = restored ? structuredClone(restored.messages) : buildInitialMessages(enhancedPrompt, goal, originalMessages);
+    let initialMessageCount = restored?.initialMessageCount ?? messages.length;
+    const trace = restored ? structuredClone(restored.trace) : [];
+    const allToolResults = restored ? structuredClone(restored.allToolResults) : [];
+    let totalUsage = restored ? { ...restored.totalUsage } : { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+    const usageObservation = restored ? { ...restored.usageObservation } : { planning: "not_used", provider: "observed" };
     let finalAnswer = "";
-    let iteration = 0;
+    let providerFinished = false;
+    let iteration = restored?.iteration ?? 0;
     let status = "completed";
 
-    trace.push({ type: "complexity_analysis", score: taskComplexity.score, tier: taskComplexity.tier, signals: taskComplexity.signals });
-    let effectiveMaxIterations = maxIterations;
-
-    // Checkpoint resume
-    if (input.resumeFromCheckpoint) {
-      try {
-        const cp = await readCheckpointForResume(
-          input.resumeFromCheckpoint,
-          workingDirectory,
-        );
-        if (Array.isArray(cp.messages) && cp.messages.length > 0) {
-          messages.length = 0; for (const m of cp.messages) messages.push(m);
-          totalUsage = cp.totalUsage || totalUsage; iteration = cp.iteration || 0; sessionId = cp.sessionId || sessionId; status = "resumed";
-        }
-      } catch (error) {
-        const event = String(error?.code || "").startsWith("CHECKPOINT_")
-          ? "checkpoint rejected"
-          : "checkpoint restore failed";
-        debugLoop(event, error);
-      }
+    if (!restored) {
+      const taskComplexity = analyzeComplexity(goal);
+      trace.push({ type: "complexity_analysis", score: taskComplexity.score, tier: taskComplexity.tier, signals: taskComplexity.signals });
     }
+    let effectiveMaxIterations = restored?.effectiveMaxIterations ?? maxIterations;
+    let plan = restored ? structuredClone(restored.plan) : null, planStepIndex = restored?.planStepIndex ?? 0;
+    const saveCheckpoint = async (phase, inFlight = null, terminalResult = null) => {
+      if (!checkpointSession) return;
+      await checkpointSession.save({ sessionId, startedAt, messages, initialMessageCount, trace, allToolResults, totalUsage,
+        usageObservation, iteration, effectiveMaxIterations, plan, planStepIndex,
+        status: terminalResult ? status : "running", finalAnswer: terminalResult ? finalAnswer : "", terminalResult }, phase, inFlight);
+    };
 
     // Planning phase
-    let plan = null; let planStepIndex = 0;
-    if (planningEnabled) {
-      plan = await generatePlan(goal, providerAdapter, buildProviderRequest({ messages, tools, providerId: input.providerId, modelId: input.modelId, maxTokensPerTurn, signal: input.signal }), maxPlanSteps);
+    if (planningEnabled && !restored) {
+      await saveCheckpoint("provider_in_flight", { kind: "planning", iteration, toolCallIds: [] });
+      if (input.signal?.aborted) throw input.signal.reason;
+      plan = await generatePlan(goal, providerAdapter, buildProviderRequest({ messages, tools, providerId, modelId, maxTokensPerTurn, signal: input.signal }), maxPlanSteps);
+      // generatePlan currently hides its response usage; never represent that unknown cost as zero on resume.
+      usageObservation.planning = "unobserved";
       if (plan) {
         const planSummary = plan.map(s => `  ${s.step}. ${s.action}`).join("\n");
         const updatedPrompt = enhancedPrompt + `\n\n## Execution Plan\nThe following plan has been generated for this task. Follow it step by step:\n${planSummary}\n\nAfter completing each step, acknowledge which step you completed.`;
-        messages.length = 0; for (const m of buildInitialMessages(updatedPrompt, goal, input.messages)) messages.push(m);
+        messages.length = 0; for (const m of buildInitialMessages(updatedPrompt, goal, originalMessages)) messages.push(m);
+        initialMessageCount = messages.length;
         trace.push({ type: "planning", planSteps: plan.length, plan: plan.map(s => ({ step: s.step, action: s.action })) });
       }
     }
 
-    // Main loop
-    for (iteration = iteration > 0 ? iteration + 1 : 1; iteration <= effectiveMaxIterations; iteration++) {
-      if (input.signal?.aborted) { status = "cancelled"; finalAnswer = `[Cancelled by user at iteration ${iteration}]`; trace.push({ iteration, type: "cancelled", message: "Loop cancelled by user via AbortSignal.", timestamp: new Date().toISOString() }); break; }
+    if (!restored) await saveCheckpoint("ready");
+
+    // The counter is allocated before each Provider request and retained across continuation.
+    if (totalUsage.totalTokens > (options.tokenBudget ?? 100_000) * 1.5) {
+      status = "token_budget_exhausted"; finalAnswer = "[Original cumulative token budget is exhausted.]";
+    }
+    while (iteration < effectiveMaxIterations && status === "completed") {
+      const nextIteration = iteration + 1;
+      if (input.signal?.aborted) { status = "cancelled"; finalAnswer = `[Cancelled by user before iteration ${nextIteration}]`; trace.push({ iteration: nextIteration, type: "cancelled", message: "Loop cancelled by user via AbortSignal.", timestamp: new Date().toISOString() }); break; }
       if (typeof options.beforeIteration === "function") {
         let gate;
         try {
-          gate = await options.beforeIteration({ iteration, sessionId });
+          gate = await options.beforeIteration({ iteration: nextIteration, sessionId });
         } catch {
           gate = { allowed: false, reason: "GOVERNANCE_STEP_RESERVATION_FAILED" };
         }
         if (!gate || gate.allowed !== true) {
           status = "governance_denied";
-          finalAnswer = `[Agent governance denied iteration ${iteration}: ${gate?.reason ?? "STEP_LIMIT_REACHED"}]`;
-          trace.push({ iteration, type: "governance_denied", code: gate?.reason ?? "STEP_LIMIT_REACHED", timestamp: new Date().toISOString() });
+          finalAnswer = `[Agent governance denied iteration ${nextIteration}: ${gate?.reason ?? "STEP_LIMIT_REACHED"}]`;
+          trace.push({ iteration: nextIteration, type: "governance_denied", code: gate?.reason ?? "STEP_LIMIT_REACHED", timestamp: new Date().toISOString() });
           break;
         }
       }
       const iterStartedAt = Date.now();
-      compactIfNeeded(messages);
-      const providerRequest = buildProviderRequest({ messages, tools, providerId: input.providerId, modelId: input.modelId, maxTokensPerTurn, signal: input.signal });
-      if (input.signal?.aborted) { status = "cancelled"; finalAnswer = `[Cancelled by user at iteration ${iteration}]`; trace.push({ iteration, type: "cancelled", message: "Loop cancelled by user via AbortSignal (before provider call).", timestamp: new Date().toISOString() }); break; }
+      const providerMessages = checkpointSession ? structuredClone(messages) : messages;
+      compactIfNeeded(providerMessages);
+      const providerRequest = buildProviderRequest({ messages: providerMessages, tools, providerId, modelId, maxTokensPerTurn, signal: input.signal });
+      if (input.signal?.aborted) { status = "cancelled"; finalAnswer = `[Cancelled by user before iteration ${nextIteration}]`; trace.push({ iteration: nextIteration, type: "cancelled", message: "Loop cancelled by user via AbortSignal (before provider call).", timestamp: new Date().toISOString() }); break; }
 
+      iteration = nextIteration;
+      await saveCheckpoint("provider_in_flight", { kind: "provider", iteration, toolCallIds: [] });
+      if (input.signal?.aborted) { status = "cancelled"; break; }
       let providerResponse;
       try { providerResponse = await withProviderTimeout(providerAdapter.generate(providerRequest)); }
       catch (error) {
@@ -272,6 +305,9 @@ export function createAgenticLoop(options = {}) {
         return buildResult({ sessionId, goal, status, finalAnswer: finalAnswer || `Provider returned empty response at iteration ${iteration}.`, iterations: iteration, messages, trace, allToolResults, totalUsage, startedAt });
       }
 
+      if (!providerResponse.usage || !["inputTokens", "outputTokens", "totalTokens"].every(key => Number.isSafeInteger(providerResponse.usage[key]) && providerResponse.usage[key] >= 0)) {
+        usageObservation.provider = "unobserved";
+      }
       if (providerResponse?.usage) {
         totalUsage.inputTokens += providerResponse.usage.inputTokens ?? 0; totalUsage.outputTokens += providerResponse.usage.outputTokens ?? 0; totalUsage.totalTokens += providerResponse.usage.totalTokens ?? 0;
         const tokenBudget = options.tokenBudget ?? 100_000;
@@ -281,9 +317,11 @@ export function createAgenticLoop(options = {}) {
 
       if (hasToolCalls(providerResponse)) {
         const toolCalls = extractToolCalls(providerResponse);
-        if (!toolCalls || toolCalls.length === 0) { finalAnswer = providerResponse?.text || ""; trace.push({ iteration, type: "final_answer", textLength: finalAnswer.length, note: "hasToolCalls=true but extractToolCalls returned null/empty", durationMs: Date.now() - iterStartedAt, timestamp: new Date().toISOString() }); try { if (typeof input.onIteration === "function") input.onIteration(iteration, { type: "final_answer", text: finalAnswer, durationMs: Date.now() - iterStartedAt }); } catch (_cbErr) { debugLoop("onIteration callback error:", _cbErr); } break; }
+        if (!toolCalls || toolCalls.length === 0) { finalAnswer = providerResponse?.text || ""; providerFinished = true; if (checkpointSession) messages.push({ role: "assistant", content: finalAnswer }); trace.push({ iteration, type: "final_answer", textLength: finalAnswer.length, note: "hasToolCalls=true but extractToolCalls returned null/empty", durationMs: Date.now() - iterStartedAt, timestamp: new Date().toISOString() }); try { if (typeof input.onIteration === "function") input.onIteration(iteration, { type: "final_answer", text: finalAnswer, durationMs: Date.now() - iterStartedAt }); } catch (_cbErr) { debugLoop("onIteration callback error:", _cbErr); } break; }
         messages.push(buildAssistantMessageWithToolCalls(providerResponse));
         trace.push({ iteration, type: "tool_calls", toolCalls: toolCalls.map((tc) => ({ name: tc.name, args: tc.arguments })), tokenUsage: providerResponse?.usage ? { inputTokens: providerResponse.usage.inputTokens ?? 0, outputTokens: providerResponse.usage.outputTokens ?? 0 } : undefined, durationMs: Date.now() - iterStartedAt, timestamp: new Date().toISOString() });
+        await saveCheckpoint("tools_in_flight", { kind: "tools", iteration, toolCallIds: toolCalls.map(call => call.id) });
+        if (checkpointSession) input.signal?.throwIfAborted();
         const toolResults = await executeToolCalls(toolCalls, toolRegistry, {
           workingDirectory,
           sessionId,
@@ -292,34 +330,47 @@ export function createAgenticLoop(options = {}) {
           ...(governanceCallContext ? { agentGovernance: governanceCallContext } : {}),
         });
         await processToolResults(toolCalls, toolResults, messages, allToolResults, iteration, plan);
+        if (checkpointSession && (input.signal?.aborted || toolResults.some(result => result._meta?.isError))) {
+          throw Object.assign(new Error("Tool effects require reconciliation before continuation."), { code: "CHECKPOINT_TOOL_OUTCOME_UNKNOWN" });
+        }
         trace.push({ iteration, type: "tool_results", results: toolResults.map((r) => ({ tool_call_id: r.tool_call_id, isError: r._meta?.isError, durationMs: r._meta?.durationMs })), timestamp: new Date().toISOString() });
         if (errorRecoveryEnabled) { for (const r of toolResults) { if (r._meta?.isError) { const n = r._meta?.toolName || "unknown"; const rec = applyErrorRecovery(n, r.content, toolRegistry); if (rec) trace.push({ iteration, type: "error_recovery", toolName: n, recovery: rec, timestamp: new Date().toISOString() }); } } }
         if (selfReflectionEnabled && iteration % selfReflectionInterval === 0) trace.push({ iteration, type: "self_reflection", message: `Self-reflection prompt injected at iteration ${iteration}.`, timestamp: new Date().toISOString() });
         if (dynamicBudgetEnabled) { const prev = effectiveMaxIterations; effectiveMaxIterations = adjustIterationBudget(effectiveMaxIterations, allToolResults, iteration, maxIterations); if (effectiveMaxIterations !== prev) trace.push({ iteration, type: "budget_adjustment", previousBudget: prev, newBudget: effectiveMaxIterations, reason: effectiveMaxIterations > prev ? "Good progress — extending budget" : "Repeated errors — shrinking budget", timestamp: new Date().toISOString() }); }
-        if (checkpointDir) { try { const { mkdirSync, writeFileSync } = await import("node:fs"); mkdirSync(checkpointDir, { recursive: true }); writeFileSync(`${checkpointDir}/checkpoint-${sessionId}.json`, JSON.stringify({ sessionId, iteration, messages: messages.slice(0, -toolResults.length), totalUsage, status: "checkpoint", savedAt: new Date().toISOString() }, null, 2)); } catch (_e) { debugLoop("checkpoint save failed", _e); } }
         if (plan && planStepIndex < plan.length) { plan[planStepIndex].status = "completed"; planStepIndex++; if (planStepIndex < plan.length) plan[planStepIndex].status = "in_progress"; }
+        if (checkpointSession) effectiveMaxIterations = Math.min(effectiveMaxIterations, Math.ceil(maxIterations * (dynamicBudgetEnabled ? 1.5 : 1)));
+        await saveCheckpoint("settled");
         try { if (typeof input.onIteration === "function") input.onIteration(iteration, { type: "tool_calls_executed", toolCalls, toolResults, durationMs: Date.now() - iterStartedAt }); } catch (_cbErr) { debugLoop("onIteration callback error:", _cbErr); }
         continue;
       }
 
-      finalAnswer = providerResponse?.text || "";
+      finalAnswer = providerResponse?.text || ""; providerFinished = true;
+      if (checkpointSession) messages.push({ role: "assistant", content: finalAnswer });
       trace.push({ iteration, type: "final_answer", textLength: finalAnswer.length, durationMs: Date.now() - iterStartedAt, tokenUsage: providerResponse?.usage ? { inputTokens: providerResponse.usage.inputTokens ?? 0, outputTokens: providerResponse.usage.outputTokens ?? 0 } : undefined, timestamp: new Date().toISOString() });
       try { if (typeof input.onIteration === "function") input.onIteration(iteration, { type: "final_answer", text: finalAnswer, durationMs: Date.now() - iterStartedAt }); } catch (_cbErr) { debugLoop("onIteration callback error:", _cbErr); }
       break;
     }
 
-    if (iteration > effectiveMaxIterations && !finalAnswer) { status = status === "cancelled" ? "cancelled" : "max_iterations_reached"; if (status !== "cancelled") finalAnswer = `[Agentic loop reached maximum iterations (${effectiveMaxIterations}). Last context is in the message history.]`; }
+    if (iteration >= effectiveMaxIterations && !providerFinished && status === "completed") { status = "max_iterations_reached"; finalAnswer = `[Agentic loop reached maximum iterations (${effectiveMaxIterations}). Last context is in the message history.]`; }
     const result = buildResult({ sessionId, goal, status, finalAnswer, iterations: Math.min(iteration, effectiveMaxIterations), messages, trace, allToolResults, totalUsage, startedAt, plan });
     if (partialPreviewEnabled) { result.progressSummary = partialPreview.getProgressSummary(); partialPreview.clear(); }
     await finalize(sessionId, goal, status, messages, trace, allToolResults, totalUsage, startedAt, iteration, effectiveMaxIterations, plan);
     result.contextStats = contextManager.getStats();
+    if (checkpointSession) {
+      result.usageObservation = { ...usageObservation };
+      if (status !== "cancelled") await saveCheckpoint("terminal", null, result);
+    }
     return result;
+    } finally { checkpointSession?.close(); }
   }
 
   // ── executeStream (SSE streaming) ───────────────────────────────
 
   async function* executeStream(input) {
     if (!input || typeof input !== "object") { yield createStreamEvent("error", { code: "AGENTIC_INPUT_INVALID", message: "Input must be an object with a 'goal' property." }); return; }
+    if (input.resumeFromCheckpoint !== undefined) {
+      yield createStreamEvent("error", { code: "CHECKPOINT_STREAM_RESUME_UNSUPPORTED", message: "Streaming cannot resume a disk checkpoint." }); return;
+    }
     const sessionId = randomUUID(); const startedAt = Date.now();
     const goal = typeof input.goal === "string" ? input.goal : String(input.goal ?? "");
     if (!goal.trim()) { yield createStreamEvent("error", { code: "AGENTIC_GOAL_EMPTY", message: "Goal is required and must be a non-empty string." }); return; }
