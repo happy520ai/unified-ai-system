@@ -552,6 +552,13 @@ binds the exact source `agents.json` digest to the SQLite v2 authority/checkpoin
 and is immutable. Its existence permanently blocks JSON-mode startup; SQLite
 startup verifies the marker whenever the anchored `agents.json` remains.
 
+Authority-file identity checks use full `BigInt` device/file identifiers in both
+synchronous and asynchronous reads, including publication recovery. Large NTFS
+file identifiers can round to the same JavaScript `Number`; converting that
+rounded value to a string does not restore the identity. This TypeScript-local
+fix changes no signed bytes, storage format, or migration policy. A code rollback
+must never delete a switch marker or treat an old JSON snapshot as authoritative.
+
 Stop the gateway first. Pending state, generation, or policy-activation journals
 must be recovered by the original JSON runtime before migration. The target
 database, checkpoint, and reserved `.migration-staging` paths must not contain
