@@ -4,6 +4,8 @@ import { createWebAgent, createBrowserExecutor, launchBrowser } from "@unified-a
 import type { AgentGovernanceCallContext, AgentGovernanceToolProxy } from "../agent-governance/toolProxy.ts";
 import type { GovernedRecordDescriptor } from "../agent-governance/governedRecordMeter.ts";
 import type { ForgeWebTaskReview } from "@unified-ai-system/shared-contracts";
+import { readForgeModelSelection, readForgeOutputTokenLimit } from "./forgeModelSelection.ts";
+import { bindFakeProviderExecution, bindExactProviderExecution } from "../core/gatewayService.js";
 
 type Browser = Awaited<ReturnType<typeof launchBrowser>>;
 type Page = Awaited<ReturnType<Awaited<ReturnType<Browser["newContext"]>>["newPage"]>>;
@@ -98,12 +100,14 @@ async function elementState(element: Element) {
 /** One-shot private port; the HTTP handler never deserializes an executor. */
 export function createGovernedWebTaskExecution(input: { request: WebTaskRequest; context: AgentGovernanceCallContext;
   toolProxy: AgentGovernanceToolProxy; executionLease: Fence; signal?: AbortSignal | null; policyHash: string;
-  gatewayService: { execute(input: unknown, options: { signal: AbortSignal }): Promise<any> }; maxTokens?: number }) {
+  gatewayService: { execute(input: unknown, options: { signal: AbortSignal }): Promise<any> }; maxTokens?: number; modelSelection?: unknown; maxOutputTokens?: unknown }) {
   const { request, executionLease, policyHash } = input;
   const identity = Object.freeze({ ...input.context });
   const enforce = input.toolProxy.enforce.bind(input.toolProxy), enforceResult = input.toolProxy.enforceResult.bind(input.toolProxy);
   const gatewayExecute = input.gatewayService?.execute?.bind(input.gatewayService);
   if (!gatewayExecute || !policyHash) fail("FORGE_WEB_RUNTIME_UNAVAILABLE");
+  const selection = readForgeModelSelection(input.modelSelection);
+  const outputLimit = Math.min(512, readForgeOutputTokenLimit(input.maxOutputTokens) ?? 512);
   const tokenLimit = Math.min(input.maxTokens ?? 32000, 32000);
   if (!Number.isInteger(tokenLimit) || tokenLimit < 1) fail("FORGE_WEB_INPUT_INVALID");
   const { profile, itemId, expectedText, profileHash } = request;
@@ -270,11 +274,14 @@ export function createGovernedWebTaskExecution(input: { request: WebTaskRequest;
           },
           generate: async ({ messages }: { messages: Array<{ role: string; content: string }> }) => {
             await active();
-            tokenReservation += messages.reduce((sum, message) => sum + Buffer.byteLength(message.content, "utf8"), 0) + 512;
+            tokenReservation += messages.reduce((sum, message) => sum + Buffer.byteLength(message.content, "utf8"), 0) + outputLimit;
             if (tokenReservation > tokenLimit) fail("FORGE_WEB_TOKEN_BUDGET_EXHAUSTED");
             measuredUsage.llmCalls++;
-            const response = await gatewayExecute({ taskType: "chat", messages, options: { maxOutputTokens: 512, temperature: 0 },
-              metadata: { source: "forge-lane", forge: { agentId: identity.agentId, tenantId: identity.tenantId, goalId, taskId, profileHash } } }, { signal });
+            const execution = { signal };
+            if (selection) (selection.providerId === "local-fake-provider" ? bindFakeProviderExecution : bindExactProviderExecution)(execution, selection);
+            const response = await gatewayExecute({ taskType: "chat", messages, options: { maxOutputTokens: outputLimit, temperature: 0 },
+              ...(selection ? { providerId: selection.providerId, model: selection.modelId } : {}),
+              metadata: { source: "forge-lane", forge: { agentId: identity.agentId, tenantId: identity.tenantId, goalId, taskId, profileHash } } }, execution);
             await active("complete");
             if (response?.success !== true) { usageKnown = false; fail("FORGE_WEB_MODEL_FAILED"); }
             const usage = response.data?.usage;

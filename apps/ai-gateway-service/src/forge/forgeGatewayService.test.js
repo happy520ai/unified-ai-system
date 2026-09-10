@@ -30,6 +30,35 @@ function createService() {
   return createForgeGatewayService({ gatewayService: createFakeGatewayService(), env: {} });
 }
 
+it("preserves explicit Forge model selection through every polish request", async () => {
+  const gateway = createFakeGatewayService();
+  const service = createForgeGatewayService({ gatewayService: gateway, env: {} });
+  await service.polish({ content: "Improve this draft", task: { prompt: "Keep the public behavior" }, passes: 1, maxOutputTokens: 1024,
+    modelSelection: { providerId: "local-fake-provider", modelId: "local-fake-model" } });
+  expect(gateway.execute).toHaveBeenCalledTimes(1);
+  for (const [request] of gateway.execute.mock.calls) {
+    expect(request).toMatchObject({ providerId: "local-fake-provider", model: "local-fake-model", options: { maxOutputTokens: 1024 } });
+    expect(request.messages.at(-1).content).toContain("Improve this draft");
+    expect(request.messages.at(-1).content).toContain("Keep the public behavior");
+  }
+});
+
+it("rejects invalid explicit Forge model selection and prior cancellation before calling a provider", async () => {
+  const gateway = createFakeGatewayService();
+  const service = createForgeGatewayService({ gatewayService: gateway, env: {} });
+  await expect(service.polish({ content: "draft", modelSelection: { providerId: "fake" } })).rejects.toMatchObject({ code: "FORGE_MODEL_SELECTION_INVALID" });
+  const controller = new AbortController(); controller.abort(new Error("cancel-fixture"));
+  await expect(service.polish({ content: "draft", signal: controller.signal })).rejects.toThrow("cancel-fixture");
+  expect(gateway.execute).not.toHaveBeenCalled();
+});
+
+it("never turns a failed Forge model call into a successful scaffold or another request", async () => {
+  const gateway = { execute: vi.fn(async () => ({ success: false, error: { code: "COST_GUARD_BLOCKED" } })) };
+  const service = createForgeGatewayService({ gatewayService: gateway, env: {} });
+  await expect(service.polish({ content: "draft", passes: 3 })).rejects.toMatchObject({ code: "FORGE_LLM_LANE_FAILED" });
+  expect(gateway.execute).toHaveBeenCalledTimes(1);
+});
+
 describe("forgeGatewayService — 桥与惰性", () => {
   it("routes forge LLM calls through the gateway provider lane", async () => {
     const gatewayService = createFakeGatewayService();

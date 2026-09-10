@@ -528,6 +528,15 @@ export function createGatewayClient(options = {}) {
     requestJsonImpl({ baseUrl, headers, timeoutMs, signal, ...requestOptions });
   const requestSse = (requestOptions) =>
     requestSseImpl({ baseUrl, headers, timeoutMs, signal, ...requestOptions });
+  const operatorPost = async (path, body, providerOperation = false) => {
+    const prepared = providerOperation ? prepareProviderRequest(body, headers, providerDispatchKeyFactory) : { body, headers };
+    try {
+      return await requestJson({ path, method: "POST", body: prepared.body, headers: prepared.headers, redirect: "error" });
+    } catch (error) {
+      if (error instanceof GatewayClientError) error.retryable = false;
+      throw error;
+    }
+  };
 
   return {
     baseUrl,
@@ -889,8 +898,25 @@ export function createGatewayClient(options = {}) {
         body: request,
         headers,
         timeoutMs,
+        redirect: "error",
       });
     },
+    knowledgeHealth() { return requestJson({ path: "/knowledge/health", redirect: "error" }); },
+    knowledgeSources() { return requestJson({ path: "/knowledge/sources", redirect: "error" }); },
+    routeModes() { return requestJson({ path: "/route/modes", redirect: "error" }); },
+    routingPreview(kind, request) {
+      if (kind !== "answer-path" && kind !== "quality-cost") throw createProviderKeyConfigurationError("Unsupported routing preview kind.");
+      return requestJson({ path: `/routing/${kind}/preview`, method: "POST", body: request, redirect: "error" });
+    },
+    forgeStatus() { return requestJson({ path: "/forge/status", redirect: "error" }); },
+    forgeRuns() { return requestJson({ path: "/forge/runs", redirect: "error" }); },
+    forgePolish(request) { return operatorPost("/forge/polish", request, true); },
+    forgeQuality(request) { return operatorPost("/forge/quality", request); },
+    forgeRemember(request) { return operatorPost("/forge/memory", { ...request, action: "remember" }); },
+    forgeRecall(request) { return requestJson({ path: "/forge/memory", method: "POST", body: { ...request, action: "recall" }, redirect: "error" }); },
+    forgeOrchestrate(request) { return operatorPost("/forge/orchestrate", request, true); },
+    taijiCompile(request) { return operatorPost("/taiji/compile", request); },
+    workforcePreview(request) { return operatorPost("/workforce/preview", request); },
     connectors() {
       return requestJson({ path: "/connectors", redirect: "error" });
     },
@@ -910,14 +936,7 @@ export function createGatewayClient(options = {}) {
       }
     },
     knowledgeLoad(request) {
-      return requestJson({
-        baseUrl,
-        path: "/knowledge/load",
-        method: "POST",
-        body: request,
-        headers,
-        timeoutMs,
-      });
+      return operatorPost("/knowledge/load", request);
     },
     knowledgeInfraReadiness() {
       return requestJson({

@@ -85,6 +85,8 @@ export declare const MANAGED_LOCAL_CLIENT_PROVIDER_PIN: unique symbol;
 export declare const AGENT_GOVERNANCE_EXECUTION_CONTEXT: unique symbol;
 /** Private, restrictive execution binding; not represented in request JSON. */
 export declare function bindFakeProviderExecution(execution: object, target: { providerId: string; modelId: string }): void;
+export declare function bindExactProviderExecution(execution: object, target: { providerId: string; modelId: string }): void;
+export declare function inheritProviderSelectionExecution(source: object | undefined | null, target: object): void;
 export declare function readGatewayProviderCallAttempted(result: unknown): boolean | undefined;
 
 export interface GatewayAgentGovernanceExecutionContext {

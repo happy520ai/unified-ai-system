@@ -1,4 +1,18 @@
 import type {
+  KnowledgeHealthResult,
+  KnowledgeSourcesResult,
+  RouteModesResult,
+  RoutingPreviewKind,
+  RoutingPreviewRequest,
+  RoutingPreviewResult,
+  ForgePolishRequest,
+  ForgeOrchestrateRequest,
+  ForgeOperationResult,
+  ForgeOrchestrateResult,
+  ForgeStatusResult,
+  ForgeRunsResult,
+  TaijiCompileResult,
+  WorkforcePreviewResult,
   ImConnectorId,
   ImConnectorMessage,
   ImConnectorSendOptions,
@@ -445,6 +459,19 @@ export interface GatewayClient {
   ragChat(request: RagChatRequest & ProviderDispatchRequestOptions): Promise<RagChatResult>;
   chatStream(request: GatewayChatRequest & ProviderDispatchRequestOptions): AsyncIterable<GatewayStreamEvent>;
   knowledgeRetrieve(request: KnowledgeRetrieveRequest): Promise<KnowledgeRetrieveResult>;
+  knowledgeHealth(): Promise<KnowledgeHealthResult>;
+  knowledgeSources(): Promise<KnowledgeSourcesResult>;
+  routeModes(): Promise<RouteModesResult>;
+  routingPreview(kind: RoutingPreviewKind, request: RoutingPreviewRequest): Promise<RoutingPreviewResult>;
+  forgeStatus(): Promise<ForgeStatusResult>;
+  forgeRuns(): Promise<ForgeRunsResult>;
+  forgePolish(request: ForgePolishRequest): Promise<ForgeOperationResult>;
+  forgeQuality(request: { code: string; task?: ContractMetadata }): Promise<ForgeOperationResult>;
+  forgeRemember(request: { content: string; metadata?: ContractMetadata }): Promise<ForgeOperationResult>;
+  forgeRecall(request: { query: string; limit?: number }): Promise<ForgeOperationResult>;
+  forgeOrchestrate(request: ForgeOrchestrateRequest): Promise<ForgeOrchestrateResult>;
+  taijiCompile(request: { request: string; capabilityId?: string; displayName?: string }): Promise<TaijiCompileResult>;
+  workforcePreview(request: { task: string }): Promise<WorkforcePreviewResult>;
   knowledgeLoad(request: KnowledgeLoadRequest): Promise<KnowledgeLoadResult>;
   knowledgeInfraReadiness(): Promise<KnowledgeInfraReadinessResult>;
   connectors(): Promise<ResultEnvelope<ImConnectorListResult>>;

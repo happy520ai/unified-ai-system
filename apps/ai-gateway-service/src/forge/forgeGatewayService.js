@@ -29,6 +29,8 @@ import { mkdtempSync, realpathSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { redactSecretsInText } from "../security/secretSafety.js";
+import { readForgeModelSelection, readForgeOutputTokenLimit } from "./forgeModelSelection.ts";
+import { bindFakeProviderExecution, bindExactProviderExecution } from "../core/gatewayService.js";
 
 function createForgeGatewayError(code, message) {
   const error = new Error(message);
@@ -337,7 +339,7 @@ export function createForgeGatewayService({
    * llmCaller 桥:forge 约定 (userPrompt, systemPrompt, opts) → 文本。
    * 走网关 provider lane——预算、guardrails、审计全部生效。
    */
-  async function executeGatewayLlm(executionGatewayService, tenantIdentity, userPrompt, systemPrompt, opts = {}) {
+  async function executeGatewayLlm(executionGatewayService, tenantIdentity, userPrompt, systemPrompt, opts = {}, modelSelection = null, maxOutputTokens = null) {
     throwIfForgeGatewayAborted(opts.signal);
     const activeGatewayService = executionGatewayService ?? gatewayService;
     if (!activeGatewayService || typeof activeGatewayService.execute !== "function") {
@@ -350,27 +352,38 @@ export function createForgeGatewayService({
     const gatewayInput = {
       taskType: "chat",
       messages,
+      ...(modelSelection ? { providerId: modelSelection.providerId, model: modelSelection.modelId } : {}),
       options: {
         ...(Number.isFinite(Number(opts?.maxTokens)) ? { maxOutputTokens: Number(opts.maxTokens) } : {}),
         ...(Number.isFinite(Number(opts?.temperature)) ? { temperature: Number(opts.temperature) } : {}),
+        ...(maxOutputTokens ? { maxOutputTokens: Math.min(Number.isFinite(Number(opts.maxTokens)) ? Number(opts.maxTokens) : maxOutputTokens, maxOutputTokens) } : {}),
       },
       metadata: {
         source: "forge-lane",
         forge: { caller: "forge-core", ...(tenantIdentity?.tenantId ? { tenantId: tenantIdentity.tenantId } : {}) },
       },
     };
-    const result = opts.signal
-      ? await activeGatewayService.execute(gatewayInput, { signal: opts.signal })
+    const execution = opts.signal || modelSelection ? { ...(opts.signal ? { signal: opts.signal } : {}) } : null;
+    if (modelSelection) {
+      (modelSelection.providerId === "local-fake-provider" ? bindFakeProviderExecution : bindExactProviderExecution)(execution, modelSelection);
+    }
+    const result = execution
+      ? await activeGatewayService.execute(gatewayInput, execution)
       : await activeGatewayService.execute(gatewayInput);
     throwIfForgeGatewayAborted(opts.signal);
     if (!result?.success) {
       const error = new Error(`forge llmCaller lane failed: ${result?.error?.code ?? "unknown"}`);
       error.code = "FORGE_LLM_LANE_FAILED";
+      if (typeof result?.error?.code === "string" && /^[A-Za-z][A-Za-z0-9_:-]{0,127}$/u.test(result.error.code)) {
+        error.details = { causeCode: result.error.code };
+      }
       throw error;
     }
+    const text = result.data?.message?.content ?? result.data?.text;
+    if (typeof text !== "string" || !text.trim()) throw createForgeGatewayError("FORGE_LLM_EMPTY_RESPONSE", "Forge model returned no usable text.");
     const providerUsage = result.data?.usage ?? {};
     return {
-      text: result.data?.message?.content ?? result.data?.text ?? "",
+      text,
       usage: {
         inputTokens: providerUsage.inputTokens ?? providerUsage.prompt_tokens ?? 0,
         outputTokens: providerUsage.outputTokens ?? providerUsage.completion_tokens ?? 0,
@@ -380,7 +393,9 @@ export function createForgeGatewayService({
     };
   }
 
-  function makeLlmCaller(tenantIdentity = null, executionGatewayService = null, signal = null) {
+  function makeLlmCaller(tenantIdentity = null, executionGatewayService = null, signal = null, modelSelection = null, maxOutputTokens = null) {
+    const selection = readForgeModelSelection(modelSelection);
+    const outputLimit = readForgeOutputTokenLimit(maxOutputTokens);
     return async (userPrompt, systemPrompt, opts = {}) => {
       const result = await executeGatewayLlm(
         executionGatewayService,
@@ -388,18 +403,24 @@ export function createForgeGatewayService({
         userPrompt,
         systemPrompt,
         { ...opts, ...(signal ? { signal } : {}) },
+        selection,
+        outputLimit,
       );
       return result.text;
     };
   }
 
-  function makeScopedLlmCaller(tenantIdentity = null, executionGatewayService = null, signal = null) {
+  function makeScopedLlmCaller(tenantIdentity = null, executionGatewayService = null, signal = null, modelSelection = null, maxOutputTokens = null) {
+    const selection = readForgeModelSelection(modelSelection);
+    const outputLimit = readForgeOutputTokenLimit(maxOutputTokens);
     return (userPrompt, systemPrompt, opts = {}) => executeGatewayLlm(
       executionGatewayService,
       tenantIdentity,
       userPrompt,
       systemPrompt,
       { ...opts, ...(signal ? { signal } : {}) },
+      selection,
+      outputLimit,
     );
   }
 
@@ -463,17 +484,28 @@ export function createForgeGatewayService({
     makeLlmCaller,
 
     // ── B:打磨 ──
-    async polish({ content, task = {}, passes, tenantIdentity = null, gatewayService: executionGatewayService = null } = {}) {
+    async polish({ content, task = {}, passes, tenantIdentity = null, gatewayService: executionGatewayService = null, modelSelection = null, maxOutputTokens = null, signal = null } = {}) {
       if (!enabled()) return { ok: false, code: "FORGE_LANE_DISABLED" };
       if (typeof content !== "string" || !content.trim()) {
         return { ok: false, code: "FORGE_INPUT_INVALID", reason: "content is required." };
       }
       const startedAt = clock();
+      const caller = makeLlmCaller(tenantIdentity, executionGatewayService, signal, modelSelection, maxOutputTokens);
+      let firstFailure = null;
+      const observedCaller = async (...args) => {
+        if (firstFailure) throw firstFailure;
+        try { return await caller(...args); } catch (error) { firstFailure = error; throw error; }
+      };
+      throwIfForgeGatewayAborted(signal);
       const result = await getRefiner().refine(
-        { ...task, content },
-        makeLlmCaller(tenantIdentity, executionGatewayService),
+        { ...task, content, prompt: [typeof task.prompt === "string" && task.prompt.trim()
+          ? task.prompt : "Refine the supplied code draft while preserving its intended behavior.",
+        "## Supplied draft", content].join("\n\n") },
+        observedCaller,
         Number.isInteger(passes) ? { maxPasses: Math.min(passes, 10) } : {},
       );
+      if (firstFailure) throw firstFailure;
+      throwIfForgeGatewayAborted(signal);
       return {
         ok: true,
         result,
@@ -666,7 +698,7 @@ export function createForgeGatewayService({
           signal: combinedSignal.signal,
         });
         const result = await runWithLlmCaller(
-          makeScopedLlmCaller(tenantIdentity, executionGatewayService, combinedSignal.signal),
+          makeScopedLlmCaller(tenantIdentity, executionGatewayService, combinedSignal.signal, forgeOptions.modelSelection, forgeOptions.maxOutputTokens),
           () => forge.run(goal, {
             ...forgeOptions,
             governedExecution,

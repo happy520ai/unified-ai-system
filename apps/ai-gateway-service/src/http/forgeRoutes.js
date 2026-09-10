@@ -22,6 +22,7 @@ import { classifyImmuneRisk, generateManifestDraft } from "@unified-ai-system/ta
 import { runRealTaskWorkforceDryRun } from "../workforce-preview/workforcePreviewService.js";
 import { redactSecretsInText } from "../security/secretSafety.js";
 import { resolveGovernedWebTaskRequest, createGovernedWebTaskExecution } from "../forge/governedWebTaskRuntime.ts";
+import { readForgeModelSelection, readForgeOutputTokenLimit } from "../forge/forgeModelSelection.ts";
 
 export function isForgeRoute(pathname) {
   const path = String(pathname ?? "");
@@ -69,6 +70,16 @@ function combineForgeRouteSignals(...candidates) {
 function sanitizeGovernedForgeOptions(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return Object.freeze({});
   const safe = {};
+  if (value.maxOutputTokens !== undefined) {
+    const limit = readForgeOutputTokenLimit(value.maxOutputTokens);
+    if (!limit) throw Object.assign(new Error("Invalid Forge output token limit."), { code: "FORGE_MODEL_LIMIT_INVALID", statusCode: 400 });
+    safe.maxOutputTokens = limit;
+  }
+  if (value.modelSelection !== undefined) {
+    const selection = readForgeModelSelection(value.modelSelection);
+    if (!selection) throw Object.assign(new Error("Invalid Forge model selection."), { code: "FORGE_MODEL_SELECTION_INVALID", statusCode: 400 });
+    safe.modelSelection = selection;
+  }
   if (typeof value.useRefiner === "boolean") safe.useRefiner = value.useRefiner;
   const maxConcurrent = boundedNumber(value.maxConcurrent, { min: 1, max: 8, integer: true });
   if (maxConcurrent !== undefined) safe.maxConcurrent = maxConcurrent;
@@ -143,6 +154,12 @@ function readApprovedForgeOptions(verdict, requestedParams) {
   }
   if (requestedParams.options.webTask && stableStringify(approved.options?.webTask) !== stableStringify(requestedParams.options.webTask)) {
     throw Object.assign(new Error("Approved webpage profile or goal parameters changed."), { code: "FORGE_APPROVED_PARAMS_INVALID" });
+  }
+  if (stableStringify(approved.options?.modelSelection ?? null) !== stableStringify(requestedParams.options.modelSelection ?? null)) {
+    throw Object.assign(new Error("Approved Forge model selection changed."), { code: "FORGE_APPROVED_PARAMS_INVALID" });
+  }
+  if ((approved.options?.maxOutputTokens ?? null) !== (requestedParams.options.maxOutputTokens ?? null)) {
+    throw Object.assign(new Error("Approved Forge output token limit changed."), { code: "FORGE_APPROVED_PARAMS_INVALID" });
   }
   return Object.freeze({ ...sanitizeGovernedForgeOptions(approved.options),
     ...(requestedParams.options.webTask ? { webTask: requestedParams.options.webTask } : {}) });
@@ -304,6 +321,8 @@ async function executeForgeOrchestration({
     const governedExecution = webTask ? Object.freeze({ ...baseExecution, webTask: createGovernedWebTaskExecution({
       request: webTask, context: identity, toolProxy, executionLease: runLease, signal: routeSignal,
       policyHash: topVerdict.policy.policyHash, gatewayService, maxTokens: approvedOptions.budget?.maxTokens,
+      modelSelection: approvedOptions.modelSelection,
+      maxOutputTokens: approvedOptions.maxOutputTokens,
     }) }) : baseExecution;
     const orchestrationResult = await forge.orchestrate({
       goal,
@@ -510,6 +529,9 @@ export async function dispatchForgeRoutes(context) {
     "/forge/polish": async (body) => {
       const result = await forge.polish({
         content: body.content,
+        modelSelection: readForgeModelSelection(body.modelSelection),
+        maxOutputTokens: readForgeOutputTokenLimit(body.maxOutputTokens),
+        signal: requestExecution?.signal ?? null,
         task: body.task ?? {},
         passes: body.passes,
         tenantIdentity,

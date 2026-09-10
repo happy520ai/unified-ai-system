@@ -1,4 +1,26 @@
-import type { ContractMetadata } from "./common.js";
+import type { ContractMetadata, ResultEnvelope } from "./common.js";
+
+export type RoutingPreviewKind = "answer-path" | "quality-cost";
+/** Preview inputs are local simulation assumptions, not runtime authorization. */
+export type RoutingPreviewRequest = ContractMetadata & { query: string };
+export interface RoutingPreviewResponse {
+  success: boolean;
+  mode: "local-routing-preview-only" | "local-quality-cost-routing-preview-only";
+  answerPath: string;
+  modelTier: string;
+  providerRecommendation: string | null;
+  modelRecommendation: string | null;
+  requiresPaidApi: boolean;
+  requiresApproval: boolean;
+  shouldBlock: boolean;
+  blockReason?: string | null;
+  routingReason: string;
+  paidApiCallCount: 0;
+  externalApiCalled: false;
+  audit?: ContractMetadata;
+}
+export type RoutingPreviewResult = ResultEnvelope<RoutingPreviewResponse>;
+export type RouteModesResult = ResultEnvelope<{ modes: string[]; routeModes: string[] }>;
 
 export type RoutingDecisionStatus = "selected" | "fallback_selected" | "no_route";
 export type FallbackTrigger = "error" | "timeout" | "policy" | "health" | "capacity";

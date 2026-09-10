@@ -38,7 +38,7 @@ const PROVIDER_OPERATION_TYPES = new Set([
 export const MANAGED_LOCAL_CLIENT_PROVIDER_PIN = Symbol("managed-local-client-provider-pin");
 /** Server-owned Agent attribution; JSON callers cannot construct this symbol. */
 export const AGENT_GOVERNANCE_EXECUTION_CONTEXT = Symbol("agent-governance-execution-context");
-const fakeProviderExecutions = new WeakMap();
+const providerSelectionExecutions = new WeakMap();
 const providerCallObservations = new WeakMap();
 
 /** Actual whole-execution facts; JSON copies and caller flags carry no proof. */
@@ -48,19 +48,39 @@ export function readGatewayProviderCallAttempted(result) {
 
 /** Restrictive server capability: JSON flags cannot create or replace it. */
 export function bindFakeProviderExecution(execution, target) {
+  bindProviderSelectionExecution(execution, target, true);
+}
+
+/** Exact server-owned selection also disables weighted/shadow rerouting. */
+export function bindExactProviderExecution(execution, target) {
+  bindProviderSelectionExecution(execution, target, false);
+}
+
+function bindProviderSelectionExecution(execution, target, requireFake) {
   if (!execution || typeof execution !== "object" || typeof target?.providerId !== "string" || !target.providerId
-    || typeof target?.modelId !== "string" || !target.modelId || fakeProviderExecutions.has(execution)) {
+    || typeof target?.modelId !== "string" || !target.modelId || providerSelectionExecutions.has(execution)) {
     throw new Error("Invalid fake-provider execution binding.");
   }
-  fakeProviderExecutions.set(execution, Object.freeze({ providerId: target.providerId, modelId: target.modelId }));
+  providerSelectionExecutions.set(execution, Object.freeze({ providerId: target.providerId, modelId: target.modelId, requireFake }));
+}
+
+/** Preserve restrictions across server-owned request wrappers; JSON has no binding. */
+export function inheritProviderSelectionExecution(source, target) {
+  const required = source && typeof source === "object" ? providerSelectionExecutions.get(source) : null;
+  if (!required) return;
+  const existing = providerSelectionExecutions.get(target);
+  if (existing && (existing.providerId !== required.providerId || existing.modelId !== required.modelId)) {
+    throw Object.assign(new Error("Provider execution restrictions conflict."), { code: "PROVIDER_EXECUTION_BINDING_CONFLICT" });
+  }
+  providerSelectionExecutions.set(target, Object.freeze({ ...required, requireFake: required.requireFake || existing?.requireFake === true }));
 }
 
 function assertFakeProviderExecution(execution, selection) {
-  const required = fakeProviderExecutions.get(execution);
-  if (required && (selection.selected.providerType !== "fake"
+  const required = providerSelectionExecutions.get(execution);
+  if (required && (required.requireFake && selection.selected.providerType !== "fake"
     || selection.selected.target.providerId !== required.providerId || selection.selected.target.modelId !== required.modelId)) {
-    throw Object.assign(new Error("This execution requires the bound local fake provider and model."),
-      { code: "FAKE_PROVIDER_EXECUTION_REQUIRED", category: "governance", retryable: false });
+    throw Object.assign(new Error(required.requireFake ? "This execution requires the bound local fake provider and model." : "This execution requires the bound provider and model."),
+      { code: required.requireFake ? "FAKE_PROVIDER_EXECUTION_REQUIRED" : "PROVIDER_SELECTION_REQUIRED", category: "governance", retryable: false });
   }
 }
 
@@ -115,7 +135,7 @@ export class GatewayService {
         &&
         request.metadata?.managedLocalClientProviderRouting?.providerPinned === true
         && request.metadata?.managedLocalClientProviderRouting?.modelPinned === true;
-      if (this.weightedTrafficPolicy && !execution.shadow && !managedLocalClientProviderPinned && !fakeProviderExecutions.has(execution)) {
+      if (this.weightedTrafficPolicy && !execution.shadow && !managedLocalClientProviderPinned && !providerSelectionExecutions.has(execution)) {
         const weighted = this.weightedTrafficPolicy.apply(request);
         if (weighted?.overrideProviderId && weighted.overrideProviderId !== baseSelection.selected.target.providerId) {
           const shadowOfWeighted = request;
@@ -148,7 +168,7 @@ export class GatewayService {
       const response = createGatewayResponse(request, selection, providerResult, startedAt, this.runtimeConfig, [...compactionWarnings, ...attemptResult.warnings]);
 
       // 影子流量:主响应已定,旁路复制到 shadow provider,仅观测不影响主响应。
-      if (this.weightedTrafficPolicy && !execution.shadow && !managedLocalClientProviderPinned && !fakeProviderExecutions.has(execution)) {
+      if (this.weightedTrafficPolicy && !execution.shadow && !managedLocalClientProviderPinned && !providerSelectionExecutions.has(execution)) {
         this.#fireShadowTraffic(request, execution);
       }
       const envelope = createRouteSuccessEnvelope(response, {

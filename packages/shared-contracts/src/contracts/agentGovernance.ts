@@ -1,5 +1,6 @@
 import type { ContractMetadata, ResultEnvelope } from "./common.js";
 import type { RiskLevel } from "./governance.js";
+import type { ProviderTarget } from "./routing.js";
 import type { WorkforceCodeDeliveryReview, WorkforceRoleExecutionProfile, WorkforceSelectionDecision } from "./workforce.js";
 
 /**
@@ -433,6 +434,9 @@ export interface AgentToolApprovalReview {
       checkpointAfter?: string[];
       /** Complete server-resolved profile and exact expected result, sealed with the goal. */
       webTask?: ForgeWebTaskReview;
+      /** Optional exact model selection, sealed with the same operator approval. */
+      modelSelection?: Readonly<ProviderTarget>;
+      maxOutputTokens?: number;
     };
   };
   workforce?: {

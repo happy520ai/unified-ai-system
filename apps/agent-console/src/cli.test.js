@@ -351,10 +351,10 @@ test("forge command uses canonical positional parsing", () => {
   assert.equal(status.command, "forge");
   assert.deepEqual(status.positionals, ["status"]);
 
-  assert.throws(
-    () => parseCliArgs(["forge", "polish", "make", "this", "clear"], {}),
-    (error) => error instanceof CliUsageError && error.message.includes("remain disabled"),
-  );
+  const polish = parseCliArgs(["forge", "polish", "make", "this", "clear"], {});
+  assert.deepEqual(polish.positionals, ["polish", "make", "this", "clear"]);
+  assert.equal(polish.confirmed, false);
+  assert.throws(() => parseCliArgs(["forge", "polish", "draft", "--tool", "file_write"], {}), CliUsageError);
 });
 
 test("agents uses canonical v1 routes with scoped authentication", async (context) => {
@@ -2917,7 +2917,7 @@ async function createAgentGovernanceMockGateway(options = {}) {
       });
     }
     if (request.method === "GET" && url.pathname === "/forge/status") {
-      return writeJson(response, 200, { status: "ok", data: { status: "ready" } });
+      return writeJson(response, 200, { status: "ok", data: { status: "ready", enabled: true } });
     }
     return writeJson(response, 404, {
       status: "error",

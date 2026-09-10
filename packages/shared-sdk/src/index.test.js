@@ -615,6 +615,51 @@ async function closeServer(server) {
   }
 }
 
+test("operator SDK methods keep exact routes, request bodies, authorization and model dispatch keys", async () => {
+  const observed = [];
+  const { server, baseUrl } = await startServer(async (request, response) => {
+    let text = ""; for await (const chunk of request) text += chunk;
+    observed.push({ path: request.url, method: request.method, authorization: request.headers.authorization,
+      dispatchKey: request.headers["provider-dispatch-key"], body: text ? JSON.parse(text) : null });
+    response.writeHead(200, { "content-type": "application/json" }); response.end(JSON.stringify({ status: "ok", data: { ok: true } }));
+  });
+  try {
+    let generated = 0;
+    const client = createGatewayClient({ baseUrl, headers: { authorization: "Bearer operator-fixture" }, providerDispatchKeyFactory: () => `operator-${++generated}` });
+    await client.knowledgeHealth(); await client.knowledgeSources(); await client.routeModes();
+    await client.routingPreview("quality-cost", { query: "bounded query" });
+    await client.forgeStatus(); await client.forgeRuns();
+    await client.forgePolish({ content: "draft", modelSelection: { providerId: "fake", modelId: "model" } });
+    await client.forgeQuality({ code: "export const x = 1;" });
+    await client.forgeRemember({ content: "memo", action: "unexpected" }); await client.forgeRecall({ query: "memo" });
+    await client.forgeOrchestrate({ goal: "bounded goal", agentId: "agt_fixture" });
+    await client.taijiCompile({ request: "draft a capability" }); await client.workforcePreview({ task: "local preview" });
+    assert.deepEqual(observed.map(call => call.path), ["/knowledge/health", "/knowledge/sources", "/route/modes", "/routing/quality-cost/preview",
+      "/forge/status", "/forge/runs", "/forge/polish", "/forge/quality", "/forge/memory", "/forge/memory", "/forge/orchestrate", "/taiji/compile", "/workforce/preview"]);
+    assert.ok(observed.every(call => call.authorization === "Bearer operator-fixture"));
+    assert.equal(observed[8].body.action, "remember"); assert.equal(observed[9].body.action, "recall");
+    assert.equal(observed[6].body.modelSelection.providerId, "fake");
+    assert.equal(observed[6].dispatchKey, "operator-1"); assert.equal(observed[10].dispatchKey, "operator-2");
+    assert.throws(() => client.routingPreview("../route", { query: "x" })); assert.equal(observed.length, 13);
+  } finally { await closeServer(server); }
+});
+
+test("operator mutations never follow redirects or advertise an uncertain request as retryable", async () => {
+  let received = 0, redirected = 0;
+  const target = await startServer((_request, response) => { redirected++; response.end("unexpected"); });
+  const source = await startServer((request, response) => {
+    received++;
+    if (request.url === "/knowledge/load") { response.writeHead(307, { location: target.baseUrl + "/changed" }); response.end(); }
+    else { response.writeHead(503, { "content-type": "application/json" }); response.end(JSON.stringify({ status: "error", error: { code: "FORGE_EXTERNAL_EFFECT_OUTCOME_UNCERTAIN" } })); }
+  });
+  try {
+    const client = createGatewayClient({ baseUrl: source.baseUrl });
+    await assert.rejects(client.knowledgeLoad({ sourceId: "fixture", documents: [{ content: "fixture" }] }), error => error instanceof GatewayClientError && error.retryable === false);
+    await assert.rejects(client.forgeOrchestrate({ goal: "x", agentId: "agt_fixture" }), error => error instanceof GatewayClientError && error.retryable === false);
+    assert.equal(received, 2); assert.equal(redirected, 0);
+  } finally { await closeServer(source.server); await closeServer(target.server); }
+});
+
 test("IM SDK carries an explicit operation key and treats unknown results as non-retryable", async () => {
   const calls = [];
   const { server, baseUrl } = await startServer(async (request, response) => {

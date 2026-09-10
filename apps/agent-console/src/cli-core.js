@@ -16,6 +16,7 @@ import {
 import { fileURLToPath } from "node:url";
 import { readVerificationSource, readWindowsVerificationHistory } from "./verificationHistory.ts";
 import { projectWorkforceCodeDeliveryReview, formatWorkforceCodeDeliveryReview } from "./workforceCodeDeliveryReview.ts";
+import { runOperatorCommand, validateOperatorOptions, projectForgeApprovalReview } from "./operatorCommands.ts";
 
 import {
   createGatewayChatRequest,
@@ -49,7 +50,9 @@ const COMMANDS = new Set([
   "enhance",
   "forge",
   "help",
+  "knowledge",
   "providers",
+  "routing",
   "serve",
   "spend",
   "status",
@@ -429,6 +432,11 @@ export function parseCliArgs(
     agentModelId: null,
     agentReason: null,
     agentCascade: false,
+    operatorInput: null,
+    operatorMode: null,
+    operatorSources: [],
+    operatorPasses: null,
+    operatorMaxOutputTokens: null,
     host: null,
     port: null,
   };
@@ -454,6 +462,19 @@ export function parseCliArgs(
     }
 
     const [flag, inlineValue] = splitFlag(token);
+    if (flag === "--input" || flag === "--mode" || flag === "--source-id" || flag === "--passes" || flag === "--max-output-tokens") {
+      const value = readFlagValue(argv, index, flag, inlineValue);
+      if (flag === "--source-id") options.operatorSources.push(value);
+      else if (flag === "--passes") options.operatorPasses = parseIntegerOption(value, flag, 1, 10);
+      else if (flag === "--max-output-tokens") options.operatorMaxOutputTokens = parseIntegerOption(value, flag, 1, 16384);
+      else {
+        const key = flag === "--input" ? "operatorInput" : "operatorMode";
+        if (options[key] !== null) throw new CliUsageError(`${flag} must not be repeated.`);
+        options[key] = value;
+      }
+      if (inlineValue === null) index += 1;
+      continue;
+    }
 
     if (flag === "--json") {
       options.json = true;
@@ -747,7 +768,10 @@ export function parseCliArgs(
 
   if (options.version) {
     options.command = "version";
-  } else if (options.help || !options.command) {
+  } else if (options.help) {
+    options.command = "help";
+    return options;
+  } else if (!options.command) {
     options.command = "help";
   } else {
     options.command = COMMAND_ALIASES.get(options.command) ?? options.command;
@@ -817,7 +841,9 @@ export async function runCli(
       case "spend":
         return await runSpend(options, output);
       case "forge":
-        return await runForge(options, output);
+      case "knowledge":
+      case "routing":
+        return await runOperatorCommand(options, output);
       default:
         throw new CliUsageError(`Unknown command: ${options.command}`);
     }
@@ -1321,6 +1347,9 @@ function formatSafeRecord(value) {
 
 function formatSafeReview(value) {
   if (!isPlainRecord(value)) return "unavailable";
+  if (value.effectType === "forge:orchestrate" && value.reviewable === true) {
+    return `Forge goal: ${safeTerminalBlock(value.forge.goal, 65536)}\nGoal digest: ${value.forge.goalDigest}\nPolicy: ${safeTerminalText(value.policyHash, 160)}\nOptions hash: ${value.forge.optionsHash}\n${JSON.stringify(value.forge.options, null, 2)}`;
+  }
   if (value.effectType === "workforce:execute" && value.reviewable === true && value.workforce?.options?.roleExecution) {
     const workforce = value.workforce;
     const profile = workforce.options.roleExecution;
@@ -1409,6 +1438,9 @@ function projectAgentApproval(value) {
       selection = projectWorkforceSelectionReview(selectionSource, profile);
     }
     output.review = sanitizeAgentReview(value.review);
+    if (value.review?.effectType === "forge:orchestrate" && value.review.reviewable === true) {
+      output.review = projectForgeApprovalReview(value.review);
+    }
     if (value.review?.effectType === "workforce:execute" && value.review.reviewable === true && profile !== undefined) {
       const bounded = (number, maximum) => Number.isSafeInteger(number) && number >= 1 && number <= maximum;
       if (!isPlainRecord(profile) || profile.version !== 1 || profile.mode !== "gateway-llm-required"
@@ -1558,24 +1590,8 @@ function createSafeAgentGovernanceFailure(error, { operation, mutation }) {
   );
 }
 
-// Forge remains a read-only status surface until provider/effect commands
-// share the console's explicit confirmation and reconciliation gates.
 function trimUrl(url) {
   return String(url ?? "").replace(/[/]+$/, "");
-}
-async function runForge(options, output) {
-  const get = async (path) => {
-    const response = await fetch(`${trimUrl(options.url)}${path}`, {
-      headers: options.adminKey ? { authorization: `Bearer ${options.adminKey}` } : {},
-      redirect: "error",
-      signal: AbortSignal.timeout(options.timeoutMs),
-    });
-    return { status: response.status, payload: await response.json().catch(() => ({})) };
-  };
-  const result = await get("/forge/status");
-  output.write(`${JSON.stringify(result.payload, null, 2)}
-`);
-  return result.status >= 200 && result.status < 300 ? 0 : 1;
 }
 
 async function runStatus(options, output) {
@@ -3910,7 +3926,9 @@ Commands:
   serve            Start the local gateway
   status           Inspect gateway and chat readiness
   enhance [prompt] Preview a structured prompt without calling a model
-  forge status       Read-only Forge status (provider/mutation commands disabled)
+  knowledge          health, sources, load, retrieve
+  routing            modes, preview (local simulation; no model call)
+  forge              status, runs, polish, quality, memory, recall, orchestrate, taiji, workforce
   chat [prompt]    Send one chat request to a running gateway
   spend            Show per-key token spend and budget status
   doctor           Check the local toolchain and gateway connection
@@ -3928,6 +3946,11 @@ Options:
   --allow-real-provider       Authorize one chat command to use a real provider
   --admin-key <uai-…>         Scoped gateway key for authenticated operator commands
   --manifest <json>           Bounded control-center desired-state manifest
+  --input <json>              Bounded JSON payload for knowledge/routing/Forge
+  --mode <mode>               keyword/vector retrieval or answer-path/quality-cost preview
+  --source-id <id>            Knowledge retrieval source filter (repeatable)
+  --passes <1..10>            Forge polish pass limit
+  --max-output-tokens <n>     Forge per-model-call output cap, default 4096 (1–16384)
   --client-id <id>            Bounded lifecycle client identifier
   --display-name <name>       Safe display name for register
   --capability <id>           Repeatable list filter or register capability
@@ -4027,6 +4050,10 @@ Safety:
   Workflow recovery reconciles the recorded artifact; it never automatically resumes a run.
   Provider clearing removes only the runtime override; environment keys, upstream keys, in-flight requests and other processes remain separate.
   These explicit workflow/provider commands use the supplied ID as intent and add no --yes requirement.
+  knowledge load and forge polish/memory/orchestrate preview locally until --yes is supplied.
+  Forge model calls select local-fake-provider/local-fake-model by default; non-fake selection requires --allow-real-provider.
+  Forge orchestration may return approval-required (exit 3); use agents approvals/approve and repeat the exact request.
+  routing preview, Forge quality, taiji and workforce preview do not run a model or activate a capability.
   chat refuses to send when a real provider may be active unless
   --allow-real-provider is supplied explicitly.
   clients discover and smart-manage are dry-run unless --apply --yes is explicit.
@@ -4066,7 +4093,7 @@ function validateOptions(options) {
   }
 
   if (
-    !["chat", "demo", "enhance", "clients", "clients-onboarding", "control-center", "agents", "forge", "workflow", "providers"].includes(options.command)
+    !["chat", "demo", "enhance", "clients", "clients-onboarding", "control-center", "agents", "forge", "workflow", "providers", "knowledge", "routing"].includes(options.command)
     && (options.prompt !== null || options.positionals.length > 0)
   ) {
     throw new CliUsageError(
@@ -4102,7 +4129,12 @@ function validateOptions(options) {
   if (options.command !== "control-center" && options.controlCenterManifestFile !== null) {
     throw new CliUsageError("--manifest is only valid with control-center configure.");
   }
-  const lifecycleOptionsUsed = localClientLifecycleOptionsUsed(options.command === "workflow" ? { ...options, lifecycleLimit: null } : options);
+  const operatorCommand = ["knowledge", "routing", "forge"].includes(options.command);
+  if (!operatorCommand && (options.operatorInput !== null || options.operatorMode !== null || options.operatorSources.length || options.operatorPasses !== null || options.operatorMaxOutputTokens !== null)) {
+    throw new CliUsageError("--input, --mode, --source-id and --passes are only valid with knowledge, routing or Forge operations.");
+  }
+  const lifecycleOptionsUsed = localClientLifecycleOptionsUsed(operatorCommand ? { ...options, lifecycleLimit: null, lifecycleOffset: null }
+    : options.command === "workflow" ? { ...options, lifecycleLimit: null } : options);
   const controlCenterApplyOnly = options.command === "control-center"
     && options.lifecycleApply
     && !localClientLifecycleOptionsUsedExcludingApply(options);
@@ -4111,7 +4143,8 @@ function validateOptions(options) {
       "Local-client lifecycle options are only valid with the clients command.",
     );
   }
-  const agentOptionsUsed = agentGovernanceOptionsUsed(options.command === "workflow" ? { ...options, agentId: null, agentGoal: null }
+  const agentOptionsUsed = agentGovernanceOptionsUsed(options.command === "forge" ? { ...options, agentId: null, agentGoal: null, agentProviderId: null, agentModelId: null }
+    : options.command === "workflow" ? { ...options, agentId: null, agentGoal: null }
     : options.command === "providers" ? { ...options, agentProviderId: null } : options);
   if (options.command !== "agents" && agentOptionsUsed) {
     throw new CliUsageError("Agent Governance options are only valid with the agents command.");
@@ -4119,7 +4152,7 @@ function validateOptions(options) {
   if (options.agentReason !== null && !new Set(["agents", "clients"]).has(options.command)) {
     throw new CliUsageError("--reason is only valid with agents or clients.");
   }
-  if (!new Set(["clients", "clients-onboarding", "control-center", "agents"]).has(options.command) && options.confirmed) {
+  if (!new Set(["clients", "clients-onboarding", "control-center", "agents", "knowledge", "forge"]).has(options.command) && options.confirmed) {
     throw new CliUsageError("--yes is only valid with governed mutations.");
   }
   if (options.command === "clients-onboarding") {
@@ -4131,8 +4164,8 @@ function validateOptions(options) {
   if (options.command === "agents") {
     validateAgentGovernanceOptions(options);
   }
-  if (options.command === "forge") {
-    validateForgeOptions(options);
+  if (operatorCommand) {
+    try { validateOperatorOptions(options); } catch (error) { throw new CliUsageError(error.message); }
   }
   if (options.command === "control-center") {
     validateControlCenterOptions(options);
@@ -4142,7 +4175,7 @@ function validateOptions(options) {
   }
   if (options.command === "workflow" || options.command === "providers") validateWorkflowOrCredentialOptions(options);
   if (options.allowRealProvider && options.command !== "chat"
-    && !(options.command === "agents" && options.positionals[0] === "run")) {
+    && !(options.command === "agents" && options.positionals[0] === "run") && !operatorCommand) {
     throw new CliUsageError(
       "--allow-real-provider is only valid with the chat command or agents run.",
     );
@@ -4191,7 +4224,7 @@ function validateOptions(options) {
   }
   if (
     (options.urlProvided || options.timeoutProvided)
-    && !["agents", "chat", "clients", "clients-onboarding", "control-center", "doctor", "enhance", "forge", "spend", "status", "workflow", "providers"].includes(options.command)
+    && !["agents", "chat", "clients", "clients-onboarding", "control-center", "doctor", "enhance", "forge", "spend", "status", "workflow", "providers", "knowledge", "routing"].includes(options.command)
   ) {
     throw new CliUsageError(
       "--url and --timeout are only valid with networked gateway commands.",
@@ -4201,7 +4234,7 @@ function validateOptions(options) {
     throw new CliUsageError("--json is not supported by serve.");
   }
 
-  if (["agents", "chat", "clients", "clients-onboarding", "control-center", "doctor", "enhance", "forge", "spend", "status", "workflow", "providers"].includes(options.command)) {
+  if (["agents", "chat", "clients", "clients-onboarding", "control-center", "doctor", "enhance", "forge", "spend", "status", "workflow", "providers", "knowledge", "routing"].includes(options.command)) {
     let parsedUrl;
     try {
       parsedUrl = new URL(options.url);
@@ -4378,14 +4411,6 @@ function normalizeAgentText(value, flag, maxLength) {
     throw new CliUsageError(`${flag} must be non-empty, bounded, and free of control characters.`);
   }
   return normalized;
-}
-
-function validateForgeOptions(options) {
-  if (options.prompt !== null || options.positionals.length !== 1 || options.positionals[0] !== "status") {
-    throw new CliUsageError(
-      "Only read-only forge status is available; provider and mutation subcommands remain disabled.",
-    );
-  }
 }
 
 function validateLocalClientLifecycleOptions(options) {

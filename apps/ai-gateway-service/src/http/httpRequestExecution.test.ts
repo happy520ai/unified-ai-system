@@ -4,6 +4,9 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
 import { EXECUTION_ABORT_CODES } from "@unified-ai-system/shared-utils";
 import { bindGatewayExecution, createHttpRequestExecutionScope } from "./httpRequestExecution.ts";
+import { GatewayService, bindFakeProviderExecution, bindExactProviderExecution } from "../core/gatewayService.js";
+import { ProviderRegistry } from "../providers/providerRegistry.js";
+import { createFakeProvider } from "../providers/fakeProvider.js";
 
 function createTransport() {
   const requestEmitter = new EventEmitter();
@@ -15,6 +18,33 @@ function createTransport() {
     responseEmitter,
   };
 }
+
+it("keeps exact provider restrictions through HTTP wrappers without leaking them to another invocation", async () => {
+  const registry = new ProviderRegistry();
+  for (const providerId of ["one-fake", "two-fake"]) registry.register(createFakeProvider({ providerId, modelId: "model", providerType: "fake", capabilities: ["chat"], enabled: true }));
+  const weighted = { apply: vi.fn(() => null), shouldShadow: vi.fn(() => null) };
+  const gateway = new GatewayService({ providerRegistry: registry, weightedTrafficPolicy: weighted,
+    runtimeConfig: { providerMode: "fake", realProviderEnabled: false } });
+  const transport = createTransport(), scope = createHttpRequestExecutionScope({ ...transport, timeoutMs: 10000 });
+  const bound = bindGatewayExecution(gateway, scope.context);
+  const request = { taskType: "chat" as const, messages: [{ role: "user" as const, content: "fixture" }], providerId: "one-fake", model: "model" };
+  try {
+    const exact = {}; bindExactProviderExecution(exact, { providerId: "one-fake", modelId: "model" });
+    expect((await bound.execute(request, exact)).success).toBe(true);
+    expect(weighted.apply).not.toHaveBeenCalled(); expect(weighted.shouldShadow).not.toHaveBeenCalled();
+    const fake = {}; bindFakeProviderExecution(fake, { providerId: "two-fake", modelId: "model" });
+    const mismatch = await bound.execute(request, fake);
+    expect(mismatch.success).toBe(false); expect(mismatch.error?.code).toBe("FAKE_PROVIDER_EXECUTION_REQUIRED");
+    expect((await bound.execute(request)).success).toBe(true);
+    expect(weighted.apply).toHaveBeenCalledTimes(1); expect(weighted.shouldShadow).toHaveBeenCalledTimes(1);
+    expect((await bound.execute(request, JSON.parse(JSON.stringify(exact)))).success).toBe(true);
+    expect(weighted.apply).toHaveBeenCalledTimes(2);
+    bindFakeProviderExecution(scope.context, { providerId: "one-fake", modelId: "model" });
+    const conflict = {}; bindExactProviderExecution(conflict, { providerId: "two-fake", modelId: "model" });
+    expect(() => bound.execute(request, conflict)).toThrow("restrictions conflict");
+    expect(weighted.apply).toHaveBeenCalledTimes(2);
+  } finally { scope.cleanup(); }
+});
 
 describe("HTTP request execution scope", () => {
   it("aborts with a typed deadline and reports it once", () => {

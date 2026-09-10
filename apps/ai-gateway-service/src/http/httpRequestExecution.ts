@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createHash } from "node:crypto";
+import { inheritProviderSelectionExecution } from "../core/gatewayService.js";
 import {
   bindVirtualKeyRequestAccounting, inheritVirtualKeyRequestAccounting,
   type VirtualKeyRequestAccounting,
@@ -127,11 +128,13 @@ export function bindGatewayExecution<TService extends object>(
               })
             : execution;
           const combined = combineExecutionSignals(boundExecution.signal, invocationExecution?.signal);
-          const effectiveExecution = combined.signal === boundExecution.signal
+          const effectiveExecution = combined.signal === boundExecution.signal && !invocationExecution
             ? boundExecution
             : Object.freeze({ ...boundExecution, signal: combined.signal });
           let result: unknown;
           try {
+            inheritProviderSelectionExecution(execution, effectiveExecution);
+            inheritProviderSelectionExecution(invocationExecution, effectiveExecution);
             inheritVirtualKeyRequestAccounting(execution, effectiveExecution);
             if (accounting) bindVirtualKeyRequestAccounting(effectiveExecution, accounting);
             result = Reflect.apply(

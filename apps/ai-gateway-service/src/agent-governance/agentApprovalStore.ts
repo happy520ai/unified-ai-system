@@ -28,6 +28,7 @@ import { readFrozenWorkforceRoleExecutionProfile } from "../workforce/workforceR
 import { readFrozenWorkforceSelectionReview } from "../workforce/workforceSelectionReview.ts";
 import { readWorkforceCodeDeliveryReview } from "../workforce/workforceCodeDeliveryProfile.ts";
 import { readGovernedWebTaskReview } from "../forge/governedWebTaskRuntime.ts";
+import { readForgeModelSelection, readForgeOutputTokenLimit } from "../forge/forgeModelSelection.ts";
 
 const APPROVAL_KEY_INFO = "agent-governance-approval-args/v1";
 const DEFAULT_APPROVAL_TTL_SECONDS = 24 * 60 * 60;
@@ -787,11 +788,21 @@ function normalizeForgeOptions(value: AgentToolApprovalReview["forge"] extends i
     throw corrupt("Forge approval options are malformed.");
   }
   const source = value as Record<string, unknown>;
-  const allowedKeys = new Set(["enableCodeIntel", "useRefiner", "maxConcurrent", "budget", "checkpointAfter", "webTask"]);
+  const allowedKeys = new Set(["enableCodeIntel", "useRefiner", "maxConcurrent", "budget", "checkpointAfter", "webTask", "modelSelection", "maxOutputTokens"]);
   if (Object.keys(source).some((key) => !allowedKeys.has(key)) || source.enableCodeIntel !== false) {
     throw corrupt("Forge approval options contain an unsupported or unsafe field.");
   }
   const options: NonNullable<AgentToolApprovalReview["forge"]>["options"] = { enableCodeIntel: false };
+  if (source.maxOutputTokens !== undefined) {
+    const limit = readForgeOutputTokenLimit(source.maxOutputTokens);
+    if (!limit) throw corrupt("Forge output token limit is malformed.");
+    options.maxOutputTokens = limit;
+  }
+  if (source.modelSelection !== undefined) {
+    const selection = readForgeModelSelection(source.modelSelection);
+    if (!selection) throw corrupt("Forge model selection is malformed.");
+    options.modelSelection = selection;
+  }
   if (source.webTask !== undefined) {
     const review = readGovernedWebTaskReview(source.webTask);
     const profile = review.profile;

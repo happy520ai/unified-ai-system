@@ -8,7 +8,7 @@
 
 | 端点 | 能力(族群) | 权限 |
 | --- | --- | --- |
-| `POST /forge/polish` | 迭代精修文本/产物(B) | chat:use |
+| `POST /forge/polish` | 迭代精修代码草稿(B) | chat:use |
 | `POST /forge/quality` | 质量门评估代码(B) | workflow:run |
 | `POST /forge/memory` `{action:"remember"\|"recall"}` | 工作记忆+语义记忆(C) | chat:use |
 | `GET /forge/memory/stats` | 记忆统计(C) | dashboard:read |
@@ -20,17 +20,85 @@
 | `POST /workforce/preview` | 多角色干跑预览(H) | workflow:run |
 | `POST /three-mode/execute` | normal/god/tianshu 三模式真执行(H) | workflow:run |
 
-## CLI(更好用)
+## 命令行操作
+
+CLI 通过共享 SDK 调用现有网关。需要鉴权时，通过 `AGENT_CONSOLE_ADMIN_KEY` 提供具有对应权限的
+网关 Key；不要把凭据放进输入文件。`--json` 返回结构化结果，普通输出提供摘要和下一步。
+`knowledge load`、`forge polish/memory/orchestrate` 默认只显示本地请求预览，确认后用同一命令加
+`--yes` 才发送。预览中的请求摘要用于比对输入，不是服务端审批凭证。
 
 ```bash
+uai knowledge health
+uai knowledge sources --limit 20
+uai knowledge load --input documents.json
+uai knowledge load --input documents.json --yes
+uai knowledge retrieve "启动方法" --source-id manual --limit 5
+uai routing modes
+uai routing preview "整理当前本地证据" --mode answer-path
+uai routing preview "评估复杂编码任务" --mode quality-cost
 uai forge status
-uai forge polish "把这段设计文档打磨成可执行任务"
+uai forge runs
+uai forge polish "export const add=(a,b)=>a+b"
+uai forge polish "export const add=(a,b)=>a+b" --yes --passes 1
 uai forge quality "export const add=(a,b)=>a+b"
-uai forge memory "记住:网关默认 fake lane"
+uai forge memory "记住:网关默认 fake lane" --yes
 uai forge recall "fake lane"
 uai forge taiji "生成内部报表,读取数据库"
 uai forge workforce "为网关设计 UX 修复计划"
 ```
+
+`documents.json` 使用现有知识导入合同，例如：
+
+```json
+{
+  "sourceId": "manual",
+  "sourceTitle": "操作手册",
+  "documents": [
+    { "documentId": "startup", "title": "启动", "content": "先检查网关状态，再发起任务。" }
+  ]
+}
+```
+
+输入文件须为稳定的单一普通 JSON 文件，大小不超过 1 MiB；链接、凭据配置文件、明显凭据内容、
+控制字符及不符合操作合同的数据会在请求前拒绝。导入按现有 `sourceId/documentId` 语义新增或更新；
+建议给文档明确 ID。成功回执提供实际文档计数与引用，之后用 `sources` 和 `retrieve` 核对。
+`health` 会显示实际存储模式，导入成功不意味着启用了持久化存储。
+
+知识查询默认 `keyword`。显式 `--mode vector` 还需要 `--allow-real-provider`，因为所配置的嵌入服务
+可能产生外部调用；服务端的可用性和治理限制仍会独立检查。`routing preview` 只执行本地路由模拟，
+不调用模型、不改变实际路由配置；带 `--input` 时文件中的状态是模拟假设，不能当作实时验收证据。
+`/route` 是实际生成端点，CLI 的路由预览不会调用它。
+
+Forge 的模型操作默认明确选择 `local-fake-provider/local-fake-model`。真实或其他 Provider 选择需
+显式指定 `--provider-id`、`--model-id` 和 `--allow-real-provider`；仅开启该标志而不指定二者时，
+使用网关配置的选择策略。明确指定的模型会在每一次实际调用中保持绑定，并禁止加权分流或影子副本
+改变该选择。JSON 标志本身不能伪造内部执行限制。真实调用仍需服务端配置、权限和预算允许。
+
+CLI 每次模型请求默认上限为 4096 输出 tokens，可用 `--max-output-tokens` 设置 1–16384；服务端的
+成本限制继续生效，较大参数仍可能被拒绝。网页任务还受自身最多 512 输出 tokens 的限制。
+`--passes` 限制精修轮数，后续轮可能包含评审及改进两个模型请求；模型错误或空回复会使操作失败，
+不会被当作成功草稿继续发起模型请求。精修结果显示质量分数和是否达到目标；质量分数是静态评估，
+不代替项目测试。Forge 的模型操作默认客户端等待 245 秒，可用 `--timeout` 覆盖（上限 300 秒）；
+服务端仍可按自己的期限提前停止。
+
+运行受治理的 Forge 任务，把目标、根 Agent 和可选网页参数保存为 `forge-request.json`：
+
+```bash
+uai forge orchestrate --input forge-request.json
+uai forge orchestrate --input forge-request.json --yes
+uai agents approvals --agent-id agt_your_approved_root --json
+uai agents approve --approval-id apr_from_gateway --yes
+uai forge orchestrate --input forge-request.json --yes
+```
+
+命令不会自动批准服务端请求。审批显示完整目标、模型选择、输出上限、预算和网页 profile；
+选项与目标摘要不一致时不会把它显示为完整审阅。更改模型、目标或配置需要匹配的新审批。
+退出码：`0` 表示操作或本地预览成功，`3` 表示等待审批，`2` 表示输入错误，`1` 表示失败或结果未知。
+`status` 字段进一步区分 `preview`、`completed`、`approval_required` 和失败，脚本不能只凭退出码把
+预览当作执行。未知的导入或模型结果不会自动重发；按返回的运行 ID、知识来源或审批记录先核对。
+
+`forge quality` 是静态代码检查；`taiji` 只生成能力草案，`workforce` 只生成本地分工预览，均不调用模型
+或激活能力。`memory/recall` 操作当前 Forge 会话内存，不承诺重启持久化。
 
 ## 性能(更流畅)
 
@@ -160,3 +228,10 @@ WebSocket/上下文隔离见 [BrowserContext 文档](https://playwright.dev/docs
 依赖移除，避免形成新的包依赖环。目录查询保存为既有 `explore` 类型和 `web` 角色，不迁移 TaskStore。
 回滚时先停用这个 profile/对应工具策略、撤销相关 Agent，再整体回退这批源码与锁文件。
 不删除审批审计或重放结果未知的动作；已有浏览器用户数据从未参与此路径。
+
+命令行补齐还触及 CLI、SDK 类型与固定路由、Forge 模型设置、审批存储和 HTTP 执行包装。
+这些改动必须一起完成，才能让默认模拟调用及明确的模型选择在真实调用、后台分流和审批之间保持一致。
+复用原有内部执行限制并传递其约束，没有新增服务、数据库结构或第三方依赖。新增输入解析与参数验证
+使用 TypeScript，既有 SDK/引擎 JS 仅作局部接线；按上表在类型安全、维护和运行兼容性上的理由选择。
+回滚 CLI 批次时整体回退客户端和对应模型设置接线；未携带新增参数的既有 API 继续采用原有策略。
+知识、审批及运行记录属于用户数据，不能随代码回退删除；不重发结果未知的操作。

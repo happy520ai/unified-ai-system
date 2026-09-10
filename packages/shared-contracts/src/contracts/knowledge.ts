@@ -1,6 +1,23 @@
 import type { ContractMetadata, RequestContext, ResultEnvelope } from "./common.js";
 
-export type KnowledgeRetrieveMode = "keyword";
+export type KnowledgeRetrieveMode = "keyword" | "vector";
+
+export interface KnowledgeHealthResponse {
+  status: string;
+  mode: string;
+  storage: string;
+  sourceCount: number;
+  documentCount: number;
+  chunkCount: number;
+  supportedModes: KnowledgeRetrieveMode[];
+  persistence: ContractMetadata;
+  embeddingGovernance?: { externalConfigured: boolean; externalActive: boolean; externalBlocked: boolean; reason: string | null };
+}
+export interface KnowledgeSourcesResponse {
+  sources: Array<{ sourceId: string; title: string; documentCount: number; documents: KnowledgeDocumentRef[] }>;
+}
+export type KnowledgeHealthResult = ResultEnvelope<KnowledgeHealthResponse>;
+export type KnowledgeSourcesResult = ResultEnvelope<KnowledgeSourcesResponse>;
 
 export interface KnowledgeRetrieveRequest {
   context?: RequestContext;
