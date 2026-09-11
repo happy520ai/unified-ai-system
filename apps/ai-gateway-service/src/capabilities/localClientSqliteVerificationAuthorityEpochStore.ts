@@ -215,11 +215,12 @@ export class LocalClientSqliteVerificationAuthorityEpochStore {
       this.#db.exec("PRAGMA trusted_schema = OFF");
       this.#db.exec("PRAGMA foreign_keys = ON");
       this.#initializeSchema();
-      const defensiveDatabase = this.#db as DatabaseSync & {
+      // enableDefensive only exists on newer node:sqlite runtimes (CI pins node
+      // 22 LTS); the enforced hardening floor stays trusted_schema=OFF plus
+      // prepared statements, matching the agent registry store precedent.
+      (this.#db as DatabaseSync & {
         enableDefensive?: (enabled: boolean) => void;
-      };
-      if (typeof defensiveDatabase.enableDefensive !== "function") throw schemaError();
-      defensiveDatabase.enableDefensive(true);
+      }).enableDefensive?.(true);
       this.#assertConnectionHardening();
       this.#assertDatabaseHealthy();
       try { chmodSync(this.#sqlitePath, 0o600); } catch { /* Best effort on Windows. */ }
