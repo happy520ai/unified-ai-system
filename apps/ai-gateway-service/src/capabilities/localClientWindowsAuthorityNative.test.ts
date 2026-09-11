@@ -445,7 +445,7 @@ it.skipIf(process.platform !== "win32")("MODEL: bounds native request and nonce 
   }
 });
 
-it.each(["before-adapter", "after-adapter"])("MODEL boundary: cannot replace the authority verifier %s to forge PoP evidence", async timing => {
+it.skipIf(process.platform !== "win32").each(["before-adapter", "after-adapter"])("MODEL boundary: cannot replace the authority verifier %s to forge PoP evidence", async timing => {
   await withPopBinding(async (_f, binding, checkpoint) => {
     let replacementCalls = 0;
     const replaceVerifier = () => { binding.authority.verifyCheckpointChallenge = async input => {
@@ -464,7 +464,7 @@ it.each(["before-adapter", "after-adapter"])("MODEL boundary: cannot replace the
   });
 });
 
-it.each(["success-first", "failure-first"])("MODEL boundary: concurrent verification stays unavailable with %s delivery", async order => {
+it.skipIf(process.platform !== "win32").each(["success-first", "failure-first"])("MODEL boundary: concurrent verification stays unavailable with %s delivery", async order => {
   await withPopBinding(async (f, binding, checkpoint) => {
     await binding.authority.enrollBaseline(checkpoint.checkpointDigestSha256);
     const adapter = binding.createEvidenceAdapter(checkpoint.storeBindingSha256);
@@ -648,7 +648,7 @@ function runtimeReplay(index = 1) {
     nowMs: 1_900_000_000_000, expiresAtMs: 1_900_000_030_000 };
 }
 
-it.each(["missing", "empty", "schema3"] as const)("MODEL native runtime: ordinary startup rejects %s without creating or changing DB state", async mode => {
+it.skipIf(process.platform !== "win32").each(["missing", "empty", "schema3"] as const)("MODEL native runtime: ordinary startup rejects %s without creating or changing DB state", async mode => {
   await withNativeRuntimeModel(async model => {
     if (mode === "empty") writeFileSync(model.sqlitePath, Buffer.alloc(0));
     if (mode === "schema3") {
