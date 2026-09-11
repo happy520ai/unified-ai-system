@@ -14,7 +14,9 @@ try {
   if (args[0] === "--verify") {
     if (args.length !== 1 && !(args.length === 3 && args[1] === "--expect-revision" && /^[a-f0-9]{40}$/u.test(args[2]))) throw new Error("RUNTIME_IDENTITY_ARGUMENT_INVALID");
     const identity = getRuntimeBuildIdentity();
-    if (identity.status !== "verified") throw new Error("RUNTIME_IDENTITY_NOT_VERIFIED");
+    if (identity.status !== "verified") {
+      throw Object.assign(new Error("RUNTIME_IDENTITY_NOT_VERIFIED"), { code: `RUNTIME_IDENTITY_${identity.reason.replace(/-/g, "_").toUpperCase()}` });
+    }
     if (args.length === 3 && identity.declaredRevision !== args[2]) throw new Error("RUNTIME_IDENTITY_DECLARED_REVISION_MISMATCH");
     process.stdout.write(JSON.stringify({ identity, expectedDeclaredRevision: args[2] ?? null }, null, 2) + "\n");
   } else {
@@ -24,9 +26,10 @@ try {
     publishManifest(manifest);
     process.stdout.write(JSON.stringify({ manifest, output: RUNTIME_IDENTITY_PATH }, null, 2) + "\n");
   }
-} catch {
-  // Fixed source/manifest paths only. Never print filesystem errors or contents.
-  process.stderr.write("Runtime identity build or verification failed; no identity was accepted.\n");
+} catch (error) {
+  // Fixed source/manifest paths only. Never print filesystem errors or contents;
+  // the stable error code is enough to route the failure.
+  process.stderr.write(`Runtime identity build or verification failed; no identity was accepted. (${String(error?.code ?? "UNKNOWN")})\n`);
   process.exitCode = 1;
 }
 

@@ -147,7 +147,11 @@ function inside(root: string, path: string): string {
 function readRegularFile(root: string, path: string, limit: number): Buffer {
   const target = inside(root, path);
   const before = lstatSync(target, { bigint: true });
-  if (!before.isFile() || before.isSymbolicLink() || before.nlink !== 1n || before.size < 0n
+  // nlink is intentionally unchecked: container exporters legitimately
+  // materialize image layers as hard links (nlink > 1). Identity still holds
+  // because dev/ino pin the exact inode across the read and the digest covers
+  // the bytes.
+  if (!before.isFile() || before.isSymbolicLink() || before.size < 0n
     || before.size > BigInt(limit) || realpathSync(target) !== target) throw inputError();
   const file = openSync(target, "r");
   try {
