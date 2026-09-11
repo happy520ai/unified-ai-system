@@ -32,6 +32,12 @@ import { createAgentGovernanceService } from "../agent-governance/agentGovernanc
 import { createAgentGovernanceToolProxy } from "../agent-governance/toolProxy.ts";
 import { createGatewayModelProposer } from "../agent-governance/gatewayModelProposer.ts";
 import { resolveGovernanceSecret } from "../agent-governance/governanceSecret.ts";
+import { createGovernanceStateFileBinding } from "../agent-governance/governanceStateAnchor.ts";
+import { freezeGovernedAgentTaskProfile } from "../agentic/governedAgentTaskProfile.ts";
+import { createGovernedAgentTaskWorkspace } from "../agentic/governedAgentTaskWorkspace.ts";
+import { createGovernedAgentTaskRuntime } from "../agentic/governedAgentTaskRuntime.ts";
+import { TaskQueueManager } from "../workforce/taskQueueManager.js";
+import { inheritVirtualKeyRequestAccounting } from "../enterprise/virtualKeyRequestAccounting.ts";
 import { createSqliteAgentRegistryStore } from "../agent-governance/sqliteAgentRegistryStore.ts";
 import { createPostgresAgentRegistryStore } from "../agent-governance/postgresAgentRegistryStore.ts";
 import {
@@ -138,7 +144,55 @@ export function createGatewayApplicationForLocalClientFixtureTests(env = {}) {
   return createGatewayApplicationInternal(env, LOCAL_CLIENT_FIXTURE_RECEIPT_CLOSURE_CAPABILITY);
 }
 
+function agentLongTaskConfigurationError(reason) {
+  return Object.assign(new Error("Governed Agent tasks require a valid local server configuration."), {
+    code: `AGENT_LONG_TASK_${reason}`, category: "configuration", statusCode: 503, retryable: false,
+  });
+}
+
+function parseAgentLongTaskConfiguration(env) {
+  const raw = env.AI_GATEWAY_AGENT_LONG_TASK_CONFIG_JSON;
+  if (raw === undefined) return null;
+  if (typeof raw !== "string" || !raw.trim() || Buffer.byteLength(raw, "utf8") > 262144) throw agentLongTaskConfigurationError("CONFIGURATION_INVALID");
+  if (env.AI_GATEWAY_AGENT_GOVERNANCE_ENABLED === "false") throw agentLongTaskConfigurationError("GOVERNANCE_REQUIRED");
+  if (![undefined, "false"].includes(env.AI_GATEWAY_MULTI_INSTANCE)
+    || ![undefined, "false"].includes(env.AI_GATEWAY_WORKFORCE_CLAIM_STORE_REQUIRED)
+    || ![undefined, "", "memory"].includes(env.AI_GATEWAY_WORKFORCE_CLAIM_STORE_MODE)
+    || (!env.AI_GATEWAY_WORKFORCE_CLAIM_STORE_MODE && env.AI_GATEWAY_WORKFORCE_CLAIM_POSTGRES_URL)) throw agentLongTaskConfigurationError("LOCAL_STORAGE_REQUIRED");
+  let value;
+  try { value = JSON.parse(raw); } catch { throw agentLongTaskConfigurationError("CONFIGURATION_INVALID"); }
+  if (!value || typeof value !== "object" || Array.isArray(value)
+    || Object.keys(value).sort().join("|") !== "enginePath|profile|repoRoot|scratchRoot|worktreeRoot"
+    || [value.repoRoot, value.worktreeRoot, value.scratchRoot, value.enginePath].some(path => typeof path !== "string" || !isAbsolute(path))) {
+    throw agentLongTaskConfigurationError("CONFIGURATION_INVALID");
+  }
+  return Object.freeze({ ...value, profile: freezeGovernedAgentTaskProfile(value.profile) });
+}
+
 function createGatewayApplicationInternal(env, fixtureCapability) {
+  const agentLongTaskConfiguration = parseAgentLongTaskConfiguration(env);
+  let initializeAgentLongTask;
+  let agentLongTaskQueue;
+  let agentLongTaskPromise;
+  let agentLongTaskClosing = false;
+  let agentLongTaskClosePromise;
+  const agentLongTaskAbort = new AbortController();
+  const agentLongTaskInFlight = new Set();
+  async function getAgentLongTaskRuntime() {
+    if (agentLongTaskClosing || !initializeAgentLongTask) throw agentLongTaskConfigurationError("UNAVAILABLE");
+    agentLongTaskPromise ??= initializeAgentLongTask();
+    return agentLongTaskPromise;
+  }
+  function closeAgentLongTaskRuntime() {
+    agentLongTaskClosing = true;
+    agentLongTaskAbort.abort(agentLongTaskConfigurationError("SHUTDOWN"));
+    agentLongTaskClosePromise ??= (async () => {
+      await Promise.allSettled(agentLongTaskPromise ? [agentLongTaskPromise] : []);
+      await Promise.allSettled([...agentLongTaskInFlight]);
+      await agentLongTaskQueue?.close();
+    })();
+    return agentLongTaskClosePromise;
+  }
   const hookSetting = env.AI_GATEWAY_WORKFORCE_LIFECYCLE_HOOKS_ENABLED;
   if (hookSetting !== undefined && hookSetting !== "true" && hookSetting !== "false") {
     throw Object.assign(new Error("Workforce lifecycle hooks must be explicitly true or false."), { code: "WORKFORCE_HOOK_CONFIGURATION_INVALID" });
@@ -397,6 +451,7 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
   // 无 agentGovernance 身份的 legacy 调用方不受影响；
   // AI_GATEWAY_AGENT_GOVERNANCE_ENABLED=false 可整体关闭。
   const agentGovernanceEnabled = agentGovernanceRuntime.enabled;
+  if (agentLongTaskConfiguration && !agentGovernanceEnabled) throw agentLongTaskConfigurationError("GOVERNANCE_REQUIRED");
   let agentGovernance = null;
   let taijiCapabilityService = null;
   if (agentGovernanceEnabled) {
@@ -434,6 +489,7 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
       repoRoot,
       agentGovernanceDataDir,
     );
+    if (agentLongTaskConfiguration && registryConfiguration.mode === "postgres") throw agentLongTaskConfigurationError("LOCAL_STORAGE_REQUIRED");
     if (taijiRuntimeEnabled && registryConfiguration.mode === "postgres") {
       throw Object.assign(new Error("Taiji capability state currently requires the local governance profile."), { code: "TAIJI_STORAGE_PROFILE_UNSUPPORTED" });
     }
@@ -479,6 +535,34 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
           });
       },
     });
+    if (agentLongTaskConfiguration) {
+      const workspace = createGovernedAgentTaskWorkspace(agentLongTaskConfiguration);
+      initializeAgentLongTask = async () => {
+        const queueFile = join(agentGovernanceDataDir, "agent-long-tasks.json");
+        agentLongTaskQueue = new TaskQueueManager({ queueFile, retainedTasks: true,
+          env: { AI_GATEWAY_WORKFORCE_CLAIM_STORE_MODE: "memory" },
+          retainedStateBinding: createGovernanceStateFileBinding({ filePath: queueFile, secret: governanceSecret, kind: "json",
+            validateLegacy() { throw agentLongTaskConfigurationError("UNSIGNED_STATE_REJECTED"); } }) });
+        await agentLongTaskQueue.init();
+        const runtime = createGovernedAgentTaskRuntime({ queue: agentLongTaskQueue, workspace,
+          governance: agentGovernance.service, toolProxy: agentGovernance.toolProxy, gatewayService, providerRegistry });
+        const wrapped = { profile: runtime.profile };
+        for (const name of ["prepare", "read", "plan", "confirm", "run", "control"]) {
+          wrapped[name] = (...args) => {
+            if (agentLongTaskClosing) return Promise.reject(agentLongTaskConfigurationError("SHUTDOWN"));
+            const identityIndex = name === "prepare" ? 0 : 1, identity = args[identityIndex];
+            const execution = { ...identity.execution, signal: AbortSignal.any([identity.execution.signal, agentLongTaskAbort.signal]) };
+            inheritVirtualKeyRequestAccounting(identity.execution, execution);
+            args[identityIndex] = { ...identity, execution };
+            const pending = Promise.resolve().then(() => runtime[name](...args));
+            agentLongTaskInFlight.add(pending);
+            void pending.finally(() => agentLongTaskInFlight.delete(pending)).catch(() => {});
+            return pending;
+          };
+        }
+        return Object.freeze(wrapped);
+      };
+    }
   }
   if (agentGovernance) {
     taijiCapabilityService = createTaijiCapabilityService({
@@ -1025,6 +1109,8 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
 
   return {
     agentGovernance,
+    getAgentLongTaskRuntime,
+    closeAgentLongTaskRuntime,
     taijiCapabilityService,
     agentExecWorkingDirectory,
     auditHashChain: enterpriseGovernanceService.getAuditHashChain(),

@@ -12,7 +12,7 @@
  */
 
 import { readFileSync, writeFileSync, copyFileSync, existsSync, mkdirSync, realpathSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { buildTool, createInputSchema } from "../claude-code-patterns/toolCore.js";
 
 // ============================================================
@@ -104,15 +104,19 @@ export function performSearchReplace(content, oldStr, newStr, options = {}) {
  * @param {string} filePath - 用户提供的文件路径
  * @returns {{ safe: boolean, resolvedPath?: string, error?: string, code?: string }}
  */
-function validatePathSecurity(filePath) {
+function validatePathSecurity(filePath, workingDirectory = process.cwd()) {
   if (!filePath || typeof filePath !== "string") {
     return { safe: false, error: "file_path must be a non-empty string.", code: "INVALID_INPUT" };
   }
 
-  const workDir = resolve(process.cwd());
-  const resolvedPath = resolve(filePath);
+  const workDir = resolve(workingDirectory);
+  const resolvedPath = resolve(workDir, filePath);
+  const inside = (root, target) => {
+    const path = relative(root, target);
+    return path !== ".." && !path.startsWith(`..${sep}`) && !isAbsolute(path);
+  };
 
-  if (!resolvedPath.startsWith(workDir)) {
+  if (!inside(workDir, resolvedPath)) {
     return { safe: false, error: "Path traversal detected. File path must not escape the working directory.", code: "PATH_TRAVERSAL_BLOCKED" };
   }
 
@@ -120,11 +124,11 @@ function validatePathSecurity(filePath) {
   if (existsSync(resolvedPath)) {
     try {
       const realPath = realpathSync(resolvedPath);
-      if (!realPath.startsWith(workDir)) {
+      if (!inside(realpathSync(workDir), realPath)) {
         return { safe: false, error: "Path traversal detected via symlink. Real path escapes the working directory.", code: "PATH_TRAVERSAL_BLOCKED" };
       }
     } catch {
-      // realpathSync may fail on some platforms; proceed with resolved check
+      return { safe: false, error: "File path could not be resolved safely.", code: "PATH_TRAVERSAL_BLOCKED" };
     }
   }
 
@@ -135,7 +139,7 @@ function validatePathSecurity(filePath) {
 // file_edit 工具定义
 // ============================================================
 
-export function createFileEditTool() {
+export function createFileEditTool(workingDirectory = process.cwd()) {
   return buildTool({
     name: "file_edit",
     description: `Performs exact string replacements in files. This is the preferred way to edit existing files — it only sends the diff.
@@ -185,7 +189,7 @@ Rules:
 
     async execute(params) {
       const {
-        file_path,
+        file_path: requestedPath,
         old_string,
         new_string,
         allow_multiple = false,
@@ -194,7 +198,7 @@ Rules:
       } = params;
 
       // Input type validation
-      if (!file_path || typeof file_path !== "string") {
+      if (!requestedPath || typeof requestedPath !== "string") {
         return { status: "error", error: "file_path must be a non-empty string.", code: "INVALID_INPUT" };
       }
       if (typeof old_string !== "string") {
@@ -205,10 +209,11 @@ Rules:
       }
 
       // Path safety: reject directory traversal attempts (symlink-aware)
-      const pathCheck = validatePathSecurity(file_path);
+      const pathCheck = validatePathSecurity(requestedPath, workingDirectory);
       if (!pathCheck.safe) {
         return { status: "error", error: pathCheck.error, code: pathCheck.code };
       }
+      const file_path = pathCheck.resolvedPath;
 
       // Validate file exists
       if (!existsSync(file_path)) {

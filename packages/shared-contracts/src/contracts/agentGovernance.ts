@@ -371,6 +371,13 @@ export interface AgentToolApprovalReview {
   reviewable: boolean;
   effectType: string;
   policyHash: string;
+  /** Complete frozen task and plan; the Agent runtime revalidates both before consuming this approval. */
+  agentTask?: {
+    taskId: string;
+    agentRunId: string;
+    review: Readonly<Record<string, unknown>>;
+    plan: Readonly<Record<string, unknown>>;
+  };
   taiji?: {
     operation: "evaluate" | "activate" | "execute" | "repair" | "reweight" | "prune";
     params: ContractMetadata;

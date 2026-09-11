@@ -33,6 +33,7 @@ import { readWorkforceExternalRunnerReview } from "../workforce/workforceExterna
 import { readGovernedWebTaskReview } from "../forge/governedWebTaskRuntime.ts";
 import { readForgeModelSelection, readForgeOutputTokenLimit } from "../forge/forgeModelSelection.ts";
 import { readTaijiApprovalReview, assertTaijiReviewArguments } from "../real-capabilities/taijiCapabilityReview.ts";
+import { readGovernedAgentTaskApprovalReview, assertGovernedAgentTaskApprovalArguments } from "../agentic/governedAgentTaskApproval.ts";
 
 const APPROVAL_KEY_INFO = "agent-governance-approval-args/v1";
 const DEFAULT_APPROVAL_TTL_SECONDS = 24 * 60 * 60;
@@ -70,6 +71,8 @@ export interface AgentApprovalStore {
     argumentsHash: string;
     policyHash: string;
   }): Promise<{ id: string } | null>;
+  verifyConsumed(input: { approvalId: string; agentId: string; tenantId: string; toolName: string;
+    argumentsHash: string; policyHash: string; executionId: string }): Promise<{ args: unknown; review: AgentToolApprovalReview } | null>;
   consumeApproved(input: {
     approvalId?: string;
     agentId: string;
@@ -386,6 +389,17 @@ export function createAgentApprovalStore(options: {
       }
       return null;
     },
+    async verifyConsumed(input) {
+      await load(); await mutationTail; await state.verify();
+      const record = records.get(input.approvalId);
+      if (!record || record.status !== "CONSUMED" || record.review.reviewable !== true
+        || record.agentId !== input.agentId || record.tenantId !== input.tenantId
+        || record.toolName !== input.toolName || record.review.policyHash !== input.policyHash
+        || record.consumedByExecutionId !== input.executionId
+        || !argumentsHashMatches(record.argumentsHash, input.argumentsHash)) return null;
+      const args = verifyRecoveredArguments(record, key);
+      return { args, review: publicView(record).review };
+    },
     async consumeApproved(input, beforeCommit) {
       await load();
       return exclusive(async () => {
@@ -573,6 +587,7 @@ function verifyRecoveredArguments(record: StoredApprovalRecord, key: Buffer): un
 }
 
 const KNOWN_REVIEWABLE_EFFECTS = new Set([
+  "agent:long-task",
   "git:push",
   "github:pull-request-create",
   "mcp:upstream-tool-call",
@@ -606,6 +621,7 @@ function normalizeApprovalReview(input: unknown): AgentToolApprovalReview {
   }
   if (source.effectType === "mcp:upstream-tool-call") return normalizeMcpApprovalReview(source);
   if (source.effectType === "taiji:capability") return readTaijiApprovalReview(source);
+  if (source.effectType === "agent:long-task") return readGovernedAgentTaskApprovalReview(source);
   if (source.effectType === "forge:orchestrate") return normalizeForgeApprovalReview(source);
   if (source.effectType === "workforce:execute") return normalizeWorkforceApprovalReview(source);
   if (source.effectType === "workflow:artifact-write") return normalizeWorkflowApprovalReview(source);
@@ -1031,6 +1047,10 @@ function normalizeWorkflowApprovalReview(source: AgentToolApprovalReview): Agent
 }
 
 function verifyReviewMatchesArguments(review: AgentToolApprovalReview, value: unknown, toolName: string): void {
+  if (review.effectType === "agent:long-task") {
+    assertGovernedAgentTaskApprovalArguments(review, value, toolName);
+    return;
+  }
   if (review.effectType === "taiji:capability") {
     assertTaijiReviewArguments(review, value, toolName);
     return;

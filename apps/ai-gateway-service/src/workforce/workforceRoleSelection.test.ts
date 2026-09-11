@@ -16,8 +16,6 @@ import { createWorkforceRoutes } from "../http/workforceRoutes.js";
 import { createRuntimeGatewayBrainAdapter } from "@unified-ai-system/employee-brain-adapter";
 
 const execFileAsync = promisify(execFile);
-type WorktreeFixture = { create(input: { planId: string }): Promise<{ success: boolean; worktree: { path: string } }>;
-  remove(id: string): Promise<unknown>; getInfo(): { activeWorktrees: number } };
 const cleanups: Array<() => Promise<unknown>> = [];
 afterEach(async () => { for (const cleanup of cleanups.splice(0).reverse()) await cleanup(); vi.restoreAllMocks(); });
 function config(): any {
@@ -91,7 +89,7 @@ async function fixture(configuration = config()) {
     const identity = { tenantId: tenant, userId: `operator-${current}`, role: "admin", permissions: ["*"] };
     const agent = await service.generateAgent({ name: `selected-worker-${current}`, task: "Run a bounded selected employee contribution", requestedTools: ["workforce_execute"],
       ttlSeconds: 3600, parentAgentId: null, instanceRules: { toolRules: { workforce_execute: "require_approval" } } }, identity);
-    const worktree = createWorktreeIsolation({ repoRoot: repo, worktreeRoot: join(root, "worktrees") }) as WorktreeFixture; const create = vi.spyOn(worktree, "create");
+    const worktree = createWorktreeIsolation({ repoRoot: repo, worktreeRoot: join(root, "worktrees") }); const create = vi.spyOn(worktree, "create");
     const executor = createControlledExecutor({ env: { WORKFORCE_EXECUTION_ENABLED: "true", WORKFORCE_EXECUTION_TIMEOUT_MS: "10000" },
       repoRoot: repo, executionDir: join(root, `execution-${current}`), worktreeIsolation: worktree, roleProviderFactory: selected.roleProviderFactory });
     cleanups.push(() => executor.close());
@@ -126,6 +124,8 @@ it.each([["ceo"], ["pm", "architect"]])("selection consumes the real A/B contrac
       governedAgentId: prepared.agentId, receipt: { executionMode: "fake", inputTokens: null, outputTokens: null, totalTokens: null, estimatedCostUsd: null } });
   }
   expect(f.calls).toHaveBeenCalledTimes(expected.length); const created = await prepared.create.mock.results[0].value;
+  expect(created.success).toBe(true);
+  if (!created.worktree) throw new Error("The owned selection fixture worktree was not created.");
   expect(dirname(created.worktree.path)).toBe(join(f.root, "worktrees")); await expect(access(created.worktree.path)).rejects.toMatchObject({ code: "ENOENT" });
   expect(prepared.worktree.getInfo().activeWorktrees).toBe(0); expect((await f.git("branch", "--format=%(refname:short)")).stdout.trim()).toBe("main");
   expect((await f.git("status", "--porcelain=v1")).stdout).toBe(""); expect((await f.git("rev-parse", "HEAD")).stdout).toBe(head);

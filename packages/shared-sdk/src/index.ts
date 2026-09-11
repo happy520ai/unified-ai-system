@@ -208,6 +208,28 @@ export interface ProviderDispatchRequestOptions {
   providerDispatchKey?: string;
 }
 
+export interface PrepareGovernedAgentTaskRequest { goal: string; prompt: string }
+export interface GovernedAgentTaskRevisionRequest { revision: number }
+export interface ConfirmGovernedAgentTaskRequest extends GovernedAgentTaskRevisionRequest {
+  reviewHash: string; planHash: string; approvalId: string;
+}
+export interface RunGovernedAgentTaskRequest extends GovernedAgentTaskRevisionRequest, ProviderDispatchRequestOptions {
+  /** One explicit chunk, 1–10 iterations; the server defaults to 4. */
+  maxIterations?: number;
+}
+export interface GovernedAgentTaskSnapshot {
+  version: 1; taskId: string; agentId: string; agentRunId: string; revision: number;
+  phase: "prepared" | "planning" | "awaiting_confirmation" | "running" | "paused" | "verifying" | "completed" | "failed" | "cancelled" | "unknown";
+  counters: { iterations: number; modelCalls: number; reservedTokens: number; repairAttempts: number };
+  pendingOperation: Record<string, unknown> | null; review: Record<string, unknown>; plan: Record<string, unknown> | null;
+  sourceFiles: ReadonlyArray<{ path: string; sha256: string | null; content: string | null }>;
+  approvalId: string | null; confirmedApprovalId: string | null; stepIndex: number;
+  stepReceipts: ReadonlyArray<Record<string, unknown>>; modelReceipts: ReadonlyArray<Record<string, unknown>>;
+  verificationAttempts: ReadonlyArray<Record<string, unknown>>; workspaceReceipt: Record<string, unknown> | null;
+  sourceFilesHash: string; finalAnswer: string; errorCode: string | null; controlRequested: "run" | "pause" | "cancel" | null;
+  resumable: boolean; recovery: { automaticReplay: false; workspaceReconciliationRequired: boolean; wholeDirectoryRollbackProtection: false };
+}
+
 export interface ManagedLocalClientPopProofOptions {
   /** Caller-owned secret bytes; the SDK copies rather than mutates this value. */
   secret: Uint8Array;
@@ -469,6 +491,13 @@ export interface GatewayClient {
   governedAgentPolicy(agentId: string): Promise<GovernedAgentPolicyResult>;
   governedAgentAudit(agentId: string): Promise<GovernedAgentAuditResult>;
   runGovernedAgent(agentId: string, request: RunGovernedAgentRequest): Promise<GovernedAgentRunResult>;
+  prepareGovernedAgentTask(agentId: string, request: PrepareGovernedAgentTaskRequest): Promise<ResultEnvelope<GovernedAgentTaskSnapshot>>;
+  governedAgentTask(agentId: string, taskId: string): Promise<ResultEnvelope<GovernedAgentTaskSnapshot>>;
+  planGovernedAgentTask(agentId: string, taskId: string, request: GovernedAgentTaskRevisionRequest & ProviderDispatchRequestOptions): Promise<ResultEnvelope<GovernedAgentTaskSnapshot>>;
+  confirmGovernedAgentTask(agentId: string, taskId: string, request: ConfirmGovernedAgentTaskRequest): Promise<ResultEnvelope<GovernedAgentTaskSnapshot>>;
+  runGovernedAgentTask(agentId: string, taskId: string, request: RunGovernedAgentTaskRequest): Promise<ResultEnvelope<GovernedAgentTaskSnapshot>>;
+  pauseGovernedAgentTask(agentId: string, taskId: string, request: GovernedAgentTaskRevisionRequest): Promise<ResultEnvelope<GovernedAgentTaskSnapshot>>;
+  cancelGovernedAgentTask(agentId: string, taskId: string, request: GovernedAgentTaskRevisionRequest): Promise<ResultEnvelope<GovernedAgentTaskSnapshot>>;
   revokeGovernedAgent(agentId: string, request?: RevokeGovernedAgentRequest): Promise<RevokeGovernedAgentResult>;
   governedApprovals(agentId?: string): Promise<GovernedApprovalListResult>;
   decideGovernedApproval(approvalId: string, decision: "approve" | "reject"): Promise<GovernedApprovalDecisionResult>;

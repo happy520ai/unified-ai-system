@@ -14,8 +14,11 @@ import { readFrozenWorkforceRoleExecutionProfile } from "./workforceRoleExecutio
 import { captureApprovedCodeFiles, createApprovedCodeSnapshot, createCodeDeliveryArtifact } from "./workforceCodeDeliveryArtifacts.ts";
 import { assertWorkforceCodeTaskFence } from "./workforceDagExecutor.ts";
 import { readWorkforceCodeRoleOperation } from "./workforceRoleProvider.ts";
+import { redactSecretsInText } from "../security/secretSafety.js";
 
 export const WORKFORCE_VERIFY_SNAPSHOT_TOOL = "workforce_verify_snapshot";
+export type WorkforceCodeSnapshotFailureReceipt = Readonly<{ status: "failed"; command: string; image: string;
+  snapshotHash: string; exitCode: number; cleanupConfirmed: true; stdout: string; stderr: string }>;
 export interface WorkforceCodeDeliveryFactory { readonly kind: "workforce-code-delivery-factory" }
 export interface WorkforceCodeDeliveryPreflight { readonly kind: "workforce-code-delivery-preflight" }
 type Identity = { tenantId: string; userId: string; role: string; permissions: readonly string[] };
@@ -186,10 +189,36 @@ export async function verifyWorkforceCodeSnapshot(input: {
     verificationStarted = true;
     let verification;
     try { verification = await call.run(); }
-    catch (error) { cleanupUncertain = (error as { cleanupUncertain?: unknown })?.cleanupUncertain === true; throw fail("VERIFICATION_FAILED", 503); }
+    catch (error) {
+      cleanupUncertain = (error as { cleanupUncertain?: unknown })?.cleanupUncertain === true;
+      const backendErrorCode = (error as { code?: unknown })?.code;
+      const rejected = Object.assign(fail("VERIFICATION_FAILED", 503), {
+        ...(typeof backendErrorCode === "string" && /^[A-Z][A-Z0-9_]{0,95}$/u.test(backendErrorCode) ? { backendErrorCode } : {}),
+      });
+      Object.defineProperty(rejected, "cause", { value: error });
+      throw rejected;
+    }
     cleanupUncertain = verification.cleanupUncertain !== false;
-    if (verification.exitCode !== 0 || verification.killed || verification.oomKilled || verification.truncated
+    if (!Number.isSafeInteger(verification.exitCode) || verification.exitCode < 0 || verification.killed || verification.oomKilled || verification.truncated
       || cleanupUncertain || verification.backend !== "container") throw fail("VERIFICATION_FAILED", 503);
+    if (verification.exitCode !== 0) {
+      const receipt: WorkforceCodeSnapshotFailureReceipt = Object.freeze({ status: "failed", command: profile.verification.command,
+        image: profile.verification.image, snapshotHash: snapshot.filesHash, exitCode: verification.exitCode,
+        cleanupConfirmed: true, stdout: redactSecretsInText(String(verification.stdout ?? "")), stderr: redactSecretsInText(String(verification.stderr ?? "")) });
+      let audited;
+      try { audited = await operations.enforceResult({ context: snapshotContext, toolName: WORKFORCE_VERIFY_SNAPSHOT_TOOL,
+        policy: verdict.policy, result: receipt, descriptor: { kind: "zero-records" } }); }
+      catch { outcomeUnknown = true; throw fail("OUTCOME_UNKNOWN", 503); }
+      if (!audited || !Object.hasOwn(audited, "result") || audited.verdict === "replace"
+        || Object.keys(receipt).some(key => (audited.result as Record<string, unknown>)?.[key] !== receipt[key as keyof typeof receipt])) {
+        outcomeUnknown = true; throw fail("OUTCOME_UNKNOWN", 503);
+      }
+      await check();
+      if ((await captureApprovedCodeFiles(snapshot.workspace, profile, signal)).filesHash !== snapshot.filesHash) throw fail("SNAPSHOT_CHANGED");
+      if ((await captureApprovedCodeFiles(source.root, profile, signal)).filesHash !== source.filesHash) throw fail("VALIDATED_SOURCE_CHANGED");
+      await snapshot.cleanup(); snapshot = null;
+      throw Object.assign(fail("VERIFICATION_FAILED", 503), { verificationReceipt: receipt });
+    }
     const verifiedResult = { status: "passed" as const, command: profile.verification.command, image: profile.verification.image,
       snapshotHash: snapshot.filesHash, exitCode: 0 as const, cleanupConfirmed: true as const,
       stdout: verification.stdout, stderr: verification.stderr };

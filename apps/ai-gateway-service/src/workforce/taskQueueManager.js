@@ -63,6 +63,9 @@ export class TaskQueueManager {
     });
     this._persistChain = Promise.resolve();
     this.retainedTasks = options.retainedTasks === true;
+    this.retainedStateBinding = options.retainedStateBinding ?? null;
+    if (this.retainedStateBinding && (!this.retainedTasks || typeof this.retainedStateBinding.verify !== "function"
+      || typeof this.retainedStateBinding.commit !== "function")) throw continuationError("STATE_BINDING_INVALID");
     this._retainedChain = Promise.resolve();
     this._retainedReady = false;
     this._retainedClosed = false;
@@ -343,7 +346,8 @@ export class TaskQueueManager {
       claimEnforced: true,
       claimManager: this.claimManager.getInfo(),
       ...(this.retainedTasks ? { continuation: { enabled: true, maxRetainedTasks: MAX_RETAINED_TASKS,
-        importedDataIsAuthority: false, crossProcessAtomicWriter: false } } : {}),
+        importedDataIsAuthority: false, signedFileIntegrity: Boolean(this.retainedStateBinding),
+        wholeDirectoryRollbackProtection: false, crossProcessAtomicWriter: false } } : {}),
     };
   }
 
@@ -456,6 +460,11 @@ export class TaskQueueManager {
     const operation = this._persistChain.then(async () => {
       if (this.retainedTasks) await this._assertRetainedStorage();
       else await fs.mkdir(this.dataDir, { recursive: true });
+      if (this.retainedStateBinding) {
+        await this.retainedStateBinding.commit(serialized);
+        await this._assertRetainedStorage();
+        return;
+      }
       const temporaryPath = `${this.queueFile}.${process.pid}.${randomUUID()}.tmp`;
       try {
         await fs.writeFile(temporaryPath, serialized, { encoding: "utf8", mode: 0o600 });
@@ -489,6 +498,7 @@ export class TaskQueueManager {
     const current = await fs.lstat(this.dataDir, { bigint: true });
     if (!this._retainedRootIdentity || current.dev !== this._retainedRootIdentity.dev || current.ino !== this._retainedRootIdentity.ino
       || !current.isDirectory() || current.isSymbolicLink() || await fs.realpath(this.dataDir) !== this.dataDir) throw continuationError("PATH_CHANGED");
+    await this.retainedStateBinding?.verify();
   }
 
   async _initRetainedTasks() {
@@ -505,6 +515,7 @@ export class TaskQueueManager {
     if (retainedOwners.has(key)) throw continuationError("WRITER_ACTIVE");
     retainedOwners.set(key, this); this._retainedOwnerKey = key;
     try {
+      await this._assertRetainedStorage();
       let data;
       try {
         const info = await fs.lstat(this.queueFile, { bigint: true });
@@ -524,6 +535,7 @@ export class TaskQueueManager {
           data = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(buffer.subarray(0, count)));
         } finally { await handle.close(); }
       } catch (error) { if (error?.code !== "ENOENT") throw error; }
+      await this._assertRetainedStorage();
       const snapshot = { queue: [], activeTasks: new Map(), completedTasks: [], agentAssignments: new Map(), auditLog: [] };
       if (data) {
         if (data.retainedTasks !== true || !Array.isArray(data.queue) || !Array.isArray(data.activeTasks)

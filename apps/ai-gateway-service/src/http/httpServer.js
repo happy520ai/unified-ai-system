@@ -185,6 +185,7 @@ import {
 } from "./httpRouteDispatch.js";
 import { dispatchPromptEnhancementRoutes } from "./promptEnhancementRoutes.js";
 import { AGENT_EXEC_LIMITS, dispatchAgentExecRoutes } from "./agentExecRoutes.js";
+import { dispatchGovernedAgentTaskRoutes } from "./governedAgentTaskRoutes.ts";
 import { dispatchAgentGovernanceRoutes } from "./agentGovernanceRoutes.ts";
 import { createA2AGateway } from "./a2aGateway.js";
 import { dispatchA2ARoutes } from "./a2aRoutes.js";
@@ -272,6 +273,7 @@ const HTTP_ROUTE_GROUPS = Object.freeze([
   dispatchPromptEnhancementRoutes,
   dispatchAgentGovernanceRoutes,
   dispatchAgentExecRoutes,
+  dispatchGovernedAgentTaskRoutes,
   dispatchMultimodalRoutes,
   dispatchWorkforceExecutionRoutes,
   dispatchOpenAiCompatibilityRoutes,
@@ -729,7 +731,8 @@ function createGatewayHttpServerWithOwnerLease(application, governanceOwnerLease
     // deadline; the route also combines this transport signal with its own
     // timer, so disconnects still cancel immediately.
     const routeTimeoutMs = (pathname === "/agent-exec/run"
-      || /^\/v1\/agents\/agt_[A-Za-z0-9_-]{1,128}\/run\/?$/u.test(pathname))
+      || /^\/v1\/agents\/agt_[A-Za-z0-9_-]{1,128}\/run\/?$/u.test(pathname)
+      || /^\/v1\/agents\/agt_[A-Za-z0-9_-]{1,128}\/tasks\/[a-f0-9-]{36}\/(?:plan|run)$/u.test(pathname))
       ? Math.max(requestTimeoutMs, AGENT_EXEC_LIMITS.maxTimeoutMs + 5_000)
       : isStreamingRoute ? streamingRequestTimeoutMs : requestTimeoutMs;
     const requestTimeout = Math.max(routeTimeoutMs, 1_000);
@@ -1189,6 +1192,11 @@ function createGatewayHttpServerWithOwnerLease(application, governanceOwnerLease
   server.shutdownResources = () => {
     shutdownResourcesPromise ??= (async () => {
       const failures = [];
+      try {
+        await application.closeAgentLongTaskRuntime?.();
+      } catch (error) {
+        failures.push(error);
+      }
       try {
         await application.localClientSmartManagementScheduler?.close?.();
       } catch (error) {

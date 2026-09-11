@@ -22,6 +22,7 @@ import { projectWorkforceExternalRunnerApproval, formatWorkforceExternalRunnerRe
 import { runOperatorCommand, validateOperatorOptions, projectForgeApprovalReview, projectTaijiApprovalReview } from "./operatorCommands.ts";
 import { runContextCodecCommand, validateContextCodecOptions } from "./contextCodecCommands.ts";
 import { runWorkforceCommands, validateWorkforceOptions } from "./workforceCommands.ts";
+import { runAgentTaskCommand, validateAgentTaskOptions, projectGovernedAgentTaskApproval } from "./agentTaskCommands.ts";
 
 import {
   createGatewayChatRequest,
@@ -1162,6 +1163,7 @@ function workflowNextAction(operation, data, workflowId) {
 }
 
 async function runAgents(options, output) {
+  if (options.positionals[0] === "task") return runAgentTaskCommand(options, output);
   const operation = options.positionals[0];
   const mutation = AGENT_GOVERNANCE_MUTATIONS.has(operation);
   const runTimeoutMs = options.agentRunTimeoutMs ?? 60_000;
@@ -1360,6 +1362,9 @@ function formatSafeRecord(value) {
 
 function formatSafeReview(value) {
   if (!isPlainRecord(value)) return "unavailable";
+  if (value.effectType === "agent:long-task" && value.reviewable === true) {
+    return `Complete Agent task approval:\n${JSON.stringify(value, null, 2)}`;
+  }
   if (value.effectType === "taiji:capability" && value.reviewable === true) {
     return `Taiji: ${value.taiji.effect}\nPolicy: ${value.policyHash}\nRequest hash: ${value.taiji.paramsHash}\n${JSON.stringify(value.taiji.params, null, 2)}`;
   }
@@ -1495,6 +1500,9 @@ function projectAgentApproval(value) {
       selection = projectWorkforceSelectionReview(selectionSource, profile);
     }
     output.review = sanitizeAgentReview(value.review);
+    if (value.review?.effectType === "agent:long-task") {
+      output.review = projectGovernedAgentTaskApproval(value.review);
+    }
     if (value.review?.effectType === "forge:orchestrate" && value.review.reviewable === true) {
       output.review = projectForgeApprovalReview(value.review);
     }
@@ -3985,6 +3993,7 @@ Commands:
   workflow <operation> Persisted workflow run, list, status, or recover
   providers clear-credential  Clear one Provider runtime override by explicit ID
   agents <operation> Governed Agent status, lifecycle, execution, and approvals
+  agents task <op>    Prepare, plan, confirm, run, status, pause or cancel one original long task
                      status, list, show, generate, run, revoke, approvals, approve, reject
   clients [operation]
                    discover, list, inspect, register, verify, disable, revoke, smart-manage
@@ -4091,6 +4100,11 @@ Examples:
   pnpm gateway agents run --agent-id agt_<id> --goal "Read README" --tool file_read --yes
   pnpm gateway agents approvals --agent-id agt_<id>
   pnpm gateway agents approve --approval-id appr_<id> --yes
+  pnpm gateway agents task prepare --agent-id agt_<id> --input prepare.json --yes
+  pnpm gateway agents task plan <original-task-uuid> --agent-id agt_<id> --input revision.json --yes
+  pnpm gateway agents task confirm <original-task-uuid> --agent-id agt_<id> --input confirmation.json --yes
+  pnpm gateway agents task run <original-task-uuid> --agent-id agt_<id> --input chunk.json --yes
+  pnpm gateway agents task status <original-task-uuid> --agent-id agt_<id>
   pnpm gateway agents revoke --agent-id agt_<id> --reason operator_requested --yes
   pnpm gateway clients
   pnpm gateway clients list --include-disabled
@@ -4119,6 +4133,9 @@ Pipe input:
   Get-Content .\\request.txt -Raw | pnpm gateway enhance --profile planning
 
 Safety:
+  Agent task commands preserve the original UUID and exact revision; run performs one explicit bounded chunk, never an automatic loop.
+  Plan/run use the fixed server profile; non-fake provider requests require --allow-real-provider. Profile, model, path and command overrides are forbidden.
+  Agent task confirmation consumes an already-approved complete plan; decide it first with the existing agents approve command.
   Workflow run requires a stable ID and a server-issued Agent with the existing file_write authorization.
   Workflow recovery reconciles the recorded artifact; it never automatically resumes a run.
   Provider clearing removes only the runtime override; environment keys, upstream keys, in-flight requests and other processes remain separate.
@@ -4207,7 +4224,8 @@ function validateOptions(options) {
     throw new CliUsageError("--manifest is only valid with control-center configure.");
   }
   const operatorCommand = ["knowledge", "routing", "taiji", "forge", "codec", "workforce"].includes(options.command);
-  if (!operatorCommand && (options.operatorInput !== null || options.operatorMode !== null || options.operatorSources.length || options.operatorPasses !== null || options.operatorMaxOutputTokens !== null)) {
+  const agentTaskCommand = options.command === "agents" && options.positionals[0] === "task";
+  if (!operatorCommand && !agentTaskCommand && (options.operatorInput !== null || options.operatorMode !== null || options.operatorSources.length || options.operatorPasses !== null || options.operatorMaxOutputTokens !== null)) {
     throw new CliUsageError("--input, --mode, --source-id and --passes are only valid with knowledge, routing, Forge or Taiji operations.");
   }
   const lifecycleOptionsUsed = localClientLifecycleOptionsUsed(operatorCommand ? { ...options, lifecycleLimit: null, lifecycleOffset: null }
@@ -4257,7 +4275,7 @@ function validateOptions(options) {
   }
   if (options.command === "workflow" || options.command === "providers") validateWorkflowOrCredentialOptions(options);
   if (options.allowRealProvider && options.command !== "chat"
-    && !(options.command === "agents" && options.positionals[0] === "run") && !operatorCommand) {
+    && !(options.command === "agents" && options.positionals[0] === "run") && !operatorCommand && !agentTaskCommand) {
     throw new CliUsageError(
       "--allow-real-provider is only valid with the chat command or agents run.",
     );
@@ -4368,6 +4386,10 @@ function validateWorkflowOrCredentialOptions(options) {
 }
 
 function validateAgentGovernanceOptions(options) {
+  if (options.positionals[0] === "task") {
+    try { validateAgentTaskOptions(options); } catch (error) { throw new CliUsageError(error.message); }
+    return;
+  }
   if (options.prompt !== null || options.positionals.length !== 1) {
     throw new CliUsageError(
       "agents requires exactly one operation: status, list, show, generate, run, revoke, approvals, approve, or reject.",

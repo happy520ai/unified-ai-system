@@ -1274,6 +1274,68 @@ test("exposes the Agent Governance lifecycle through canonical gateway paths", a
   }
 });
 
+test("Agent task SDK preserves complete requests and the original UUID across explicit bounded operations", async () => {
+  const observed = [], taskId = "7de31f92-d0fd-45f4-b2f5-e7d9c41ccaca";
+  const { server, baseUrl } = await startServer(async (request, response) => {
+    let raw = ""; for await (const chunk of request) raw += chunk;
+    observed.push({ method: request.method, path: request.url, body: raw ? JSON.parse(raw) : null, dispatch: request.headers["provider-dispatch-key"] });
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify({ status: "ok", data: { taskId, phase: "paused", usage: { totalTokens: null } } }));
+  });
+  try {
+    const client = createGatewayClient({ baseUrl }), original = { goal: "  Exact goal\n", prompt: "Complete original prompt\r\n" + "x".repeat(20000) + "\nFINAL" };
+    await client.prepareGovernedAgentTask("agt_sdk", original);
+    await client.planGovernedAgentTask("agt_sdk", taskId, { revision: 0, providerDispatchKey: "fixed-planning-request" });
+    await client.confirmGovernedAgentTask("agt_sdk", taskId, { revision: 3, reviewHash: "sha256:" + "a".repeat(64), planHash: "sha256:" + "b".repeat(64), approvalId: "apr_sdk" });
+    const chunk = await client.runGovernedAgentTask("agt_sdk", taskId, { revision: 5, maxIterations: 2 });
+    assert.equal(chunk.data.usage.totalTokens, null);
+    await client.governedAgentTask("agt_sdk", taskId);
+    await client.pauseGovernedAgentTask("agt_sdk", taskId, { revision: 12 });
+    await client.cancelGovernedAgentTask("agt_sdk", taskId, { revision: 13 });
+    assert.deepEqual(observed.map(call => call.path), ["/v1/agents/agt_sdk/tasks", ...["plan", "confirm", "run", "", "pause", "cancel"].map(operation => `/v1/agents/agt_sdk/tasks/${taskId}${operation ? "/" + operation : ""}`)]);
+    assert.deepEqual(observed[0].body, original);
+    assert.deepEqual(observed[1].body, { revision: 0 }); assert.equal(observed[1].dispatch, "fixed-planning-request");
+    assert.deepEqual(observed[3].body, { revision: 5, maxIterations: 2 }); assert.equal(typeof observed[3].dispatch, "string");
+    assert.equal(observed[4].method, "GET"); assert.equal(observed.length, 7);
+    assert.ok(observed.every(call => !call.path.includes("/approvals")));
+  } finally { await closeServer(server); }
+});
+
+test("Agent task SDK rejects replacement IDs/settings and never retries an uncertain bounded chunk", async () => {
+  let calls = 0; const taskId = "7de31f92-d0fd-45f4-b2f5-e7d9c41ccaca";
+  const { server, baseUrl } = await startServer(async (_request, response) => {
+    calls++; response.writeHead(503, { "content-type": "application/json" });
+    response.end(JSON.stringify({ status: "error", error: { code: "AGENT_LONG_TASK_UNKNOWN", message: "Unknown outcome", details: { outcomeUnknown: true } } }));
+  });
+  try {
+    const client = createGatewayClient({ baseUrl });
+    for (const request of [{ revision: -1 }, { revision: 0, modelId: "override" }, { revision: 0, profileId: "override" }, { revision: 0, maxIterations: 11 },
+      { revision: 0, commands: ["arbitrary"] }, { revision: 0, path: "source.mjs" }]) assert.throws(() => client.runGovernedAgentTask("agt_sdk", taskId, request));
+    for (const id of ["new-task", "../tasks", undefined, " " + taskId]) assert.throws(() => client.governedAgentTask("agt_sdk", id));
+    assert.throws(() => client.prepareGovernedAgentTask("agt_sdk", { goal: "goal", prompt: "prompt", profile: {} }));
+    assert.throws(() => client.confirmGovernedAgentTask("agt_sdk", taskId, { revision: 1, approvalId: "apr_sdk" }));
+    assert.equal(calls, 0);
+    await assert.rejects(client.runGovernedAgentTask("agt_sdk", taskId, { revision: 1, maxIterations: 1 }));
+    assert.equal(calls, 1);
+  } finally { await closeServer(server); }
+});
+
+test("Agent task SDK refuses redirects before forwarding original review, IDs or provider dispatch headers", async () => {
+  const calls = [], taskId = "7de31f92-d0fd-45f4-b2f5-e7d9c41ccaca";
+  const { server, baseUrl } = await startServer(async (request, response) => {
+    calls.push(request.url); response.writeHead(307, { location: "/redirect-target" }); response.end();
+  });
+  try {
+    const client = createGatewayClient({ baseUrl });
+    for (const invoke of [() => client.prepareGovernedAgentTask("agt_sdk", { goal: "Exact goal", prompt: "Original prompt" }),
+      () => client.governedAgentTask("agt_sdk", taskId), () => client.planGovernedAgentTask("agt_sdk", taskId, { revision: 0 }),
+      () => client.confirmGovernedAgentTask("agt_sdk", taskId, { revision: 3, reviewHash: "sha256:" + "a".repeat(64), planHash: "sha256:" + "b".repeat(64), approvalId: "apr_original" }),
+      () => client.runGovernedAgentTask("agt_sdk", taskId, { revision: 5 }), () => client.pauseGovernedAgentTask("agt_sdk", taskId, { revision: 7 }),
+      () => client.cancelGovernedAgentTask("agt_sdk", taskId, { revision: 8 })]) await assert.rejects(invoke());
+    assert.equal(calls.length, 7); assert.ok(!calls.includes("/redirect-target"));
+  } finally { await closeServer(server); }
+});
+
 test("inspects one local client through a bounded registry-list helper", async () => {
   const observed = [];
   const target = {

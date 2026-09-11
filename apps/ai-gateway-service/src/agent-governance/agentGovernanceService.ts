@@ -229,6 +229,9 @@ export interface AgentGovernanceService {
     review: AgentToolApprovalReview,
     reason?: string,
   ): Promise<AgentToolApprovalRecord>;
+  /** Reads the original consumed approval; it never consumes it again or grants a new execution lease. */
+  verifyConsumedArguments(input: { approvalId: string; agentId: string; tenantId: string; toolName: string;
+    args: unknown; policyHash: string; executionId: string }): Promise<{ args: unknown; review: AgentToolApprovalReview } | null>;
   /** Non-secret readiness probe. The service Proxy completes startup
    * reconciliation before this method verifies signed state and audit data. */
   checkHealth(): Promise<AgentGovernanceServiceHealth>;
@@ -2358,6 +2361,10 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
       return matched ? { approvalId: matched.id } : null;
     },
 
+    async verifyConsumedArguments(input) {
+      const { computeArgumentsHash } = await import("@unified-ai-system/policy-engine");
+      return approvals.verifyConsumed({ ...input, argumentsHash: computeArgumentsHash(input.args) });
+    },
     async createApproval(agentId, toolName, args, tenantId, review, reason) {
       const approval = await approvals.create(
         { agentId, toolName, arguments: args, tenantId, review, reason },

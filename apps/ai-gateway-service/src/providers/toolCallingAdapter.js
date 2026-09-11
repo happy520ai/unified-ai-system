@@ -173,7 +173,7 @@ export async function executeToolCalls(toolCalls, toolRegistry, context = {}) {
             ? { externalEffectKey: `${context.sessionId}:${tc.id}` }
             : {}),
         });
-        resultContent = formatToolResult(result);
+        resultContent = formatToolResult(result, context.preserveToolResults === true);
         // Detect soft-error returns: executeTool() catches thrown exceptions and returns
         // { status: "error", error: "..." } instead of re-throwing. Built-in tools like
         // shell_exec, web_fetch, code_run also return { status: "error" } on failure.
@@ -187,6 +187,7 @@ export async function executeToolCalls(toolCalls, toolRegistry, context = {}) {
           isError = true;
         }
       } catch (error) {
+        if (context.preserveToolResults === true && ["TOOL_RESULT_SIZE_REJECTED", "TOOL_RESULT_SERIALIZATION_FAILED"].includes(error?.code)) throw error;
         isError = true;
         resultContent = JSON.stringify({
           error: true,
@@ -209,6 +210,11 @@ export async function executeToolCalls(toolCalls, toolRegistry, context = {}) {
       };
     })
   );
+  if (context.preserveToolResults === true) {
+    const failure = settled.find(outcome => outcome.status === "rejected"
+      && ["TOOL_RESULT_SIZE_REJECTED", "TOOL_RESULT_SERIALIZATION_FAILED"].includes(outcome.reason?.code));
+    if (failure) throw failure.reason; // All dispatched tools have settled before this bounded-result failure escapes.
+  }
 
   // Extract results preserving input order; rejected promises become error results
   return settled.map((outcome, idx) => {
@@ -237,7 +243,15 @@ export async function executeToolCalls(toolCalls, toolRegistry, context = {}) {
 /**
  * 将工具执行结果格式化为 JSON 字符串,用于 tool message content。
  */
-function formatToolResult(result) {
+function formatToolResult(result, preserve = false) {
+  if (preserve) {
+    let content;
+    try { content = result == null ? JSON.stringify({ success: true, result: null }) : typeof result === "string" ? result : JSON.stringify(result); }
+    catch (cause) { throw Object.assign(new Error("The complete tool result cannot be serialized.", { cause }), { code: "TOOL_RESULT_SERIALIZATION_FAILED" }); }
+    if (typeof content !== "string") throw Object.assign(new Error("The complete tool result is not JSON data."), { code: "TOOL_RESULT_SERIALIZATION_FAILED" });
+    if (Buffer.byteLength(content, "utf8") > 10 * 1024 * 1024) throw Object.assign(new Error("The complete tool result exceeds 10MiB."), { code: "TOOL_RESULT_SIZE_REJECTED" });
+    return content;
+  }
   if (result === undefined || result === null) {
     return JSON.stringify({ success: true, result: null });
   }

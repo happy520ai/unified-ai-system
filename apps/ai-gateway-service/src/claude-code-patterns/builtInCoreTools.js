@@ -252,6 +252,10 @@ export function createFileWriteTool(workingDirectory = process.cwd()) {
         enum: ["overwrite", "append"],
         description: "写入模式：overwrite（覆盖）或 append（追加），默认 overwrite",
       },
+      create_backup: {
+        type: "boolean",
+        description: "Create a .bak copy before overwrite (default true). Server-scoped workspaces may disable this side effect.",
+      },
     },
     ["file_path", "content"]
   ),
@@ -260,7 +264,7 @@ export function createFileWriteTool(workingDirectory = process.cwd()) {
   async execute(params, _context) {
     const { writeFileSync, appendFileSync, mkdirSync, existsSync } = await import("node:fs");
     const { dirname, resolve } = await import("node:path");
-    const { file_path, content, mode = "overwrite" } = params;
+    const { file_path, content, mode = "overwrite", create_backup = true } = params;
 
     // Security: validate path
     const validation = validateFilePath(file_path, { allowWrite: true, workingDirectory });
@@ -305,7 +309,7 @@ export function createFileWriteTool(workingDirectory = process.cwd()) {
     } else {
       // Security: create backup before overwrite if file exists
       const { existsSync: _bakCheck } = await import("node:fs");
-      if (_bakCheck(resolvedPath)) {
+      if (create_backup && _bakCheck(resolvedPath)) {
         const { copyFileSync } = await import("node:fs");
         copyFileSync(resolvedPath, resolvedPath + ".bak");
       }

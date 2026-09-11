@@ -21,11 +21,14 @@ export type AgenticCheckpointState = {
   totalUsage: { inputTokens: number; outputTokens: number; totalTokens: number };
   usageObservation: { planning: "not_used" | "unobserved"; provider: "observed" | "unobserved" };
   iteration: number; effectiveMaxIterations: number; status: string; finalAnswer: string;
+  repairAttempts?: number; nextAction?: "iterate" | "final_answer"; pendingHook?: "settled" | "final_answer" | null;
   terminalResult: RecordValue | null;
 };
-type Intent = { kind: "planning" | "provider" | "tools"; iteration: number; toolCallIds: string[] } | null;
-type Checkpoint = { kind: "agentic-loop-checkpoint"; version: 1; binding: AgenticCheckpointBinding;
+export type AgenticCheckpointIntent = { kind: "planning" | "provider" | "tools"; iteration: number; toolCallIds: string[] } | null;
+type Intent = AgenticCheckpointIntent;
+export type AgenticCheckpoint = { kind: "agentic-loop-checkpoint"; version: 1; binding: AgenticCheckpointBinding;
   phase: CheckpointPhase; inFlight: Intent; state: AgenticCheckpointState; savedAt: string };
+type Checkpoint = AgenticCheckpoint;
 const failure = (code: string, cause?: unknown) => Object.assign(new Error("The original Agentic checkpoint cannot be used safely.", { cause }), { code: "CHECKPOINT_" + code });
 const object = (value: unknown): value is RecordValue => value !== null && typeof value === "object" && !Array.isArray(value);
 const integer = (value: unknown, min = 0) => Number.isSafeInteger(value) && Number(value) >= min;
@@ -88,8 +91,21 @@ function validate(checkpoint: any, binding: AgenticCheckpointBinding): asserts c
     || s.plan?.some((step, index) => index < s.planStepIndex && step.status !== "completed")) invalid();
   if (s.trace.some(event => !object(event) || !text(event.type) || (event.iteration !== undefined && (!integer(event.iteration, 1)
     || event.iteration > s.iteration + (["governance_denied", "cancelled"].includes(event.type) ? 1 : 0))))) invalid();
+  const repairAttempts = s.repairAttempts === undefined ? 0 : s.repairAttempts;
+  const nextAction = s.nextAction === undefined ? "iterate" : s.nextAction, pendingHook = s.pendingHook === undefined ? null : s.pendingHook;
+  if ((binding.configuration.frozenContext === true || binding.configuration.hooks)
+    && !["repairAttempts", "nextAction", "pendingHook"].every(key => Object.hasOwn(s, key))) invalid();
+  if (!integer(repairAttempts) || repairAttempts > (binding.configuration.maxRepairAttempts ?? 0)
+    || repairAttempts !== s.trace.filter(event => event.type === "repair_feedback").length
+    || !["iterate", "final_answer"].includes(nextAction) || ![null, "settled", "final_answer"].includes(pendingHook)
+    || (pendingHook !== null && checkpoint.phase !== "settled") || (pendingHook === "final_answer" && nextAction !== "final_answer")) invalid();
+  if (nextAction === "final_answer") {
+    const candidate = s.messages.at(-1);
+    if (checkpoint.phase !== "settled" || !candidate || candidate.role !== "assistant" || candidate.tool_calls !== undefined
+      || candidate.content !== s.finalAnswer) invalid();
+  }
   const seen = new Set<string>(), pending = new Map<string, string>(), results: RecordValue[] = [];
-  const allowed = new Set(binding.tools.map(tool => tool.name)); let batches = 0;
+  const allowed = new Set(binding.tools.map(tool => tool.name)); let assistantTurns = 0;
   for (const [index, message] of s.messages.entries()) {
     if (!object(message) || !["system", "user", "assistant", "tool"].includes(message.role)
       || !(typeof message.content === "string" || message.content === null || Array.isArray(message.content))) invalid();
@@ -100,9 +116,9 @@ function validate(checkpoint: any, binding: AgenticCheckpointBinding): asserts c
       pending.delete(message.tool_call_id); continue;
     }
     if (pending.size || message.tool_call_id !== undefined) invalid();
+    if (index >= s.initialMessageCount && message.role === "assistant") assistantTurns++;
     if (message.tool_calls !== undefined) {
       if (message.role !== "assistant" || !Array.isArray(message.tool_calls) || message.tool_calls.length === 0) invalid();
-      if (index >= s.initialMessageCount) batches++;
       for (const call of message.tool_calls) {
         if (!object(call) || !text(call.id) || call.id.length > 256 || seen.has(call.id) || call.type !== "function"
           || !object(call.function) || !text(call.function.name) || typeof call.function.arguments !== "string"
@@ -112,7 +128,7 @@ function validate(checkpoint: any, binding: AgenticCheckpointBinding): asserts c
       }
     }
   }
-  if (batches > s.iteration || results.length !== s.allToolResults.length) invalid();
+  if (assistantTurns > s.iteration || results.length !== s.allToolResults.length) invalid();
   for (const [index, result] of results.entries()) {
     const stored = s.allToolResults[index]!;
     if (!object(stored) || stored.role !== "tool" || stored.tool_call_id !== result.tool_call_id || stored.content !== result.content
@@ -127,13 +143,46 @@ function validate(checkpoint: any, binding: AgenticCheckpointBinding): asserts c
     } else if (pending.size || intent.kind === "tools" || intent.toolCallIds.length || (intent.kind === "planning" && s.iteration !== 0)) invalid();
   } else if (pending.size || checkpoint.inFlight !== null) invalid();
   if (checkpoint.phase === "ready" && s.iteration !== 0) invalid();
-  if (checkpoint.phase === "settled" && (s.iteration < 1 || batches !== s.iteration)) invalid();
+  if (checkpoint.phase === "settled" && (s.iteration < 1 || assistantTurns !== s.iteration)) invalid();
   if (checkpoint.phase === "terminal") {
     const result = s.terminalResult;
     if (!object(result) || result.sessionId !== s.sessionId || result.goal !== binding.goal || result.status !== s.status
       || result.iterations !== s.iteration || result.finalAnswer !== s.finalAnswer || stable(result.usage) !== stable(s.totalUsage)
       || stable(result.messages) !== stable(s.messages) || stable(result.trace) !== stable(s.trace)) invalid();
   } else if (s.terminalResult !== null) invalid();
+}
+
+function boundedCopy(value: unknown) {
+  let encoded: string;
+  try {
+    encoded = JSON.stringify(value, (_key, item) => {
+      if (["function", "symbol", "bigint"].includes(typeof item) || (typeof item === "number" && !Number.isFinite(item))) throw failure("FORMAT_REJECTED");
+      return item;
+    });
+  } catch (error) { throw failure("FORMAT_REJECTED", error); }
+  if (typeof encoded !== "string") throw failure("FORMAT_REJECTED");
+  if (Buffer.byteLength(encoded, "utf8") > MAX_BYTES) throw failure("SIZE_REJECTED");
+  return JSON.parse(encoded);
+}
+
+/** Pure data constructor: the caller supplies the timestamp; this grants no execution authority. */
+export function createAgenticCheckpoint(binding: AgenticCheckpointBinding, input: {
+  state: AgenticCheckpointState; phase: CheckpointPhase; inFlight?: AgenticCheckpointIntent; savedAt: string;
+}): AgenticCheckpoint {
+  const checkpoint = boundedCopy({ kind: "agentic-loop-checkpoint", version: 1, binding, ...input, inFlight: input.inFlight ?? null });
+  validate(checkpoint, binding); return checkpoint;
+}
+
+/** Pure strict reader for retained JSON. A trusted caller must separately establish ownership and policy. */
+export function readAgenticCheckpoint(value: unknown, binding: AgenticCheckpointBinding, options: { forResume?: boolean } = {}): AgenticCheckpoint {
+  const checkpoint = boundedCopy(value); validate(checkpoint, binding);
+  if (options.forResume !== false) {
+    if (checkpoint.phase.endsWith("_in_flight")) throw failure("IN_FLIGHT");
+    if (checkpoint.state.pendingHook != null) throw failure("HOOK_IN_FLIGHT");
+    if (checkpoint.phase !== "terminal" && (checkpoint.state.usageObservation.planning === "unobserved"
+      || checkpoint.state.usageObservation.provider === "unobserved")) throw failure("USAGE_UNOBSERVED");
+  }
+  return checkpoint;
 }
 
 async function directory(root: string, input: string, create: boolean) {
@@ -197,11 +246,8 @@ export async function openAgenticCheckpointSession(binding: AgenticCheckpointBin
   let restored: Checkpoint | null = null;
   try {
     if (resume) {
-      restored = await readBounded(path); validate(restored, binding); await assertOwned();
+      restored = readAgenticCheckpoint(await readBounded(path), binding); await assertOwned();
       if (basename(path) !== "checkpoint-" + restored.state.sessionId + ".json") throw failure("BINDING_MISMATCH");
-      if (restored.phase.endsWith("_in_flight")) throw failure("IN_FLIGHT");
-      if (restored.phase !== "terminal" && (restored.state.usageObservation.planning === "unobserved"
-        || restored.state.usageObservation.provider === "unobserved")) throw failure("USAGE_UNOBSERVED");
     } else {
       try { await lstat(path, { bigint: true }); throw failure("FILE_EXISTS"); } catch (error: any) { if (error.code !== "ENOENT") throw error; }
     }
@@ -214,10 +260,8 @@ export async function openAgenticCheckpointSession(binding: AgenticCheckpointBin
       let temporary: string | undefined;
       try {
         await assertOwned();
-        const checkpoint = { kind: "agentic-loop-checkpoint", version: 1, binding, phase, inFlight, state, savedAt: new Date().toISOString() };
+        const checkpoint = createAgenticCheckpoint(binding, { phase, inFlight, state, savedAt: new Date().toISOString() });
         const encoded = Buffer.from(JSON.stringify(checkpoint), "utf8");
-        if (encoded.length > MAX_BYTES) throw failure("SIZE_REJECTED");
-        validate(JSON.parse(encoded.toString("utf8")), binding);
         try { const target = await lstat(path, { bigint: true }); if (!target.isFile() || target.isSymbolicLink() || target.nlink !== 1n) throw failure("FILE_REJECTED"); }
         catch (error: any) { if (error.code !== "ENOENT") throw error; }
         temporary = path + ".tmp-" + randomUUID();

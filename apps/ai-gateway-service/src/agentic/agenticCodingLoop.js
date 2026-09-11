@@ -32,7 +32,7 @@ import {
   buildProviderRequest, buildResult, createErrorResult, syncMcpToolsToRegistry,
 } from "./agenticCodingLoop-helpers.js";
 import { createStreamEvent, truncateForEvent } from "./agenticCodingLoop-stream.js";
-import { buildAgenticCheckpointBinding, openAgenticCheckpointSession } from "./agenticCheckpoint.ts";
+import { buildAgenticCheckpointBinding, createAgenticCheckpoint, openAgenticCheckpointSession, readAgenticCheckpoint } from "./agenticCheckpoint.ts";
 
 const MAX_CHECKPOINT_SIZE = 10 * 1024 * 1024;
 
@@ -87,6 +87,19 @@ export function createAgenticLoop(options = {}) {
   const promptOptimizeEnabled = options.promptOptimizeEnabled ?? true;
   const partialPreviewEnabled = options.partialPreviewEnabled ?? true;
   const agentGovernanceRequired = options.agentGovernanceRequired === true;
+  const frozenContext = options.frozenContext === true;
+  const checkpointSessionFactory = options.checkpointSessionFactory ?? null;
+  const onSettled = options.onSettled ?? null, onFinalAnswer = options.onFinalAnswer ?? null;
+  const maxRepairAttempts = options.maxRepairAttempts ?? Math.max(0, maxIterations - 1);
+  if ([checkpointSessionFactory, onSettled, onFinalAnswer].some(value => value !== null && typeof value !== "function")) {
+    throw Object.assign(new Error("Continuation capabilities must be server-created functions."), { code: "CHECKPOINT_CAPABILITY_INVALID" });
+  }
+  if (!Number.isSafeInteger(maxRepairAttempts) || maxRepairAttempts < 0) {
+    throw Object.assign(new Error("Repair attempts must have a non-negative integer limit."), { code: "CHECKPOINT_REPAIR_LIMIT_INVALID" });
+  }
+  if (frozenContext && planningEnabled) {
+    throw Object.assign(new Error("Frozen input cannot be replaced by automatic planning."), { code: "CHECKPOINT_FROZEN_PLANNING_REJECTED" });
+  }
 
   const toolRegistry = options.toolRegistry ?? createAgentToolRegistry({
     workingDirectory,
@@ -157,12 +170,13 @@ export function createAgenticLoop(options = {}) {
     }
     try { contextManager.trackChangedFiles(toolResults); } catch (_e) { debugLoop("non-fatal operation failed", _e); }
     if (partialPreviewEnabled) { for (const r of toolResults) { const n = r._meta?.toolName || "unknown"; r._meta?.isError ? partialPreview.recordError(n, r.content, iteration) : partialPreview.recordToolResult(n, r._meta?.params || {}, r); } }
-    if (errorRecoveryEnabled) { for (const r of toolResults) { if (r._meta?.isError) { const n = r._meta?.toolName || "unknown"; const rec = applyErrorRecovery(n, r.content, toolRegistry); if (rec) messages.push({ role: "system", content: `[Error Recovery] Tool "${n}" failed. ${rec}` }); } } }
-    if (selfReflectionEnabled && iteration % selfReflectionInterval === 0) messages.push(buildReflectionPrompt(iteration, toolResults, plan));
+    if (!frozenContext && errorRecoveryEnabled) { for (const r of toolResults) { if (r._meta?.isError) { const n = r._meta?.toolName || "unknown"; const rec = applyErrorRecovery(n, r.content, toolRegistry); if (rec) messages.push({ role: "system", content: `[Error Recovery] Tool "${n}" failed. ${rec}` }); } } }
+    if (!frozenContext && selfReflectionEnabled && iteration % selfReflectionInterval === 0) messages.push(buildReflectionPrompt(iteration, toolResults, plan));
     return toolResults;
   }
 
   async function finalize(sessionId, goal, status, messages, trace, allToolResults, totalUsage, startedAt, iteration, effectiveMax, plan) {
+    if (frozenContext) return;
     try { await sessionMemory.recordOutcome({ goal, status, toolSequence: allToolResults.map(r => r._meta?.toolName).filter(Boolean), durationMs: Date.now() - startedAt, iterationCount: iteration, keyFindings: [] }); await sessionMemory.save(); } catch (_e) { debugLoop("non-fatal operation failed", _e); }
     try { await sessionStore.save({ sessionId, goal, status, messages: messages.slice(-20), trace: trace.slice(-30), usage: totalUsage, iterations: Math.min(iteration, effectiveMax), plan, durationMs: Date.now() - startedAt }); } catch (_e) { debugLoop("non-fatal operation failed", _e); }
   }
@@ -179,6 +193,10 @@ export function createAgenticLoop(options = {}) {
     if (resuming && agentGovernanceRequired) {
       throw Object.assign(new Error("Direct disk checkpoints cannot authorize governed continuation."), { code: "CHECKPOINT_GOVERNED_RESUME_REJECTED" });
     }
+    if (resuming && checkpointSessionFactory) {
+      throw Object.assign(new Error("Disk input cannot select a server continuation source."), { code: "CHECKPOINT_SOURCE_CONFLICT" });
+    }
+    const fullHistoryMode = Boolean(checkpointDir || resuming || checkpointSessionFactory || frozenContext || onSettled || onFinalAnswer);
     // Governed identity flows per request into every tool call.
     const governanceCallContext = input.agentGovernance ?? options.agentGovernance ?? null;
     if (agentGovernanceRequired
@@ -191,40 +209,58 @@ export function createAgenticLoop(options = {}) {
     }
 
     const providerId = input.providerId || "openai", modelId = input.modelId || "gpt-4o";
-    const originalMessages = checkpointDir || resuming ? structuredClone(input.messages ?? []) : input.messages;
+    const originalMessages = fullHistoryMode ? structuredClone(input.messages ?? []) : input.messages;
+    if (frozenContext && input.messages !== undefined && !Array.isArray(input.messages)) throw Object.assign(new Error("Frozen messages must be an explicit array."), { code: "CHECKPOINT_FROZEN_CONTEXT_INVALID" });
     const listedTools = getOpenAITools(toolRegistry, input.toolAllowlist);
-    const tools = checkpointDir || resuming ? structuredClone(listedTools) : listedTools;
+    const tools = fullHistoryMode ? structuredClone(listedTools) : listedTools;
     const runAllowedTools = freezeRunToolAllowlist(input.toolAllowlist);
-    let checkpointSession = null;
-    if (checkpointDir || resuming) {
-      const binding = await buildAgenticCheckpointBinding({ workingDirectory, goal, providerId, modelId, tools,
+    let checkpointSession = null, checkpointBinding = null, retainedInput = null, executionError;
+    try {
+    if (fullHistoryMode) {
+      checkpointBinding = await buildAgenticCheckpointBinding({ workingDirectory, goal, providerId, modelId, tools,
         maxIterations, maxTokensPerTurn, tokenBudget: options.tokenBudget ?? 100_000,
         configuration: { systemPrompt, initialMessages: originalMessages, permissionMode, planningEnabled, maxPlanSteps,
           selfReflectionEnabled, selfReflectionInterval, errorRecoveryEnabled, dynamicBudgetEnabled, promptOptimizeEnabled,
           maxContextTokens: options.maxContextTokens ?? 32_000, recentTurnsToKeep: options.recentTurnsToKeep ?? 5,
           enableHighRiskTools: options.enableHighRiskTools === true, highRiskToolAllowlist: options.highRiskToolAllowlist ?? null,
-          toolAllowlist: runAllowedTools ? [...runAllowedTools].sort() : null } });
-      checkpointSession = await openAgenticCheckpointSession(binding, { checkpointDir, resumePath: input.resumeFromCheckpoint, sessionId });
+          toolAllowlist: runAllowedTools ? [...runAllowedTools].sort() : null,
+          ...(frozenContext ? { frozenContext: true, suppliedMessages: input.messages !== undefined } : {}),
+          ...(onSettled || onFinalAnswer ? { hooks: { settled: Boolean(onSettled), finalAnswer: Boolean(onFinalAnswer) }, maxRepairAttempts } : {}) } });
+      if (checkpointSessionFactory) {
+        checkpointSession = await checkpointSessionFactory(structuredClone(checkpointBinding), { sessionId });
+        if (!checkpointSession || typeof checkpointSession.save !== "function" || !("restored" in checkpointSession)
+          || (checkpointSession.close !== undefined && typeof checkpointSession.close !== "function")) {
+          throw Object.assign(new Error("The server checkpoint session is incomplete."), { code: "CHECKPOINT_CAPABILITY_INVALID" });
+        }
+        retainedInput = checkpointSession.restored;
+        if (retainedInput === undefined) throw Object.assign(new Error("A server session must explicitly declare fresh or retained state."), { code: "CHECKPOINT_CAPABILITY_INVALID" });
+      } else if (checkpointDir || resuming) {
+        checkpointSession = await openAgenticCheckpointSession(checkpointBinding, { checkpointDir, resumePath: input.resumeFromCheckpoint, sessionId });
+        retainedInput = checkpointSession.restored;
+      }
     }
-    try {
-    const restored = checkpointSession?.restored?.state;
-    if (checkpointSession?.restored?.phase === "terminal") {
+    const retained = retainedInput === null ? null : readAgenticCheckpoint(retainedInput, checkpointBinding);
+    const restored = retained?.state;
+    if (retained?.phase === "terminal") {
       if (!restored?.terminalResult) throw Object.assign(new Error("The saved terminal result is missing."), { code: "CHECKPOINT_FORMAT_REJECTED" });
       return structuredClone(restored.terminalResult);
     }
     if (restored) { sessionId = restored.sessionId; startedAt = restored.startedAt; }
     // Disk validation precedes all project-context and session-memory reads.
-    const enhancedPrompt = restored ? null : await enhancePrompt(systemPrompt, goal);
-    const messages = restored ? structuredClone(restored.messages) : buildInitialMessages(enhancedPrompt, goal, originalMessages);
+    const enhancedPrompt = restored ? null : frozenContext ? systemPrompt : await enhancePrompt(systemPrompt, goal);
+    const messages = restored ? structuredClone(restored.messages) : frozenContext
+      ? [{ role: "system", content: systemPrompt }, ...(input.messages === undefined ? [{ role: "user", content: goal }] : originalMessages)]
+      : buildInitialMessages(enhancedPrompt, goal, originalMessages);
     let initialMessageCount = restored?.initialMessageCount ?? messages.length;
     const trace = restored ? structuredClone(restored.trace) : [];
     const allToolResults = restored ? structuredClone(restored.allToolResults) : [];
     let totalUsage = restored ? { ...restored.totalUsage } : { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
     const usageObservation = restored ? { ...restored.usageObservation } : { planning: "not_used", provider: "observed" };
-    let finalAnswer = "";
+    let finalAnswer = restored?.nextAction === "final_answer" ? restored.finalAnswer : "";
     let providerFinished = false;
     let iteration = restored?.iteration ?? 0;
     let status = "completed";
+    let repairAttempts = restored?.repairAttempts ?? 0, nextAction = restored?.nextAction ?? "iterate", pendingHook = null;
 
     if (!restored) {
       const taskComplexity = analyzeComplexity(goal);
@@ -232,11 +268,67 @@ export function createAgenticLoop(options = {}) {
     }
     let effectiveMaxIterations = restored?.effectiveMaxIterations ?? maxIterations;
     let plan = restored ? structuredClone(restored.plan) : null, planStepIndex = restored?.planStepIndex ?? 0;
-    const saveCheckpoint = async (phase, inFlight = null, terminalResult = null) => {
-      if (!checkpointSession) return;
-      await checkpointSession.save({ sessionId, startedAt, messages, initialMessageCount, trace, allToolResults, totalUsage,
+    const checkpointState = (terminalResult = null) => ({
+      sessionId, startedAt, messages, initialMessageCount, trace, allToolResults, totalUsage,
         usageObservation, iteration, effectiveMaxIterations, plan, planStepIndex,
-        status: terminalResult ? status : "running", finalAnswer: terminalResult ? finalAnswer : "", terminalResult }, phase, inFlight);
+        repairAttempts, nextAction, pendingHook,
+        status: terminalResult ? status : "running", finalAnswer: terminalResult || nextAction === "final_answer" ? finalAnswer : "", terminalResult });
+    const saveCheckpoint = async (phase, inFlight = null, terminalResult = null) => {
+      if (!checkpointBinding) return;
+      const checkpoint = createAgenticCheckpoint(checkpointBinding, { state: checkpointState(terminalResult), phase, inFlight, savedAt: new Date().toISOString() });
+      if (checkpointSession) await checkpointSession.save(checkpoint.state, checkpoint.phase, checkpoint.inFlight);
+      return checkpoint.state;
+    };
+    const hookContext = kind => ({ kind, sessionId, iteration, repairAttempts, binding: structuredClone(checkpointBinding), signal: input.signal });
+    const pauseAtBoundary = async reason => {
+      pendingHook = null; trace.push({ type: "continuation_pause", iteration, ...(typeof reason === "string" ? { reason } : {}) });
+      await saveCheckpoint("settled"); return "pause";
+    };
+    const settleBoundary = async kind => {
+      pendingHook = onSettled ? "settled" : nextAction === "final_answer" && onFinalAnswer ? "final_answer" : null;
+      const snapshot = await saveCheckpoint("settled");
+      if (onSettled) {
+        const decision = await onSettled(structuredClone(snapshot), hookContext(kind));
+        if (decision?.action === "pause") return pauseAtBoundary(decision.reason);
+        if (decision !== undefined && decision?.action !== "continue") throw Object.assign(new Error("Invalid settled decision."), { code: "CHECKPOINT_SETTLED_DECISION_INVALID" });
+        pendingHook = nextAction === "final_answer" && onFinalAnswer ? "final_answer" : null;
+        await saveCheckpoint("settled");
+      }
+      return "continue";
+    };
+    const reviewFinalAnswer = async () => {
+      if (!onFinalAnswer) { nextAction = "iterate"; return "complete"; }
+      if (pendingHook !== "final_answer") { pendingHook = "final_answer"; await saveCheckpoint("settled"); }
+      input.signal?.throwIfAborted();
+      const decision = await onFinalAnswer(structuredClone(checkpointState()), { ...hookContext("model_response"), answer: finalAnswer });
+      if (decision?.action === "pause") return pauseAtBoundary(decision.reason);
+      if (decision?.action === "complete") { pendingHook = null; nextAction = "iterate"; return "complete"; }
+      if (decision?.action !== "continue" || typeof decision.feedback !== "string" || !decision.feedback.trim()) {
+        throw Object.assign(new Error("Final review must complete, pause, or provide explicit repair feedback."), { code: "CHECKPOINT_FINAL_DECISION_INVALID" });
+      }
+      pendingHook = null; nextAction = "iterate";
+      if (repairAttempts >= maxRepairAttempts || iteration >= effectiveMaxIterations) {
+        status = repairAttempts >= maxRepairAttempts ? "repair_limit_reached" : "max_iterations_reached";
+        finalAnswer = "[Independent verification requested repair beyond the original remaining budget.]";
+        trace.push({ type: status, iteration, repairAttempts, maxRepairAttempts }); return "stop";
+      }
+      repairAttempts++; messages.push({ role: "user", content: decision.feedback });
+      trace.push({ type: "repair_feedback", iteration, repairAttempt: repairAttempts, feedback: decision.feedback });
+      finalAnswer = ""; await saveCheckpoint("settled"); return "continue";
+    };
+    const modelAnswer = async (response, iterStartedAt, note) => {
+      finalAnswer = response?.text || "";
+      if (fullHistoryMode) messages.push({ role: "assistant", content: finalAnswer });
+      trace.push({ iteration, type: onFinalAnswer ? "answer_candidate" : "final_answer", textLength: finalAnswer.length,
+        ...(note ? { note } : {}), durationMs: Date.now() - iterStartedAt,
+        tokenUsage: response?.usage ? { inputTokens: response.usage.inputTokens ?? 0, outputTokens: response.usage.outputTokens ?? 0 } : undefined,
+        timestamp: new Date().toISOString() });
+      try { if (typeof input.onIteration === "function") input.onIteration(iteration, { type: "final_answer", text: finalAnswer, durationMs: Date.now() - iterStartedAt }); }
+      catch (error) { debugLoop("onIteration callback error:", error); }
+      if (!fullHistoryMode) { providerFinished = true; return false; }
+      nextAction = "final_answer";
+      if (await settleBoundary("model_response") === "pause") { status = "paused"; return false; }
+      return true;
     };
 
     // Planning phase
@@ -261,7 +353,14 @@ export function createAgenticLoop(options = {}) {
     if (totalUsage.totalTokens > (options.tokenBudget ?? 100_000) * 1.5) {
       status = "token_budget_exhausted"; finalAnswer = "[Original cumulative token budget is exhausted.]";
     }
-    while (iteration < effectiveMaxIterations && status === "completed") {
+    while ((iteration < effectiveMaxIterations || nextAction === "final_answer") && status === "completed") {
+      if (nextAction === "final_answer") {
+        const decision = await reviewFinalAnswer();
+        if (decision === "complete") { providerFinished = true; break; }
+        if (decision === "pause") { status = "paused"; break; }
+        if (decision === "stop") break;
+        continue;
+      }
       const nextIteration = iteration + 1;
       if (input.signal?.aborted) { status = "cancelled"; finalAnswer = `[Cancelled by user before iteration ${nextIteration}]`; trace.push({ iteration: nextIteration, type: "cancelled", message: "Loop cancelled by user via AbortSignal.", timestamp: new Date().toISOString() }); break; }
       if (typeof options.beforeIteration === "function") {
@@ -279,8 +378,8 @@ export function createAgenticLoop(options = {}) {
         }
       }
       const iterStartedAt = Date.now();
-      const providerMessages = checkpointSession ? structuredClone(messages) : messages;
-      compactIfNeeded(providerMessages);
+      const providerMessages = fullHistoryMode ? structuredClone(messages) : messages;
+      if (!frozenContext) compactIfNeeded(providerMessages);
       const providerRequest = buildProviderRequest({ messages: providerMessages, tools, providerId, modelId, maxTokensPerTurn, signal: input.signal });
       if (input.signal?.aborted) { status = "cancelled"; finalAnswer = `[Cancelled by user before iteration ${nextIteration}]`; trace.push({ iteration: nextIteration, type: "cancelled", message: "Loop cancelled by user via AbortSignal (before provider call).", timestamp: new Date().toISOString() }); break; }
 
@@ -317,7 +416,10 @@ export function createAgenticLoop(options = {}) {
 
       if (hasToolCalls(providerResponse)) {
         const toolCalls = extractToolCalls(providerResponse);
-        if (!toolCalls || toolCalls.length === 0) { finalAnswer = providerResponse?.text || ""; providerFinished = true; if (checkpointSession) messages.push({ role: "assistant", content: finalAnswer }); trace.push({ iteration, type: "final_answer", textLength: finalAnswer.length, note: "hasToolCalls=true but extractToolCalls returned null/empty", durationMs: Date.now() - iterStartedAt, timestamp: new Date().toISOString() }); try { if (typeof input.onIteration === "function") input.onIteration(iteration, { type: "final_answer", text: finalAnswer, durationMs: Date.now() - iterStartedAt }); } catch (_cbErr) { debugLoop("onIteration callback error:", _cbErr); } break; }
+        if (!toolCalls || toolCalls.length === 0) {
+          if (await modelAnswer(providerResponse, iterStartedAt, "hasToolCalls=true but extractToolCalls returned null/empty")) continue;
+          break;
+        }
         messages.push(buildAssistantMessageWithToolCalls(providerResponse));
         trace.push({ iteration, type: "tool_calls", toolCalls: toolCalls.map((tc) => ({ name: tc.name, args: tc.arguments })), tokenUsage: providerResponse?.usage ? { inputTokens: providerResponse.usage.inputTokens ?? 0, outputTokens: providerResponse.usage.outputTokens ?? 0 } : undefined, durationMs: Date.now() - iterStartedAt, timestamp: new Date().toISOString() });
         await saveCheckpoint("tools_in_flight", { kind: "tools", iteration, toolCallIds: toolCalls.map(call => call.id) });
@@ -328,9 +430,10 @@ export function createAgenticLoop(options = {}) {
           ...(input.signal ? { signal: input.signal } : {}),
           ...(runAllowedTools ? { runAllowedTools } : {}),
           ...(governanceCallContext ? { agentGovernance: governanceCallContext } : {}),
+          ...(frozenContext ? { preserveToolResults: true } : {}),
         });
         await processToolResults(toolCalls, toolResults, messages, allToolResults, iteration, plan);
-        if (checkpointSession && (input.signal?.aborted || toolResults.some(result => result._meta?.isError))) {
+        if (fullHistoryMode && (input.signal?.aborted || toolResults.some(result => result._meta?.isError))) {
           throw Object.assign(new Error("Tool effects require reconciliation before continuation."), { code: "CHECKPOINT_TOOL_OUTCOME_UNKNOWN" });
         }
         trace.push({ iteration, type: "tool_results", results: toolResults.map((r) => ({ tool_call_id: r.tool_call_id, isError: r._meta?.isError, durationMs: r._meta?.durationMs })), timestamp: new Date().toISOString() });
@@ -338,30 +441,32 @@ export function createAgenticLoop(options = {}) {
         if (selfReflectionEnabled && iteration % selfReflectionInterval === 0) trace.push({ iteration, type: "self_reflection", message: `Self-reflection prompt injected at iteration ${iteration}.`, timestamp: new Date().toISOString() });
         if (dynamicBudgetEnabled) { const prev = effectiveMaxIterations; effectiveMaxIterations = adjustIterationBudget(effectiveMaxIterations, allToolResults, iteration, maxIterations); if (effectiveMaxIterations !== prev) trace.push({ iteration, type: "budget_adjustment", previousBudget: prev, newBudget: effectiveMaxIterations, reason: effectiveMaxIterations > prev ? "Good progress — extending budget" : "Repeated errors — shrinking budget", timestamp: new Date().toISOString() }); }
         if (plan && planStepIndex < plan.length) { plan[planStepIndex].status = "completed"; planStepIndex++; if (planStepIndex < plan.length) plan[planStepIndex].status = "in_progress"; }
-        if (checkpointSession) effectiveMaxIterations = Math.min(effectiveMaxIterations, Math.ceil(maxIterations * (dynamicBudgetEnabled ? 1.5 : 1)));
-        await saveCheckpoint("settled");
+        if (fullHistoryMode) effectiveMaxIterations = Math.min(effectiveMaxIterations, Math.ceil(maxIterations * (dynamicBudgetEnabled ? 1.5 : 1)));
+        const boundary = await settleBoundary("tool_results");
         try { if (typeof input.onIteration === "function") input.onIteration(iteration, { type: "tool_calls_executed", toolCalls, toolResults, durationMs: Date.now() - iterStartedAt }); } catch (_cbErr) { debugLoop("onIteration callback error:", _cbErr); }
+        if (boundary === "pause") { status = "paused"; break; }
         continue;
       }
 
-      finalAnswer = providerResponse?.text || ""; providerFinished = true;
-      if (checkpointSession) messages.push({ role: "assistant", content: finalAnswer });
-      trace.push({ iteration, type: "final_answer", textLength: finalAnswer.length, durationMs: Date.now() - iterStartedAt, tokenUsage: providerResponse?.usage ? { inputTokens: providerResponse.usage.inputTokens ?? 0, outputTokens: providerResponse.usage.outputTokens ?? 0 } : undefined, timestamp: new Date().toISOString() });
-      try { if (typeof input.onIteration === "function") input.onIteration(iteration, { type: "final_answer", text: finalAnswer, durationMs: Date.now() - iterStartedAt }); } catch (_cbErr) { debugLoop("onIteration callback error:", _cbErr); }
+      if (await modelAnswer(providerResponse, iterStartedAt)) continue;
       break;
     }
 
     if (iteration >= effectiveMaxIterations && !providerFinished && status === "completed") { status = "max_iterations_reached"; finalAnswer = `[Agentic loop reached maximum iterations (${effectiveMaxIterations}). Last context is in the message history.]`; }
     const result = buildResult({ sessionId, goal, status, finalAnswer, iterations: Math.min(iteration, effectiveMaxIterations), messages, trace, allToolResults, totalUsage, startedAt, plan });
     if (partialPreviewEnabled) { result.progressSummary = partialPreview.getProgressSummary(); partialPreview.clear(); }
-    await finalize(sessionId, goal, status, messages, trace, allToolResults, totalUsage, startedAt, iteration, effectiveMaxIterations, plan);
+    if (status !== "paused") await finalize(sessionId, goal, status, messages, trace, allToolResults, totalUsage, startedAt, iteration, effectiveMaxIterations, plan);
     result.contextStats = contextManager.getStats();
-    if (checkpointSession) {
+    if (fullHistoryMode) {
       result.usageObservation = { ...usageObservation };
-      if (status !== "cancelled") await saveCheckpoint("terminal", null, result);
+      if (status !== "cancelled" && status !== "paused") await saveCheckpoint("terminal", null, result);
     }
     return result;
-    } finally { checkpointSession?.close(); }
+    } catch (error) { executionError = error; throw error; }
+    finally {
+      try { if (typeof checkpointSession?.close === "function") await checkpointSession.close(); }
+      catch (error) { if (executionError) throw new AggregateError([executionError, error], "Continuation and session cleanup both failed."); throw error; }
+    }
   }
 
   // ── executeStream (SSE streaming) ───────────────────────────────
@@ -370,6 +475,9 @@ export function createAgenticLoop(options = {}) {
     if (!input || typeof input !== "object") { yield createStreamEvent("error", { code: "AGENTIC_INPUT_INVALID", message: "Input must be an object with a 'goal' property." }); return; }
     if (input.resumeFromCheckpoint !== undefined) {
       yield createStreamEvent("error", { code: "CHECKPOINT_STREAM_RESUME_UNSUPPORTED", message: "Streaming cannot resume a disk checkpoint." }); return;
+    }
+    if (frozenContext || checkpointSessionFactory || onSettled || onFinalAnswer) {
+      yield createStreamEvent("error", { code: "CHECKPOINT_STREAM_CONTINUATION_UNSUPPORTED", message: "Server continuation hooks require non-streaming execution." }); return;
     }
     const sessionId = randomUUID(); const startedAt = Date.now();
     const goal = typeof input.goal === "string" ? input.goal : String(input.goal ?? "");

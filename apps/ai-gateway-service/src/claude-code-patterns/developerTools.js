@@ -242,7 +242,7 @@ export function createBuiltInTools(workingDirectory = process.cwd(), codeRunIsol
   web_fetch: webFetchTool,
   code_run: createCodeRunTool(codeRunIsolation),
   // Phase B 新增工具 — 对标 Codex/Claude Code
-  file_edit: createFileEditTool(),
+  file_edit: createFileEditTool(workingDirectory),
   file_insert: createFileInsertTool(),
   glob: createGlobTool(),
   grep: createGrepTool(),

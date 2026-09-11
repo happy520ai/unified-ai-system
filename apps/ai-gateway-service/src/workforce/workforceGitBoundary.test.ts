@@ -127,6 +127,7 @@ describe('Workforce real Git ownership boundary', () => {
     const id = created.worktree.worktreeId;
     const ownedPath = created.worktree.path;
     for (const record of [created.worktree, manager.list().worktrees[0], manager.getStatus(id).worktree]) {
+      assert(record, "The owned worktree receipt must exist before mutation is attempted.");
       try { Object.assign(record, { path: victim, branch: 'main', createdAt: '2000-01-01T00:00:00.000Z' }); } catch { /* immutable receipt */ }
     }
     const removed = await manager.remove(id);
