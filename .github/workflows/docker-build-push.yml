@@ -98,10 +98,10 @@ jobs:
             --tag unified-ai-system-mcp-smoke \
             .
           docker run --rm "${hardened_run_args[@]}" unified-ai-system-smoke \
-            node tools/build-runtime-identity.mjs --verify --expect-revision "${GITHUB_SHA}" \
+            node tools/build-runtime-identity.mjs --verify --expect-revision "${GITHUB_SHA}" --container-readonly \
             | tee .tmp/docker-smoke-gateway-identity.json
           docker run --rm "${hardened_run_args[@]}" unified-ai-system-mcp-smoke \
-            node tools/build-runtime-identity.mjs --verify --expect-revision "${GITHUB_SHA}" \
+            node tools/build-runtime-identity.mjs --verify --expect-revision "${GITHUB_SHA}" --container-readonly \
             | tee .tmp/docker-smoke-mcp-identity.json
           docker run --rm "${hardened_run_args[@]}" \
             --env AI_GATEWAY_PROVIDER_MODE=fake \
@@ -350,10 +350,10 @@ jobs:
           pull_with_retry "${image}"
           pull_with_retry "${mcp_image}"
           docker run --rm "${hardened_run_args[@]}" "${image}" \
-            node tools/build-runtime-identity.mjs --verify --expect-revision "${GITHUB_SHA}" \
+            node tools/build-runtime-identity.mjs --verify --expect-revision "${GITHUB_SHA}" --container-readonly \
             | tee .tmp/docker-published-gateway-identity.json
           docker run --rm "${hardened_run_args[@]}" "${mcp_image}" \
-            node tools/build-runtime-identity.mjs --verify --expect-revision "${GITHUB_SHA}" \
+            node tools/build-runtime-identity.mjs --verify --expect-revision "${GITHUB_SHA}" --container-readonly \
             | tee .tmp/docker-published-mcp-identity.json
           node --input-type=module <<'NODE'
           import { readFileSync } from "node:fs";

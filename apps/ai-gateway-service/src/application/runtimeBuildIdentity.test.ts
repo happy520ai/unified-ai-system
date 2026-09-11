@@ -94,6 +94,10 @@ test("symlinked source directories and hardlinked manifests are not read as trus
   const target = fixture(context); target.stamp();
   linkSync(join(target.root, RUNTIME_IDENTITY_PATH), join(target.root, "manifest-copy.json"));
   assert.equal((inspectRuntimeBuildIdentity(target.root) as { reason: string }).reason, "manifest-unsafe");
+  // The explicit container posture still verifies the same bytes through the
+  // hard link: exporters ship layers that way on a read-only root filesystem.
+  assert.equal(inspectRuntimeBuildIdentity(target.root, { allowHardlinkedInputs: true }).status, "verified");
+  assert.equal(inspectRuntimeBuildIdentity(source.root, { allowHardlinkedInputs: true }).status, "unknown");
 });
 
 test("the runtime reader captures one immutable observation", (context) => {

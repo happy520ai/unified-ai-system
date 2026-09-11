@@ -45,7 +45,11 @@ export type RuntimeBuildIdentity = Readonly<RuntimeIdentityManifest & {
 }>;
 
 /** Fixed input scope; neither the manifest nor an HTTP request supplies paths. */
-export function createRuntimeIdentityManifest(rootPath: string, declaredRevision: string | null = null): RuntimeIdentityManifest {
+export function createRuntimeIdentityManifest(
+  rootPath: string,
+  declaredRevision: string | null = null,
+  options: { allowHardlinkedInputs?: boolean } = {},
+): RuntimeIdentityManifest {
   if (declaredRevision !== null && !REVISION.test(declaredRevision)) throw inputError();
   const root = realpathSync(rootPath);
   const files = [...STATIC_SOURCES];
@@ -55,7 +59,7 @@ export function createRuntimeIdentityManifest(rootPath: string, declaredRevision
   let totalBytes = 0;
   let packageVersion: unknown;
   const entries = paths.map((path) => {
-    const bytes = readRegularFile(root, path, FILE_LIMIT);
+    const bytes = readRegularFile(root, path, FILE_LIMIT, options.allowHardlinkedInputs === true);
     totalBytes += bytes.length;
     if (totalBytes > SOURCE_LIMIT) throw inputError();
     if (path === "package.json") {
@@ -69,12 +73,15 @@ export function createRuntimeIdentityManifest(rootPath: string, declaredRevision
   return {
     schemaVersion: 1, sourceScope: RUNTIME_SOURCE_SCOPE, packageVersion, declaredRevision,
     sourceDigest: digest(JSON.stringify(entries)),
-    lockfileDigest: digest(readRegularFile(root, "pnpm-lock.yaml", FILE_LIMIT)),
+    lockfileDigest: digest(readRegularFile(root, "pnpm-lock.yaml", FILE_LIMIT, options.allowHardlinkedInputs === true)),
     sourceFileCount: paths.length,
   };
 }
 
-export function inspectRuntimeBuildIdentity(rootPath: string): RuntimeBuildIdentity {
+export function inspectRuntimeBuildIdentity(
+  rootPath: string,
+  options: { allowHardlinkedInputs?: boolean } = {},
+): RuntimeBuildIdentity {
   const unknown = (reason: Extract<RuntimeBuildIdentity, { status: "unknown" }>["reason"]): RuntimeBuildIdentity =>
     Object.freeze({ status: "unknown", reason, sourceScope: RUNTIME_SOURCE_SCOPE, attested: false });
   let manifest: RuntimeIdentityManifest;
@@ -82,7 +89,7 @@ export function inspectRuntimeBuildIdentity(rootPath: string): RuntimeBuildIdent
   try {
     root = realpathSync(rootPath);
     assertDirectory(root, "build");
-    const raw = readRegularFile(root, RUNTIME_IDENTITY_PATH, MANIFEST_LIMIT).toString("utf8");
+    const raw = readRegularFile(root, RUNTIME_IDENTITY_PATH, MANIFEST_LIMIT, options.allowHardlinkedInputs === true).toString("utf8");
     const value: unknown = JSON.parse(raw);
     if (!validManifest(value) || raw.trim() !== JSON.stringify(value, null, 2)) return unknown("manifest-invalid");
     manifest = value;
@@ -91,7 +98,7 @@ export function inspectRuntimeBuildIdentity(rootPath: string): RuntimeBuildIdent
     return unknown((error as NodeJS.ErrnoException)?.code === "RUNTIME_IDENTITY_INPUT_UNSAFE" ? "manifest-unsafe" : "manifest-invalid");
   }
   try {
-    const measured = createRuntimeIdentityManifest(root, manifest.declaredRevision);
+    const measured = createRuntimeIdentityManifest(root, manifest.declaredRevision, options);
     if (measured.packageVersion !== manifest.packageVersion || measured.sourceDigest !== manifest.sourceDigest
       || measured.lockfileDigest !== manifest.lockfileDigest || measured.sourceFileCount !== manifest.sourceFileCount) return unknown("source-mismatch");
     return Object.freeze({ ...manifest, status: "verified", verification: "source-and-lockfile-at-module-load", attested: false });
@@ -99,8 +106,11 @@ export function inspectRuntimeBuildIdentity(rootPath: string): RuntimeBuildIdent
 }
 
 /** Capture once while the module is initialized, never from env or live Git. */
-export function createRuntimeBuildIdentityReader(rootPath: string): () => RuntimeBuildIdentity {
-  const snapshot = inspectRuntimeBuildIdentity(rootPath);
+export function createRuntimeBuildIdentityReader(
+  rootPath: string,
+  options: { allowHardlinkedInputs?: boolean } = {},
+): () => RuntimeBuildIdentity {
+  const snapshot = inspectRuntimeBuildIdentity(rootPath, options);
   return () => snapshot;
 }
 export const getRuntimeBuildIdentity = createRuntimeBuildIdentityReader(DEFAULT_ROOT);
@@ -144,11 +154,18 @@ function inside(root: string, path: string): string {
   if (!local || isAbsolute(path) || isAbsolute(local) || local === ".." || local.startsWith("../") || local.startsWith("..\\")) throw inputError();
   return target;
 }
-function readRegularFile(root: string, path: string, limit: number): Buffer {
+function readRegularFile(root: string, path: string, limit: number, allowHardlink = false): Buffer {
   const target = inside(root, path);
   const before = lstatSync(target, { bigint: true });
-  if (!before.isFile() || before.isSymbolicLink() || before.nlink !== 1n || before.size < 0n
-    || before.size > BigInt(limit) || realpathSync(target) !== target) throw inputError();
+  // nlink === 1 is the default trust posture: a hard link means another
+  // writable path shares this inode. Container image exporters legitimately
+  // materialize shipped layers as hard links on a read-only root filesystem,
+  // where no second writable path exists; that caller passes allowHardlink
+  // explicitly. dev/ino/size/mtimeNs/ctimeNs still pin the inode across the
+  // read in both postures.
+  if (!before.isFile() || before.isSymbolicLink() || before.size < 0n
+    || before.size > BigInt(limit) || realpathSync(target) !== target
+    || (!allowHardlink && before.nlink !== 1n)) throw inputError();
   const file = openSync(target, "r");
   try {
     const opened = fstatSync(file, { bigint: true });
