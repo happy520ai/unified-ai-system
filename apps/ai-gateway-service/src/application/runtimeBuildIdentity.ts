@@ -103,10 +103,10 @@ export function inspectRuntimeBuildIdentity(
       || measured.lockfileDigest !== manifest.lockfileDigest || measured.sourceFileCount !== manifest.sourceFileCount) return unknown("source-mismatch");
     return Object.freeze({ ...manifest, status: "verified", verification: "source-and-lockfile-at-module-load", attested: false });
   } catch (error) {
-    const stage = String((error as NodeJS.ErrnoException)?.code ?? "").replace(/^RUNTIME_IDENTITY_INPUT_UNSAFE_?/, "");
-    return stage && stage !== String((error as NodeJS.ErrnoException)?.code)
-      ? Object.freeze({ ...unknown("source-unavailable"), detailStage: stage })
-      : unknown("source-unavailable");
+    // Carry the stable error code (input-unsafe stage or a public errno like
+    // ENOENT/EACCES) so CI names the cause; never the message or contents.
+    const code = String((error as NodeJS.ErrnoException)?.code ?? "");
+    return code ? Object.freeze({ ...unknown("source-unavailable"), detailStage: code }) : unknown("source-unavailable");
   }
 }
 
