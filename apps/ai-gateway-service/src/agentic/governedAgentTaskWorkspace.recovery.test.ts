@@ -1,5 +1,5 @@
 // @test-isolation process
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 import { lstat, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
@@ -31,6 +31,17 @@ vi.mock("node:fs/promises", async original => {
 });
 
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
+// Synthetic backend evidence for recovery tests; no container or test process is executed here.
+function syntheticNodeTestReceipt(options: any, passed: boolean, diagnostic: string) {
+  expect(typeof options.stdin).toBe("string");
+  const input = JSON.parse(options.stdin);
+  const report = { version: 1, nonce: input.nonce, contractHash: input.contractHash, runnerHash: input.runnerHash, snapshotHash: input.snapshotHash,
+    complete: true, success: passed, counts: { tests: 1, passed: Number(passed), failed: Number(!passed), cancelled: 0, skipped: 0, todo: 0, suites: 0, topLevel: 1 },
+    executedPassed: Number(passed), requiredChecks: input.contract.requiredChecks.map((check: any) => ({ ...check, status: passed ? "passed" : "failed" })) };
+  const payload = Buffer.from(JSON.stringify(report)).toString("base64");
+  const mac = createHmac("sha256", Buffer.from(input.key, "hex")).update(payload).digest("hex");
+  return `${diagnostic}\nUAI_NODE_TEST_RECEIPT_V1:${payload}:${mac}`;
+}
 const checkpointHash = (value: unknown) => "sha256:" + hash(stableStringify(value));
 type Workspace = ReturnType<typeof createGovernedAgentTaskWorkspace>;
 type Chunk = Awaited<ReturnType<Workspace["forChunk"]>>;
@@ -50,7 +61,7 @@ async function fixture(context: TestContext, aliasWorktreeRoot = false) {
     worktreeRoot = join(aliasWorktreeRoot ? join(tmpdir(), basename(root)) : root, "worktrees"), scratchRoot = join(root, "scratch");
   const signal = AbortSignal.any([context.signal, abort.signal]);
   await mkdir(repoRoot); await mkdir(scratchRoot);
-  const before = "export const value = 1;\n", testText = "import { value } from './source.mjs'; if (value !== 2) throw Error('expected two');\n";
+  const before = "export const value = 1;\n", testText = "import test from 'node:test';\nimport assert from 'node:assert/strict';\nimport { value } from './source.mjs';\ntest('value is two', () => assert.equal(value, 2));\n";
   await writeFile(join(repoRoot, "source.mjs"), before); await writeFile(join(repoRoot, "test.mjs"), testText);
   const ownedGit = createWorkforceGit(repoRoot);
   const git = (...args: Parameters<typeof ownedGit.run>) => track(ownedGit.run(...args));
@@ -61,8 +72,9 @@ async function fixture(context: TestContext, aliasWorktreeRoot = false) {
   const profile = freezeGovernedAgentTaskProfile({ version: 1, mode: "governed-agent-long-task", profileId: "recovery", projectId: "fixture", baselineRevision,
     model: { providerId: "fake", modelId: "fake", maxInputTokens: 8192, maxOutputTokens: 4096 },
     limits: { maxPlanSteps: 3, maxIterations: 6, maxModelCalls: 7, maxTotalTokens: 32768, maxRepairAttempts: 2, chunkTimeoutMs: 30000, maxInputBytes: 4096 },
+    verificationResult: { version: 1, adapter: "node-test", minimumPassed: 1, requiredChecks: [{ file: "test.mjs", name: "value is two" }] },
     artifact: { readPaths: ["source.mjs", "test.mjs"], writePaths: ["source.mjs"],
-      verification: { verificationId: "fixed", command: "node test.mjs", immutableTests: [{ path: "test.mjs", sha256: hash(testText) }],
+      verification: { verificationId: "fixed", command: "node --test 'test.mjs'", immutableTests: [{ path: "test.mjs", sha256: hash(testText) }],
         image: "node@sha256:" + "d".repeat(64), workspaceMode: "ro", networkAccess: false, timeoutMs: 10000, maxMemoryMB: 128, maxOutputBytes: 8192, pidsLimit: 32, cpus: 1 },
       artifactLimits: { maxChangedFiles: 1, maxFileBytes: 4096, maxDiffBytes: 8192 } } });
   const config = { repoRoot, worktreeRoot, scratchRoot, enginePath: resolve("owned-fixture-engine"), profile };
@@ -245,15 +257,17 @@ it("rehydrates the original baseline and first failed verifier receipt before a 
   await f.call("file_write", { file_path: "source.mjs", content: "export const value = 0;\n" }); f.setStep(2);
   const base = { killed: false, oomKilled: false, truncated: false, cleanupUncertain: false, backend: "container" };
   const backend = vi.spyOn(ContainerSandboxBackend.prototype, "run")
-    .mockResolvedValueOnce({ ...base, exitCode: 1, stdout: "original failed check", stderr: "expected two" } as any)
-    .mockResolvedValueOnce({ ...base, exitCode: 0, stdout: "repaired", stderr: "" } as any);
+    .mockImplementationOnce(async (input: any) => ({ ...base, exitCode: 1, stdout: syntheticNodeTestReceipt(input, false, "original failed check"), stderr: "expected two" } as any))
+    .mockImplementationOnce(async (input: any) => ({ ...base, exitCode: 0, stdout: syntheticNodeTestReceipt(input, true, "repaired"), stderr: "" } as any));
   const first = await f.track(f.chunk.verify()); f.original.verificationAttempts = [first];
   f.setRepair(1); f.setStep(1); await f.seal("Repair after the retained failed verification."); await f.track(f.chunk.close());
   const { run } = f.recover(), recovered = await run();
   expect(recovered.stepReceipts()).toEqual(f.original.stepReceipts);
   await f.track(recovered.tools.executeTool("file_write", { file_path: "source.mjs", content: "export const value = 2;\n" })); f.setStep(2);
   const verified = await f.track(recovered.verify());
-  expect(verified).toMatchObject({ status: "passed", failures: [first.verification] });
+  expect(first.verification.checkResult).toMatchObject({ verdict: "failed", executedPassed: 0 });
+  expect(verified).toMatchObject({ status: "passed", failures: [first.verification], verification: {
+    checkResult: { verdict: "passed", executedPassed: 1, requiredChecks: [{ file: "test.mjs", name: "value is two", status: "passed" }] } } });
   expect(verified.artifact.filesChanged[0].beforeSha256).toBe(hash(f.before));
   expect(backend).toHaveBeenCalledTimes(2); expect(first.verification.stdout).toBe("original failed check");
 }, 2 * 30_000 + 10_000);

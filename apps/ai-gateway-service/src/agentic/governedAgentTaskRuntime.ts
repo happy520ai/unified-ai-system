@@ -430,7 +430,8 @@ export function createGovernedAgentTaskRuntime(options: {
         } catch (error) {
           if (chunk && !chunkClosed) {
             try { await chunk.close(); chunkClosed = true; }
-            catch (closeError) { Object.assign(error instanceof Error ? error : fail("FAILED"), { outcomeUnknown: true, cause: closeError }); }
+            catch (closeError) { Object.assign(error instanceof Error ? error : fail("FAILED"), { outcomeUnknown: true,
+              ...(closeError !== error ? { cause: closeError } : {}) }); }
           }
           throw error;
         }

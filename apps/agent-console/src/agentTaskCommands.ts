@@ -56,7 +56,7 @@ function reviewed(value: unknown): Data {
   if (value.version !== 1 || !HASH.test(value.configuredRepositoryHash) || !HEX.test(value.sourceFilesHash)
     || typeof value.goal !== "string" || !value.goal.trim() || typeof value.prompt !== "string" || !value.prompt.trim()) invalid();
   const profile = value.profile;
-  keys(profile, ["version", "mode", "profileId", "projectId", "baselineRevision", "model", "limits", "artifact", "profileHash"]);
+  keys(profile, ["version", "mode", "profileId", "projectId", "baselineRevision", "model", "limits", "verificationResult", "artifact", "profileHash"]);
   if (profile.version !== 1 || profile.mode !== "governed-agent-long-task" || !/^[a-f0-9]{40}$/u.test(profile.baselineRevision)) invalid();
   keys(profile.model, ["providerId", "modelId", "maxInputTokens", "maxOutputTokens"]);
   if ([profile.model.providerId, profile.model.modelId].some(value => typeof value !== "string" || !value)
@@ -78,7 +78,39 @@ function reviewed(value: unknown): Data {
     keys(test, ["path", "sha256"]);
     if (!reads.includes(test.path) || writes.includes(test.path) || !HEX.test(test.sha256)) invalid();
   }
+  const contract = profile.verificationResult;
+  keys(contract, ["version", "adapter", "minimumPassed", "requiredChecks"]);
+  if (contract.version !== 1 || contract.adapter !== "node-test" || !integer(contract.minimumPassed) || contract.minimumPassed < 1 || contract.minimumPassed > 10000
+    || !Array.isArray(contract.requiredChecks) || !contract.requiredChecks.length || contract.requiredChecks.length > 64) invalid();
+  const immutablePaths: string[] = verification.immutableTests.map((test: Data) => test.path), unique = new Set<string>(), covered = new Set<string>();
+  for (const check of contract.requiredChecks) {
+    keys(check, ["file", "name"]);
+    if (!immutablePaths.includes(check.file) || typeof check.name !== "string" || !check.name.trim() || check.name.length > 256
+      || /[\t\r\n]/u.test(check.name) || Buffer.from(check.name, "utf8").toString("utf8") !== check.name) invalid();
+    const id = canonical([check.file, check.name]); if (unique.has(id)) invalid(); unique.add(id); covered.add(check.file);
+  }
+  if (immutablePaths.some(path => !covered.has(path)) || verification.command !== "node --test " + [...immutablePaths].sort().map(path => "'" + path.replaceAll("'", "'\\''") + "'").join(" ")
+    || canonical(contract.requiredChecks) !== canonical([...contract.requiredChecks].sort((a, b) => a.file < b.file ? -1 : a.file > b.file ? 1 : a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) invalid();
   hashed(profile, "profileHash"); hashed(value, "reviewHash"); return value;
+}
+
+function checkResult(value: unknown, contract: Data, snapshotHash: string, exitCode: number): Data {
+  keys(value, ["version", "adapter", "contractHash", "runnerHash", "snapshotHash", "verdict", "reason", "counts", "executedPassed", "requiredChecks"]);
+  if (value.version !== 1 || value.adapter !== "node-test" || value.contractHash !== hash(contract) || !HASH.test(value.runnerHash)
+    || value.snapshotHash !== snapshotHash || !HEX.test(value.snapshotHash) || !["passed", "failed"].includes(value.verdict)
+    || !["checks-passed", "checks-failed", "no-executed-checks", "required-check-not-passed", "incomplete-report"].includes(value.reason)
+    || !integer(value.executedPassed) || !Array.isArray(value.requiredChecks) || value.requiredChecks.length !== contract.requiredChecks.length) invalid();
+  keys(value.counts, ["tests", "passed", "failed", "cancelled", "skipped", "todo", "suites", "topLevel"]);
+  if (!Object.values(value.counts).every(integer) || value.executedPassed > value.counts.passed) invalid();
+  value.requiredChecks.forEach((check: unknown, index: number) => {
+    keys(check, ["file", "name", "status"]);
+    if (check.file !== contract.requiredChecks[index].file || check.name !== contract.requiredChecks[index].name
+      || !["passed", "failed", "skipped", "todo", "missing", "ambiguous"].includes(check.status)) invalid();
+  });
+  if (value.verdict === "passed" ? value.reason !== "checks-passed" || exitCode !== 0 || value.executedPassed < contract.minimumPassed
+    || value.counts.failed !== 0 || value.counts.cancelled !== 0 || value.requiredChecks.some((check: Data) => check.status !== "passed")
+    : value.reason === "checks-passed") invalid();
+  return value;
 }
 function planned(value: unknown, review: Data): Data {
   keys(value, ["version", "reviewHash", "steps", "planHash"]);
@@ -137,6 +169,14 @@ export function projectGovernedAgentTaskSnapshot(value: unknown, agentId: string
   const artifactProfileHash = hash({ version: 1, mode: "forge-owned-worktree-artifact", profileId: profile.profileId,
     projectId: profile.projectId, baselineRevision: profile.baselineRevision, roleId: "backend-engineer", ...artifact });
   if (data.review.sourceFilesHash !== digest(canonical({ profileHash: artifactProfileHash, files: data.sourceFiles.map((file: Data) => [file.path, file.sha256]) }))) invalid();
+  for (const attempt of data.verificationAttempts) {
+    record(attempt); record(attempt.verification);
+    const verification = attempt.verification;
+    if (!["passed", "failed"].includes(attempt.status) || verification.status !== attempt.status || !integer(verification.exitCode)
+      || verification.command !== artifact.verification.command || verification.image !== artifact.verification.image || verification.cleanupConfirmed !== true) invalid();
+    const observed = checkResult(verification.checkResult, profile.verificationResult, verification.snapshotHash, verification.exitCode);
+    if (observed.verdict !== attempt.status) invalid();
+  }
   if (data.phase === "completed" && (!data.plan || data.stepIndex !== data.plan.steps.length
     || data.verificationAttempts.at(-1)?.status !== "passed" || data.verificationAttempts.at(-1)?.verification?.exitCode !== 0
     || data.verificationAttempts.at(-1)?.verification?.cleanupConfirmed !== true)) invalid();

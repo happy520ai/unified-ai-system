@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -14,6 +14,17 @@ import { createGovernedAgentTaskWorkspace, isGovernedAgentTaskWorkspace } from "
 
 const roots: string[] = [];
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
+// Synthetic backend evidence for orchestration tests; this does not execute a container or its tests.
+function syntheticNodeTestReceipt(options: any, passed: boolean, diagnostic: string) {
+  expect(typeof options.stdin).toBe("string");
+  const input = JSON.parse(options.stdin);
+  const report = { version: 1, nonce: input.nonce, contractHash: input.contractHash, runnerHash: input.runnerHash, snapshotHash: input.snapshotHash,
+    complete: true, success: passed, counts: { tests: 1, passed: Number(passed), failed: Number(!passed), cancelled: 0, skipped: 0, todo: 0, suites: 0, topLevel: 1 },
+    executedPassed: Number(passed), requiredChecks: input.contract.requiredChecks.map((check: any) => ({ ...check, status: passed ? "passed" : "failed" })) };
+  const payload = Buffer.from(JSON.stringify(report)).toString("base64");
+  const mac = createHmac("sha256", Buffer.from(input.key, "hex")).update(payload).digest("hex");
+  return `${diagnostic}\nUAI_NODE_TEST_RECEIPT_V1:${payload}:${mac}`;
+}
 afterEach(async () => {
   vi.restoreAllMocks();
   for (const root of roots.splice(0)) {
@@ -25,7 +36,7 @@ async function fixture() {
   const root = await mkdtemp(join(await realpath(tmpdir()), "agent-task-workspace-")); roots.push(root);
   const repoRoot = join(root, "repo"), scratchRoot = join(root, "scratch"), worktreeRoot = join(root, "worktrees");
   await mkdir(repoRoot); await mkdir(scratchRoot);
-  const testText = "import { value } from './source.mjs'; if (value !== 2) throw Error('expected value two');\n";
+  const testText = "import test from 'node:test';\nimport assert from 'node:assert/strict';\nimport { value } from './source.mjs';\ntest('value is two', () => assert.equal(value, 2));\n";
   await writeFile(join(repoRoot, "source.mjs"), "export const value = 1;\n");
   await writeFile(join(repoRoot, "test.mjs"), testText); await writeFile(join(repoRoot, "unapproved.txt"), "not in source snapshot");
   const git = createWorkforceGit(repoRoot);
@@ -36,8 +47,9 @@ async function fixture() {
   const profile = freezeGovernedAgentTaskProfile({ version: 1, mode: "governed-agent-long-task", profileId: "bounded-task", projectId: "fixture", baselineRevision,
     model: { providerId: "fake", modelId: "fake", maxInputTokens: 8192, maxOutputTokens: 4096 },
     limits: { maxPlanSteps: 3, maxIterations: 6, maxModelCalls: 7, maxTotalTokens: 32768, maxRepairAttempts: 2, chunkTimeoutMs: 30000, maxInputBytes: 4096 },
+    verificationResult: { version: 1, adapter: "node-test", minimumPassed: 1, requiredChecks: [{ file: "test.mjs", name: "value is two" }] },
     artifact: { readPaths: ["source.mjs", "test.mjs"], writePaths: ["source.mjs"],
-      verification: { verificationId: "fixed-test", command: "node test.mjs", immutableTests: [{ path: "test.mjs", sha256: hash(testText) }],
+      verification: { verificationId: "fixed-test", command: "node --test 'test.mjs'", immutableTests: [{ path: "test.mjs", sha256: hash(testText) }],
         image: "node@sha256:" + "d".repeat(64), workspaceMode: "ro", networkAccess: false, timeoutMs: 10000,
         maxMemoryMB: 128, maxOutputBytes: 8192, pidsLimit: 32, cpus: 1 },
       artifactLimits: { maxChangedFiles: 1, maxFileBytes: 4096, maxDiffBytes: 8192 } } });
@@ -149,22 +161,28 @@ it("stops at a lost fence before tools and never converts uncertain container te
   expect(await readdir(f.scratchRoot)).toEqual([]);
 });
 
-it("preserves first failed immutable verification receipt through repair and independently validates corrected snapshot", async () => {
+it("preserves the first mocked verification receipt through repair and binds the corrected snapshot", async () => {
   const f = await fixture(); f.setStep(1);
   await f.chunk.tools.executeTool("file_write", { file_path: "source.mjs", content: "export const value = 0;\n" }); f.setStep(2);
   const base = { killed: false, oomKilled: false, truncated: false, cleanupUncertain: false, backend: "container" };
-  const backend = vi.spyOn(ContainerSandboxBackend.prototype, "run").mockResolvedValueOnce({ ...base, exitCode: 1, stdout: "first actual failure", stderr: "expected two" } as any)
-    .mockResolvedValueOnce({ ...base, exitCode: 0, stdout: "corrected success", stderr: "" } as any);
+  const backend = vi.spyOn(ContainerSandboxBackend.prototype, "run")
+    .mockImplementationOnce(async (input: any) => ({ ...base, exitCode: 1, stdout: syntheticNodeTestReceipt(input, false, "first synthetic failure"), stderr: "expected two" } as any))
+    .mockImplementationOnce(async (input: any) => ({ ...base, exitCode: 0, stdout: syntheticNodeTestReceipt(input, true, "corrected synthetic success"), stderr: "" } as any));
   const first = await f.chunk.verify();
-  expect(first).toMatchObject({ status: "failed", verification: { status: "failed", exitCode: 1, stdout: "first actual failure", stderr: "expected two", cleanupConfirmed: true } });
-  expect(backend.mock.calls[0]![0]).toMatchObject({ command: "node test.mjs", workspaceMode: "ro", networkAccess: false, env: {} });
+  expect(first).toMatchObject({ status: "failed", verification: { status: "failed", exitCode: 1, stdout: "first synthetic failure", stderr: "expected two", cleanupConfirmed: true,
+    checkResult: { verdict: "failed", executedPassed: 0, requiredChecks: [{ file: "test.mjs", name: "value is two", status: "failed" }] } } });
+  const sent = backend.mock.calls[0]![0];
+  expect(sent.command.endsWith("exec node /scratch/uai-node-check.mjs")).toBe(true);
+  expect(sent.workspaceMode).toBe("ro"); expect(sent.networkAccess).toBe(false); expect(sent.env).toEqual({});
+  expect(JSON.parse(sent.stdin!).contract).toEqual(f.config.profile.verificationResult);
   expect(await readdir(f.scratchRoot)).toEqual([]);
   f.setRepair(1); f.setStep(1);
   await f.chunk.tools.executeTool("file_edit", { file_path: "source.mjs", old_string: "0", new_string: "2" });
   expect(f.chunk.stepReceipts().at(-1)).toMatchObject({ repairAttempt: 1, afterSha256: hash("export const value = 2;\n") }); f.setStep(2);
   const corrected = await f.chunk.verify();
-  expect(corrected).toMatchObject({ status: "passed", verification: { status: "passed", exitCode: 0 }, failures: [first.verification] });
-  expect(first.verification.stdout).toBe("first actual failure"); expect(corrected.artifact.filesChanged).toHaveLength(1);
+  expect(corrected).toMatchObject({ status: "passed", verification: { status: "passed", exitCode: 0,
+    checkResult: { verdict: "passed", executedPassed: 1, requiredChecks: [{ file: "test.mjs", name: "value is two", status: "passed" }] } }, failures: [first.verification] });
+  expect(first.verification.stdout).toBe("first synthetic failure"); expect(corrected.artifact.filesChanged).toHaveLength(1);
   expect(await readFile(join(f.chunk.workingDirectory, "test.mjs"), "utf8")).toBe(f.testText);
   expect(await readdir(f.scratchRoot)).toEqual([]); await f.chunk.close();
 });

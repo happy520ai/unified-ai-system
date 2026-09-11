@@ -32,8 +32,10 @@ it.skipIf(!enabled)("uses actual owned-worktree tools and real immutable read-on
     const profile = freezeGovernedAgentTaskProfile({ version: 1, mode: "governed-agent-long-task", profileId: "real-workspace", projectId: "fixture", baselineRevision,
       model: { providerId: "fake", modelId: "fake", maxInputTokens: 8192, maxOutputTokens: 4096 },
       limits: { maxPlanSteps: 3, maxIterations: 6, maxModelCalls: 7, maxTotalTokens: 32768, maxRepairAttempts: 2, chunkTimeoutMs: 120000, maxInputBytes: 4096 },
+      verificationResult: { version: 1, adapter: "node-test", minimumPassed: 1,
+        requiredChecks: [{ file: "test.mjs", name: "read-only exact networkless snapshot and actual value" }] },
       artifact: { readPaths: ["source.mjs", "test.mjs"], writePaths: ["source.mjs"],
-        verification: { verificationId: "fixed-test", command: "node --test test.mjs", immutableTests: [{ path: "test.mjs", sha256: hash(testText) }],
+        verification: { verificationId: "fixed-test", command: "node --test 'test.mjs'", immutableTests: [{ path: "test.mjs", sha256: hash(testText) }],
           image, workspaceMode: "ro", networkAccess: false, timeoutMs: 15000, maxMemoryMB: 128, maxOutputBytes: 65536, pidsLimit: 32, cpus: 1 },
         artifactLimits: { maxChangedFiles: 1, maxFileBytes: 4096, maxDiffBytes: 8192 } } });
     const factory = createGovernedAgentTaskWorkspace({ repoRoot, worktreeRoot, scratchRoot, enginePath, profile });
@@ -59,11 +61,17 @@ it.skipIf(!enabled)("uses actual owned-worktree tools and real immutable read-on
     index = 1; await chunk.tools.executeTool("file_write", { file_path: "source.mjs", content: "export const value = 0;\n" }); index = 2;
     let first;
     try { first = await chunk.verify(); } catch (error) { cleanupSafe = (error as { outcomeUnknown?: boolean }).outcomeUnknown !== true; throw error; }
-    expect(first.status).toBe("failed"); expect(first.verification.exitCode).toBeGreaterThan(0); expect(first.verification.stdout).toContain("not ok");
+    expect(first.status).toBe("failed"); expect(first.verification.exitCode).toBeGreaterThan(0);
+    expect(first.verification.checkResult).toMatchObject({ verdict: "failed", executedPassed: 0,
+      requiredChecks: [{ file: "test.mjs", name: "read-only exact networkless snapshot and actual value", status: "failed" }] });
+    expect(first.verification.stdout).toContain("[node-test test:fail]");
     repair = 1; index = 1; await chunk.tools.executeTool("file_edit", { file_path: "source.mjs", old_string: "0", new_string: "2" }); index = 2;
     let corrected;
     try { corrected = await chunk.verify(); } catch (error) { cleanupSafe = (error as { outcomeUnknown?: boolean }).outcomeUnknown !== true; throw error; }
-    expect(corrected.status).toBe("passed"); expect(corrected.verification.stdout).toContain("# pass 1");
+    expect(corrected.status).toBe("passed"); expect(corrected.verification.stdout).toContain("[node-test test:pass]");
+    expect(corrected.verification.checkResult).toMatchObject({ verdict: "passed", executedPassed: 1,
+      counts: { tests: 1, passed: 1, failed: 0, cancelled: 0, skipped: 0, todo: 0 },
+      requiredChecks: [{ file: "test.mjs", name: "read-only exact networkless snapshot and actual value", status: "passed" }] });
     expect(corrected.failures).toEqual([first.verification]); expect(corrected.artifact.filesChanged.map(file => file.path)).toEqual(["source.mjs"]);
     expect(await readFile(join(repoRoot, "source.mjs"), "utf8")).toBe("export const value = 1;\n");
     expect(await readFile(join(chunk.workingDirectory, "test.mjs"), "utf8")).toBe(testText);

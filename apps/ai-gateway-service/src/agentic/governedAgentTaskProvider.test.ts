@@ -19,8 +19,9 @@ function profile() {
   return freezeGovernedAgentTaskProfile({ version: 1, mode: "governed-agent-long-task", profileId: "provider-fixture", projectId: "owned", baselineRevision: "a".repeat(40),
     model: { providerId: "fixture", modelId: "fixture-model", maxInputTokens: 4096, maxOutputTokens: 128 },
     limits: { maxPlanSteps: 3, maxIterations: 3, maxModelCalls: 4, maxTotalTokens: 32768, maxRepairAttempts: 1, chunkTimeoutMs: 5000, maxInputBytes: 16384 },
+    verificationResult: { version: 1, adapter: "node-test", minimumPassed: 1, requiredChecks: [{ file: "test/value.test.mjs", name: "value is two" }] },
     artifact: { readPaths: ["src/value.mjs", "test/value.test.mjs"], writePaths: ["src/value.mjs"], verification: {
-      verificationId: "test", command: "node --test test/value.test.mjs", immutableTests: [{ path: "test/value.test.mjs", sha256: "b".repeat(64) }],
+      verificationId: "test", command: "node --test 'test/value.test.mjs'", immutableTests: [{ path: "test/value.test.mjs", sha256: "b".repeat(64) }],
       image: "node@sha256:" + "c".repeat(64), workspaceMode: "ro", networkAccess: false, timeoutMs: 10000, maxMemoryMB: 128, maxOutputBytes: 8192, pidsLimit: 32, cpus: 1 },
       artifactLimits: { maxChangedFiles: 1, maxFileBytes: 8192, maxDiffBytes: 16384 } } });
 }

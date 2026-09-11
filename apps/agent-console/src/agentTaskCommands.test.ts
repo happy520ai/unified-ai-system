@@ -22,12 +22,13 @@ function snapshot(providerId = "local-fake-provider", paths = ["source.mjs", "te
   const sourceFiles = [{ path: paths[0], content: "export const value = 1;\n", sha256: digest("export const value = 1;\n") },
     { path: paths[1], content: "fixed immutable test\n", sha256: digest("fixed immutable test\n") }];
   const artifact = { readPaths: paths, writePaths: [paths[0]], verification: {
-    verificationId: "fixed-tests", command: "node --test test.mjs", immutableTests: [{ path: paths[1], sha256: sourceFiles[1].sha256 }],
+    verificationId: "fixed-tests", command: "node --test '" + paths[1].replaceAll("'", "'\\''") + "'", immutableTests: [{ path: paths[1], sha256: sourceFiles[1].sha256 }],
     image: "node@sha256:" + "c".repeat(64), workspaceMode: "ro", networkAccess: false, timeoutMs: 15000, maxMemoryMB: 128, maxOutputBytes: 65536, pidsLimit: 32, cpus: 1 },
     artifactLimits: { maxChangedFiles: 1, maxFileBytes: 65536, maxDiffBytes: 262144 } };
   const profileBody = { version: 1, mode: "governed-agent-long-task", profileId: "fixed-profile", projectId: "fixture", baselineRevision: "a".repeat(40),
     model: { providerId, modelId: "fixed-model", maxInputTokens: 65536, maxOutputTokens: 4096 },
-    limits: { maxPlanSteps: 3, maxIterations: 5, maxModelCalls: 6, maxTotalTokens: 417792, maxRepairAttempts: 1, chunkTimeoutMs: 120000, maxInputBytes: 65536 }, artifact };
+    limits: { maxPlanSteps: 3, maxIterations: 5, maxModelCalls: 6, maxTotalTokens: 417792, maxRepairAttempts: 1, chunkTimeoutMs: 120000, maxInputBytes: 65536 },
+    verificationResult: { version: 1, adapter: "node-test", minimumPassed: 1, requiredChecks: [{ file: paths[1], name: "fixed required check" }] }, artifact };
   const profile = { ...profileBody, profileHash: hash(profileBody) };
   const artifactProfile = { version: 1, mode: "forge-owned-worktree-artifact", profileId: profile.profileId, projectId: profile.projectId,
     baselineRevision: profile.baselineRevision, roleId: "backend-engineer", ...artifact };
@@ -192,4 +193,32 @@ test("task CLI refuses incomplete review/state, preserves unknown outcomes and n
     f.variant("known"); assert.equal((await f.run("run", { revision: 0 })).parsed.outcomeUnknown, false);
     f.variant("persist"); assert.equal((await f.run("run", { revision: 0 })).parsed.outcomeUnknown, true);
   } finally { await f.close(); }
+});
+
+test("task CLI requires the reviewed executed-check verdict and preserves a skipped failure with actual exit zero", () => {
+  const state = snapshot(), contract = state.review.profile.verificationResult;
+  const evidence = { version: 1, adapter: "node-test", contractHash: hash(contract), runnerHash: "sha256:" + "b".repeat(64), snapshotHash: state.sourceFilesHash,
+    verdict: "passed", reason: "checks-passed", counts: { tests: 1, passed: 1, failed: 0, cancelled: 0, skipped: 0, todo: 0, suites: 0, topLevel: 1 },
+    executedPassed: 1, requiredChecks: [{ ...contract.requiredChecks[0], status: "passed" }] };
+  const verification = { status: "passed", command: state.review.profile.artifact.verification.command, image: state.review.profile.artifact.verification.image,
+    snapshotHash: state.sourceFilesHash, exitCode: 0, cleanupConfirmed: true, stdout: "original test output", stderr: "", checkResult: evidence };
+  const completed = { ...state, phase: "completed", plan: plan(state), stepIndex: 3, verificationAttempts: [{ status: "passed", verification }] };
+  assert.equal(projectGovernedAgentTaskSnapshot(completed, agentId, taskId).phase, "completed");
+  for (const change of [{ checkResult: undefined }, { checkResult: { ...evidence, executedPassed: 0 } },
+    { checkResult: { ...evidence, contractHash: "sha256:" + "0".repeat(64) } },
+    { checkResult: { ...evidence, requiredChecks: [{ ...evidence.requiredChecks[0], status: "todo" }] } },
+    { checkResult: { ...evidence, requiredChecks: [{ ...evidence.requiredChecks[0], status: "missing" }] } },
+    { checkResult: { ...evidence, requiredChecks: [evidence.requiredChecks[0], evidence.requiredChecks[0]] } }]) {
+    assert.throws(() => projectGovernedAgentTaskSnapshot({ ...completed, verificationAttempts: [{ status: "passed", verification: { ...verification, ...change } }] }, agentId, taskId));
+  }
+  const failedVerification = { ...verification, status: "failed", stdout: "first all-skipped output", checkResult: { ...evidence,
+    verdict: "failed", reason: "no-executed-checks", executedPassed: 0, counts: { ...evidence.counts, passed: 0, skipped: 1 },
+    requiredChecks: [{ ...evidence.requiredChecks[0], status: "skipped" }] } };
+  const failed = { ...state, phase: "failed", verificationAttempts: [{ status: "failed", verification: failedVerification }] };
+  const observed = projectGovernedAgentTaskSnapshot(failed, agentId, taskId);
+  assert.equal(observed.verificationAttempts[0].verification.exitCode, 0);
+  assert.equal(observed.verificationAttempts[0].verification.stdout, "first all-skipped output");
+  assert.throws(() => projectGovernedAgentTaskSnapshot({ ...completed, verificationAttempts: failed.verificationAttempts }, agentId, taskId));
+  const { verificationResult: _contract, ...legacyProfile } = state.review.profile;
+  assert.throws(() => projectGovernedAgentTaskSnapshot({ ...state, review: { ...state.review, profile: legacyProfile } }, agentId, taskId));
 });

@@ -10,6 +10,7 @@ import { captureApprovedCodeFiles, createCodeDeliveryArtifact } from "../workfor
 import type { ApprovedCodeFiles, CodeDeliveryArtifact } from "../workforce/workforceCodeDeliveryArtifacts.ts";
 import { verifyWorkforceCodeSnapshot } from "../workforce/workforceCodeDeliveryRuntime.ts";
 import type { WorkforceCodeSnapshotFailureReceipt } from "../workforce/workforceCodeDeliveryRuntime.ts";
+import { validateNodeTestCheckResult } from "../workforce/workforceNodeTestVerification.ts";
 import { createWorkforceGit } from "../workforce/workforceGit.ts";
 import { assertOwnedWorkforceWorktree, createWorktreeIsolation, restoreOwnedWorkforceWorktree } from "../workforce/worktreeIsolation.js";
 import { continuationJsonCopy } from "../workforce/taskQueueContinuation.ts";
@@ -205,10 +206,13 @@ export function createGovernedAgentTaskWorkspace(options: {
       const result = attempt.verification;
       if (!result || !["passed", "failed"].includes(attempt.status) || result.status !== attempt.status || result.cleanupConfirmed !== true
         || result.command !== policy.verification.command || result.image !== policy.verification.image || !hex(result.snapshotHash)
-        || !Number.isSafeInteger(result.exitCode) || result.exitCode < 0 || (attempt.status === "passed") !== (result.exitCode === 0)
+        || !Number.isSafeInteger(result.exitCode) || result.exitCode < 0
         || typeof result.stdout !== "string" || typeof result.stderr !== "string"
         || Buffer.byteLength(result.stdout) > policy.verification.maxOutputBytes || Buffer.byteLength(result.stderr) > policy.verification.maxOutputBytes
         || attempt.artifact?.profileHash !== policy.profileHash || attempt.artifact.sourceFilesHash !== result.snapshotHash) rejected();
+      try {
+        if (validateNodeTestCheckResult(result.checkResult, config.profile.verificationResult, result.snapshotHash, result.exitCode).verdict !== attempt.status) rejected();
+      } catch { rejected(); }
       if (attempt.status === "failed") failures.push(result as WorkforceCodeSnapshotFailureReceipt);
       if (!equal(attempt.failures, failures)) rejected();
     }
@@ -458,7 +462,7 @@ export function createGovernedAgentTaskWorkspace(options: {
           if (source.filesHash !== record.current.filesHash) throw poison(failure("WORKSPACE_SOURCE_CHANGED", true));
           const artifact = createCodeDeliveryArtifact(record.baseline, source, policy);
           try {
-            const verification = await verifyWorkforceCodeSnapshot({ source, profile: policy, scratchRoot: config.scratchRoot,
+            const verification = await verifyWorkforceCodeSnapshot({ source, profile: policy, verificationResult: config.profile.verificationResult, scratchRoot: config.scratchRoot,
               enginePath: config.enginePath, context, policyHash: input.policyHash, planId: input.taskId,
               planDigest: plan.planHash.slice(7), executionId: input.taskId, taskId: step().id, toolProxy: input.toolProxy as any,
               signal: input.signal, deadlineAt: input.deadlineAt, assertActive: check });

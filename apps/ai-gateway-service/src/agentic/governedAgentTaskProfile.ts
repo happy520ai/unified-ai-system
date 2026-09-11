@@ -4,12 +4,18 @@ import type { WorkforceCodeDeliveryProfile } from "@unified-ai-system/shared-con
 import { containsSensitivePublicationText } from "../security/secretSafety.js";
 import { freezeWorkforceCodeDeliveryProfile } from "../workforce/workforceCodeDeliveryProfile.ts";
 import { externalRunnerHash as hash } from "../workforce/workforceExternalRunnerProfile.ts";
+import { nodeTestMinimumOutputBytes } from "../workforce/workforceNodeTestVerification.ts";
 
+export type GovernedAgentTaskVerificationResult = Readonly<{
+  version: 1; adapter: "node-test"; minimumPassed: number;
+  requiredChecks: readonly Readonly<{ file: string; name: string }>[];
+}>;
 export type GovernedAgentTaskProfileInput = Readonly<{
   version: 1; mode: "governed-agent-long-task"; profileId: string; projectId: string; baselineRevision: string;
   model: Readonly<{ providerId: string; modelId: string; maxInputTokens: number; maxOutputTokens: number }>;
   limits: Readonly<{ maxPlanSteps: number; maxIterations: number; maxModelCalls: number; maxTotalTokens: number;
     maxRepairAttempts: number; chunkTimeoutMs: number; maxInputBytes: number }>;
+  verificationResult: GovernedAgentTaskVerificationResult;
   artifact: Readonly<Pick<WorkforceCodeDeliveryProfile, "readPaths" | "writePaths" | "verification" | "artifactLimits">>;
 }>;
 export type GovernedAgentTaskProfile = GovernedAgentTaskProfileInput & Readonly<{ profileHash: string }>;
@@ -19,7 +25,7 @@ export type GovernedAgentTaskReview = GovernedAgentTaskReviewInput & Readonly<{ 
 export type GovernedAgentTaskPlanStep = Readonly<{ id: string; kind: "inspect" | "implement" | "verify"; title: string; paths: readonly string[] }>;
 export type GovernedAgentTaskPlan = Readonly<{ version: 1; reviewHash: string; steps: readonly GovernedAgentTaskPlanStep[]; planHash: string }>;
 
-const PROFILE_KEYS = ["version", "mode", "profileId", "projectId", "baselineRevision", "model", "limits", "artifact"];
+const PROFILE_KEYS = ["version", "mode", "profileId", "projectId", "baselineRevision", "model", "limits", "verificationResult", "artifact"];
 const REVIEW_KEYS = ["profile", "configuredRepositoryHash", "goal", "prompt", "sourceFilesHash"];
 const HEX = /^[a-f0-9]{64}$/u, HASH = /^sha256:[a-f0-9]{64}$/u;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u, MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$/u;
@@ -70,6 +76,32 @@ function artifactPolicy(source: Record<string, unknown>): WorkforceCodeDeliveryP
     profileId: source.profileId, projectId: source.projectId, baselineRevision: source.baselineRevision, ...artifact });
 }
 
+/** Reviewed display of the fixed Node adapter invocation; never executed as arbitrary shell input. */
+export function renderGovernedAgentTaskNodeTestCommand(immutablePaths: readonly string[]): string {
+  const paths = array(immutablePaths, 1, 8).map(path => text(path, 256)).sort();
+  if (new Set(paths).size !== paths.length) invalid();
+  return text("node --test " + paths.map(path => "'" + path.replaceAll("'", "'\\''") + "'").join(" "), 512);
+}
+
+/** Pure intent validation. The declared checks grant no result or execution authority. */
+export function freezeGovernedAgentTaskVerificationResult(value: unknown, immutablePaths: readonly string[]): GovernedAgentTaskVerificationResult {
+  try {
+    const source = record(value, ["version", "adapter", "minimumPassed", "requiredChecks"]);
+    const paths = array(immutablePaths, 1, 8).map(path => text(path, 256)), allowed = new Set(paths);
+    if (source.version !== 1 || source.adapter !== "node-test" || allowed.size !== paths.length) invalid();
+    const unique = new Set<string>(), covered = new Set<string>();
+    const requiredChecks = array(source.requiredChecks, 1, 64).map(value => {
+      const check = record(value, ["file", "name"]), file = text(check.file, 256), name = text(check.name, 256);
+      const key = JSON.stringify([file, name]);
+      if (!allowed.has(file) || unique.has(key)) invalid();
+      unique.add(key); covered.add(file); return Object.freeze({ file, name });
+    }).sort((a, b) => a.file < b.file ? -1 : a.file > b.file ? 1 : a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+    if (paths.some(path => !covered.has(path))) invalid();
+    return Object.freeze({ version: 1, adapter: "node-test", minimumPassed: integer(source.minimumPassed, 1, 10000),
+      requiredChecks: Object.freeze(requiredChecks) });
+  } catch { return invalid(); }
+}
+
 /** Pure server-profile validation. It reads no files, environment, credentials or runtime state. */
 export function freezeGovernedAgentTaskProfile(value: unknown): GovernedAgentTaskProfile {
   try {
@@ -77,6 +109,10 @@ export function freezeGovernedAgentTaskProfile(value: unknown): GovernedAgentTas
     const limits = record(source.limits, ["maxPlanSteps", "maxIterations", "maxModelCalls", "maxTotalTokens", "maxRepairAttempts", "chunkTimeoutMs", "maxInputBytes"]);
     if (source.version !== 1 || source.mode !== "governed-agent-long-task" || typeof source.baselineRevision !== "string" || !/^[a-f0-9]{40}$/u.test(source.baselineRevision)) invalid();
     const artifact = artifactPolicy(source), maxInputTokens = integer(model.maxInputTokens, 1), maxOutputTokens = integer(model.maxOutputTokens, 1);
+    const immutablePaths = artifact.verification.immutableTests.map(test => test.path);
+    const verificationResult = freezeGovernedAgentTaskVerificationResult(source.verificationResult, immutablePaths);
+    if (nodeTestMinimumOutputBytes(verificationResult) > artifact.verification.maxOutputBytes) invalid();
+    if (artifact.verification.command !== renderGovernedAgentTaskNodeTestCommand(immutablePaths)) invalid();
     const maxIterations = integer(limits.maxIterations, 1, 100), maxModelCalls = integer(limits.maxModelCalls, 1, 100), maxTotalTokens = integer(limits.maxTotalTokens, 1);
     if (maxModelCalls < maxIterations + 1 || !Number.isSafeInteger(maxInputTokens + maxOutputTokens) || maxTotalTokens < maxInputTokens + maxOutputTokens) invalid();
     const profile: GovernedAgentTaskProfileInput = {
@@ -84,6 +120,7 @@ export function freezeGovernedAgentTaskProfile(value: unknown): GovernedAgentTas
       model: Object.freeze({ providerId: identifier(model.providerId, true), modelId: identifier(model.modelId, true), maxInputTokens, maxOutputTokens }),
       limits: Object.freeze({ maxPlanSteps: integer(limits.maxPlanSteps, 3, 16), maxIterations, maxModelCalls, maxTotalTokens,
         maxRepairAttempts: integer(limits.maxRepairAttempts, 0, 3), chunkTimeoutMs: integer(limits.chunkTimeoutMs, 1000, 120000), maxInputBytes: integer(limits.maxInputBytes, 1024, 524288) }),
+      verificationResult,
       artifact: Object.freeze({ readPaths: artifact.readPaths, writePaths: artifact.writePaths, verification: artifact.verification, artifactLimits: artifact.artifactLimits }),
     };
     return Object.freeze({ ...profile, profileHash: hash(profile) });

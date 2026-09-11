@@ -7,6 +7,7 @@ import { stableStringify } from "@unified-ai-system/policy-engine";
 import type { EffectiveAgentPolicy, WorkforceCodeDeliveryProfile, WorkforceCodeDeliveryReview, WorkforceRoleExecutionProfile } from "@unified-ai-system/shared-contracts";
 import { createForgeGatewayService, createForgeGovernedExecution } from "../forge/forgeGatewayService.js";
 import { effectiveGovernedToolDecision, evaluateGovernedToolScope, readWorkforceCodeDeliveryToolProxy } from "../agent-governance/toolProxy.ts";
+import type { GovernedRecordDescriptor } from "../agent-governance/governedRecordMeter.ts";
 import { assertOwnedWorkforceWorktree } from "./worktreeIsolation.js";
 import { createWorkforceGit } from "./workforceGit.ts";
 import { readWorkforceCodeDeliveryReview, readFrozenWorkforceCodeDeliveryProfile, codeDeliveryError } from "./workforceCodeDeliveryProfile.ts";
@@ -15,10 +16,14 @@ import { captureApprovedCodeFiles, createApprovedCodeSnapshot, createCodeDeliver
 import { assertWorkforceCodeTaskFence } from "./workforceDagExecutor.ts";
 import { readWorkforceCodeRoleOperation } from "./workforceRoleProvider.ts";
 import { redactSecretsInText } from "../security/secretSafety.js";
+import { freezeGovernedAgentTaskVerificationResult, renderGovernedAgentTaskNodeTestCommand } from "../agentic/governedAgentTaskProfile.ts";
+import type { GovernedAgentTaskVerificationResult } from "../agentic/governedAgentTaskProfile.ts";
+import { NODE_TEST_RUNNER_HASH, nodeTestMinimumOutputBytes, prepareNodeTestVerification } from "./workforceNodeTestVerification.ts";
+import type { NodeTestCheckResult } from "./workforceNodeTestVerification.ts";
 
 export const WORKFORCE_VERIFY_SNAPSHOT_TOOL = "workforce_verify_snapshot";
 export type WorkforceCodeSnapshotFailureReceipt = Readonly<{ status: "failed"; command: string; image: string;
-  snapshotHash: string; exitCode: number; cleanupConfirmed: true; stdout: string; stderr: string }>;
+  snapshotHash: string; exitCode: number; cleanupConfirmed: true; stdout: string; stderr: string; checkResult?: NodeTestCheckResult }>;
 export interface WorkforceCodeDeliveryFactory { readonly kind: "workforce-code-delivery-factory" }
 export interface WorkforceCodeDeliveryPreflight { readonly kind: "workforce-code-delivery-preflight" }
 type Identity = { tenantId: string; userId: string; role: string; permissions: readonly string[] };
@@ -141,12 +146,14 @@ export async function consumeWorkforceSnapshotCapability(capability: unknown, co
 /** Both concrete code runners use this private-capability, immutable container verification boundary. */
 export async function verifyWorkforceCodeSnapshot(input: {
   source: Awaited<ReturnType<typeof captureApprovedCodeFiles>>; profile: WorkforceCodeDeliveryProfile;
+  verificationResult?: GovernedAgentTaskVerificationResult;
   scratchRoot: string; enginePath: string; context: Context; policyHash: string; planId: string; planDigest: string;
   executionId: string; taskId: string; toolProxy: ToolProxy; signal: AbortSignal; deadlineAt: number;
   assertActive(phase?: "reserve" | "commit"): Promise<unknown>;
 }): Promise<Readonly<{ status: "passed"; command: string; image: string; snapshotHash: string;
-  exitCode: 0; cleanupConfirmed: true; stdout: string; stderr: string }>> {
+  exitCode: 0; cleanupConfirmed: true; stdout: string; stderr: string; checkResult?: NodeTestCheckResult }>> {
   let snapshot: Awaited<ReturnType<typeof createApprovedCodeSnapshot>> | null = null;
+  let nodeTest: ReturnType<typeof prepareNodeTestVerification> | undefined;
   let cleanupUncertain = false, verificationStarted = false, outcomeUnknown = false, preparationRetained = false;
   const capability = Object.freeze(Object.create(null));
   let lease: any, failure: Error | undefined;
@@ -154,6 +161,13 @@ export async function verifyWorkforceCodeSnapshot(input: {
     const operations = readWorkforceCodeDeliveryToolProxy(input.toolProxy);
     if (!operations) throw fail("TOOL_PROXY_REQUIRED", 403);
     const profile = readFrozenWorkforceCodeDeliveryProfile(input.profile), { source, signal, deadlineAt } = input;
+    const verificationResult = input.verificationResult === undefined ? undefined
+      : freezeGovernedAgentTaskVerificationResult(input.verificationResult, profile.verification.immutableTests.map(test => test.path));
+    const resultDescriptor: GovernedRecordDescriptor = verificationResult
+      ? { kind: "record-array", selector: ["checkResult", "requiredChecks"], itemKind: "object", onLimitExceeded: "replace" }
+      : { kind: "zero-records" };
+    if (verificationResult && profile.verification.command !== renderGovernedAgentTaskNodeTestCommand(profile.verification.immutableTests.map(test => test.path))) throw fail("BINDING_INVALID");
+    if (verificationResult && nodeTestMinimumOutputBytes(verificationResult) > profile.verification.maxOutputBytes) throw fail("BINDING_INVALID");
     const context = freezeContext(input.context);
     if (!isAbsolute(input.enginePath) || !isAbsolute(input.scratchRoot) || source.profileHash !== profile.profileHash
       || !/^sha256:[a-f0-9]{64}$/u.test(input.policyHash) || !/^[a-f0-9]{64}$/u.test(input.planDigest)
@@ -163,16 +177,19 @@ export async function verifyWorkforceCodeSnapshot(input: {
     };
     await check();
     snapshot = await createApprovedCodeSnapshot(source, input.scratchRoot, signal);
+    if (verificationResult) nodeTest = prepareNodeTestVerification(verificationResult, profile.verification.immutableTests.map(test => test.path), snapshot.filesHash);
     const snapshotContext = Object.freeze({ ...context, requestId: "wf-verify-" + randomUUID() });
     const params = Object.freeze({ executionId: input.executionId, taskId: input.taskId, planId: input.planId,
       planDigest: input.planDigest, profileHash: profile.profileHash, verificationId: profile.verification.verificationId,
-      command: profile.verification.command, image: profile.verification.image, snapshotHash: snapshot.filesHash });
+      command: profile.verification.command, image: profile.verification.image, snapshotHash: snapshot.filesHash,
+      ...(verificationResult ? { verificationResult, runnerHash: NODE_TEST_RUNNER_HASH } : {}) });
     const backend = new ContainerSandboxBackend({ enginePath: input.enginePath, image: profile.verification.image,
       workspaceRoots: [snapshot.workspace], allowNetwork: false });
     const runBackend = backend.run.bind(backend), capturedSnapshot = snapshot;
     const call: SnapshotCall = { context: snapshotContext, policyHash: input.policyHash, paramsHash: hash(stableStringify(params)),
       admitted: false, used: false, toolProxy: input.toolProxy, assertActive: () => check(), run: () => runBackend({
-        command: profile.verification.command, workspace: capturedSnapshot.workspace, workspaceMode: "ro", networkAccess: false, env: {},
+        command: nodeTest?.command ?? profile.verification.command, ...(nodeTest ? { stdin: nodeTest.stdin } : {}),
+        workspace: capturedSnapshot.workspace, workspaceMode: "ro", networkAccess: false, env: {},
         timeoutMs: Math.min(profile.verification.timeoutMs, deadlineAt - Date.now()),
         maxMemoryMB: profile.verification.maxMemoryMB, maxOutputBytes: profile.verification.maxOutputBytes,
         pidsLimit: profile.verification.pidsLimit, cpus: profile.verification.cpus, signal }) };
@@ -201,16 +218,22 @@ export async function verifyWorkforceCodeSnapshot(input: {
     cleanupUncertain = verification.cleanupUncertain !== false;
     if (!Number.isSafeInteger(verification.exitCode) || verification.exitCode < 0 || verification.killed || verification.oomKilled || verification.truncated
       || cleanupUncertain || verification.backend !== "container") throw fail("VERIFICATION_FAILED", 503);
-    if (verification.exitCode !== 0) {
+    let checkResult: NodeTestCheckResult | undefined;
+    if (nodeTest) {
+      const checked = nodeTest.read(String(verification.stdout ?? ""), verification.exitCode);
+      checkResult = checked.checkResult; verification = { ...verification, stdout: checked.stdout };
+    }
+    if (verification.exitCode !== 0 || checkResult?.verdict === "failed") {
       const receipt: WorkforceCodeSnapshotFailureReceipt = Object.freeze({ status: "failed", command: profile.verification.command,
         image: profile.verification.image, snapshotHash: snapshot.filesHash, exitCode: verification.exitCode,
-        cleanupConfirmed: true, stdout: redactSecretsInText(String(verification.stdout ?? "")), stderr: redactSecretsInText(String(verification.stderr ?? "")) });
+        cleanupConfirmed: true, stdout: redactSecretsInText(String(verification.stdout ?? "")), stderr: redactSecretsInText(String(verification.stderr ?? "")),
+        ...(checkResult ? { checkResult } : {}) });
       let audited;
       try { audited = await operations.enforceResult({ context: snapshotContext, toolName: WORKFORCE_VERIFY_SNAPSHOT_TOOL,
-        policy: verdict.policy, result: receipt, descriptor: { kind: "zero-records" } }); }
+        policy: verdict.policy, result: receipt, descriptor: resultDescriptor }); }
       catch { outcomeUnknown = true; throw fail("OUTCOME_UNKNOWN", 503); }
       if (!audited || !Object.hasOwn(audited, "result") || audited.verdict === "replace"
-        || Object.keys(receipt).some(key => (audited.result as Record<string, unknown>)?.[key] !== receipt[key as keyof typeof receipt])) {
+        || Object.keys(receipt).some(key => stableStringify((audited.result as Record<string, unknown>)?.[key]) !== stableStringify(receipt[key as keyof typeof receipt]))) {
         outcomeUnknown = true; throw fail("OUTCOME_UNKNOWN", 503);
       }
       await check();
@@ -221,14 +244,15 @@ export async function verifyWorkforceCodeSnapshot(input: {
     }
     const verifiedResult = { status: "passed" as const, command: profile.verification.command, image: profile.verification.image,
       snapshotHash: snapshot.filesHash, exitCode: 0 as const, cleanupConfirmed: true as const,
-      stdout: verification.stdout, stderr: verification.stderr };
+      stdout: verification.stdout, stderr: verification.stderr, ...(checkResult ? { checkResult } : {}) };
     let audited;
     try { audited = await operations.enforceResult({ context: snapshotContext, toolName: WORKFORCE_VERIFY_SNAPSHOT_TOOL,
-      policy: verdict.policy, result: verifiedResult, descriptor: { kind: "zero-records" } }); }
+      policy: verdict.policy, result: verifiedResult, descriptor: resultDescriptor }); }
     catch { outcomeUnknown = true; throw fail("OUTCOME_UNKNOWN", 503); }
     if (!audited || !Object.hasOwn(audited, "result") || audited.verdict === "replace") { outcomeUnknown = true; throw fail("OUTCOME_UNKNOWN", 503); }
     if (["status", "command", "image", "snapshotHash", "exitCode", "cleanupConfirmed"].some(key =>
       (audited.result as Record<string, unknown>)?.[key] !== verifiedResult[key as keyof typeof verifiedResult])) throw fail("EVIDENCE_UNREVIEWABLE", 503);
+    if (checkResult && stableStringify((audited.result as Record<string, unknown>)?.checkResult) !== stableStringify(checkResult)) throw fail("EVIDENCE_UNREVIEWABLE", 503);
     await check();
     if ((await captureApprovedCodeFiles(snapshot.workspace, profile, signal)).filesHash !== snapshot.filesHash) throw fail("SNAPSHOT_CHANGED");
     if ((await captureApprovedCodeFiles(source.root, profile, signal)).filesHash !== source.filesHash) throw fail("VALIDATED_SOURCE_CHANGED");
@@ -246,6 +270,7 @@ export async function verifyWorkforceCodeSnapshot(input: {
     });
     throw failure;
   } finally {
+    nodeTest?.close();
     snapshotCalls.delete(capability);
     try { await lease?.release?.(); }
     catch {

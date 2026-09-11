@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { chmod, mkdir, mkdtemp, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -11,6 +11,7 @@ import { captureApprovedCodeFiles } from "./workforceCodeDeliveryArtifacts.ts";
 import { freezeWorkforceCodeDeliveryProfile } from "./workforceCodeDeliveryProfile.ts";
 import { assertWorkforceCodeTaskFence, executeWorkforceDag } from "./workforceDagExecutor.ts";
 import { createToolRiskCatalog } from "../agent-governance/toolRiskCatalog.ts";
+import { freezeGovernedAgentTaskVerificationResult } from "../agentic/governedAgentTaskProfile.ts";
 
 describe("code delivery implementation provenance", () => {
   it("expires the genuine task capability after callback settlement and rejects other bindings or copied callbacks", async () => {
@@ -133,7 +134,8 @@ describe("shared approved snapshot verification", () => {
       executionId: "execution", taskId: "task", toolProxy, signal: new AbortController().signal,
       deadlineAt: Date.now() + 30000, assertActive: vi.fn(async () => {}) };
     const passed = { exitCode: 0, killed: false, oomKilled: false, truncated: false, cleanupUncertain: false,
-      backend: "container", stdout: "fixed tests passed", stderr: "" };
+      backend: "container", isolation: "filesystem", duration: 1, killReason: null, peakMemoryMB: 0,
+      stdout: "fixed tests passed", stderr: "" };
     return { input, workspace, service, policy, release, passed };
   }
 
@@ -152,6 +154,58 @@ describe("shared approved snapshot verification", () => {
     expect(f.service.reserveUsage).toHaveBeenCalledOnce(); expect(fake).not.toHaveBeenCalled();
     expect(f.release).toHaveBeenCalledOnce(); expect(await readdir(f.input.scratchRoot)).toEqual([]);
     expect(Object.isFrozen(verified)).toBe(true);
+  });
+
+  async function structuredFixture() {
+    const f = await fixture(), { profileHash: _hash, ...fields } = f.input.profile;
+    const profile = freezeWorkforceCodeDeliveryProfile({ ...fields, verification: { ...fields.verification, command: "node --test 'test.mjs'" } });
+    const verificationResult = freezeGovernedAgentTaskVerificationResult({ version: 1, adapter: "node-test", minimumPassed: 1,
+      requiredChecks: [{ file: "test.mjs", name: "actual value" }] }, ["test.mjs"]);
+    return { ...f, input: { ...f.input, profile, verificationResult, source: await captureApprovedCodeFiles(f.workspace, profile) } };
+  }
+  // These synthetic backend receipts isolate admission/audit/cleanup behavior;
+  // real TestsStream event semantics have a separate supervisor and container test.
+  function signedReport(stdin: string, status: "passed" | "skipped") {
+    const input = JSON.parse(stdin), passed = status === "passed" ? 1 : 0;
+    const payload = Buffer.from(JSON.stringify({ version: 1, nonce: input.nonce, contractHash: input.contractHash,
+      runnerHash: input.runnerHash, snapshotHash: input.snapshotHash, complete: true, success: true,
+      counts: { tests: 1, passed, failed: 0, cancelled: 0, skipped: 1 - passed, todo: 0, suites: 0, topLevel: 1 },
+      executedPassed: passed, requiredChecks: [{ ...input.contract.requiredChecks[0], status }] })).toString("base64");
+    return "UAI_NODE_TEST_RECEIPT_V1:" + payload + ":" + createHmac("sha256", Buffer.from(input.key, "hex")).update(payload).digest("hex") + "\n";
+  }
+  it("binds structured checks to Tool Proxy admission and persists an exit-zero skipped failure after confirmed cleanup", async () => {
+    const f = await structuredFixture();
+    const run = vi.spyOn(ContainerSandboxBackend.prototype, "run").mockImplementation(async options => ({
+      ...f.passed, stdout: signedReport(options.stdin, "skipped"),
+    }));
+    await expect(verifyWorkforceCodeSnapshot(f.input)).rejects.toMatchObject({ verificationReceipt: { status: "failed", exitCode: 0,
+      checkResult: { verdict: "failed", reason: "no-executed-checks", executedPassed: 0, counts: { skipped: 1 } } },
+      verificationStarted: true, snapshotRetained: false, cleanupUncertain: false, outcomeUnknown: false });
+    expect(run).toHaveBeenCalledOnce(); expect(f.release).toHaveBeenCalledOnce(); expect(await readdir(f.input.scratchRoot)).toEqual([]);
+    const reserved = f.service.reserveUsage.mock.calls[0]; expect(JSON.stringify(reserved)).not.toContain(JSON.parse(run.mock.calls[0]![0].stdin).key);
+  });
+  it("returns only authenticated check facts and never includes the one-run authenticator in the public receipt", async () => {
+    const f = await structuredFixture();
+    const run = vi.spyOn(ContainerSandboxBackend.prototype, "run").mockImplementation(async options => ({ ...f.passed, stdout: signedReport(options.stdin, "passed") }));
+    const result = await verifyWorkforceCodeSnapshot(f.input);
+    expect(result).toMatchObject({ status: "passed", exitCode: 0, checkResult: { verdict: "passed", executedPassed: 1 } });
+    const key = JSON.parse(run.mock.calls[0]![0].stdin).key;
+    expect(JSON.stringify(result)).not.toContain(key); expect(JSON.stringify(result)).not.toContain("UAI_NODE_TEST_RECEIPT_V1:");
+    expect(run.mock.calls[0]![0].command).not.toContain(key); expect(JSON.stringify(run.mock.calls[0]![0].env)).not.toContain(key);
+    expect(await readdir(f.input.scratchRoot)).toEqual([]);
+  });
+  it.each(["unsigned", "wrong-command", "filtered-result"])("refuses structured completion for %s without replay", async scenario => {
+    const f = await structuredFixture();
+    if (scenario === "wrong-command") {
+      const { profileHash: _hash, ...fields } = f.input.profile;
+      f.input.profile = freezeWorkforceCodeDeliveryProfile({ ...fields, verification: { ...fields.verification, command: "node test.mjs" } });
+    }
+    if (scenario === "filtered-result") f.policy.scope.deniedOutputFields = ["checkResult"];
+    const run = vi.spyOn(ContainerSandboxBackend.prototype, "run").mockImplementation(async options => ({ ...f.passed,
+      stdout: scenario === "unsigned" ? "tests 1 pass 1" : signedReport(options.stdin, "passed") }));
+    await expect(verifyWorkforceCodeSnapshot(f.input)).rejects.toMatchObject({ code: scenario === "unsigned" ? "WORKFORCE_NODE_TEST_RECEIPT_INVALID"
+      : scenario === "wrong-command" ? "WORKFORCE_CODE_DELIVERY_BINDING_INVALID" : "WORKFORCE_CODE_DELIVERY_EVIDENCE_UNREVIEWABLE" });
+    expect(run).toHaveBeenCalledTimes(scenario === "wrong-command" ? 0 : 1); expect(await readdir(f.input.scratchRoot)).toEqual([]);
   });
 
   it("rejects an unrecognized proxy before filesystem work and cleans up a mismatched policy admission", async () => {

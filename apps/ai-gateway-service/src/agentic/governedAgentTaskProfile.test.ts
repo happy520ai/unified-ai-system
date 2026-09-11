@@ -1,16 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
 import { externalRunnerHash } from "../workforce/workforceExternalRunnerProfile.ts";
+import { nodeTestMinimumOutputBytes } from "../workforce/workforceNodeTestVerification.ts";
 import { createGovernedAgentTaskReview, freezeGovernedAgentTaskProfile, governedAgentTaskArtifactPolicy,
   parseGovernedAgentTaskPlan, readGovernedAgentTaskPlan, readGovernedAgentTaskProfile, readGovernedAgentTaskReview,
-  readGovernedAgentTaskSelector } from "./governedAgentTaskProfile.ts";
+  readGovernedAgentTaskSelector, freezeGovernedAgentTaskVerificationResult, renderGovernedAgentTaskNodeTestCommand } from "./governedAgentTaskProfile.ts";
 import type { GovernedAgentTaskProfileInput, GovernedAgentTaskReview } from "./governedAgentTaskProfile.ts";
 
 function draft(): GovernedAgentTaskProfileInput {
   return { version: 1, mode: "governed-agent-long-task", profileId: "bounded-code", projectId: "owned-project", baselineRevision: "a".repeat(40),
     model: { providerId: "local-fake-provider", modelId: "local-fake-model", maxInputTokens: 8192, maxOutputTokens: 4096 },
     limits: { maxPlanSteps: 8, maxIterations: 6, maxModelCalls: 7, maxTotalTokens: 32768, maxRepairAttempts: 2, chunkTimeoutMs: 30000, maxInputBytes: 4096 },
+    verificationResult: { version: 1, adapter: "node-test", minimumPassed: 1,
+      requiredChecks: [{ file: "test/two.test.mjs", name: "second required check" }, { file: "test/one.test.mjs", name: "first required check" }] },
     artifact: { readPaths: ["test/two.test.mjs", "src/two.mjs", "test/one.test.mjs", "src/one.mjs"], writePaths: ["src/two.mjs", "src/one.mjs"],
-      verification: { verificationId: "immutable-tests", command: "node --test test/one.test.mjs test/two.test.mjs",
+      verification: { verificationId: "immutable-tests", command: "node --test 'test/one.test.mjs' 'test/two.test.mjs'",
         immutableTests: [{ path: "test/two.test.mjs", sha256: "b".repeat(64) }, { path: "test/one.test.mjs", sha256: "c".repeat(64) }],
         image: "node@sha256:" + "d".repeat(64), workspaceMode: "ro", networkAccess: false, timeoutMs: 10000, maxMemoryMB: 128, maxOutputBytes: 8192, pidsLimit: 32, cpus: 1 },
       artifactLimits: { maxChangedFiles: 2, maxFileBytes: 8192, maxDiffBytes: 16384 } } };
@@ -32,6 +35,78 @@ function frozen(value: unknown): void {
 }
 
 describe("pure governed Agent long-task profile", () => {
+  it("rejects an undersized complete result budget before execution even when 64 Unicode names fit the input", () => {
+    const input = draft(), paths = input.artifact.verification.immutableTests.map(test => test.path);
+    const roomy = { ...input, model: { ...input.model, maxInputTokens: 65536 },
+      limits: { ...input.limits, maxInputBytes: 131072, maxTotalTokens: 487424 },
+      artifact: { ...input.artifact, verification: { ...input.artifact.verification, maxOutputBytes: 65536 } } };
+    const requiredChecks = Array.from({ length: 64 }, (_, index) => ({ file: paths[index % paths.length]!, name: "界".repeat(253) + String(index).padStart(2, "0") }));
+    const extreme = freezeGovernedAgentTaskVerificationResult({ ...input.verificationResult, requiredChecks }, paths);
+    expect(extreme.requiredChecks).toHaveLength(64);
+    expect(Buffer.byteLength(JSON.stringify(extreme), "utf8")).toBeLessThan(65536);
+    expect(nodeTestMinimumOutputBytes(extreme)).toBeGreaterThan(65536);
+    expect(() => freezeGovernedAgentTaskProfile({ ...roomy, verificationResult: extreme }))
+      .toThrowError(expect.objectContaining({ code: "AGENT_LONG_TASK_PROFILE_INVALID" }));
+    const moderate = freezeGovernedAgentTaskVerificationResult({ ...input.verificationResult,
+      requiredChecks: requiredChecks.map((check, index) => ({ ...check, name: "check-" + index })) }, paths);
+    expect(nodeTestMinimumOutputBytes(moderate)).toBeLessThanOrEqual(65536);
+    expect(freezeGovernedAgentTaskProfile({ ...roomy, verificationResult: moderate }).verificationResult.requiredChecks).toHaveLength(64);
+    expect(nodeTestMinimumOutputBytes(input.verificationResult)).toBeGreaterThan(1024);
+    expect(() => freezeGovernedAgentTaskProfile({ ...input, artifact: { ...input.artifact,
+      verification: { ...input.artifact.verification, maxOutputBytes: 1024 } } }))
+      .toThrowError(expect.objectContaining({ code: "AGENT_LONG_TASK_PROFILE_INVALID" }));
+  });
+
+  it("binds required executed checks into the profile and review and rejects old exit-only profiles", () => {
+    const input = draft(), profile = freezeGovernedAgentTaskProfile(input);
+    expect(profile.verificationResult.requiredChecks).toEqual([...input.verificationResult.requiredChecks].reverse());
+    frozen(profile.verificationResult);
+    expect(freezeGovernedAgentTaskVerificationResult(JSON.parse(JSON.stringify(profile.verificationResult)), ["test/two.test.mjs", "test/one.test.mjs"]))
+      .toEqual(profile.verificationResult);
+    const { verificationResult: _required, ...legacy } = input;
+    expect(() => freezeGovernedAgentTaskProfile(legacy)).toThrowError(expect.objectContaining({ code: "AGENT_LONG_TASK_PROFILE_INVALID" }));
+    for (const changed of [{ ...input.verificationResult, minimumPassed: 2 }, { ...input.verificationResult,
+      requiredChecks: input.verificationResult.requiredChecks.map(check => ({ ...check, name: check.name + " exact" })) }]) {
+      const updated = freezeGovernedAgentTaskProfile({ ...input, verificationResult: changed });
+      expect(updated.profileHash).not.toBe(profile.profileHash);
+      expect(createGovernedAgentTaskReview(reviewInput(updated)).reviewHash).not.toBe(createGovernedAgentTaskReview(reviewInput(profile)).reviewHash);
+      expect(() => readGovernedAgentTaskProfile({ ...profile, verificationResult: changed })).toThrow();
+    }
+  });
+
+  it("requires bounded unique safe named checks for every immutable file and never calls getters", () => {
+    const input = draft(), paths = input.artifact.verification.immutableTests.map(test => test.path), original = input.verificationResult;
+    const first = original.requiredChecks[0]!;
+    for (const minimumPassed of [0, -1, 10001, 1.5, "1", null, NaN, Infinity]) {
+      expect(() => freezeGovernedAgentTaskVerificationResult({ ...original, minimumPassed }, paths)).toThrow();
+    }
+    expect(freezeGovernedAgentTaskVerificationResult({ ...original, minimumPassed: 10000 }, paths).minimumPassed).toBe(10000);
+    for (const requiredChecks of [[], [first], [...original.requiredChecks, first], [{ file: "src/one.mjs", name: "not immutable" }, first],
+      Array.from({ length: 65 }, (_, index) => ({ file: paths[index % paths.length], name: "case " + index }))]) {
+      expect(() => freezeGovernedAgentTaskVerificationResult({ ...original, requiredChecks }, paths)).toThrow();
+    }
+    for (const name of ["", " ", "n".repeat(257), "line\ncontrol", "tab\tcontrol", "bad\u202ename", "bad\ud800", "Bearer private-test-fixture-value"]) {
+      expect(() => freezeGovernedAgentTaskVerificationResult({ ...original, requiredChecks: [{ ...first, name }, original.requiredChecks[1]] }, paths)).toThrow();
+    }
+    for (const patch of [{ adapter: "tap-text" }, { version: 2 }, { expectedStdout: "passed" }]) {
+      expect(() => freezeGovernedAgentTaskVerificationResult({ ...original, ...patch }, paths)).toThrow();
+    }
+    const getter = vi.fn();
+    expect(() => freezeGovernedAgentTaskVerificationResult({ ...original, requiredChecks: [Object.defineProperty({ ...first }, "name", { enumerable: true, get: getter }), original.requiredChecks[1]] }, paths)).toThrow();
+    expect(getter).not.toHaveBeenCalled();
+  });
+
+  it("accepts only the canonical adapter command with quoted sorted test files", () => {
+    const input = draft();
+    expect(renderGovernedAgentTaskNodeTestCommand(["test/two.test.mjs", "test/one.test.mjs"])).toBe(input.artifact.verification.command);
+    expect(renderGovernedAgentTaskNodeTestCommand(["test/it's 中文.test.mjs"])).toBe("node --test 'test/it'\\''s 中文.test.mjs'");
+    for (const command of ["node test/one.test.mjs", "node --test test/one.test.mjs test/two.test.mjs",
+      "node --test 'test/two.test.mjs' 'test/one.test.mjs'", input.artifact.verification.command + " --test-name-pattern=absent",
+      input.artifact.verification.command + "; echo passed", "echo done"]) {
+      expect(() => freezeGovernedAgentTaskProfile({ ...input, artifact: { ...input.artifact, verification: { ...input.artifact.verification, command } } })).toThrow();
+    }
+  });
+
   it("normalizes existing artifact policy, freezes independent data and hashes every model/budget field", () => {
     const input = draft(), original = structuredClone(input), profile = freezeGovernedAgentTaskProfile(input);
     expect(input).toEqual(original); frozen(profile);

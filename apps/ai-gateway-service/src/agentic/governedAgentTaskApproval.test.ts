@@ -26,8 +26,9 @@ async function fixture() {
   const profile = freezeGovernedAgentTaskProfile({ version: 1, mode: "governed-agent-long-task", profileId: "profile", projectId: "project", baselineRevision: "a".repeat(40),
     model: { providerId: "fake", modelId: "fake", maxInputTokens: 4096, maxOutputTokens: 4096 },
     limits: { maxPlanSteps: 3, maxIterations: 4, maxModelCalls: 5, maxTotalTokens: 40960, maxRepairAttempts: 1, chunkTimeoutMs: 30000, maxInputBytes: 4096 },
+    verificationResult: { version: 1, adapter: "node-test", minimumPassed: 1, requiredChecks: [{ file: "test.mjs", name: "value is two" }] },
     artifact: { readPaths: ["source.mjs", "test.mjs"], writePaths: ["source.mjs"],
-      verification: { verificationId: "tests", command: "node test.mjs", immutableTests: [{ path: "test.mjs", sha256: "b".repeat(64) }],
+      verification: { verificationId: "tests", command: "node --test 'test.mjs'", immutableTests: [{ path: "test.mjs", sha256: "b".repeat(64) }],
         image: "node@sha256:" + "c".repeat(64), workspaceMode: "ro", networkAccess: false, timeoutMs: 5000, maxMemoryMB: 128, maxOutputBytes: 4096, pidsLimit: 32, cpus: 1 },
       artifactLimits: { maxChangedFiles: 1, maxFileBytes: 4096, maxDiffBytes: 8192 } } });
   const review = createGovernedAgentTaskReview({ profile, configuredRepositoryHash: "sha256:" + "d".repeat(64), sourceFilesHash: "e".repeat(64),

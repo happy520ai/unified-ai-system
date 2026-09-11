@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
@@ -21,6 +21,17 @@ type Resource = { root: string; queue?: TaskQueueManager; controllers: AbortCont
 const resources: Resource[] = [];
 const CHUNK_TIMEOUT_MS = 30000;
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
+// Synthetic backend evidence for runtime orchestration; the pinned runner is not executed by this mock.
+function syntheticNodeTestReceipt(options: any, passed: boolean, diagnostic: string) {
+  expect(typeof options.stdin).toBe("string");
+  const input = JSON.parse(options.stdin);
+  const report = { version: 1, nonce: input.nonce, contractHash: input.contractHash, runnerHash: input.runnerHash, snapshotHash: input.snapshotHash,
+    complete: true, success: passed, counts: { tests: 1, passed: Number(passed), failed: Number(!passed), cancelled: 0, skipped: 0, todo: 0, suites: 0, topLevel: 1 },
+    executedPassed: Number(passed), requiredChecks: input.contract.requiredChecks.map((check: any) => ({ ...check, status: passed ? "passed" : "failed" })) };
+  const payload = Buffer.from(JSON.stringify(report)).toString("base64");
+  const mac = createHmac("sha256", Buffer.from(input.key, "hex")).update(payload).digest("hex");
+  return `${diagnostic}\nUAI_NODE_TEST_RECEIPT_V1:${payload}:${mac}`;
+}
 afterEach(async () => {
   try {
     for (const resource of resources.splice(0).reverse()) {
@@ -45,7 +56,7 @@ async function fixture(repair = true) {
   const resource: Resource = { root, controllers: [], pending: new Set() }; resources.push(resource);
   const repoRoot = join(root, "repo"), worktreeRoot = join(root, "worktrees"), scratchRoot = join(root, "scratch"), dataDir = join(root, "state");
   await Promise.all([mkdir(repoRoot), mkdir(scratchRoot), mkdir(dataDir)]);
-  const testText = "import { value } from './source.mjs'; if (value !== 2) throw Error('expected two');\n";
+  const testText = "import test from 'node:test';\nimport assert from 'node:assert/strict';\nimport { value } from './source.mjs';\ntest('value is two', () => assert.equal(value, 2));\n";
   await writeFile(join(repoRoot, "source.mjs"), "export const value = 1;\n"); await writeFile(join(repoRoot, "test.mjs"), testText);
   const git = createWorkforceGit(repoRoot);
   await git.run(["-c", "init.templateDir=", "init", "--initial-branch=main"]); await git.run(["add", "source.mjs", "test.mjs"]);
@@ -54,8 +65,9 @@ async function fixture(repair = true) {
   const profile = freezeGovernedAgentTaskProfile({ version: 1, mode: "governed-agent-long-task", profileId: "runtime", projectId: "project", baselineRevision,
     model: { providerId: "fixture", modelId: "fixture-model", maxInputTokens: 16384, maxOutputTokens: 2048 },
     limits: { maxPlanSteps: 3, maxIterations: 7, maxModelCalls: 8, maxTotalTokens: 147456, maxRepairAttempts: repair ? 1 : 0, chunkTimeoutMs: CHUNK_TIMEOUT_MS, maxInputBytes: 65536 },
+    verificationResult: { version: 1, adapter: "node-test", minimumPassed: 1, requiredChecks: [{ file: "test.mjs", name: "value is two" }] },
     artifact: { readPaths: ["source.mjs", "test.mjs"], writePaths: ["source.mjs"],
-      verification: { verificationId: "fixed-test", command: "node test.mjs", immutableTests: [{ path: "test.mjs", sha256: digest(testText) }],
+      verification: { verificationId: "fixed-test", command: "node --test 'test.mjs'", immutableTests: [{ path: "test.mjs", sha256: digest(testText) }],
         image: "node@sha256:" + "d".repeat(64), workspaceMode: "ro", networkAccess: false, timeoutMs: 10000, maxMemoryMB: 128, maxOutputBytes: 4096, pidsLimit: 32, cpus: 1 },
       artifactLimits: { maxChangedFiles: 1, maxFileBytes: 4096, maxDiffBytes: 8192 } } });
   const workspaceConfig = { repoRoot, worktreeRoot, scratchRoot, enginePath: resolve("fixture-engine"), profile };
@@ -107,11 +119,13 @@ async function fixture(repair = true) {
   const gateway = new GatewayService({ providerRegistry: registry, runtimeConfig: { providerMode: "fake", enabledProviders: ["fixture"] },
     requestLogger: { log: async () => undefined }, enterpriseAudit: { recordAudit: async () => undefined } });
   const verify = vi.spyOn(ContainerSandboxBackend.prototype, "run").mockImplementation(async (input: any) => {
-    expect(input.workspaceMode).toBe("ro"); expect(input.networkAccess).toBe(false); expect(input.command).toBe("node test.mjs");
+    expect(input.workspaceMode).toBe("ro"); expect(input.networkAccess).toBe(false);
+    expect(input.command.endsWith("exec node /scratch/uai-node-check.mjs")).toBe(true);
+    expect(JSON.parse(input.stdin).contract).toEqual(profile.verificationResult);
     expect(await readFile(join(input.workspace, "test.mjs"), "utf8")).toBe(testText);
     const passed = (await readFile(join(input.workspace, "source.mjs"), "utf8")).includes("value = 2");
     return { backend: "container", exitCode: passed ? 0 : 1, killed: false, oomKilled: false, truncated: false, cleanupUncertain: false,
-      stdout: passed ? "fixed tests passed" : "first test failed: expected two", stderr: "", durationMs: 1 } as any;
+      stdout: syntheticNodeTestReceipt(input, passed, passed ? "fixed tests passed" : "first test failed: expected two"), stderr: "", durationMs: 1 } as any;
   });
   const implementation = createGovernedAgentTaskRuntime({ queue, workspace, governance: service, toolProxy: createAgentGovernanceToolProxy({ service }), gatewayService: gateway as any, providerRegistry: registry });
   const runtime = { ...implementation, run(...args: Parameters<typeof implementation.run>) {
@@ -154,6 +168,7 @@ describe("retained Agent runtime using actual Gateway, approvals, file tools and
     expect(done).toMatchObject({ taskId: f.task.taskId, agentRunId: f.task.agentRunId, phase: "completed", stepIndex: 3,
       counters: { iterations: 5, modelCalls: 6, repairAttempts: 1 }, pendingOperation: null });
     expect(done.verificationAttempts.map(result => result.status)).toEqual(["failed", "passed"]);
+    expect(done.verificationAttempts.map(result => result.verification.checkResult?.verdict)).toEqual(["failed", "passed"]);
     expect(done.verificationAttempts[0]!.verification.stdout).toBe("first test failed: expected two");
     expect(done.stepReceipts.map(receipt => [receipt.stepId, receipt.repairAttempt])).toEqual([["read", 0], ["write", 0], ["write", 1]]);
     expect(f.generate).toHaveBeenCalledTimes(6); expect(f.verify).toHaveBeenCalledTimes(2);
@@ -165,6 +180,7 @@ describe("retained Agent runtime using actual Gateway, approvals, file tools and
     expect(f.counts()).toMatchObject({ leases: 0, steps: 5, codingCalls: 5 });
     await expect(f.runtime.run(f.task.taskId, f.request("run"), { revision: done.revision })).rejects.toThrow(); expect(f.generate).toHaveBeenCalledTimes(6);
   }, 2 * CHUNK_TIMEOUT_MS + 10000);
+  // One unchanged 30s product chunk, plus bounded Git fixture preparation and teardown.
   it("keeps a proved verification failure terminal when no repair is approved", async () => {
     const f = await fixture(false), confirmed = await f.confirm();
     await expect(f.runtime.run(f.task.taskId, f.request("run"), { revision: confirmed.revision, maxIterations: 10 })).rejects.toMatchObject({ code: "AGENT_LONG_TASK_VERIFICATION_FAILED" });
@@ -172,7 +188,7 @@ describe("retained Agent runtime using actual Gateway, approvals, file tools and
     expect(stopped).toMatchObject({ phase: "failed", pendingOperation: null, counters: { repairAttempts: 0, modelCalls: 4 } });
     expect(stopped.verificationAttempts).toHaveLength(1); expect(stopped.verificationAttempts[0]!.status).toBe("failed");
     expect(f.generate).toHaveBeenCalledTimes(4); expect(f.counts().leases).toBe(0);
-  });
+  }, CHUNK_TIMEOUT_MS + 10000);
   it("retains unknown effects if a completed write cannot be checkpointed and refuses replay", async () => {
     const f = await fixture(), confirmed = await f.confirm();
     const checkpoint = f.queue.checkpointRetainedTask.bind(f.queue);
@@ -189,6 +205,24 @@ describe("retained Agent runtime using actual Gateway, approvals, file tools and
     await expect(f.runtime.run(f.task.taskId, f.request("run"), { revision: stopped.revision })).rejects.toThrow();
     expect(f.generate).toHaveBeenCalledTimes(3); expect(f.verify).not.toHaveBeenCalled(); expect(f.counts().leases).toBe(0);
   });
+  // This verification also owns one unchanged product chunk and the same fixture lifecycle.
+  it("keeps uncertain verification terminal without a self-referencing cleanup error", async () => {
+    const f = await fixture(), confirmed = await f.confirm();
+    f.verify.mockResolvedValueOnce({ backend: "container", exitCode: 137, killed: true, oomKilled: false,
+      truncated: false, cleanupUncertain: false, stdout: "incomplete synthetic execution", stderr: "killed" } as any);
+    let rejected: any;
+    try { await f.runtime.run(f.task.taskId, f.request("run"), { revision: confirmed.revision, maxIterations: 10 }); }
+    catch (error) { rejected = error; }
+    expect(rejected instanceof Error).toBe(true);
+    expect(rejected.code).toBe("AGENT_LONG_TASK_VERIFICATION_OUTCOME_UNKNOWN");
+    expect(rejected.outcomeUnknown).toBe(true);
+    expect(rejected.cause === rejected).toBe(false);
+    const stopped = await f.runtime.read(f.task.taskId, f.request("status"));
+    expect(stopped.phase).toBe("unknown"); expect(stopped.verificationAttempts).toEqual([]);
+    expect(stopped.counters.repairAttempts).toBe(0); expect(f.counts().leases).toBe(0);
+    await expect(f.runtime.run(f.task.taskId, f.request("run"), { revision: stopped.revision })).rejects.toThrow();
+    expect(f.generate).toHaveBeenCalledTimes(4); expect(f.verify).toHaveBeenCalledOnce();
+  }, CHUNK_TIMEOUT_MS + 10000);
   it("blocks changed current policy and competing original-task claims without making another model call", async () => {
     const f = await fixture(), confirmed = await f.confirm();
     const results = await Promise.allSettled([f.runtime.run(f.task.taskId, f.request("run"), { revision: confirmed.revision, maxIterations: 1 }),
