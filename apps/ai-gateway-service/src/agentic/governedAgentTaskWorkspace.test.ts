@@ -2,7 +2,7 @@ import { createHash, createHmac } from "node:crypto";
 import { mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ContainerSandboxBackend } from "@unified-ai-system/forge-core";
 import { stableStringify } from "@unified-ai-system/policy-engine";
 import { createAgentGovernanceToolProxy } from "../agent-governance/toolProxy.ts";
@@ -72,15 +72,16 @@ async function fixture() {
     emitAudit: vi.fn(async () => {}), acquireToolExecutionLease: async () => ({ release: async () => {} }) };
   let stepIndex = 0, repairAttempt = 0;
   const input = { taskId: "task-fixture", review: prepared.review, plan, context, policyHash: policy.policyHash,
-    toolProxy: createAgentGovernanceToolProxy({ service }), signal: new AbortController().signal, deadlineAt: Date.now() + 120000,
+    toolProxy: createAgentGovernanceToolProxy({ service }), signal: new AbortController().signal, deadlineAt: Date.now() + CHUNK_TIMEOUT_MS,
     assertActive: vi.fn(async () => {}), getStep: () => plan.steps[stepIndex]!, getRepairAttempt: () => repairAttempt };
   const chunk = await factory.forChunk(input);
   return { root, config, repoRoot, scratchRoot, worktreeRoot, factory, prepared, input, chunk, policy, service, git, testText,
     setStep: (index: number) => { stepIndex = index; }, setRepair: (value: number) => { repairAttempt = value; } };
 }
 
-// This lifecycle performs real Git setup and multiple serialized file actions;
-// allow the existing 30s approved chunk plus fixture setup and cleanup.
+// Every case performs real Git setup and serialized file actions inside the
+// original 30s chunk; the test harness also allows fixture setup and cleanup.
+describe("governed worktree actions within the original chunk deadline", { timeout: CHUNK_TIMEOUT_MS + 10000 }, () => {
 it("captures complete exact reviewed source, enforces real current Tool Proxy and confines actual writes to owned worktree", async () => {
   const f = await fixture();
   expect(isGovernedAgentTaskWorkspace(f.factory)).toBe(true); expect(isGovernedAgentTaskWorkspace(JSON.parse(JSON.stringify(f.factory)))).toBe(false);
@@ -218,4 +219,5 @@ it("fails closed on symlink and unapproved file change while ordinary tool helpe
   expect(await write.execute({ file_path: "value.txt", content: "three" })).toMatchObject({ status: "success" });
   expect(await readFile(join(isolated, "value.txt.bak"), "utf8")).toBe("two");
   expect(await readFile(join(sibling, "value.txt"), "utf8")).toBe("outside");
+});
 });

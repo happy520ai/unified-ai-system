@@ -16,6 +16,7 @@ import { createWorkforceGit } from "../workforce/workforceGit.ts";
 import { createGovernedAgentTaskWorkspace } from "./governedAgentTaskWorkspace.ts";
 import { freezeGovernedAgentTaskProfile } from "./governedAgentTaskProfile.ts";
 import { createGovernedAgentTaskRuntime } from "./governedAgentTaskRuntime.ts";
+import { createResidentExecution, issueResidentGrant } from "./governedAgentTaskResident.ts";
 
 type Resource = { root: string; queue?: TaskQueueManager; controllers: AbortController[]; pending: Set<Promise<unknown>> };
 const resources: Resource[] = [];
@@ -150,7 +151,63 @@ async function fixture(repair = true) {
     revoke: () => { active = false; }, counts: () => ({ leases, steps, toolCalls, codingCalls }) };
 }
 
-describe("retained Agent runtime using actual Gateway, approvals, file tools and a mocked container backend", () => {
+// Every runtime case owns the same real Git fixture and at most one active 30s chunk.
+// Cases that deliberately run two chunks keep their explicit two-chunk allowance below.
+describe("retained Agent runtime using actual Gateway, approvals, file tools and a mocked container backend", { timeout: CHUNK_TIMEOUT_MS + 10000 }, () => {
+  it("can durably stop an idle resident grant after revocation without gaining execution authority", async () => {
+    const f = await fixture(), confirmed = await f.confirm(), identity = f.request("schedule");
+    const grant = issueResidentGrant({ taskId: f.task.taskId, tenantId: identity.tenantId, userId: identity.userId, agentId: identity.agentId,
+      profileHash: f.runtime.profile.profileHash, reviewHash: confirmed.review.reviewHash, planHash: confirmed.plan!.planHash,
+      authority: { version: 1, kind: "configured-user", fingerprint: "e".repeat(12), tenantId: identity.tenantId, userId: identity.userId },
+      authorityIdentityHash: "sha256:" + "a".repeat(64), expiresAt: Date.now() + 60000, chunkIterations: 1, maxChunks: 8 });
+    const scheduled = await f.runtime.schedule(f.task.taskId, identity, confirmed.revision, grant);
+    f.revoke();
+    await expect(f.runtime.stopResident(f.task.taskId, { ...identity, tenantId: "other" }, grant.grantHash, "RESIDENT_AUTHORITY_REVOKED")).rejects.toThrow();
+    await f.runtime.stopResident(f.task.taskId, identity, grant.grantHash, "RESIDENT_AUTHORITY_REVOKED");
+    const stopped = await f.runtime.inspectResident(f.task.taskId, identity);
+    expect(stopped.phase).toBe("paused"); expect(stopped.pendingOperation).toBeNull();
+    expect(stopped.resident).toMatchObject({ enabled: false, chunks: 0, stopReason: "RESIDENT_AUTHORITY_REVOKED" });
+    expect(stopped.revision).toBe(scheduled.revision + 1); expect(stopped.counters).toEqual(scheduled.counters);
+    expect(f.generate).toHaveBeenCalledOnce(); expect(f.verify).not.toHaveBeenCalled();
+    const execution = createResidentExecution({ grant, source: identity.execution, async assertActive() {} });
+    await expect(f.runtime.run(f.task.taskId, { ...identity, execution }, { revision: stopped.revision, maxIterations: 1 })).rejects.toThrow();
+  });
+  for (const order of ["drain", "drain-then-pause", "pause-then-drain"] as const) {
+    it(`keeps server drain distinct from operator pause: ${order}`, async () => {
+      const f = await fixture(), confirmed = await f.confirm();
+      const grant = issueResidentGrant({ taskId: f.task.taskId, tenantId: "tenant", userId: "owner", agentId: "agt_original",
+        profileHash: f.runtime.profile.profileHash, reviewHash: confirmed.review.reviewHash, planHash: confirmed.plan!.planHash,
+        authority: { version: 1, kind: "configured-user", fingerprint: "e".repeat(12), tenantId: "tenant", userId: "owner" },
+        authorityIdentityHash: "sha256:" + "a".repeat(64), expiresAt: Date.now() + 60000, chunkIterations: 10, maxChunks: 8 });
+      const scheduled = await f.runtime.schedule(f.task.taskId, f.request("schedule"), confirmed.revision, grant);
+      let releaseProvider!: () => void, providerStarted!: () => void;
+      const providerGate = new Promise<void>(resolve => { releaseProvider = resolve; });
+      const started = new Promise<void>(resolve => { providerStarted = resolve; });
+      f.generate.mockImplementationOnce(async () => { providerStarted(); await providerGate;
+        return response("", [tool("read-original", "file_read", { file_path: "source.mjs" })]); });
+      const identity = f.request("run");
+      const execution = createResidentExecution({ grant, source: identity.execution, async assertActive() {} });
+      const work = f.runtime.run(f.task.taskId, { ...identity, execution }, { revision: scheduled.revision, maxIterations: 10 });
+      try {
+        await started;
+        const drain = () => f.runtime.drainResident(f.task.taskId, identity, grant.grantHash);
+        const pause = async () => {
+          const current = await f.runtime.read(f.task.taskId, f.request("status"));
+          await f.runtime.control(f.task.taskId, f.request("pause"), current.revision, "pause");
+        };
+        if (order === "pause-then-drain") { await pause(); await drain(); }
+        else { await drain(); if (order === "drain-then-pause") await pause(); }
+        const stopping = await f.runtime.read(f.task.taskId, f.request("status"));
+        expect(stopping.controlRequested).toBe(order === "drain" ? "shutdown" : "pause");
+        expect(stopping.resident?.enabled).toBe(true); // authority changes only when the in-flight chunk settles.
+      } finally { releaseProvider(); }
+      const stopped = await work;
+      expect(stopped.phase).toBe("paused"); expect(stopped.pendingOperation).toBeNull();
+      expect(stopped.resident?.enabled).toBe(order === "drain"); expect(stopped.resident?.chunks).toBe(1);
+      expect(stopped.counters).toMatchObject({ iterations: 1, modelCalls: 2, repairAttempts: 0 });
+      expect(f.counts().leases).toBe(0); expect(f.verify).not.toHaveBeenCalled();
+    }, CHUNK_TIMEOUT_MS + 10000);
+  }
   it("requires existing human approval and keeps the original plan usable after an unapproved confirmation request", async () => {
     const f = await fixture();
     await expect(f.runtime.confirm(f.task.taskId, f.request("confirm"), { revision: f.planned.revision,

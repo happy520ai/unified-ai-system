@@ -1128,6 +1128,10 @@ export function createGatewayClient(options = {}) {
       return requestJson({ baseUrl, path: governedTaskPath(agentId, taskId) + "/pause", method: "POST",
         body: governedTaskBody(request, "pause"), headers, timeoutMs, redirect: "error" });
     },
+    scheduleGovernedAgentTask(agentId, taskId, request) {
+      return requestJson({ baseUrl, path: governedTaskPath(agentId, taskId) + "/schedule", method: "POST",
+        body: governedTaskBody(request, "schedule"), headers, timeoutMs, redirect: "error" });
+    },
     cancelGovernedAgentTask(agentId, taskId, request) {
       return requestJson({ baseUrl, path: governedTaskPath(agentId, taskId) + "/cancel", method: "POST",
         body: governedTaskBody(request, "cancel"), headers, timeoutMs, redirect: "error" });
@@ -1404,7 +1408,7 @@ function governedTaskBody(value, operation) {
   const required = operation === "prepare" ? ["goal", "prompt"] : operation === "confirm"
     ? ["revision", "reviewHash", "planHash", "approvalId"] : ["revision"];
   const optional = operation === "run" ? ["maxIterations", "providerDispatchKey", "idempotencyKey"]
-    : operation === "plan" ? ["providerDispatchKey", "idempotencyKey"] : [];
+    : operation === "plan" ? ["providerDispatchKey", "idempotencyKey"] : operation === "prepare" ? ["projectId"] : [];
   const invalid = () => { throw createGatewayProtocolError("Agent task request is incomplete or contains unapproved settings."); };
   if (!value || typeof value !== "object" || ![Object.prototype, null].includes(Object.getPrototypeOf(value))) invalid();
   const body = {};
@@ -1421,6 +1425,7 @@ function governedTaskBody(value, operation) {
   if (operation === "confirm" && (![body.reviewHash, body.planHash].every(value => typeof value === "string" && /^sha256:[a-f0-9]{64}$/u.test(value))
     || typeof body.approvalId !== "string" || !/^[A-Za-z0-9_-]{1,160}$/u.test(body.approvalId))) invalid();
   if (body.maxIterations !== undefined && (!Number.isSafeInteger(body.maxIterations) || body.maxIterations < 1 || body.maxIterations > 10)) invalid();
+  if (body.projectId !== undefined && (typeof body.projectId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u.test(body.projectId))) invalid();
   for (const key of ["providerDispatchKey", "idempotencyKey"]) if (body[key] !== undefined
     && (typeof body[key] !== "string" || !/^[\x21-\x7e]{1,255}$/u.test(body[key]))) invalid();
   return body;

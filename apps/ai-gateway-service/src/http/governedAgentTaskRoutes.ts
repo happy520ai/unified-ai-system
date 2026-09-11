@@ -6,16 +6,18 @@ import type { GatewayExecutionContext } from "./httpRequestExecution.ts";
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { readJson, writeJson } from "./utils/responseUtils.js";
 
-type Runtime = ReturnType<typeof createGovernedAgentTaskRuntime>;
+type Runtime = ReturnType<typeof createGovernedAgentTaskRuntime> & {
+  scheduleInPool?(taskId: string, identity: Identity, revision: number, request: IncomingMessage): Promise<unknown>;
+};
 type Identity = Parameters<Runtime["prepare"]>[0];
 type Context = {
   request: IncomingMessage & { enterpriseIdentity?: Partial<Identity> };
   response: ServerResponse; url: URL; startedAt: number; requestId?: string;
   requestExecution?: GatewayExecutionContext;
-  application?: { getAgentLongTaskRuntime?(): Promise<Runtime> };
+  application?: { getAgentLongTaskRuntime?(selector?: { taskId?: string; projectId?: string; identity?: Identity }): Promise<Runtime> };
   writeServiceLog?(event: string, data: Record<string, unknown>): void;
 };
-const PATH = /^\/v1\/agents\/(agt_[A-Za-z0-9_-]{1,128})\/tasks(?:\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})(?:\/(plan|confirm|run|pause|cancel))?)?$/u;
+const PATH = /^\/v1\/agents\/(agt_[A-Za-z0-9_-]{1,128})\/tasks(?:\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})(?:\/(plan|confirm|run|schedule|pause|cancel))?)?$/u;
 function invalid(code = "REQUEST_INVALID", statusCode = 400) {
   return Object.assign(new Error("The governed Agent task request cannot be accepted."), { code: `AGENT_LONG_TASK_${code}`, statusCode });
 }
@@ -56,11 +58,12 @@ export async function dispatchGovernedAgentTaskRoutes(context: Context) {
       let parsed: unknown;
       try { parsed = await readJson(request, action ? 4096 : 524288); }
       catch (error) { throw invalid("REQUEST_INVALID", (error as { statusCode?: number })?.statusCode === 413 ? 413 : 400); }
-      body = !taskId ? fields(parsed, ["goal", "prompt"])
+      body = !taskId ? fields(parsed, ["goal", "prompt"], ["projectId"])
         : action === "confirm" ? fields(parsed, ["revision", "reviewHash", "planHash", "approvalId"])
           : fields(parsed, ["revision"], action === "run" ? ["maxIterations"] : []);
       if (!taskId) {
         if (typeof body.goal !== "string" || !body.goal.trim() || typeof body.prompt !== "string" || !body.prompt.trim()) throw invalid();
+        if (body.projectId !== undefined && (typeof body.projectId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u.test(body.projectId))) throw invalid();
       } else {
         revision(body);
         if (action === "confirm" && (!/^sha256:[a-f0-9]{64}$/u.test(String(body.reviewHash))
@@ -70,13 +73,16 @@ export async function dispatchGovernedAgentTaskRoutes(context: Context) {
           || Number(body.maxIterations) < 1 || Number(body.maxIterations) > 10)) throw invalid();
       }
     }
-    const runtime = await context.application?.getAgentLongTaskRuntime?.();
+    const runtime = await context.application?.getAgentLongTaskRuntime?.({ identity, ...(taskId ? { taskId } : {}),
+      ...(body.projectId !== undefined ? { projectId: body.projectId as string } : {}) });
     if (!runtime) throw invalid("UNAVAILABLE", 503);
     const result = !taskId ? await runtime.prepare(identity, { goal: body.goal as string, prompt: body.prompt as string })
       : !action ? await runtime.read(taskId, identity)
         : action === "plan" ? await runtime.plan(taskId, identity, revision(body))
           : action === "confirm" ? await runtime.confirm(taskId, identity, { revision: revision(body), reviewHash: body.reviewHash as string,
             planHash: body.planHash as string, approvalId: body.approvalId as string })
+            : action === "schedule" ? runtime.scheduleInPool
+              ? await runtime.scheduleInPool(taskId, identity, revision(body), request) : (() => { throw invalid("POOL_NOT_CONFIGURED", 503); })()
             : action === "run" ? await runtime.run(taskId, identity, { revision: revision(body),
               ...(Object.hasOwn(body, "maxIterations") ? { maxIterations: Number(body.maxIterations) } : {}) })
               : await runtime.control(taskId, identity, revision(body), action as "pause" | "cancel");

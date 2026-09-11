@@ -3,12 +3,21 @@
  * Builds status reports and provides accessor methods
  */
 
-import { MAX_VERIFY_RETRIES } from './constants.js';
+import { MAX_VERIFY_RETRIES, governedGoalReport } from './constants.js';
 
 /**
  * Get current pool status.
  */
 export function getStatus(s, self) {
+  if (s.governedChunkExecutor) return Object.freeze({ mode: 'governed-chunks', activeWorkers: s.activeWorkers.size,
+    maxConcurrent: s.maxConcurrent, maxGoals: s.options.maxGoals, maxQueuedGoals: s.options.maxQueuedGoals,
+    queueLength: s.queue.length, activeGoals: [...s.goalTrackers.values()].filter(tracker => tracker.admitted).length,
+    admittingGoals: [...s.goalTrackers.values()].filter(tracker => tracker.admitted && tracker.status === 'admitting').length,
+    shuttingDown: s.shuttingDown, goals: [...s.goalTrackers.values()].map(governedGoalReport),
+    workers: [...s.activeWorkers.values()].map(worker => ({ assignmentId: worker.assignmentId, ...worker.goal, startedAt: worker.startedAt })),
+    queue: s.queue.map(entry => ({ goalId: entry.goalId, taskId: entry.task.id })),
+    metrics: { ...s.governedMetrics }, budgetOwner: 'governed-executor', verificationOwner: 'governed-executor',
+    legacySideEffectsEnabled: false });
   const activeGoalIds = new Set([...s.activeWorkers.values()].map(w => w.goalId));
   const queuedGoalIds = new Set(s.queue.map(e => e.goalId));
 
@@ -85,6 +94,7 @@ export function getStatus(s, self) {
 }
 
 export function getMetrics(s) {
+  if (s.governedChunkExecutor) return { ...s.governedMetrics };
   return s.metrics.getMetrics();
 }
 
@@ -133,6 +143,7 @@ export function getMemoryEngine(s) {
 export function getGoalProgress(s, goalId) {
   const tracker = s.goalTrackers.get(goalId);
   if (!tracker) return null;
+  if (s.governedChunkExecutor) return governedGoalReport(tracker);
   return {
     goalId,
     totalTasks: tracker.totalTasks,

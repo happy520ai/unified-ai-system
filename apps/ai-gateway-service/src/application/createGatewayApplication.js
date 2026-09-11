@@ -36,6 +36,8 @@ import { createGovernanceStateFileBinding } from "../agent-governance/governance
 import { freezeGovernedAgentTaskProfile } from "../agentic/governedAgentTaskProfile.ts";
 import { createGovernedAgentTaskWorkspace } from "../agentic/governedAgentTaskWorkspace.ts";
 import { createGovernedAgentTaskRuntime } from "../agentic/governedAgentTaskRuntime.ts";
+import { createGovernedAgentTaskPool } from "../agentic/governedAgentTaskPool.ts";
+import { inheritResidentExecution } from "../agentic/governedAgentTaskResident.ts";
 import { TaskQueueManager } from "../workforce/taskQueueManager.js";
 import { inheritVirtualKeyRequestAccounting } from "../enterprise/virtualKeyRequestAccounting.ts";
 import { createSqliteAgentRegistryStore } from "../agent-governance/sqliteAgentRegistryStore.ts";
@@ -161,35 +163,82 @@ function parseAgentLongTaskConfiguration(env) {
     || (!env.AI_GATEWAY_WORKFORCE_CLAIM_STORE_MODE && env.AI_GATEWAY_WORKFORCE_CLAIM_POSTGRES_URL)) throw agentLongTaskConfigurationError("LOCAL_STORAGE_REQUIRED");
   let value;
   try { value = JSON.parse(raw); } catch { throw agentLongTaskConfigurationError("CONFIGURATION_INVALID"); }
+  function project(input) {
+    if (!input || typeof input !== "object" || Array.isArray(input)
+      || Object.keys(input).sort().join("|") !== "enginePath|profile|repoRoot|scratchRoot|worktreeRoot"
+      || [input.repoRoot, input.worktreeRoot, input.scratchRoot, input.enginePath].some(path => typeof path !== "string" || !isAbsolute(path))) {
+      throw agentLongTaskConfigurationError("CONFIGURATION_INVALID");
+    }
+    return Object.freeze({ ...input, profile: freezeGovernedAgentTaskProfile(input.profile) });
+  }
+  if (value?.version === 1 && Array.isArray(value.projects)) {
+    if (Object.keys(value).sort().join("|") !== "pool|projects|version" || !value.projects.length || value.projects.length > 16
+      || !value.pool || Object.keys(value.pool).sort().join("|") !== "chunkIterations|maxConcurrentWorkers|maxDurationMs|maxGoals"
+      || !Number.isSafeInteger(value.pool.maxConcurrentWorkers) || value.pool.maxConcurrentWorkers < 1 || value.pool.maxConcurrentWorkers > 8
+      || !Number.isSafeInteger(value.pool.maxGoals) || value.pool.maxGoals < 1 || value.pool.maxGoals > 64
+      || value.pool.maxConcurrentWorkers > value.pool.maxGoals
+      || !Number.isSafeInteger(value.pool.chunkIterations) || value.pool.chunkIterations < 1 || value.pool.chunkIterations > 10
+      || !Number.isSafeInteger(value.pool.maxDurationMs) || value.pool.maxDurationMs < 1000 || value.pool.maxDurationMs > 86400000) {
+      throw agentLongTaskConfigurationError("CONFIGURATION_INVALID");
+    }
+    const projects = value.projects.map(project);
+    if (new Set(projects.map(entry => entry.profile.projectId)).size !== projects.length) throw agentLongTaskConfigurationError("DUPLICATE_PROJECT");
+    return Object.freeze({ projects: Object.freeze(projects), pool: Object.freeze({ ...value.pool }) });
+  }
   if (!value || typeof value !== "object" || Array.isArray(value)
     || Object.keys(value).sort().join("|") !== "enginePath|profile|repoRoot|scratchRoot|worktreeRoot"
     || [value.repoRoot, value.worktreeRoot, value.scratchRoot, value.enginePath].some(path => typeof path !== "string" || !isAbsolute(path))) {
     throw agentLongTaskConfigurationError("CONFIGURATION_INVALID");
   }
-  return Object.freeze({ ...value, profile: freezeGovernedAgentTaskProfile(value.profile) });
+  return Object.freeze({ projects: Object.freeze([project(value)]), pool: null });
 }
 
 function createGatewayApplicationInternal(env, fixtureCapability) {
   const agentLongTaskConfiguration = parseAgentLongTaskConfiguration(env);
   let initializeAgentLongTask;
   let agentLongTaskQueue;
+  let agentLongTaskPool;
   let agentLongTaskPromise;
   let agentLongTaskClosing = false;
   let agentLongTaskClosePromise;
   const agentLongTaskAbort = new AbortController();
   const agentLongTaskInFlight = new Set();
-  async function getAgentLongTaskRuntime() {
+  async function getAgentLongTaskRuntime(selector = {}) {
     if (agentLongTaskClosing || !initializeAgentLongTask) throw agentLongTaskConfigurationError("UNAVAILABLE");
     agentLongTaskPromise ??= initializeAgentLongTask();
-    return agentLongTaskPromise;
+    const registry = await agentLongTaskPromise;
+    if (selector.taskId) {
+      const record = agentLongTaskQueue.readRetainedTask(selector.taskId, selector.identity);
+      const selected = registry.get(record.continuation.state?.review?.profile?.profileHash);
+      if (!selected) throw agentLongTaskConfigurationError("PROFILE_CHANGED");
+      return selected;
+    }
+    if (selector.projectId) {
+      const selected = [...registry.values()].find(runtime => runtime.profile.projectId === selector.projectId);
+      if (!selected) throw agentLongTaskConfigurationError("PROJECT_NOT_CONFIGURED"); return selected;
+    }
+    if (registry.size !== 1) throw agentLongTaskConfigurationError("PROJECT_REQUIRED");
+    return registry.values().next().value;
+  }
+  async function startAgentLongTaskRuntime() {
+    if (agentLongTaskConfiguration?.pool) {
+      if (agentLongTaskClosing || !initializeAgentLongTask) throw agentLongTaskConfigurationError("UNAVAILABLE");
+      agentLongTaskPromise ??= initializeAgentLongTask();
+      await agentLongTaskPromise;
+    }
   }
   function closeAgentLongTaskRuntime() {
     agentLongTaskClosing = true;
-    agentLongTaskAbort.abort(agentLongTaskConfigurationError("SHUTDOWN"));
     agentLongTaskClosePromise ??= (async () => {
       await Promise.allSettled(agentLongTaskPromise ? [agentLongTaskPromise] : []);
+      let firstError;
+      try { await agentLongTaskPool?.close(); }
+      catch (error) { firstError = error; }
+      finally { agentLongTaskAbort.abort(agentLongTaskConfigurationError("SHUTDOWN")); }
       await Promise.allSettled([...agentLongTaskInFlight]);
-      await agentLongTaskQueue?.close();
+      try { await agentLongTaskQueue?.close(); }
+      catch (error) { if (!firstError) firstError = error; }
+      if (firstError) throw firstError;
     })();
     return agentLongTaskClosePromise;
   }
@@ -536,7 +585,6 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
       },
     });
     if (agentLongTaskConfiguration) {
-      const workspace = createGovernedAgentTaskWorkspace(agentLongTaskConfiguration);
       initializeAgentLongTask = async () => {
         const queueFile = join(agentGovernanceDataDir, "agent-long-tasks.json");
         agentLongTaskQueue = new TaskQueueManager({ queueFile, retainedTasks: true,
@@ -544,23 +592,42 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
           retainedStateBinding: createGovernanceStateFileBinding({ filePath: queueFile, secret: governanceSecret, kind: "json",
             validateLegacy() { throw agentLongTaskConfigurationError("UNSIGNED_STATE_REJECTED"); } }) });
         await agentLongTaskQueue.init();
-        const runtime = createGovernedAgentTaskRuntime({ queue: agentLongTaskQueue, workspace,
-          governance: agentGovernance.service, toolProxy: agentGovernance.toolProxy, gatewayService, providerRegistry });
-        const wrapped = { profile: runtime.profile };
-        for (const name of ["prepare", "read", "plan", "confirm", "run", "control"]) {
+        const registry = new Map(), rawRuntimes = new Map();
+        for (const project of agentLongTaskConfiguration.projects) {
+          const workspace = createGovernedAgentTaskWorkspace(project);
+          const runtime = createGovernedAgentTaskRuntime({ queue: agentLongTaskQueue, workspace,
+            governance: agentGovernance.service, toolProxy: agentGovernance.toolProxy, gatewayService, providerRegistry });
+          rawRuntimes.set(runtime.profile.profileHash, runtime);
+          const wrapped = { profile: runtime.profile };
+          for (const name of ["prepare", "read", "plan", "confirm", "run", "control", "scheduleInPool"]) {
           wrapped[name] = (...args) => {
             if (agentLongTaskClosing) return Promise.reject(agentLongTaskConfigurationError("SHUTDOWN"));
             const identityIndex = name === "prepare" ? 0 : 1, identity = args[identityIndex];
             const execution = { ...identity.execution, signal: AbortSignal.any([identity.execution.signal, agentLongTaskAbort.signal]) };
             inheritVirtualKeyRequestAccounting(identity.execution, execution);
+            inheritResidentExecution(identity.execution, execution);
             args[identityIndex] = { ...identity, execution };
-            const pending = Promise.resolve().then(() => runtime[name](...args));
+            const pending = Promise.resolve().then(async () => {
+              if (name === "scheduleInPool") {
+                if (!agentLongTaskPool) throw agentLongTaskConfigurationError("POOL_NOT_CONFIGURED");
+                return agentLongTaskPool.schedule(runtime, ...args);
+              }
+              if (name === "control" && agentLongTaskPool) return agentLongTaskPool.control(runtime, ...args);
+              return runtime[name](...args);
+            });
             agentLongTaskInFlight.add(pending);
             void pending.finally(() => agentLongTaskInFlight.delete(pending)).catch(() => {});
             return pending;
           };
+          }
+          registry.set(runtime.profile.profileHash, Object.freeze(wrapped));
         }
-        return Object.freeze(wrapped);
+        if (agentLongTaskConfiguration.pool) {
+          agentLongTaskPool = createGovernedAgentTaskPool({ queue: agentLongTaskQueue, runtimes: rawRuntimes,
+            config: agentLongTaskConfiguration.pool, enterprise: enterpriseGovernanceService, signal: agentLongTaskAbort.signal });
+          await agentLongTaskPool.recover();
+        }
+        return registry;
       };
     }
   }
@@ -1110,6 +1177,7 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
   return {
     agentGovernance,
     getAgentLongTaskRuntime,
+    startAgentLongTaskRuntime,
     closeAgentLongTaskRuntime,
     taijiCapabilityService,
     agentExecWorkingDirectory,

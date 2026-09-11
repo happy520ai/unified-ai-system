@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { SelfHealingEngine, SelfLoopEngineWithErrorLoop } from "@unified-ai-system/forge-core";
 import type { EffectiveAgentPolicy } from "@unified-ai-system/shared-contracts";
 import { stableStringify } from "@unified-ai-system/policy-engine";
 import type { AgentGovernanceService, GovernanceContext } from "../agent-governance/agentGovernanceService.ts";
@@ -19,6 +20,8 @@ import { createGovernedAgentTaskProvider } from "./governedAgentTaskProvider.ts"
 import type { GovernedAgentTaskWorkspace, GovernedAgentTaskWorkspaceReceipt, GovernedAgentTaskStepReceipt,
   GovernedAgentTaskOriginalWorkspace } from "./governedAgentTaskWorkspace.ts";
 import { isGovernedAgentTaskWorkspace } from "./governedAgentTaskWorkspace.ts";
+import { assertIssuedResidentGrant, getResidentExecution, readResidentState, residentTaskError,
+  type GovernedAgentTaskResidentGrant, type GovernedAgentTaskResidentState } from "./governedAgentTaskResident.ts";
 
 type ProviderOptions = Parameters<typeof createGovernedAgentTaskProvider>[0];
 type ProviderReceipt = Parameters<ProviderOptions["settle"]>[0];
@@ -31,8 +34,12 @@ type State = {
   workspaceReceipt: GovernedAgentTaskWorkspaceReceipt | null; sourceFilesHash: string; loopCheckpoint: unknown;
   stepIndex: number; stepReceipts: GovernedAgentTaskStepReceipt[]; modelReceipts: ProviderReceipt[];
   verificationAttempts: Verification[]; finalAnswer: string; errorCode: string | null;
+  resident?: GovernedAgentTaskResidentState | null;
+  recoveryAttempts?: Array<{ attempt: number; status: "pending" | "recovered" | "failed" | "unknown";
+    sourceFilesHash: string; code: "WORKSPACE_NOT_ATTACHED"; errorCode: string | null }>;
+  loopDecisions?: Array<{ attemptId: string; action: string; reason: string; repairAttempts: number }>;
 };
-type Live = { control: "run" | "pause" | "cancel"; controller: AbortController; identity: Identity };
+type Live = { control: "run" | "pause" | "cancel" | "drain"; controller: AbortController; identity: Identity };
 type GovernancePort = Pick<AgentGovernanceService, "authorizeAgentExecution" | "getAgent" | "reserveUsage" | "createApproval"
   | "findApprovedArguments" | "consumeApprovedArguments" | "verifyConsumedArguments">;
 const TERMINAL = new Set(["completed", "failed", "cancelled", "unknown"]);
@@ -63,6 +70,18 @@ function recordState(value: unknown): State {
     || !Array.isArray(state.sourceFiles) || !Array.isArray(state.stepReceipts) || !Array.isArray(state.modelReceipts)
     || !Array.isArray(state.verificationAttempts) || typeof state.finalAnswer !== "string") throw fail("STATE_INVALID");
   state.review = readGovernedAgentTaskReview(state.review);
+  state.resident = readResidentState(state.resident);
+  state.recoveryAttempts ??= []; state.loopDecisions ??= [];
+  if (!Array.isArray(state.recoveryAttempts) || state.recoveryAttempts.length > state.review.profile.limits.maxIterations
+    || !Array.isArray(state.loopDecisions) || state.loopDecisions.length > state.review.profile.limits.maxRepairAttempts + 1) throw fail("STATE_INVALID");
+  if (state.recoveryAttempts.some((attempt, index) => !attempt || Object.keys(attempt).sort().join("|") !== "attempt|code|errorCode|sourceFilesHash|status"
+    || attempt.attempt !== index + 1 || attempt.code !== "WORKSPACE_NOT_ATTACHED" || !/^[a-f0-9]{64}$/u.test(attempt.sourceFilesHash)
+    || !["pending", "recovered", "failed", "unknown"].includes(attempt.status)
+    || !(attempt.errorCode === null || /^[A-Z][A-Z0-9_]{0,127}$/u.test(attempt.errorCode)))) throw fail("STATE_INVALID");
+  if (state.loopDecisions.some((decision, index) => !decision || Object.keys(decision).sort().join("|") !== "action|attemptId|reason|repairAttempts"
+    || decision.attemptId !== `verify_${index + 1}` || !["ACCEPT", "ADJUST_RETRY", "EXHAUSTED", "ESCALATE"].includes(decision.action)
+    || !/^[A-Z][A-Z0-9_]{0,95}$/u.test(decision.reason) || !Number.isSafeInteger(decision.repairAttempts)
+    || decision.repairAttempts < 0 || decision.repairAttempts > state.review.profile.limits.maxRepairAttempts)) throw fail("STATE_INVALID");
   if (state.plan !== null) state.plan = readGovernedAgentTaskPlan(state.plan, state.review);
   if (state.stepIndex > (state.plan?.steps.length ?? 0) || state.verificationAttempts.length > state.review.profile.limits.maxRepairAttempts + 1
     || state.modelReceipts.length > state.review.profile.limits.maxModelCalls) throw fail("STATE_INVALID");
@@ -104,6 +123,7 @@ export function createGovernedAgentTaskRuntime(options: {
   if (!(queue instanceof TaskQueueManager) || queue.getInfo().continuation?.signedFileIntegrity !== true
     || !isGovernedAgentTaskWorkspace(workspace) || typeof governance.verifyConsumedArguments !== "function") throw fail("RUNTIME_UNAVAILABLE", 503);
   const profile = readGovernedAgentTaskProfile(workspace.profile), live = new Map<string, Live>();
+  const selfLoop = new SelfLoopEngineWithErrorLoop({}), selfHealing = new SelfHealingEngine();
   function read(taskId: string, identity: Identity) {
     const task = queue.readRetainedTask(taskId, identity), continuation = readTaskContinuation(task.continuation), state = recordState(continuation.state);
     if (state.review.profile.profileHash !== profile.profileHash || continuation.inputHash !== state.review.reviewHash
@@ -118,14 +138,23 @@ export function createGovernedAgentTaskRuntime(options: {
       pendingOperation: continuation.pendingOperation, review: state.review, sourceFiles: state.sourceFiles, plan: state.plan,
       approvalId: state.approvalId, confirmedApprovalId: state.confirmedApprovalId, stepIndex: state.stepIndex,
       stepReceipts: state.stepReceipts, modelReceipts: state.modelReceipts, verificationAttempts: state.verificationAttempts,
+      recoveryAttempts: state.recoveryAttempts, loopDecisions: state.loopDecisions,
       workspaceReceipt: state.workspaceReceipt, sourceFilesHash: state.sourceFilesHash, finalAnswer: state.finalAnswer,
-      errorCode: state.errorCode ?? checkpointError, controlRequested: live.get(taskId)?.control ?? null,
+      errorCode: state.errorCode ?? checkpointError, controlRequested: live.get(taskId)?.control === "drain" ? "shutdown" : live.get(taskId)?.control ?? null,
+      resident: state.resident ? { enabled: state.resident.enabled, chunks: state.resident.chunks,
+        maxChunks: state.resident.grant.maxChunks, expiresAt: state.resident.grant.expiresAt,
+        chunkIterations: state.resident.grant.chunkIterations, stopReason: state.resident.stopReason } : null,
       resumable: continuation.phase === "paused" && !continuation.pendingOperation && !checkpointError && state.confirmedApprovalId !== null
         && (!state.workspaceReceipt || workspace.hasOwnership(taskId, state.workspaceReceipt)),
       recovery: { automaticReplay: false, workspaceReconciliationRequired: Boolean(state.workspaceReceipt && !workspace.hasOwnership(taskId, state.workspaceReceipt)),
         wholeDirectoryRollbackProtection: false } });
   }
   async function authorize(identity: Identity, state?: State) {
+    const resident = getResidentExecution(identity.execution);
+    if (resident) {
+      if (!state?.resident || state.resident.grant.grantHash !== resident.grantHash) throw residentTaskError("BINDING_CHANGED", 403);
+      await resident.assertActive();
+    }
     const admission = await governance.authorizeAgentExecution(identity.agentId, identity);
     try {
       if (state) {
@@ -158,9 +187,12 @@ export function createGovernedAgentTaskRuntime(options: {
             || (error as { persistenceOutcomeUnknown?: boolean })?.persistenceOutcomeUnknown);
           if (error instanceof Error) Object.assign(error, { outcomeUnknown: unknown });
           const code = typeof (error as { code?: unknown })?.code === "string" ? (error as { code: string }).code : "AGENT_LONG_TASK_FAILED";
-          const preserve = !unknown && !known && ["prepared", "awaiting_confirmation", "paused"].includes(current.continuation.phase);
+          const preserve = !unknown && ["prepared", "awaiting_confirmation", "paused"].includes(current.continuation.phase);
           await session.save({ phase: unknown ? "unknown" : entry.control === "cancel" ? "cancelled" : preserve ? current.continuation.phase : "failed",
-            ...(known ? { pendingOperation: null } : {}), state: { ...current.state, errorCode: code } }, true);
+            ...(known ? { pendingOperation: null } : {}), state: { ...current.state, errorCode: code,
+              recoveryAttempts: current.state.recoveryAttempts?.map(attempt => attempt.status === "pending"
+                ? { ...attempt, status: unknown ? "unknown" : "failed", errorCode: code } : attempt),
+              ...(current.state.resident ? { resident: { ...current.state.resident, enabled: false, stopReason: code } } : {}) } }, true);
         } catch (recoveryError) {
           if (error instanceof Error) {
             Object.assign(error, { persistenceOutcomeUnknown: true });
@@ -182,6 +214,8 @@ export function createGovernedAgentTaskRuntime(options: {
     const current = () => read(taskId, identity);
     const assertActive = async (phase: "reserve" | "commit" = "commit") => {
       signal.throwIfAborted(); if (released || Date.now() >= deadlineAt) throw fail("CHUNK_DEADLINE", 504);
+      const resident = getResidentExecution(identity.execution);
+      if (resident) await resident.assertActive();
       await admission.executionLease.assertActive(phase); await queue.assertRetainedTaskActive(taskId, identity, claim);
       signal.throwIfAborted(); if (Date.now() >= deadlineAt) throw fail("CHUNK_DEADLINE", 504);
     };
@@ -195,7 +229,8 @@ export function createGovernedAgentTaskRuntime(options: {
     };
     const provider = (phase: "planning" | "coding") => createGovernedAgentTaskProvider({
       profile, gatewayService: options.gatewayService, providerRegistry: options.providerRegistry,
-      requestExecution: identity.execution, approvedRoute: `/v1/agents/${identity.agentId}/tasks/${taskId}/${phase === "planning" ? "plan" : "run"}`,
+      requestExecution: identity.execution, approvedRoute: getResidentExecution(identity.execution)
+        ? `/internal/agent-pool/${taskId}/run` : `/v1/agents/${identity.agentId}/tasks/${taskId}/${phase === "planning" ? "plan" : "run"}`,
       identity: { tenantId: identity.tenantId, userId: identity.userId, role: identity.role!, permissions: identity.permissions!,
         ...(identity.apiKeyFingerprint ? { apiKeyFingerprint: identity.apiKeyFingerprint } : {}) },
       agentId: identity.agentId, agentRunId: current().state.agentRunId, policyHash: admission.policy.policyHash,
@@ -225,6 +260,53 @@ export function createGovernedAgentTaskRuntime(options: {
   }
   const api = {
     profile,
+    /** Server-only projection from the signed queue; never exposed as a ref-to-identity endpoint. */
+    async inspectResident(taskId: string, identity: Pick<Identity, "tenantId" | "userId" | "agentId">) {
+      await queue.retainedStateBinding.verify();
+      const current = read(taskId, identity as Identity);
+      return { phase: current.continuation.phase, revision: current.continuation.revision,
+        pendingOperation: current.continuation.pendingOperation, resident: current.state.resident ?? null,
+        review: current.state.review, plan: current.state.plan, agentRunId: current.state.agentRunId,
+        counters: current.continuation.counters, errorCode: current.state.errorCode };
+    },
+    /** Revocation may remove execution permission. The server can still disable a matching idle grant, never perform work. */
+    async stopResident(taskId: string, identity: Pick<Identity, "tenantId" | "userId" | "agentId">, grantHash: string, code: string) {
+      if (!/^[A-Z][A-Z0-9_]{0,127}$/u.test(code)) throw residentTaskError("STOP_REASON_INVALID");
+      await queue.retainedStateBinding.verify();
+      const current = read(taskId, identity as Identity);
+      if (current.state.resident?.grant.grantHash !== grantHash) throw residentTaskError("BINDING_CHANGED");
+      if (live.has(taskId) || current.continuation.phase !== "paused" || current.continuation.pendingOperation) throw residentTaskError("STOP_REQUIRES_SETTLEMENT");
+      if (!current.state.resident.enabled) return;
+      const { hash: _priorHash, ...body } = current.continuation;
+      const next = createTaskContinuation({ ...body, revision: current.continuation.revision + 1,
+        state: { ...current.state, errorCode: code, resident: { ...current.state.resident, enabled: false, stopReason: code } } });
+      const claim = await queue.claimRetainedTask(taskId, identity, current.continuation.revision);
+      await queue.checkpointRetainedTask(taskId, identity, claim, current.continuation.revision, next, true);
+    },
+    /** Process shutdown stops dispatch at the next safe boundary while retaining the original, unextended grant. */
+    async drainResident(taskId: string, identity: Pick<Identity, "tenantId" | "userId" | "agentId">, grantHash: string) {
+      await queue.retainedStateBinding.verify();
+      const current = read(taskId, identity as Identity);
+      if (current.state.resident?.grant.grantHash !== grantHash) throw residentTaskError("BINDING_CHANGED");
+      const entry = live.get(taskId);
+      if (entry && entry.control === "run") entry.control = "drain";
+    },
+    async schedule(taskId: string, identity: Identity, revision: number, grant: GovernedAgentTaskResidentGrant) {
+      assertIssuedResidentGrant(grant);
+      return withClaim(taskId, identity, revision, async session => {
+        const before = session.current(), state = before.state;
+        if (before.continuation.phase !== "paused" || before.continuation.pendingOperation || !state.plan || !state.confirmedApprovalId
+          || grant.taskId !== taskId || grant.tenantId !== identity.tenantId || grant.userId !== identity.userId || grant.agentId !== identity.agentId
+          || grant.profileHash !== profile.profileHash || grant.reviewHash !== state.review.reviewHash || grant.planHash !== state.plan.planHash
+          || grant.expiresAt <= Date.now() || state.resident?.enabled) throw residentTaskError("SCHEDULE_BINDING_INVALID");
+        const approved = await governance.verifyConsumedArguments({ approvalId: state.confirmedApprovalId, agentId: identity.agentId,
+          tenantId: identity.tenantId, toolName: GOVERNED_AGENT_TASK_TOOL, policyHash: state.policyHash, executionId: taskId,
+          args: { taskId, agentRunId: state.agentRunId, review: state.review, plan: state.plan } });
+        if (!approved) throw fail("ORIGINAL_APPROVAL_UNCONFIRMED", 403);
+        await session.save({ state: { ...state, resident: { grant, enabled: true, chunks: 0, stopReason: null } } }, true);
+        return view(taskId, identity);
+      });
+    },
     async prepare(identityInput: Identity, input: { goal: string; prompt: string }) {
       const identity = ownedIdentity(identityInput), admission = await authorize(identity);
       try {
@@ -303,6 +385,12 @@ export function createGovernedAgentTaskRuntime(options: {
     async run(taskId: string, identity: Identity, input: { revision: number; maxIterations?: number }) {
       const chunkIterations = input.maxIterations ?? 4;
       if (!Number.isSafeInteger(chunkIterations) || chunkIterations < 1 || chunkIterations > 10) throw fail("CHUNK_LIMIT_INVALID", 400);
+      const scheduled = read(taskId, identity).state.resident, residentExecution = getResidentExecution(identity.execution);
+      if (scheduled?.enabled || residentExecution) {
+        if (!scheduled?.enabled || !residentExecution || residentExecution.taskId !== taskId
+          || residentExecution.grantHash !== scheduled.grant.grantHash || chunkIterations !== scheduled.grant.chunkIterations
+          || scheduled.grant.expiresAt <= Date.now() || scheduled.chunks >= scheduled.grant.maxChunks) throw residentTaskError("EXECUTION_NOT_ADMITTED", 403);
+      }
       return withClaim(taskId, identity, input.revision, async session => {
         const initial = session.current(), state = initial.state;
         if (initial.continuation.phase !== "paused" || !state.plan || !state.confirmedApprovalId) throw fail("CONFIRMATION_REQUIRED", 403);
@@ -310,12 +398,18 @@ export function createGovernedAgentTaskRuntime(options: {
           tenantId: identity.tenantId, toolName: GOVERNED_AGENT_TASK_TOOL, policyHash: state.policyHash, executionId: taskId,
           args: { taskId, agentRunId: state.agentRunId, review: state.review, plan: state.plan } });
         if (!approved) throw fail("ORIGINAL_APPROVAL_UNCONFIRMED", 403);
+        if (state.resident?.enabled) await session.save({ state: { ...state, resident: { ...state.resident, chunks: state.resident.chunks + 1 } } });
         let chunk: Chunk | undefined, chunkClosed = false;
         const plan = state.plan;
         const currentStep = () => plan.steps[session.current().state.stepIndex] ?? plan.steps[plan.steps.length - 1]!;
         try {
           await session.assertActive();
-          await session.save({ phase: "running", pendingOperation: { id: "workspace_" + randomUUID(), kind: "iteration", inputHash: plan.planHash } });
+          const needsRecovery = Boolean(state.workspaceReceipt && !workspace.hasOwnership(taskId, state.workspaceReceipt));
+          const recoveryAttempt = (state.recoveryAttempts?.length ?? 0) + 1;
+          if (needsRecovery && recoveryAttempt > profile.limits.maxIterations) throw Object.assign(fail("RECOVERY_EXHAUSTED"), { knownNoPendingEffects: true });
+          await session.save({ phase: "running", pendingOperation: { id: "workspace_" + randomUUID(), kind: "iteration", inputHash: plan.planHash },
+            ...(needsRecovery ? { state: { ...session.current().state, recoveryAttempts: [...state.recoveryAttempts ?? [],
+              { attempt: recoveryAttempt, status: "pending", sourceFilesHash: state.sourceFilesHash, code: "WORKSPACE_NOT_ATTACHED", errorCode: null }] } } : {}) });
           const recoveryHash = session.current().continuation.hash;
           const recoverOriginal = async (): Promise<GovernedAgentTaskOriginalWorkspace> => {
             await session.assertActive();
@@ -335,14 +429,32 @@ export function createGovernedAgentTaskRuntime(options: {
               verificationAttempts: before.state.verificationAttempts, identity: { agentId: identity.agentId, tenantId: identity.tenantId, userId: identity.userId },
               policyHash: before.state.policyHash, loopCheckpoint: before.state.loopCheckpoint, checkpointHash: hash(before.state.loopCheckpoint) };
           };
-          chunk = await workspace.forChunk({ taskId, review: state.review, plan,
+          const openChunk = () => workspace.forChunk({ taskId, review: state.review, plan,
             ...(state.workspaceReceipt ? { workspaceReceipt: state.workspaceReceipt, expectedSourceFilesHash: state.sourceFilesHash } : {}),
             context: { agentId: identity.agentId, tenantId: identity.tenantId, userId: identity.userId, requestId: identity.requestId },
             policyHash: state.policyHash, toolProxy: options.toolProxy, signal: session.signal, deadlineAt: session.deadlineAt,
             assertActive: session.assertActive, getStep: currentStep,
             getRepairAttempt: () => session.current().continuation.counters.repairAttempts }, { recoverOriginal });
+          if (needsRecovery) {
+            const bindingHash = initial.continuation.bindingHash;
+            const recovered = await selfHealing.recoverGovernedWorkspace({
+              diagnosis: { code: "WORKSPACE_NOT_ATTACHED", taskId, bindingHash, attempt: recoveryAttempt,
+                maxAttempts: profile.limits.maxIterations, pendingEffect: false }, signal: session.signal, deadlineAt: session.deadlineAt,
+              async authorize() { await session.assertActive(); return true as const; }, recover: openChunk,
+              async verify(resource: Chunk) {
+                const current = await resource.captureCurrent();
+                if (!workspace.hasOwnership(taskId, resource.workspaceReceipt) || current.filesHash !== state.sourceFilesHash
+                  || stableStringify(resource.workspaceReceipt) !== stableStringify(state.workspaceReceipt)) throw fail("RECOVERY_VERIFY_FAILED", 409, true);
+                return { healthy: true, taskId, bindingHash, sourceFilesHash: current.filesHash };
+              },
+            });
+            chunk = recovered.resource;
+          } else chunk = await openChunk();
+          if (!chunk) throw fail("WORKSPACE_UNAVAILABLE", 503, true);
           const activeChunk = chunk;
-          await session.save({ pendingOperation: null, state: { ...session.current().state, workspaceReceipt: chunk.workspaceReceipt } });
+          await session.save({ pendingOperation: null, state: { ...session.current().state, workspaceReceipt: chunk.workspaceReceipt,
+            recoveryAttempts: session.current().state.recoveryAttempts?.map(attempt => attempt.status === "pending"
+              ? { ...attempt, status: "recovered", errorCode: null } : attempt) } });
           const provider = session.provider("coding");
           const checkpointSessionFactory = async (checkpointBinding: AgenticCheckpointBinding, _session: { sessionId: string }) => {
             const restored = session.current().state.loopCheckpoint;
@@ -400,12 +512,19 @@ export function createGovernedAgentTaskRuntime(options: {
               const attempts = [...before.state.verificationAttempts, result];
               await session.save({ phase: "running", state: { ...before.state, verificationAttempts: attempts,
                 sourceFilesHash: result.artifact.sourceFilesHash, finalAnswer: loopState.finalAnswer } });
-              if (result.status === "passed") {
+              const attemptId = `verify_${attempts.length}`;
+              const decision = selfLoop.decideGovernedVerification({ verification: { status: result.status, attemptId,
+                sourceFilesHash: result.artifact.sourceFilesHash, checkResult: result.verification.checkResult },
+                counters: { ...before.continuation.counters, iterations: loopState.iteration },
+                limits: { maxIterations: profile.limits.maxIterations, maxModelCalls: profile.limits.maxModelCalls,
+                  maxTotalTokens: profile.limits.maxTotalTokens, maxRepairAttempts: profile.limits.maxRepairAttempts }, signal: session.signal });
+              await session.save({ state: { ...session.current().state, loopDecisions: [...session.current().state.loopDecisions ?? [],
+                { attemptId, action: decision.action, reason: decision.reason, repairAttempts: before.continuation.counters.repairAttempts }] } });
+              if (decision.action === "ACCEPT") {
                 await session.save({ state: { ...session.current().state, stepIndex: plan.steps.length } });
                 return { action: "complete" };
               }
-              if (before.continuation.counters.repairAttempts >= profile.limits.maxRepairAttempts
-                || loopState.iteration >= profile.limits.maxIterations) throw Object.assign(fail("VERIFICATION_FAILED"), { knownNoPendingEffects: true });
+              if (decision.action !== "ADJUST_RETRY") throw Object.assign(fail("VERIFICATION_FAILED"), { knownNoPendingEffects: true });
               const repairAttempt = before.continuation.counters.repairAttempts + 1;
               await session.save({ counters: { ...session.current().continuation.counters, repairAttempts: repairAttempt },
                 state: { ...session.current().state, stepIndex: plan.steps.findIndex(step => step.kind === "implement") } });
@@ -421,10 +540,13 @@ export function createGovernedAgentTaskRuntime(options: {
           const after = session.current();
           if (session.entry.control === "cancel") throw Object.assign(fail("CANCEL_REQUESTED", 499), { knownNoPendingEffects: !after.continuation.pendingOperation });
           if (result.status === "paused" && !after.continuation.pendingOperation) {
-            await session.save({ phase: "paused" }, true);
+            await session.save({ phase: "paused", state: { ...after.state,
+                ...(after.state.resident && session.entry.control === "pause"
+                ? { resident: { ...after.state.resident, enabled: false, stopReason: session.entry.control } } : {}) } }, true);
           } else if (result.status === "completed" && after.state.verificationAttempts.at(-1)?.status === "passed"
             && after.state.stepIndex === plan.steps.length && !after.continuation.pendingOperation) {
-            await session.save({ phase: "completed", state: { ...after.state, finalAnswer: result.finalAnswer } }, true);
+            await session.save({ phase: "completed", state: { ...after.state, finalAnswer: result.finalAnswer,
+              ...(after.state.resident ? { resident: { ...after.state.resident, enabled: false, stopReason: "completed" } } : {}) } }, true);
           } else throw fail("EXECUTION_INCOMPLETE", 409, Boolean(after.continuation.pendingOperation));
           return view(taskId, identity);
         } catch (error) {
@@ -441,6 +563,7 @@ export function createGovernedAgentTaskRuntime(options: {
       if (!["pause", "cancel"].includes(action)) throw fail("CONTROL_INVALID", 400);
       const current = await api.read(taskId, identity);
       if (TERMINAL.has(current.phase)) return current;
+      if (current.revision !== revision) throw fail("CONTROL_REVISION_CHANGED");
       const running = live.get(taskId);
       if (running) {
         if (running.identity.tenantId !== identity.tenantId || running.identity.userId !== identity.userId || running.identity.agentId !== identity.agentId) throw fail("NOT_FOUND", 404);
@@ -449,7 +572,9 @@ export function createGovernedAgentTaskRuntime(options: {
         return view(taskId, identity);
       }
       return withClaim(taskId, identity, revision, async session => {
-        await session.save({ phase: action === "cancel" ? "cancelled" : session.current().continuation.phase }, true);
+        const before = session.current();
+        await session.save({ phase: action === "cancel" ? "cancelled" : before.continuation.phase,
+          state: { ...before.state, ...(before.state.resident ? { resident: { ...before.state.resident, enabled: false, stopReason: action } } : {}) } }, true);
         return view(taskId, identity);
       });
     },

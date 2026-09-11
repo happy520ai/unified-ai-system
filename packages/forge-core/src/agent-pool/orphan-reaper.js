@@ -2,6 +2,33 @@
  * Orphan Task Reaper
  * Scans for tasks that are stuck in 'running' state with no active worker
  */
+import { governedRecord, governedIdentifier, governedPoolError } from './constants.js';
+
+/** Root supplies signed, eligible original goals; this never scans or resets legacy tasks. */
+export async function recoverGovernedGoals(s, enqueue) {
+  if (s.shuttingDown) throw governedPoolError('SHUTTING_DOWN');
+  if (!s.governedChunkExecutor.recoverableGoals) throw governedPoolError('RECOVERY_UNAVAILABLE');
+  const source = await s.governedChunkExecutor.recoverableGoals();
+  if (!Array.isArray(source) || source.length > 64) throw governedPoolError('RECOVERY_INVALID');
+  const ids = new Set(), goals = source.map(value => {
+    const entry = governedRecord(value, ['goalId', 'userId']);
+    governedIdentifier(entry.goalId, true); governedIdentifier(entry.userId);
+    if (ids.has(entry.goalId)) throw governedPoolError('RECOVERY_INVALID');
+    ids.add(entry.goalId); return entry;
+  });
+  const admitted = [], rejected = [];
+  for (const entry of goals) {
+    try {
+      const result = await enqueue(entry.goalId, entry.userId);
+      void result.completion.catch(() => {});
+      admitted.push(entry.goalId);
+    } catch (error) {
+      const code = typeof error?.code === 'string' && /^[A-Z][A-Z0-9_]{0,127}$/u.test(error.code) ? error.code : 'FORGE_POOL_RECOVERY_REJECTED';
+      rejected.push(Object.freeze({ goalId: entry.goalId, code }));
+    }
+  }
+  return Object.freeze({ admitted: Object.freeze(admitted), rejected: Object.freeze(rejected), legacyTasksReplayed: false });
+}
 
 /**
  * A3: 孤儿任务收割机
@@ -12,6 +39,7 @@
  * 则标记为 failed,防止任务永远卡住。
  */
 export async function reapOrphanTasks(s) {
+  if (s.governedChunkExecutor) return;
   if (!s.store) return;
 
   let orphaned = [];

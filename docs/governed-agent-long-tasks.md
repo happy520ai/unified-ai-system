@@ -1,12 +1,12 @@
 # 受控 Agent 长任务
 
-这条路径把一次代码任务保存为一个原始任务 UUID：先准备完整输入，再提出计划，由操作者审批计划，最后按请求执行有限长度的运行片段。后续查询、暂停、取消和继续都使用同一个 UUID 与最新版本号。CLI、SDK 和 HTTP 接口均不自动循环到完成。
+这条路径把一次代码任务保存为一个原始任务 UUID：先准备完整输入，再提出计划，由操作者审批计划，最后执行有限长度的运行片段。可以逐次请求 `run`，也可以在服务器启用共享 Pool 后明确请求 `schedule`，由服务器在原预算内继续推进。查询、暂停、取消和继续都使用同一个 UUID 与最新版本号。
 
 功能默认不启用。它使用现有 Agent Governance、网关 Provider、文件工具、独立 Git worktree 和只读容器验证；不改变普通 `/chat`、原生登录或默认 Provider 路由。源码、临时文件和验证输出不是发布、部署或生产就绪证据。
 
 ## 服务器配置
 
-由服务器设置 `AI_GATEWAY_AGENT_LONG_TASK_CONFIG_JSON`。其 JSON 顶层必须恰好包含以下五个字段：
+由服务器设置 `AI_GATEWAY_AGENT_LONG_TASK_CONFIG_JSON`。单项目、手动片段配置保留以下五个字段：
 
 ```json
 {
@@ -83,21 +83,41 @@
 
 配置要求本地主机、内存中的执行 claim 和签名持久队列；不支持多实例或分布式 claim 模式。现有 Agent 必须处于有效状态，具备批准路径所需的文件读写和独立快照验证权限。实际使用真实 Provider 仍需要明确、限定的授权。
 
+## 共享 Pool 与常驻推进
+
+需要多项目常驻推进时，将完整配置改为 `{ "version": 1, "projects": [项目配置A, 项目配置B], "pool": { "maxConcurrentWorkers": 2, "maxGoals": 8, "chunkIterations": 1, "maxDurationMs": 3600000 } }`。每个项目配置都是上面的完整五字段对象；示意中的项目配置名称必须替换为实际 JSON 对象。最多配置 16 个不同 `projectId`。并发片段数为 1–8，已接纳目标数为 1–64，片段迭代数为 1–10，常驻授权期限为 1 秒到 24 小时；并发数不能大于目标数。
+
+准备任务时用 `projectId` 选择服务器配置；请求不能替换仓库、模型或测试。计划审批和确认保持原流程。然后使用只含当前 `revision` 的文件明确加入 Pool：
+
+```powershell
+pnpm gateway agents task schedule <original-task-uuid> --agent-id agt_<id> --input revision.json --yes
+pnpm gateway agents task status <original-task-uuid> --agent-id agt_<id> --json
+```
+
+常驻入口要求真实认证的企业身份同时具备 `workflow:run`、`chat:use`，以及原 Agent 执行权限。虚拟 Key 的每个片段重新执行现有准入、预算和用量结算；普通配置用户的权限、吊销和有效期也重新检查。签名任务只保留非秘密身份引用及权限哈希，令牌和旧 HTTP 请求不进入任务状态。身份或权限变化时停止原授权，不能借重启扩大权限。
+
+现有 AgentPool 的共享队列按目标轮转，同一个目标最多执行一个片段。目标拥有各自的租户、项目、原工作区、批准、计数和执行 claim。容量不足明确拒绝，不删除其他目标。若重启后容量降低而某个旧目标未获接纳，该目标保留原状态和停止原因，需重新 `schedule`；不会显示为仍在自动执行。
+
+`pause` 停止常驻授权并等待安全边界；`cancel` 请求中止该任务，等待实际操作停稳后才释放槽位。控制使用当前版本，并绑定当前授权；版本冲突时先重新查询。服务正常关闭会等待已在执行的片段到达安全边界，保留未过期的原常驻授权，重启后重新核验身份、批准、工作区和完整检查点，并领取新的 claim。进程被强制终止、截止时间届满或动作结果不明时，任务可能进入 `unknown`，绝不自动重放。服务器关闭时限应覆盖配置的片段时限及清理时间；不能把强制退出当作正常暂停。
+
+常驻期限、片段上限和授权范围在加入 Pool 时固定，重启不延长授权、不清零计数。当前服务器的并发和容量配置仍生效。只有显式 `schedule` 的任务会在启动后推进；普通手动任务继续等待明确的 `run`。
+
 ## HTTP 与 SDK
 
 下表中的 `<agentId>` 是原始 Agent ID，`<taskId>` 是准备步骤返回的原始 UUID。所有请求都使用现有受限网关身份。
 
 | HTTP | 请求体 | SDK 方法 |
 | --- | --- | --- |
-| `POST /v1/agents/<agentId>/tasks` | `{goal, prompt}` | `prepareGovernedAgentTask(agentId, body)` |
+| `POST /v1/agents/<agentId>/tasks` | `{goal, prompt, projectId?}` | `prepareGovernedAgentTask(agentId, body)` |
 | `GET /v1/agents/<agentId>/tasks/<taskId>` | 无 | `governedAgentTask(agentId, taskId)` |
 | `POST …/<taskId>/plan` | `{revision}` | `planGovernedAgentTask(agentId, taskId, body)` |
 | `POST …/<taskId>/confirm` | `{revision, reviewHash, planHash, approvalId}` | `confirmGovernedAgentTask(agentId, taskId, body)` |
 | `POST …/<taskId>/run` | `{revision, maxIterations?}` | `runGovernedAgentTask(agentId, taskId, body)` |
+| `POST …/<taskId>/schedule` | `{revision}` | `scheduleGovernedAgentTask(agentId, taskId, body)` |
 | `POST …/<taskId>/pause` | `{revision}` | `pauseGovernedAgentTask(agentId, taskId, body)` |
 | `POST …/<taskId>/cancel` | `{revision}` | `cancelGovernedAgentTask(agentId, taskId, body)` |
 
-`revision` 必须来自任务当前响应；初始版本可以是 `0`。每次 `run` 默认最多执行 4 次迭代，客户端接受 1–10 的显式片段上限，同时仍受原 profile 的总迭代、模型调用、Token 和修复次数限制。SDK 的 `plan` 和 `run` 沿用现有 Provider-Dispatch-Key 请求头机制；该值不会进入任务 JSON，且不是 Provider 凭据。可用 SDK 的 `providerDispatchKey` 选项绑定一个已有请求，但不能据此假设未知结果可以重试。七个新接口都拒绝 HTTP 重定向，不转发原任务材料或自动重试。
+`revision` 必须来自任务当前响应；初始版本可以是 `0`。每次 `run` 默认最多执行 4 次迭代，客户端接受 1–10 的显式片段上限，同时仍受原 profile 的总迭代、模型调用、Token 和修复次数限制。SDK 的 `plan` 和 `run` 沿用现有 Provider-Dispatch-Key 请求头机制；该值不会进入任务 JSON，且不是 Provider 凭据。可用 SDK 的 `providerDispatchKey` 选项绑定一个已有请求，但不能据此假设未知结果可以重试。任务接口都拒绝 HTTP 重定向，不转发原任务材料或自动重试。`schedule` 只接纳原任务；后台模型操作使用独立的内部入站上下文和派发标识，不借用客户端的请求头。
 
 ```ts
 import { createGatewayClient } from "@unified-ai-system/shared-sdk";
@@ -182,7 +202,7 @@ pnpm gateway agents task run <original-task-uuid> --agent-id agt_<id> --input ch
 pnpm gateway agents task status <original-task-uuid> --agent-id agt_<id> --json
 ```
 
-`plan`、`run` 在提交前读取一次当前任务，核对版本与固定 Provider；非 `local-fake-provider` 请求还必须显式提供 `--allow-real-provider`。这个开关只授权使用已审查的服务器模型，不允许选择另一个模型。成功返回 `paused` 表示这个片段结束，并不等于任务完成。只有再次明确调用 `run` 才会继续原任务。
+`plan`、`run`、`schedule` 在提交前读取一次当前任务，核对版本与固定 Provider；非 `local-fake-provider` 请求还必须显式提供 `--allow-real-provider`。这个开关只授权使用已审查的服务器模型，不允许选择另一个模型。成功返回 `paused` 表示片段结束，并不等于任务完成。手动任务再次明确调用 `run` 后继续；`resident.enabled:true` 的任务由 Pool 在原授权内推进。
 
 暂停和取消也使用最新的 `{ "revision": n }` 文件：
 
@@ -197,13 +217,16 @@ pnpm gateway agents task cancel <original-task-uuid> --agent-id agt_<id> --input
 
 界面应显示原始 `taskId`、`agentRunId`、`revision`、`phase` 和 `controlRequested`，并直接使用服务器的 `resumable` 与 `recovery` 提示。不得把按钮点击、HTTP 成功、模型回答或检查点存在推断为任务完成。
 
-当 `phase` 为 `paused`，同时 `resumable:false`、`workspaceReconciliationRequired:true` 时，应提示“对原任务显式运行，先核验并恢复原工作区”。这不是新建任务或重新规划的入口；CLI 的 `run` 仍可按原 UUID 和当前版本请求这项核验。状态查询与服务启动都不会自动发送运行请求。
+当手动任务 `phase` 为 `paused`，同时 `resumable:false`、`workspaceReconciliationRequired:true` 时，应提示“对原任务显式运行，先核验并恢复原工作区”。CLI 的 `run` 仍可按原 UUID 和当前版本请求核验。已加入 Pool 的任务会在每次恢复前完成相同检查；状态查询本身不会发起执行。
 
 | 响应字段 | 应表达的含义 |
 | --- | --- |
 | `review`、`sourceFiles`、`plan` | 完整原始意图、批准范围、不可变测试与计划；确认页面不可截断或替换 |
 | `approvalId`、`confirmedApprovalId` | 待决定批准与已经消费的原批准；两者不是自动授权 |
 | `counters` | 持久累计的迭代、模型调用、预留 Token、修复次数 |
+| `resident` | 是否已明确加入 Pool、已执行片段数、原上限与到期时间、停止原因 |
+| `loopDecisions` | 每份独立检查对应的接受、修复、预算耗尽或升级处理决定 |
+| `recoveryAttempts` | 原工作区恢复的意图、独立复验结果或失败；不会覆盖前次失败 |
 | `modelReceipts` | 网关 Provider 操作回执；缺少报告的 usage 保留 `null` |
 | `stepReceipts` | 完整读取或文件操作的观察回执；`changed:false` 表示无内容变化，不是测试通过 |
 | `verificationAttempts` | 独立固定测试的历次结果及 `checkResult` 执行判定，包含第一次失败；后续通过不得覆盖首次失败 |
@@ -218,7 +241,7 @@ pnpm gateway agents task cancel <original-task-uuid> --agent-id agt_<id> --input
 
 验证监督器通过一次运行专用的管道接收临时认证材料；该材料不放进命令行、环境变量、持久状态或模型上下文，测试子进程不继承这项权限。主机核验认证回执后移除传输认证帧，普通 stdout/stderr 只作为诊断文本。这个边界证明结果来自固定运行器，不能扩大为“业务语义完全正确”或生产质量保证：验证结论仍限于已审批且实际执行的必需检查。
 
-签名队列在 claim、保存和重新加载时检查完整性；修改 JSON 后仅重算普通内容哈希不能恢复权限或预算。它仍是单写者、本地主机设计，不能把签名完整性宣传为整个数据目录的防回滚能力。进程重启后，服务不会自动执行任务。对暂停的原任务显式调用 `run` 时，服务器先进行只读恢复检查；它不新建 worktree、不重新规划，也不重置任何计数。
+签名队列在 claim、保存和重新加载时检查完整性；修改 JSON 后仅重算普通内容哈希不能恢复权限或预算。它仍是单写者、本地主机设计，不能把签名完整性宣传为整个数据目录的防回滚能力。进程重启后，普通手动任务等待显式 `run`，已明确加入 Pool 且授权仍有效的任务由服务器重新核验后推进。两条路径都先对原任务进行只读恢复检查；不新建 worktree、不重新规划，也不重置任何计数。
 
 恢复前后都必须重新核验当前签名队列、当前任务 claim、当前 Agent、已消费的完整原批准和稳定的 continuation 哈希。v2 工作区回执以十进制 BigInt 字符串保存仓库目录、worktree 根目录、原 worktree 目录及其 `.git` 文件的设备和文件身份。恢复还比对 Git 注册、分支、批准基线、完整当前文件哈希、成对且无待执行操作的检查点、累计 usage 与限制、步骤回执和首次失败测试历史。所有检查一致后才恢复原工作区所有权，并允许这次显式请求继续有限片段。
 
@@ -239,13 +262,17 @@ pnpm exec vitest run apps/ai-gateway-service/src/agentic/governedAgentTaskWorksp
 
 v2 恢复的单元与运行时集成通过，只能证明这些测试中的恢复检查和原任务延续。真正的跨进程恢复还需要记录两个独立进程的配对见证：第一进程保存暂停状态并退出，第二进程校验同一原任务、原工作区与累计预算后继续。单侧进程成功、等待超时或未完成的配对都不能写成跨进程通过；本文不预先声明该见证已经完成。
 
+独立检查失败后，现有 SelfLoop 使用原任务的验证回执和累计预算决定是否修复。只有原长任务运行时执行重试并递增计数；不存在 Pool、SelfLoop 各自再加一次重试的情况。修复仍限于原实现步骤和可写路径，不修改不可变测试。失败回执与决定按次保留；预算耗尽或验证结果不足时停止并交给操作者。候选修改始终留在独立 worktree，原项目不由自动回滚覆盖。
+
+跨进程工作区尚未附着时，现有 SelfHealing 执行一次明确的原工作区恢复，前后核验当前授权，并独立检查工作区身份及当前源码哈希后才继续。每次尝试先写入签名任务，使用原有迭代上限限制恢复次数；未知尝试不能重复。这里的恢复通过表示工作区连续性已确认，代码是否正确仍由后续不可变测试单独判定。
+
 ## Language Selection
 
-- **Workload:** 在现有 Agent 治理与网关中实现有界长任务；为现有 CLI、SDK 和页面消费者暴露同一个原任务的生命周期。
+- **Workload:** 在现有 Agent 治理与网关中实现有界长任务、共享 Pool 常驻调度及独立恢复复验；为现有 CLI、SDK 和页面消费者暴露同一个原任务的生命周期。
 - **Primary path:** `apps/ai-gateway-service/src/agentic/governedAgentTask*.ts`、对应 HTTP 路由及 `src/workforce/workforceNodeTestVerification.ts`；`packages/forge-core/src/sandbox-executor/container-backend.js`；`apps/agent-console/src/agentTaskCommands.ts`；`packages/shared-sdk/src/index.ts` 与已有 `index.js`；已有 CLI 入口 `cli-core.js`。
 - **Alternative A — 全部 TypeScript:** 新运行时和新 CLI 模块的类型边界、状态与回执最适合 TypeScript。把 SDK 已有 JS 入口和整个 CLI 同时迁移会扩大兼容与构建范围。
 - **Alternative B — 全部 Node.js ESM JavaScript:** 与旧入口兼容，但新任务状态、确认参数及验证结果失去直接类型检查。
-- **Chosen language:** 新应用运行时、状态适配、验证契约与结果核验、CLI 模块使用 TypeScript；SDK 类型继续在 TypeScript 声明，现有 ESM JS 入口只追加必要方法与薄分发。固定 Node ESM 监督器直接运行在既有只读禁网容器内，不增加编译步骤；已有 JavaScript 容器后端仅增加可选标准输入管道，传送一次运行的认证材料。继续使用已有 Node 运行时，没有引入新运行时语言、服务或依赖。
+- **Chosen language:** 新应用运行时、常驻授权契约、状态适配、验证契约与结果核验、CLI 模块使用 TypeScript；SDK 类型继续在 TypeScript 声明，现有 ESM JS 入口只追加必要方法与薄分发。AgentPool、SelfLoop 和 SelfHealing 沿用现有 JS 类，使用明确的 JSDoc 端口类型并纳入应用类型检查，避免另外实现一套队列或迁移整套内核。固定 Node ESM 监督器直接运行在既有只读禁网容器内，不增加编译步骤；已有 JavaScript 容器后端仅增加可选标准输入管道。继续使用已有 Node 运行时，没有引入新运行时语言、进程、数据库或依赖；常驻调度在已配置的网关进程中运行。
 
 | 选择 | Domain fit | Maintenance | Operability | Safety | Migration debt | Ecosystem fit | 合计 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -253,7 +280,7 @@ v2 恢复的单元与运行时集成通过，只能证明这些测试中的恢�
 | 连同全部旧入口立即迁移 TypeScript | 5 | 3 | 4 | 5 | 2 | 5 | 24 |
 | 新逻辑全部 ESM JavaScript | 4 | 3 | 5 | 3 | 5 | 5 | 25 |
 
-- **Compatibility/rollback boundary:** 新任务端点与七个 SDK 方法是增量能力；普通 Agent 命令、默认工具备份行为、旧 Workforce profile 和未提供标准输入的后端调用保留。受治理长任务的必填验证结果契约产生新的 profile 与审批哈希，缺少契约的未发布早期配置明确拒绝，不在旧批准下补值。当前运行器哈希不匹配时，旧检查回执也不能恢复，不自动迁移、重新签名或重放。删除服务器启用配置可停止新任务入口。回退代码前必须等待运行片段停稳，保留签名队列、原批准、worktree 和失败回执，不删除或重置旧状态来伪造可重试条件。新版本保存的任务不由旧代码自动消费。
+- **Compatibility/rollback boundary:** 任务端点和 SDK 方法是增量能力；单项目五字段配置、手动任务、普通 Agent 命令、默认工具备份行为和旧 Workforce profile 保留。Pool 未显式配置时不启动。常驻授权、循环决定和恢复尝试追加在现有签名任务状态中，不新增存储服务。受治理长任务的必填验证结果契约产生新的 profile 与审批哈希，缺少契约的未发布早期配置明确拒绝，不在旧批准下补值。当前运行器哈希不匹配时，旧检查回执也不能恢复，不自动迁移、重新签名或重放。回退代码前先明确暂停常驻任务并等待片段停稳，保留签名队列、原批准、worktree 和失败回执，再撤下 Pool 配置；不删除或重置旧状态来伪造可重试条件。旧版本不得自动消费新版本的常驻任务。
 - **Policy impact:** 默认仍使用 fake Provider；真实调用有单独授权。模型不能改变 profile、工具权限、路径、不可变测试或发布边界。新 SDK 方法仅发送受限请求，拒绝重定向；CLI 不自动审批或循环执行。
 - **Quantified risk mitigation:** SDK/CLI 精确路由和请求体测试、完整材料超过旧显示上限的测试、未知 usage 为 `null` 的测试、错误 ID/版本/覆盖字段/重复 JSON 拒绝测试，以及工作区、签名恢复、首次失败和容器异常边界测试分别提供证据。发布前仍必须按仓库要求执行 `pnpm check`、`pnpm test`、`pnpm check:public`、`pnpm verify:public-clone`，不能以局部测试替代。
 

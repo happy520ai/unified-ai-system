@@ -2,6 +2,28 @@
  * Worker Failure Handling
  * Handles task failure result path and exception catch path
  */
+import { governedGoalReport, governedPoolError, emitGovernedPoolEvent } from './constants.js';
+
+/** Called only after an assignment and its control persistence have settled. */
+export function settleGovernedGoal(s, tracker, outcome, cause) {
+  if (cause) tracker.firstError ??= cause;
+  if (outcome.revision !== undefined) tracker.pointer = Object.freeze({ ...tracker.pointer, revision: outcome.revision });
+  tracker.status = tracker.controlError ? 'unknown' : outcome.status;
+  tracker.admitted = false; tracker.finished = true;
+  const firstCode = tracker.firstError?.code ?? outcome.errorCode;
+  if (firstCode && typeof firstCode === 'string' && /^[A-Z][A-Z0-9_]{0,127}$/u.test(firstCode)) tracker.errorCode ??= firstCode;
+  if (tracker.status === 'unknown') tracker.errorCode ??= 'FORGE_POOL_OUTCOME_UNKNOWN';
+  if (tracker.status === 'failed') tracker.errorCode ??= 'FORGE_POOL_GOAL_FAILED';
+  const report = governedGoalReport(tracker);
+  tracker.result = report;
+  emitGovernedPoolEvent(s, `goal_${tracker.status === 'unknown' ? 'failed' : tracker.status}`, report);
+  if (['failed', 'unknown'].includes(tracker.status)) {
+    const error = governedPoolError(tracker.status === 'unknown' ? 'OUTCOME_UNKNOWN' : 'GOAL_FAILED', tracker.firstError ?? cause);
+    Object.assign(error, { report, errorCode: tracker.errorCode });
+    tracker.reject(error);
+  } else tracker.resolve(report);
+  return report;
+}
 
 /**
  * Handle task failure (result.success === false path).

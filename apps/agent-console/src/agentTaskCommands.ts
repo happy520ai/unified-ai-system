@@ -14,7 +14,7 @@ type Options = { command: string; positionals: string[]; json: boolean; url: str
 type Output = { write(value: string): unknown; writeError(value: string): unknown };
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u;
 const AGENT = /^agt_[A-Za-z0-9_-]{1,128}$/u, HASH = /^sha256:[a-f0-9]{64}$/u, HEX = /^[a-f0-9]{64}$/u;
-const operations = new Set(["prepare", "plan", "confirm", "run", "status", "pause", "cancel"]);
+const operations = new Set(["prepare", "plan", "confirm", "run", "schedule", "status", "pause", "cancel"]);
 function invalid(): never { throw Object.assign(new Error("Agent task data is incomplete, unsafe or does not match the original review."), { code: "AGENT_TASK_INPUT_INVALID" }); }
 function record(value: unknown): asserts value is Data {
   if (!value || typeof value !== "object" || Array.isArray(value) || ![Object.prototype, null].includes(Object.getPrototypeOf(value))) invalid();
@@ -147,7 +147,7 @@ export function projectGovernedAgentTaskApproval(value: unknown): Data {
 export function projectGovernedAgentTaskSnapshot(value: unknown, agentId: string, taskId?: string): Data {
   const data = printable(value);
   keys(data, ["version", "taskId", "agentId", "agentRunId", "revision", "phase", "counters", "pendingOperation", "review", "sourceFiles", "plan",
-    "approvalId", "confirmedApprovalId", "stepIndex", "stepReceipts", "modelReceipts", "verificationAttempts", "workspaceReceipt", "sourceFilesHash", "finalAnswer", "errorCode", "controlRequested", "resumable", "recovery"]);
+    "approvalId", "confirmedApprovalId", "stepIndex", "stepReceipts", "modelReceipts", "verificationAttempts", "workspaceReceipt", "sourceFilesHash", "finalAnswer", "errorCode", "controlRequested", "resumable", "recovery"], ["resident", "recoveryAttempts", "loopDecisions"]);
   if (data.version !== 1 || data.agentId !== agentId || !UUID.test(data.taskId) || taskId !== undefined && data.taskId !== taskId
     || !/^agr_[A-Za-z0-9_-]{1,128}$/u.test(data.agentRunId) || !integer(data.revision) || !integer(data.stepIndex)
     || !["prepared", "planning", "awaiting_confirmation", "running", "paused", "verifying", "completed", "failed", "cancelled", "unknown"].includes(data.phase)
@@ -156,6 +156,24 @@ export function projectGovernedAgentTaskSnapshot(value: unknown, agentId: string
   if (!Object.values(data.counters).every(integer)) invalid();
   keys(data.recovery, ["automaticReplay", "workspaceReconciliationRequired", "wholeDirectoryRollbackProtection"]);
   if (data.recovery.automaticReplay !== false || data.recovery.wholeDirectoryRollbackProtection !== false || typeof data.recovery.workspaceReconciliationRequired !== "boolean") invalid();
+  if (data.resident != null) {
+    keys(data.resident, ["enabled", "chunks", "maxChunks", "expiresAt", "chunkIterations", "stopReason"]);
+    if (typeof data.resident.enabled !== "boolean" || ![data.resident.chunks, data.resident.maxChunks, data.resident.expiresAt, data.resident.chunkIterations].every(integer)
+      || data.resident.chunks > data.resident.maxChunks || data.resident.chunkIterations < 1 || data.resident.chunkIterations > 10
+      || !(data.resident.stopReason === null || typeof data.resident.stopReason === "string")) invalid();
+  }
+  for (const name of ["recoveryAttempts", "loopDecisions"]) if (data[name] !== undefined && !Array.isArray(data[name])) invalid();
+  for (const attempt of data.recoveryAttempts ?? []) {
+    keys(attempt, ["attempt", "status", "sourceFilesHash", "code", "errorCode"]);
+    if (!integer(attempt.attempt) || attempt.attempt < 1 || !HEX.test(attempt.sourceFilesHash)
+      || attempt.code !== "WORKSPACE_NOT_ATTACHED" || !["pending", "recovered", "failed", "unknown"].includes(attempt.status)
+      || !(attempt.errorCode === null || typeof attempt.errorCode === "string")) invalid();
+  }
+  for (const decision of data.loopDecisions ?? []) {
+    keys(decision, ["attemptId", "action", "reason", "repairAttempts"]);
+    if (!/^verify_[1-9][0-9]*$/u.test(decision.attemptId) || !["ACCEPT", "ADJUST_RETRY", "EXHAUSTED", "ESCALATE"].includes(decision.action)
+      || typeof decision.reason !== "string" || !integer(decision.repairAttempts)) invalid();
+  }
   reviewed(data.review); if (data.plan !== null) planned(data.plan, data.review);
   for (const field of ["sourceFiles", "stepReceipts", "modelReceipts", "verificationAttempts"]) if (!Array.isArray(data[field])) invalid();
   const profile = data.review.profile, artifact = profile.artifact;
@@ -188,7 +206,7 @@ export function validateAgentTaskOptions(options: Options): void {
   if (!operations.has(operation) || options.positionals.length !== (operation === "prepare" ? 2 : 3)
     || operation !== "prepare" && !UUID.test(options.positionals[2]) || !AGENT.test(options.agentId ?? "") || !options.adminKey) invalid();
   if (operation === "status" ? options.operatorInput !== null || options.confirmed : !options.operatorInput || !options.confirmed) invalid();
-  if (options.allowRealProvider && !["plan", "run"].includes(operation)) invalid();
+  if (options.allowRealProvider && !["plan", "run", "schedule"].includes(operation)) invalid();
   if ([options.prompt, options.agentApprovalId, options.agentGoal, options.agentName, options.agentTask, options.agentTtlSeconds,
     options.agentParentId, options.agentMaxIterations, options.agentRunTimeoutMs, options.agentToolMode, options.agentProviderId,
     options.agentModelId, options.agentReason, options.operatorMode, options.operatorPasses, options.operatorMaxOutputTokens].some(value => value !== null)
@@ -199,18 +217,20 @@ export function validateAgentTaskOptions(options: Options): void {
 function requestFor(operation: string, path: string | null): Data {
   const data = path ? readOperatorPayload(path, parseContextJson) : {};
   keys(data, operation === "prepare" ? ["goal", "prompt"] : operation === "confirm" ? ["revision", "reviewHash", "planHash", "approvalId"]
-    : operation === "status" ? [] : ["revision"], operation === "run" ? ["maxIterations"] : []);
+    : operation === "status" ? [] : ["revision"], operation === "run" ? ["maxIterations"] : operation === "prepare" ? ["projectId"] : []);
   if (operation === "prepare") {
     if (typeof data.goal !== "string" || !data.goal.trim() || data.goal.length > 4000 || typeof data.prompt !== "string" || !data.prompt.trim()) invalid();
   } else if (operation !== "status" && !integer(data.revision)) invalid();
   if (operation === "confirm" && (!HASH.test(data.reviewHash) || !HASH.test(data.planHash) || typeof data.approvalId !== "string" || !/^[A-Za-z0-9_-]{1,160}$/u.test(data.approvalId))) invalid();
   if (data.maxIterations !== undefined && (!integer(data.maxIterations) || data.maxIterations < 1 || data.maxIterations > 10)) invalid();
+  if (data.projectId !== undefined && (typeof data.projectId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u.test(data.projectId))) invalid();
   return data;
 }
 function unwrap(value: any): unknown {
   if (!value || value.status !== "ok" || !value.data) invalid(); return value.data;
 }
 function nextAction(data: Data): string {
+  if (data.resident?.enabled) return "The shared pool advances this original task within its approved budget and deadline. Check status, or pause/cancel this task. A restart requires fresh authorization and verifies the original checkpoint before continuing.";
   if (data.phase === "awaiting_confirmation") return `Review the complete plan, then explicitly decide approval with agents approve --approval-id ${data.approvalId} --yes. Confirm afterward using this task ID, revision, reviewHash and planHash.`;
   if (data.phase === "prepared") return "Review the complete prepared input, then explicitly request plan for this task ID and revision.";
   if (data.phase === "paused" && data.recovery.workspaceReconciliationRequired === true) return "Explicitly run this original task ID at its current revision to request verified restoration of the original worktree. The server first checks the current signed task, claim, Agent, consumed approval, checkpoint, budgets and original files. It creates no new worktree, replans nothing and resets no counters. Nothing runs automatically on startup.";
@@ -225,7 +245,7 @@ export async function runAgentTaskCommand(options: Options, output: Output): Pro
     const body = requestFor(operation, options.operatorInput), agentId = options.agentId!;
     const client = createGatewayClient({ baseUrl: options.url, headers: { authorization: `Bearer ${options.adminKey}` },
       timeoutMs: options.timeoutProvided || !["plan", "run"].includes(operation) ? options.timeoutMs : 130000 });
-    if (["plan", "run"].includes(operation)) {
+    if (["plan", "run", "schedule"].includes(operation)) {
       const status = projectGovernedAgentTaskSnapshot(unwrap(await client.governedAgentTask(agentId, taskId)), agentId, taskId);
       if (status.revision !== body.revision) invalid();
       if (status.review.profile.model.providerId !== "local-fake-provider" && !options.allowRealProvider) {
@@ -237,12 +257,13 @@ export async function runAgentTaskCommand(options: Options, output: Output): Pro
       : operation === "plan" ? await client.planGovernedAgentTask(agentId, taskId, body as any)
         : operation === "confirm" ? await client.confirmGovernedAgentTask(agentId, taskId, body as any)
           : operation === "run" ? await client.runGovernedAgentTask(agentId, taskId, body as any)
+            : operation === "schedule" ? await client.scheduleGovernedAgentTask(agentId, taskId, body as any)
             : operation === "pause" ? await client.pauseGovernedAgentTask(agentId, taskId, body as any)
               : operation === "cancel" ? await client.cancelGovernedAgentTask(agentId, taskId, body as any)
                 : await client.governedAgentTask(agentId, taskId);
     const data = projectGovernedAgentTaskSnapshot(unwrap(result), agentId, taskId);
     const accepted = !["failed", "unknown"].includes(data.phase), rendered = { ok: accepted, command: "agents task", operation,
-      retryAllowed: false, automaticContinuation: false, data, nextAction: nextAction(data) };
+      retryAllowed: false, automaticContinuation: data.resident?.enabled === true, data, nextAction: nextAction(data) };
     output.write(options.json ? JSON.stringify(rendered, null, 2) + "\n"
       : `Agent task ${data.taskId}\nPhase: ${data.phase}; revision: ${data.revision}\n${JSON.stringify(data, null, 2)}\n${rendered.nextAction}\n`);
     return accepted ? 0 : 1;

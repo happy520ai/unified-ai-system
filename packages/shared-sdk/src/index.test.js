@@ -1283,7 +1283,7 @@ test("Agent task SDK preserves complete requests and the original UUID across ex
     response.end(JSON.stringify({ status: "ok", data: { taskId, phase: "paused", usage: { totalTokens: null } } }));
   });
   try {
-    const client = createGatewayClient({ baseUrl }), original = { goal: "  Exact goal\n", prompt: "Complete original prompt\r\n" + "x".repeat(20000) + "\nFINAL" };
+    const client = createGatewayClient({ baseUrl }), original = { goal: "  Exact goal\n", prompt: "Complete original prompt\r\n" + "x".repeat(20000) + "\nFINAL", projectId: "configured-project" };
     await client.prepareGovernedAgentTask("agt_sdk", original);
     await client.planGovernedAgentTask("agt_sdk", taskId, { revision: 0, providerDispatchKey: "fixed-planning-request" });
     await client.confirmGovernedAgentTask("agt_sdk", taskId, { revision: 3, reviewHash: "sha256:" + "a".repeat(64), planHash: "sha256:" + "b".repeat(64), approvalId: "apr_sdk" });
@@ -1291,12 +1291,14 @@ test("Agent task SDK preserves complete requests and the original UUID across ex
     assert.equal(chunk.data.usage.totalTokens, null);
     await client.governedAgentTask("agt_sdk", taskId);
     await client.pauseGovernedAgentTask("agt_sdk", taskId, { revision: 12 });
+    await client.scheduleGovernedAgentTask("agt_sdk", taskId, { revision: 13 });
     await client.cancelGovernedAgentTask("agt_sdk", taskId, { revision: 13 });
-    assert.deepEqual(observed.map(call => call.path), ["/v1/agents/agt_sdk/tasks", ...["plan", "confirm", "run", "", "pause", "cancel"].map(operation => `/v1/agents/agt_sdk/tasks/${taskId}${operation ? "/" + operation : ""}`)]);
+    assert.deepEqual(observed.map(call => call.path), ["/v1/agents/agt_sdk/tasks", ...["plan", "confirm", "run", "", "pause", "schedule", "cancel"].map(operation => `/v1/agents/agt_sdk/tasks/${taskId}${operation ? "/" + operation : ""}`)]);
     assert.deepEqual(observed[0].body, original);
     assert.deepEqual(observed[1].body, { revision: 0 }); assert.equal(observed[1].dispatch, "fixed-planning-request");
     assert.deepEqual(observed[3].body, { revision: 5, maxIterations: 2 }); assert.equal(typeof observed[3].dispatch, "string");
-    assert.equal(observed[4].method, "GET"); assert.equal(observed.length, 7);
+    assert.equal(observed[4].method, "GET"); assert.equal(observed.length, 8);
+    assert.deepEqual(observed[6].body, { revision: 13 }); assert.equal(observed[6].dispatch, undefined);
     assert.ok(observed.every(call => !call.path.includes("/approvals")));
   } finally { await closeServer(server); }
 });
@@ -1313,6 +1315,10 @@ test("Agent task SDK rejects replacement IDs/settings and never retries an uncer
       { revision: 0, commands: ["arbitrary"] }, { revision: 0, path: "source.mjs" }]) assert.throws(() => client.runGovernedAgentTask("agt_sdk", taskId, request));
     for (const id of ["new-task", "../tasks", undefined, " " + taskId]) assert.throws(() => client.governedAgentTask("agt_sdk", id));
     assert.throws(() => client.prepareGovernedAgentTask("agt_sdk", { goal: "goal", prompt: "prompt", profile: {} }));
+    for (const body of [{ revision: 0, authority: {} }, { revision: 0, tenantId: "other" }, { revision: 0, maxIterations: 100 }]) {
+      assert.throws(() => client.scheduleGovernedAgentTask("agt_sdk", taskId, body));
+    }
+    assert.throws(() => client.prepareGovernedAgentTask("agt_sdk", { goal: "goal", prompt: "prompt", projectId: "../other" }));
     assert.throws(() => client.confirmGovernedAgentTask("agt_sdk", taskId, { revision: 1, approvalId: "apr_sdk" }));
     assert.equal(calls, 0);
     await assert.rejects(client.runGovernedAgentTask("agt_sdk", taskId, { revision: 1, maxIterations: 1 }));
@@ -1331,8 +1337,9 @@ test("Agent task SDK refuses redirects before forwarding original review, IDs or
       () => client.governedAgentTask("agt_sdk", taskId), () => client.planGovernedAgentTask("agt_sdk", taskId, { revision: 0 }),
       () => client.confirmGovernedAgentTask("agt_sdk", taskId, { revision: 3, reviewHash: "sha256:" + "a".repeat(64), planHash: "sha256:" + "b".repeat(64), approvalId: "apr_original" }),
       () => client.runGovernedAgentTask("agt_sdk", taskId, { revision: 5 }), () => client.pauseGovernedAgentTask("agt_sdk", taskId, { revision: 7 }),
-      () => client.cancelGovernedAgentTask("agt_sdk", taskId, { revision: 8 })]) await assert.rejects(invoke());
-    assert.equal(calls.length, 7); assert.ok(!calls.includes("/redirect-target"));
+      () => client.cancelGovernedAgentTask("agt_sdk", taskId, { revision: 8 }),
+      () => client.scheduleGovernedAgentTask("agt_sdk", taskId, { revision: 9 })]) await assert.rejects(invoke());
+    assert.equal(calls.length, 8); assert.ok(!calls.includes("/redirect-target"));
   } finally { await closeServer(server); }
 });
 

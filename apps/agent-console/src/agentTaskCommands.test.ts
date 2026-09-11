@@ -73,7 +73,10 @@ async function fixture() {
       else if (path.endsWith("/confirm")) state = { ...state, phase: "paused", confirmedApprovalId: body.approvalId, revision: 5, resumable: true };
       else if (path.endsWith("/run")) state = { ...state, phase: "paused", revision: 10, resumable: true, counters: { ...state.counters, iterations: 1, modelCalls: 2, reservedTokens: 139264 },
         modelReceipts: [{ totalTokens: null, inputTokens: null, outputTokens: null, status: "succeeded", executionMode: "fake" }] };
-      else if (path.endsWith("/pause")) state = { ...state, phase: "paused", revision: state.revision + 1 };
+      else if (path.endsWith("/schedule")) state = { ...state, revision: state.revision + 1, resident: {
+        enabled: true, chunks: 0, maxChunks: 6, expiresAt: Date.now() + 60000, chunkIterations: 1, stopReason: null } };
+      else if (path.endsWith("/pause")) state = { ...state, phase: "paused", revision: state.revision + 1,
+        ...(state.resident ? { resident: { ...state.resident, enabled: false, stopReason: "pause" } } : {}) };
       else if (path.endsWith("/cancel")) state = { ...state, phase: "cancelled", revision: state.revision + 1, resumable: false };
       data = state;
     }
@@ -132,6 +135,29 @@ test("task CLI prints complete review and plan and invokes each explicit origina
     assert.equal((await f.run("status")).code, 0); assert.equal((await f.run("pause", { revision: 10 })).code, 0);
     assert.equal((await f.run("cancel", { revision: 11 })).parsed.data.phase, "cancelled");
     assert.ok(f.calls.filter(call => call.path.includes("/tasks/")).every(call => call.path.includes(taskId)));
+  } finally { await f.close(); }
+});
+
+test("task CLI explicitly schedules the original task and reports resident continuation without sending authority or dispatch keys", async () => {
+  const f = await fixture();
+  try {
+    const original = f.state().review;
+    assert.equal((await f.run("prepare", { goal: original.goal, prompt: original.prompt, projectId: "configured-project" })).code, 0);
+    assert.equal(f.calls[0].body?.projectId, "configured-project");
+    f.needsRestoration();
+    const queued = await f.run("schedule", { revision: 0 });
+    assert.equal(queued.code, 0, queued.err); assert.equal(queued.parsed.automaticContinuation, true);
+    assert.ok(queued.parsed.nextAction.includes("shared pool")); assert.deepEqual(f.calls.at(-1)?.body, { revision: 0 });
+    assert.equal(f.calls.at(-1)?.path, `/v1/agents/${agentId}/tasks/${taskId}/schedule`);
+    assert.equal(f.calls.at(-1)?.dispatch, undefined);
+    assert.equal((await f.run("pause", { revision: 1 })).parsed.automaticContinuation, false);
+    const count = f.calls.length;
+    assert.equal((await f.run("schedule", { revision: 2, authority: { userId: "other" } })).code, 1);
+    assert.equal(f.calls.length, count);
+    f.real(); f.needsRestoration();
+    assert.equal((await f.run("schedule", { revision: 0 })).parsed.code, "AGENT_TASK_REAL_PROVIDER_CONFIRMATION_REQUIRED");
+    assert.equal(f.calls.at(-1)?.method, "GET");
+    assert.equal((await f.run("schedule", { revision: 0 }, ["--allow-real-provider"])).code, 0);
   } finally { await f.close(); }
 });
 

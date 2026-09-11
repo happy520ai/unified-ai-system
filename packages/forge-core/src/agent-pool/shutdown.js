@@ -2,6 +2,62 @@
  * Pool Shutdown
  * Graceful shutdown with in-flight task draining and persistence
  */
+import { GOVERNED_TERMINAL, governedIdentifier, governedGoalReport, governedPoolError, awaitGovernedControlPersistence } from './constants.js';
+import { settleGovernedGoal } from './worker-failure.js';
+
+/** Control is persisted by the server port. No slot is freed before execution settles. */
+/** @param {object} s @param {string} goalId @param {string} userId @param {'pause'|'cancel'|'shutdown'} reason @param {string} [expectedBindingHash] */
+export async function controlGovernedGoal(s, goalId, userId, reason, expectedBindingHash = undefined) {
+  governedIdentifier(goalId, true); governedIdentifier(userId);
+  if (!['pause', 'cancel', 'shutdown'].includes(reason)) throw governedPoolError('CONTROL_INVALID');
+  const tracker = s.goalTrackers.get(goalId);
+  if (!tracker || tracker.userId !== userId) throw governedPoolError('GOAL_NOT_FOUND');
+  if (expectedBindingHash !== undefined && (typeof expectedBindingHash !== 'string' || !/^sha256:[a-f0-9]{64}$/u.test(expectedBindingHash)
+    || tracker.pointer?.bindingHash !== expectedBindingHash)) throw governedPoolError('BINDING_CHANGED');
+  if (!tracker.admitted && GOVERNED_TERMINAL.has(tracker.status)) return governedGoalReport(tracker);
+  // Explicit operator controls outrank a service lifecycle drain.
+  const ranks = { run: 0, shutdown: 1, pause: 2, cancel: 3 };
+  if (ranks[reason] > ranks[tracker.control]) {
+    tracker.control = reason;
+    tracker.controlling = true;
+    s.queue = s.queue.filter(entry => entry.goalId !== goalId);
+    if (reason === 'cancel') {
+      for (const assignment of s.activeWorkers.values()) if (assignment.goalId === goalId) {
+        assignment.abortController.abort(governedPoolError('CANCEL_REQUESTED'));
+      }
+    }
+    tracker.controlTail = tracker.controlTail.then(async () => {
+      await tracker.admission;
+      await s.governedChunkExecutor.cancel(Object.freeze({ goal: tracker.pointer, reason }));
+    }).catch(error => { tracker.controlError ??= error; tracker.firstError ??= error; });
+  }
+  await awaitGovernedControlPersistence(tracker);
+  if (tracker.admissionFailed) throw tracker.firstError;
+  const active = [...s.activeWorkers.values()].filter(assignment => assignment.goalId === goalId);
+  if (active.length) {
+    await Promise.all(active.map(assignment => assignment.settlement));
+  } else if (!tracker.finished || tracker.status === 'paused' && tracker.control === 'cancel') {
+    settleGovernedGoal(s, tracker, { status: tracker.controlError ? 'unknown' : tracker.control === 'cancel' ? 'cancelled' : 'paused' }, tracker.firstError);
+  }
+  tracker.controlling = false;
+  await s.governedProcessQueue();
+  return governedGoalReport(tracker);
+}
+
+async function shutdownGovernedPool(s) {
+  if (s.governedShutdown) return s.governedShutdown;
+  s.shuttingDown = true;
+  s.governedShutdown = (async () => {
+    const controls = [...s.goalTrackers.values()].filter(tracker => tracker.admitted || tracker.controlling)
+      .map(tracker => controlGovernedGoal(s, tracker.goalId, tracker.userId, 'shutdown'));
+    const results = await Promise.allSettled(controls);
+    await Promise.allSettled([...s.activeWorkers.values()].map(assignment => assignment.settlement));
+    if (s.activeWorkers.size || s.queue.length) throw governedPoolError('SHUTDOWN_UNKNOWN');
+    return Object.freeze({ status: 'stopped', activeWorkers: 0, queueLength: 0,
+      outcomeUnknown: results.some(result => result.status === 'rejected' || result.value.status === 'unknown') });
+  })();
+  return s.governedShutdown;
+}
 
 /**
  * Shutdown the pool gracefully.
@@ -10,6 +66,7 @@
  * a timeout), then cancels any remaining active workers and clears the queue.
  */
 export async function shutdown(s, { timeoutMs = 30_000 } = {}) {
+  if (s.governedChunkExecutor) return shutdownGovernedPool(s);
   s.shuttingDown = true;
 
   // A3: 清理孤儿检测定时器

@@ -208,7 +208,7 @@ export interface ProviderDispatchRequestOptions {
   providerDispatchKey?: string;
 }
 
-export interface PrepareGovernedAgentTaskRequest { goal: string; prompt: string }
+export interface PrepareGovernedAgentTaskRequest { goal: string; prompt: string; projectId?: string }
 export interface GovernedAgentTaskRevisionRequest { revision: number }
 export interface ConfirmGovernedAgentTaskRequest extends GovernedAgentTaskRevisionRequest {
   reviewHash: string; planHash: string; approvalId: string;
@@ -226,8 +226,12 @@ export interface GovernedAgentTaskSnapshot {
   approvalId: string | null; confirmedApprovalId: string | null; stepIndex: number;
   stepReceipts: ReadonlyArray<Record<string, unknown>>; modelReceipts: ReadonlyArray<Record<string, unknown>>;
   verificationAttempts: ReadonlyArray<Record<string, unknown>>; workspaceReceipt: Record<string, unknown> | null;
-  sourceFilesHash: string; finalAnswer: string; errorCode: string | null; controlRequested: "run" | "pause" | "cancel" | null;
+  sourceFilesHash: string; finalAnswer: string; errorCode: string | null; controlRequested: "run" | "pause" | "cancel" | "shutdown" | null;
   resumable: boolean; recovery: { automaticReplay: false; workspaceReconciliationRequired: boolean; wholeDirectoryRollbackProtection: false };
+  resident?: { enabled: boolean; chunks: number; maxChunks: number; expiresAt: number; chunkIterations: number; stopReason: string | null } | null;
+  recoveryAttempts?: ReadonlyArray<{ attempt: number; status: "pending" | "recovered" | "failed" | "unknown"; sourceFilesHash: string;
+    code: "WORKSPACE_NOT_ATTACHED"; errorCode: string | null }>;
+  loopDecisions?: ReadonlyArray<{ attemptId: string; action: string; reason: string; repairAttempts: number }>;
 }
 
 export interface ManagedLocalClientPopProofOptions {
@@ -496,6 +500,7 @@ export interface GatewayClient {
   planGovernedAgentTask(agentId: string, taskId: string, request: GovernedAgentTaskRevisionRequest & ProviderDispatchRequestOptions): Promise<ResultEnvelope<GovernedAgentTaskSnapshot>>;
   confirmGovernedAgentTask(agentId: string, taskId: string, request: ConfirmGovernedAgentTaskRequest): Promise<ResultEnvelope<GovernedAgentTaskSnapshot>>;
   runGovernedAgentTask(agentId: string, taskId: string, request: RunGovernedAgentTaskRequest): Promise<ResultEnvelope<GovernedAgentTaskSnapshot>>;
+  scheduleGovernedAgentTask(agentId: string, taskId: string, request: GovernedAgentTaskRevisionRequest): Promise<ResultEnvelope<GovernedAgentTaskSnapshot>>;
   pauseGovernedAgentTask(agentId: string, taskId: string, request: GovernedAgentTaskRevisionRequest): Promise<ResultEnvelope<GovernedAgentTaskSnapshot>>;
   cancelGovernedAgentTask(agentId: string, taskId: string, request: GovernedAgentTaskRevisionRequest): Promise<ResultEnvelope<GovernedAgentTaskSnapshot>>;
   revokeGovernedAgent(agentId: string, request?: RevokeGovernedAgentRequest): Promise<RevokeGovernedAgentResult>;

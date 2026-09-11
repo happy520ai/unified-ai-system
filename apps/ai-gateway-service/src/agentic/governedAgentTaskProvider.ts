@@ -9,6 +9,7 @@ import { estimateTokens } from "../cost/tokenEstimator.js";
 import { containsSensitivePublicationText } from "../security/secretSafety.js";
 import { externalRunnerHash } from "../workforce/workforceExternalRunnerProfile.ts";
 import { readGovernedAgentTaskProfile, type GovernedAgentTaskProfile } from "./governedAgentTaskProfile.ts";
+import { getResidentExecution } from "./governedAgentTaskResident.ts";
 
 type Data = Record<string, any>;
 type Phase = "planning" | "coding";
@@ -88,6 +89,9 @@ export function createGovernedAgentTaskProvider(options: GovernedAgentTaskProvid
   if (identity.apiKeyFingerprint !== undefined) check(/^[a-f0-9]{12}$/u.test(identity.apiKeyFingerprint), "CONTEXT_INVALID");
   const agent = Object.freeze({ agentId: options.agentId, runId: options.agentRunId, policyHash: options.policyHash, tenantId: identity.tenantId, userId: identity.userId });
   const sourceHttp = options.requestExecution;
+  const resident = getResidentExecution(sourceHttp);
+  if (typeof options.approvedRoute === "string" && options.approvedRoute.startsWith("/internal/")) check(resident && phase === "coding"
+    && options.approvedRoute === `/internal/agent-pool/${resident.taskId}/run`, "RESIDENT_CONTEXT_INVALID");
   check(sourceHttp?.signal instanceof AbortSignal && (options.signal === undefined || options.signal instanceof AbortSignal), "CONTEXT_INVALID");
   const http = Object.freeze({ signal: sourceHttp.signal, timeoutMs: sourceHttp.timeoutMs, deadlineAt: sourceHttp.deadlineAt,
     providerDispatchKeyHash: sourceHttp.providerDispatchKeyHash, providerDispatchKeyInvalid: sourceHttp.providerDispatchKeyInvalid,

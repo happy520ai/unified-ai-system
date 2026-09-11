@@ -4,8 +4,9 @@
  */
 
 import crypto from 'node:crypto';
-import { WORKER_MAP, extractFilesFromPrompt } from './constants.js';
+import { WORKER_MAP, extractFilesFromPrompt, readGovernedChunkOutcome, governedPoolError, emitGovernedPoolEvent, awaitGovernedControlPersistence } from './constants.js';
 import { extractTaskFiles, checkFileConflict, acquireFileLocks } from './file-locks.js';
+import { settleGovernedGoal } from './worker-failure.js';
 
 /**
  * Process the queue: assign idle worker slots to queued tasks.
@@ -15,6 +16,7 @@ import { extractTaskFiles, checkFileConflict, acquireFileLocks } from './file-lo
  * the assignment, and fires off execution asynchronously.
  */
 export async function processQueue(s, { executeWorkerFn, checkGoalCompletionFn, cleanupAssignmentFn }) {
+  if (s.governedChunkExecutor) return processGovernedQueue(s, { executeWorkerFn, cleanupAssignmentFn });
   if (s.shuttingDown) return;
   console.log(`[forge:pool:debug] processQueue called — queue=${s.queue.length}, activeWorkers=${s.activeWorkers.size}, maxConcurrent=${s.maxConcurrent}`);
 
@@ -231,4 +233,71 @@ export async function processQueue(s, { executeWorkerFn, checkGoalCompletionFn, 
       cleanupAssignmentFn(assignmentId);
     });
   }
+}
+
+function processGovernedQueue(s, callbacks) {
+  if (s.shuttingDown || s.governedPumping) return;
+  s.governedPumping = true;
+  try {
+    while (s.activeWorkers.size < s.maxConcurrent && s.queue.length) {
+      // Exactly one queued cursor per goal; reinserting a continuing goal at
+      // the tail makes these actual assignments round-robin across goals.
+      const index = s.queue.findIndex(entry => {
+        const tracker = s.goalTrackers.get(entry.goalId);
+        return tracker?.admitted && tracker.control === 'run'
+          && ![...s.activeWorkers.values()].some(worker => worker.goalId === entry.goalId);
+      });
+      if (index < 0) break;
+      const entry = s.queue.splice(index, 1)[0], tracker = s.goalTrackers.get(entry.goalId);
+      const assignmentId = `assign-${crypto.randomUUID()}`, abortController = new AbortController();
+      const assignment = { assignmentId, goalId: entry.goalId, taskId: tracker.pointer.taskId, userId: tracker.userId,
+        goal: tracker.pointer, workerType: 'governed-chunk', startedAt: new Date().toISOString(), abortController, dispatched: false };
+      tracker.status = 'running';
+      s.activeWorkers.set(assignmentId, assignment);
+      s.rrGoalIndex = (s.rrGoalIndex + 1) % Math.max(1, [...s.goalTrackers.values()].filter(value => value.admitted).length);
+      s.governedMetrics.chunksStarted++;
+      emitGovernedPoolEvent(s, 'task_started', { assignmentId, ...tracker.pointer, workerType: 'governed-chunk' });
+      assignment.promise = Promise.resolve().then(() => callbacks.executeWorkerFn(assignmentId, entry, null, entry.task));
+      assignment.settlement = assignment.promise.then(
+        result => finishGovernedAssignment(s, assignment, tracker, result, null, callbacks),
+        error => { tracker.firstError ??= error; return finishGovernedAssignment(s, assignment, tracker, null, error, callbacks); });
+      void assignment.settlement.catch(error => {
+        tracker.firstError ??= error;
+        callbacks.cleanupAssignmentFn(assignmentId);
+        settleGovernedGoal(s, tracker, { status: 'unknown' }, error);
+      });
+    }
+  } finally { s.governedPumping = false; }
+}
+
+async function finishGovernedAssignment(s, assignment, tracker, value, error, callbacks) {
+  // Cancellation persistence may race with executor settlement; wait for the
+  // latest control request before releasing the real assignment slot.
+  await awaitGovernedControlPersistence(tracker);
+  let outcome;
+  try {
+    if (error || tracker.controlError) throw error ?? tracker.controlError;
+    outcome = readGovernedChunkOutcome(value, assignment.goal);
+  } catch (cause) {
+    tracker.firstError ??= cause;
+    outcome = { goalId: assignment.goalId, taskId: assignment.taskId, bindingHash: assignment.goal.bindingHash,
+      revision: assignment.goal.revision, status: 'unknown', errorCode: 'FORGE_POOL_OUTCOME_UNKNOWN' };
+  }
+  if (s.activeWorkers.get(assignment.assignmentId) !== assignment) throw governedPoolError('ASSIGNMENT_UNKNOWN');
+  callbacks.cleanupAssignmentFn(assignment.assignmentId);
+  s.governedMetrics.chunksSettled++;
+  if (assignment.dispatched && ['continue', 'paused', 'completed'].includes(outcome.status)) tracker.completedChunks++;
+  tracker.pointer = Object.freeze({ ...tracker.pointer, revision: outcome.revision });
+  if (outcome.status === 'continue' && tracker.control === 'run' && !s.shuttingDown) {
+    tracker.status = 'queued';
+    s.queue.push({ goalId: tracker.goalId, userId: tracker.userId, goal: tracker.pointer,
+      task: Object.freeze({ id: tracker.pointer.taskId, type: 'governed-chunk', agent_role: 'governed-chunk' }), priority: 0, enqueuedAt: Date.now() });
+  } else {
+    if (outcome.status === 'continue' || outcome.status === 'paused' && tracker.control === 'cancel') {
+      outcome = { ...outcome, status: tracker.control === 'cancel' ? 'cancelled' : 'paused' };
+    }
+    settleGovernedGoal(s, tracker, outcome, tracker.firstError);
+  }
+  emitGovernedPoolEvent(s, 'chunk_settled', { assignmentId: assignment.assignmentId, ...outcome });
+  await s.governedProcessQueue();
 }

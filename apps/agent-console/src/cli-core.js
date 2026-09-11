@@ -3993,7 +3993,7 @@ Commands:
   workflow <operation> Persisted workflow run, list, status, or recover
   providers clear-credential  Clear one Provider runtime override by explicit ID
   agents <operation> Governed Agent status, lifecycle, execution, and approvals
-  agents task <op>    Prepare, plan, confirm, run, status, pause or cancel one original long task
+  agents task <op>    Prepare, plan, confirm, run, schedule, status, pause or cancel one original long task
                      status, list, show, generate, run, revoke, approvals, approve, reject
   clients [operation]
                    discover, list, inspect, register, verify, disable, revoke, smart-manage

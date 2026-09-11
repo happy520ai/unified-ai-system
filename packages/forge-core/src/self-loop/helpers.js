@@ -34,6 +34,77 @@ export const ERROR_STRATEGY_MAP = {
 };
 
 /**
+ * Decide from an already authenticated T065 oracle result. The service owns
+ * contract/runner authentication, durable attempts, execution and all counters.
+ * This path never consults legacy verification, snapshots or learned strategies.
+ */
+export function decideGovernedVerification(input) {
+  const answer = (action, reason) => Object.freeze({ action, reason });
+  const stop = reason => answer(Decision.ESCALATE, reason);
+  const whole = value => Number.isSafeInteger(value) && value >= 0;
+  const record = (value, keys) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)
+      || ![Object.prototype, null].includes(Object.getPrototypeOf(value))
+      || Reflect.ownKeys(value).length !== keys.length) throw new Error('Invalid governed facts');
+    for (const key of keys) {
+      const field = Object.getOwnPropertyDescriptor(value, key);
+      if (!field?.enumerable || !('value' in field)) throw new Error('Invalid governed field');
+    }
+    return value;
+  };
+  try {
+    const { verification, counters, limits } = record(input, Object.hasOwn(input ?? {}, 'signal')
+      ? ['verification', 'counters', 'limits', 'signal'] : ['verification', 'counters', 'limits']);
+    if (input.signal !== undefined && !(input.signal instanceof AbortSignal)) return stop('INVALID_INPUT');
+    if (input.signal?.aborted) return stop('ABORTED');
+    record(verification, ['status', 'attemptId', 'sourceFilesHash', 'checkResult']);
+    record(counters, ['iterations', 'modelCalls', 'reservedTokens', 'repairAttempts']);
+    record(limits, ['maxIterations', 'maxModelCalls', 'maxTotalTokens', 'maxRepairAttempts']);
+    if (!Object.values(counters).every(whole) || counters.iterations < 1 || counters.modelCalls < 1
+      || !Object.values(limits).every(whole) || !limits.maxIterations || !limits.maxModelCalls || !limits.maxTotalTokens
+      || !['passed', 'failed'].includes(verification.status)
+      || typeof verification.attemptId !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,191}$/u.test(verification.attemptId)
+      || typeof verification.sourceFilesHash !== 'string' || !/^[a-f0-9]{64}$/u.test(verification.sourceFilesHash)) return stop('INVALID_INPUT');
+    const check = record(verification.checkResult, ['version', 'adapter', 'contractHash', 'runnerHash', 'snapshotHash',
+      'verdict', 'reason', 'counts', 'executedPassed', 'requiredChecks']);
+    const countKeys = ['tests', 'passed', 'failed', 'cancelled', 'skipped', 'todo', 'suites', 'topLevel'];
+    const counts = record(check.counts, countKeys);
+    if (check.version !== 1 || check.adapter !== 'node-test' || check.verdict !== verification.status
+      || typeof check.contractHash !== 'string' || !/^sha256:[a-f0-9]{64}$/u.test(check.contractHash)
+      || typeof check.runnerHash !== 'string' || !/^sha256:[a-f0-9]{64}$/u.test(check.runnerHash)
+      || check.snapshotHash !== verification.sourceFilesHash
+      || !Object.values(counts).every(value => whole(value) && value <= 10000)
+      || counts.tests !== counts.passed + counts.failed + counts.cancelled + counts.skipped + counts.todo
+      || counts.topLevel > counts.tests + counts.suites
+      || !whole(check.executedPassed) || check.executedPassed > counts.passed
+      || !Array.isArray(check.requiredChecks) || !check.requiredChecks.length || check.requiredChecks.length > 10000) return stop('VERIFICATION_UNPROVEN');
+    const named = new Set();
+    for (const value of check.requiredChecks) {
+      const required = record(value, ['file', 'name', 'status']);
+      if (typeof required.file !== 'string' || !required.file.trim() || required.file.length > 1024
+        || typeof required.name !== 'string' || !required.name.trim() || required.name.length > 1024
+        || !['passed', 'failed', 'skipped', 'todo', 'missing', 'ambiguous'].includes(required.status)) return stop('VERIFICATION_UNPROVEN');
+      const key = JSON.stringify([required.file, required.name]);
+      if (named.has(key)) return stop('VERIFICATION_UNPROVEN'); named.add(key);
+    }
+    const passedNames = check.requiredChecks.filter(check => check.status === 'passed').length;
+    if (passedNames > check.executedPassed || check.reason === 'incomplete-report') return stop('VERIFICATION_UNPROVEN');
+    if (check.verdict === 'passed') {
+      if (check.reason !== 'checks-passed' || counts.failed || counts.cancelled || check.executedPassed < 1
+        || passedNames !== check.requiredChecks.length) return stop('VERIFICATION_UNPROVEN');
+    } else if (!['checks-failed', 'no-executed-checks', 'required-check-not-passed'].includes(check.reason)) return stop('VERIFICATION_UNPROVEN');
+    const budgets = [['iterations', 'maxIterations', 'ITERATION'], ['modelCalls', 'maxModelCalls', 'MODEL'],
+      ['reservedTokens', 'maxTotalTokens', 'TOKEN'], ['repairAttempts', 'maxRepairAttempts', 'REPAIR']];
+    for (const [used, maximum, label] of budgets) {
+      if (counters[used] > limits[maximum] || check.verdict === 'failed' && counters[used] >= limits[maximum]) {
+        return answer(Decision.EXHAUSTED, label + '_BUDGET_EXHAUSTED');
+      }
+    }
+    return check.verdict === 'passed' ? answer(Decision.ACCEPT, 'VERIFIED') : answer(Decision.ADJUST_RETRY, 'REPAIR_AVAILABLE');
+  } catch { return stop('INVALID_INPUT'); }
+}
+
+/**
  * Classify failures into categories for targeted adjustments.
  * @param {Array} failures
  * @returns {Set<string>}

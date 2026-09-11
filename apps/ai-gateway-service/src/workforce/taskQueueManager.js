@@ -626,6 +626,15 @@ export class TaskQueueManager {
     return continuationJsonCopy(this._ownedRetainedTask(this, taskId, identity));
   }
 
+  /** Server-only recovery index. A reference never carries a claim or execution authority. */
+  listRetainedTaskReferences() {
+    this._assertRetainedQueue();
+    return [...this.queue, ...this.activeTasks.values(), ...this.completedTasks].map(task => Object.freeze({
+      taskId: task.taskId, tenantId: task.tenantId, userId: task.ownerId, agentId: task.retainedAgentId,
+      profileHash: task.continuation.state?.review?.profile?.profileHash ?? null,
+    }));
+  }
+
   async assertRetainedTaskActive(taskId, identity, ownership) {
     this._assertRetainedQueue();
     await this._assertRetainedStorage();
