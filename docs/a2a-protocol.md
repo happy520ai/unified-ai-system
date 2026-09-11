@@ -175,10 +175,40 @@ prompt enhancer used by the HTTP and MCP surfaces:
 This metadata belongs on `SendMessageRequest.metadata`. It is a Unified AI
 System extension, not a standard A2A field.
 
+## Managed Local-Client Blocking Send
+
+The current source admits one limited managed-client profile: blocking
+`SendMessage` with the existing exact local-fake chat target. The dedicated
+`local_client` bearer identity must have an exact server-side tenant/subject/client
+binding and a current verified client revision. Put the repeated client selector
+in `params.metadata.unifiedAi.localClientId`, and send
+`X-AI-Gateway-Local-Client-Proof` for the exact complete JSON-RPC HTTP bytes and
+`POST /a2a/jsonrpc` path (including any query). The generic shared-SDK
+`createManagedLocalClientPopProofHeader` can create this proof; re-serializing
+only `params` does not produce the required body binding.
+
+`configuration.returnImmediately` must be absent or `false`; execution mode
+must be absent or `fake-provider`. Other managed JSON-RPC methods, batch bodies,
+nonblocking sends, stream/subscription methods and Workforce mode return `403`
+with `error.data.code: LOCAL_CLIENT_A2A_METHOD_UNSUPPORTED` before SDK task side
+effects. Non-managed callers retain the existing A2A operations.
+
+Before dispatch, the gateway rechecks the same verified revision against server
+policy and applies its existing single Provider/model pin together with the
+private exact fake fence. Conflicting policy targets fail closed. Execution is
+bounded by the earlier request deadline or PoP expiry. The existing
+`X-AI-Gateway-Local-Client-*` routing, policy-revision, revision and decision-digest
+headers describe the resolved binding without exposing the subject or proof.
+Fake execution does not exercise the real-Provider reservation path. Managed
+A2A lifecycle/stream operations and the separate MCP managed-client profile
+remain outside this first certification slice.
+
 ## Safety And Limits
 
-- A2A execution is pinned to `local-fake-provider` and fails unless the result
-  proves fake execution.
+- A2A chat is privately bound to `local-fake-provider` / `local-fake-model` with
+  provider type `fake` before dispatch. Weighted overrides, alternate provider
+  attempts and shadow calls cannot escape that binding. JSON flags do not create
+  it; the returned result must also prove fake execution.
 - The Agent Card is public. `/a2a/jsonrpc` follows the gateway's existing
   enterprise authentication and `chat:use` permission policy.
 - When enterprise authentication is enabled, the Agent Card advertises HTTP
@@ -189,14 +219,49 @@ System extension, not a standard A2A field.
   ownership across hosts.
 - The official request handler provides `SendMessage`, `GetTask`, `ListTasks`,
   and `CancelTask`. A different replica can revoke the scoped PostgreSQL lease,
-  but cancellation remains cooperative and cannot guarantee that an
-  already-running provider operation was interrupted.
+  and local cancellation aborts all active invocations of that owner/tenant task.
+  Cancellation remains cooperative and cannot prove that a provider operation
+  stopped before consuming tokens.
+- `SendMessage` validates the text-only profile before the SDK creates task
+  state. Empty or non-text parts retain their content-type error and do not
+  produce a second terminal update or alter an existing task.
 - Streaming, push notifications, gRPC, HTTP+JSON/REST, non-text parts, and a
   fence-aware irreversible side-effect sink are not enabled in this profile.
   Durable/distributed task storage and Agent Card signing remain explicit
   deployment options.
 
+## Virtual keys and execution lifetime
+
+An authenticated virtual key follows the private server context into each
+actual A2A chat execution. Core admits and settles it through the same accounting
+boundary as native HTTP chat. `GetTask`, `ListTasks`, `CancelTask`, rejected
+protocol operations and the existing Workforce dry-run do not invoke a model
+or acquire a model-token charge. Budget/RPM denials return a failed A2A Task
+through the existing JSON-RPC response, without dispatching a provider.
+
+Each accepted `SendMessage` that starts work is metered separately. Repeating a
+`messageId` is not execution idempotency in the installed SDK; without a task ID
+it creates another task, and new messages on a nonterminal task may start another
+invocation. Reading a stored task does not replay or recharge its execution.
+
+`configuration.returnImmediately: true` may return before execution ends. Its
+accounting context and independent deadline remain until the actual executor
+finishes; normal HTTP response completion does not cancel background work.
+Explicit scoped cancellation, transport disconnection, lease loss and shutdown
+signal the affected active invocations. Already observed usage is settled once,
+even when cancellation wins the task result race; unobserved usage remains
+`unknown` with no invented zero or token charge. Task status is not a billing
+receipt. No new streaming or paid Workforce mode is enabled by this integration.
+
+Language Selection: the private call/lifetime helper uses TypeScript and existing
+Core contracts. The existing JavaScript A2A adapter and Core entrypoints retain
+their ownership; no new service, dependency or persistent schema is introduced.
+The small request-handler override reuses the adapter's existing text validator.
+Reverting it restores the prior SDK error path; task state and fencing formats
+are unchanged.
+
 Run `pnpm verify:public-clone` for the credential-free official-client proof.
-The published `v0.5.0` gateway image and the current source include this A2A
-profile; the current source carries additional post-release hardening tracked in
-PR #115.
+The published `v0.5.0` gateway image contains the earlier A2A profile. The managed
+local-client blocking-send slice described above is candidate-source behavior;
+verify the exact built artifact before claiming it contains this binding. This
+document does not establish that older images include the new managed profile.

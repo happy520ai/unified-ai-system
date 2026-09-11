@@ -6,6 +6,7 @@
 // =============================================================================
 
 import { assertProviderAdapter } from "./providerAdapter.js";
+import { observeProviderUsage } from "./providerUsageObservation.ts";
 import { fetchWithAgent } from "../http/connectionPool.js";
 import { resolveSafeOutboundUrl } from "../security/outboundUrlPolicy.ts";
 import { inspectInlineImageDataUrl } from "@unified-ai-system/shared-utils";
@@ -129,6 +130,8 @@ export function createGeminiAdapter(modelConfig: GeminiModelConfig = {}, options
 
 interface GeminiPart {
   text?: string;
+  thought?: boolean;
+  functionCall?: { name?: string; args?: unknown };
   inlineData?: { mimeType: string; data: string };
 }
 
@@ -211,9 +214,7 @@ function mapFromGeminiResponse(geminiResponse: Record<string, any>, latencyMs: n
     .map((part: GeminiPart) => part?.text ?? "")
     .join("");
 
-  const usage = geminiResponse?.usageMetadata ?? {};
-  const inputTokens = Number(usage.promptTokenCount ?? 0);
-  const outputTokens = Number(usage.candidatesTokenCount ?? 0);
+  const observed = observeProviderUsage("gemini", geminiResponse?.usageMetadata, true);
   const finishReason = candidate?.finishReason ? mapFinishReason(candidate.finishReason) : undefined;
 
   return {
@@ -222,15 +223,11 @@ function mapFromGeminiResponse(geminiResponse: Record<string, any>, latencyMs: n
       role: "assistant",
       content: text,
     },
-    usage: {
-      inputTokens,
-      outputTokens,
-      totalTokens: Number(usage.totalTokenCount ?? inputTokens + outputTokens),
-    },
+    usage: observed.usage,
     latencyMs,
     executionStatus: "success",
     warnings: [],
-    raw: geminiResponse,
+    raw: { ...geminiResponse, usageObservation: observed.usageObservation },
     ...(finishReason ? { finishReason } : {}),
   };
 }
@@ -314,21 +311,17 @@ async function* streamGeminiApi(params: {
   const onExternalAbort = () => controller.abort(signal?.reason);
   signal?.addEventListener("abort", onExternalAbort, { once: true });
 
-  let inputTokens = 0;
-  let outputTokens = 0;
+  let usageSnapshot = {};
+  let accountingToolIndex = 0;
   let finishReason: string | undefined;
-  let sawUsage = false;
 
-  const emitFinalChunk = () => ({
-    textDelta: "",
+  const emitUsageChunk = (complete = false, textDelta = "", usageOnly = false) => ({
+    textDelta,
+    usageOnly,
     raw: {
       gemini: true,
       ...(finishReason ? { finishReason } : {}),
-      usage: {
-        inputTokens,
-        outputTokens,
-        totalTokens: inputTokens + outputTokens,
-      },
+      ...observeProviderUsage("gemini", usageSnapshot, complete),
     },
   });
 
@@ -400,29 +393,28 @@ async function* streamGeminiApi(params: {
         }
         const usage = event?.usageMetadata;
         if (usage) {
-          sawUsage = true;
-          inputTokens = Number(usage.promptTokenCount ?? inputTokens);
-          outputTokens = Number(usage.candidatesTokenCount ?? outputTokens);
+          usageSnapshot = { ...usageSnapshot, ...usage };
         }
 
-        const textDelta = (candidate?.content?.parts ?? [])
+        const parts: GeminiPart[] = candidate?.content?.parts ?? [];
+        const textDelta = parts
           .map((part: GeminiPart) => part?.text ?? "")
           .join("");
-        if (textDelta) {
-          yield { textDelta, raw: { gemini: true } };
-        }
-
-        if (finishReason && sawUsage) {
-          yield emitFinalChunk();
-          return;
-        }
+        const accountingTextDelta = parts.filter(part => part?.thought !== true).map(part => part?.text ?? "").join("");
+        const reasoningDelta = parts.filter(part => part?.thought === true).map(part => part?.text ?? "").join("");
+        const accountingToolCallsDelta = parts.filter(part => part?.functionCall).map(part => ({ index: accountingToolIndex++,
+          name: part.functionCall?.name ?? "", arguments: JSON.stringify(part.functionCall?.args ?? {}) }));
+        if (textDelta || usage || candidate?.finishReason || accountingToolCallsDelta.length) yield {
+          ...emitUsageChunk(false, textDelta, !textDelta && !candidate?.finishReason),
+          accountingTextDelta, reasoningDelta, accountingToolCallsDelta,
+        };
       }
     }
 
     // Stream ended without an explicit terminal frame (connection cut or
     // Gemini omitted usage): surface what we captured so the done event still
     // carries usage and finish reason.
-    yield emitFinalChunk();
+    yield emitUsageChunk(Boolean(finishReason));
   } catch (error) {
     throw normalizeGeminiTransportError(error, timeoutMs);
   } finally {

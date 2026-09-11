@@ -1,16 +1,19 @@
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { MANAGED_LOCAL_CLIENT_PROVIDER_PIN } from "../core/gatewayService.js";
 import { createLocalClientProviderDispatchBinding } from "../routing/localClientProviderDispatchBinding.ts";
-import { getChatResponseCacheIntegration } from "../cache/chatResponseCacheIntegration.ts";
-import { getGuardrailsEngine } from "../guardrails/guardrailsEngine.ts";
+import { getChatResponseCacheIntegration, readChatCacheBillingSnapshot } from "../cache/chatResponseCacheIntegration.ts";
+import { captureGuardrailsOutputPolicy, getGuardrailsEngine, inspectGuardrailsOutputStream, inspectGuardrailsInputLimits, consumeGuardrailsGeneratedEmptyText } from "../guardrails/guardrailsEngine.ts";
 import { resolveProviderDispatchHttpStatus } from "./providerDispatchHttpStatus.ts";
 import {
   closePrimedGatewayStream,
   iteratePrimedGatewayStream,
   primeGatewayStream,
   readPrimedGatewayStreamError,
+  resolveGatewayStreamPreflightStatus,
 } from "./gatewayStreamPreflight.ts";
 import { estimateTextTokens, estimateTokens } from "../cost/tokenEstimator.js";
+import { bindVirtualKeyRequestAccounting, createVirtualKeyRequestAccounting, getVirtualKeyRequestAccounting } from "../enterprise/virtualKeyRequestAccounting.ts";
+import { getVirtualKeyBillingSnapshot } from "../core/virtualKeyUsageAccounting.ts";
 import {
   recordChatCacheEvent,
   recordChatRequest,
@@ -332,6 +335,7 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
     // Guardrails（确定性本地扫描）：在 normalize 之前作用于原始请求——
     // 拦截/脱敏同时覆盖 JSON、SSE 与缓存路径（脱敏后的文本进入缓存键）。
     const guardrailsEngine = getGuardrailsEngine(request.enterpriseIdentity?.tenantId);
+    const outputPolicy = captureGuardrailsOutputPolicy(guardrailsEngine);
     const guardrailInputVerdict = guardrailsEngine.inspectInput(requestBody);
     if (guardrailInputVerdict.decision === "block") {
       recordGuardrailEvaluation("input", "block");
@@ -365,7 +369,7 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
       });
     }
     for (const replacement of guardrailInputVerdict.replacements) {
-      if (typeof requestBody.messages?.[replacement.index]?.content === "string") {
+      if (requestBody.messages?.[replacement.index]) {
         requestBody.messages[replacement.index].content = replacement.content;
       }
     }
@@ -431,6 +435,11 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
       });
     }
 
+    if (!applyNormalizedGuardrailsInputLimit(gatewayInput, guardrailsEngine, guardrailInputVerdict.findings)) {
+      writeJson(response, 400, createOpenAiError({ code: "guardrail_blocked", category: "governance", param: "messages",
+        message: "Normalized request exceeds the configured input character limit." }));
+      return;
+    }
     const choiceCount = Number(gatewayInput.metadata?.openAiCompatibility?.choiceCount ?? 1);
     if (managedLocalClientRoute && choiceCount > 1) {
       writeJson(response, 409, createOpenAiError(createManagedLocalClientRouteError(
@@ -465,7 +474,7 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
         response,
         startedAt,
         normalizedPath,
-        guardrailsEngine,
+        guardrailsEngine: outputPolicy,
         writeServiceLog,
         enterpriseGovernanceService,
       });
@@ -490,11 +499,14 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
       ? null
       : gatewayInput.metadata?.ragInjection?.applied
       ? null
-      : chatResponseCache.describeCacheCandidate(requestBody, gatewayInput);
+      : chatResponseCache.describeCacheCandidate(requestBody, gatewayInput, outputPolicy.fingerprint);
     const cacheLookup = cacheCandidate
       ? chatResponseCache.lookup({ candidate: cacheCandidate, tenantIdentity: request.enterpriseIdentity })
       : null;
-    if (cacheLookup?.payload.kind === "json") {
+    const cachedBilling = readChatCacheBillingSnapshot(cacheLookup?.payload);
+    if (cacheLookup?.payload.kind === "json" && (!request.enterpriseIdentity?.apiKeyFingerprint || cachedBilling)) {
+      await recordCachedVirtualKeyUsage({ enterpriseGovernanceService, request, writeServiceLog,
+        path: normalizedPath, billingSnapshot: cachedBilling });
       const hitLayer = cacheLookup.hitType === "semantic" ? "semantic" : "exact";
       recordChatRequest(normalizedPath, false);
       recordChatCacheEvent(hitLayer, "hit");
@@ -512,13 +524,6 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
         inputText: gatewayInput.messages?.at(-1)?.content ?? undefined,
         outputText: cacheLookup.payload.response?.choices?.[0]?.message?.content,
         virtualKeyFingerprint: request.enterpriseIdentity?.apiKeyFingerprint,
-      });
-      recordVirtualKeyUsage({
-        enterpriseGovernanceService,
-        request,
-        writeServiceLog,
-        tokens: Number(cacheLookup.payload.response?.usage?.total_tokens ?? 0)
-          || estimateTokens(gatewayInput).estimatedInputTokens,
       });
       writeServiceLog?.("openai_chat_cache_hit", {
         method: request.method,
@@ -558,7 +563,7 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
     // Guardrails 输出侧：对最终文本脱敏/拦截；fail-open 保证不影响正常响应。
     const outputContent = chatCompletion?.choices?.[0]?.message?.content;
     if (typeof outputContent === "string") {
-      const outputVerdict = guardrailsEngine.inspectOutputText(outputContent);
+      const outputVerdict = outputPolicy.inspectOutputText(outputContent);
       if (outputVerdict.decision === "block") {
         recordGuardrailEvaluation("output", "block");
         for (const finding of outputVerdict.findings) {
@@ -609,18 +614,11 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
       outputText: result.data?.message?.content ?? result.data?.outputText,
       virtualKeyFingerprint: request.enterpriseIdentity?.apiKeyFingerprint,
     });
-    recordVirtualKeyUsage({
-      enterpriseGovernanceService,
-      request,
-      writeServiceLog,
-      tokens: Number(result.data?.usage?.totalTokens ?? 0)
-        || estimateTokens(gatewayInput).estimatedInputTokens,
-    });
     if (cacheCandidate) {
       chatResponseCache.persist({
         candidate: cacheCandidate,
         tenantIdentity: request.enterpriseIdentity,
-        payload: { kind: "json", response: chatCompletion },
+        payload: { kind: "json", response: chatCompletion, billing: getVirtualKeyBillingSnapshot(result) },
       });
       recordChatCacheEvent("exact", "write");
     }
@@ -765,7 +763,9 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
     return;
   }
 
-  if (request.method === "POST" && normalizedPath === RESPONSES_PATH) {
+  if ((request.method === "POST" && normalizedPath === RESPONSES_PATH)
+    || (["GET", "DELETE"].includes(request.method)
+      && /^\/v1\/responses\/resp_[A-Za-z0-9_-]{1,64}$/u.test(normalizedPath))) {
     return ROUTE_NOT_HANDLED;
   }
 
@@ -817,10 +817,28 @@ async function handleAnthropicMessages({
     return;
   }
 
-  // Guardrails（确定性本地扫描）：与 /v1/chat/completions 同一引擎，作用于
-  // 归一化前的原始请求，拦截/脱敏覆盖 JSON、流式与缓存路径。
+  let gatewayInput;
+  try {
+    gatewayInput = normalizeAnthropicMessageRequest(
+      body,
+      gatewayService.getProviderDescriptors(),
+    );
+  } catch (error) {
+    writeServiceLog?.("anthropic_messages_validation_failed", {
+      method: request.method,
+      path: ANTHROPIC_MESSAGES_PATH,
+      code: error?.code,
+      param: error?.param,
+      durationMs: Date.now() - startedAt,
+    });
+    writeJson(response, 400, createAnthropicError(error));
+    return;
+  }
+
+  // Inspect the actual normalized text once, including system and tool_result
+  // messages. Original malformed blocks have already failed protocol validation.
   const anthropicGuardrailsEngine = getGuardrailsEngine(request.enterpriseIdentity?.tenantId);
-  const anthropicGuardrailVerdict = anthropicGuardrailsEngine.inspectInput(body);
+  const anthropicGuardrailVerdict = anthropicGuardrailsEngine.inspectInput({ messages: gatewayInput.messages });
   if (anthropicGuardrailVerdict.decision === "block") {
     recordGuardrailEvaluation("input", "block");
     for (const finding of anthropicGuardrailVerdict.findings) {
@@ -853,29 +871,14 @@ async function handleAnthropicMessages({
     });
   }
   for (const replacement of anthropicGuardrailVerdict.replacements) {
-    if (typeof body.messages?.[replacement.index]?.content === "string") {
-      body.messages[replacement.index].content = replacement.content;
-    }
+    gatewayInput.messages[replacement.index].content = replacement.content;
   }
 
-  let gatewayInput;
-  try {
-    gatewayInput = normalizeAnthropicMessageRequest(
-      body,
-      gatewayService.getProviderDescriptors(),
-    );
-  } catch (error) {
-    writeServiceLog?.("anthropic_messages_validation_failed", {
-      method: request.method,
-      path: ANTHROPIC_MESSAGES_PATH,
-      code: error?.code,
-      param: error?.param,
-      durationMs: Date.now() - startedAt,
-    });
-    writeJson(response, 400, createAnthropicError(error));
+  if (!applyNormalizedGuardrailsInputLimit(gatewayInput, anthropicGuardrailsEngine, anthropicGuardrailVerdict.findings)) {
+    writeJson(response, 400, createAnthropicError({ code: "guardrail_blocked", category: "governance", param: "messages",
+      message: "Normalized request exceeds the configured input character limit." }));
     return;
   }
-
   if (managedLocalClientPrincipal) {
     try {
       const managedRoute = await resolveManagedLocalClientProviderRoute({
@@ -948,14 +951,6 @@ async function handleAnthropicMessages({
     model: result.data?.selectedModel,
     executionMode: result.data?.executionMode,
     durationMs: Date.now() - startedAt,
-  });
-  recordVirtualKeyUsage({
-    enterpriseGovernanceService,
-    request,
-    writeServiceLog,
-    tokens: Number(result.data?.usage?.totalTokens ?? 0)
-      || estimateTokens(gatewayInput).estimatedInputTokens,
-    path: ANTHROPIC_MESSAGES_PATH,
   });
   const anthropicMessage = createAnthropicMessage(result, {
     requestedModel: body.model,
@@ -1240,7 +1235,10 @@ function normalizeAnthropicMessageBlocks(message, param) {
       throw createAnthropicValidationError(`${blockParam} must be an object.`, blockParam);
     }
     if (block.type === "text") {
-      textParts.push(readRequiredString(block.text, `${blockParam}.text`));
+      const generatedEmpty = consumeGuardrailsGeneratedEmptyText(block)
+        && typeof block.text === "string" && !block.text.trim();
+      if (!generatedEmpty) readRequiredString(block.text, `${blockParam}.text`);
+      textParts.push(generatedEmpty ? "" : block.text);
       return;
     }
     if (block.type === "tool_use") {
@@ -1324,7 +1322,8 @@ function normalizeAnthropicToolResultContent(content, param) {
         blockParam,
       );
     }
-    return readRequiredString(block.text, `${blockParam}.text`);
+    readRequiredString(block.text, `${blockParam}.text`);
+    return block.text;
   }).join("\n");
 }
 
@@ -1410,7 +1409,10 @@ function normalizeAnthropicTextContent(content, param) {
         );
       }
     }
-    return readRequiredString(block.text, `${blockParam}.text`);
+    const generatedEmpty = consumeGuardrailsGeneratedEmptyText(block)
+      && typeof block.text === "string" && !block.text.trim();
+    if (!generatedEmpty) readRequiredString(block.text, `${blockParam}.text`);
+    return generatedEmpty ? "" : block.text;
   }).join("");
 }
 
@@ -1418,6 +1420,13 @@ export function createAnthropicMessage(result, options = {}) {
   const data = result.data ?? {};
   const text = data.message?.content ?? data.outputText ?? data.text ?? "";
   const usage = data.usage ?? {};
+  const inputTokens = usage.inputTokens ?? estimateAnthropicInputTokens(options.messages);
+  const cacheRead = usage.cacheReadInputTokens ?? 0;
+  const cacheCreation = usage.cacheCreationInputTokens ?? 0;
+  const hasCacheBreakdown = (usage.cacheReadInputTokens !== undefined || usage.cacheCreationInputTokens !== undefined)
+    && Number.isSafeInteger(cacheRead) && cacheRead >= 0
+    && Number.isSafeInteger(cacheCreation) && cacheCreation >= 0
+    && Number.isSafeInteger(cacheRead + cacheCreation) && cacheRead + cacheCreation <= inputTokens;
   const requestId = result.meta?.requestId ?? data.id;
   const toolCalls = readAnthropicToolCalls(data.message);
 
@@ -1445,8 +1454,9 @@ export function createAnthropicMessage(result, options = {}) {
       : normalizeAnthropicStopReason(data.finishReason),
     stop_sequence: data.stopSequence ?? null,
     usage: {
-      input_tokens: usage.inputTokens ?? estimateAnthropicInputTokens(options.messages),
+      input_tokens: inputTokens - (hasCacheBreakdown ? cacheRead + cacheCreation : 0),
       output_tokens: usage.outputTokens ?? estimateCompatibilityTokens(text),
+      ...(hasCacheBreakdown ? { cache_read_input_tokens: cacheRead, cache_creation_input_tokens: cacheCreation } : {}),
     },
     unified_ai: createAnthropicUnifiedAiMetadata(data, requestId),
   };
@@ -1531,13 +1541,14 @@ async function streamAnthropicMessage({
   let finalEvent = null;
   const accumulatedToolCalls = new Map();
   const inputTokens = estimateAnthropicInputTokens(gatewayInput.messages);
+  const outputPolicy = captureGuardrailsOutputPolicy(getGuardrailsEngine(request.enterpriseIdentity?.tenantId));
 
   response.on("close", () => {
     clientClosed = true;
   });
   const primedStream = await primeGatewayStream(gatewayService.executeStream(gatewayInput));
   const preflightError = readPrimedGatewayStreamError(primedStream);
-  const preflightStatus = resolveProviderDispatchHttpStatus(preflightError?.code);
+  const preflightStatus = resolveGatewayStreamPreflightStatus(preflightError?.code);
   if (preflightError && preflightStatus !== null) {
     await closePrimedGatewayStream(primedStream);
     writeServiceLog?.("anthropic_messages_stream_failed", {
@@ -1588,7 +1599,7 @@ async function streamAnthropicMessage({
     started = true;
   };
 
-  for await (const event of iteratePrimedGatewayStream(primedStream)) {
+  for await (const event of inspectGuardrailsOutputStream(iteratePrimedGatewayStream(primedStream), outputPolicy, () => clientClosed)) {
     if (clientClosed) break;
     if (event.type === "error") {
       failed = true;
@@ -1605,12 +1616,6 @@ async function streamAnthropicMessage({
     selectedProvider = event.selectedProvider ?? selectedProvider;
     executionMode = event.executionMode ?? executionMode;
     if (event.type === "chunk" && typeof event.textDelta === "string" && event.textDelta) {
-      // Guardrails 输出侧（流式）：与 /v1/chat/completions 同一引擎，逐 delta
-      // 尽力脱敏；fail-open 保证流不中断。
-      const redactedAnthropicDelta = getGuardrailsEngine(request.enterpriseIdentity?.tenantId).inspectSseDelta(event.textDelta);
-      if (redactedAnthropicDelta !== event.textDelta) {
-        event.textDelta = redactedAnthropicDelta;
-      }
       outputText += event.textDelta;
       writeAnthropicSseEvent(response, "content_block_delta", {
         type: "content_block_delta",
@@ -1646,13 +1651,6 @@ async function streamAnthropicMessage({
     durationMs: Date.now() - startedAt,
   });
   if (!failed) {
-    recordVirtualKeyUsage({
-      enterpriseGovernanceService,
-      request,
-      writeServiceLog,
-      tokens: inputTokens + estimateCompatibilityTokens(outputText),
-      path: ANTHROPIC_MESSAGES_PATH,
-    });
   }
 
   if (!clientClosed) {
@@ -1770,6 +1768,17 @@ function normalizeChoiceCount(value) {
     throw createUnsupportedError(`n must be an integer between 1 and ${MAX_CHOICE_COUNT}.`, "n");
   }
   return count;
+}
+
+/** Apply only the final text budget, after separators/system/prompt context exist. */
+export function applyNormalizedGuardrailsInputLimit(gatewayInput, engine, priorFindings) {
+  const verdict = inspectGuardrailsInputLimits({ messages: gatewayInput.messages }, engine.readConfig());
+  if (verdict.findings.length && !priorFindings.some(finding => finding.rule === "input.limits")) {
+    recordGuardrailEvaluation("input", verdict.decision);
+    for (const finding of verdict.findings) recordGuardrailFinding(finding.rule, finding.action);
+  }
+  for (const replacement of verdict.replacements) gatewayInput.messages[replacement.index].content = replacement.content;
+  return verdict.decision !== "block";
 }
 
 export function normalizeOpenAiChatCompletionRequest(body, descriptors = []) {
@@ -2065,6 +2074,47 @@ function resolveOpenAiModelResource(modelId, descriptors = []) {
   return null;
 }
 
+export function resolveVirtualKeyRequestAccounting({ enterpriseGovernanceService, request, writeServiceLog, path = "/" }) {
+  const fingerprint = request?.enterpriseIdentity?.apiKeyFingerprint;
+  if (!fingerprint) return undefined;
+  const existing = getVirtualKeyRequestAccounting(request);
+  if (existing) return existing;
+  const manager = enterpriseGovernanceService?.getApiKeyManager?.();
+  if (typeof enterpriseGovernanceService?.recordAudit !== "function" && typeof writeServiceLog !== "function") {
+    throw new Error("Virtual key accounting audit is unavailable.");
+  }
+  const identity = request.enterpriseIdentity;
+  const scope = createVirtualKeyRequestAccounting({ manager, keyFingerprint: fingerprint,
+    onEvent: async (event) => {
+      const usage = event.softBudgetExceeded ? manager.describeUsage({ keyId: fingerprint })?.usage : undefined;
+      try {
+        await enterpriseGovernanceService.recordAudit?.({ identity, method: "POST", path,
+          permission: "chat:use", outcome: event.state, code: "VIRTUAL_KEY_USAGE_SETTLED", details: event });
+      } catch {
+        writeServiceLog?.("virtual_key_accounting_failed", { path, keyFingerprint: fingerprint, code: "VIRTUAL_KEY_ACCOUNTING_UNAVAILABLE" });
+        throw new Error("Virtual key accounting audit is unavailable.");
+      }
+      writeServiceLog?.("virtual_key_usage_settled", { path, ...event });
+      if (event.state === "recorded" && (event.source === "reported" || event.source === "estimated")) {
+        writeServiceLog?.("virtual_key_usage_recorded", { path, keyFingerprint: fingerprint,
+          tokens: event.tokens, calculationSource: event.source });
+      }
+      if (event.softBudgetExceeded) writeServiceLog?.("virtual_key_soft_budget", { path, keyFingerprint: fingerprint,
+        tokensUsed: usage?.tokensUsed ?? null, limitTokens: usage?.limitTokens ?? null });
+    } });
+  bindVirtualKeyRequestAccounting(request, scope);
+  return scope;
+}
+
+export function authorizeVirtualKeyRequest({ enterpriseGovernanceService, request, writeServiceLog, path, estimatedTokens }) {
+  const scope = resolveVirtualKeyRequestAccounting({ enterpriseGovernanceService, request, writeServiceLog, path });
+  if (!scope) return undefined;
+  const first = scope.admit(estimatedTokens);
+  return first.allowed ? enterpriseGovernanceService.getApiKeyManager().checkContinuation({
+    keyId: request.enterpriseIdentity.apiKeyFingerprint, estimatedTokens,
+  }) : first;
+}
+
 export function applyVirtualKeyRequestGate({
   enterpriseGovernanceService,
   request,
@@ -2073,16 +2123,21 @@ export function applyVirtualKeyRequestGate({
   writeServiceLog,
   startedAt,
   path = CHAT_COMPLETIONS_PATH,
-  errorFactory = createOpenAiError,
+  errorFactory = /** @type {(error: {code: string, category: string, message: string}) => object} */ (createOpenAiError),
+  estimatedInputTokens: aggregateInputEstimate = /** @type {number | undefined} */ (undefined),
 }) {
   const fingerprint = request?.enterpriseIdentity?.apiKeyFingerprint;
   if (!fingerprint) return false;
-  const manager = enterpriseGovernanceService?.getApiKeyManager?.();
-  // 接线缺失时 fail-open：虚拟 key 认证已由治理层完成，缺记账器不应阻断请求。
-  if (!manager) return false;
-
-  const estimatedInputTokens = estimateTokens(gatewayInput).estimatedInputTokens;
-  const decision = manager.authorizeUsage({ keyId: fingerprint, estimatedTokens: estimatedInputTokens });
+  const estimatedInputTokens = aggregateInputEstimate ?? estimateTokens(gatewayInput).estimatedInputTokens;
+  let decision;
+  try {
+    if (!Number.isSafeInteger(estimatedInputTokens) || estimatedInputTokens < 0) throw new Error("Invalid accounting estimate.");
+    decision = authorizeVirtualKeyRequest({ enterpriseGovernanceService, request, writeServiceLog,
+      path, estimatedTokens: estimatedInputTokens });
+  } catch {
+    writeJson(response, 503, errorFactory({ code: "VIRTUAL_KEY_ACCOUNTING_UNAVAILABLE", category: "internal", message: "Virtual key accounting is unavailable." }));
+    return true;
+  }
   if (decision.allowed) return false;
 
   writeServiceLog?.("virtual_key_rejected", {
@@ -2102,30 +2157,21 @@ export function applyVirtualKeyRequestGate({
   return true;
 }
 
-export function recordVirtualKeyUsage({
+async function recordCachedVirtualKeyUsage({
   enterpriseGovernanceService,
   request,
   writeServiceLog,
-  tokens,
+  billingSnapshot,
   path = CHAT_COMPLETIONS_PATH,
 }) {
-  const fingerprint = request?.enterpriseIdentity?.apiKeyFingerprint;
-  if (!fingerprint) return;
-  const manager = enterpriseGovernanceService?.getApiKeyManager?.();
-  if (!manager) return;
-  try {
-    const result = manager.recordUsage({ keyId: fingerprint, tokens });
-    if (result.softBudgetExceeded) {
-      writeServiceLog?.("virtual_key_soft_budget", {
-        path,
-        keyFingerprint: fingerprint,
-        tokensUsed: result.budget?.tokensUsed ?? null,
-        limitTokens: result.budget?.limitTokens ?? null,
-      });
-    }
-  } catch {
-    // 记账失败不影响响应。
-  }
+  const scope = resolveVirtualKeyRequestAccounting({ enterpriseGovernanceService, request, writeServiceLog, path });
+  if (!scope) return;
+  const snapshot = readChatCacheBillingSnapshot({ billing: billingSnapshot });
+  if (!snapshot) throw Object.assign(new Error("Cached virtual key accounting is unavailable."),
+    { code: "VIRTUAL_KEY_ACCOUNTING_UNAVAILABLE", category: "internal", retryable: false });
+  // The full cached cost is already known before any response bytes are sent.
+  const invocation = scope.beginInvocation(snapshot.totalTokens);
+  await scope.settle(invocation, { tokens: snapshot.totalTokens, source: snapshot.source, incomplete: false });
 }
 
 async function handleMultiChoiceChatCompletion({
@@ -2240,12 +2286,6 @@ async function handleMultiChoiceChatCompletion({
   const selectedModel = settled[0].data?.selectedModel ?? gatewayInput.model;
   recordChatTokens(selectedModel, "input", promptTokens);
   recordChatTokens(selectedModel, "output", completionTokens);
-  recordVirtualKeyUsage({
-    enterpriseGovernanceService,
-    request,
-    writeServiceLog,
-    tokens: promptTokens + completionTokens,
-  });
   writeServiceLog?.("openai_chat_completed", {
     method: "POST",
     path: normalizedPath,
@@ -2275,6 +2315,7 @@ export async function streamOpenAiChatCompletion({
   let finalEvent = null;
   let streamOutputText = "";
   const created = Math.floor(startedAt / 1000);
+  const outputPolicy = captureGuardrailsOutputPolicy(getGuardrailsEngine(request.enterpriseIdentity?.tenantId));
 
   response.on("close", () => {
     clientClosed = true;
@@ -2302,11 +2343,14 @@ export async function streamOpenAiChatCompletion({
     || choiceCount > 1
     || gatewayInput.metadata?.ragInjection?.applied
     ? null
-    : chatResponseCache.describeCacheCandidate(body, gatewayInput);
+    : chatResponseCache.describeCacheCandidate(body, gatewayInput, outputPolicy.fingerprint);
   const cacheLookup = cacheCandidate
     ? chatResponseCache.lookup({ candidate: cacheCandidate, tenantIdentity: request.enterpriseIdentity })
     : null;
-  if (cacheLookup?.payload.kind === "sse") {
+  const cachedBilling = readChatCacheBillingSnapshot(cacheLookup?.payload);
+  if (cacheLookup?.payload.kind === "sse" && (!request.enterpriseIdentity?.apiKeyFingerprint || cachedBilling)) {
+    await recordCachedVirtualKeyUsage({ enterpriseGovernanceService, request, writeServiceLog,
+      path: CHAT_COMPLETIONS_PATH, billingSnapshot: cachedBilling });
     writeSseHeaders(response);
     const hitLayer = cacheLookup.hitType === "semantic" ? "semantic" : "exact";
     recordChatRequest(CHAT_COMPLETIONS_PATH, true);
@@ -2317,7 +2361,7 @@ export async function streamOpenAiChatCompletion({
       stream: true,
       cacheHit: true,
       usage: {
-        totalTokens: Number(cacheLookup.payload.usageChunk?.usage?.total_tokens ?? 0) || undefined,
+        totalTokens: cachedBilling?.totalTokens ?? (Number(cacheLookup.payload.usageChunk?.usage?.total_tokens ?? 0) || undefined),
       },
       latencyMs: Date.now() - startedAt,
       inputText: gatewayInput.messages?.at(-1)?.content ?? undefined,
@@ -2329,13 +2373,6 @@ export async function streamOpenAiChatCompletion({
     if (body.stream_options?.include_usage === true && cacheLookup.payload.usageChunk !== undefined) {
       writeOpenAiSseData(response, cacheLookup.payload.usageChunk);
     }
-    recordVirtualKeyUsage({
-      enterpriseGovernanceService,
-      request,
-      writeServiceLog,
-      tokens: Number(cacheLookup.payload.usageChunk?.usage?.total_tokens ?? 0)
-        || estimateTokens(gatewayInput).estimatedInputTokens,
-    });
     writeServiceLog?.("openai_chat_stream_cache_hit", {
       method: request.method,
       path: CHAT_COMPLETIONS_PATH,
@@ -2351,7 +2388,7 @@ export async function streamOpenAiChatCompletion({
 
   const firstPrimedStream = await primeGatewayStream(gatewayService.executeStream(gatewayInput));
   const preflightError = readPrimedGatewayStreamError(firstPrimedStream);
-  const preflightStatus = resolveProviderDispatchHttpStatus(preflightError?.code);
+  const preflightStatus = resolveGatewayStreamPreflightStatus(preflightError?.code);
   if (preflightError && preflightStatus !== null) {
     await closePrimedGatewayStream(firstPrimedStream);
     writeServiceLog?.("openai_chat_stream_failed", {
@@ -2367,11 +2404,12 @@ export async function streamOpenAiChatCompletion({
 
   const capturedChunks = [];
   let capturedUsageChunk;
+  let capturedBilling;
   let firstTokenAt = 0;
 
   const consumeProviderStream = async (choiceIndex, primedStream) => {
     const stream = primedStream ?? await primeGatewayStream(gatewayService.executeStream(gatewayInput));
-    for await (const event of iteratePrimedGatewayStream(stream)) {
+    for await (const event of inspectGuardrailsOutputStream(iteratePrimedGatewayStream(stream), outputPolicy, () => clientClosed)) {
       if (clientClosed) break;
       if (event.type === "error") {
         failed = true;
@@ -2383,12 +2421,6 @@ export async function streamOpenAiChatCompletion({
       selectedModel = event.selectedModel ?? selectedModel;
       finalEvent = event;
       if (typeof event.textDelta === "string" && event.textDelta) {
-        // Guardrails 输出侧（流式）：对每个 delta 尽力脱敏（跨块边界的模式以
-        // 完成后的审计发现兜底），fail-open 保证流不中断。
-        const redactedDelta = getGuardrailsEngine(request.enterpriseIdentity?.tenantId).inspectSseDelta(event.textDelta);
-        if (redactedDelta !== event.textDelta) {
-          event.textDelta = redactedDelta;
-        }
         if (!firstTokenAt) {
           firstTokenAt = Date.now();
           recordChatTtft(CHAT_COMPLETIONS_PATH, firstTokenAt, startedAt);
@@ -2413,6 +2445,7 @@ export async function streamOpenAiChatCompletion({
   }
 
   if (!failed) {
+    capturedBilling = getVirtualKeyBillingSnapshot(finalEvent);
     recordChatRequest(CHAT_COMPLETIONS_PATH, true);
     if (cacheCandidate) {
       recordChatCacheEvent("exact", cacheLookup ? "miss" : "bypassed");
@@ -2436,13 +2469,6 @@ export async function streamOpenAiChatCompletion({
       inputText: gatewayInput.messages?.at(-1)?.content ?? undefined,
       outputText: streamOutputText,
       virtualKeyFingerprint: request.enterpriseIdentity?.apiKeyFingerprint,
-    });
-    recordVirtualKeyUsage({
-      enterpriseGovernanceService,
-      request,
-      writeServiceLog,
-      tokens: Number(finalEvent?.rawProviderMeta?.usage?.totalTokens ?? 0)
-        || (estimateTokens(gatewayInput).estimatedInputTokens + estimateTextTokens(streamOutputText)),
     });
   }
 
@@ -2478,6 +2504,7 @@ export async function streamOpenAiChatCompletion({
       payload: {
         kind: "sse",
         chunks: capturedChunks,
+        billing: capturedBilling,
         ...(capturedUsageChunk !== undefined ? { usageChunk: capturedUsageChunk } : {}),
       },
     });
@@ -2502,13 +2529,14 @@ async function streamOpenAiCompletion({
   let firstTokenAt = 0;
   const created = Math.floor(startedAt / 1000);
   const choiceCount = Number(gatewayInput.metadata?.openAiCompatibility?.choiceCount ?? 1);
+  const outputPolicy = captureGuardrailsOutputPolicy(getGuardrailsEngine(request.enterpriseIdentity?.tenantId));
 
   response.on("close", () => {
     clientClosed = true;
   });
   const firstPrimedStream = await primeGatewayStream(gatewayService.executeStream(gatewayInput));
   const preflightError = readPrimedGatewayStreamError(firstPrimedStream);
-  const preflightStatus = resolveProviderDispatchHttpStatus(preflightError?.code);
+  const preflightStatus = resolveGatewayStreamPreflightStatus(preflightError?.code);
   if (preflightError && preflightStatus !== null) {
     await closePrimedGatewayStream(firstPrimedStream);
     writeServiceLog?.("openai_completion_stream_failed", {
@@ -2524,7 +2552,7 @@ async function streamOpenAiCompletion({
 
   const consumeLegacyStream = async (choiceIndex, primedStream) => {
     const stream = primedStream ?? await primeGatewayStream(gatewayService.executeStream(gatewayInput));
-    for await (const event of iteratePrimedGatewayStream(stream)) {
+    for await (const event of inspectGuardrailsOutputStream(iteratePrimedGatewayStream(stream), outputPolicy, () => clientClosed)) {
       if (clientClosed) break;
       if (event.type === "error") {
         failed = true;
@@ -3152,6 +3180,7 @@ export async function authenticateManagedLocalClientProtocolRequest({
   const clientRequested = rawClientId !== undefined;
   const proofSupplied = proofHeader !== undefined;
   const rawBody = proofSupplied ? takeRawJsonRequestBody(request) : null;
+  const disconnected = () => request.aborted === true || request.socket?.destroyed === true;
   try {
     const serverBinding = application?.localClientProtocolPrincipalResolver?.resolve?.(
       request.enterpriseIdentity,
@@ -3167,11 +3196,20 @@ export async function authenticateManagedLocalClientProtocolRequest({
       || !MANAGED_LOCAL_CLIENT_PROTOCOL_ID_PATTERN.test(rawClientId)
       || rawClientId !== serverBinding.clientId
       || !application?.localClientPopHttpAuth
-      || application?.localClientManagedProtocolDispatchStatus?.ready !== true
+      || disconnected()
     ) {
       throw createManagedLocalClientAuthError();
     }
-    return await application.localClientPopHttpAuth.authenticate({
+    // The authenticated server binding chooses the client before any native
+    // bootstrap/refresh. The existing complete dispatch gate still follows it.
+    if (application.localClientPopIdentityAuthority?.prepareReplayProtection) {
+      const prepared = await application.localClientPopIdentityAuthority.prepareReplayProtection({
+        tenantId: request.enterpriseIdentity?.tenantId, clientId: serverBinding.clientId,
+      });
+      if (!prepared || disconnected()) throw createManagedLocalClientAuthError();
+    }
+    if (application?.localClientManagedProtocolDispatchStatus?.ready !== true) throw createManagedLocalClientAuthError();
+    const principal = await application.localClientPopHttpAuth.authenticate({
       authenticatedScope: {
         tenantId: request.enterpriseIdentity?.tenantId,
         subjectId: request.enterpriseIdentity?.userId,
@@ -3182,6 +3220,8 @@ export async function authenticateManagedLocalClientProtocolRequest({
       rawBody,
       proofHeader,
     });
+    if (disconnected()) throw createManagedLocalClientAuthError();
+    return principal;
   } finally {
     rawBody?.fill(0);
   }
@@ -3405,6 +3445,7 @@ function writeOpenAiSseData(response, data) {
 }
 
 export function resolveOpenAiErrorStatus(error) {
+  if (error?.code === "VIRTUAL_KEY_ACCOUNTING_UNAVAILABLE") return 503;
   if (typeof error?.status === "number" && error.status >= 400 && error.status < 500) {
     return error.status;
   }

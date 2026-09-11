@@ -1,0 +1,43 @@
+{
+  "services": {
+    "ai-gateway-service": {
+      "image": "${UAI_GATEWAY_IMAGE:?Set UAI_GATEWAY_IMAGE to a verified repository@sha256 digest}",
+      "environment": {
+        "AI_GATEWAY_SERVICE_HOST": "0.0.0.0",
+        "AI_GATEWAY_SERVICE_PORT": "3100",
+        "AI_GATEWAY_PROVIDER_MODE": "fake",
+        "AI_GATEWAY_SHUTDOWN_TIMEOUT_MS": "10000",
+        "PME_ENTERPRISE_AUTH_ENABLED": "true",
+        "PME_AUTH_TOKEN": "${PME_AUTH_TOKEN:?Set PME_AUTH_TOKEN in the explicit private environment file}",
+        "AI_GATEWAY_MODEL_LIBRARY_STATE_PATH": "/app/.data/model-library/state.json"
+      },
+      "ports": ["127.0.0.1:${UAI_GATEWAY_PORT:-3100}:3100"],
+      "user": "node",
+      "init": true,
+      "restart": "unless-stopped",
+      "stop_grace_period": "15s",
+      "read_only": true,
+      "cap_drop": ["ALL"],
+      "security_opt": ["no-new-privileges:true"],
+      "tmpfs": ["/tmp:rw,noexec,nosuid,size=64m"],
+      "deploy": { "replicas": 1 },
+      "volumes": [
+        "gateway-data:/app/.data",
+        "gateway-service-data:/app/apps/ai-gateway-service/.data"
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3100/ready').then((response) => { if (!response.ok) process.exit(1); }).catch(() => process.exit(1));"
+        ],
+        "interval": "10s",
+        "timeout": "3s",
+        "retries": 12,
+        "start_period": "5s"
+      }
+    }
+  },
+  "volumes": { "gateway-data": {}, "gateway-service-data": {} }
+}

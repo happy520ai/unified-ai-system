@@ -3,6 +3,9 @@
  * 接口对照 workforce/workforceService.js 实际导出。
  */
 
+import type { WorkforcePlanState } from "@unified-ai-system/shared-contracts";
+export type { WorkforcePlanState } from "@unified-ai-system/shared-contracts";
+
 export interface WorkforceHealth {
   phase: string;
   status: string;
@@ -18,7 +21,12 @@ export interface WorkforcePlan {
   taskBreakdown: unknown[];
   roleAssignments: unknown[];
   deliverables: unknown[];
+  planState: WorkforcePlanState;
   [key: string]: unknown;
+}
+
+export interface WorkforceTaskPackage extends Record<string, unknown> {
+  planState: WorkforcePlanState;
 }
 
 export interface WorkforceExecutionResult {
@@ -48,17 +56,19 @@ export interface WorkforceService {
   getHealth(): WorkforceHealth;
   listAgents(): Record<string, unknown>;
   plan(input: { goal: string } & Record<string, unknown>): WorkforcePlan;
+  planAndSave(input: Record<string, unknown>, scope?: Record<string, unknown>): Promise<{ plan: WorkforcePlan; saved: Record<string, any>; replayed: boolean }>;
+  close(): void;
   execute(input: { goal: string } | string, options?: Record<string, unknown>): Promise<WorkforceExecutionResult>;
-  runLocal(input?: Record<string, unknown>): Promise<WorkforceLocalRunResult>;
-  savePlan(input?: Record<string, unknown>): Promise<Record<string, unknown>>;
-  listPlans(): Promise<Record<string, unknown>>;
-  getPlan(planId: string): Promise<Record<string, unknown>>;
-  deletePlan(planId: string): Promise<Record<string, unknown>>;
-  exportPlan(planId: string): Promise<Record<string, unknown>>;
-  answerClarifications(planId: string, input?: Record<string, unknown>): Promise<Record<string, unknown>>;
-  updatePlanLifecycle(planId: string, input?: Record<string, unknown>): Promise<Record<string, unknown>>;
-  getPlanReviewPackage(planId: string): Promise<Record<string, unknown>>;
-  recordPlanApprovalGate(planId: string, input?: Record<string, unknown>): Promise<Record<string, unknown>>;
+  runLocal(input?: Record<string, unknown>, options?: Record<string, unknown>): Promise<WorkforceLocalRunResult>;
+  savePlan(input: Record<string, unknown>, tenantId: string, scope?: Record<string, unknown>): Promise<{ planId: string; taskPackage: WorkforceTaskPackage; [key: string]: unknown }>;
+  listPlans(tenantId: string): Promise<Record<string, unknown>>;
+  getPlan(planId: string, tenantId: string): Promise<{ plan: WorkforceTaskPackage; taskPackage: WorkforceTaskPackage; [key: string]: unknown }>;
+  deletePlan(planId: string, tenantId: string): Promise<Record<string, unknown>>;
+  exportPlan(planId: string, tenantId: string, scope?: Record<string, unknown>): Promise<{ markdown: string; taskPackage: WorkforceTaskPackage; [key: string]: unknown }>;
+  answerClarifications(planId: string, input: Record<string, unknown>, tenantId: string): Promise<Record<string, unknown>>;
+  updatePlanLifecycle(planId: string, input: Record<string, unknown>, tenantId: string): Promise<Record<string, unknown>>;
+  getPlanReviewPackage(planId: string, tenantId: string): Promise<Record<string, unknown>>;
+  recordPlanApprovalGate(planId: string, input: Record<string, unknown>, tenantId: string): Promise<Record<string, unknown>>;
 }
 
 export declare function createWorkforceService(options?: Record<string, unknown>): WorkforceService;

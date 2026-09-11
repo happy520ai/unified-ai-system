@@ -92,6 +92,8 @@ import type {
 import { createAgentGenerationJournal } from "./agentGenerationJournal.ts";
 import { getGovernanceStateAuthority } from "./governanceStateAnchor.ts";
 import { normalizeModelPolicyDraft } from "./modelPolicyDraft.ts";
+import type { GatewayExecutionContext } from "../http/httpRequestExecution.ts";
+import { inheritVirtualKeyRequestAccounting } from "../enterprise/virtualKeyRequestAccounting.ts";
 
 export interface GovernanceContext {
   tenantId: string;
@@ -99,6 +101,8 @@ export interface GovernanceContext {
   role?: string;
   permissions?: string[];
   requestId?: string;
+  /** Server-owned request lifetime; never loaded from a request body or journal. */
+  execution?: GatewayExecutionContext;
   /** When set, an agent identity is attempting the call (self-modification guard). */
   actorAgentId?: string | null;
 }
@@ -225,6 +229,9 @@ export interface AgentGovernanceService {
     review: AgentToolApprovalReview,
     reason?: string,
   ): Promise<AgentToolApprovalRecord>;
+  /** Reads the original consumed approval; it never consumes it again or grants a new execution lease. */
+  verifyConsumedArguments(input: { approvalId: string; agentId: string; tenantId: string; toolName: string;
+    args: unknown; policyHash: string; executionId: string }): Promise<{ args: unknown; review: AgentToolApprovalReview } | null>;
   /** Non-secret readiness probe. The service Proxy completes startup
    * reconciliation before this method verifies signed state and audit data. */
   checkHealth(): Promise<AgentGovernanceServiceHealth>;
@@ -242,6 +249,7 @@ export interface ModelProposer {
     tenantId: string;
     userId: string;
     requestId?: string;
+    execution?: GatewayExecutionContext;
   }): Promise<{
     classification: AgentClassification;
     proposedTraits: string[];
@@ -1548,13 +1556,16 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
         : null;
       if (!proposal && modelProposer) {
         try {
-          const candidate = await modelProposer.proposeClassification(input.task, {
+          const proposerContext = {
             name: input.name,
             requestedTools: [...input.requestedTools],
             tenantId: ctx.tenantId,
             userId: ctx.userId,
             requestId: ctx.requestId,
-          });
+            ...(ctx.execution ? { execution: ctx.execution } : {}),
+          };
+          inheritVirtualKeyRequestAccounting(ctx, proposerContext);
+          const candidate = await modelProposer.proposeClassification(input.task, proposerContext);
           if (candidate) {
             modelPolicyDraftProposed = candidate.policyDraft !== undefined;
             proposal = {
@@ -2350,6 +2361,10 @@ export function createAgentGovernanceService(options: AgentGovernanceServiceOpti
       return matched ? { approvalId: matched.id } : null;
     },
 
+    async verifyConsumedArguments(input) {
+      const { computeArgumentsHash } = await import("@unified-ai-system/policy-engine");
+      return approvals.verifyConsumed({ ...input, argumentsHash: computeArgumentsHash(input.args) });
+    },
     async createApproval(agentId, toolName, args, tenantId, review, reason) {
       const approval = await approvals.create(
         { agentId, toolName, arguments: args, tenantId, review, reason },

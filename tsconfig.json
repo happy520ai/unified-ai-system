@@ -10,6 +10,7 @@
   },
   "include": [
     "apps/ai-gateway-service/src/**/*.ts",
+    "apps/agent-console/src/**/*.ts",
     "packages/shared-contracts/src/**/*.ts",
     "packages/policy-engine/src/**/*.ts",
     "packages/shared-config/src/**/*.ts",

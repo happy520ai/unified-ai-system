@@ -185,6 +185,7 @@ import {
 } from "./httpRouteDispatch.js";
 import { dispatchPromptEnhancementRoutes } from "./promptEnhancementRoutes.js";
 import { AGENT_EXEC_LIMITS, dispatchAgentExecRoutes } from "./agentExecRoutes.js";
+import { dispatchGovernedAgentTaskRoutes } from "./governedAgentTaskRoutes.ts";
 import { dispatchAgentGovernanceRoutes } from "./agentGovernanceRoutes.ts";
 import { createA2AGateway } from "./a2aGateway.js";
 import { dispatchA2ARoutes } from "./a2aRoutes.js";
@@ -194,6 +195,7 @@ import {
   dispatchOpenAiCompatibilityRoutes,
   isAnthropicMessagesRoute,
   isOpenAiCompatibilityRoute,
+  resolveVirtualKeyRequestAccounting,
 } from "./openAiCompatibilityRoutes.js";
 import { dispatchOpenAiResponsesRoutes } from "./openAiResponsesRoutes.js";
 import {
@@ -214,6 +216,7 @@ import { createOpenTelemetryRuntime } from "../observability/openTelemetry.js";
 import { createIdempotencyCoordinator } from "./idempotencyCoordinator.ts";
 import { createGatewayLifecycle } from "./gatewayLifecycle.ts";
 import { bindGatewayExecution, createHttpRequestExecutionScope } from "./httpRequestExecution.ts";
+import { bindVirtualKeyRequestAccounting } from "../enterprise/virtualKeyRequestAccounting.ts";
 import { createRequestIdentityResolver, parseTrustedProxyCidrs } from "./requestIdentity.ts";
 import { shouldRejectUnmappedRoute } from "./runtimeRouteAccessManifest.ts";
 import { isLoopbackAddress } from "../security/networkBindingPolicy.ts";
@@ -270,6 +273,7 @@ const HTTP_ROUTE_GROUPS = Object.freeze([
   dispatchPromptEnhancementRoutes,
   dispatchAgentGovernanceRoutes,
   dispatchAgentExecRoutes,
+  dispatchGovernedAgentTaskRoutes,
   dispatchMultimodalRoutes,
   dispatchWorkforceExecutionRoutes,
   dispatchOpenAiCompatibilityRoutes,
@@ -514,14 +518,20 @@ function createGatewayHttpServerWithOwnerLease(application, governanceOwnerLease
             )));
             return;
           }
+          const messageExecution = { ...execution };
+          const messageRequest = { enterpriseIdentity: ws.identity };
+          const accounting = resolveVirtualKeyRequestAccounting({ enterpriseGovernanceService, request: messageRequest,
+            writeServiceLog, path: "/ws" });
+          if (accounting) bindVirtualKeyRequestAccounting(messageExecution, accounting);
           const result = await tracedGatewayService.execute({
             messages: [{ role: "user", content: data.prompt }],
+            enterpriseIdentity: ws.identity,
             metadata: {
               source: "websocket",
               userId: ws.identity?.userId,
               tenantId: ws.identity?.tenantId,
             },
-          }, execution);
+          }, messageExecution);
           ws.send(JSON.stringify({ type: "chat_response", data: result }));
         } else if (data.type === "ping") {
           ws.send(JSON.stringify({ type: "pong", timestamp: Date.now() }));
@@ -721,7 +731,8 @@ function createGatewayHttpServerWithOwnerLease(application, governanceOwnerLease
     // deadline; the route also combines this transport signal with its own
     // timer, so disconnects still cancel immediately.
     const routeTimeoutMs = (pathname === "/agent-exec/run"
-      || /^\/v1\/agents\/agt_[A-Za-z0-9_-]{1,128}\/run\/?$/u.test(pathname))
+      || /^\/v1\/agents\/agt_[A-Za-z0-9_-]{1,128}\/run\/?$/u.test(pathname)
+      || /^\/v1\/agents\/agt_[A-Za-z0-9_-]{1,128}\/tasks\/[a-f0-9-]{36}\/(?:plan|run)$/u.test(pathname))
       ? Math.max(requestTimeoutMs, AGENT_EXEC_LIMITS.maxTimeoutMs + 5_000)
       : isStreamingRoute ? streamingRequestTimeoutMs : requestTimeoutMs;
     const requestTimeout = Math.max(routeTimeoutMs, 1_000);
@@ -770,7 +781,9 @@ function createGatewayHttpServerWithOwnerLease(application, governanceOwnerLease
     });
     // Identity resolves lazily at execute time, after enterprise authorization
     // has attached it, so the usage ledger attributes records to the real tenant.
-    const requestGatewayService = bindGatewayExecution(tracedGatewayService, requestExecutionScope.context, () => request.enterpriseIdentity);
+    const requestGatewayService = bindGatewayExecution(tracedGatewayService, requestExecutionScope.context,
+      () => request.enterpriseIdentity,
+      () => resolveVirtualKeyRequestAccounting({ enterpriseGovernanceService, request, writeServiceLog, path: url.pathname }));
 
     const routeRateLimiter = rateLimiter;
 
@@ -1055,6 +1068,12 @@ function createGatewayHttpServerWithOwnerLease(application, governanceOwnerLease
       }
       let routeResult;
       try {
+        if (!publicRoute && request.enterpriseIdentity?.apiKeyFingerprint) {
+          // Mint authority after authentication without admitting usage. This
+          // also covers server-owned contexts passed directly to Workforce.
+          const accounting = resolveVirtualKeyRequestAccounting({ enterpriseGovernanceService, request, writeServiceLog, path: pathname });
+          bindVirtualKeyRequestAccounting(requestExecutionScope.context, accounting);
+        }
         routeResult = await httpTrace.run(() => dispatchHttpRouteGroups(HTTP_ROUTE_GROUPS, {
           ...HTTP_ROUTE_DEPENDENCIES,
           application,
@@ -1174,6 +1193,11 @@ function createGatewayHttpServerWithOwnerLease(application, governanceOwnerLease
     shutdownResourcesPromise ??= (async () => {
       const failures = [];
       try {
+        await application.closeAgentLongTaskRuntime?.();
+      } catch (error) {
+        failures.push(error);
+      }
+      try {
         await application.localClientSmartManagementScheduler?.close?.();
       } catch (error) {
         failures.push(error);
@@ -1189,6 +1213,8 @@ function createGatewayHttpServerWithOwnerLease(application, governanceOwnerLease
         failures.push(error);
       }
       const closeOperations = [
+        () => application.taijiCapabilityService?.close?.(),
+        () => application.imConnectorRuntime?.close?.(),
         () => application.localClientExecutionReceiptJournalRegistry?.close?.(),
         () => application.localClientPopIdentityAuthority?.close?.(),
         () => application.localClientVerificationService?.close?.(),
@@ -1205,6 +1231,7 @@ function createGatewayHttpServerWithOwnerLease(application, governanceOwnerLease
         () => rateLimiter.close(),
         () => a2aGateway.close?.(),
         () => application.workforceExecutor?.close?.(),
+        () => application.workforceService?.close?.(),
         () => application.requestLogger?.close?.(),
         () => application.providerDispatchGate?.close?.(),
         () => application.agentGovernance?.registryStore?.close?.(),
@@ -1246,6 +1273,9 @@ function isAgentGovernanceRuntimePath(pathname) {
   return pathname === "/agent-exec/run"
     || pathname === "/mcp/call"
     || pathname === "/workforce/execute"
+    || pathname === "/workforce/execute/handoff/recover"
+    || pathname === "/workforce/execute/review"
+    || pathname === "/workforce/execute/external-runner/recover"
     || pathname === "/forge/orchestrate"
     || pathname === "/workflow/run"
     || pathname === "/workforce/run-local"
@@ -1264,6 +1294,7 @@ function isManagedLocalClientProtocolRoute(method, pathname) {
   const path = String(pathname ?? "").replace(/\/+$/u, "") || "/";
   return path === "/chat"
     || path === "/chat/stream"
+    || path === "/a2a/jsonrpc"
     || path === "/v1/chat/completions"
     || path === "/chat/completions"
     || path === "/v1/messages"

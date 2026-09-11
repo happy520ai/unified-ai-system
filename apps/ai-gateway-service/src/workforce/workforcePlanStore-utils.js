@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { STORE_VERSION } from "./workforcePlanStore-constants.js";
+import { normalizeWorkflowHandoffPreviewState } from "./workflowRunHandoff.js";
 
 export function redactSecrets(value) {
   if (typeof value === "string") {
@@ -70,6 +71,12 @@ function sealWorkforcePreviewNode(value, state, depth) {
       }
       if (key === "execution" && typeof item === "string" && item.toLowerCase() === "enabled") {
         return [key, "disabled"];
+      }
+      if (key === "satisfied" && value.checkId === "consensus-reviewed") return [key, false];
+      if (key === "consensus" && item && typeof item === "object" && !Array.isArray(item)) {
+        const consensus = sealWorkforcePreviewNode(item, state, depth + 1);
+        return [key, { ...consensus, ready: false, previewOnly: true,
+          previewComplete: ["Planner", "Architect", "Critic"].every(role => Array.isArray(consensus.roles) && consensus.roles.includes(role)) }];
       }
       return [key, sealWorkforcePreviewNode(item, state, depth + 1)];
     }));
@@ -269,7 +276,7 @@ export function updatePlanStateCurrent(planState, state) {
   const lifecycleStatus = ["draft", "clarified", "saved", "exported", "handoff-disabled"].includes(state)
     ? state
     : (state === "consensus_ready" ? "clarified" : "saved");
-  return {
+  return normalizeWorkflowHandoffPreviewState({
     ...(planState || {}),
     current,
     lifecycleStatus,
@@ -277,14 +284,7 @@ export function updatePlanStateCurrent(planState, state) {
     states: ["draft", "clarified", "consensus_ready", "export_ready", "archived"],
     previewOnly: true,
     drivesExecution: false,
-    workflowRunHandoff: {
-      status: "disabled",
-      lifecycleStatus: "handoff-disabled",
-      implemented: false,
-      enabled: false,
-      reason: "Phase140A persists lifecycle preview state only and does not call POST /workflow/run.",
-    },
-  };
+  });
 }
 
 export function toPlanSummary(plan) {

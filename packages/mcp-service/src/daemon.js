@@ -21,7 +21,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { existsSync, statSync } from "node:fs";
 import { createLogger, defaultLogPath } from "./logger.js";
 import { createSupervisor } from "./supervisor.js";
-import { createHealthServer } from "./health-server.js";
+import { createHealthServer, validateHealthServerOptions } from "./health-server.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -57,6 +57,7 @@ export async function createDaemon(options = {}) {
       || defaultLogPath(resolveRepoRoot(options.repoRoot)),
     healthPort = Number(process.env.MCP_SERVICE_HEALTH_PORT ?? 7788),
     healthHost = process.env.MCP_SERVICE_HEALTH_HOST ?? "127.0.0.1",
+    healthAdminToken = process.env.MCP_SERVICE_HEALTH_ADMIN_TOKEN ?? "",
     supervisor,
     logger,
     healthServer,
@@ -64,6 +65,8 @@ export async function createDaemon(options = {}) {
     spawnEnv = {},
     teeToStderr = process.env.MCP_SERVICE_TEE_STDERR === "1",
   } = options;
+
+  validateHealthServerOptions({ host: healthHost, adminToken: healthAdminToken });
 
   const repoRoot = resolveRepoRoot(explicitRepoRoot);
   const resolvedLogPath = resolve(repoRoot, logPath) === logPath
@@ -92,6 +95,7 @@ export async function createDaemon(options = {}) {
   const finalHealth = healthServer ?? createHealthServer({
     host: healthHost,
     port: healthPort,
+    adminToken: healthAdminToken,
     logger: finalLogger,
     supervisor: finalSupervisor,
     onShutdown: async () => {

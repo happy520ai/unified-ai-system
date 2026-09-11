@@ -22,6 +22,24 @@ interface DagExecutorOptions {
   };
 }
 
+interface CodeTaskBinding {
+  taskId: string; roleId: string; executionId: string; agentId: string; agentRunId: string;
+  agentFence: unknown;
+}
+const codeTaskFences = new WeakMap<object, CodeTaskBinding & { assertActive(phase: "reserve" | "commit"): Promise<unknown> }>();
+
+/** Recognizes only a currently claimed DAG task; copied callbacks are not task authority. */
+export async function assertWorkforceCodeTaskFence(fence: unknown, expected: CodeTaskBinding,
+  phase: "reserve" | "commit" = "commit") {
+  const binding = fence && typeof fence === "object" ? codeTaskFences.get(fence) : undefined;
+  const matches = () => binding && codeTaskFences.get(fence as object) === binding
+    && Object.entries(expected).every(([key, value]) => binding[key as keyof CodeTaskBinding] === value);
+  if (!matches()) throw dagError("WORKFORCE_CODE_TASK_FENCE_INVALID", "The code task is not the active claimed DAG task.");
+  const result = await binding!.assertActive(phase);
+  if (!matches()) throw dagError("WORKFORCE_CODE_TASK_FENCE_INVALID", "The code task claim ended during fence verification.");
+  return result;
+}
+
 function dagError(code: string, message: string, details: Record<string, unknown> = {}) {
   const error = new Error(message);
   Object.assign(error, { code, details });
@@ -178,6 +196,27 @@ export async function executeWorkforceDag(options: DagExecutorOptions) {
     const settled = await Promise.allSettled(prepared.map(async ({ roleId, task, ownership, fencingToken }) => {
       activeExecutions += 1;
       peakConcurrency = Math.max(peakConcurrency, activeExecutions);
+      const externalEffectFence = Object.freeze({
+        fencingToken,
+        agentRunFingerprint: options.agentExecutionFence?.fingerprint ?? null,
+        async assertActive(phase: "reserve" | "commit" = "commit") {
+          if (!fencingToken || typeof options.taskQueue.assertTaskClaimActive !== "function") {
+            throw dagError("WORKFORCE_EXTERNAL_EFFECT_FENCE_UNAVAILABLE", "The task queue cannot prove an active fence for an external effect.");
+          }
+          const taskClaim = await options.taskQueue.assertTaskClaimActive(task.queueTaskId, ownership);
+          if (options.agentExecutionFence) {
+            if (typeof options.agentExecutionFence.assertActive !== "function") {
+              throw dagError("WORKFORCE_AGENT_RUN_FENCE_UNAVAILABLE", "The governed Agent run fence is unavailable for an external effect.");
+            }
+            await options.agentExecutionFence.assertActive(phase);
+          }
+          return taskClaim;
+        },
+      });
+      codeTaskFences.set(externalEffectFence, { taskId: task.queueTaskId, roleId,
+        executionId: String(options.context?.executionId ?? ""), agentId: String(options.context?.governedAgentId ?? ""),
+        agentRunId: String(options.context?.agentRunId ?? ""), agentFence: options.agentExecutionFence,
+        assertActive: externalEffectFence.assertActive.bind(externalEffectFence) });
       try {
         const output = await runAbortable(Promise.resolve(options.executeRole(roleId, {
           ...(options.context ?? {}),
@@ -187,29 +226,7 @@ export async function executeWorkforceDag(options: DagExecutorOptions) {
             ? options.context.governedAgentId
             : null,
           signal: options.signal,
-          externalEffectFence: Object.freeze({
-            fencingToken,
-            agentRunFingerprint: options.agentExecutionFence?.fingerprint ?? null,
-            async assertActive(phase: "reserve" | "commit" = "commit") {
-              if (!fencingToken || typeof options.taskQueue.assertTaskClaimActive !== "function") {
-                throw dagError(
-                  "WORKFORCE_EXTERNAL_EFFECT_FENCE_UNAVAILABLE",
-                  "The task queue cannot prove an active fence for an external effect.",
-                );
-              }
-              const taskClaim = await options.taskQueue.assertTaskClaimActive(task.queueTaskId, ownership);
-              if (options.agentExecutionFence) {
-                if (typeof options.agentExecutionFence.assertActive !== "function") {
-                  throw dagError(
-                    "WORKFORCE_AGENT_RUN_FENCE_UNAVAILABLE",
-                    "The governed Agent run fence is unavailable for an external effect.",
-                  );
-                }
-                await options.agentExecutionFence.assertActive(phase);
-              }
-              return taskClaim;
-            },
-          }),
+          externalEffectFence,
         }, task)), options.signal, options.abortDrainTimeoutMs);
         await options.taskQueue.completeTask(task.queueTaskId, {
           roleId,
@@ -232,6 +249,7 @@ export async function executeWorkforceDag(options: DagExecutorOptions) {
         }
         throw error;
       } finally {
+        codeTaskFences.delete(externalEffectFence);
         activeExecutions -= 1;
       }
     }));

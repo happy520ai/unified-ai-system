@@ -1,3 +1,7 @@
+// @test-isolation process
+// This test holds a request under a real 10-second deadline. Use the existing
+// isolated HTTP pool to avoid unrelated suite saturation; retain both concurrent
+// requests, all assertions and the original request/test deadlines.
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

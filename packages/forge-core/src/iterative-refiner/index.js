@@ -144,6 +144,8 @@ export class IterativeRefiner {
    * @returns {Promise<RefinementResult>}
    */
   async refine(task, llmCaller, opts = {}) {
+    const maxPasses = opts.maxPasses ?? this.#maxPasses;
+    if (!Number.isInteger(maxPasses) || maxPasses < 1 || maxPasses > 10) throw new Error('Invalid refinement pass limit.');
     /** @type {RefinementResult} */
     const result = {
       code: '',
@@ -186,7 +188,7 @@ export class IterativeRefiner {
     }
 
     // ── Passes 2..N: critique + improvement ─────────────────────────────
-    for (let pass = 2; pass <= this.#maxPasses; pass++) {
+    for (let pass = 2; pass <= maxPasses; pass++) {
       // Step A: self-critique
       let critique = null;
       if (this.#selfCritiqueEnabled) {

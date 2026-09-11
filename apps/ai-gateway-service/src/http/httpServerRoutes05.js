@@ -113,7 +113,8 @@ export async function dispatchHttpRoutes05(context) {
     try {
       const planId = decodeURIComponent(workforcePlanMatch[1]);
       const result = workforcePlanMatch[2]
-        ? await workforceService.exportPlan(planId, request.enterpriseIdentity?.tenantId)
+        ? await workforceService.exportPlan(planId, request.enterpriseIdentity?.tenantId, { identity: request.enterpriseIdentity,
+          signal: requestExecution?.signal, deadlineAt: requestExecution?.deadlineAt })
         : await workforceService.getPlan(planId, request.enterpriseIdentity?.tenantId);
       writeJson(response, 200, createOkEnvelope(result, { startedAt }));
     } catch (error) {
@@ -137,6 +138,17 @@ export async function dispatchHttpRoutes05(context) {
       writeCapabilityError({ response, error, startedAt, fallbackCode: "workforce_plan_delete_failed" });
     }
     return;
+  }
+
+  const workflowRunMatch = /^\/workflow\/runs\/([^/]+)(\/recover)?$/u.exec(url.pathname);
+  if (request.method === "GET" && url.pathname === "/workflow/runs") {
+    return handleWorkflowHistory(context, "list");
+  }
+  if (request.method === "GET" && workflowRunMatch && !workflowRunMatch[2]) {
+    return handleWorkflowHistory(context, "inspect", workflowRunMatch[1]);
+  }
+  if (request.method === "POST" && workflowRunMatch?.[2] === "/recover") {
+    return handleWorkflowHistory(context, "recover", workflowRunMatch[1]);
   }
 
   if (request.method === "POST" && (url.pathname === "/workflow/plan" || url.pathname === "/workflow/run")) {
@@ -410,4 +422,33 @@ export async function dispatchHttpRoutes05(context) {
 
 
   return ROUTE_NOT_HANDLED;
+}
+
+async function handleWorkflowHistory(context, operation, encodedId) {
+  const { request, response, url, requestExecution, workflowService, getRequestContext, writeJson, createOkEnvelope, createErrorEnvelope, startedAt } = context;
+  response.setHeader("Cache-Control", "no-store");
+  try {
+    const identity = request.enterpriseIdentity;
+    if (!identity?.tenantId || !identity?.userId) {
+      throw Object.assign(new Error("Workflow history requires an authenticated tenant and owner."), { code: "WORKFLOW_OWNER_CONTEXT_REQUIRED", statusCode: 403 });
+    }
+    const scope = { ...getRequestContext(request), tenantId: identity.tenantId, userId: identity.userId, signal: requestExecution?.signal };
+    let workflowId;
+    if (operation !== "list") {
+      try { workflowId = decodeURIComponent(encodedId); }
+      catch { throw Object.assign(new Error("Workflow ID encoding is invalid."), { code: "WORKFLOW_ID_INVALID", statusCode: 400 }); }
+    }
+    const result = operation === "list"
+      ? workflowService.listRuns(scope, Number(url.searchParams.get("limit") ?? 50))
+      : operation === "recover"
+        ? await workflowService.recoverRun(workflowId, scope)
+        : workflowService.getRun(workflowId, scope);
+    writeJson(response, 200, createOkEnvelope(result, { startedAt }));
+  } catch (error) {
+    writeJson(response, error?.statusCode ?? 503, createErrorEnvelope(
+      error?.code ?? "WORKFLOW_STATE_UNAVAILABLE",
+      /^WORKFLOW_/.test(error?.code ?? "") ? error.message : "Workflow state could not be read safely.",
+      { startedAt, category: "workflow", retryable: false },
+    ));
+  }
 }

@@ -5,6 +5,8 @@ type RouteConcurrencyLimits = Readonly<{
 
 const DEFAULT_ROUTE_CONCURRENCY_LIMITS: Readonly<Record<string, RouteConcurrencyLimits>> = Object.freeze({
   "/agent-exec/run": Object.freeze({ maxGlobal: 8, maxPerTenant: 4 }),
+  "/agent-long-tasks/execute": Object.freeze({ maxGlobal: 8, maxPerTenant: 4 }),
+  "/agent-long-tasks/prepare": Object.freeze({ maxGlobal: 8, maxPerTenant: 4 }),
   "/forge/orchestrate": Object.freeze({ maxGlobal: 4, maxPerTenant: 2 }),
   "/mcp/call": Object.freeze({ maxGlobal: 16, maxPerTenant: 8 }),
   "/workforce/execute": Object.freeze({ maxGlobal: 8, maxPerTenant: 4 }),
@@ -107,6 +109,8 @@ export function canonicalizeRoutePath(pathname: string): string {
 }
 
 function concurrencyRouteKey(pathname: string): string {
+  if (/^\/v1\/agents\/agt_[A-Za-z0-9_-]{1,128}\/tasks$/u.test(pathname)) return "/agent-long-tasks/prepare";
+  if (/^\/v1\/agents\/agt_[A-Za-z0-9_-]{1,128}\/tasks\/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\/(?:plan|run)$/u.test(pathname)) return "/agent-long-tasks/execute";
   if (/^\/v1\/agents\/agt_[A-Za-z0-9_-]{1,128}\/run$/u.test(pathname)) return "/agent-exec/run";
   if (/^\/v1\/policies\/[^/]{1,160}\/\d{1,9}\/activate$/u.test(pathname)) return "/v1/policies/activate";
   return pathname;

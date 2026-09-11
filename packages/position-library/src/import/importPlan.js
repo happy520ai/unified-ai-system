@@ -8,14 +8,14 @@ export function buildOfficialImportPlan() {
     ...source,
     sourceRefPreview: buildSourceRef({
       sourceId: source.sourceId,
-      sourceVersion: "to-be-pinned-before-import",
-      sourceUrl: null,
-      retrievedAt: null,
+      sourceVersion: source.pinnedArtifact?.sourceVersion || "to-be-pinned-before-import",
+      sourceUrl: source.pinnedArtifact?.sourceUrl || null,
+      retrievedAt: source.pinnedArtifact?.retrievedAt || null,
     }),
     licenseCheck: assertLicenseBoundary(source),
-    dedupePolicy: "canonicalTitle + sourceCode + sourceRef",
+    dedupePolicy: source.pinnedArtifact ? "unique onetsoc_code; stable ID independent of title" : "canonicalTitle + sourceCode + sourceRef",
     aliasMergePolicy: "merge aliases only when source lineage is retained",
-    importGate: "blocked_until_version_license_and_user_authorization",
+    importGate: source.pinnedArtifact ? "explicit_pinned_local_import_only" : "blocked_until_version_license_and_user_authorization",
   }));
 
   return {

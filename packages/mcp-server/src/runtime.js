@@ -106,12 +106,16 @@ function assertFakeProviderRuntime(healthEnvelope) {
   }
 }
 
+function hasChildExited(child) {
+  return child.exitCode != null || child.signalCode != null;
+}
+
 async function waitForReady(baseUrl, child, requestHeaders) {
   const deadline = Date.now() + STARTUP_TIMEOUT_MS;
   while (Date.now() < deadline) {
-    if (child.exitCode !== null) {
+    if (hasChildExited(child)) {
       throw new Error(
-        `Gateway exited before MCP startup with code ${child.exitCode}.`,
+        `Gateway exited before MCP startup with ${child.signalCode ? `signal ${child.signalCode}` : `code ${child.exitCode}`}.`,
       );
     }
     try {
@@ -130,10 +134,11 @@ async function waitForReady(baseUrl, child, requestHeaders) {
 }
 
 async function stopChild(child) {
-  if (!child || child.exitCode !== null) return;
+  if (!child || hasChildExited(child)) return;
+  const exited = once(child, "exit");
   child.kill("SIGTERM");
-  await Promise.race([once(child, "exit"), delay(3_000)]);
-  if (child.exitCode === null) {
+  await Promise.race([exited, delay(3_000)]);
+  if (!hasChildExited(child)) {
     child.kill("SIGKILL");
     await Promise.race([once(child, "exit"), delay(2_000)]);
   }
@@ -250,6 +255,7 @@ export async function createGatewayRuntime(options = {}) {
           ...(inheritedTestRuntime ? { NODE_ENV: "test" } : {}),
           AI_GATEWAY_SERVICE_HOST: "127.0.0.1",
           AI_GATEWAY_SERVICE_PORT: String(port),
+          AI_GATEWAY_MANAGED_PARENT_IPC: "1",
           AI_GATEWAY_PROVIDER_MODE: "fake",
           AI_GATEWAY_REAL_PROVIDER_ENABLED: "false",
           AI_GATEWAY_ROUTE_MODE: "registry-default",
@@ -280,7 +286,9 @@ export async function createGatewayRuntime(options = {}) {
             expiresAt: authExpiresAt,
           }]),
         }),
-        stdio: ["ignore", "pipe", "pipe"],
+        // IPC closes when an editor force-terminates the MCP process on Windows,
+        // where that process cannot run its signal or exit cleanup handlers.
+        stdio: ["ignore", "pipe", "pipe", "ipc"],
       },
     );
   } catch (error) {
@@ -312,7 +320,7 @@ export async function createGatewayRuntime(options = {}) {
         cleanupGovernanceState();
       },
       killNow: () => {
-        if (child.exitCode === null) child.kill("SIGTERM");
+        if (!hasChildExited(child)) child.kill("SIGTERM");
       },
       getOutputTail: () => `${stdout}\n${stderr}`.trim(),
     }, authToken, "ephemeral-managed");

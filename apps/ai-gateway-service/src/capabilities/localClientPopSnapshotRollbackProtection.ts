@@ -220,7 +220,10 @@ export async function resolveLocalClientPopSnapshotRollbackProtection(
     return createResolution(["configuration_invalid"]);
   }
 
-  const initialBlockers = readinessBlockers(replayStatus, checkpointStatus, anchorStatus);
+  // An unavailable anchor may be an expired observation and needs a fresh
+  // challenge. An available anchor with missing security properties is still
+  // a configuration/deployment blocker, before any attestation is requested.
+  const initialBlockers = readinessBlockers(replayStatus, checkpointStatus, anchorStatus, anchorStatus.available);
   if (initialBlockers.length > 0) {
     return createResolution(initialBlockers, { anchorMode: anchorStatus.mode });
   }
@@ -302,7 +305,7 @@ export async function resolveLocalClientPopSnapshotRollbackProtection(
   }
   if (
     !sameCheckpointStatus(checkpointStatus, checkpointStatusAfter)
-    || !sameAnchorStatus(anchorStatus, anchorStatusAfter)
+    || !sameAnchorBinding(anchorStatus, anchorStatusAfter)
   ) {
     return createResolution(["anchor_status_changed_during_attestation"], {
       checkpoint: after,
@@ -517,6 +520,7 @@ function readinessBlockers(
   replay: ManagedLocalClientPopReplayGuardStatus,
   checkpoint: LocalClientPopAnchoredReplayCheckpointStatus,
   anchor: LocalClientPopExternalMonotonicAnchorStatus,
+  requireFreshObservation = true,
 ): LocalClientPopSnapshotRollbackBlocker[] {
   const blockers: LocalClientPopSnapshotRollbackBlocker[] = [];
   if (!replay.available) blockers.push("replay_guard_unavailable");
@@ -533,18 +537,18 @@ function readinessBlockers(
   if (!isDigest(checkpoint.storeBindingSha256) || !isDigest(checkpoint.anchorBindingSha256)) {
     blockers.push("checkpoint_binding_invalid");
   }
-  if (!anchor.available) blockers.push("protected_anchor_unavailable");
-  if (!anchor.nativeDeploymentVerified || !isDigest(anchor.deploymentEvidenceSha256)) {
+  if (requireFreshObservation && !anchor.available) blockers.push("protected_anchor_unavailable");
+  if ((requireFreshObservation && !anchor.nativeDeploymentVerified) || !isDigest(anchor.deploymentEvidenceSha256)) {
     blockers.push("native_anchor_deployment_unverified");
   }
-  if (!anchor.monotonic) blockers.push("anchor_not_monotonic");
-  if (!anchor.externalToReplayStoreSnapshot) {
+  if (requireFreshObservation && !anchor.monotonic) blockers.push("anchor_not_monotonic");
+  if (requireFreshObservation && !anchor.externalToReplayStoreSnapshot) {
     blockers.push("anchor_not_external_to_replay_snapshot");
   }
-  if (!anchor.protectedFromReplayStoreWriter) {
+  if (requireFreshObservation && !anchor.protectedFromReplayStoreWriter) {
     blockers.push("anchor_not_protected_from_replay_writer");
   }
-  if (!anchor.challengeAttestation) blockers.push("anchor_challenge_attestation_unavailable");
+  if (requireFreshObservation && !anchor.challengeAttestation) blockers.push("anchor_challenge_attestation_unavailable");
   if (!isDigest(anchor.anchorBindingSha256)) blockers.push("anchor_binding_invalid");
   if (
     isDigest(checkpoint.anchorBindingSha256)
@@ -609,19 +613,13 @@ function sameCheckpointStatus(
     && left.mutationProtocol === right.mutationProtocol;
 }
 
-function sameAnchorStatus(
+function sameAnchorBinding(
   left: LocalClientPopExternalMonotonicAnchorStatus,
   right: LocalClientPopExternalMonotonicAnchorStatus,
 ): boolean {
-  return left.available === right.available
-    && left.mode === right.mode
+  return left.mode === right.mode
     && safeDigestEqual(left.anchorBindingSha256, right.anchorBindingSha256)
-    && safeDigestEqual(left.deploymentEvidenceSha256, right.deploymentEvidenceSha256)
-    && left.nativeDeploymentVerified === right.nativeDeploymentVerified
-    && left.monotonic === right.monotonic
-    && left.externalToReplayStoreSnapshot === right.externalToReplayStoreSnapshot
-    && left.protectedFromReplayStoreWriter === right.protectedFromReplayStoreWriter
-    && left.challengeAttestation === right.challengeAttestation;
+    && safeDigestEqual(left.deploymentEvidenceSha256, right.deploymentEvidenceSha256);
 }
 
 function createResolution(

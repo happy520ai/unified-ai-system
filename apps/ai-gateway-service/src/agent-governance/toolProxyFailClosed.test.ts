@@ -1,5 +1,23 @@
 import { describe, expect, it, vi } from "vitest";
 import { createAgentGovernanceToolProxy } from "./toolProxy.ts";
+import { freezeWorkforceRoleExecutionProfile } from "../workforce/workforceRoleExecutionProfile.ts";
+
+function workforceResult() {
+  const profile = freezeWorkforceRoleExecutionProfile({ version: 1, mode: "gateway-llm-required", profileId: "counter-fixture",
+    maxTotalRequests: 1, maxConcurrentRoles: 1, bindings: [{ roleId: "ceo", employeeId: "employee-ceo", providerId: "fixture", modelId: "fixture-model",
+      maxRequests: 1, maxInputTokens: 4096, maxOutputTokens: 1024, timeoutMs: 5000 }] });
+  const receipt = () => ({ version: 1, level: "gateway-provider-operation", status: "succeeded", executionMode: "fake", gatewayRequestId: "req_fixture",
+    providerId: "fixture", modelId: "fixture-model", providerCallAttempted: true, inputTokens: null, outputTokens: 0,
+    totalTokens: 23, estimatedCostUsd: null, errorCode: null });
+  const executionId = `wf-scope-${"a".repeat(64)}`;
+  return { success: true, phase: "PhaseC001", mode: "controlled-workforce-execution", planId: "plan-fixture", executionId, agentRunId: "agr_fixture",
+    roleResults: { ceo: { workforceContribution: { version: 1, roleId: "ceo", employeeId: "employee-ceo", governedAgentId: "agt_proxy",
+      agentRunId: "agr_fixture", executionId, taskId: "task-fixture", planId: "plan-fixture", planDigest: "b".repeat(64), profileHash: profile.profileHash,
+      contributionText: "One actual contribution", receipt: receipt() } } },
+    roleExecution: { profile, receipts: [{ roleId: "ceo", employeeId: "employee-ceo", taskId: "task-fixture", receipt: receipt() }] },
+    metadata: { inputTokens: 123, accessToken: "ARBITRARY_TOKEN_CANARY" },
+  };
+}
 
 function policy(overrides: Record<string, unknown> = {}) {
   return {
@@ -51,6 +69,52 @@ function serviceFor(effectivePolicy: ReturnType<typeof policy>, emitAudit = vi.f
 }
 
 describe("Agent Governance Tool Proxy fail-closed runtime", () => {
+  it("preserves validated Workforce receipt counters and bound token budgets only at the server DTO paths", async () => {
+    const selectedPolicy = policy(); const proxy = createAgentGovernanceToolProxy({ service: serviceFor(selectedPolicy) });
+    const verdict = await proxy.enforceResult({ context: { agentId: "agt_proxy", tenantId: "tenant_a" },
+      toolName: "workforce_execute", policy: selectedPolicy as never, result: workforceResult() });
+    const result = verdict.result as any;
+    for (const receipt of [result.roleResults.ceo.workforceContribution.receipt, result.roleExecution.receipts[0].receipt]) {
+      expect(receipt).toMatchObject({ inputTokens: null, outputTokens: 0, totalTokens: 23 });
+    }
+    expect(result.roleExecution.profile.bindings[0]).toMatchObject({ maxInputTokens: 4096, maxOutputTokens: 1024 });
+    expect(result.metadata).toMatchObject({ inputTokens: "***REDACTED***", accessToken: "***REDACTED***" });
+    expect(JSON.stringify(result)).not.toContain("ARBITRARY_TOKEN_CANARY");
+  });
+
+  it("does not exempt other tools, arbitrary token paths, string counters, forged bindings or getters", async () => {
+    const selectedPolicy = policy(); const proxy = createAgentGovernanceToolProxy({ service: serviceFor(selectedPolicy) });
+    const getter = vi.fn(() => "ACCESSOR_TOKEN_CANARY");
+    const cases = [
+      { toolName: "file_read", mutate: (_result: any) => {} },
+      { toolName: "workforce_execute", mutate: (result: any) => { result.roleResults.ceo.workforceContribution.receipt.inputTokens = "123"; } },
+      { toolName: "workforce_execute", mutate: (result: any) => { result.roleResults.ceo.workforceContribution.employeeId = "other-employee"; } },
+      { toolName: "workforce_execute", mutate: (result: any) => { result.roleResults.ceo.workforceContribution.receipt.providerCallAttempted = false; } },
+      { toolName: "workforce_execute", mutate: (result: any) => { result.roleResults.ceo.workforceContribution.receipt.gatewayRequestId = null; } },
+      { toolName: "workforce_execute", mutate: (result: any) => { result.roleExecution.profile = { ...result.roleExecution.profile, profileHash: `sha256:${"f".repeat(64)}` }; } },
+      { toolName: "workforce_execute", mutate: (result: any) => { Object.defineProperty(result.roleResults.ceo.workforceContribution.receipt, "inputTokens", { enumerable: true, get: getter }); } },
+    ];
+    for (const entry of cases) {
+      const source = workforceResult(); entry.mutate(source);
+      const verdict = await proxy.enforceResult({ context: { agentId: "agt_proxy", tenantId: "tenant_a" }, toolName: entry.toolName,
+        policy: selectedPolicy as never, result: source });
+      const receipt = (verdict.result as any).roleResults.ceo.workforceContribution.receipt;
+      expect(receipt.inputTokens === undefined || receipt.inputTokens === "***REDACTED***").toBe(true);
+      expect(JSON.stringify(verdict.result)).not.toContain("ACCESSOR_TOKEN_CANARY");
+    }
+    expect(getter).not.toHaveBeenCalled();
+  });
+
+  it("keeps explicit deniedOutputFields authoritative over recognized Workforce token counters", async () => {
+    const selectedPolicy = policy({ scope: { deniedOutputFields: ["inputTokens", "totalTokens"] } });
+    const proxy = createAgentGovernanceToolProxy({ service: serviceFor(selectedPolicy) });
+    const verdict = await proxy.enforceResult({ context: { agentId: "agt_proxy", tenantId: "tenant_a" },
+      toolName: "workforce_execute", policy: selectedPolicy as never, result: workforceResult() });
+    const result = verdict.result as any;
+    expect(result.roleResults.ceo.workforceContribution.receipt).toMatchObject({ inputTokens: "***REDACTED***", outputTokens: 0, totalTokens: "***REDACTED***" });
+    expect(result.roleExecution.profile.bindings[0]).toMatchObject({ maxInputTokens: "***REDACTED***", maxOutputTokens: 1024 });
+  });
+
   it("denies execution when a mandatory audit event cannot persist", async () => {
     const reserveUsage = vi.fn(async () => ({ allowed: true }));
     const service = serviceFor(policy(), vi.fn(async () => { throw new Error("disk unavailable"); })) as never;

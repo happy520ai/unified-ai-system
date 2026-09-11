@@ -18,7 +18,7 @@ import {
   createShellExecTool,
   validateFilePath,
 } from "./builtInCoreTools.js";
-import { webFetchTool, codeRunTool } from "./sandboxTools.js";
+import { webFetchTool, createCodeRunTool } from "./sandboxTools.js";
 import { createSemanticSearchTool, createAstEditTool } from "./codeIntelligenceTools.js";
 
 // ============================================================
@@ -234,15 +234,15 @@ export function createTypeCheckTool(workingDirectory = process.cwd()) {
 }
 
 /** 创建内置工具集合 — 传入 workingDirectory 确保文件操作正确解析相对路径 */
-export function createBuiltInTools(workingDirectory = process.cwd()) {
+export function createBuiltInTools(workingDirectory = process.cwd(), codeRunIsolation) {
   return {
   file_read: createFileReadTool(workingDirectory),
   file_write: createFileWriteTool(workingDirectory),
   shell_exec: createShellExecTool(workingDirectory),
   web_fetch: webFetchTool,
-  code_run: codeRunTool,
+  code_run: createCodeRunTool(codeRunIsolation),
   // Phase B 新增工具 — 对标 Codex/Claude Code
-  file_edit: createFileEditTool(),
+  file_edit: createFileEditTool(workingDirectory),
   file_insert: createFileInsertTool(),
   glob: createGlobTool(),
   grep: createGrepTool(),

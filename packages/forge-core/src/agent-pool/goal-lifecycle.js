@@ -3,14 +3,22 @@
  * submitGoal, checkGoalCompletion, cancelGoal, resumeGoal, recoverInterruptedGoals, enqueueNewlyReadyTasks
  */
 
-import { TYPE_PRIORITY } from './constants.js';
+import { TYPE_PRIORITY, GOVERNED_HISTORY_LIMIT, GOVERNED_TERMINAL, governedIdentifier, governedRecord,
+  governedPoolError, readGovernedGoalPointer, emitGovernedPoolEvent, awaitGovernedControlPersistence } from './constants.js';
 import { getGoalBudget } from './pool-status.js';
 import { releaseFileLocks } from './file-locks.js';
+import { settleGovernedGoal } from './worker-failure.js';
 
 /**
  * Submit a goal's tasks to the pool for execution.
  */
-export async function submitGoal(s, goalId, userId, { budget } = {}, processQueueFn) {
+export async function submitGoal(s, goalId, userId, options = {}, processQueueFn) {
+  if (s.governedChunkExecutor) {
+    governedRecord(options, []);
+    const accepted = await enqueueGovernedGoal(s, goalId, userId, 'submit', processQueueFn);
+    return accepted.completion;
+  }
+  const { budget } = options;
   if (s.shuttingDown) {
     throw new Error('Cannot submit goals: pool is shutting down');
   }
@@ -145,6 +153,63 @@ export async function submitGoal(s, goalId, userId, { budget } = {}, processQueu
     });
     return tracker.promise;
   });
+}
+
+/** Admission is separate from completion so a caller cannot acknowledge an unqueued goal.
+ * @returns {Promise<{goalId:string,status:'queued',completion:Promise<import('./constants.js').GovernedChunkOutcome>}>} */
+export async function enqueueGovernedGoal(s, goalId, userId, mode, processQueueFn) {
+  if (!s.governedChunkExecutor) throw governedPoolError('GOVERNED_EXECUTOR_REQUIRED');
+  if (s.shuttingDown) throw governedPoolError('SHUTTING_DOWN');
+  governedIdentifier(goalId, true); governedIdentifier(userId);
+  if (!['submit', 'resume'].includes(mode)) throw governedPoolError('ADMISSION_MODE_INVALID');
+  const previous = s.goalTrackers.get(goalId);
+  if (previous?.admitted || previous?.controlling) throw governedPoolError('GOAL_BUSY');
+  if (previous && previous.userId !== userId) throw governedPoolError('IDENTITY_INVALID');
+  if (previous && GOVERNED_TERMINAL.has(previous.status)) throw governedPoolError(previous.status === 'unknown' ? 'OUTCOME_UNKNOWN' : 'GOAL_TERMINAL');
+  const trackers = [...s.goalTrackers.values()];
+  if (trackers.filter(value => value.admitted).length >= s.options.maxGoals) throw governedPoolError('MAX_GOALS');
+  const waiting = s.queue.length + trackers.filter(value => value.admitted && value.status === 'admitting').length;
+  if (waiting >= s.options.maxQueuedGoals + Math.max(0, s.maxConcurrent - s.activeWorkers.size)) throw governedPoolError('QUEUE_CAPACITY');
+  if (!previous && s.goalTrackers.size >= GOVERNED_HISTORY_LIMIT) {
+    const expired = [...s.goalTrackers].find(([, value]) => !value.admitted);
+    if (expired) s.goalTrackers.delete(expired[0]);
+  }
+  const tracker = { goalId, userId, pointer: null, status: 'admitting', admitted: true,
+    control: 'run', controlTail: Promise.resolve(), controlError: null, firstError: null, errorCode: null,
+    completedChunks: previous?.completedChunks ?? 0, finished: false };
+  tracker.completion = new Promise((resolve, reject) => { tracker.resolve = resolve; tracker.reject = reject; });
+  void tracker.completion.catch(() => {});
+  s.goalTrackers.set(goalId, tracker);
+  tracker.admission = Promise.resolve().then(() => s.governedChunkExecutor.admit(Object.freeze({ goalId, userId, mode })))
+    .then(value => {
+      tracker.pointer = readGovernedGoalPointer(value, goalId, userId, previous?.pointer);
+      return tracker.pointer;
+    });
+  try {
+    await tracker.admission;
+    if (tracker.control !== 'run' || s.shuttingDown) {
+      if (tracker.control === 'run') tracker.control = 'shutdown';
+      await awaitGovernedControlPersistence(tracker);
+      if (!tracker.finished) settleGovernedGoal(s, tracker, { status: tracker.control === 'cancel' ? 'cancelled' : 'paused' });
+      throw governedPoolError(tracker.status === 'unknown' ? 'OUTCOME_UNKNOWN' : 'ADMISSION_STOPPED', tracker.firstError);
+    }
+    tracker.status = 'queued';
+    s.queue.push({ goalId, userId, goal: tracker.pointer,
+      task: Object.freeze({ id: tracker.pointer.taskId, type: 'governed-chunk', agent_role: 'governed-chunk' }),
+      priority: 0, enqueuedAt: Date.now() });
+    emitGovernedPoolEvent(s, 'goal_queued', { goalId, taskId: tracker.pointer.taskId, mode });
+    await processQueueFn();
+    return Object.freeze({ goalId, status: 'queued', completion: tracker.completion });
+  } catch (error) {
+    if (tracker.status === 'admitting') {
+      tracker.admissionFailed = true; tracker.status = 'failed'; tracker.admitted = false; tracker.finished = true; tracker.firstError ??= error;
+      if (s.goalTrackers.get(goalId) === tracker) {
+        if (previous) s.goalTrackers.set(goalId, previous); else s.goalTrackers.delete(goalId);
+      }
+      tracker.reject(error);
+    }
+    throw error;
+  }
 }
 
 /**

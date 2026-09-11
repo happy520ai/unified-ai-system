@@ -148,7 +148,7 @@ describe("prompt enhancement route", () => {
     expect(directGenerate).not.toHaveBeenCalled();
   });
 
-  it("does not claim a provider call when the governed dispatch gate blocks it", async () => {
+  it("keeps the call outcome unknown when an unmarked gateway response cannot prove no call", async () => {
     const registry = new ProviderRegistry({ enabledProviders: ["openai"] });
     const provider = createFakeProvider({
       providerId: "openai",
@@ -195,8 +195,8 @@ describe("prompt enhancement route", () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.body.data.llmEnhanced).toBe(false);
-    expect(response.body.data.metadata.providerCalled).toBe(false);
-    expect(response.body.data.metadata.providerCallOutcomeUnknown).toBe(false);
+    expect(response.body.data.metadata.providerCalled).toBe(true);
+    expect(response.body.data.metadata.providerCallOutcomeUnknown).toBe(true);
     expect(directGenerate).not.toHaveBeenCalled();
   });
 });

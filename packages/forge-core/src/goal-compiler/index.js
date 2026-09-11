@@ -168,10 +168,24 @@ export async function compileGoal(store, {
   goalText,
   projectRoot,
   skipCodebaseProbe = false,
+  webTask = null,
   signal,
 }) {
   const goalId = store.createGoal({ text: goalText, projectRoot, budget: { maxMinutes: 120 } });
   store.logEvent(goalId, null, 'goal_created', { text: goalText });
+
+  // This finite DAG comes from the approved server capability. A webpage or
+  // model cannot turn its task into a coder, shell, media or pool operation.
+  if (webTask) {
+    if (!skipCodebaseProbe || webTask.taskId !== 'web-lookup' || typeof webTask.execute !== 'function'
+      || typeof webTask.getResult !== 'function' || typeof webTask.summary !== 'string') throw new Error('FORGE_WEB_CAPABILITY_INVALID');
+    signal?.throwIfAborted();
+    store.insertTaskDAG(goalId, [{ id: webTask.taskId, name: webTask.summary, type: 'explore', agentRole: 'web',
+      prompt: webTask.summary, constraints: ['approved-web-profile-only'], allowedFiles: [], estimatedMin: 1 }], []);
+    store.updateGoalStatus(goalId, 'compiled', JSON.stringify({ kind: 'approved-web-profile', taskId: webTask.taskId }));
+    store.logEvent(goalId, null, 'goal_compiled', { taskCount: 1, summary: webTask.summary });
+    return { goalId, taskCount: 1, summary: webTask.summary };
+  }
 
   // Step 1: Probe the codebase
   if (skipCodebaseProbe) {

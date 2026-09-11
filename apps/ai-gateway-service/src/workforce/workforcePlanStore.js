@@ -1,4 +1,6 @@
 import { resolve } from "node:path";
+import { assertRuntimePlanHookAudit, hookPlanId, readPlanHookAudit, withoutHookClaims, hookError } from "./workforceHookOperations.ts";
+import { normalizeWorkflowHandoffPreviewState } from "./workflowRunHandoff.js";
 import {
   DEFAULT_STORE_PATH,
   STORE_VERSION,
@@ -80,6 +82,17 @@ const storeMutationQueues = new Map();
 function sealTaskPackage(taskPackage) {
   const sealed = sealWorkforcePreviewSafety(taskPackage);
   sealed.exportableJson = sealWorkforcePreviewSafety(sealed.exportableJson || {});
+  if (taskPackage.hookAudit) {
+    const audit = readPlanHookAudit(taskPackage.hookAudit, { plan: taskPackage });
+    if (taskPackage.planId !== hookPlanId(audit.binding)) throw hookError("WORKFORCE_HOOK_AUDIT_INVALID", "Hook audit belongs to another saved plan.");
+    sealed.hookAudit = audit;
+    sealed.exportableJson.hookAudit = audit;
+  }
+  for (const view of [sealed, sealed.exportableJson]) {
+    if (view.planState && typeof view.planState === "object") {
+      view.planState = normalizeWorkflowHandoffPreviewState(view.planState);
+    }
+  }
   sealed.markdown = formatTaskPackageMarkdown({
     plan: sealed,
     planId: sealed.planId,
@@ -134,6 +147,7 @@ export function createWorkforcePlanStore({ env = process.env } = {}) {
   const writeStore = backend ? backend.writeStore : jsonWriteStore;
 
   return {
+    close() { return backend?.close(); },
     getInfo() {
       return {
         phase: WORKFORCE_PLAN_STORE_PHASE,
@@ -144,24 +158,48 @@ export function createWorkforcePlanStore({ env = process.env } = {}) {
         secretValuesStored: false,
       };
     },
-    async save(plan, tenantId) {
+    async findHookOperation(binding, tenantId) {
+      const scopedTenantId = requirePlanTenantId(tenantId), planId = hookPlanId(binding);
+      const stored = backend ? backend.get(planId) : (await readStore(storePath)).plans.find(item => item.planId === planId);
+      if (!stored) return null;
+      if (!isPlanTenantMatch(stored, scopedTenantId)) throw createPlanTenantMismatchError(planId);
+      const taskPackage = sealTaskPackage(stored);
+      if (!taskPackage.hookAudit) throw hookError("WORKFORCE_HOOK_OPERATION_CONFLICT", "The operation identifier collides with another saved plan.");
+      readPlanHookAudit(taskPackage.hookAudit, { binding, plan: taskPackage });
+      return { success: true, phase: WORKFORCE_PLAN_STORE_PHASE, status: "saved", mode: WORKFORCE_PLAN_STORE_MODE,
+        planId, savedAt: taskPackage.savedAt, taskPackage, safety: createStoreSafety(), hookReplayed: true };
+    },
+    async save(plan, tenantId, hookAudit) {
       const scopedTenantId = requirePlanTenantId(tenantId);
+      if (hookAudit !== undefined) assertRuntimePlanHookAudit(hookAudit);
       return serializeStoreMutation(storePath, async () => {
-        const normalizedPlan = normalizePlan(plan);
+        if (hookAudit) {
+          assertRuntimePlanHookAudit(hookAudit);
+          const previous = await this.findHookOperation(hookAudit.binding, scopedTenantId);
+          if (previous) return previous;
+        }
+        const normalizedPlan = withoutHookClaims(normalizePlan(plan));
+        if (hookAudit) readPlanHookAudit(hookAudit, { plan: normalizedPlan });
         const savedAt = new Date().toISOString();
-        const planId = createPlanId(normalizedPlan, savedAt);
+        const planId = hookAudit ? hookPlanId(hookAudit.binding) : createPlanId(normalizedPlan, savedAt);
         const taskPackage = sealTaskPackage({
           ...createTaskPackage({ plan: normalizedPlan, planId, savedAt }),
           tenantId: scopedTenantId,
+          ...(hookAudit ? { hookAudit } : {}),
         });
 
         if (backend) {
           // 原子 upsert：跨进程安全，避免 read-modify-write 的 lost update。
-          backend.upsert(taskPackage);
+          if (hookAudit) {
+            assertRuntimePlanHookAudit(hookAudit);
+            const observed = backend.insertOnce(taskPackage);
+            if (!observed.inserted) return this.findHookOperation(hookAudit.binding, scopedTenantId);
+          } else backend.upsert(taskPackage);
         } else {
           const store = await readStore(storePath);
           const plans = store.plans.filter((item) => item.planId !== planId);
           plans.unshift(taskPackage);
+          if (hookAudit) assertRuntimePlanHookAudit(hookAudit);
           await writeStore(storePath, {
             version: STORE_VERSION,
             updatedAt: savedAt,
@@ -190,7 +228,7 @@ export function createWorkforcePlanStore({ env = process.env } = {}) {
         status: "listed",
         mode: WORKFORCE_PLAN_STORE_MODE,
         count: visiblePlans.length,
-        plans: visiblePlans.map((plan) => toPlanSummary(sealWorkforcePreviewSafety(plan))),
+        plans: visiblePlans.map((plan) => toPlanSummary(plan.hookAudit ? sealTaskPackage(plan) : sealWorkforcePreviewSafety(plan))),
         safety: createStoreSafety(),
       };
     },
@@ -262,8 +300,9 @@ export function createWorkforcePlanStore({ env = process.env } = {}) {
         };
       });
     },
-    async export(planId, tenantId) {
+    async export(planId, tenantId, beforeExport) {
       const result = await this.get(planId, tenantId);
+      const hookReceipt = beforeExport ? await beforeExport(result) : undefined;
       const exportedAt = new Date().toISOString();
       const taskPackage = redactSecrets({
         ...result.taskPackage,
@@ -326,6 +365,7 @@ export function createWorkforcePlanStore({ env = process.env } = {}) {
         success: true,
         phase: WORKFORCE_PLAN_STORE_PHASE,
         status: "export_ready",
+        ...(hookReceipt ? { lifecycleHooks: { persisted: false, receipts: [hookReceipt] } } : {}),
         mode: WORKFORCE_PLAN_STORE_MODE,
         planId: result.planId,
         formats: ["json", "markdown"],

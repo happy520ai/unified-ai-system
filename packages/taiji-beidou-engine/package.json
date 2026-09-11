@@ -8,7 +8,7 @@
     ".": "./src/index.js"
   },
   "scripts": {
-    "test": "node --test ./src/*.test.js",
+    "test": "node --test ./src/*.test.js ./src/sandboxAutoRuntimeExecutor.test.ts",
     "check": "node --no-warnings --experimental-vm-modules ../../tools/check-package-source-syntax.mjs src",
     "build": "pnpm check"
   }

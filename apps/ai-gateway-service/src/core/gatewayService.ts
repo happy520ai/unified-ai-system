@@ -19,6 +19,8 @@ export interface GatewayRuntimeConfig {
   shadowTimeoutMs?: number;
   requireDurableUsageLedger?: boolean;
   requireProviderDispatchGate?: boolean;
+  chatContextCompaction?: { thresholdMessages?: number; maxContextTokens?: number; keepRecentTurns?: number;
+    codecEnabled?: boolean; codecMinEstimatedSavingPercent?: number };
 }
 
 /**
@@ -83,6 +85,11 @@ export interface GatewayProviderOperationInput {
 /** Internal, non-JSON capability marker for a verified provider dispatch binding. */
 export declare const MANAGED_LOCAL_CLIENT_PROVIDER_PIN: unique symbol;
 export declare const AGENT_GOVERNANCE_EXECUTION_CONTEXT: unique symbol;
+/** Private, restrictive execution binding; not represented in request JSON. */
+export declare function bindFakeProviderExecution(execution: object, target: { providerId: string; modelId: string }): void;
+export declare function bindExactProviderExecution(execution: object, target: { providerId: string; modelId: string }): void;
+export declare function inheritProviderSelectionExecution(source: object | undefined | null, target: object): void;
+export declare function readGatewayProviderCallAttempted(result: unknown): boolean | undefined;
 
 export interface GatewayAgentGovernanceExecutionContext {
   readonly agentId: string;
@@ -97,6 +104,14 @@ export interface GatewayManagedLocalClientProviderBinding {
   assertAttempt(input: { providerId: string; modelId: string }): unknown;
 }
 
+/** Code-owned, non-JSON Workforce capability; its callbacks never come from model/request data. */
+export interface GatewayWorkforceDispatchFence {
+  readonly providerId: string;
+  readonly modelId: string;
+  assertActive(phase: "reserve" | "commit"): Promise<unknown>;
+  onDispatch(): void;
+}
+
 export type GatewayExecutionInput = Partial<GatewayRequest> & {
   readonly [MANAGED_LOCAL_CLIENT_PROVIDER_PIN]?: GatewayManagedLocalClientProviderBinding;
   readonly [AGENT_GOVERNANCE_EXECUTION_CONTEXT]?: GatewayAgentGovernanceExecutionContext;
@@ -109,7 +124,7 @@ export type GatewayExecutionInput = Partial<GatewayRequest> & {
 export declare class GatewayService {
   constructor(options: GatewayServiceOptions & Record<string, unknown>);
   readonly runtimeConfig: Partial<GatewayRuntimeConfig>;
-  execute(input: GatewayExecutionInput, execution?: { signal?: AbortSignal; shadow?: boolean; providerDispatchKeyHash?: string; providerDispatchKeyInvalid?: boolean; providerDispatchRoute?: string; providerDispatchInvocation?: number }): Promise<GatewayRouteResult>;
+  execute(input: GatewayExecutionInput, execution?: { signal?: AbortSignal; shadow?: boolean; providerDispatchKeyHash?: string; providerDispatchKeyInvalid?: boolean; providerDispatchRoute?: string; providerDispatchInvocation?: number; workforceDispatchFence?: GatewayWorkforceDispatchFence }): Promise<GatewayRouteResult>;
   executeStream(input: GatewayExecutionInput, execution?: { signal?: AbortSignal; shadow?: boolean; providerDispatchKeyHash?: string; providerDispatchKeyInvalid?: boolean; providerDispatchRoute?: string; providerDispatchInvocation?: number }): AsyncGenerator<GatewayStreamEvent>;
   executeProviderOperation(input: GatewayProviderOperationInput, execution?: { signal?: AbortSignal; providerDispatchKeyHash?: string; providerDispatchKeyInvalid?: boolean; providerDispatchRoute?: string; providerDispatchInvocation?: number; transportRequestId?: string; transportTraceId?: string }): Promise<unknown>;
   getProviderDescriptors(): ProviderDescriptor[];

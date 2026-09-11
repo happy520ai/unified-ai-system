@@ -1,19 +1,22 @@
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { resolveChatResultHttpStatus } from "./routes/chatRoutes.js";
 import { applyIdempotencyResponseHeaders } from "./idempotencyCoordinator.ts";
-import { getGuardrailsEngine } from "../guardrails/guardrailsEngine.ts";
+import { captureGuardrailsOutputPolicy, getGuardrailsEngine, inspectGuardrailsOutputStream, consumeGuardrailsGeneratedEmptyText } from "../guardrails/guardrailsEngine.ts";
 import {
   closePrimedGatewayStream,
   iteratePrimedGatewayStream,
   primeGatewayStream,
   readPrimedGatewayStreamError,
+  resolveGatewayStreamPreflightStatus,
 } from "./gatewayStreamPreflight.ts";
 import { resolveProviderDispatchHttpStatus } from "./providerDispatchHttpStatus.ts";
 import {
   applyManagedLocalClientProviderRoute,
   authenticateManagedLocalClientProtocolRequest,
+  authorizeVirtualKeyRequest,
   resolveManagedLocalClientProviderRoute,
 } from "./openAiCompatibilityRoutes.js";
+import { estimateTokens } from "../cost/tokenEstimator.js";
 
 export async function dispatchHttpRoutes06(context) {
   const {
@@ -142,7 +145,7 @@ export async function dispatchHttpRoutes06(context) {
       });
       const primedStream = await primeGatewayStream(gatewayService.executeStream(chatInput));
       const preflightError = readPrimedGatewayStreamError(primedStream);
-      const preflightStatus = resolveProviderDispatchHttpStatus(preflightError?.code);
+      const preflightStatus = resolveGatewayStreamPreflightStatus(preflightError?.code);
       if (preflightError && preflightStatus !== null) {
         await closePrimedGatewayStream(primedStream);
         writeJson(response, preflightStatus, primedStream.first.value.envelope);
@@ -440,6 +443,7 @@ export async function dispatchHttpRoutes06(context) {
     // Guardrails(确定性本地扫描):原生 /chat 与 /chat/stream 必须与 /v1/* 协议
     // lane 执行同一套租户隔离的输入策略——拦截秘密注入,脱敏 PII 后再进网关。
     const guardrailsEngine = getGuardrailsEngine(request.enterpriseIdentity?.tenantId);
+    const guardrailOutputPolicy = captureGuardrailsOutputPolicy(guardrailsEngine);
     const guardrailInputVerdict = guardrailsEngine.inspectInput({ messages: gatewayInput?.messages });
     if (guardrailInputVerdict.decision === "block") {
       writeServiceLog("chat_guardrail_blocked", {
@@ -455,8 +459,8 @@ export async function dispatchHttpRoutes06(context) {
       return;
     }
     for (const replacement of guardrailInputVerdict.replacements) {
-      if (typeof gatewayInput?.messages?.[replacement.index]?.content === "string") {
-        gatewayInput.messages[replacement.index].content = replacement.content;
+      if (gatewayInput?.messages?.[replacement.index]) {
+        gatewayInput.messages[replacement.index].content = consumeGuardrailsGeneratedEmptyText(replacement.content) ? "" : replacement.content;
       }
     }
 
@@ -467,7 +471,7 @@ export async function dispatchHttpRoutes06(context) {
       });
       const primedStream = await primeGatewayStream(gatewayService.executeStream(gatewayInput));
       const preflightError = readPrimedGatewayStreamError(primedStream);
-      const preflightStatus = resolveProviderDispatchHttpStatus(preflightError?.code);
+      const preflightStatus = resolveGatewayStreamPreflightStatus(preflightError?.code);
       if (preflightError && preflightStatus !== null) {
         await closePrimedGatewayStream(primedStream);
         writeJson(response, preflightStatus, primedStream.first.value.envelope);
@@ -476,7 +480,7 @@ export async function dispatchHttpRoutes06(context) {
       writeSseHeaders(response);
 
       let failed = false;
-      for await (const event of iteratePrimedGatewayStream(primedStream)) {
+      for await (const event of inspectGuardrailsOutputStream(iteratePrimedGatewayStream(primedStream), guardrailOutputPolicy, () => clientClosed)) {
         if (clientClosed) break;
         if (event.type === "error") {
           failed = true;
@@ -514,6 +518,13 @@ export async function dispatchHttpRoutes06(context) {
             }
           : body,
         operation: async () => {
+          // The shared manager owns budget policy. Native /chat performs its
+          // admission only for a new execution, never for an idempotent replay.
+          const budgetRejection = authorizeNativeChatVirtualKeyUsage({
+            enterpriseGovernanceService, request, gatewayInput, writeServiceLog,
+            startedAt, createErrorEnvelope, path: url.pathname,
+          });
+          if (budgetRejection) return budgetRejection;
           let executionResult = await gatewayService.execute(gatewayInput);
           if (promptEnhancement) {
             executionResult = {
@@ -623,5 +634,28 @@ function decorateStreamEvent(event, promptEnhancement) {
       ...(event.meta ?? {}),
       promptEnhancement,
     },
+  };
+}
+
+function authorizeNativeChatVirtualKeyUsage({ enterpriseGovernanceService, request, gatewayInput, writeServiceLog, startedAt, createErrorEnvelope, path }) {
+  const keyId = request.enterpriseIdentity?.apiKeyFingerprint;
+  if (!keyId) return null;
+  let decision;
+  try {
+    decision = authorizeVirtualKeyRequest({ enterpriseGovernanceService, request, writeServiceLog, path,
+      estimatedTokens: estimateTokens(gatewayInput).estimatedInputTokens });
+  } catch {
+    return {
+      statusCode: 503,
+      payload: createErrorEnvelope("VIRTUAL_KEY_ACCOUNTING_UNAVAILABLE", "Virtual key accounting is unavailable.", { startedAt, category: "internal", retryable: false }),
+    };
+  }
+  if (decision.allowed) return null;
+  writeServiceLog?.("virtual_key_rejected", { path, code: decision.code, keyFingerprint: keyId, durationMs: Date.now() - startedAt });
+  return {
+    statusCode: 429,
+    payload: createErrorEnvelope(decision.code, decision.code === "VIRTUAL_KEY_RATE_LIMITED"
+      ? "Virtual key request rate limit exceeded; retry later."
+      : "Virtual key token budget exhausted for the current window.", { startedAt, category: "rate_limit", retryable: false }),
   };
 }

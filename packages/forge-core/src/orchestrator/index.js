@@ -16,6 +16,7 @@ import { TesterWorker, VerifierWorker } from '../worker/tester.js';
 import { ReviewerWorker } from '../worker/reviewer.js';
 import { DebuggerWorker } from '../worker/debugger.js';
 import { ImageWorker, EmbeddingWorker, AudioWorker, VideoWorker } from '../worker/media.js';
+import { WebWorker } from '../worker/web.js';
 import { CheckpointManager } from '../checkpoint/index.js';
 import { VerificationEngine } from '../verification/index.js';
 import { formatDuration, extractFilesFromPrompt } from './utils.js';
@@ -60,6 +61,7 @@ const WORKER_MAP = {
   'embedding-generator': () => new EmbeddingWorker(),
   'audio-generator': () => new AudioWorker(),
   'video-generator': () => new VideoWorker(),
+  'web': () => new WebWorker(),
 };
 
 const GOVERNED_WORKER_ROLES = new Set([
@@ -355,7 +357,7 @@ export class Orchestrator {
           this.#store.incrementRetry(goalId, task.id);
           const taskData = this.#store.getTask(goalId, task.id);
 
-          if (taskData.retry_count < taskData.max_retries) {
+          if ((task.agent_role || task.agentRole) !== 'web' && taskData.retry_count < taskData.max_retries) {
             console.log(`[forge:orchestrator] Task ${task.id} failed (retry ${taskData.retry_count}/${taskData.max_retries}): ${error}`);
             this.#store.updateTaskStatus(goalId, task.id, 'pending', { errorMessage: error });
           } else {
@@ -444,7 +446,10 @@ export class Orchestrator {
     if (!workerFactory) {
       throw new Error(`No worker registered for role: ${task.agent_role || task.agentRole}`);
     }
-    if (this.#governanceRequired && !GOVERNED_WORKER_ROLES.has(task.agent_role || task.agentRole)) {
+    const governedWeb = (task.agent_role || task.agentRole) === 'web'
+      && task.id === this.#governedExecution?.webTask?.taskId
+      && typeof this.#governedExecution?.webTask?.execute === 'function';
+    if (this.#governanceRequired && !GOVERNED_WORKER_ROLES.has(task.agent_role || task.agentRole) && !governedWeb) {
       throw createForgeExecutionError(
         'FORGE_GOVERNED_WORKER_UNSUPPORTED',
         `Worker role ${task.agent_role || task.agentRole} does not implement the governed action contract.`,

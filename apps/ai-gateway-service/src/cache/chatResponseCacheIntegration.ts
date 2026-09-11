@@ -47,17 +47,32 @@ export interface ChatCacheCandidate {
   stream: boolean;
   /** Compact serialization the cache key derives from; also the semantic embedding source. */
   semanticSource: string;
+  outputPolicyFingerprint: string | null;
 }
 
 export interface ChatCacheJsonPayload {
   kind: "json";
   response: Record<string, unknown>;
+  billing?: ChatCacheSsePayload["billing"];
 }
 
 export interface ChatCacheSsePayload {
   kind: "sse";
   chunks: unknown[];
   usageChunk?: unknown;
+  billing?: { version: 1; totalTokens: number; source: "reported" | "estimated" };
+}
+
+/** Server-written accounting snapshot; wire include_usage never determines this value. */
+export function readChatCacheBillingSnapshot(payload: unknown): ChatCacheSsePayload["billing"] | null {
+  if (!payload || typeof payload !== "object") return null;
+  const billing = (payload as ChatCacheSsePayload).billing;
+  if (!billing || typeof billing !== "object" || ![Object.prototype, null].includes(Object.getPrototypeOf(billing))
+    || Object.getOwnPropertySymbols(billing).length || Object.getOwnPropertyNames(billing).sort().join(",") !== "source,totalTokens,version"
+    || Object.values(Object.getOwnPropertyDescriptors(billing)).some(property => !("value" in property))
+    || billing.version !== 1 || !Number.isSafeInteger(billing.totalTokens) || billing.totalTokens < 0
+    || (billing.source !== "reported" && billing.source !== "estimated")) return null;
+  return Object.freeze({ version: 1, totalTokens: billing.totalTokens, source: billing.source });
 }
 
 export type ChatCachePayload = ChatCacheJsonPayload | ChatCacheSsePayload;
@@ -83,6 +98,7 @@ export interface ChatResponseCacheIntegration {
   describeCacheCandidate(
     requestBody: { stream?: unknown },
     gatewayInput: Record<string, unknown>,
+    outputPolicyFingerprint?: string,
   ): ChatCacheCandidate | null;
   lookup(params: {
     candidate: ChatCacheCandidate;
@@ -158,7 +174,7 @@ export function createChatResponseCacheIntegration(options: {
   };
   // 语义层：每租户有界的内存向量索引（确定性 embedding，零凭证）。
   const semanticEmbedding = createDeterministicEmbeddingProvider();
-  const semanticIndex = new Map<string, Array<{ embedding: number[]; payload: ChatCachePayload; stream: boolean }>>();
+  const semanticIndex = new Map<string, Array<{ embedding: number[]; payload: ChatCachePayload; stream: boolean; outputPolicyFingerprint: string | null }>>();
   const SEMANTIC_MAX_ENTRIES_PER_TENANT = 200;
 
   function readConfig(): ChatResponseCacheConfig {
@@ -178,6 +194,7 @@ export function createChatResponseCacheIntegration(options: {
   function describeCacheCandidate(
     requestBody: { stream?: unknown },
     gatewayInput: Record<string, unknown>,
+    outputPolicyFingerprint?: string,
   ): ChatCacheCandidate | null {
     if (!readConfig().enabled) return null;
     // Tool-call requests stay uncached for now: their outputs feed external
@@ -193,6 +210,7 @@ export function createChatResponseCacheIntegration(options: {
       messages: gatewayInput.messages ?? null,
       options: gatewayInput.options ?? null,
       requiredCapabilities: gatewayInput.requiredCapabilities ?? null,
+      outputPolicyFingerprint: outputPolicyFingerprint ?? null,
     };
     const serialized = stableStringify(keyPayload);
     // Secret-like request text must never reach the shared cache index.
@@ -202,6 +220,7 @@ export function createChatResponseCacheIntegration(options: {
       cacheKey: `${CACHE_KEY_NAMESPACE}:${sha256(serialized)}`,
       stream,
       semanticSource: serialized,
+      outputPolicyFingerprint: outputPolicyFingerprint ?? null,
     };
   }
 
@@ -211,6 +230,7 @@ export function createChatResponseCacheIntegration(options: {
     if (!payload || (payload.kind !== "json" && payload.kind !== "sse")) return null;
     if (payload.kind === "json" && !payload.response) return null;
     if (payload.kind === "sse" && !Array.isArray(payload.chunks)) return null;
+    if (payload.billing !== undefined && !readChatCacheBillingSnapshot(payload)) return null;
     return payload;
   }
 
@@ -253,6 +273,7 @@ export function createChatResponseCacheIntegration(options: {
     let best: { score: number; entry: { embedding: number[]; payload: ChatCachePayload; stream: boolean } } | null = null;
     for (const entry of entries) {
       if (entry.stream !== candidate.stream) continue;
+      if (entry.outputPolicyFingerprint !== candidate.outputPolicyFingerprint) continue;
       const score = cosine(queryVector, entry.embedding);
       if (!best || score > best.score) {
         best = { score, entry };
@@ -324,6 +345,7 @@ export function createChatResponseCacheIntegration(options: {
           embedding: semanticEmbedding.embedText(params.candidate.semanticSource),
           payload: params.payload,
           stream: params.candidate.stream,
+          outputPolicyFingerprint: params.candidate.outputPolicyFingerprint,
         });
         if (entries.length > SEMANTIC_MAX_ENTRIES_PER_TENANT) {
           entries.splice(0, entries.length - SEMANTIC_MAX_ENTRIES_PER_TENANT);

@@ -1,4 +1,34 @@
 import type {
+  KnowledgeHealthResult,
+  KnowledgeSourcesResult,
+  RouteModesResult,
+  RoutingPreviewKind,
+  RoutingPreviewRequest,
+  RoutingPreviewResult,
+  ForgePolishRequest,
+  ForgeOrchestrateRequest,
+  ForgeOperationResult,
+  ForgeOrchestrateResult,
+  ForgeStatusResult,
+  ForgeRunsResult,
+  TaijiCompileResult,
+  TaijiStatusResult,
+  TaijiOperationResult,
+  TaijiEvaluateRequest,
+  TaijiActivateRequest,
+  TaijiExecuteRequest,
+  TaijiSelectedExecuteRequest,
+  TaijiFeedbackRequest,
+  TaijiRepairRequest,
+  TaijiRevokeRequest,
+  WorkforcePreviewResult,
+  ImConnectorId,
+  ImConnectorMessage,
+  ImConnectorSendOptions,
+  ImConnectorSendResult,
+  ImConnectorListResult,
+  ClearRuntimeProviderCredentialRequest,
+  ClearRuntimeProviderCredentialResult,
   ContractMetadata,
   GatewayChatRequest,
   GatewayChatResult,
@@ -67,6 +97,8 @@ import type {
   WorkflowPlanResult,
   WorkflowRequest,
   WorkflowRunResult,
+  WorkflowRunInspectionResult,
+  WorkflowRunListResult,
   ActivateGovernancePolicyResult,
   AgentGovernanceStatsResult,
   CreateGovernancePolicyRequest,
@@ -85,6 +117,14 @@ import type {
   RevokeGovernedAgentResult,
   RunGovernedAgentRequest,
   WorkforceAgentsResult,
+  WorkforceExecutionStatusResult,
+  WorkforceWorkflowRecoveryRequest,
+  WorkforceWorkflowRecoveryResult,
+  WorkforceExternalRunnerRecoveryRequest,
+  WorkforceExternalRunnerRecoveryResult,
+  WorkforceExecuteRequest,
+  WorkforceExecuteResult,
+  WorkforceExecutionReviewResult,
   WorkforceHealthResult,
   WorkforcePlanDeleteResult,
   WorkforcePlanExportResult,
@@ -104,6 +144,12 @@ import type {
 } from "@unified-ai-system/shared-contracts";
 
 export type {
+  WorkflowRunInspection,
+  WorkflowRunInspectionResult,
+  WorkflowRunListResult,
+  WorkflowRunStatus,
+  ClearRuntimeProviderCredentialRequest,
+  ClearRuntimeProviderCredentialResult,
   GatewayHealth,
   LocalClientExecutionReceiptJournalStatus,
   LocalClientExecutionReceiptRecoveryStatus,
@@ -131,6 +177,20 @@ export type {
   RevokeGovernedAgentRequest,
   RevokeGovernedAgentResult,
   RunGovernedAgentRequest,
+  WorkforceExternalRunnerReview,
+  WorkforceExternalRunnerProfile,
+  WorkforceExternalRunnerSelector,
+  WorkforceExternalRunnerState,
+  WorkforceExternalRunnerNativeUsage,
+  WorkforceExternalRunnerTokenCounts,
+  WorkforceExternalRunnerInspection,
+  WorkforceExternalRunnerRecoveryRequest,
+  WorkforceExternalRunnerRecoveryResponse,
+  WorkforceExternalRunnerRecoveryResult,
+  WorkforceExecuteRequest,
+  WorkforceExecuteResult,
+  WorkforceExecutionReviewResponse,
+  WorkforceExecutionReviewResult,
 } from "@unified-ai-system/shared-contracts";
 
 export interface GatewayClientOptions {
@@ -146,6 +206,32 @@ export interface ProviderDispatchRequestOptions {
   idempotencyKey?: string;
   /** Reserves only the durable provider-dispatch tombstone. */
   providerDispatchKey?: string;
+}
+
+export interface PrepareGovernedAgentTaskRequest { goal: string; prompt: string; projectId?: string }
+export interface GovernedAgentTaskRevisionRequest { revision: number }
+export interface ConfirmGovernedAgentTaskRequest extends GovernedAgentTaskRevisionRequest {
+  reviewHash: string; planHash: string; approvalId: string;
+}
+export interface RunGovernedAgentTaskRequest extends GovernedAgentTaskRevisionRequest, ProviderDispatchRequestOptions {
+  /** One explicit chunk, 1–10 iterations; the server defaults to 4. */
+  maxIterations?: number;
+}
+export interface GovernedAgentTaskSnapshot {
+  version: 1; taskId: string; agentId: string; agentRunId: string; revision: number;
+  phase: "prepared" | "planning" | "awaiting_confirmation" | "running" | "paused" | "verifying" | "completed" | "failed" | "cancelled" | "unknown";
+  counters: { iterations: number; modelCalls: number; reservedTokens: number; repairAttempts: number };
+  pendingOperation: Record<string, unknown> | null; review: Record<string, unknown>; plan: Record<string, unknown> | null;
+  sourceFiles: ReadonlyArray<{ path: string; sha256: string | null; content: string | null }>;
+  approvalId: string | null; confirmedApprovalId: string | null; stepIndex: number;
+  stepReceipts: ReadonlyArray<Record<string, unknown>>; modelReceipts: ReadonlyArray<Record<string, unknown>>;
+  verificationAttempts: ReadonlyArray<Record<string, unknown>>; workspaceReceipt: Record<string, unknown> | null;
+  sourceFilesHash: string; finalAnswer: string; errorCode: string | null; controlRequested: "run" | "pause" | "cancel" | "shutdown" | null;
+  resumable: boolean; recovery: { automaticReplay: false; workspaceReconciliationRequired: boolean; wholeDirectoryRollbackProtection: false };
+  resident?: { enabled: boolean; chunks: number; maxChunks: number; expiresAt: number; chunkIterations: number; stopReason: string | null } | null;
+  recoveryAttempts?: ReadonlyArray<{ attempt: number; status: "pending" | "recovered" | "failed" | "unknown"; sourceFilesHash: string;
+    code: "WORKSPACE_NOT_ATTACHED"; errorCode: string | null }>;
+  loopDecisions?: ReadonlyArray<{ attemptId: string; action: string; reason: string; repairAttempts: number }>;
 }
 
 export interface ManagedLocalClientPopProofOptions {
@@ -347,6 +433,7 @@ export interface GatewayClient {
   readonly baseUrl: string;
   health(): Promise<ResultEnvelope<GatewayHealth>>;
   setupReadiness(): Promise<ResultEnvelope<SetupReadinessResult>>;
+  clearRuntimeProviderCredential(request: ClearRuntimeProviderCredentialRequest): Promise<ResultEnvelope<ClearRuntimeProviderCredentialResult>>;
   localClientsStatus(): Promise<ResultEnvelope<LocalClientStatusResult>>;
   localClients(options?: {
     includeDisabled?: boolean;
@@ -408,6 +495,14 @@ export interface GatewayClient {
   governedAgentPolicy(agentId: string): Promise<GovernedAgentPolicyResult>;
   governedAgentAudit(agentId: string): Promise<GovernedAgentAuditResult>;
   runGovernedAgent(agentId: string, request: RunGovernedAgentRequest): Promise<GovernedAgentRunResult>;
+  prepareGovernedAgentTask(agentId: string, request: PrepareGovernedAgentTaskRequest): Promise<ResultEnvelope<GovernedAgentTaskSnapshot>>;
+  governedAgentTask(agentId: string, taskId: string): Promise<ResultEnvelope<GovernedAgentTaskSnapshot>>;
+  planGovernedAgentTask(agentId: string, taskId: string, request: GovernedAgentTaskRevisionRequest & ProviderDispatchRequestOptions): Promise<ResultEnvelope<GovernedAgentTaskSnapshot>>;
+  confirmGovernedAgentTask(agentId: string, taskId: string, request: ConfirmGovernedAgentTaskRequest): Promise<ResultEnvelope<GovernedAgentTaskSnapshot>>;
+  runGovernedAgentTask(agentId: string, taskId: string, request: RunGovernedAgentTaskRequest): Promise<ResultEnvelope<GovernedAgentTaskSnapshot>>;
+  scheduleGovernedAgentTask(agentId: string, taskId: string, request: GovernedAgentTaskRevisionRequest): Promise<ResultEnvelope<GovernedAgentTaskSnapshot>>;
+  pauseGovernedAgentTask(agentId: string, taskId: string, request: GovernedAgentTaskRevisionRequest): Promise<ResultEnvelope<GovernedAgentTaskSnapshot>>;
+  cancelGovernedAgentTask(agentId: string, taskId: string, request: GovernedAgentTaskRevisionRequest): Promise<ResultEnvelope<GovernedAgentTaskSnapshot>>;
   revokeGovernedAgent(agentId: string, request?: RevokeGovernedAgentRequest): Promise<RevokeGovernedAgentResult>;
   governedApprovals(agentId?: string): Promise<GovernedApprovalListResult>;
   decideGovernedApproval(approvalId: string, decision: "approve" | "reject"): Promise<GovernedApprovalDecisionResult>;
@@ -429,15 +524,50 @@ export interface GatewayClient {
   ragChat(request: RagChatRequest & ProviderDispatchRequestOptions): Promise<RagChatResult>;
   chatStream(request: GatewayChatRequest & ProviderDispatchRequestOptions): AsyncIterable<GatewayStreamEvent>;
   knowledgeRetrieve(request: KnowledgeRetrieveRequest): Promise<KnowledgeRetrieveResult>;
+  knowledgeHealth(): Promise<KnowledgeHealthResult>;
+  knowledgeSources(): Promise<KnowledgeSourcesResult>;
+  routeModes(): Promise<RouteModesResult>;
+  routingPreview(kind: RoutingPreviewKind, request: RoutingPreviewRequest): Promise<RoutingPreviewResult>;
+  forgeStatus(): Promise<ForgeStatusResult>;
+  forgeRuns(): Promise<ForgeRunsResult>;
+  forgePolish(request: ForgePolishRequest): Promise<ForgeOperationResult>;
+  forgeQuality(request: { code: string; task?: ContractMetadata }): Promise<ForgeOperationResult>;
+  forgeRemember(request: { content: string; metadata?: ContractMetadata }): Promise<ForgeOperationResult>;
+  forgeRecall(request: { query: string; limit?: number }): Promise<ForgeOperationResult>;
+  forgeOrchestrate(request: ForgeOrchestrateRequest): Promise<ForgeOrchestrateResult>;
+  taijiCompile(request: { request: string; capabilityId?: string; displayName?: string }): Promise<TaijiCompileResult>;
+  taijiCapabilities(agentId: string, options?: { limit?: number; offset?: number }): Promise<TaijiStatusResult>;
+  taijiCapabilityRun(agentId: string, runId: string): Promise<TaijiOperationResult>;
+  evaluateTaijiCapability(request: TaijiEvaluateRequest): Promise<TaijiOperationResult>;
+  activateTaijiCapability(request: TaijiActivateRequest): Promise<TaijiOperationResult>;
+  executeTaijiCapability(request: TaijiExecuteRequest | TaijiSelectedExecuteRequest): Promise<TaijiOperationResult>;
+  revokeTaijiCapability(request: TaijiRevokeRequest): Promise<TaijiOperationResult>;
+  repairTaijiCapability(request: TaijiRepairRequest): Promise<TaijiOperationResult>;
+  reweightTaijiCapability(request: TaijiFeedbackRequest): Promise<TaijiOperationResult>;
+  pruneTaijiCapability(request: TaijiFeedbackRequest): Promise<TaijiOperationResult>;
+  workforcePreview(request: { task: string }): Promise<WorkforcePreviewResult>;
   knowledgeLoad(request: KnowledgeLoadRequest): Promise<KnowledgeLoadResult>;
   knowledgeInfraReadiness(): Promise<KnowledgeInfraReadinessResult>;
+  connectors(): Promise<ResultEnvelope<ImConnectorListResult>>;
+  /** Performs a single send with an explicit key and rejects redirects; errors never invite automatic retries. */
+  sendConnectorMessage(connectorId: ImConnectorId, request: ImConnectorMessage, options: ImConnectorSendOptions): Promise<ResultEnvelope<ImConnectorSendResult>>;
   modelImportPreview(request: ModelImportPreviewRequest): Promise<ResultEnvelope<ModelImportPreviewResult>>;
   modelImportConfirm(request: ModelImportConfirmRequest): Promise<ResultEnvelope<ModelImportConfirmResult>>;
   workflowHealth(): Promise<ResultEnvelope<Record<string, unknown>>>;
   workflowActions(): Promise<ResultEnvelope<Record<string, unknown>>>;
   workflowPlan(request: WorkflowRequest): Promise<WorkflowPlanResult>;
   workflowRun(request: WorkflowRequest): Promise<WorkflowRunResult>;
+  workflowRuns(options?: { limit?: number }): Promise<WorkflowRunListResult>;
+  workflowRunStatus(workflowId: string): Promise<WorkflowRunInspectionResult>;
+  recoverWorkflowRun(workflowId: string): Promise<WorkflowRunInspectionResult>;
   workforceHealth(): Promise<WorkforceHealthResult>;
+  workforceExecutionStatus(executionId: string): Promise<WorkforceExecutionStatusResult>;
+  recoverWorkforceWorkflow(request: WorkforceWorkflowRecoveryRequest): Promise<WorkforceWorkflowRecoveryResult>;
+  /** Reviews the complete configured intent without dispatching a native turn. */
+  workforceExecutionReview(request: WorkforceExecuteRequest): Promise<WorkforceExecutionReviewResult>;
+  /** Executes only after the gateway's current plan and Agent approvals; never retries automatically. */
+  workforceExecute(request: WorkforceExecuteRequest): Promise<WorkforceExecuteResult>;
+  recoverWorkforceExternalRunner(request: WorkforceExternalRunnerRecoveryRequest): Promise<WorkforceExternalRunnerRecoveryResult>;
   workforceAgents(): Promise<WorkforceAgentsResult>;
   workforcePlan(request: WorkforcePlanRequest): Promise<WorkforcePlanResult>;
   workforcePlanSave(request: WorkforcePlanSaveRequest): Promise<WorkforcePlanSaveResult>;

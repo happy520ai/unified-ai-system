@@ -11,13 +11,16 @@ vi.mock("../security/safeOutboundFetch.ts", () => ({
 import { safeOutboundFetch } from "../security/safeOutboundFetch.ts";
 import { createExternalEffectGate, type ExternalEffectGate } from "../external-effects/externalEffectGate.ts";
 import { createHttpServerCapabilityRoutes } from "./httpServerCapabilityRoutes.js";
+import { createImConnectorRuntime } from "../connectors/imConnectorRuntime.ts";
 
 const temporaryDirectories: string[] = [];
 const openGates: ExternalEffectGate[] = [];
+const runtimes: ReturnType<typeof createImConnectorRuntime>[] = [];
 const SECRET = "webhook-effect-test-secret".padEnd(64, "x");
 
 afterEach(async () => {
   vi.mocked(safeOutboundFetch).mockReset();
+  await Promise.all(runtimes.splice(0).map(runtime => runtime.close()));
   await Promise.allSettled(openGates.splice(0).map((gate) => gate.close()));
   for (const directory of temporaryDirectories.splice(0)) {
     rmSync(directory, { recursive: true, force: true });
@@ -36,13 +39,9 @@ function createApplication() {
     },
   });
   openGates.push(externalEffectGate);
-  return {
-    externalEffectGate,
-    runtimeEnv: {
-      FEISHU_WEBHOOK_URL: "https://open.feishu.example/webhook/test",
-      WECOM_WEBHOOK_URL: "https://qyapi.weixin.example/webhook/test",
-    },
-  };
+  const runtimeEnv = { FEISHU_WEBHOOK_URL: "https://open.feishu.example/webhook/test", WECOM_WEBHOOK_URL: "https://qyapi.weixin.example/webhook/test" };
+  const imConnectorRuntime = createImConnectorRuntime({ env: runtimeEnv, gate: externalEffectGate }); runtimes.push(imConnectorRuntime);
+  return { externalEffectGate, runtimeEnv, imConnectorRuntime };
 }
 
 function createRequest(body: Record<string, unknown>, headers: Record<string, string> = {}) {

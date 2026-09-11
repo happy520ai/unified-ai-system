@@ -27,3 +27,4 @@ export {
 export { sanitizeCodecInput, validateSafetyBoundary } from "./safetyBoundaryValidator.js";
 export { buildPointerLedger } from "./pointerLedger.js";
 export { buildPhase641rAioSampleFixtures } from "./sampleFixtures.js";
+export { ContextCodecError, parseContextJson, encodeContextData, decodeContextData } from "./runtimeContextCodec.ts";

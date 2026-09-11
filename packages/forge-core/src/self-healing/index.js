@@ -22,6 +22,11 @@ import {
 export const HealingAction = _HealingAction;
 export const HealthLevel = _HealthLevel;
 
+/** @typedef {{code: 'WORKSPACE_NOT_ATTACHED', taskId: string, bindingHash: string, attempt: number, maxAttempts: number, pendingEffect: false}} GovernedWorkspaceDiagnosis */
+/** @typedef {{diagnosis: Readonly<GovernedWorkspaceDiagnosis>, signal: AbortSignal, deadlineAt: number}} GovernedWorkspaceRecoveryContext */
+/** @typedef {{healthy: true, taskId: string, bindingHash: string, sourceFilesHash: string}} GovernedWorkspaceRecoveryProof */
+/** @typedef {Readonly<{version: 1, code: 'WORKSPACE_NOT_ATTACHED', taskId: string, bindingHash: string, attempt: number, status: 'recovered', sourceFilesHash: string}>} GovernedWorkspaceRecoveryReceipt */
+
 /**
  * Monitors module health and automatically executes recovery strategies when modules degrade or crash.
  * Maintains a healing history ring buffer and enforces cooldown/max-heal safeguards.
@@ -57,6 +62,8 @@ export class SelfHealingEngine {
   #successfulHeals = 0;
   /** @type {number} total number of alert-only actions */
   #totalAlerts = 0;
+  /** Only concurrent recovery exclusion; durable attempts remain owned by T065. */
+  #governedRecoveries = new Set();
 
   /**
    * @param {object} [opts]
@@ -72,6 +79,115 @@ export class SelfHealingEngine {
     this.#cooldownMs = Math.max(0, Math.floor(opts.cooldownMs ?? DEFAULT_COOLDOWN_MS));
     this.#enableAutoHeal = opts.enableAutoHeal !== false;
     this.#historySize = Math.max(1, Math.floor(opts.historySize ?? DEFAULT_HISTORY_SIZE));
+  }
+
+  /**
+   * One explicitly authorized original-workspace recovery, followed by an
+   * independent ownership/source verification. No legacy strategy or monitor
+   * runs here. The service persists the intent and attempt before entering.
+   * Resources must expose close(); an unsuccessful acquired resource is settled
+   * and closed before the original failure escapes.
+   * @template {{close(): void | Promise<void>}} R
+   * @param {{diagnosis: GovernedWorkspaceDiagnosis, signal?: AbortSignal, deadlineAt: number,
+   *   authorize: (context: GovernedWorkspaceRecoveryContext & {phase: 'before_recover' | 'after_recover' | 'before_verify' | 'after_verify'}) => true | Promise<true>,
+   *   recover: (context: GovernedWorkspaceRecoveryContext) => R | Promise<R>,
+   *   verify: (resource: R, context: GovernedWorkspaceRecoveryContext) => GovernedWorkspaceRecoveryProof | Promise<GovernedWorkspaceRecoveryProof>}} input
+   * @returns {Promise<Readonly<{resource: R, receipt: GovernedWorkspaceRecoveryReceipt}>>}
+   */
+  async recoverGovernedWorkspace(input) {
+    const failure = code => Object.assign(new Error('Governed workspace recovery cannot continue.'), { code });
+    const invalid = () => { throw failure('FORGE_GOVERNED_RECOVERY_INVALID'); };
+    const record = (value, keys) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)
+        || ![Object.prototype, null].includes(Object.getPrototypeOf(value))
+        || Reflect.ownKeys(value).length !== keys.length) invalid();
+      for (const key of keys) {
+        const field = Object.getOwnPropertyDescriptor(value, key);
+        if (!field?.enumerable || !('value' in field)) invalid();
+      }
+      return value;
+    };
+    record(input, Object.hasOwn(input ?? {}, 'signal')
+      ? ['diagnosis', 'signal', 'deadlineAt', 'authorize', 'recover', 'verify']
+      : ['diagnosis', 'deadlineAt', 'authorize', 'recover', 'verify']);
+    const source = record(input.diagnosis, ['code', 'taskId', 'bindingHash', 'attempt', 'maxAttempts', 'pendingEffect']);
+    if (source.code !== 'WORKSPACE_NOT_ATTACHED' || source.pendingEffect !== false
+      || typeof source.taskId !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/u.test(source.taskId)
+      || typeof source.bindingHash !== 'string' || !/^sha256:[a-f0-9]{64}$/u.test(source.bindingHash)
+      || !Number.isSafeInteger(source.attempt) || source.attempt < 1
+      || !Number.isSafeInteger(source.maxAttempts) || source.maxAttempts < 1
+      || !Number.isSafeInteger(input.deadlineAt) || input.deadlineAt < 1
+      || input.signal !== undefined && !(input.signal instanceof AbortSignal)
+      || !['authorize', 'recover', 'verify'].every(key => typeof input[key] === 'function')) invalid();
+    if (source.attempt > source.maxAttempts) throw failure('FORGE_GOVERNED_RECOVERY_EXHAUSTED');
+    if (this.#governedRecoveries.has(source.taskId)) throw failure('FORGE_GOVERNED_RECOVERY_BUSY');
+    const diagnosis = Object.freeze({ ...source }), deadlineAt = input.deadlineAt;
+    const { authorize, recover, verify } = input;
+    const controller = new AbortController();
+    const signal = input.signal ? AbortSignal.any([input.signal, controller.signal]) : controller.signal;
+    const context = Object.freeze({ diagnosis, signal, deadlineAt });
+    const active = () => {
+      signal.throwIfAborted();
+      if (Date.now() >= deadlineAt) throw failure('FORGE_GOVERNED_RECOVERY_DEADLINE');
+    };
+    active();
+    const remaining = deadlineAt - Date.now();
+    if (remaining > 2147483647) invalid();
+    const timer = setTimeout(() => controller.abort(failure('FORGE_GOVERNED_RECOVERY_DEADLINE')), Math.max(1, remaining));
+    this.#governedRecoveries.add(diagnosis.taskId);
+    /** @type {R | undefined} */
+    let resource;
+    let attempted = false;
+    const startedAt = performance.now();
+    const admission = async phase => {
+      active();
+      const allowed = await authorize(Object.freeze({ ...context, phase }));
+      active();
+      if (allowed !== true) throw failure('FORGE_GOVERNED_RECOVERY_UNAUTHORIZED');
+    };
+    const perform = async (name, operation) => {
+      await admission('before_' + name);
+      let value, firstError, failed = false;
+      try { value = await operation(); } catch (error) { firstError = error; failed = true; }
+      try { await admission('after_' + name); } catch (error) { if (!failed) { firstError = error; failed = true; } }
+      if (failed) throw firstError;
+      return value;
+    };
+    try {
+      await perform('recover', async () => {
+        attempted = true; this.#totalHeals++;
+        resource = await recover(context);
+        if (!resource || typeof resource.close !== 'function') throw failure('FORGE_GOVERNED_RECOVERY_RESOURCE_INVALID');
+      });
+      const recoveredResource = resource;
+      if (!recoveredResource) throw failure('FORGE_GOVERNED_RECOVERY_RESOURCE_INVALID');
+      const checked = await perform('verify', () => verify(recoveredResource, context));
+      record(checked, ['healthy', 'taskId', 'bindingHash', 'sourceFilesHash']);
+      if (checked.healthy !== true || checked.taskId !== diagnosis.taskId || checked.bindingHash !== diagnosis.bindingHash
+        || typeof checked.sourceFilesHash !== 'string' || !/^[a-f0-9]{64}$/u.test(checked.sourceFilesHash)) throw failure('FORGE_GOVERNED_RECOVERY_VERIFY_FAILED');
+      active();
+      const receipt = Object.freeze({ version: 1, code: diagnosis.code, taskId: diagnosis.taskId,
+        bindingHash: diagnosis.bindingHash, attempt: diagnosis.attempt, status: 'recovered', sourceFilesHash: checked.sourceFilesHash });
+      this.#successfulHeals++;
+      _recordHistory(this.#history, { timestamp: Date.now(), module: diagnosis.taskId, action: 'recover_workspace', success: true,
+        message: 'Original workspace independently revalidated.', duration: performance.now() - startedAt }, this.#historySize);
+      return Object.freeze({ resource: recoveredResource, receipt });
+    } catch (error) {
+      if (resource && typeof resource.close === 'function') {
+        try { await resource.close(); }
+        catch (cleanupError) {
+          if (error instanceof Error && cleanupError !== error && Object.isExtensible(error) && !Object.hasOwn(error, 'cleanupError')) {
+            Object.defineProperty(error, 'cleanupError', { value: cleanupError, configurable: true });
+          }
+        }
+      }
+      if (attempted) _recordHistory(this.#history, { timestamp: Date.now(), module: diagnosis.taskId, action: 'recover_workspace', success: false,
+        code: typeof error?.code === 'string' && /^[A-Z][A-Z0-9_]{0,95}$/u.test(error.code) ? error.code : 'FORGE_GOVERNED_RECOVERY_FAILED',
+        message: 'Original workspace recovery failed; no automatic retry.', duration: performance.now() - startedAt }, this.#historySize);
+      throw error;
+    } finally {
+      clearTimeout(timer); this.#governedRecoveries.delete(diagnosis.taskId);
+    }
   }
 
   /**

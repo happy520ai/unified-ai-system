@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   existsSync,
   lstatSync,
@@ -14,6 +14,15 @@ import {
   resolve,
 } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readVerificationSource, readWindowsVerificationHistory } from "./verificationHistory.ts";
+import { projectWorkforceCodeDeliveryReview, formatWorkforceCodeDeliveryReview } from "./workforceCodeDeliveryReview.ts";
+import { projectWorkforceWorkflowHandoffReview, formatWorkforceWorkflowHandoffReview, assertWorkforceWorkflowOptionsHash } from "./workforceWorkflowHandoffReview.ts";
+import { projectWorkforceConsensusApproval, formatWorkforceConsensusReview, assertConsensusOptionsHash } from "./workforceConsensusReview.ts";
+import { projectWorkforceExternalRunnerApproval, formatWorkforceExternalRunnerReview } from "./workforceExternalRunnerReview.ts";
+import { runOperatorCommand, validateOperatorOptions, projectForgeApprovalReview, projectTaijiApprovalReview } from "./operatorCommands.ts";
+import { runContextCodecCommand, validateContextCodecOptions } from "./contextCodecCommands.ts";
+import { runWorkforceCommands, validateWorkforceOptions } from "./workforceCommands.ts";
+import { runAgentTaskCommand, validateAgentTaskOptions, projectGovernedAgentTaskApproval } from "./agentTaskCommands.ts";
 
 import {
   createGatewayChatRequest,
@@ -39,17 +48,41 @@ export const DEFAULT_GATEWAY_URL =
 const COMMANDS = new Set([
   "agents",
   "chat",
+  "codec",
   "clients",
   "clients-onboarding",
+  "control-center",
   "demo",
   "doctor",
   "enhance",
   "forge",
   "help",
+  "knowledge",
+  "providers",
+  "routing",
   "serve",
   "spend",
   "status",
+  "taiji",
   "version",
+  "verification",
+  "workflow",
+  "workforce",
+]);
+const WORKFLOW_OPERATIONS = new Set(["run", "list", "status", "recover"]);
+const WORKFLOW_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$/u;
+const WORKFLOW_STATUSES = new Set(["running", "prepared", "publishing", "completed", "failed", "cancelled", "interrupted", "unknown"]);
+const WORKFLOW_ERROR_CODES = new Set([
+  "APPROVAL_REVIEW_UNAVAILABLE",
+  "TOOL_APPROVAL_REQUIRED", "AGENT_NOT_FOUND", "AGENT_EXPIRED", "AGENT_EXECUTION_FENCED",
+  "WORKFLOW_INPUT_CONFLICT", "WORKFLOW_NOT_FOUND", "WORKFLOW_BUSY", "WORKFLOW_OUTCOME_UNKNOWN", "WORKFLOW_AGENT_ID_REQUIRED",
+  "WORKFLOW_CLAIM_EXPIRED", "WORKFLOW_RUN_CANCELLED", "WORKFLOW_RUN_INTERRUPTED", "WORKFLOW_EXECUTION_FAILED",
+  "WORKFLOW_STATE_INVALID", "WORKFLOW_STATE_UNAVAILABLE", "WORKFLOW_STATE_MISSING", "WORKFLOW_STATE_INITIALIZING",
+  "WORKFLOW_STATE_PERMISSION_DENIED", "WORKFLOW_STORAGE_FULL", "WORKFLOW_STAGING_CAPACITY", "WORKFLOW_STAGING_CLEANUP_REQUIRED",
+  "WORKFLOW_RECORD_TOO_LARGE", "WORKFLOW_OUTPUT_PATH_UNSAFE", "WORKFLOW_STAGED_CONTENT_CHANGED", "WORKFLOW_ARTIFACT_OUTCOME_UNCERTAIN",
+  "WORKFLOW_ARTIFACT_RECONCILIATION_REQUIRED", "WORKFLOW_POST_WRITE_GOVERNANCE_PENDING", "WORKFLOW_POST_WRITE_GOVERNANCE_UNCERTAIN",
+  "WORKFLOW_TARGET_OCCUPIED", "WORKFLOW_TARGET_CHANGED", "WORKFLOW_ORIGINAL_AUTHORIZATION_UNVERIFIED",
+  "WORKFLOW_APPROVED_MATERIAL_MISMATCH", "WORKFLOW_GOVERNANCE_SUBJECT_MISMATCH", "TOOL_SCOPE_DENIED", "TOOL_DENIED_BY_POLICY",
 ]);
 const AGENT_GOVERNANCE_SUBCOMMANDS = new Set([
   "status",
@@ -199,18 +232,42 @@ const LOCAL_CLIENT_ONBOARDING_PROFILE_DEFINITIONS = Object.freeze([
     client: "claude-compatible",
     label: "Claude-compatible",
     containerKey: "mcpServers",
+    format: "json-only",
   }),
   Object.freeze({
     profileId: "cursor-mcp-json",
     client: "cursor",
     label: "Cursor",
     containerKey: "mcpServers",
+    format: "json-only",
   }),
   Object.freeze({
     profileId: "vscode-mcp-json",
     client: "vscode",
     label: "VS Code",
     containerKey: "servers",
+    format: "json-only",
+  }),
+  Object.freeze({
+    profileId: "vscode-mcp-jsonc-v1",
+    client: "vscode",
+    label: "VS Code JSONC",
+    containerKey: "servers",
+    format: "jsonc",
+  }),
+  Object.freeze({
+    profileId: "codex-mcp-toml-v1",
+    client: "codex",
+    label: "Codex TOML",
+    containerKey: "mcp_servers",
+    format: "toml",
+  }),
+  Object.freeze({
+    profileId: "continue-mcp-yaml-v1",
+    client: "continue",
+    label: "Continue YAML",
+    containerKey: "mcpServers",
+    format: "yaml",
   }),
 ]);
 const SAFE_LOCAL_CLIENT_ONBOARDING_ERROR_CODES = new Set([
@@ -249,14 +306,24 @@ const UNKNOWN_LOCAL_CLIENT_ONBOARDING_ERROR_CODES = new Set([
 const LOCAL_CLIENT_ONBOARDING_PROFILE_IDS = new Set(
   LOCAL_CLIENT_ONBOARDING_PROFILE_DEFINITIONS.map(({ profileId }) => profileId),
 );
+function localClientOnboardingProfileFormat(profileId) {
+  return LOCAL_CLIENT_ONBOARDING_PROFILE_DEFINITIONS.find((profile) => profile.profileId === profileId)?.format;
+}
 const LOCAL_CLIENT_ONBOARDING_RECEIPT_MAX_BYTES = 64 * 1024;
 const LOCAL_CLIENT_ONBOARDING_PLAN_ID_PATTERN = /^onboarding_[a-f0-9]{64}$/u;
 const LOCAL_CLIENT_ONBOARDING_REGISTRY_PLAN_ID_PATTERN = /^onboard:[a-z0-9-]+:[a-f0-9]{64}$/u;
 const LOCAL_CLIENT_ONBOARDING_TRANSACTION_ID_PATTERN = /^tx_[a-f0-9]{64}$/u;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/u;
 const IDEMPOTENCY_KEY_PATTERN = /^[\x21-\x7e]{1,255}$/u;
+const CONTROL_CENTER_VISIBLE_ID_PATTERN = /^[\x21-\x7e]{1,256}$/u;
+const CONTROL_CENTER_MODEL_PREVIEW_LIMIT = 100;
+const CONTROL_CENTER_MANIFEST_SCHEMA = "unified-ai-system/local-ai-control-center/v1";
+const CONTROL_CENTER_MANIFEST_SCHEMA_V2 = "unified-ai-system/local-ai-control-center/v2";
+const CONTROL_CENTER_MANIFEST_MAX_BYTES = 32 * 1024;
+const CONTROL_CENTER_IDEMPOTENCY_PREFIX_PATTERN = /^[\x21-\x7e]{1,180}$/u;
 
 const COMMAND_ALIASES = new Map([
+  ["center", "control-center"],
   ["health", "status"],
   ["start", "serve"],
 ]);
@@ -331,12 +398,15 @@ export function parseCliArgs(
     languageProvided: false,
     allowRealProvider: false,
     adminKey: env.AGENT_CONSOLE_ADMIN_KEY ?? env.PME_AUTH_TOKEN ?? null,
+    controlCenterManifestFile: null,
     onboardingProfileId: null,
     onboardingAction: null,
     onboardingPlanId: null,
     onboardingReceiptFile: null,
     idempotencyKey: null,
     confirmed: false,
+    workflowId: null,
+    workflowArtifactName: null,
     lifecycleClientId: null,
     lifecycleDisplayName: null,
     lifecycleCapabilities: [],
@@ -371,6 +441,11 @@ export function parseCliArgs(
     agentModelId: null,
     agentReason: null,
     agentCascade: false,
+    operatorInput: null,
+    operatorMode: null,
+    operatorSources: [],
+    operatorPasses: null,
+    operatorMaxOutputTokens: null,
     host: null,
     port: null,
   };
@@ -396,6 +471,19 @@ export function parseCliArgs(
     }
 
     const [flag, inlineValue] = splitFlag(token);
+    if (flag === "--input" || flag === "--mode" || flag === "--source-id" || flag === "--passes" || flag === "--max-output-tokens") {
+      const value = readFlagValue(argv, index, flag, inlineValue);
+      if (flag === "--source-id") options.operatorSources.push(value);
+      else if (flag === "--passes") options.operatorPasses = parseIntegerOption(value, flag, 1, 10);
+      else if (flag === "--max-output-tokens") options.operatorMaxOutputTokens = parseIntegerOption(value, flag, 1, 16384);
+      else {
+        const key = flag === "--input" ? "operatorInput" : "operatorMode";
+        if (options[key] !== null) throw new CliUsageError(`${flag} must not be repeated.`);
+        options[key] = value;
+      }
+      if (inlineValue === null) index += 1;
+      continue;
+    }
 
     if (flag === "--json") {
       options.json = true;
@@ -419,6 +507,16 @@ export function parseCliArgs(
     }
     if (flag === "--admin-key") {
       options.adminKey = readFlagValue(argv, index, flag, inlineValue);
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--manifest") {
+      options.controlCenterManifestFile = readFlagValue(argv, index, flag, inlineValue);
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--workflow-id" || flag === "--artifact-name") {
+      options[flag === "--workflow-id" ? "workflowId" : "workflowArtifactName"] = readFlagValue(argv, index, flag, inlineValue);
       if (inlineValue === null) index += 1;
       continue;
     }
@@ -679,7 +777,10 @@ export function parseCliArgs(
 
   if (options.version) {
     options.command = "version";
-  } else if (options.help || !options.command) {
+  } else if (options.help) {
+    options.command = "help";
+    return options;
+  } else if (!options.command) {
     options.command = "help";
   } else {
     options.command = COMMAND_ALIASES.get(options.command) ?? options.command;
@@ -727,22 +828,36 @@ export async function runCli(
         return await runServe(options, runtime, output);
       case "agents":
         return await runAgents(options, output);
+      case "workflow":
+      case "providers":
+        return await runWorkflowOrCredentialCommand(options, output);
       case "status":
         return await runStatus(options, output);
       case "doctor":
         return await runDoctor(options, runtime, output);
+      case "verification":
+        return runVerificationHistory(options, runtime, output);
       case "enhance":
         return await runEnhance(options, output, runtime.stdin ?? process.stdin);
       case "chat":
         return await runChat(options, output, runtime.stdin ?? process.stdin);
+      case "codec":
+        return await runContextCodecCommand(options, output);
+      case "workforce":
+        return await runWorkforceCommands(options, output);
       case "clients":
         return await runClients(options, output);
       case "clients-onboarding":
         return await runClientsOnboarding(options, output, runtime.cwd ?? process.cwd());
+      case "control-center":
+        return await runControlCenter(options, output, runtime.cwd ?? process.cwd());
       case "spend":
         return await runSpend(options, output);
       case "forge":
-        return await runForge(options, output);
+      case "knowledge":
+      case "routing":
+      case "taiji":
+        return await runOperatorCommand(options, output);
       default:
         throw new CliUsageError(`Unknown command: ${options.command}`);
     }
@@ -754,6 +869,31 @@ export async function runCli(
       stderr,
     });
   }
+}
+
+function runVerificationHistory(options, runtime, output) {
+  const root = runtime.verificationRepoRoot ?? repoRoot;
+  const source = readVerificationSource(root);
+  const result = readWindowsVerificationHistory(root, { source, now: Date.now(),
+    platform: process.platform, arch: process.arch, nodeVersion: process.version });
+  const sourceAfter = readVerificationSource(root);
+  if (source.head !== sourceAfter.head || source.worktree !== sourceAfter.worktree) {
+    result.ok = false; result.status = "source_changed_during_read";
+  }
+  if (options.json) output.write(`${JSON.stringify(result, null, 2)}\n`);
+  else {
+    output.write(`Local Windows verification: ${result.status}\nLocal checkout: ${source.head ?? "unknown"} (${source.worktree})\n`);
+    output.write("Local unsigned summaries; running deployment and release approval are not verified.\n");
+    for (const run of result.runs) {
+      output.write(`${run.runId}  ${run.status}  ${run.assessment}\n`);
+      for (const stage of run.stages ?? []) {
+        const count = stage.counts;
+        output.write(`  ${stage.id}: ${stage.status}${count ? ` (${count.passed} passed, ${count.failed} failed, ${count.skipped} skipped)` : ""}\n`);
+      }
+    }
+    output.write(`${result.nextAction}\n`);
+  }
+  return result.ok ? 0 : 2;
 }
 
 async function runEnhance(options, output, stdin) {
@@ -909,7 +1049,121 @@ async function runServe(options, runtime, output) {
   );
 }
 
+async function runWorkflowOrCredentialCommand(options, output) {
+  const operation = options.positionals[0];
+  const credential = options.command === "providers";
+  const mutation = credential || operation === "run" || operation === "recover";
+  const target = credential ? { providerId: options.agentProviderId } : { workflowId: options.workflowId };
+  const client = createGatewayClient({ baseUrl: options.url, timeoutMs: options.timeoutMs, headers: { authorization: `Bearer ${options.adminKey}` } });
+  try {
+    let data;
+    if (credential) {
+      data = projectCredentialClear(unwrapEnvelope(await client.clearRuntimeProviderCredential(target)), target.providerId);
+    } else if (operation === "run") {
+      data = projectWorkflowCompletion(unwrapEnvelope(await client.workflowRun({
+        workflowId: options.workflowId, goal: options.agentGoal, agentId: options.agentId,
+        ...(options.workflowArtifactName === null ? {} : { artifactName: options.workflowArtifactName }),
+      })), options.workflowId);
+    } else if (operation === "list") {
+      const result = unwrapEnvelope(await client.workflowRuns({ limit: options.lifecycleLimit ?? 50 }));
+      if (!isPlainRecord(result) || !Array.isArray(result.runs) || result.runs.length > (options.lifecycleLimit ?? 50)) throw new Error("invalid workflow list");
+      data = { runs: result.runs.map(row => projectWorkflowInspection(row)) };
+    } else {
+      const result = operation === "status" ? await client.workflowRunStatus(options.workflowId) : await client.recoverWorkflowRun(options.workflowId);
+      data = projectWorkflowInspection(unwrapEnvelope(result), options.workflowId);
+    }
+    const ok = credential || !mutation || data.status === "completed";
+    const nextAction = credential
+      ? "Scope: this runtime credential store. Environment/configuration credentials may still apply; upstream keys, in-flight requests and other processes are unchanged."
+      : workflowNextAction(operation, data, options.workflowId);
+    const result = { ok, command: options.command, operation, ...target, retryAllowed: false, data, nextAction };
+    if (options.json) output.write(`${JSON.stringify(result, null, 2)}\n`);
+    else {
+      const rows = credential
+        ? [`Provider ${data.providerId}: ${data.removed ? "runtime credential removed" : "no runtime override was present"}`]
+        : operation === "list" ? [`Workflows: ${data.runs.length}`, ...data.runs.map(row => `${row.workflowId}: ${row.status} / ${row.stage}`)]
+          : [`Workflow ${data.workflowId}: ${data.status}`, ...(data.stage ? [`Stage: ${data.stage}`] : []), ...(data.artifact ? [`Artifact: ${data.artifact.fileName} (sha256 ${data.artifact.sha256})`] : [])];
+      output.write(`${rows.join("\n")}\n${nextAction}\n`);
+    }
+    return ok ? 0 : 1;
+  } catch (error) {
+    const payload = isPlainRecord(error?.responseBody?.error) ? error.responseBody.error : {};
+    const details = isPlainRecord(payload.details) ? payload.details : {};
+    const code = payload.code;
+    const notStarted = credential && code === "provider_runtime_credential_clear_audit_unavailable" && details.operationStarted === false;
+    const uncertain = mutation && !notStarted && (code === "WORKFLOW_OUTCOME_UNKNOWN" || code === "WORKFLOW_ARTIFACT_OUTCOME_UNCERTAIN"
+      || !Number.isInteger(error?.statusCode) || error.statusCode >= 500);
+    let receipt;
+    if (credential && code === "provider_runtime_credential_clear_result_audit_unconfirmed" && details.operationCommitted === true) {
+      try { receipt = projectCredentialClear(details, target.providerId); } catch { /* An invalid receipt cannot prove completion. */ }
+    }
+    const failure = { ok: false, command: options.command, operation, ...target, retryAllowed: false,
+      status: uncertain ? "unknown-reconcile-required" : "rejected",
+      code: !credential && WORKFLOW_ERROR_CODES.has(code) ? code : credential ? notStarted ? "CREDENTIAL_CLEAR_NOT_STARTED" : uncertain ? "CREDENTIAL_CLEAR_OUTCOME_UNKNOWN" : "CREDENTIAL_CLEAR_REJECTED"
+        : uncertain ? "WORKFLOW_OUTCOME_UNKNOWN" : "WORKFLOW_REQUEST_REJECTED",
+      ...(receipt ? { receipt } : {}),
+      ...(!credential && code === "TOOL_APPROVAL_REQUIRED" && /^appr_[A-Za-z0-9_-]{1,128}$/u.test(details.approvalId ?? "") ? { approvalId: details.approvalId } : {}),
+      nextAction: !credential && operation === "run" && code === "APPROVAL_REVIEW_UNAVAILABLE"
+        ? "The gateway has no safe approval review for this workflow policy. Keep the approval requirement; do not fabricate approval or retry automatically."
+        : !credential && operation === "run" && code === "TOOL_APPROVAL_REQUIRED"
+        ? "Use agents approvals --agent-id " + options.agentId + "; review the exact file_write request, then repeat the original workflow request and ID."
+        : !credential && operation === "run" && (code === "AGENT_NOT_FOUND" || code === "AGENT_EXPIRED" || code === "AGENT_EXECUTION_FENCED")
+          ? "Inspect agents show --agent-id " + options.agentId + " and obtain valid current authorization before repeating this workflow ID."
+          : credential ? "Inspect /providers and the audit trail before another clear; do not clear a replacement credential automatically."
+        : options.workflowId ? `Inspect workflow status --workflow-id ${options.workflowId}; preserve this ID and the original input.` : "Check gateway authentication and workflow history availability.",
+    };
+    output.writeError(options.json ? `${JSON.stringify(failure, null, 2)}\n`
+      : `${failure.code}: ${failure.status}\n${credential ? `Provider: ${target.providerId}` : `Workflow: ${target.workflowId ?? "history"}`}\n${failure.nextAction}\n`);
+    return 1;
+  }
+}
+
+function projectWorkflowCompletion(value, expectedId) {
+  if (!isPlainRecord(value) || value.workflowId !== expectedId || value.status !== "completed") throw new Error("invalid workflow result");
+  const artifact = value.artifact;
+  if (!isPlainRecord(artifact) || !/^[A-Za-z0-9._-]{1,100}\.md$/iu.test(artifact.fileName ?? "")
+    || !/^[a-f0-9]{64}$/u.test(artifact.sha256 ?? "") || !Number.isSafeInteger(artifact.bytes) || artifact.bytes < 0) throw new Error("invalid workflow artifact");
+  return { workflowId: expectedId, status: "completed", artifact: { fileName: artifact.fileName, bytes: artifact.bytes, sha256: artifact.sha256 } };
+}
+
+function projectWorkflowInspection(value, expectedId = null) {
+  if (!isPlainRecord(value) || !WORKFLOW_ID_PATTERN.test(value.workflowId ?? "") || expectedId !== null && value.workflowId !== expectedId
+    || !WORKFLOW_STATUSES.has(value.status) || !new Set(["knowledge.retrieve", "report.compose", "artifact.write"]).has(value.stage)
+    || !Number.isSafeInteger(value.attempt) || value.attempt < 1 || typeof value.canResume !== "boolean" || typeof value.outcomeUnknown !== "boolean"
+    || !new Set([null, "run-safe-remaining-stages", "recheck-governance-only"]).has(value.resumeAction)
+    || value.canResume !== (value.resumeAction !== null) || value.persistence?.automaticRedispatch !== false
+    || value.persistence?.storageMode !== "single-host-sqlite"
+    || value.status === "completed" && (value.canResume || value.outcomeUnknown)
+    || value.status === "completed" && expectedId !== null && !value.result
+    || value.outcomeUnknown && !new Set(["publishing", "unknown"]).has(value.status)
+    || value.resumeAction === "recheck-governance-only" && !value.outcomeUnknown) throw new Error("invalid workflow inspection");
+  return {
+    workflowId: value.workflowId, status: value.status, stage: value.stage, attempt: value.attempt,
+    canResume: value.canResume, resumeAction: value.resumeAction, outcomeUnknown: value.outcomeUnknown,
+    errorCode: WORKFLOW_ERROR_CODES.has(value.error?.code) ? value.error.code : value.error ? "WORKFLOW_EXECUTION_FAILED" : null,
+    ...(value.result && value.status === "completed" ? { artifact: projectWorkflowCompletion(value.result, value.workflowId).artifact } : {}),
+  };
+}
+
+function projectCredentialClear(value, providerId) {
+  if (!isPlainRecord(value) || value.providerId !== providerId || typeof value.removed !== "boolean"
+    || value.scope !== "runtime-credential-store" || value.appliesTo !== "subsequent-credential-lookups"
+    || ["inFlightRequestsCancelled", "providerKeyRevoked", "otherCredentialSourcesModified", "otherProcessesInvalidated"].some(key => value[key] !== false)) throw new Error("invalid clear receipt");
+  return { providerId, removed: value.removed, scope: value.scope, appliesTo: value.appliesTo,
+    inFlightRequestsCancelled: false, providerKeyRevoked: false, otherCredentialSourcesModified: false, otherProcessesInvalidated: false };
+}
+
+function workflowNextAction(operation, data, workflowId) {
+  if (operation === "list") return "Use workflow status with the recorded ID. No workflow was resumed.";
+  if (data.status === "completed") return "Recorded completion; repeat this ID only with the original input. Later user edits are preserved.";
+  if (data.resumeAction === "recheck-governance-only") return "Artifact reconciled. Explicitly rerun the original request with current Agent authorization to finish result governance only.";
+  if (data.resumeAction === "run-safe-remaining-stages") return "Review the failure, then explicitly rerun the original request and ID to continue safe stages.";
+  return data.outcomeUnknown ? `Run workflow recover --workflow-id ${workflowId}; no automatic retry or new ID.`
+    : `Use workflow status --workflow-id ${workflowId}; the current execution claim may still be active.`;
+}
+
 async function runAgents(options, output) {
+  if (options.positionals[0] === "task") return runAgentTaskCommand(options, output);
   const operation = options.positionals[0];
   const mutation = AGENT_GOVERNANCE_MUTATIONS.has(operation);
   const runTimeoutMs = options.agentRunTimeoutMs ?? 60_000;
@@ -1108,6 +1362,70 @@ function formatSafeRecord(value) {
 
 function formatSafeReview(value) {
   if (!isPlainRecord(value)) return "unavailable";
+  if (value.effectType === "agent:long-task" && value.reviewable === true) {
+    return `Complete Agent task approval:\n${JSON.stringify(value, null, 2)}`;
+  }
+  if (value.effectType === "taiji:capability" && value.reviewable === true) {
+    return `Taiji: ${value.taiji.effect}\nPolicy: ${value.policyHash}\nRequest hash: ${value.taiji.paramsHash}\n${JSON.stringify(value.taiji.params, null, 2)}`;
+  }
+  if (value.effectType === "forge:orchestrate" && value.reviewable === true) {
+    return `Forge goal: ${safeTerminalBlock(value.forge.goal, 65536)}\nGoal digest: ${value.forge.goalDigest}\nPolicy: ${safeTerminalText(value.policyHash, 160)}\nOptions hash: ${value.forge.optionsHash}\n${JSON.stringify(value.forge.options, null, 2)}`;
+  }
+  if (value.effectType === "workforce:execute" && value.reviewable === true
+    && value.workforce?.options?.externalRunner) {
+    const workforce = value.workforce;
+    return [`Workforce goal: ${workforce.goal}`, `Plan: ${workforce.planId}; digest: ${workforce.planDigest}; policy: ${value.policyHash}`,
+      `Options hash: ${workforce.optionsHash}`, ...formatWorkforceExternalRunnerReview(workforce.options.externalRunner)].join("\n");
+  }
+  if (value.effectType === "workforce:execute" && value.reviewable === true
+    && value.workforce?.options?.workflowHandoff && !value.workforce.options.roleExecution) {
+    const workforce = value.workforce;
+    return [`Workforce goal: ${safeTerminalBlock(workforce.goal, 4_000)}`,
+      `Plan: ${safeTerminalText(workforce.planId, 160)}; digest: ${safeTerminalText(workforce.planDigest, 160)}; policy: ${safeTerminalText(value.policyHash, 160)}`,
+      `Options hash: ${workforce.optionsHash}`,
+      ...formatWorkforceWorkflowHandoffReview(workforce.options.workflowHandoff)].join("\n");
+  }
+  if (value.effectType === "workforce:execute" && value.reviewable === true && value.workforce?.options?.roleExecution) {
+    const workforce = value.workforce;
+    const profile = workforce.options.roleExecution;
+    const selection = workforce.options.selectionReview;
+    const codeDelivery = workforce.options.codeDelivery;
+    const workflowHandoff = workforce.options.workflowHandoff;
+    const consensusReview = workforce.options.consensusReview;
+    const text = (item) => safeTerminalText(item, 256);
+    return [
+      `Workforce goal: ${safeTerminalBlock(workforce.goal, 4_000)}`,
+      `Plan: ${text(workforce.planId)}; digest: ${text(workforce.planDigest)}; policy: ${text(value.policyHash)}`,
+      `Employee model execution: required; profile: ${text(profile.profileId)}; hash: ${text(profile.profileHash)}`,
+      `Request dispatch hard limit: ${profile.maxTotalRequests}; Concurrent roles: ${profile.maxConcurrentRoles}`,
+      ...(codeDelivery === undefined ? [] : formatWorkforceCodeDeliveryReview(codeDelivery)),
+      ...(workflowHandoff === undefined ? [] : [`Options hash: ${workforce.optionsHash}`, ...formatWorkforceWorkflowHandoffReview(workflowHandoff)]),
+      ...(consensusReview === undefined ? [] : [`Options hash: ${workforce.optionsHash}`, ...formatWorkforceConsensusReview(consensusReview)]),
+      ...(selection === undefined ? [] : [
+        `Deterministic selection rules: v${selection.version}; catalog/configuration hash: ${text(selection.catalogHash)}`,
+        `Selection hash: ${text(selection.selectionHash)}; task type: ${text(selection.taskType)}; execution mode: ${text(selection.executionMode)}`,
+        `Selected role scope: ${selection.roleIds.map(text).join(", ")}`,
+      ]),
+      "Input tokens use an estimate before dispatch and upstream usage validation after completion.",
+      "Output tokens use an upstream parameter limit and upstream usage validation after completion.",
+      "Token limits do not guarantee a prepaid cap. Unknown usage and USD cost remain null; consumed tokens cannot be undone.",
+      ...profile.bindings.map((binding) => `  ${text(binding.roleId)} / ${text(binding.employeeId)} -> ${text(binding.providerId)} / ${text(binding.modelId)}; `
+        + `requests<=${binding.maxRequests}; input estimate=${binding.maxInputTokens}; output parameter=${binding.maxOutputTokens}; timeout=${binding.timeoutMs}ms`),
+      ...(selection === undefined ? [] : [
+        ...selection.assignments.map(({ binding, qualification }) =>
+          `  Qualification ${text(binding.roleId)} / ${text(binding.employeeId)}: ${text(qualification.qualificationId)}; `
+          + `status=${text(qualification.status)}; origin=${text(qualification.origin)}; execution mode=${text(qualification.executionMode)}\n`
+          + `    Qualified roles: ${qualification.roleIds.map(text).join(", ")}; task types: ${qualification.taskTypes.map(text).join(", ")}\n`
+          + `    Evidence: ${text(qualification.evidenceHash)}; valid until: ${text(qualification.validUntil)}`),
+        `Rejected candidates: ${selection.rejected.length}`,
+        ...selection.rejected.map(({ employeeId, reason }) => `  ${text(employeeId)}: ${text(reason)}`),
+      ]),
+    ].join("\n");
+  }
+  if (value.effectType === "workflow:artifact-write" && value.reviewable === true && isPlainRecord(value.workflow)) {
+    const { content, ...binding } = value.workflow;
+    return `${safeTerminalText(JSON.stringify({ ...binding, policyHash: value.policyHash }), 4_000)}\nComplete Markdown content:\n${safeTerminalBlock(content, 16_000)}\nEnd of complete Markdown content.`;
+  }
   try {
     return safeTerminalText(JSON.stringify(value), 4_000);
   } catch {
@@ -1131,8 +1449,177 @@ function projectAgentApproval(value) {
   ]) {
     if (typeof value[key] === "string") output[key] = value[key].slice(0, 4_000);
   }
-  if (value.review !== undefined) output.review = sanitizeAgentReview(value.review);
+  if (value.review !== undefined) {
+    if (value.review?.effectType === "workflow:artifact-write" && value.review.reviewable === true) {
+      const content = value.review.workflow?.content;
+      if (typeof content !== "string" || content.length > 16_000 || Buffer.byteLength(content, "utf8") > 65_536
+        || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(content)
+        || value.review.workflow.contentBytes !== Buffer.byteLength(content, "utf8")
+        || value.review.workflow.contentHash !== `sha256:${createHash("sha256").update(content, "utf8").digest("hex")}`) {
+        throw new Error("invalid or incomplete workflow approval review");
+      }
+    }
+    const profile = value.review?.workforce?.options?.roleExecution;
+    const selectionSource = value.review?.workforce?.options?.selectionReview;
+    const codeSource = value.review?.workforce?.options?.codeDelivery;
+    const handoffSource = value.review?.workforce?.options?.workflowHandoff;
+    const consensusSource = value.review?.workforce?.options?.consensusReview;
+    const externalSource = value.review?.workforce?.options?.externalRunner;
+    let externalRunner;
+    if (externalSource !== undefined) {
+      if (value.review.effectType !== "workforce:execute" || value.review.reviewable !== true
+        || typeof value.review.policyHash !== "string" || !/^sha256:[a-f0-9]{64}$/u.test(value.review.policyHash)) throw new Error("Invalid Workforce external runner approval review.");
+      externalRunner = projectWorkforceExternalRunnerApproval(value.review.workforce);
+    }
+    let consensusReview;
+    if (consensusSource !== undefined) {
+      if (value.review.effectType !== "workforce:execute" || value.review.reviewable !== true) throw new Error("Invalid Workforce consensus approval review.");
+      consensusReview = projectWorkforceConsensusApproval(value.review.workforce);
+    }
+    let workflowHandoff;
+    if (handoffSource !== undefined) {
+      if (value.review.effectType !== "workforce:execute" || value.review.reviewable !== true) {
+        throw new Error("invalid or incomplete Workforce workflow handoff review");
+      }
+      workflowHandoff = projectWorkforceWorkflowHandoffReview(handoffSource);
+      if (workflowHandoff.goal !== value.review.workforce.goal) throw new Error("invalid Workforce workflow handoff goal");
+      assertWorkforceWorkflowOptionsHash(value.review.workforce.options, value.review.workforce.optionsHash);
+    }
+    let codeDelivery;
+    if (codeSource !== undefined) {
+      if (value.review.effectType !== "workforce:execute" || value.review.reviewable !== true || profile === undefined) {
+        throw new Error("invalid or incomplete Workforce code delivery review");
+      }
+      codeDelivery = projectWorkforceCodeDeliveryReview(codeSource, profile);
+    }
+    let selection;
+    if (selectionSource !== undefined) {
+      if (value.review.effectType !== "workforce:execute" || value.review.reviewable !== true || profile === undefined) {
+        throw new Error("invalid or incomplete Workforce selection review");
+      }
+      selection = projectWorkforceSelectionReview(selectionSource, profile);
+    }
+    output.review = sanitizeAgentReview(value.review);
+    if (value.review?.effectType === "agent:long-task") {
+      output.review = projectGovernedAgentTaskApproval(value.review);
+    }
+    if (value.review?.effectType === "forge:orchestrate" && value.review.reviewable === true) {
+      output.review = projectForgeApprovalReview(value.review);
+    }
+    if (value.review?.effectType === "taiji:capability" && value.review.reviewable === true) {
+      output.review = projectTaijiApprovalReview(value.review);
+    }
+    if (value.review?.effectType === "workforce:execute" && value.review.reviewable === true && profile !== undefined) {
+      const bounded = (number, maximum) => Number.isSafeInteger(number) && number >= 1 && number <= maximum;
+      if (!isPlainRecord(profile) || profile.version !== 1 || profile.mode !== "gateway-llm-required"
+        || !Array.isArray(profile.bindings) || profile.bindings.length < 1 || profile.bindings.length > 128
+        || !bounded(profile.maxConcurrentRoles, Math.min(8, profile.bindings.length))
+        || !bounded(profile.maxTotalRequests, profile.bindings.length * 5)
+        || profile.bindings.some((binding) => !isPlainRecord(binding)
+          || !bounded(binding.maxRequests, 5) || !bounded(binding.maxInputTokens, 1_000_000)
+          || !bounded(binding.maxOutputTokens, 1_000_000) || !bounded(binding.timeoutMs, 3_600_000))) {
+        throw new Error("invalid or incomplete Workforce approval budget");
+      }
+      // Preserve only these validated numeric limits; the generic secret-key
+      // redactor must still hide credential or token strings in every review.
+      output.review.workforce.options.roleExecution.bindings = profile.bindings.map((binding) => ({
+        ...sanitizeAgentReview(binding), maxInputTokens: binding.maxInputTokens, maxOutputTokens: binding.maxOutputTokens,
+      }));
+    }
+    // Restore only the exact validated decision, including numeric token limits.
+    if (selection !== undefined) output.review.workforce.options.selectionReview = selection;
+    if (codeDelivery !== undefined) output.review.workforce.options.codeDelivery = codeDelivery;
+    if (workflowHandoff !== undefined) {
+      output.review.workforce.options.workflowHandoff = workflowHandoff;
+      assertWorkforceWorkflowOptionsHash(output.review.workforce.options, output.review.workforce.optionsHash);
+    }
+    if (consensusReview !== undefined) {
+      output.review.workforce.options.consensusReview = consensusReview;
+      assertConsensusOptionsHash(output.review.workforce.options, output.review.workforce.optionsHash);
+    }
+    // This path has independently validated every native field; retain the entire prompt beyond generic display limits.
+    if (externalRunner !== undefined) output.review.workforce = externalRunner;
+  }
   return Object.freeze(output);
+}
+
+function projectWorkforceSelectionReview(value, profile) {
+  const invalid = () => { throw new Error("invalid or incomplete Workforce selection review"); };
+  const record = (value, keys) => {
+    if (!hasExactKeys(value, keys) || Reflect.ownKeys(value).length !== keys.length
+      || Object.values(Object.getOwnPropertyDescriptors(value)).some((property) => !("value" in property))) invalid();
+    return value;
+  };
+  const array = (value, maximum) => {
+    if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype || value.length > maximum
+      || Reflect.ownKeys(value).length !== value.length + 1) invalid();
+    for (let index = 0; index < value.length; index++) if (!("value" in (Object.getOwnPropertyDescriptor(value, String(index)) ?? {}))) invalid();
+    return value;
+  };
+  const identifier = (value) => {
+    if (typeof value !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$/u.test(value)
+      // Credential-like text is not printable selection evidence, even with a matching hash.
+      || /\b(?:xox[abprs]-[A-Za-z0-9-]{10,}|xapp-[A-Za-z0-9-]{20,}|(?:sk_live_|rk_live_|whsec_)[A-Za-z0-9]{16,}|npm_[A-Za-z0-9]{20,}|tp-[A-Za-z0-9_-]{20,}|nvapi-[A-Za-z0-9_-]{12,}|sk-[A-Za-z0-9_-]{16,}|AIza[0-9A-Za-z_-]{20,}|hf_[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|glpat-[A-Za-z0-9_-]{20,}|(?:AKIA|ASIA|AIDA|AROA|AIPA|ANPA|ANVA|ASCA)[A-Z0-9]{16})\b/iu.test(value)
+      || /\b[A-Z0-9_]*(?:API[_-]?KEY|TOKEN|SECRET|PASSWORD|PRIVATE[_-]?KEY|ACCESS[_-]?KEY)[A-Z0-9_]*:[A-Za-z0-9._:/-]{4,}/iu.test(value)) invalid();
+    return value;
+  };
+  const tags = (value, maximum) => {
+    const items = array(value, maximum).map(identifier);
+    if (!items.length || new Set(items).size !== items.length || JSON.stringify([...items].sort()) !== JSON.stringify(items)) invalid();
+    return items;
+  };
+  const sha = (value) => typeof value === "string" && /^sha256:[a-f0-9]{64}$/u.test(value);
+  const digest = (value) => `sha256:${createHash("sha256").update(value, "utf8").digest("hex")}`;
+  const bindingKeys = ["roleId", "employeeId", "providerId", "modelId", "maxRequests", "maxInputTokens", "maxOutputTokens", "timeoutMs"];
+  const profileKeys = ["version", "mode", "profileId", "maxTotalRequests", "maxConcurrentRoles", "bindings"];
+  record(profile, [...profileKeys, "profileHash"]);
+  const source = record(value, ["version", "catalogHash", "selectionHash", "taskType", "roleIds", "executionMode",
+    "assignments", "rejected", "maxConcurrentRoles", "maxTotalRequests"]);
+  if (source.version !== 1 || !sha(source.catalogHash) || !sha(source.selectionHash)
+    || !["fake", "real"].includes(source.executionMode)) invalid();
+  const taskType = identifier(source.taskType);
+  const roleIds = tags(source.roleIds, 3);
+  const bindings = array(profile.bindings, 3).map((value) => {
+    const binding = record(value, bindingKeys);
+    bindingKeys.slice(0, 4).forEach((key) => identifier(binding[key]));
+    if ([binding.roleId, binding.employeeId].some((value) => !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u.test(value))
+      || binding.timeoutMs < 1000) invalid();
+    return Object.fromEntries(bindingKeys.map((key) => [key, binding[key]]));
+  });
+  if (JSON.stringify(roleIds) !== JSON.stringify(bindings.map(({ roleId }) => roleId))
+    || source.maxConcurrentRoles !== profile.maxConcurrentRoles || source.maxTotalRequests !== profile.maxTotalRequests
+    || profile.maxTotalRequests < bindings.length || profile.maxTotalRequests > bindings.reduce((sum, binding) => sum + binding.maxRequests, 0)) invalid();
+  const assignments = array(source.assignments, 3).map((value, index) => {
+    const item = record(value, ["binding", "qualification"]);
+    const supplied = record(item.binding, bindingKeys); const binding = bindings[index];
+    if (!binding || bindingKeys.some((key) => supplied[key] !== binding[key])) invalid();
+    const q = record(item.qualification, ["qualificationId", "employeeId", "providerId", "modelId", "roleIds", "taskTypes",
+      "status", "origin", "executionMode", "evidenceHash", "validUntil"]);
+    const qualifiedRoles = tags(q.roleIds, 7); const taskTypes = tags(q.taskTypes, 16);
+    if (q.employeeId !== binding.employeeId || q.providerId !== binding.providerId || q.modelId !== binding.modelId
+      || !qualifiedRoles.includes(binding.roleId) || !taskTypes.includes(taskType) || q.status !== "accepted"
+      || q.executionMode !== source.executionMode || !["synthetic", "reviewed"].includes(q.origin)
+      || q.origin === "synthetic" && q.executionMode !== "fake" || !sha(q.evidenceHash)
+      || !validIsoDate(q.validUntil) || new Date(q.validUntil).toISOString() !== q.validUntil) invalid();
+    return { binding, qualification: { qualificationId: identifier(q.qualificationId), employeeId: binding.employeeId,
+      providerId: binding.providerId, modelId: binding.modelId, roleIds: qualifiedRoles, taskTypes, status: "accepted",
+      origin: q.origin, executionMode: q.executionMode, evidenceHash: q.evidenceHash, validUntil: q.validUntil } };
+  });
+  if (assignments.length !== bindings.length || new Set(bindings.map(({ employeeId }) => employeeId)).size !== bindings.length) invalid();
+  const rejected = array(source.rejected, 5).map((value) => {
+    const item = record(value, ["employeeId", "reason"]);
+    if (!["not_enabled", "not_qualified", "not_selected"].includes(item.reason)) invalid();
+    return { employeeId: identifier(item.employeeId), reason: item.reason };
+  });
+  if (assignments.length + rejected.length > 5 || new Set(rejected.map(({ employeeId }) => employeeId)).size !== rejected.length
+    || rejected.some((item) => bindings.some((binding) => binding.employeeId === item.employeeId))) invalid();
+  // S1 hashes this explicit order; the profile uses alphabetical canonical keys.
+  const decision = { version: 1, catalogHash: source.catalogHash, taskType, roleIds, executionMode: source.executionMode,
+    assignments, rejected, maxConcurrentRoles: profile.maxConcurrentRoles, maxTotalRequests: profile.maxTotalRequests };
+  const profileInput = { ...Object.fromEntries(profileKeys.map((key) => [key, profile[key]])), bindings };
+  if (source.selectionHash !== digest(JSON.stringify(decision)) || profile.profileId !== `selection-${source.selectionHash.slice(7)}`
+    || profile.profileHash !== digest(JSON.stringify(profileInput, [...new Set([...profileKeys, ...bindingKeys])].sort()))) invalid();
+  return Object.freeze({ ...decision, selectionHash: source.selectionHash });
 }
 
 function sanitizeAgentReview(value, depth = 0) {
@@ -1181,24 +1668,8 @@ function createSafeAgentGovernanceFailure(error, { operation, mutation }) {
   );
 }
 
-// Forge remains a read-only status surface until provider/effect commands
-// share the console's explicit confirmation and reconciliation gates.
 function trimUrl(url) {
   return String(url ?? "").replace(/[/]+$/, "");
-}
-async function runForge(options, output) {
-  const get = async (path) => {
-    const response = await fetch(`${trimUrl(options.url)}${path}`, {
-      headers: options.adminKey ? { authorization: `Bearer ${options.adminKey}` } : {},
-      redirect: "error",
-      signal: AbortSignal.timeout(options.timeoutMs),
-    });
-    return { status: response.status, payload: await response.json().catch(() => ({})) };
-  };
-  const result = await get("/forge/status");
-  output.write(`${JSON.stringify(result.payload, null, 2)}
-`);
-  return result.status >= 200 && result.status < 300 ? 0 : 1;
 }
 
 async function runStatus(options, output) {
@@ -1234,8 +1705,633 @@ async function runStatus(options, output) {
   return result.ok ? 0 : 1;
 }
 
+async function runControlCenter(options, output, configRoot) {
+  if (!options.adminKey) {
+    throw new CliUsageError(
+      "The local AI control center requires an admin key.",
+      { hint: "Set AGENT_CONSOLE_ADMIN_KEY or pass --admin-key." },
+    );
+  }
+
+  if ((options.positionals[0] ?? "status") === "configure") {
+    return runControlCenterConfigure(options, output, configRoot);
+  }
+  const result = await loadControlCenterSnapshot(options);
+  if (options.json) {
+    output.write(`${JSON.stringify(result, null, 2)}\n`);
+  } else {
+    renderControlCenter(result, output);
+  }
+  return result.ok ? 0 : 1;
+}
+
+async function loadControlCenterSnapshot(options) {
+  const headers = { authorization: `Bearer ${options.adminKey}` };
+  const client = createGatewayClient({
+    baseUrl: options.url,
+    timeoutMs: options.timeoutMs,
+    headers,
+  });
+
+  let health;
+  let readiness;
+  let status;
+  let registry;
+  let onboarding;
+  let modelCatalog;
+  let budget;
+  let stage = "snapshot";
+  const startedAt = Date.now();
+  try {
+    const [
+      healthEnvelope,
+      readinessEnvelope,
+      statusEnvelope,
+      registryEnvelope,
+      loadedOnboarding,
+      modelsPayload,
+      spendPayload,
+    ] = await Promise.all([
+      readControlCenterSurface("health", () => client.health()),
+      readControlCenterSurface("setup-readiness", () => client.setupReadiness()),
+      readControlCenterSurface("clients-status", () => client.localClientsStatus()),
+      readControlCenterSurface("clients-registry", () => client.localClients({ includeDisabled: true, limit: 100 })),
+      readControlCenterSurface("onboarding-profiles", () => loadLocalClientOnboarding(client)),
+      readControlCenterSurface("models", () => fetchControlCenterJson(options, "/v1/models")),
+      readControlCenterSurface("budget", () => fetchControlCenterJson(options, "/enterprise/spend-report")),
+    ]);
+    stage = "health";
+    health = unwrapEnvelope(healthEnvelope);
+    stage = "setup-readiness";
+    readiness = unwrapEnvelope(readinessEnvelope);
+    stage = "clients-status";
+    status = projectLocalClientStatus(unwrapEnvelope(statusEnvelope));
+    stage = "clients-registry";
+    registry = projectLocalClientRegistry(unwrapEnvelope(registryEnvelope));
+    stage = "onboarding-verification";
+    onboarding = await inspectControlCenterOnboarding(client, loadedOnboarding);
+    stage = "models";
+    modelCatalog = projectControlCenterModels(modelsPayload);
+    stage = "budget";
+    budget = projectControlCenterBudget(spendPayload);
+  } catch (error) {
+    if (error instanceof CliControlCenterFailure) throw error;
+    throw new CliControlCenterFailure(stage, error, Date.now() - startedAt);
+  }
+
+  const providers = projectControlCenterProviders(health.providers);
+  const gateway = Object.freeze({
+    url: options.url,
+    status: boundedControlCenterText(health.status, "unknown", 64),
+    providerMode: boundedControlCenterText(health.providerMode, "unknown", 64),
+    realProviderEnabled: health.realProviderEnabled === true,
+    chatReady: readiness.readiness?.chat?.ready === true,
+    providers,
+  });
+  const managedClients = Object.freeze({
+    status: status.status,
+    executionMode: status.executionEnabled === true ? "governed-execution" : "preview-only",
+    registered: registry.total,
+    routable: registry.clients.filter((entry) => entry.routable === true).length,
+    verified: registry.clients.filter((entry) => entry.trustDecision === "verified").length,
+    onboarding,
+  });
+  const toolsShared = onboarding.available
+    && onboarding.serverName === "unified-ai-system"
+    && onboarding.transport === "stdio"
+    && onboarding.installedProfileCount >= 2;
+  const tools = Object.freeze({
+    serverName: onboarding.serverName,
+    transport: onboarding.transport,
+    supportedProfileCount: onboarding.profiles.length,
+    installedProfileCount: onboarding.installedProfileCount,
+    sharedByMultipleClients: toolsShared,
+    certificationStatus: onboarding.certificationStatus,
+  });
+  const checks = Object.freeze([
+    controlCenterCheck(
+      "gateway",
+      gateway.status === "ready" && gateway.chatReady,
+      "Gateway health and chat readiness",
+    ),
+    controlCenterCheck(
+      "models",
+      modelCatalog.count > 0,
+      "At least one model is exposed through the shared gateway URL",
+    ),
+    controlCenterCheck(
+      "budget",
+      budget.activeKeys > 0,
+      "At least one active tenant virtual key is governed by the shared budget ledger",
+    ),
+    controlCenterCheck(
+      "clients",
+      onboarding.installedProfileCount >= 2,
+      "At least two client profiles point to the same gateway-managed MCP server",
+    ),
+    controlCenterCheck(
+      "tools",
+      toolsShared,
+      "Installed client profiles share the unified-ai-system stdio MCP server",
+    ),
+  ]);
+  const nextActions = buildControlCenterNextActions({
+    checks,
+    onboarding,
+  });
+  const result = Object.freeze({
+    ok: checks.every((check) => check.ready),
+    command: "control-center",
+    mode: "read-only",
+    writesPerformed: false,
+    gateway,
+    shared: Object.freeze({
+      models: modelCatalog,
+      budget,
+      tools,
+    }),
+    clients: managedClients,
+    checks,
+    nextActions,
+    assurance: Object.freeze({
+      level: "control-plane-observed",
+      nativeModelLoginRerouted: false,
+      realClientCertified: false,
+      limitations: Object.freeze([
+        "MCP onboarding does not reroute a client's native login or native model channel.",
+        "This read-only snapshot does not certify a real client or a real Provider call.",
+      ]),
+    }),
+  });
+
+  return result;
+}
+
+async function runControlCenterConfigure(options, output, configRoot) {
+  const manifest = readControlCenterManifest({
+    path: options.controlCenterManifestFile,
+    root: configRoot,
+    expectedGatewayUrl: options.url,
+  });
+  const snapshot = await loadControlCenterSnapshot(options);
+  const requiredCheckIds = new Set(["gateway", "models", "budget"]);
+  const coreChecks = snapshot.checks.filter((check) => requiredCheckIds.has(check.id));
+  const profilesById = new Map(
+    snapshot.clients.onboarding.profiles.map((profile) => [profile.profileId, profile]),
+  );
+  const selectedProfiles = manifest.profiles.map((profileId) => {
+    const profile = profilesById.get(profileId);
+    return profile
+      ? Object.freeze({
+          ...profile,
+          serverName: snapshot.shared.tools.serverName,
+          transport: snapshot.shared.tools.transport,
+        })
+      : null;
+  });
+  const preflightReady = coreChecks.every((check) => check.ready)
+    && snapshot.clients.onboarding.available
+    && snapshot.shared.tools.serverName === "unified-ai-system"
+    && selectedProfiles.every(Boolean);
+  if (!preflightReady) {
+    const result = Object.freeze({
+      ok: false,
+      command: "control-center",
+      operation: "configure",
+      mode: "preflight",
+      clientConfigWritesPerformed: false,
+      manifest,
+      plans: Object.freeze([]),
+      completed: Object.freeze([]),
+      retryAllowed: false,
+      atomicAcrossClients: false,
+      status: "preflight-failed",
+      nextActions: snapshot.nextActions,
+    });
+    writeControlCenterConfigureResult(result, options, output);
+    return 1;
+  }
+
+  const client = createGatewayClient({
+    baseUrl: options.url,
+    timeoutMs: options.timeoutMs,
+    headers: { authorization: `Bearer ${options.adminKey}` },
+  });
+  const plans = [];
+  const planningStartedAt = Date.now();
+  try {
+    for (const profileId of manifest.profiles) {
+      const request = { profileId, action: "enable" };
+      plans.push(projectLocalClientOnboardingPlan(
+        unwrapEnvelope(await client.planGovernedLocalClientOnboarding(request)),
+        request,
+      ));
+    }
+  } catch (error) {
+    throw new CliControlCenterFailure("onboarding-plan", error, Date.now() - planningStartedAt);
+  }
+
+  if (!options.lifecycleApply) {
+    const result = Object.freeze({
+      ok: true,
+      command: "control-center",
+      operation: "configure",
+      mode: "plan",
+      clientConfigWritesPerformed: false,
+      manifest,
+      plans: Object.freeze(plans),
+      completed: Object.freeze([]),
+      retryAllowed: false,
+      atomicAcrossClients: false,
+      status: "planned",
+      nextAction:
+        "Review this exact output, then run configure --apply --yes with an explicit idempotency-key prefix.",
+    });
+    writeControlCenterConfigureResult(result, options, output);
+    return 0;
+  }
+
+  const completed = [];
+  let failure = null;
+  for (let index = 0; index < plans.length; index += 1) {
+    const plan = plans[index];
+    let mutationOperation = "approve";
+    try {
+      const approval = projectLocalClientOnboardingApproval(
+        unwrapEnvelope(await client.approveGovernedLocalClientOnboarding(
+          { planId: plan.planId },
+          { idempotencyKey: `${options.idempotencyKey}:approve:${index + 1}` },
+        )),
+        plan.planId,
+      );
+      mutationOperation = "apply";
+      const outcome = projectLocalClientOnboardingMutationOutcome(
+        unwrapEnvelope(await client.applyGovernedLocalClientOnboarding(
+          { planId: plan.planId },
+          { idempotencyKey: `${options.idempotencyKey}:apply:${index + 1}` },
+        )),
+        "apply",
+        plan.planId,
+      );
+      if (outcome.result.profileId !== plan.profileId || outcome.result.action !== "enable") {
+        throw new Error("control-center apply result did not match its plan");
+      }
+      completed.push(Object.freeze({
+        profileId: plan.profileId,
+        planId: plan.planId,
+        approvalId: approval.approvalId,
+        status: outcome.status,
+        idempotencyStatus: outcome.idempotencyStatus,
+        receipt: outcome.result.receipt,
+      }));
+    } catch (error) {
+      const safe = createSafeLocalClientOnboardingFailure(error, {
+        operation: mutationOperation,
+        mutation: true,
+      });
+      failure = Object.freeze({
+        operation: mutationOperation,
+        profileId: plan.profileId,
+        planId: plan.planId,
+        status: safe.status,
+        code: safe.code,
+        retryAllowed: false,
+      });
+      break;
+    }
+  }
+
+  const selectedOnboarding = Object.freeze({
+    available: true,
+    profiles: Object.freeze(selectedProfiles),
+    certificationStatus: snapshot.clients.onboarding.certificationStatus,
+  });
+  const verification = await inspectControlCenterOnboarding(client, selectedOnboarding);
+  const allExact = verification.profiles.length === manifest.profiles.length
+    && verification.profiles.every((profile) => profile.installed && profile.state === "exact");
+  const ok = failure === null && completed.length === plans.length && allExact;
+  const clientConfigOutcomeUnknown = failure?.operation === "apply"
+    && failure.status === "unknown-reconcile-required";
+  const result = Object.freeze({
+    ok,
+    command: "control-center",
+    operation: "configure",
+    mode: "governed-mutation",
+    clientConfigWritesPerformed: completed.length > 0 ? true : clientConfigOutcomeUnknown ? null : false,
+    clientConfigOutcomeUnknown,
+    manifest,
+    plans: Object.freeze(plans),
+    completed: Object.freeze(completed),
+    verification,
+    ...(failure === null ? {} : { failure }),
+    retryAllowed: false,
+    atomicAcrossClients: false,
+    automaticRollbackPerformed: false,
+    status: ok ? "completed" : completed.length > 0 ? "partial" : clientConfigOutcomeUnknown ? "unknown-reconcile-required" : "failed",
+    nextAction: ok
+      ? "Restart or reload each configured client, then rerun control-center for a fresh runtime observation."
+      : "Do not retry automatically. Preserve completed receipts and reconcile the failed profile first.",
+  });
+  writeControlCenterConfigureResult(result, options, output);
+  return ok ? 0 : 1;
+}
+
+function readControlCenterManifest({ path, root, expectedGatewayUrl }) {
+  const value = readBoundedJsonFile({
+    path,
+    root,
+    label: "Control-center manifest",
+    maxBytes: CONTROL_CENTER_MANIFEST_MAX_BYTES,
+  });
+  if (
+    !hasExactKeys(value, ["schema", "gatewayUrl", "profiles"])
+    || ![CONTROL_CENTER_MANIFEST_SCHEMA, CONTROL_CENTER_MANIFEST_SCHEMA_V2].includes(value.schema)
+    || typeof value.gatewayUrl !== "string"
+    || !Array.isArray(value.profiles)
+    || value.profiles.length < 2
+    || value.profiles.length > (value.schema === CONTROL_CENTER_MANIFEST_SCHEMA ? 3 : 6)
+    || new Set(value.profiles).size !== value.profiles.length
+    || value.profiles.some((profileId) => !localClientOnboardingProfileFormat(profileId)
+      || (value.schema === CONTROL_CENTER_MANIFEST_SCHEMA && localClientOnboardingProfileFormat(profileId) !== "json-only"))
+  ) {
+    throw new CliUsageError(
+      "Control-center manifest must select unique supported profiles: v1 accepts two or three JSON profiles; v2 accepts two to six profiles.",
+    );
+  }
+  const gatewayUrl = normalizeControlCenterGatewayUrl(value.gatewayUrl);
+  if (gatewayUrl !== normalizeControlCenterGatewayUrl(expectedGatewayUrl)) {
+    throw new CliUsageError("Control-center manifest gatewayUrl must exactly match --url.");
+  }
+  return Object.freeze({
+    schema: value.schema,
+    gatewayUrl,
+    profiles: Object.freeze([...value.profiles]),
+  });
+}
+
+function normalizeControlCenterGatewayUrl(value) {
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new CliUsageError("Control-center manifest gatewayUrl is invalid.");
+  }
+  if (
+    !new Set(["http:", "https:"]).has(parsed.protocol)
+    || parsed.username.length > 0
+    || parsed.password.length > 0
+    || parsed.search.length > 0
+    || parsed.hash.length > 0
+  ) {
+    throw new CliUsageError(
+      "Control-center manifest gatewayUrl must be an http(s) URL without credentials, query, or fragment.",
+    );
+  }
+  return trimUrl(parsed.toString());
+}
+
+function writeControlCenterConfigureResult(result, options, output) {
+  if (options.json) {
+    output.write(`${JSON.stringify(result, null, 2)}\n`);
+    return;
+  }
+  const lines = [
+    "",
+    output.bold("Local AI control center configuration"),
+    `Status: ${result.status}`,
+    `Mode: ${result.mode}`,
+    `Profiles: ${result.manifest.profiles.join(", ")}`,
+    `Plans: ${result.plans.length}`,
+    `Completed: ${result.completed.length}`,
+    ...(result.clientConfigOutcomeUnknown ? ["Client configuration outcome: unknown; reconcile before another mutation."] : []),
+    `Cross-client atomicity: ${result.atomicAcrossClients ? "yes" : "no"}`,
+    `Automatic retry: ${result.retryAllowed ? "allowed" : "forbidden"}`,
+    "",
+    ...result.plans.map((plan) => `  - ${plan.profileId}: ${plan.planId}`),
+    "",
+    result.nextAction ?? result.nextActions?.join(" ") ?? "",
+    output.muted("Use --json and preserve every redacted receipt before a mutation."),
+    "",
+  ];
+  output.write(`${lines.join("\n")}\n`);
+}
+
+async function fetchControlCenterJson(options, path) {
+  let response;
+  try {
+    response = await fetch(`${trimUrl(options.url)}${path}`, {
+      headers: { authorization: `Bearer ${options.adminKey}` },
+      redirect: "error",
+      signal: AbortSignal.timeout(options.timeoutMs),
+    });
+  } catch {
+    throw new Error("CONTROL_CENTER_NETWORK_UNAVAILABLE");
+  }
+  if (!response.ok) {
+    throw new Error(`CONTROL_CENTER_HTTP_${response.status}`);
+  }
+  try {
+    return await response.json();
+  } catch {
+    throw new Error("CONTROL_CENTER_RESPONSE_INVALID");
+  }
+}
+
+async function readControlCenterSurface(surface, read) {
+  const startedAt = Date.now();
+  try { return await read(); }
+  catch (error) { throw new CliControlCenterFailure(surface, error, Date.now() - startedAt); }
+}
+
+class CliControlCenterFailure extends Error {
+  constructor(surface, cause, durationMs) {
+    super(`The control-center could not read ${surface}.`);
+    this.surface = surface;
+    const knownCode = typeof cause?.code === "string" && SAFE_LOCAL_CLIENT_ONBOARDING_ERROR_CODES.has(cause.code)
+      ? cause.code
+      : typeof cause?.message === "string" && /^CONTROL_CENTER_(?:HTTP_[1-5]\d{2}|NETWORK_UNAVAILABLE|RESPONSE_INVALID)$/u.test(cause.message)
+        ? cause.message
+        : "CONTROL_CENTER_RESPONSE_INVALID";
+    this.code = knownCode;
+    this.durationMs = Number.isFinite(durationMs) ? Math.max(0, Math.floor(durationMs)) : null;
+  }
+}
+
+async function inspectControlCenterOnboarding(client, onboarding) {
+  if (!onboarding.available) {
+    return Object.freeze({
+      available: false,
+      code: onboarding.code,
+      serverName: null,
+      transport: null,
+      certificationStatus: null,
+      installedProfileCount: 0,
+      profiles: Object.freeze([]),
+    });
+  }
+  const installations = await Promise.all(onboarding.profiles.map(async (profile) => {
+    try {
+      const value = projectLocalClientOnboardingVerification(
+        unwrapEnvelope(await client.verifyLocalClientOnboardingProfile(profile.profileId)),
+        profile.profileId,
+      );
+      return Object.freeze({
+        profileId: profile.profileId,
+        client: profile.client,
+        installed: value.installed,
+        state: value.state,
+      });
+    } catch (error) {
+      return Object.freeze({
+        profileId: profile.profileId,
+        client: profile.client,
+        installed: false,
+        state: "unavailable",
+        code: redactLocalClientOnboardingErrorCode(error),
+      });
+    }
+  }));
+  const serverNames = new Set(onboarding.profiles.map((profile) => profile.serverName));
+  const transports = new Set(onboarding.profiles.map((profile) => profile.transport));
+  return Object.freeze({
+    available: true,
+    serverName: serverNames.size === 1 ? [...serverNames][0] : null,
+    transport: transports.size === 1 ? [...transports][0] : null,
+    certificationStatus: onboarding.certificationStatus,
+    installedProfileCount: installations.filter((entry) => entry.installed).length,
+    profiles: Object.freeze(installations),
+  });
+}
+
+function projectControlCenterProviders(rawProviders) {
+  if (!Array.isArray(rawProviders) || rawProviders.length > 1_000) {
+    throw new Error("invalid control-center provider list");
+  }
+  return Object.freeze(rawProviders.map((provider) => {
+    const id = provider?.id ?? provider?.name;
+    if (!CONTROL_CENTER_VISIBLE_ID_PATTERN.test(id ?? "")) {
+      throw new Error("invalid control-center provider identifier");
+    }
+    return id;
+  }));
+}
+
+function projectControlCenterModels(payload) {
+  if (
+    !isPlainRecord(payload)
+    || payload.object !== "list"
+    || !Array.isArray(payload.data)
+    || payload.data.length > 10_000
+  ) {
+    throw new Error("invalid control-center model response");
+  }
+  const models = payload.data.map((model) => {
+    const id = model?.id;
+    const providerId = model?.unified_ai?.provider_id ?? model?.owned_by;
+    const executionMode = model?.unified_ai?.execution_mode ?? "unknown";
+    if (
+      !CONTROL_CENTER_VISIBLE_ID_PATTERN.test(id ?? "")
+      || !CONTROL_CENTER_VISIBLE_ID_PATTERN.test(providerId ?? "")
+      || !new Set(["fake", "real", "unknown"]).has(executionMode)
+    ) {
+      throw new Error("invalid control-center model record");
+    }
+    return Object.freeze({ id, providerId, executionMode });
+  });
+  const preview = models.slice(0, CONTROL_CENTER_MODEL_PREVIEW_LIMIT);
+  return Object.freeze({
+    count: models.length,
+    items: Object.freeze(preview),
+    truncated: preview.length !== models.length,
+  });
+}
+
+function projectControlCenterBudget(payload) {
+  const data = unwrapEnvelope(payload);
+  const totals = data?.totals;
+  const fields = ["keys", "activeKeys", "tokensUsed", "requestCount", "keysOverSoftBudget"];
+  if (
+    !isPlainRecord(data)
+    || !isPlainRecord(totals)
+    || !fields.every((field) => Number.isSafeInteger(totals[field]) && totals[field] >= 0)
+  ) {
+    throw new Error("invalid control-center budget response");
+  }
+  return Object.freeze({
+    window: boundedControlCenterText(data.window, "current-budget-window", 128),
+    keys: totals.keys,
+    activeKeys: totals.activeKeys,
+    tokensUsed: totals.tokensUsed,
+    requestCount: totals.requestCount,
+    keysOverSoftBudget: totals.keysOverSoftBudget,
+  });
+}
+
+function boundedControlCenterText(value, fallback, maximum) {
+  return typeof value === "string"
+    && value.length > 0
+    && value.length <= maximum
+    && !/[\u0000-\u001f\u007f]/u.test(value)
+    ? value
+    : fallback;
+}
+
+function controlCenterCheck(id, ready, detail) {
+  return Object.freeze({ id, ready, detail });
+}
+
+function buildControlCenterNextActions({ checks, onboarding }) {
+  const missing = new Set(checks.filter((check) => !check.ready).map((check) => check.id));
+  const actions = [];
+  if (missing.has("gateway")) actions.push("Run: pnpm gateway status");
+  if (missing.has("models")) actions.push("Configure at least one gateway model and repeat control-center.");
+  if (missing.has("budget")) actions.push("Create or activate a tenant virtual key with a reviewed budget.");
+  if (missing.has("clients") || missing.has("tools")) {
+    if (!onboarding.available || onboarding.profiles.length === 0) {
+      actions.push("Enable governed local-client onboarding and inspect its registered profiles.");
+    } else {
+      actions.push(
+        "Plan the reviewed manifest: pnpm gateway control-center configure --manifest docs/examples/local-ai-control-center.json --json",
+      );
+    }
+  }
+  return Object.freeze(actions);
+}
+
+function renderControlCenter(result, output) {
+  const mark = (ready) => ready ? output.green("[ready]") : output.yellow("[setup]");
+  const checks = new Map(result.checks.map((check) => [check.id, check]));
+  const profiles = result.clients.onboarding.profiles;
+  const lines = [
+    "",
+    output.bold("Local AI control center"),
+    output.muted("One read-only view of shared models, budget, tools, and clients"),
+    "",
+    `  ${mark(checks.get("gateway").ready)} gateway  ${result.gateway.status}; chat ${result.gateway.chatReady ? "ready" : "needs attention"}`,
+    `  ${mark(checks.get("models").ready)} models   ${result.shared.models.count} through ${result.gateway.url}`,
+    `  ${mark(checks.get("budget").ready)} budget   ${result.shared.budget.activeKeys} active keys; ${result.shared.budget.tokensUsed} tokens used`,
+    `  ${mark(checks.get("clients").ready)} clients  ${result.shared.tools.installedProfileCount}/${result.shared.tools.supportedProfileCount} onboarding profiles installed`,
+    `  ${mark(checks.get("tools").ready)} tools    ${result.shared.tools.serverName ?? "unavailable"} via ${result.shared.tools.transport ?? "unavailable"}`,
+    "",
+    ...profiles.map((profile) => `  - ${profile.client}: ${profile.state}`),
+    "",
+    result.ok
+      ? output.green("Control center ready for multiple opted-in clients.")
+      : output.yellow("Control center needs setup before multiple clients share the gateway."),
+    output.muted("Read-only inspection; no client config, credential, model route, or budget was changed."),
+  ];
+  if (result.nextActions.length > 0) {
+    lines.push("", output.bold("Next actions"), ...result.nextActions.map((action) => `  - ${action}`));
+  }
+  lines.push("");
+  output.write(`${lines.join("\n")}\n`);
+}
+
 async function runDoctor(options, runtime, output) {
-  const nodeMajor = Number(process.versions.node.split(".")[0]);
+  const nodeVersion = runtime.nodeVersion ?? process.versions.node;
+  const engineRequirements = runtime.engineRequirements ?? rootPackage.engines;
+  const nodeRequirement = engineRequirements?.node ?? null;
+  const pnpmRequirement = engineRequirements?.pnpm ?? null;
   const pnpmInvocation =
     process.platform === "win32"
       ? {
@@ -1257,20 +2353,21 @@ async function runDoctor(options, runtime, output) {
     },
   );
   const pnpmVersion = String(pnpmCheck.stdout ?? "").trim();
-  const pnpmMajor = Number(pnpmVersion.split(".")[0]);
   const checks = [
     {
       id: "node",
-      passed: Number.isFinite(nodeMajor) && nodeMajor >= 20,
-      detail: `Node.js ${process.versions.node}`,
+      passed: matchesDoctorEngine(nodeVersion, nodeRequirement),
+      required: nodeRequirement,
+      detail: `Node.js ${nodeVersion} (requires ${nodeRequirement ?? "a declared package engine"})`,
     },
     {
       id: "pnpm",
-      passed: pnpmCheck.status === 0 && Number.isFinite(pnpmMajor) && pnpmMajor >= 9,
+      passed: pnpmCheck.status === 0 && matchesDoctorEngine(pnpmVersion, pnpmRequirement),
+      required: pnpmRequirement,
       detail:
         pnpmCheck.status === 0
-          ? `pnpm ${pnpmVersion}`
-          : "pnpm was not found on PATH",
+          ? `pnpm ${pnpmVersion || "unknown"} (requires ${pnpmRequirement ?? "a declared package engine"})`
+          : `pnpm was not found on PATH (requires ${pnpmRequirement ?? "a declared package engine"})`,
     },
     {
       id: "workspace",
@@ -1323,6 +2420,26 @@ async function runDoctor(options, runtime, output) {
   }
 
   return result.ok ? 0 : 1;
+}
+
+function matchesDoctorEngine(version, requirement) {
+  if (typeof version !== "string" || typeof requirement !== "string" || !requirement.trim()) return false;
+  const actualMatch = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/u.exec(version);
+  if (!actualMatch) return false;
+  const actual = actualMatch.slice(1, 4).map(Number);
+  if (!actual.every(Number.isSafeInteger)) return false;
+
+  // The package declares stable-version >= / < bounds joined by spaces.
+  // Unknown range syntax must fail rather than silently accepting a runtime.
+  return requirement.trim().split(/\s+/u).every((clause) => {
+    const bound = /^(>=|<)(0|[1-9]\d*)(?:\.(0|[1-9]\d*))?(?:\.(0|[1-9]\d*))?$/u.exec(clause);
+    if (!bound) return false;
+    const expected = bound.slice(2, 5).map((part) => Number(part ?? 0));
+    if (!expected.every(Number.isSafeInteger)) return false;
+    const differing = actual.findIndex((part, index) => part !== expected[index]);
+    const comparison = differing === -1 ? 0 : Math.sign(actual[differing] - expected[differing]);
+    return bound[1] === ">=" ? comparison >= 0 : comparison < 0;
+  });
 }
 
 async function runChat(options, output, stdin) {
@@ -2314,7 +3431,7 @@ function projectLocalClientOnboardingVerification(value, expectedProfileId) {
     || typeof value.installed !== "boolean"
     || !new Set(["exact", "absent", "different"]).has(value.state)
     || value.installed !== (value.state === "exact")
-    || value.format !== "json-only"
+    || value.format !== localClientOnboardingProfileFormat(expectedProfileId)
     || value.certificationStatus !== LOCAL_CLIENT_ONBOARDING_CERTIFICATION
     || value.redacted !== true
   ) {
@@ -2324,7 +3441,7 @@ function projectLocalClientOnboardingVerification(value, expectedProfileId) {
     profileId: expectedProfileId,
     installed: value.installed,
     state: value.state,
-    format: "json-only",
+    format: value.format,
     certificationStatus: LOCAL_CLIENT_ONBOARDING_CERTIFICATION,
     redacted: true,
   });
@@ -2455,7 +3572,7 @@ function projectLocalClientOnboardingReceiptSummary(value, operation, expectedPr
   if (
     !isPlainRecord(value)
     || value.profileId !== expectedProfileId
-    || value.format !== "json-only"
+    || value.format !== localClientOnboardingProfileFormat(expectedProfileId)
     || value.certificationStatus !== LOCAL_CLIENT_ONBOARDING_CERTIFICATION
     || value.redacted !== true
   ) {
@@ -2486,65 +3603,73 @@ function projectLocalClientOnboardingReceiptSummary(value, operation, expectedPr
         }
       : { recoveryVersion: value.recoveryVersion }),
     profileId: value.profileId,
-    format: "json-only",
+    format: value.format,
     certificationStatus: LOCAL_CLIENT_ONBOARDING_CERTIFICATION,
     redacted: true,
   });
 }
 
 function readBoundedLocalClientOnboardingReceipt({ path, root, expectedProfileId }) {
-  let rootPath;
-  let unresolvedPath;
-  let receiptPath;
-  let fileStat;
-  try {
-    rootPath = realpathSync(root);
-    unresolvedPath = resolve(rootPath, path);
-    if (lstatSync(unresolvedPath).isSymbolicLink()) {
-      throw new CliUsageError("Rollback receipt files cannot be symbolic links.");
-    }
-    receiptPath = realpathSync(unresolvedPath);
-    const relativePath = relative(rootPath, receiptPath);
-    if (isAbsolute(relativePath) || /^\.\.(?:[\\/]|$)/u.test(relativePath)) {
-      throw new CliUsageError("Rollback receipt file must stay within the current working directory.");
-    }
-    fileStat = statSync(receiptPath);
-  } catch (error) {
-    if (error instanceof CliUsageError) throw error;
-    throw new CliUsageError("Rollback receipt file is unavailable or unsafe.");
-  }
-  if (
-    !fileStat.isFile()
-    || fileStat.size < 2
-    || fileStat.size > LOCAL_CLIENT_ONBOARDING_RECEIPT_MAX_BYTES
-  ) {
-    throw new CliUsageError(
-      `Rollback receipt file must be a JSON file no larger than ${LOCAL_CLIENT_ONBOARDING_RECEIPT_MAX_BYTES} bytes.`,
-    );
-  }
-  let rawReceipt;
-  try {
-    rawReceipt = readFileSync(receiptPath, "utf8");
-  } catch {
-    throw new CliUsageError("Rollback receipt file is unavailable or unsafe.");
-  }
-  if (Buffer.byteLength(rawReceipt, "utf8") > LOCAL_CLIENT_ONBOARDING_RECEIPT_MAX_BYTES) {
-    throw new CliUsageError(
-      `Rollback receipt file must be a JSON file no larger than ${LOCAL_CLIENT_ONBOARDING_RECEIPT_MAX_BYTES} bytes.`,
-    );
-  }
-  let parsed;
-  try {
-    parsed = JSON.parse(rawReceipt);
-  } catch {
-    throw new CliUsageError("Rollback receipt file must contain valid JSON.");
-  }
+  const parsed = readBoundedJsonFile({
+    path,
+    root,
+    label: "Rollback receipt",
+    maxBytes: LOCAL_CLIENT_ONBOARDING_RECEIPT_MAX_BYTES,
+  });
   try {
     return projectLocalClientOnboardingApplyReceipt(parsed, expectedProfileId);
   } catch {
     throw new CliUsageError(
       "Rollback receipt must be an exact redacted local-client onboarding apply receipt.",
     );
+  }
+}
+
+function readBoundedJsonFile({ path, root, label, maxBytes }) {
+  let rootPath;
+  let unresolvedPath;
+  let filePath;
+  let fileStat;
+  try {
+    rootPath = realpathSync(root);
+    unresolvedPath = resolve(rootPath, path);
+    if (lstatSync(unresolvedPath).isSymbolicLink()) {
+      throw new CliUsageError(`${label} files cannot be symbolic links.`);
+    }
+    filePath = realpathSync(unresolvedPath);
+    const relativePath = relative(rootPath, filePath);
+    if (isAbsolute(relativePath) || /^\.\.(?:[\\/]|$)/u.test(relativePath)) {
+      throw new CliUsageError(`${label} file must stay within the current working directory.`);
+    }
+    fileStat = statSync(filePath);
+  } catch (error) {
+    if (error instanceof CliUsageError) throw error;
+    throw new CliUsageError(`${label} file is unavailable or unsafe.`);
+  }
+  if (
+    !fileStat.isFile()
+    || fileStat.size < 2
+    || fileStat.size > maxBytes
+  ) {
+    throw new CliUsageError(
+      `${label} file must be a JSON file no larger than ${maxBytes} bytes.`,
+    );
+  }
+  let raw;
+  try {
+    raw = readFileSync(filePath, "utf8");
+  } catch {
+    throw new CliUsageError(`${label} file is unavailable or unsafe.`);
+  }
+  if (Buffer.byteLength(raw, "utf8") > maxBytes) {
+    throw new CliUsageError(
+      `${label} file must be a JSON file no larger than ${maxBytes} bytes.`,
+    );
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new CliUsageError(`${label} file must contain valid JSON.`);
   }
 }
 
@@ -2579,7 +3704,7 @@ function projectLocalClientOnboardingApplyReceipt(value, expectedProfileId) {
     || !new Set(["enable", "disable"]).has(value.action)
     || !LOCAL_CLIENT_ONBOARDING_REGISTRY_PLAN_ID_PATTERN.test(value.planId)
     || !SHA256_PATTERN.test(value.receiptDigest)
-    || value.format !== "json-only"
+    || value.format !== localClientOnboardingProfileFormat(expectedProfileId)
     || value.certificationStatus !== LOCAL_CLIENT_ONBOARDING_CERTIFICATION
     || value.redacted !== true
     || !hasExactKeys(value.transaction, transactionKeys)
@@ -2610,7 +3735,7 @@ function projectLocalClientOnboardingApplyReceipt(value, expectedProfileId) {
       receiptDigest: value.transaction.receiptDigest,
     }),
     receiptDigest: value.receiptDigest,
-    format: "json-only",
+    format: value.format,
     certificationStatus: LOCAL_CLIENT_ONBOARDING_CERTIFICATION,
     redacted: true,
   });
@@ -2751,7 +3876,7 @@ function projectLocalClientOnboardingProfiles(value, expectedProfileIds = null) 
       ? value.profiles
       : [];
   const definitions = expectedProfileIds === null
-    ? LOCAL_CLIENT_ONBOARDING_PROFILE_DEFINITIONS
+    ? LOCAL_CLIENT_ONBOARDING_PROFILE_DEFINITIONS.filter((definition) => rawProfiles.some((profile) => profile?.profileId === definition.profileId))
     : LOCAL_CLIENT_ONBOARDING_PROFILE_DEFINITIONS.filter((definition) => (
         expectedProfileIds.includes(definition.profileId)
       ));
@@ -2769,7 +3894,7 @@ function projectLocalClientOnboardingProfiles(value, expectedProfileIds = null) 
     if (
       !profile
       || profile.client !== definition.client
-      || profile.format !== "json-only"
+      || profile.format !== definition.format
       || profile.containerKey !== definition.containerKey
       || profile.serverName !== "unified-ai-system"
       || profile.transport !== "stdio"
@@ -2811,13 +3936,13 @@ function renderLocalClientOnboarding(onboarding, output) {
       output.muted("inspection only; no config changed"),
     ];
   }
-  const labelsByClient = new Map(
-    LOCAL_CLIENT_ONBOARDING_PROFILE_DEFINITIONS.map((definition) => [definition.client, definition.label]),
+  const labelsByProfile = new Map(
+    LOCAL_CLIENT_ONBOARDING_PROFILE_DEFINITIONS.map((definition) => [definition.profileId, definition.label]),
   );
   return [
     output.bold("Supported onboarding profiles"),
     ...onboarding.profiles.map((profile) => (
-      `  - ${labelsByClient.get(profile.client)}: ${profile.profileId} (${profile.backupProtection} backup)`
+      `  - ${labelsByProfile.get(profile.profileId)}: ${profile.profileId} (${profile.backupProtection} backup)`
     )),
     `Certification: ${onboarding.certificationStatus}`,
     output.muted("inspection only; no config changed"),
@@ -2865,20 +3990,31 @@ Usage:
   pnpm gateway <command> [options]
 
 Commands:
+  workflow <operation> Persisted workflow run, list, status, or recover
+  providers clear-credential  Clear one Provider runtime override by explicit ID
   agents <operation> Governed Agent status, lifecycle, execution, and approvals
+  agents task <op>    Prepare, plan, confirm, run, schedule, status, pause or cancel one original long task
                      status, list, show, generate, run, revoke, approvals, approve, reject
   clients [operation]
                    discover, list, inspect, register, verify, disable, revoke, smart-manage
   clients-onboarding <operation>
                    Governed profiles, inspection, planning, and explicit mutations
+  control-center [configure]
+                   Inspect readiness or apply one reviewed multi-client manifest
   demo [prompt]    Run an isolated credential-free demonstration
   serve            Start the local gateway
   status           Inspect gateway and chat readiness
   enhance [prompt] Preview a structured prompt without calling a model
-  forge status       Read-only Forge status (provider/mutation commands disabled)
+  codec <operation>  preview, compare --input case.json (explicit data/model comparison)
+  knowledge          health, sources, load, retrieve
+  routing            modes, preview (local simulation; no model call)
+  forge              status, runs, polish, quality, memory, recall, orchestrate, taiji, workforce
+  taiji              status, run <id>, evaluate, activate, execute, revoke, repair, reweight, prune
+  workforce          status <execution-id>, handoff-recover or native-recover --input recovery.json --yes
   chat [prompt]    Send one chat request to a running gateway
   spend            Show per-key token spend and budget status
   doctor           Check the local toolchain and gateway connection
+  verification     Read local Windows verification summaries and retained failures
   help             Show this help
   version          Show the CLI version
 
@@ -2890,14 +4026,20 @@ Options:
   --profile <name>            auto, general, coding, analysis, writing, research, planning
   --language <name>           auto, zh-CN, en (for prompt enhancement)
   --allow-real-provider       Authorize one chat command to use a real provider
-  --admin-key <uai-…>         Admin virtual key (clients/onboarding mutations/spend)
+  --admin-key <uai-…>         Scoped gateway key for authenticated operator commands
+  --manifest <json>           Bounded control-center desired-state manifest
+  --input <json>              Bounded JSON payload for knowledge/routing/Forge/Taiji/Workforce
+  --mode <mode>               keyword/vector retrieval or answer-path/quality-cost preview
+  --source-id <id>            Knowledge retrieval source filter (repeatable)
+  --passes <1..10>            Forge polish pass limit
+  --max-output-tokens <n>     Forge per-model-call output cap, default 4096 (1–16384)
   --client-id <id>            Bounded lifecycle client identifier
   --display-name <name>       Safe display name for register
   --capability <id>           Repeatable list filter or register capability
   --include-disabled          Include disabled clients in list
-  --limit <n>                 Registry page size, 1-100
+  --limit <n>                 Client/workflow list size, 1-100
   --offset <n>                Registry page offset
-  --apply                     Apply discover/smart-manage; default is dry-run
+  --apply                     Apply discover/smart-manage or a control-center manifest
   --max-processes <n>         System discovery bound, 1-10000
   --include-unknown           Include unknown processes in discovery preview/apply
   --include-system-processes  Include system processes in discovery preview/apply
@@ -2915,21 +4057,23 @@ Options:
   --approval-id <appr_...>    Server-issued Agent approval identifier
   --name <name>               Agent name for agents generate
   --task <text>               Agent task for agents generate
-  --goal <text>               Execution goal for agents run
+  --goal <text>               Goal for agents run or workflow run
+  --workflow-id <id>          Stable workflow ID; required for run/status/recover
+  --artifact-name <name>      Optional Markdown filename for workflow run
   --tool <name>               Repeatable requested/run tool identifier
   --ttl-seconds <n>           Agent lifetime, 1-2592000 seconds
   --parent-agent-id <agt_...> Optional parent for agents generate
   --max-iterations <n>        Agent run iteration bound, 1-25
   --run-timeout-ms <n>        Agent wall-clock bound, 1000-120000ms (transport adds 5s)
   --tool-mode <mode>          none or readonly
-  --provider-id <id>          Explicit Agent run provider
+  --provider-id <id>          Agent provider or providers clear-credential target
   --model-id <id>             Explicit Agent run model
   --cascade                   Revoke the Agent and descendants
   --profile-id <id>           Onboarding profile for inspect, verify, or plan
   --action <action>           enable, disable, rollback, or recover (plan only)
   --plan-id <id>              Server-issued onboarding plan for mutations
   --receipt-file <json>       Redacted apply receipt for a rollback plan
-  --idempotency-key <key>     Explicit mutation key; never generated or retried
+  --idempotency-key <key>     Explicit mutation key/prefix; never retried automatically
   --yes                       Confirm one governed client mutation
   --host <host>               Host override for serve
   --port <port>               Port override for serve
@@ -2946,11 +4090,21 @@ Examples:
   pnpm gateway status
   # First set AGENT_CONSOLE_ADMIN_KEY in the environment; do not put it in argv.
   pnpm gateway agents status
+  pnpm gateway workflow run --workflow-id report-001 --agent-id agt_<id> --goal "Prepare a local report"
+  pnpm gateway workflow list --limit 50
+  pnpm gateway workflow status --workflow-id report-001
+  pnpm gateway workflow recover --workflow-id report-001
+  pnpm gateway providers clear-credential --provider-id bai
   pnpm gateway agents list
   pnpm gateway agents generate --name report-reader --task "Read the report" --tool file_read --yes
   pnpm gateway agents run --agent-id agt_<id> --goal "Read README" --tool file_read --yes
   pnpm gateway agents approvals --agent-id agt_<id>
   pnpm gateway agents approve --approval-id appr_<id> --yes
+  pnpm gateway agents task prepare --agent-id agt_<id> --input prepare.json --yes
+  pnpm gateway agents task plan <original-task-uuid> --agent-id agt_<id> --input revision.json --yes
+  pnpm gateway agents task confirm <original-task-uuid> --agent-id agt_<id> --input confirmation.json --yes
+  pnpm gateway agents task run <original-task-uuid> --agent-id agt_<id> --input chunk.json --yes
+  pnpm gateway agents task status <original-task-uuid> --agent-id agt_<id>
   pnpm gateway agents revoke --agent-id agt_<id> --reason operator_requested --yes
   pnpm gateway clients
   pnpm gateway clients list --include-disabled
@@ -2963,6 +4117,9 @@ Examples:
   pnpm gateway clients-onboarding plan --profile-id cursor-mcp-json --action enable
   pnpm gateway clients-onboarding approve --plan-id onboarding_<sha256> --yes --idempotency-key <key>
   pnpm gateway clients-onboarding apply --plan-id onboarding_<sha256> --yes --idempotency-key <new-key>
+  pnpm gateway control-center
+  pnpm gateway control-center configure --manifest docs/examples/local-ai-control-center.json --json
+  pnpm gateway control-center configure --manifest docs/examples/local-ai-control-center.json --apply --yes --idempotency-key <prefix> --json
   pnpm gateway spend
   pnpm gateway enhance "Build me an API"
   pnpm gateway enhance "帮我规划一个小型 API" --language zh-CN
@@ -2976,6 +4133,21 @@ Pipe input:
   Get-Content .\\request.txt -Raw | pnpm gateway enhance --profile planning
 
 Safety:
+  Agent task commands preserve the original UUID and exact revision; run performs one explicit bounded chunk, never an automatic loop.
+  Plan/run use the fixed server profile; non-fake provider requests require --allow-real-provider. Profile, model, path and command overrides are forbidden.
+  Agent task confirmation consumes an already-approved complete plan; decide it first with the existing agents approve command.
+  Workflow run requires a stable ID and a server-issued Agent with the existing file_write authorization.
+  Workflow recovery reconciles the recorded artifact; it never automatically resumes a run.
+  Provider clearing removes only the runtime override; environment keys, upstream keys, in-flight requests and other processes remain separate.
+  These explicit workflow/provider commands use the supplied ID as intent and add no --yes requirement.
+  knowledge load and forge polish/memory/orchestrate preview locally until --yes is supplied.
+  workforce handoff-recover previews the three original IDs until --yes; recovery may write the approved report but never reruns employees or resumes the parent.
+  workforce native-recover requires only original executionId, operationId and agentId; it never starts another native turn or automatically resumes the parent.
+  codec preview --input case.json performs local encoding only. codec compare --input case.json --yes makes at most two exact-model requests.
+  Codec compares a supplied expected JSON answer and reported usage; fake observations remain synthetic, and unknown outcomes are never retried automatically.
+  Forge model calls select local-fake-provider/local-fake-model by default; non-fake selection requires --allow-real-provider.
+  Forge orchestration may return approval-required (exit 3); use agents approvals/approve and repeat the exact request.
+  routing preview, Forge quality, taiji and workforce preview do not run a model or activate a capability.
   chat refuses to send when a real provider may be active unless
   --allow-real-provider is supplied explicitly.
   clients discover and smart-manage are dry-run unless --apply --yes is explicit.
@@ -2987,6 +4159,9 @@ Safety:
   Agent generate, run, revoke, approve, and reject require --yes and are sent once.
   Agent approval decisions remain human CLI operations; the MCP model surface cannot decide them.
   Agent runs default to tool-mode none and fake-provider routing unless explicitly configured.
+  control-center status is read-only and does not reroute a client's native login or model channel.
+  control-center configure plans by default; --apply requires --yes and an explicit idempotency prefix.
+  multi-client apply is ordered and fail-stop, not cross-file atomic; preserve JSON receipts.
 `;
 }
 
@@ -3012,7 +4187,7 @@ function validateOptions(options) {
   }
 
   if (
-    !["chat", "demo", "enhance", "clients", "clients-onboarding", "agents", "forge"].includes(options.command)
+    !["chat", "demo", "enhance", "clients", "clients-onboarding", "control-center", "agents", "forge", "workflow", "workforce", "providers", "knowledge", "routing", "taiji", "codec"].includes(options.command)
     && (options.prompt !== null || options.positionals.length > 0)
   ) {
     throw new CliUsageError(
@@ -3031,27 +4206,49 @@ function validateOptions(options) {
   const onboardingOptionsUsed = options.onboardingProfileId !== null
     || options.onboardingAction !== null
     || options.onboardingPlanId !== null
-    || options.onboardingReceiptFile !== null
-    || options.idempotencyKey !== null;
+    || options.onboardingReceiptFile !== null;
   if (options.command !== "clients-onboarding" && onboardingOptionsUsed) {
     throw new CliUsageError(
       "--profile-id, --action, --plan-id, --receipt-file, and --idempotency-key are only valid with clients-onboarding.",
     );
   }
-  const lifecycleOptionsUsed = localClientLifecycleOptionsUsed(options);
-  if (options.command !== "clients" && lifecycleOptionsUsed) {
+  if (
+    !new Set(["clients-onboarding", "control-center"]).has(options.command)
+    && options.idempotencyKey !== null
+  ) {
+    throw new CliUsageError(
+      "--idempotency-key is only valid with onboarding or control-center mutations.",
+    );
+  }
+  if (options.command !== "control-center" && options.controlCenterManifestFile !== null) {
+    throw new CliUsageError("--manifest is only valid with control-center configure.");
+  }
+  const operatorCommand = ["knowledge", "routing", "taiji", "forge", "codec", "workforce"].includes(options.command);
+  const agentTaskCommand = options.command === "agents" && options.positionals[0] === "task";
+  if (!operatorCommand && !agentTaskCommand && (options.operatorInput !== null || options.operatorMode !== null || options.operatorSources.length || options.operatorPasses !== null || options.operatorMaxOutputTokens !== null)) {
+    throw new CliUsageError("--input, --mode, --source-id and --passes are only valid with knowledge, routing, Forge or Taiji operations.");
+  }
+  const lifecycleOptionsUsed = localClientLifecycleOptionsUsed(operatorCommand ? { ...options, lifecycleLimit: null, lifecycleOffset: null }
+    : options.command === "workflow" ? { ...options, lifecycleLimit: null } : options);
+  const controlCenterApplyOnly = options.command === "control-center"
+    && options.lifecycleApply
+    && !localClientLifecycleOptionsUsedExcludingApply(options);
+  if (options.command !== "clients" && lifecycleOptionsUsed && !controlCenterApplyOnly) {
     throw new CliUsageError(
       "Local-client lifecycle options are only valid with the clients command.",
     );
   }
-  const agentOptionsUsed = agentGovernanceOptionsUsed(options);
+  const agentOptionsUsed = agentGovernanceOptionsUsed(["forge", "codec"].includes(options.command) ? { ...options, agentId: null, agentGoal: null, agentProviderId: null, agentModelId: null }
+    : options.command === "taiji" ? { ...options, agentId: null }
+    : options.command === "workflow" ? { ...options, agentId: null, agentGoal: null }
+    : options.command === "providers" ? { ...options, agentProviderId: null } : options);
   if (options.command !== "agents" && agentOptionsUsed) {
     throw new CliUsageError("Agent Governance options are only valid with the agents command.");
   }
   if (options.agentReason !== null && !new Set(["agents", "clients"]).has(options.command)) {
     throw new CliUsageError("--reason is only valid with agents or clients.");
   }
-  if (!new Set(["clients", "clients-onboarding", "agents"]).has(options.command) && options.confirmed) {
+  if (!new Set(["clients", "clients-onboarding", "control-center", "agents", "knowledge", "forge", "taiji", "codec", "workforce"]).has(options.command) && options.confirmed) {
     throw new CliUsageError("--yes is only valid with governed mutations.");
   }
   if (options.command === "clients-onboarding") {
@@ -3063,11 +4260,22 @@ function validateOptions(options) {
   if (options.command === "agents") {
     validateAgentGovernanceOptions(options);
   }
-  if (options.command === "forge") {
-    validateForgeOptions(options);
+  if (operatorCommand) {
+    try {
+      if (options.command === "codec") validateContextCodecOptions(options);
+      else if (options.command === "workforce") validateWorkforceOptions(options);
+      else validateOperatorOptions(options);
+    } catch (error) { throw new CliUsageError(error.message); }
   }
+  if (options.command === "control-center") {
+    validateControlCenterOptions(options);
+  }
+  if (!new Set(["workflow"]).has(options.command) && (options.workflowId !== null || options.workflowArtifactName !== null)) {
+    throw new CliUsageError("--workflow-id and --artifact-name are only valid with workflow.");
+  }
+  if (options.command === "workflow" || options.command === "providers") validateWorkflowOrCredentialOptions(options);
   if (options.allowRealProvider && options.command !== "chat"
-    && !(options.command === "agents" && options.positionals[0] === "run")) {
+    && !(options.command === "agents" && options.positionals[0] === "run") && !operatorCommand && !agentTaskCommand) {
     throw new CliUsageError(
       "--allow-real-provider is only valid with the chat command or agents run.",
     );
@@ -3116,7 +4324,7 @@ function validateOptions(options) {
   }
   if (
     (options.urlProvided || options.timeoutProvided)
-    && !["agents", "chat", "clients", "clients-onboarding", "doctor", "enhance", "forge", "spend", "status"].includes(options.command)
+    && !["agents", "chat", "clients", "clients-onboarding", "control-center", "doctor", "enhance", "forge", "spend", "status", "workflow", "workforce", "providers", "knowledge", "routing", "taiji", "codec"].includes(options.command)
   ) {
     throw new CliUsageError(
       "--url and --timeout are only valid with networked gateway commands.",
@@ -3126,20 +4334,62 @@ function validateOptions(options) {
     throw new CliUsageError("--json is not supported by serve.");
   }
 
-  if (["agents", "chat", "clients", "clients-onboarding", "doctor", "enhance", "forge", "spend", "status"].includes(options.command)) {
+  if (["agents", "chat", "clients", "clients-onboarding", "control-center", "doctor", "enhance", "forge", "spend", "status", "workflow", "workforce", "providers", "knowledge", "routing", "taiji", "codec"].includes(options.command)) {
     let parsedUrl;
     try {
       parsedUrl = new URL(options.url);
     } catch {
+      if (options.command === "workflow" || options.command === "providers") throw new CliUsageError("Invalid gateway URL.");
       throw new CliUsageError(`Invalid gateway URL: ${options.url}`);
     }
     if (!["http:", "https:"].includes(parsedUrl.protocol)) {
       throw new CliUsageError("Gateway URL must use http or https.");
     }
+    if (
+      new Set(["control-center", "workflow", "providers"]).has(options.command)
+      && (parsedUrl.username.length > 0 || parsedUrl.password.length > 0)
+    ) {
+      throw new CliUsageError(options.command === "control-center"
+        ? "The control-center gateway URL must not contain userinfo credentials."
+        : "The gateway URL must not contain userinfo credentials.");
+    }
+  }
+}
+
+function validateWorkflowOrCredentialOptions(options) {
+  if (!options.adminKey) throw new CliUsageError("A scoped gateway key is required; use AGENT_CONSOLE_ADMIN_KEY or --admin-key.");
+  if (options.prompt !== null || options.positionals.length !== 1) throw new CliUsageError("Provide exactly one workflow/provider operation.");
+  if (options.command === "providers") {
+    if (options.positionals[0] !== "clear-credential" || !/^[a-z][a-z0-9._-]{0,127}$/u.test(options.agentProviderId ?? "")) {
+      throw new CliUsageError("providers clear-credential requires one canonical --provider-id.");
+    }
+    return;
+  }
+  const operation = options.positionals[0];
+  if (!WORKFLOW_OPERATIONS.has(operation)) throw new CliUsageError("workflow supports run, list, status, and recover.");
+  if (operation === "list") {
+    if (options.workflowId !== null) throw new CliUsageError("workflow list does not accept --workflow-id.");
+  } else if (!WORKFLOW_ID_PATTERN.test(options.workflowId ?? "")) {
+    throw new CliUsageError("A stable --workflow-id (1–160 portable characters) is required; retries must retain it.");
+  }
+  if (operation !== "list" && options.lifecycleLimit !== null) throw new CliUsageError("--limit is only valid with workflow list.");
+  if (operation === "run") {
+    if (!AGENT_ID_PATTERN.test(options.agentId ?? "") || typeof options.agentGoal !== "string" || !options.agentGoal.trim()) {
+      throw new CliUsageError("workflow run requires --goal and a server-issued --agent-id with file_write authorization.");
+    }
+    if (options.workflowArtifactName !== null && !/^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/u.test(options.workflowArtifactName)) {
+      throw new CliUsageError("--artifact-name must be a bounded filename, not a path.");
+    }
+  } else if (options.agentId !== null || options.agentGoal !== null || options.workflowArtifactName !== null) {
+    throw new CliUsageError("--goal, --agent-id and --artifact-name are only valid with workflow run.");
   }
 }
 
 function validateAgentGovernanceOptions(options) {
+  if (options.positionals[0] === "task") {
+    try { validateAgentTaskOptions(options); } catch (error) { throw new CliUsageError(error.message); }
+    return;
+  }
   if (options.prompt !== null || options.positionals.length !== 1) {
     throw new CliUsageError(
       "agents requires exactly one operation: status, list, show, generate, run, revoke, approvals, approve, or reject.",
@@ -3265,14 +4515,6 @@ function normalizeAgentText(value, flag, maxLength) {
     throw new CliUsageError(`${flag} must be non-empty, bounded, and free of control characters.`);
   }
   return normalized;
-}
-
-function validateForgeOptions(options) {
-  if (options.prompt !== null || options.positionals.length !== 1 || options.positionals[0] !== "status") {
-    throw new CliUsageError(
-      "Only read-only forge status is available; provider and mutation subcommands remain disabled.",
-    );
-  }
 }
 
 function validateLocalClientLifecycleOptions(options) {
@@ -3447,6 +4689,71 @@ function localClientLifecycleOptionsUsed(options) {
     || (options.command === "clients" && options.lifecycleReason !== null);
 }
 
+function localClientLifecycleOptionsUsedExcludingApply(options) {
+  return options.lifecycleClientId !== null
+    || options.lifecycleDisplayName !== null
+    || options.lifecycleCapabilities.length > 0
+    || options.lifecycleIncludeDisabled
+    || options.lifecycleLimit !== null
+    || options.lifecycleOffset !== null
+    || options.lifecycleMaxProcesses !== null
+    || options.lifecycleIncludeUnknown
+    || options.lifecycleIncludeSystemProcesses
+    || options.lifecycleIncludeMissingAsDisabled
+    || options.lifecycleAutoDiscoverAll
+    || options.lifecycleRevision !== null
+    || options.lifecycleAdapterId !== null
+    || options.lifecycleAdapterType !== null
+    || options.lifecycleAdapterVersion !== null
+    || options.lifecycleManifestSha256 !== null
+    || options.lifecycleProtocolVersion !== null
+    || options.lifecycleReason !== null;
+}
+
+function validateControlCenterOptions(options) {
+  if (options.prompt !== null || options.positionals.length > 1) {
+    throw new CliUsageError("control-center accepts only the optional configure operation.");
+  }
+  const operation = options.positionals[0] ?? "status";
+  if (!new Set(["status", "configure"]).has(operation)) {
+    throw new CliUsageError("control-center operation must be status or configure.");
+  }
+  if (!options.adminKey) {
+    throw new CliUsageError(
+      "The local AI control center requires an admin key.",
+      { hint: "Set AGENT_CONSOLE_ADMIN_KEY or pass --admin-key." },
+    );
+  }
+  if (operation === "status") {
+    if (
+      options.controlCenterManifestFile !== null
+      || options.lifecycleApply
+      || options.confirmed
+      || options.idempotencyKey !== null
+    ) {
+      throw new CliUsageError(
+        "--manifest, --apply, --yes, and --idempotency-key require control-center configure.",
+      );
+    }
+    return;
+  }
+  if (options.controlCenterManifestFile === null) {
+    throw new CliUsageError("control-center configure requires --manifest <json>.");
+  }
+  if (options.lifecycleApply) {
+    if (!options.confirmed) {
+      throw new CliUsageError("control-center configure --apply requires explicit --yes confirmation.");
+    }
+    if (!CONTROL_CENTER_IDEMPOTENCY_PREFIX_PATTERN.test(options.idempotencyKey ?? "")) {
+      throw new CliUsageError(
+        "control-center configure --apply requires an explicit 1-180 character visible ASCII --idempotency-key prefix.",
+      );
+    }
+  } else if (options.confirmed || options.idempotencyKey !== null) {
+    throw new CliUsageError("--yes and --idempotency-key require control-center configure --apply.");
+  }
+}
+
 function validateLocalClientOnboardingOptions(options) {
   if (options.prompt !== null || options.positionals.length !== 1) {
     throw new CliUsageError(
@@ -3461,7 +4768,7 @@ function validateLocalClientOnboardingOptions(options) {
   if (needsProfile) {
     if (!LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.has(options.onboardingProfileId)) {
       throw new CliUsageError(
-        "--profile-id must be claude-compatible-mcp-json, cursor-mcp-json, or vscode-mcp-json.",
+        "--profile-id must be claude-compatible-mcp-json, cursor-mcp-json, vscode-mcp-json, vscode-mcp-jsonc-v1, codex-mcp-toml-v1, or continue-mcp-yaml-v1.",
       );
     }
   } else if (options.onboardingProfileId !== null) {
@@ -3626,6 +4933,12 @@ function runChildProcess(
 
 function reportFailure({ error, options, argv, stderr }) {
   const jsonRequested = options?.json ?? argv.includes("--json");
+  if (error instanceof CliControlCenterFailure) {
+    const diagnostic = { ok: false, command: "control-center", kind: "required-surface", surface: error.surface, code: error.code, durationMs: error.durationMs };
+    stderr.write(jsonRequested ? `${JSON.stringify(diagnostic, null, 2)}\n`
+      : `\n[error] control-center ${error.surface}: ${error.code} (${error.durationMs ?? "unknown"} ms)\n`);
+    return 1;
+  }
   if (error instanceof CliAgentGovernanceFailure) {
     if (jsonRequested) {
       stderr.write(`${JSON.stringify({
@@ -3689,7 +5002,7 @@ function reportFailure({ error, options, argv, stderr }) {
   const message = error instanceof Error ? error.message : String(error);
   const hint =
     error?.hint
-    ?? (["chat", "enhance", "status"].includes(options?.command)
+    ?? (["chat", "control-center", "enhance", "status"].includes(options?.command)
       ? "Start the gateway with: pnpm gateway serve"
       : null);
 

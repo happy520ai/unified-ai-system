@@ -7,12 +7,29 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { join, resolve } from "node:path";
+import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { createSourceReader } from "./helpers/source-closure.js";
 
 const APPS_SRC = "../../../apps/ai-gateway-service/src";
 const SRC_ROOT = resolve(import.meta.dirname || ".", APPS_SRC);
 const readFileSync = createSourceReader(SRC_ROOT);
+
+async function isolatedLoopOptions(context) {
+  const base = await realpath(tmpdir());
+  const root = await mkdtemp(join(base, "batch6-loop-"));
+  context.after(async () => {
+    assert.equal(await realpath(root), root);
+    assert.equal(dirname(root), base);
+    assert.ok(root.startsWith(join(base, "batch6-loop-")));
+    await rm(root, { recursive: true, force: false });
+  });
+  return {
+    workingDirectory: root, memoryDir: join(root, "memory"), sessionStoreDir: join(root, "sessions"),
+    promptOptimizeEnabled: false, partialPreviewEnabled: false,
+  };
+}
 
 // ────────────────────────────────────────────────────────────────
 // 1. sessionMemory TOCTOU Race Fix
@@ -62,21 +79,45 @@ describe("sessionMemory TOCTOU race fix", () => {
 // 2. onIteration Callback Guard
 // ────────────────────────────────────────────────────────────────
 describe("onIteration callback crash guard", () => {
-  it("source wraps onIteration in try/catch", () => {
-    const src = readFileSync(join(SRC_ROOT, "agentic", "agenticCodingLoop.js"), "utf-8");
-    // Find all onIteration call sites and verify they have try/catch
-    const onIterMatches = [...src.matchAll(/input\.onIteration\s*\(/g)];
-    assert.ok(onIterMatches.length >= 3, `Should have at least 3 onIteration call sites, found ${onIterMatches.length}`);
+  it("contains callback failures after tool execution and the final answer", async (context) => {
+    const { createAgenticLoop } = await import(`${APPS_SRC}/agentic/agenticCodingLoop.js`);
+    const requests = [], executions = [], callbacks = [];
+    const toolCall = { id: "fixture-read-1", name: "fixture_read", arguments: { path: "owned.txt" } };
+    const toolResult = { status: "success", value: "Owned fixture content" };
+    const loop = createAgenticLoop({
+      ...await isolatedLoopOptions(context),
+      maxIterations: 2,
+      providerAdapter: { generate: async (request) => {
+        requests.push(structuredClone(request));
+        return requests.length === 1 ? { text: "Read the fixture", toolCalls: [toolCall] } : { text: "Final fixture answer" };
+      } },
+      toolRegistry: {
+        listTools: () => [{ name: "fixture_read", inputSchema: { type: "object" } }],
+        executeTool: async (name, args) => { executions.push({ name, args }); return toolResult; },
+      },
+    });
+    const result = await loop.execute({
+      goal: "Read and summarize the fixture",
+      onIteration: (iteration, event) => {
+        callbacks.push({ iteration, ...event });
+        throw new Error(`CALLBACK_CRASH_${event.type}`);
+      },
+    });
 
-    // Each should be near a try/catch
-    for (const match of onIterMatches) {
-      const start = Math.max(0, match.index - 100);
-      const context = src.slice(start, match.index + 200);
-      assert.ok(
-        context.includes("try"),
-        `onIteration call at offset ${match.index} should be wrapped in try/catch`
-      );
-    }
+    assert.equal(result.status, "completed");
+    assert.equal(result.finalAnswer, "Final fixture answer");
+    assert.equal(result.iterations, 2);
+    assert.equal(requests.length, 2);
+    assert.deepEqual(executions, [{ name: toolCall.name, args: toolCall.arguments }]);
+    assert.deepEqual(callbacks.map(({ iteration, type }) => ({ iteration, type })), [
+      { iteration: 1, type: "tool_calls_executed" }, { iteration: 2, type: "final_answer" },
+    ]);
+    assert.equal(callbacks[0].toolResults[0]._meta.isError, false);
+    assert.deepEqual(JSON.parse(callbacks[0].toolResults[0].content), toolResult);
+    assert.equal(callbacks[1].text, result.finalAnswer);
+    assert.deepEqual(requests[1].request.messages.at(-1), {
+      role: "tool", tool_call_id: toolCall.id, content: JSON.stringify(toolResult),
+    });
   });
 
   it("agenticCodingLoop loads and creates loop with onIteration", async () => {
@@ -226,24 +267,70 @@ describe("WebSocket protocol safety", () => {
 // 6. executeStream Context Compaction
 // ────────────────────────────────────────────────────────────────
 describe("executeStream context compaction", () => {
-  it("executeStream path includes manageHistory call", () => {
-    const src = readFileSync(join(SRC_ROOT, "agentic", "agenticCodingLoop.js"), "utf-8");
+  for (const mode of ["execute", "executeStream"]) {
+    for (const style of ["iterations", "history"]) {
+      it(`${mode} compacts ${style} before dispatch and preserves recent input`, async (context) => {
+        const { createAgenticLoop } = await import(`${APPS_SRC}/agentic/agenticCodingLoop.js`);
+        const goal = "Summarize the preserved recent input";
+        const history = style === "iterations"
+          ? Array.from({ length: 12 }, (_, index) => [
+            { role: "user", content: `User turn ${index}` }, { role: "assistant", content: `Answer turn ${index}` },
+          ]).flat()
+          : Array.from({ length: 30 }, (_, index) => ({ role: "user", content: `User turn ${index}: ${"detail ".repeat(40)}` }));
+        const requests = [];
+        const loop = createAgenticLoop({
+          ...await isolatedLoopOptions(context), maxIterations: 1, maxContextTokens: 100,
+          providerAdapter: { generate: async (request) => { requests.push(structuredClone(request)); return { text: "Compacted answer" }; } },
+          toolRegistry: { listTools: () => [] },
+        });
+        const input = { goal, messages: structuredClone(history) };
+        if (mode === "execute") {
+          const result = await loop.execute(input);
+          assert.equal(result.status, "completed");
+          assert.equal(result.finalAnswer, "Compacted answer");
+          assert.equal(result.contextStats.hasSummarizedHistory, style === "history");
+        } else {
+          const events = [];
+          for await (const event of loop.executeStream(input)) events.push(event);
+          assert.equal(events.filter(event => event.type === "error").length, 0);
+          assert.equal(events.at(-1).type, "complete");
+          assert.equal(events.at(-1).finalAnswer, "Compacted answer");
+        }
+        assert.equal(requests.length, 1);
+        const sent = requests[0].request.messages;
+        assert.ok(sent.length < history.length, "Provider should receive a shorter history");
+        const marker = style === "iterations" ? "[Context compacted:" : "[Previous conversation summary]";
+        assert.ok(sent.some(message => message.role === "system" && message.content.startsWith(marker)));
+        assert.deepEqual(sent.at(-1), { role: "user", content: goal });
+        const recent = history.slice(style === "iterations" ? -9 : -4);
+        assert.deepEqual(sent.slice(-recent.length - 1, -1), recent);
+      });
+    }
+  }
 
-    const compactStart = src.indexOf("function compactIfNeeded");
-    const executeStart = src.indexOf("async function execute(");
-    const streamStart = src.indexOf("async function* executeStream(");
-    assert.ok(compactStart > 0, "Should have compactIfNeeded helper");
-    assert.ok(executeStart > compactStart, "Should have execute function");
-    assert.ok(streamStart > executeStart, "Should have executeStream function");
-
-    const compactSection = src.slice(compactStart, executeStart);
-    const executeSection = src.slice(executeStart, streamStart);
-    const streamSection = src.slice(streamStart, src.indexOf("\n  return {", streamStart));
-    assert.ok(compactSection.includes("manageHistory"), "shared compaction helper should call manageHistory");
-    assert.ok(executeSection.includes("compactIfNeeded(messages)"), "execute() should use shared compaction");
-    assert.ok(streamSection.includes("compactIfNeeded(messages)"), "executeStream() should use shared compaction");
-
-    // Count manageHistory occurrences — should be at least 2 (one in execute, one in executeStream)
+  it("preserves the exact frozen history through independent final review", async (context) => {
+    const { createAgenticLoop } = await import(`${APPS_SRC}/agentic/agenticCodingLoop.js`);
+    const messages = Array.from({ length: 12 }, (_, index) => [
+      { role: "user", content: `Reviewed task ${index}` }, { role: "assistant", content: `Reviewed answer ${index}` },
+    ]).flat();
+    const expected = [{ role: "system", content: "Exact reviewed system" }, ...messages];
+    const requests = [], reviews = [];
+    const loop = createAgenticLoop({
+      ...await isolatedLoopOptions(context), maxIterations: 1, maxContextTokens: 100,
+      systemPrompt: "Exact reviewed system", frozenContext: true,
+      providerAdapter: { generate: async (request) => { requests.push(structuredClone(request)); return { text: "Reviewed final answer" }; } },
+      toolRegistry: { listTools: () => [] },
+      onFinalAnswer: async (state) => { reviews.push(state); return { action: "complete" }; },
+    });
+    const result = await loop.execute({ goal: "Review the supplied history", messages });
+    assert.equal(result.status, "completed");
+    assert.equal(result.finalAnswer, "Reviewed final answer");
+    assert.equal(result.contextStats.hasSummarizedHistory, false);
+    assert.equal(requests.length, 1);
+    assert.deepEqual(requests[0].request.messages, expected);
+    assert.equal(reviews.length, 1);
+    assert.deepEqual(reviews[0].messages, [...expected, { role: "assistant", content: "Reviewed final answer" }]);
+    assert.deepEqual(result.messages, reviews[0].messages);
   });
 
   it("executeStream path includes compactMessages call", () => {

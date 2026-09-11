@@ -35,6 +35,7 @@ import {
   computeAdjustments as _computeAdjustments,
   createSnapshot as _createSnapshot,
   restoreSnapshot as _restoreSnapshot,
+  decideGovernedVerification as _decideGovernedVerification,
 } from './helpers.js';
 
 // Re-export Decision for backward compatibility
@@ -67,19 +68,24 @@ export class SelfLoopEngine {
   static DEFAULT_TIER = DEFAULT_TIER;
 
   /**
-   * @param {object} opts
-   * @param {import('../verification/index.js').VerificationEngine} opts.verifier
-   * @param {import('../task-store/index.js').TaskStore} opts.store
-   * @param {import('./strategy-evolution.js').StrategyEvolution} opts.evolution
-   * @param {string} opts.projectRoot
+   * @param {object} [opts]
+   * @param {import('../verification/index.js').VerificationEngine} [opts.verifier]
+   * @param {import('../task-store/index.js').TaskStore} [opts.store]
+   * @param {import('./strategy-evolution.js').StrategyEvolution} [opts.evolution]
+   * @param {string} [opts.projectRoot]
    * @param {object} [opts.config] — { maxLoops, defaultTier, rollbackEnabled }
    */
-  constructor({ verifier, store, evolution, projectRoot, config }) {
+  constructor({ verifier, store, evolution, projectRoot, config } = {}) {
     this.#verifier = verifier;
     this.#store = store;
     this.#evolution = evolution;
     this.#projectRoot = projectRoot;
     this.#config = config || {};
+  }
+
+  /** T065 owns the immutable verification receipt, original budget and any retry. */
+  decideGovernedVerification(input) {
+    return _decideGovernedVerification(input);
   }
 
   // ── 1. 自验证 (Self-Verify) ─────────────────────────────────────────────

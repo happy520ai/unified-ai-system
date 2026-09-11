@@ -5,9 +5,14 @@ import {
   LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_VERSION,
   LOCAL_CLIENT_WINDOWS_AUTHORITY_FILE_VERSION,
   LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_VERSION,
+  LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_V2_VERSION,
+  LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_V2_VERSION,
   createLocalClientWindowsAuthorityFileHmac,
   createLocalClientWindowsAuthorityRequestHmac,
   createLocalClientWindowsAuthorityResponseHmac,
+  createLocalClientWindowsAuthorityRequestDigest,
+  normalizeLocalClientWindowsAuthorityPopRequestFields,
+  isLocalClientWindowsAuthorityPopTarget,
   type LocalClientWindowsAuthorityAclFacts,
   type LocalClientWindowsAuthorityBrokerRequest,
   type LocalClientWindowsAuthorityBrokerResponse,
@@ -15,6 +20,9 @@ import {
   type LocalClientWindowsAuthorityFileCheckpoint,
   type LocalClientWindowsAuthorityOperation,
   type LocalClientWindowsAuthorityPrivilegedBrokerPort,
+  type LocalClientWindowsAuthorityRequestV2,
+  type LocalClientWindowsAuthorityUnsignedRequest,
+  type LocalClientWindowsAuthorityUnsignedResponse,
 } from "./localClientWindowsProtectedAuthorityAnchor.ts";
 
 /**
@@ -76,7 +84,7 @@ export interface LocalClientWindowsAuthorityProvisioningPlan {
   }>;
   readonly registry: Readonly<{
     hive: "HKLM";
-    keyPath: typeof LOCAL_CLIENT_WINDOWS_AUTHORITY_HKLM_KEY;
+    keyPath: string;
     view: "registry64";
   }>;
   readonly guard: Readonly<{
@@ -93,7 +101,7 @@ export interface WindowsAuthorityStorageTarget {
   readonly programDataBasePath: string;
   readonly programDataRoot: string;
   readonly anchorPath: string;
-  readonly hklmKeyPath: typeof LOCAL_CLIENT_WINDOWS_AUTHORITY_HKLM_KEY;
+  readonly hklmKeyPath: string;
   readonly hklmView: "registry64";
 }
 
@@ -118,6 +126,16 @@ export interface WindowsAuthorityNonceClaimInput {
   readonly serviceSid: typeof LOCAL_CLIENT_WINDOWS_AUTHORITY_SERVICE_SID;
   readonly nonce: string;
 }
+export interface WindowsAuthorityExpiringNonceInput extends WindowsAuthorityNonceClaimInput {
+  readonly requestDigestSha256: string;
+  readonly serviceInstanceId: string;
+  readonly issuedAtMs: number;
+  readonly expiresAtMs: number;
+}
+export interface WindowsAuthorityExpiringNonceResult {
+  readonly result: "claimed" | "replayed" | "expired" | "future" | "capacity";
+  readonly observedAtMs: number;
+}
 
 /**
  * Native adapters must implement this port without command shells. In
@@ -132,6 +150,9 @@ export interface WindowsAuthorityOsPort {
   ): Promise<T>;
   inspectRuntimeIdentity(): Promise<WindowsAuthorityRuntimeIdentity>;
   claimNonce(input: WindowsAuthorityNonceClaimInput): Promise<"claimed" | "replayed">;
+  /** Native port persists the observed UTC high-water even for authenticated rejections. */
+  claimExpiringNonce?(input: WindowsAuthorityExpiringNonceInput): Promise<WindowsAuthorityExpiringNonceResult>;
+  assertExpiringRequestFresh?(input: WindowsAuthorityExpiringNonceInput): Promise<Readonly<{ observedAtMs: number }>>;
   readProtectedFileCheckpoint(target: WindowsAuthorityStorageTarget): Promise<unknown>;
   writeProtectedFileCheckpointAtomically(
     target: WindowsAuthorityStorageTarget,
@@ -147,6 +168,8 @@ export interface WindowsAuthorityOsPort {
 
 export interface LocalClientWindowsAuthorityBrokerServiceOptions {
   readonly programDataBasePath: string;
+  /** Omission preserves the legacy registry slot. Named slots are independently bound. */
+  readonly anchorId?: string;
   readonly hostId: string;
   readonly currentUserSid: string;
   readonly integrityKey: Uint8Array;
@@ -160,6 +183,9 @@ export type LocalClientWindowsAuthorityBrokerErrorCode =
   | "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_REQUEST_AUTHENTICATION_FAILED"
   | "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_REQUEST_BINDING_MISMATCH"
   | "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_NONCE_REPLAYED"
+  | "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_REQUEST_EXPIRED"
+  | "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_REQUEST_FUTURE"
+  | "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_NONCE_CAPACITY"
   | "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_IDENTITY_MISMATCH"
   | "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_OS_PORT_UNAVAILABLE"
   | "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_CHECKPOINT_INVALID"
@@ -244,8 +270,10 @@ export function resolveLocalClientWindowsAuthorityProvisioningMode(
 export function createLocalClientWindowsAuthorityProvisioningPlan(
   programDataBasePath: string,
   argv: readonly string[] = [],
+  options: Readonly<{ anchorId?: string }> = {},
 ): LocalClientWindowsAuthorityProvisioningPlan {
-  const target = createStorageTarget(programDataBasePath);
+  assertExactDataRecord(options, isPlainDataRecord(options) && Object.hasOwn(options, "anchorId") ? ["anchorId"] : [], configurationError);
+  const target = createStorageTarget(programDataBasePath, options.anchorId);
   const mode = resolveLocalClientWindowsAuthorityProvisioningMode(argv);
   return Object.freeze({
     planVersion: "local-client-windows-authority-provisioning-plan-v1" as const,
@@ -268,7 +296,7 @@ export function createLocalClientWindowsAuthorityProvisioningPlan(
     }),
     registry: Object.freeze({
       hive: "HKLM" as const,
-      keyPath: LOCAL_CLIENT_WINDOWS_AUTHORITY_HKLM_KEY,
+      keyPath: target.hklmKeyPath,
       view: "registry64" as const,
     }),
     guard: Object.freeze({
@@ -285,6 +313,8 @@ export function createLocalClientWindowsAuthorityProvisioningPlan(
       "Persist nonce claims under the protected authority and serialize with the fixed global lock.",
       "Provision the 32-64 byte integrity key with a Windows protected-secret facility; never place it in the plan or command line.",
       "Initialize the protected file and HKLM to the same signed zero-generation checkpoint.",
+      "Keep the fixed authority root and all anchor-slot parents non-writable by ordinary callers.",
+      "Enroll a measured generation-one baseline only through an explicitly authorized enrollment call; never infer it during inspection or startup.",
     ]),
     boundaries: LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_BOUNDARIES,
   });
@@ -317,6 +347,13 @@ implements LocalClientWindowsAuthorityPrivilegedBrokerPort {
     request: LocalClientWindowsAuthorityBrokerRequest,
   ): Promise<LocalClientWindowsAuthorityBrokerResponse> {
     return this.#execute(request, "prepare-next");
+  }
+
+  /** Explicit baseline enrollment; neither inspect nor ordinary advancement can initialize authority. */
+  async enrollBaseline(
+    request: LocalClientWindowsAuthorityBrokerRequest,
+  ): Promise<LocalClientWindowsAuthorityBrokerResponse> {
+    return this.#execute(request, "enroll-baseline");
   }
 
   async finalize(
@@ -352,20 +389,33 @@ implements LocalClientWindowsAuthorityPrivilegedBrokerPort {
           if (invocationCount !== 1) throw osPortUnavailableError();
           this.#assertOpen();
           await this.#assertRuntimeIdentity();
-          await this.#claimNonce(request);
+          const claimedAtMs = await this.#claimNonce(request);
           const before = await this.#readSnapshot();
           assertRequestExpectation(request, before.state);
           const beforeAcl = await this.#readAndValidateAcl();
           let after = before;
           let responseAcl = beforeAcl;
-          if (operation === "prepare-next") {
+          if (operation === "enroll-baseline" && before.state.currentGeneration === 0) {
+            after = await this.#writeTransition(createFinalizedState(request));
+            responseAcl = await this.#readAndValidateAcl();
+          } else if (operation === "prepare-next") {
             after = await this.#writeTransition(createPreparedState(request));
             responseAcl = await this.#readAndValidateAcl();
           } else if (operation === "finalize") {
             after = await this.#writeTransition(createFinalizedState(request));
             responseAcl = await this.#readAndValidateAcl();
           }
-          return createResponse(this.#configuration, request, after, responseAcl);
+          let observedAtMs: number | undefined;
+          if (request.requestVersion === LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_V2_VERSION) {
+            const fresh = await this.#configuration.osPort.assertExpiringRequestFresh!(expiringInput(request));
+            assertExactDataRecord(fresh, ["observedAtMs"], osPortUnavailableError);
+            if (!Number.isSafeInteger(fresh.observedAtMs) || typeof fresh.observedAtMs !== "number"
+              || fresh.observedAtMs < request.issuedAtMs || fresh.observedAtMs >= request.expiresAtMs
+              || claimedAtMs === null || fresh.observedAtMs < claimedAtMs) throw osPortUnavailableError();
+            observedAtMs = fresh.observedAtMs;
+            this.#assertOpen();
+          }
+          return createResponse(this.#configuration, request, after, responseAcl, observedAtMs);
         },
       );
       if (invocationCount !== 1) throw osPortUnavailableError();
@@ -402,7 +452,22 @@ implements LocalClientWindowsAuthorityPrivilegedBrokerPort {
     ) throw identityMismatchError();
   }
 
-  async #claimNonce(request: LocalClientWindowsAuthorityBrokerRequest): Promise<void> {
+  async #claimNonce(request: LocalClientWindowsAuthorityBrokerRequest): Promise<number | null> {
+    if (request.requestVersion === LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_V2_VERSION) {
+      const port = this.#configuration.osPort;
+      if (typeof port.claimExpiringNonce !== "function" || typeof port.assertExpiringRequestFresh !== "function") throw osPortUnavailableError();
+      const claim = await port.claimExpiringNonce(expiringInput(request));
+      assertExactDataRecord(claim, ["result", "observedAtMs"], osPortUnavailableError);
+      if (typeof claim.observedAtMs !== "number" || !Number.isSafeInteger(claim.observedAtMs) || claim.observedAtMs < 0) throw osPortUnavailableError();
+      if (claim.result === "replayed") throw nonceReplayedError();
+      if (claim.result === "expired" || claim.result === "future" || claim.result === "capacity") {
+        const code = claim.result === "expired" ? "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_REQUEST_EXPIRED"
+          : claim.result === "future" ? "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_REQUEST_FUTURE" : "LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_NONCE_CAPACITY";
+        throw brokerError({ code, category: "authentication", message: "The PoP authority request was not claimed." });
+      }
+      if (claim.result !== "claimed" || claim.observedAtMs < request.issuedAtMs || claim.observedAtMs >= request.expiresAtMs) throw osPortUnavailableError();
+      return claim.observedAtMs;
+    }
     let result: unknown;
     try {
       result = await this.#configuration.osPort.claimNonce(Object.freeze({
@@ -415,6 +480,7 @@ implements LocalClientWindowsAuthorityPrivilegedBrokerPort {
     }
     if (result === "replayed") throw nonceReplayedError();
     if (result !== "claimed") throw osPortUnavailableError();
+    return null;
   }
 
   async #readSnapshot(): Promise<CheckedSnapshot> {
@@ -507,8 +573,9 @@ function normalizeConfiguration(
     "currentUserSid",
     "integrityKey",
     "osPort",
+    ...(isPlainDataRecord(options) && Object.hasOwn(options, "anchorId") ? ["anchorId"] : []),
   ], configurationError);
-  const target = createStorageTarget(options.programDataBasePath);
+  const target = createStorageTarget(options.programDataBasePath, options.anchorId);
   const hostId = boundedText(options.hostId, 256);
   const currentUserSid = normalizeSid(options.currentUserSid, configurationError);
   if (ALLOWED_AUTHORITY_SIDS.has(currentUserSid) || BROAD_WRITE_SIDS.has(currentUserSid)) {
@@ -533,10 +600,13 @@ function normalizeConfiguration(
   });
 }
 
-function createStorageTarget(programDataBasePath: unknown): WindowsAuthorityStorageTarget {
+function createStorageTarget(programDataBasePath: unknown, anchorId?: unknown): WindowsAuthorityStorageTarget {
   const base = assertLocalWindowsPath(programDataBasePath);
   if (win32.basename(base).toLowerCase() !== "programdata") throw configurationError();
-  const programDataRoot = win32.join(base, LOCAL_CLIENT_WINDOWS_AUTHORITY_PROGRAM_DATA_SUBPATH);
+  if (anchorId !== undefined && (typeof anchorId !== "string" || !/^[a-z][a-z0-9-]{0,63}$/u.test(anchorId)
+    || /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/u.test(anchorId))) throw configurationError();
+  const authorityRoot = win32.join(base, LOCAL_CLIENT_WINDOWS_AUTHORITY_PROGRAM_DATA_SUBPATH);
+  const programDataRoot = anchorId === undefined ? authorityRoot : win32.join(authorityRoot, "anchors", anchorId as string);
   const anchorPath = win32.join(programDataRoot, LOCAL_CLIENT_WINDOWS_AUTHORITY_ANCHOR_FILE_NAME);
   return Object.freeze({
     serviceName: LOCAL_CLIENT_WINDOWS_AUTHORITY_SERVICE_NAME,
@@ -544,7 +614,7 @@ function createStorageTarget(programDataBasePath: unknown): WindowsAuthorityStor
     programDataBasePath: base,
     programDataRoot,
     anchorPath,
-    hklmKeyPath: LOCAL_CLIENT_WINDOWS_AUTHORITY_HKLM_KEY,
+    hklmKeyPath: anchorId === undefined ? LOCAL_CLIENT_WINDOWS_AUTHORITY_HKLM_KEY : `${LOCAL_CLIENT_WINDOWS_AUTHORITY_HKLM_KEY}\\Anchors\\${anchorId}`,
     hklmView: "registry64" as const,
   });
 }
@@ -554,6 +624,8 @@ function validateRequest(
   raw: unknown,
   operation: LocalClientWindowsAuthorityOperation,
 ): LocalClientWindowsAuthorityBrokerRequest {
+  const v2 = isPlainDataRecord(raw)
+    && Object.getOwnPropertyDescriptor(raw, "requestVersion")?.value === LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_V2_VERSION;
   assertExactDataRecord(raw, [
     "requestVersion",
     "operation",
@@ -570,22 +642,25 @@ function validateRequest(
     "nextGeneration",
     "nextDigest",
     "requestHmacSha256",
+    ...(v2 ? ["serviceInstanceId", "clientSessionId", "requestSequence", "issuedAtMs", "expiresAtMs", "attestationContext"] : []),
   ], requestInvalidError);
   if (
-    raw.requestVersion !== LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_VERSION
+    (!v2 && raw.requestVersion !== LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_VERSION)
     || raw.operation !== operation
     || typeof raw.nonce !== "string"
     || !NONCE_PATTERN.test(raw.nonce)
     || typeof raw.requestHmacSha256 !== "string"
     || !SHA256_PATTERN.test(raw.requestHmacSha256)
   ) throw requestInvalidError();
+  const popTarget = isLocalClientWindowsAuthorityPopTarget(configuration.target.programDataRoot, configuration.target.hklmKeyPath);
+  if (v2 !== popTarget) throw requestBindingMismatchError();
   if (
     raw.hostId !== configuration.hostId
     || raw.serviceSid !== LOCAL_CLIENT_WINDOWS_AUTHORITY_SERVICE_SID
     || raw.currentUserSid !== configuration.currentUserSid
     || raw.anchorPath !== configuration.target.anchorPath
     || raw.programDataRoot !== configuration.target.programDataRoot
-    || raw.hklmKeyPath !== LOCAL_CLIENT_WINDOWS_AUTHORITY_HKLM_KEY
+    || raw.hklmKeyPath !== configuration.target.hklmKeyPath
     || raw.hklmView !== "registry64"
   ) throw requestBindingMismatchError();
   const expectedCurrentGeneration = normalizeRequestGeneration(
@@ -602,12 +677,11 @@ function validateRequest(
     || (nextGeneration === null) !== (nextDigest === null)
     || (nextGeneration !== null && nextGeneration !== expectedCurrentGeneration + 1)
   ) throw requestInvalidError();
-  if (
-    operation !== "inspect"
-    && (expectedCurrentGeneration === 0 || nextGeneration === null || nextDigest === null)
-  ) throw requestInvalidError();
-  const unsigned = {
-    requestVersion: LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_VERSION,
+  if (operation === "enroll-baseline") {
+    if (expectedCurrentGeneration !== 0 || nextGeneration !== 1 || nextDigest === null) throw requestInvalidError();
+  } else if (operation !== "inspect"
+    && (expectedCurrentGeneration === 0 || nextGeneration === null || nextDigest === null)) throw requestInvalidError();
+  const common = {
     operation,
     nonce: raw.nonce,
     hostId: configuration.hostId,
@@ -615,13 +689,18 @@ function validateRequest(
     currentUserSid: configuration.currentUserSid,
     anchorPath: configuration.target.anchorPath,
     programDataRoot: configuration.target.programDataRoot,
-    hklmKeyPath: LOCAL_CLIENT_WINDOWS_AUTHORITY_HKLM_KEY,
+    hklmKeyPath: configuration.target.hklmKeyPath,
     hklmView: "registry64" as const,
     expectedCurrentGeneration,
     expectedCurrentDigest,
     nextGeneration,
     nextDigest,
   };
+  let unsigned: LocalClientWindowsAuthorityUnsignedRequest;
+  if (v2) {
+    try { unsigned = { ...common, requestVersion: LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_V2_VERSION,
+      ...normalizeLocalClientWindowsAuthorityPopRequestFields(raw) }; } catch { throw requestInvalidError(); }
+  } else unsigned = { ...common, requestVersion: LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_VERSION };
   const expectedHmac = createLocalClientWindowsAuthorityRequestHmac(
     configuration.integrityKey,
     unsigned,
@@ -636,6 +715,11 @@ function assertRequestExpectation(
   request: LocalClientWindowsAuthorityBrokerRequest,
   state: LocalClientWindowsAuthorityCheckpointState,
 ): void {
+  if (request.operation === "enroll-baseline") {
+    if (state.pendingGeneration !== null || state.pendingDigest !== null) throw pendingRecoveryError();
+    if (state.currentGeneration === 0 || (state.currentGeneration === 1 && safeDigestEqual(state.currentDigest, request.nextDigest))) return;
+    throw expectationMismatchError();
+  }
   if (
     request.expectedCurrentGeneration !== state.currentGeneration
     || !nullableDigestEqual(request.expectedCurrentDigest, state.currentDigest)
@@ -710,7 +794,7 @@ function validateFileCheckpoint(
     || raw.hostId !== configuration.hostId
     || raw.serviceSid !== LOCAL_CLIENT_WINDOWS_AUTHORITY_SERVICE_SID
     || raw.anchorPath !== configuration.target.anchorPath
-    || raw.hklmKeyPath !== LOCAL_CLIENT_WINDOWS_AUTHORITY_HKLM_KEY
+    || raw.hklmKeyPath !== configuration.target.hklmKeyPath
     || raw.hklmView !== "registry64"
     || typeof raw.hmacSha256 !== "string"
     || !SHA256_PATTERN.test(raw.hmacSha256)
@@ -721,7 +805,7 @@ function validateFileCheckpoint(
     hostId: configuration.hostId,
     serviceSid: LOCAL_CLIENT_WINDOWS_AUTHORITY_SERVICE_SID,
     anchorPath: configuration.target.anchorPath,
-    hklmKeyPath: LOCAL_CLIENT_WINDOWS_AUTHORITY_HKLM_KEY,
+    hklmKeyPath: configuration.target.hklmKeyPath,
     hklmView: "registry64" as const,
     ...state,
   };
@@ -742,7 +826,7 @@ function createSignedFileCheckpoint(
     hostId: configuration.hostId,
     serviceSid: LOCAL_CLIENT_WINDOWS_AUTHORITY_SERVICE_SID,
     anchorPath: configuration.target.anchorPath,
-    hklmKeyPath: LOCAL_CLIENT_WINDOWS_AUTHORITY_HKLM_KEY,
+    hklmKeyPath: configuration.target.hklmKeyPath,
     hklmView: "registry64" as const,
     ...state,
   };
@@ -814,7 +898,7 @@ function validateAclFacts(
     || raw.currentUserSid !== configuration.currentUserSid
     || raw.serviceSid !== LOCAL_CLIENT_WINDOWS_AUTHORITY_SERVICE_SID
     || raw.hklmHive !== "HKLM"
-    || raw.hklmKeyPath !== LOCAL_CLIENT_WINDOWS_AUTHORITY_HKLM_KEY
+    || raw.hklmKeyPath !== configuration.target.hklmKeyPath
     || raw.hklmView !== "registry64"
     || raw.rootCurrentUserCanWrite !== false
     || raw.fileCurrentUserCanWrite !== false
@@ -862,7 +946,7 @@ function validateAclFacts(
     registryInheritedWriteSids,
     registryCurrentUserCanWrite: false,
     hklmHive: "HKLM" as const,
-    hklmKeyPath: LOCAL_CLIENT_WINDOWS_AUTHORITY_HKLM_KEY,
+    hklmKeyPath: configuration.target.hklmKeyPath,
     hklmView: "registry64" as const,
   });
 }
@@ -872,9 +956,9 @@ function createResponse(
   request: LocalClientWindowsAuthorityBrokerRequest,
   snapshot: CheckedSnapshot,
   acl: LocalClientWindowsAuthorityAclFacts,
+  observedAtMs?: number,
 ): LocalClientWindowsAuthorityBrokerResponse {
-  const unsigned = {
-    brokerVersion: LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_VERSION,
+  const common = {
     operation: request.operation,
     nonce: request.nonce,
     osPlatform: "win32" as const,
@@ -882,12 +966,21 @@ function createResponse(
     serviceSid: LOCAL_CLIENT_WINDOWS_AUTHORITY_SERVICE_SID,
     anchorPath: configuration.target.anchorPath,
     programDataRoot: configuration.target.programDataRoot,
-    hklmKeyPath: LOCAL_CLIENT_WINDOWS_AUTHORITY_HKLM_KEY,
+    hklmKeyPath: configuration.target.hklmKeyPath,
     hklmView: "registry64" as const,
     fileCheckpoint: snapshot.state,
     hklmCheckpoint: snapshot.state,
     acl,
   };
+  let unsigned: LocalClientWindowsAuthorityUnsignedResponse;
+  if (request.requestVersion === LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_V2_VERSION) {
+    if (observedAtMs === undefined) throw osPortUnavailableError();
+    const { requestHmacSha256: _mac, ...unsignedRequest } = request;
+    unsigned = { ...common, brokerVersion: LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_V2_VERSION,
+      serviceInstanceId: request.serviceInstanceId, clientSessionId: request.clientSessionId,
+      requestSequence: request.requestSequence, issuedAtMs: request.issuedAtMs, expiresAtMs: request.expiresAtMs,
+      requestDigestSha256: createLocalClientWindowsAuthorityRequestDigest(unsignedRequest), observedAtMs };
+  } else unsigned = { ...common, brokerVersion: LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_VERSION };
   return Object.freeze({
     ...unsigned,
     responseHmacSha256: createLocalClientWindowsAuthorityResponseHmac(
@@ -895,6 +988,13 @@ function createResponse(
       unsigned,
     ),
   });
+}
+
+function expiringInput(request: LocalClientWindowsAuthorityRequestV2): WindowsAuthorityExpiringNonceInput {
+  const { requestHmacSha256: _mac, ...unsigned } = request;
+  return Object.freeze({ hostId: request.hostId, serviceSid: LOCAL_CLIENT_WINDOWS_AUTHORITY_SERVICE_SID,
+    nonce: request.nonce, requestDigestSha256: createLocalClientWindowsAuthorityRequestDigest(unsigned),
+    serviceInstanceId: request.serviceInstanceId, issuedAtMs: request.issuedAtMs, expiresAtMs: request.expiresAtMs });
 }
 
 function checkpointProjection(

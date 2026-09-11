@@ -58,7 +58,8 @@ function usage() {
       "  MCP_SERVICE_NO_DAEMON=1  force stdio mode",
       "  MCP_SERVICE_TEE_STDERR=1 also write logs to stderr (useful for interactive runs)",
       "  MCP_SERVICE_HEALTH_PORT  override HTTP health port (default 7788)",
-      "  MCP_SERVICE_HEALTH_HOST  override HTTP health host (default 127.0.0.1)",
+      "  MCP_SERVICE_HEALTH_HOST  only 127.0.0.1 is accepted",
+      "  MCP_SERVICE_HEALTH_ADMIN_TOKEN  optional management token (32-256 ASCII characters)",
       "",
     ].join("\n"),
   );

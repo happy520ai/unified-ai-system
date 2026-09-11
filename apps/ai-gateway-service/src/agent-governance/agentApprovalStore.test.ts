@@ -4,7 +4,10 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { computeArgumentsHash, stableStringify } from "@unified-ai-system/policy-engine";
 import { createHash } from "node:crypto";
-import { createAgentApprovalStore } from "./agentApprovalStore.ts";
+import { createAgentApprovalStore, workflowArtifactApprovalArguments } from "./agentApprovalStore.ts";
+import { freezeWorkforceRoleExecutionProfile } from "../workforce/workforceRoleExecutionProfile.ts";
+import { createRuntimeEmployeeSelector } from "@unified-ai-system/workforce-scheduler";
+import { createWorkforceExternalRunnerReview, freezeWorkforceExternalRunnerProfile } from "../workforce/workforceExternalRunnerProfile.ts";
 
 const REVIEW = {
   schemaVersion: 1 as const,
@@ -18,7 +21,142 @@ const REVIEW = {
   options: { setUpstream: false, forceMode: "none" as const },
 };
 
+it("persists and consumes the complete 512 KiB native review without truncation and rejects substitutions", async () => {
+  const root = await mkdtemp(join(tmpdir(), "agent-native-review-"));
+  try {
+    const storeOptions = { storePath: join(root, "approvals.json"), secret: "test-only-native-approval-material" };
+    const store = createAgentApprovalStore(storeOptions);
+    const profile = freezeWorkforceExternalRunnerProfile({ version: 1, mode: "codex-app-server-owned-worktree",
+      profileId: "native-fixture", projectId: "fixture", roleId: "backend-engineer", baselineRevision: "a".repeat(40),
+      binary: { path: "E:/Pinned Codex/codex.exe", sha256: "b".repeat(64), version: "0.153.4", platform: "win32" },
+      nativeModel: { modelId: "gpt-6-astra", providerId: "openai" }, disabledMcpServers: [],
+      limits: { timeoutMs: 30000, maxInputBytes: 524288, maxMessageBytes: 1048576, maxEvents: 64 },
+      artifact: { readPaths: ["source.mjs", "test.mjs"], writePaths: ["source.mjs"],
+        verification: { verificationId: "fixed-tests", command: "node test.mjs", immutableTests: [{ path: "test.mjs", sha256: "c".repeat(64) }],
+          image: "node@sha256:" + "d".repeat(64), workspaceMode: "ro", networkAccess: false,
+          timeoutMs: 10000, maxMemoryMB: 128, maxOutputBytes: 4096, pidsLimit: 32, cpus: 1 },
+        artifactLimits: { maxChangedFiles: 1, maxFileBytes: 4096, maxDiffBytes: 8192 } } });
+    const nativeInput = { profile, goal: "Implement the exact reviewed source change", prompt: "N".repeat(524287) + "Z",
+      configuredRepositoryHash: "sha256:" + "e".repeat(64), sourceFilesHash: "f".repeat(64) };
+    const externalRunner = createWorkforceExternalRunnerReview(nativeInput);
+    const reviewOptions = { selectedRoleCount: 8, templateSelected: true, externalRunner };
+    const args = { goal: nativeInput.goal, goalDigest: createHash("sha256").update(nativeInput.goal).digest("hex"),
+      goalBytes: Buffer.byteLength(nativeInput.goal), planId: "native-plan", planDigest: "0".repeat(64),
+      options: { autonomyMode: "controlled-execution", requiredScopes: ["workforce:execute"], ...reviewOptions } };
+    const review = { schemaVersion: 1 as const, reviewable: true, effectType: "workforce:execute", policyHash: REVIEW.policyHash,
+      workforce: { goal: args.goal, goalDigest: "sha256:" + args.goalDigest, goalBytes: args.goalBytes, planId: args.planId,
+        planDigest: "sha256:" + args.planDigest, autonomyMode: args.options.autonomyMode, requiredScopes: args.options.requiredScopes,
+        options: reviewOptions, optionsHash: "sha256:" + createHash("sha256").update(stableStringify(reviewOptions)).digest("hex") } };
+    const input = { agentId: "agt_native", tenantId: "tenant-native", toolName: "workforce_execute", arguments: args, review };
+    const created = await store.create(input);
+    expect(created.review.workforce?.options.externalRunner).toEqual(externalRunner);
+    expect((await createAgentApprovalStore(storeOptions).listPending())[0]?.review.workforce?.options.externalRunner).toEqual(externalRunner);
+    for (const altered of [{ ...externalRunner, prompt: nativeInput.prompt.slice(0, -1) },
+      { ...externalRunner, sourceFilesHash: "1".repeat(64) }, { ...externalRunner, profile: { ...profile, nativeModel: { ...profile.nativeModel, modelId: "override" } } }]) {
+      await expect(store.create({ ...input, arguments: { ...args, options: { ...args.options, externalRunner: altered } } }))
+        .rejects.toThrow(/complete reviewed|complete operator/);
+    }
+    for (const key of ["roleExecution", "selectionReview", "codeDelivery", "workflowHandoff", "consensusReview"]) {
+      await expect(store.create({ ...input, arguments: { ...args, options: { ...args.options, [key]: {} } } })).rejects.toThrow(/separate|reviewed/);
+    }
+    await expect(store.create({ ...input, review: { ...review, workforce: { ...review.workforce, optionsHash: "sha256:" + "1".repeat(64) } } }))
+      .rejects.toThrow("authenticated review hash");
+    const changed = createWorkforceExternalRunnerReview({ ...nativeInput, prompt: nativeInput.prompt.slice(0, -1) + "Y" });
+    await expect(store.create({ ...input, arguments: { ...args, options: { ...args.options, externalRunner: changed } } })).rejects.toThrow("complete operator review");
+    expect(() => createWorkforceExternalRunnerReview({ ...nativeInput, prompt: nativeInput.prompt + "x" })).toThrow();
+    await store.decide(created.id, "approve", "operator");
+    const consumed = await createAgentApprovalStore(storeOptions).consumeApproved({ approvalId: created.id, agentId: input.agentId,
+      tenantId: input.tenantId, toolName: input.toolName, argumentsHash: computeArgumentsHash(args), policyHash: review.policyHash, executionId: "native-original" });
+    expect((consumed?.args as any).options.externalRunner).toEqual(externalRunner);
+    expect(consumed?.review.workforce?.options.externalRunner?.prompt).toHaveLength(524288);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+function workflowReview(content = "# Exact workflow report\nOnly these bytes are approved.\n") {
+  return { schemaVersion: 1 as const, reviewable: true, effectType: "workflow:artifact-write", policyHash: REVIEW.policyHash,
+    workflow: { workflowId: "reviewed-workflow", inputHash: `sha256:${"1".repeat(64)}`, subjectFingerprint: `sha256:${"2".repeat(64)}`,
+      target: { scope: "managed-workflow-output" as const, tenantPartition: `tenant-${"3".repeat(24)}`, fileName: "reviewed.md",
+        rootFingerprint: `sha256:${"4".repeat(64)}`, fingerprint: `sha256:${"5".repeat(64)}` },
+      content, contentHash: `sha256:${createHash("sha256").update(content).digest("hex")}`, contentBytes: Buffer.byteLength(content),
+      writeMode: "exclusive-no-overwrite" as const } };
+}
+
 describe("agent governance approval store", () => {
+  it("never consumes a rejected or expired workflow approval", async () => {
+    const root = await mkdtemp(join(tmpdir(), "agent-workflow-approval-lifetime-"));
+    let now = "2026-09-08T10:00:00.000Z";
+    try {
+      const store = createAgentApprovalStore({ storePath: join(root, "approvals.json"), secret: "workflow-approval-store-test-only-material", now: () => now });
+      const review = workflowReview(); const args = workflowArtifactApprovalArguments(review.workflow);
+      const input = { agentId: "agt_workflow", tenantId: "tenant_a", toolName: "file_write", arguments: args, review, ttlSeconds: 1 };
+      const consume = { agentId: input.agentId, tenantId: input.tenantId, toolName: input.toolName, argumentsHash: computeArgumentsHash(args), policyHash: review.policyHash, executionId: "execution" };
+      const rejected = await store.create(input); await store.decide(rejected.id, "reject", "operator");
+      expect(await store.consumeApproved({ ...consume, approvalId: rejected.id })).toBeNull();
+      const approved = await store.create(input); await store.decide(approved.id, "approve", "operator");
+      now = "2026-09-08T10:00:02.000Z";
+      expect(await store.consumeApproved({ ...consume, approvalId: approved.id })).toBeNull();
+      expect(await store.expireStale(now)).toBe(1); expect((await store.get(approved.id))?.status).toBe("EXPIRED");
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
+  it("seals the complete workflow subject, input, target and content across restart and one-shot consumption", async () => {
+    const root = await mkdtemp(join(tmpdir(), "agent-workflow-approval-seal-"));
+    try {
+      const options = { storePath: join(root, "approvals.json"), secret: "workflow-approval-store-test-only-material" };
+      const review = workflowReview(); const args = workflowArtifactApprovalArguments(review.workflow);
+      const store = createAgentApprovalStore(options);
+      const pending = await store.create({ agentId: "agt_workflow", tenantId: "tenant_a", toolName: "file_write", arguments: args, review });
+      await store.decide(pending.id, "approve", "operator");
+      const restarted = createAgentApprovalStore(options);
+      const consume = { approvalId: pending.id, agentId: "agt_workflow", tenantId: "tenant_a", toolName: "file_write",
+        argumentsHash: computeArgumentsHash(args), policyHash: review.policyHash, executionId: "workflow_execution" };
+      for (const field of Object.keys(args)) {
+        const changed = { ...args, [field]: field === "content_bytes" ? args.content_bytes + 1 : String(args[field as keyof typeof args]) + "changed" };
+        expect(await restarted.consumeApproved({ ...consume, argumentsHash: computeArgumentsHash(changed) })).toBeNull();
+      }
+      for (const mismatch of [{ agentId: "agt_other" }, { tenantId: "tenant_other" }, { toolName: "file_read" }, { policyHash: `sha256:${"9".repeat(64)}` }]) {
+        expect(await restarted.consumeApproved({ ...consume, ...mismatch })).toBeNull();
+      }
+      expect((await restarted.get(pending.id))?.status).toBe("APPROVED");
+      await expect(restarted.consumeApproved(consume)).resolves.toMatchObject({ args, review });
+      expect(await restarted.consumeApproved(consume)).toBeNull();
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
+  it("rejects incomplete, unsafe or mismatched workflow reviews and unknown envelope fields", async () => {
+    const root = await mkdtemp(join(tmpdir(), "agent-workflow-approval-review-"));
+    try {
+      const store = createAgentApprovalStore({ storePath: join(root, "approvals.json"), secret: "workflow-approval-store-test-only-material" });
+      const review = workflowReview(); const args = workflowArtifactApprovalArguments(review.workflow);
+      const base = { agentId: "agt_workflow", tenantId: "tenant_a", toolName: "file_write", arguments: args, review };
+      for (const invalid of [
+        { ...base, toolName: "file_read" }, { ...base, arguments: { ...args, ignoredOverride: true } },
+        { ...base, review: { ...review, ignoredOverride: true } },
+        { ...base, review: { ...review, workflow: { ...review.workflow, ignoredOverride: true } } },
+        { ...base, review: { ...review, workflow: { ...review.workflow, target: { ...review.workflow.target, fileName: "different.md" } } } },
+        { ...base, review: { ...review, workflow: { ...review.workflow, inputHash: `sha256:${"8".repeat(64)}` } } },
+        { ...base, review: { ...review, workflow: { ...review.workflow, subjectFingerprint: `sha256:${"8".repeat(64)}` } } },
+        ...["password=synthetic-test-secret", "unsafe\u001b[2Jcontrol", "a".repeat(16_001)].map(content => {
+          const unsafeReview = workflowReview(content); return { ...base, review: unsafeReview, arguments: workflowArtifactApprovalArguments(unsafeReview.workflow) };
+        }),
+      ]) await expect(store.create(invalid)).rejects.toMatchObject({ name: "GovernanceApprovalStoreCorrupt" });
+      expect(await store.listPending()).toEqual([]);
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
+  it("fails closed when a persisted workflow's operator review is changed before reopen", async () => {
+    const root = await mkdtemp(join(tmpdir(), "agent-workflow-approval-tamper-"));
+    try {
+      const options = { storePath: join(root, "approvals.json"), secret: "workflow-approval-store-test-only-material" };
+      const review = workflowReview(); const store = createAgentApprovalStore(options);
+      const pending = await store.create({ agentId: "agt_workflow", tenantId: "tenant_a", toolName: "file_write", arguments: workflowArtifactApprovalArguments(review.workflow), review });
+      const persisted = JSON.parse(await readFile(options.storePath, "utf8"));
+      persisted.approvals[pending.id].review.workflow.target.fileName = "substituted.md";
+      await writeFile(options.storePath, JSON.stringify(persisted));
+      await expect(createAgentApprovalStore(options).get(pending.id)).rejects.toMatchObject({ name: "GovernanceStateIntegrityError" });
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
   it("coalesces identical pending approvals and enforces a per-Agent pending cap", async () => {
     const root = await mkdtemp(join(tmpdir(), "agent-governance-approval-coalesce-"));
     try {
@@ -255,7 +393,8 @@ describe("agent governance approval store", () => {
     }
   });
 
-  it("binds a complete Workforce goal/plan review to one sealed retry", async () => {
+  it.each(["template", "manual", "selected"])("binds a complete Workforce goal/plan review to one sealed retry (role profile: %s)", async (mode) => {
+    const includeProfile = mode !== "template";
     const root = await mkdtemp(join(tmpdir(), "agent-governance-approval-workforce-"));
     try {
       const store = createAgentApprovalStore({
@@ -263,7 +402,29 @@ describe("agent governance approval store", () => {
         secret: "test-only-governance-secret-material",
       });
       const goal = "Execute the reviewed bounded workforce plan";
-      const reviewOptions = { selectedRoleCount: 2, templateSelected: true };
+      const profileInput = {
+        version: 1, mode: "gateway-llm-required", profileId: "workforce-fixture-v1",
+        maxTotalRequests: 2, maxConcurrentRoles: 2,
+        bindings: ["backend-engineer", "code-reviewer"].map((roleId) => ({
+          roleId, employeeId: `employee-${roleId}`, providerId: "fake", modelId: "fixture-model",
+          maxRequests: 1, maxInputTokens: 8192, maxOutputTokens: 2048, timeoutMs: 30000,
+        })),
+      };
+      let roleExecution = freezeWorkforceRoleExecutionProfile(profileInput);
+      const candidates = profileInput.bindings.map(({ roleId, employeeId, providerId, modelId, ...limits }) => ({
+        roleIds: [roleId], employeeId, providerId, modelId, limits, status: "enabled", taskTypes: ["feature-development"], priority: 0,
+      }));
+      const selectionReview = mode === "selected" ? createRuntimeEmployeeSelector({ version: 1, catalogId: "accepted-fixture", catalogRevision: "r1",
+        maxCandidates: 5, maxSelectedRoles: 3, maxConcurrentRoles: 2, maxTotalRequests: 2, candidates,
+        qualifications: candidates.map(item => ({ qualificationId: "q-" + item.employeeId, employeeId: item.employeeId,
+          providerId: item.providerId, modelId: item.modelId, roleIds: item.roleIds, taskTypes: item.taskTypes,
+          status: "accepted", origin: "synthetic", executionMode: "fake", evidenceHash: "sha256:" + "e".repeat(64), validUntil: "2099-01-01T00:00:00.000Z" })),
+      }).select({ taskType: "feature-development", roleIds: profileInput.bindings.map(item => item.roleId), executionMode: "fake" }) : undefined;
+      if (selectionReview) roleExecution = freezeWorkforceRoleExecutionProfile({ ...profileInput, profileId: "selection-" + selectionReview.selectionHash.slice(7) });
+      const reviewOptions = { selectedRoleCount: 2, templateSelected: true,
+        ...(includeProfile ? { roleExecution } : {}),
+        ...(selectionReview ? { selectionReview } : {}),
+      };
       const args = {
         goal,
         goalDigest: createHash("sha256").update(goal, "utf8").digest("hex"),
@@ -300,13 +461,40 @@ describe("agent governance approval store", () => {
         arguments: args,
         review,
       });
+      const changedProfile = freezeWorkforceRoleExecutionProfile({ ...profileInput,
+        bindings: profileInput.bindings.map((binding) => ({ ...binding, modelId: "replacement-model" })),
+      });
+      const changedArgs = { ...args, options: { ...args.options, roleExecution: changedProfile } };
+      await expect(store.create({ agentId: "agt_workforce", tenantId: "tenant_a",
+        toolName: "workforce_execute", arguments: changedArgs, review,
+      })).rejects.toThrow(mode === "selected" ? "complete reviewed contract" : "complete operator review");
+      if (selectionReview) {
+        for (const change of ["catalog", "qualification", "binding"]) {
+          const altered = structuredClone(selectionReview);
+          if (change === "catalog") (altered as any).catalogHash = "sha256:" + "0".repeat(64);
+          if (change === "qualification") (altered.assignments[0].qualification as any).validUntil = "2098-01-01T00:00:00.000Z";
+          if (change === "binding") (altered.assignments[0].binding as any).modelId = "other-model";
+          const alteredOptions = { ...reviewOptions, selectionReview: altered };
+          const alteredReview = { ...review, workforce: { ...review.workforce, options: alteredOptions,
+            optionsHash: "sha256:" + createHash("sha256").update(stableStringify(alteredOptions)).digest("hex") } };
+          await expect(store.create({ agentId: "agt_workforce", tenantId: "tenant_a", toolName: "workforce_execute",
+            arguments: { ...args, options: { ...args.options, selectionReview: altered } }, review: alteredReview,
+          })).rejects.toThrow("complete reviewed contract");
+        }
+      }
       expect((await store.listPending())[0]?.review.workforce).toMatchObject({
         goal,
         planId: args.planId,
         requiredScopes: ["workforce:execute"],
       });
       await store.decide(pending.id, "approve", "operator");
-      await expect(store.consumeApproved({
+      await expect(store.consumeApproved({ approvalId: pending.id, agentId: "agt_workforce", tenantId: "tenant_a",
+        toolName: "workforce_execute", argumentsHash: computeArgumentsHash(changedArgs), policyHash: review.policyHash,
+        executionId: "workforce_changed_profile",
+      })).resolves.toBeNull();
+      const reopened = createAgentApprovalStore({ storePath: join(root, "approvals.json"),
+        secret: "test-only-governance-secret-material" });
+      await expect(reopened.consumeApproved({
         approvalId: pending.id,
         agentId: "agt_workforce",
         tenantId: "tenant_a",

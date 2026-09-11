@@ -10,6 +10,10 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile, rename, rm } from "node:fs/promises";
 import { resolve } from "node:path";
 import { createLogRedactor } from "./logRedactor.js";
+import { readTrustedWorkforceCodeDeliveryEvidenceIndex } from "./workforceCodeDeliveryRuntime.ts";
+import { readWorkflowHandoffMetadata } from "./workforceWorkflowHandoffBinding.ts";
+import { readWorkforceConsensusMetadata, readWorkforceConsensusReport } from "./workforceConsensusReport.ts";
+import { externalRunnerLifecycleProjection } from "./workforceExternalRunnerState.ts";
 
 const MAX_LIFECYCLE_BYTES = 1024 * 1024;
 const lifecycleWriteTails = new Map();
@@ -83,6 +87,21 @@ export function sanitizePlanId(id) {
 export async function persistState(lifecycleDir, planId, state) {
   const filePath = createLifecycleStatePath(lifecycleDir, planId);
   const persistedState = lifecycleRedactor.redactObject(state);
+  if (state.metadata?.externalRunner) {
+    const { externalRunner } = externalRunnerLifecycleProjection(state, planId);
+    persistedState.metadata.externalRunner = externalRunner.metadata;
+    if (externalRunner.state) persistedState.summary.externalRunnerState = externalRunner.state;
+  }
+  if (state.metadata?.workflowHandoff) persistedState.metadata.workflowHandoff = readWorkflowHandoffMetadata(state.metadata.workflowHandoff);
+  if (state.metadata?.consensusReview) {
+    persistedState.metadata.consensusReview = readWorkforceConsensusMetadata(state.metadata.consensusReview);
+    if (state.summary?.consensusReport) persistedState.summary.consensusReport = readWorkforceConsensusReport(state.summary.consensusReport,
+      { executionId: planId, metadata: state.metadata.consensusReview });
+  }
+  const codeIndex = readTrustedWorkforceCodeDeliveryEvidenceIndex(state.summary?.codeDeliveryEvidence);
+  if (codeIndex && state.metadata?.codeDelivery === true && codeIndex.executionId === planId) {
+    persistedState.summary.codeDeliveryEvidence = codeIndex;
+  }
   const serialized = `${JSON.stringify(persistedState, null, 2)}\n`;
   if (Buffer.byteLength(serialized, "utf8") > MAX_LIFECYCLE_BYTES) {
     throw Object.assign(new Error("The lifecycle state exceeds the bounded persistence limit."), {

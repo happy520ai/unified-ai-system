@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -18,6 +19,11 @@ import {
   computeStats,
 } from "./taskQueueHelpers.js";
 import { createWorkforceTaskClaimManager } from "./workforceTaskClaimManager.ts";
+import { advanceTaskContinuation, continuationError, continuationJsonCopy, continuationMayClaim,
+  interruptedContinuation, MAX_RETAINED_QUEUE_BYTES, MAX_RETAINED_TASKS, readTaskContinuation } from "./taskQueueContinuation.ts";
+
+const retainedOwners = new Map();
+const retainedWrite = Symbol("retained queue write");
 
 export { PRIORITY_LEVELS, TASK_STATUS };
 
@@ -56,13 +62,22 @@ export class TaskQueueManager {
       clock: options.clock,
     });
     this._persistChain = Promise.resolve();
+    this.retainedTasks = options.retainedTasks === true;
+    this.retainedStateBinding = options.retainedStateBinding ?? null;
+    if (this.retainedStateBinding && (!this.retainedTasks || typeof this.retainedStateBinding.verify !== "function"
+      || typeof this.retainedStateBinding.commit !== "function")) throw continuationError("STATE_BINDING_INVALID");
+    this._retainedChain = Promise.resolve();
+    this._retainedReady = false;
+    this._retainedClosed = false;
   }
 
   async init() {
+    if (this.retainedTasks) return this._initRetainedTasks();
     await fs.mkdir(this.dataDir, { recursive: true });
     try {
       const raw = await fs.readFile(this.queueFile, "utf8");
       const data = JSON.parse(raw);
+      if (data.retainedTasks === true) throw continuationError("MODE_REQUIRED");
       this.queue = (Array.isArray(data.queue) ? data.queue : []).map((task) => ({
         ...task,
         planId: task.planId || task.payload?.planId || "standalone",
@@ -126,6 +141,7 @@ export class TaskQueueManager {
   }
 
   async enqueueMany(tasks) {
+    this._assertOrdinaryQueue();
     if (!Array.isArray(tasks) || tasks.length === 0) return [];
     if (this.queue.length + tasks.length > MAX_QUEUE_SIZE) {
       throw queueError("TASK_QUEUE_FULL", `Queue is full (max ${MAX_QUEUE_SIZE} tasks).`, 503);
@@ -140,6 +156,7 @@ export class TaskQueueManager {
   }
 
   async claimTask(agentIdInput, options = {}) {
+    this._assertOrdinaryQueue();
     const agentId = normalizeAgentId(agentIdInput);
     const maxConcurrent = Math.max(1, Math.floor(Number(options.maxConcurrent) || 5));
     if (this._getActiveCountForAgent(agentId) >= maxConcurrent) return null;
@@ -153,6 +170,7 @@ export class TaskQueueManager {
   }
 
   async updateTaskStatus(taskId, status, result, ownership = {}) {
+    this._assertOrdinaryQueue();
     if (status === TASK_STATUS.CANCELLED) return this.cancelTask(taskId, result?.reason ?? result);
     if (status === TASK_STATUS.COMPLETED) return this.completeTask(taskId, result, ownership);
     if (status === TASK_STATUS.FAILED) return this.failTask(taskId, result?.error ?? result, ownership);
@@ -172,6 +190,7 @@ export class TaskQueueManager {
   }
 
   async completeTask(taskId, result, ownership = {}) {
+    this._assertOrdinaryQueue();
     const task = this.activeTasks.get(taskId);
     if (!task) throw queueError("TASK_NOT_ACTIVE", `Active task not found: ${taskId}`, 404);
     await this._assertClaimOwnership(task, ownership);
@@ -192,6 +211,7 @@ export class TaskQueueManager {
   }
 
   async failTask(taskId, error, ownership = {}) {
+    this._assertOrdinaryQueue();
     const task = this.activeTasks.get(taskId);
     if (!task) throw queueError("TASK_NOT_ACTIVE", `Active task not found: ${taskId}`, 404);
     await this._assertClaimOwnership(task, ownership);
@@ -210,6 +230,7 @@ export class TaskQueueManager {
   }
 
   async cancelTask(taskId, reason = "cancelled_by_gateway") {
+    this._assertOrdinaryQueue();
     const queuedIndex = this.queue.findIndex((task) => task.taskId === taskId);
     const task = queuedIndex >= 0 ? this.queue.splice(queuedIndex, 1)[0] : this.activeTasks.get(taskId);
     if (!task) throw queueError("TASK_NOT_FOUND", `Task not found: ${taskId}`, 404);
@@ -231,6 +252,7 @@ export class TaskQueueManager {
   }
 
   async renewTaskClaim(taskId, ownership = {}, extendMs) {
+    this._assertOrdinaryQueue();
     const task = this.activeTasks.get(taskId);
     if (!task) throw queueError("TASK_NOT_ACTIVE", `Active task not found: ${taskId}`, 404);
     await this._assertClaimOwnership(task, ownership);
@@ -246,6 +268,7 @@ export class TaskQueueManager {
   }
 
   async assertTaskClaimActive(taskId, ownership = {}) {
+    this._assertOrdinaryQueue();
     const task = this.activeTasks.get(taskId);
     if (!task) throw queueError("TASK_NOT_ACTIVE", `Active task not found: ${taskId}`, 404);
     await this._assertClaimOwnership(task, ownership);
@@ -258,6 +281,7 @@ export class TaskQueueManager {
   }
 
   async requeueTask(taskId) {
+    this._assertOrdinaryQueue();
     const index = this.completedTasks.findIndex((task) => task.taskId === taskId && task.status === TASK_STATUS.FAILED);
     if (index === -1) throw queueError("TASK_FAILED_NOT_FOUND", `Failed task not found: ${taskId}`, 404);
     const task = this.completedTasks[index];
@@ -280,6 +304,7 @@ export class TaskQueueManager {
   }
 
   async autoAssign(options = {}) {
+    this._assertOrdinaryQueue();
     const maxConcurrent = Math.max(1, Math.floor(Number(options.maxConcurrentPerAgent) || 5));
     const agentIds = (Array.isArray(options.agentIds) && options.agentIds.length > 0
       ? options.agentIds
@@ -320,6 +345,9 @@ export class TaskQueueManager {
       persistence: "atomic-json-local",
       claimEnforced: true,
       claimManager: this.claimManager.getInfo(),
+      ...(this.retainedTasks ? { continuation: { enabled: true, maxRetainedTasks: MAX_RETAINED_TASKS,
+        importedDataIsAuthority: false, signedFileIntegrity: Boolean(this.retainedStateBinding),
+        wholeDirectoryRollbackProtection: false, crossProcessAtomicWriter: false } } : {}),
     };
   }
 
@@ -413,22 +441,34 @@ export class TaskQueueManager {
     };
   }
 
-  async persist() {
-    if (this.completedTasks.length > MAX_COMPLETED_TASKS) this.completedTasks = this.completedTasks.slice(-MAX_COMPLETED_TASKS);
+  async persist(snapshot, authority) {
+    if (this.retainedTasks && authority !== retainedWrite) throw continuationError("RETAINED_API_REQUIRED");
+    if (!this.retainedTasks && this.completedTasks.length > MAX_COMPLETED_TASKS) this.completedTasks = this.completedTasks.slice(-MAX_COMPLETED_TASKS);
+    const current = snapshot ?? { queue: this.queue, activeTasks: this.activeTasks, completedTasks: this.completedTasks,
+      agentAssignments: this.agentAssignments, auditLog: this._auditLog };
     const serialized = JSON.stringify({
       version: "2.0.0",
+      ...(this.retainedTasks ? { retainedTasks: true, retainedOwnerPid: process.pid } : {}),
       updatedAt: new Date().toISOString(),
-      queue: this.queue,
-      activeTasks: [...this.activeTasks.values()],
-      completedTasks: this.completedTasks,
-      agentAssignments: Object.fromEntries(this.agentAssignments),
-      auditLog: this._auditLog.slice(-500),
+      queue: current.queue,
+      activeTasks: [...current.activeTasks.values()],
+      completedTasks: current.completedTasks,
+      agentAssignments: Object.fromEntries(current.agentAssignments),
+      auditLog: current.auditLog.slice(-500),
     }, null, 2);
+    if (this.retainedTasks && Buffer.byteLength(serialized) > MAX_RETAINED_QUEUE_BYTES) throw continuationError("CAPACITY", 503);
     const operation = this._persistChain.then(async () => {
-      await fs.mkdir(this.dataDir, { recursive: true });
+      if (this.retainedTasks) await this._assertRetainedStorage();
+      else await fs.mkdir(this.dataDir, { recursive: true });
+      if (this.retainedStateBinding) {
+        await this.retainedStateBinding.commit(serialized);
+        await this._assertRetainedStorage();
+        return;
+      }
       const temporaryPath = `${this.queueFile}.${process.pid}.${randomUUID()}.tmp`;
       try {
         await fs.writeFile(temporaryPath, serialized, { encoding: "utf8", mode: 0o600 });
+        if (this.retainedTasks) await this._assertRetainedStorage();
         await fs.rename(temporaryPath, this.queueFile);
       } finally {
         await fs.rm(temporaryPath, { force: true }).catch(() => {});
@@ -439,7 +479,226 @@ export class TaskQueueManager {
   }
 
   async close() {
+    this._retainedClosed = true;
+    await this._retainedChain;
+    await this._persistChain;
     await this.claimManager.close?.();
+    if (this._retainedOwnerKey && retainedOwners.get(this._retainedOwnerKey) === this) retainedOwners.delete(this._retainedOwnerKey);
+  }
+
+  _assertOrdinaryQueue() {
+    if (this.retainedTasks) throw continuationError("RETAINED_API_REQUIRED");
+  }
+
+  _assertRetainedQueue() {
+    if (!this.retainedTasks || !this._retainedReady || this._retainedClosed) throw continuationError("UNAVAILABLE", 503);
+  }
+
+  async _assertRetainedStorage() {
+    const current = await fs.lstat(this.dataDir, { bigint: true });
+    if (!this._retainedRootIdentity || current.dev !== this._retainedRootIdentity.dev || current.ino !== this._retainedRootIdentity.ino
+      || !current.isDirectory() || current.isSymbolicLink() || await fs.realpath(this.dataDir) !== this.dataDir) throw continuationError("PATH_CHANGED");
+    await this.retainedStateBinding?.verify();
+  }
+
+  async _initRetainedTasks() {
+    if (this._retainedReady) { this._assertRetainedQueue(); return this.getQueueStatus(); }
+    if (this._retainedClosed || this.claimManager.getInfo()?.distributed) throw continuationError("SINGLE_WRITER_REQUIRED", 503);
+    await fs.mkdir(this.dataDir, { recursive: true, mode: 0o700 });
+    const root = await fs.realpath(this.dataDir);
+    const configured = path.resolve(this.queueFile);
+    if (await fs.realpath(path.dirname(configured)) !== root) throw continuationError("PATH_REJECTED");
+    this.queueFile = path.join(root, path.basename(configured));
+    this.dataDir = root;
+    this._retainedRootIdentity = await fs.lstat(root, { bigint: true });
+    const key = process.platform === "win32" ? this.queueFile.toLowerCase() : this.queueFile;
+    if (retainedOwners.has(key)) throw continuationError("WRITER_ACTIVE");
+    retainedOwners.set(key, this); this._retainedOwnerKey = key;
+    try {
+      await this._assertRetainedStorage();
+      let data;
+      try {
+        const info = await fs.lstat(this.queueFile, { bigint: true });
+        if (!info.isFile() || info.isSymbolicLink() || info.nlink !== 1n || info.size > BigInt(MAX_RETAINED_QUEUE_BYTES)) throw continuationError("STATE_INVALID");
+        const handle = await fs.open(this.queueFile, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0));
+        try {
+          const opened = await handle.stat({ bigint: true });
+          if (opened.dev !== info.dev || opened.ino !== info.ino || opened.nlink !== 1n || opened.size !== info.size) throw continuationError("STATE_CHANGED");
+          const buffer = Buffer.alloc(Number(opened.size) + 1); let count = 0;
+          while (count < buffer.length) {
+            const read = await handle.read(buffer, count, buffer.length - count, count);
+            if (!read.bytesRead) break; count += read.bytesRead;
+          }
+          const after = await handle.stat({ bigint: true }), current = await fs.lstat(this.queueFile, { bigint: true });
+          if (current.dev !== info.dev || current.ino !== info.ino || current.isSymbolicLink() || current.nlink !== 1n
+            || after.size !== info.size || after.size !== BigInt(count) || after.mtimeNs !== info.mtimeNs || after.ctimeNs !== info.ctimeNs) throw continuationError("STATE_CHANGED");
+          data = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(buffer.subarray(0, count)));
+        } finally { await handle.close(); }
+      } catch (error) { if (error?.code !== "ENOENT") throw error; }
+      await this._assertRetainedStorage();
+      const snapshot = { queue: [], activeTasks: new Map(), completedTasks: [], agentAssignments: new Map(), auditLog: [] };
+      if (data) {
+        if (data.retainedTasks !== true || !Array.isArray(data.queue) || !Array.isArray(data.activeTasks)
+          || !Array.isArray(data.completedTasks) || !Number.isSafeInteger(data.retainedOwnerPid) || data.retainedOwnerPid <= 0) throw continuationError("STATE_INVALID");
+        if (data.retainedOwnerPid !== process.pid) {
+          try { process.kill(data.retainedOwnerPid, 0); throw continuationError("WRITER_ACTIVE"); }
+          catch (error) { if (error?.code !== "ESRCH") throw continuationError("WRITER_NOT_CONFIRMED_STOPPED"); }
+        }
+        const rows = [...data.queue, ...data.activeTasks, ...data.completedTasks];
+        if (rows.length > MAX_RETAINED_TASKS || new Set(rows.map(task => task.taskId)).size !== rows.length) throw continuationError("STATE_INVALID");
+        const activeIds = new Set(data.activeTasks.map(task => task.taskId));
+        const queuedIds = new Set(data.queue.map(task => task.taskId));
+        for (const raw of rows) {
+          const task = continuationJsonCopy(raw);
+          if (!task.taskId || !task.tenantId || !task.ownerId || !task.planId || !task.retainedAgentId) throw continuationError("STATE_INVALID");
+          const saved = readTaskContinuation(task.continuation);
+          if (!activeIds.has(task.taskId) && (queuedIds.has(task.taskId) ? !continuationMayClaim(saved)
+            : !["completed", "failed", "cancelled", "unknown"].includes(saved.phase))) throw continuationError("STATE_INVALID");
+          task.continuation = activeIds.has(task.taskId) ? interruptedContinuation(task.continuation) : readTaskContinuation(task.continuation);
+          task.assignedTo = null; task.claim = null;
+          const claimable = continuationMayClaim(task.continuation);
+          task.status = claimable ? TASK_STATUS.QUEUED : task.continuation.phase === "completed" ? TASK_STATUS.COMPLETED
+            : task.continuation.phase === "cancelled" ? TASK_STATUS.CANCELLED : TASK_STATUS.FAILED;
+          (claimable ? snapshot.queue : snapshot.completedTasks).push(task);
+        }
+        snapshot.auditLog = Array.isArray(data.auditLog) ? data.auditLog.slice(-500) : [];
+      }
+      await this.persist(snapshot, retainedWrite);
+      this._installRetainedSnapshot(snapshot); this._retainedReady = true;
+      return this.getQueueStatus();
+    } catch (error) {
+      if (retainedOwners.get(key) === this) retainedOwners.delete(key);
+      throw error;
+    }
+  }
+
+  _installRetainedSnapshot(snapshot) {
+    this.queue = snapshot.queue; this.activeTasks = snapshot.activeTasks; this.completedTasks = snapshot.completedTasks;
+    this.agentAssignments = snapshot.agentAssignments; this._auditLog = snapshot.auditLog;
+  }
+
+  _retainedMutation(mutate) {
+    const pending = this._retainedChain.then(async () => {
+      this._assertRetainedQueue();
+      await this._assertRetainedStorage();
+      const snapshot = { queue: [...this.queue], activeTasks: new Map(this.activeTasks), completedTasks: [...this.completedTasks],
+        agentAssignments: new Map(this.agentAssignments), auditLog: [...this._auditLog] };
+      const result = await mutate(snapshot);
+      const copied = continuationJsonCopy(result);
+      try { await this.persist(snapshot, retainedWrite); }
+      catch (error) {
+        if (error?.code === "TASK_CONTINUATION_CAPACITY") throw error;
+        this._retainedReady = false; throw Object.assign(error, { persistenceOutcomeUnknown: true });
+      }
+      this._installRetainedSnapshot(snapshot);
+      return copied;
+    });
+    this._retainedChain = pending.catch(() => {});
+    return pending;
+  }
+
+  _ownedRetainedTask(snapshot, taskId, identity) {
+    const task = snapshot.activeTasks.get(taskId) ?? snapshot.queue.find(item => item.taskId === taskId)
+      ?? snapshot.completedTasks.find(item => item.taskId === taskId);
+    if (!task || task.tenantId !== identity?.tenantId || task.ownerId !== identity?.userId
+      || task.retainedAgentId !== identity?.agentId) throw continuationError("NOT_FOUND", 404);
+    readTaskContinuation(task.continuation);
+    return task;
+  }
+
+  async enqueueRetainedTask(input, identity, continuationInput) {
+    return this._retainedMutation(async snapshot => {
+      if (![identity?.tenantId, identity?.userId].every(value => typeof value === "string" && value.length > 0 && value.length <= 256 && value.trim() === value)
+        || !/^agt_[A-Za-z0-9_-]{1,128}$/u.test(identity.agentId ?? "")) throw continuationError("IDENTITY_REQUIRED", 403);
+      const continuation = readTaskContinuation(continuationInput);
+      if (continuation.revision !== 0 || continuation.phase !== "prepared" || continuation.pendingOperation
+        || Object.values(continuation.counters).some(value => value !== 0)) throw continuationError("INITIAL_STATE_INVALID");
+      if (snapshot.queue.length + snapshot.activeTasks.size + snapshot.completedTasks.length >= MAX_RETAINED_TASKS) throw continuationError("CAPACITY", 503);
+      const task = buildTaskRecord({ ...continuationJsonCopy(input), tenantId: identity.tenantId, ownerId: identity.userId, maxRetries: 0 });
+      Object.assign(task, { retainedAgentId: identity.agentId, continuation });
+      snapshot.queue.push(task);
+      return task;
+    });
+  }
+
+  readRetainedTask(taskId, identity) {
+    this._assertRetainedQueue();
+    return continuationJsonCopy(this._ownedRetainedTask(this, taskId, identity));
+  }
+
+  /** Server-only recovery index. A reference never carries a claim or execution authority. */
+  listRetainedTaskReferences() {
+    this._assertRetainedQueue();
+    return [...this.queue, ...this.activeTasks.values(), ...this.completedTasks].map(task => Object.freeze({
+      taskId: task.taskId, tenantId: task.tenantId, userId: task.ownerId, agentId: task.retainedAgentId,
+      profileHash: task.continuation.state?.review?.profile?.profileHash ?? null,
+    }));
+  }
+
+  async assertRetainedTaskActive(taskId, identity, ownership) {
+    this._assertRetainedQueue();
+    await this._assertRetainedStorage();
+    const task = this._ownedRetainedTask(this, taskId, identity);
+    if (this.activeTasks.get(taskId) !== task) throw continuationError("NOT_ACTIVE");
+    await this._assertClaimOwnership(task, { ...ownership, agentId: identity.agentId });
+    this._assertRetainedQueue();
+    if (this.activeTasks.get(taskId) !== task) throw continuationError("CONFLICT");
+    return { active: true, taskId, revision: task.continuation.revision };
+  }
+
+  async renewRetainedTaskClaim(taskId, identity, ownership) {
+    return this._retainedMutation(async snapshot => {
+      const current = this._ownedRetainedTask(snapshot, taskId, identity);
+      if (snapshot.activeTasks.get(taskId) !== current) throw continuationError("NOT_ACTIVE");
+      await this._assertClaimOwnership(current, { ...ownership, agentId: identity.agentId });
+      const renewed = await this.claimManager.renew(ownership.claimToken, this._claimContext(current), this.claimTtlMs);
+      if (!renewed?.success) throw continuationError("CLAIM_UNAVAILABLE", 503);
+      const task = { ...current, claim: { ...renewed.record } }; snapshot.activeTasks.set(taskId, task); return task;
+    });
+  }
+
+  async claimRetainedTask(taskId, identity, expectedRevision) {
+    let issued;
+    try {
+      return await this._retainedMutation(async snapshot => {
+        const current = this._ownedRetainedTask(snapshot, taskId, identity);
+        if (current.continuation.revision !== expectedRevision || !snapshot.queue.includes(current)
+          || !continuationMayClaim(current.continuation)) throw continuationError("NOT_RESUMABLE");
+        issued = await this.claimManager.issue({ planId: current.claimPlanId || current.planId, taskId, agentId: identity.agentId, ttlMs: this.claimTtlMs });
+        if (!issued?.success) throw continuationError("CLAIM_UNAVAILABLE", 503);
+        const task = { ...current, status: TASK_STATUS.IN_PROGRESS, assignedTo: identity.agentId,
+          claim: { ...issued.record }, updatedAt: new Date().toISOString() };
+        snapshot.queue.splice(snapshot.queue.indexOf(current), 1); snapshot.activeTasks.set(taskId, task);
+        return { ...task, claimToken: issued.token };
+      });
+    } catch (error) {
+      if (issued?.success) {
+        try { await this.claimManager.revoke(issued.token, "retained_claim_not_committed"); }
+        catch { this._retainedReady = false; Object.assign(error, { claimCleanupUnknown: true }); }
+      }
+      throw error;
+    }
+  }
+
+  async checkpointRetainedTask(taskId, identity, ownership, expectedRevision, continuationInput, releaseClaim = false) {
+    const result = await this._retainedMutation(async snapshot => {
+      const current = this._ownedRetainedTask(snapshot, taskId, identity);
+      if (!snapshot.activeTasks.has(taskId) || current.continuation.revision !== expectedRevision) throw continuationError("CONFLICT");
+      await this._assertClaimOwnership(current, { ...ownership, agentId: identity.agentId });
+      const continuation = advanceTaskContinuation(current.continuation, continuationInput);
+      if (releaseClaim && !["prepared", "awaiting_confirmation", "paused", "completed", "failed", "cancelled", "unknown"].includes(continuation.phase)) throw continuationError("RELEASE_UNSAFE");
+      const task = { ...current, continuation, updatedAt: new Date().toISOString() };
+      if (releaseClaim) {
+        snapshot.activeTasks.delete(taskId); task.assignedTo = null; task.claim = null;
+        const claimable = continuationMayClaim(continuation);
+        task.status = claimable ? TASK_STATUS.QUEUED : continuation.phase === "completed" ? TASK_STATUS.COMPLETED
+          : continuation.phase === "cancelled" ? TASK_STATUS.CANCELLED : TASK_STATUS.FAILED;
+        (claimable ? snapshot.queue : snapshot.completedTasks).push(task);
+      } else snapshot.activeTasks.set(taskId, task);
+      return task;
+    });
+    if (releaseClaim) await this.claimManager.revoke(ownership.claimToken, "retained_checkpoint_released");
+    return result;
   }
 
   async _claimAtIndex(taskIndex, agentId, options, shouldPersist) {

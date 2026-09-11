@@ -168,7 +168,7 @@ It does not consume HTTP idempotency or provider-dispatch rows.
 
 | Variable | Default | Requirement |
 | --- | --- | --- |
-| `AI_GATEWAY_EXTERNAL_EFFECT_ENABLED` | auto-enabled by a configured Feishu/WeCom webhook or non-empty MCP upstream registry | `true`/`false` only |
+| `AI_GATEWAY_EXTERNAL_EFFECT_ENABLED` | auto-enabled by Feishu API mode, a configured Feishu/WeCom webhook or non-empty MCP upstream registry | `true`/`false` only |
 | `AI_GATEWAY_EXTERNAL_EFFECT_STORE_MODE` | `sqlite`, or `postgres` when a central URL is present | `disabled` is rejected when enabled |
 | `AI_GATEWAY_EXTERNAL_EFFECT_SQLITE_PATH` | `.data/external-effects.sqlite` | Single-host durable path |
 | `AI_GATEWAY_EXTERNAL_EFFECT_HMAC_SECRET` | generated restricted local secret for SQLite | Stable value of at least 32 bytes; explicit for PostgreSQL |
@@ -229,6 +229,92 @@ tombstone growth, PostgreSQL lag, and failed restore drills.
 - A process crash cannot resume an in-memory role call stack.
 - This contract does not prove HA/DR, remote exactly-once, or production
   readiness.
+
+## Feishu API and shared IM sending
+
+Both existing connector routes now use one application-owned runtime and the
+existing connector packages. Webhook mode remains the default. Feishu supports
+text, markdown and simple title/body cards; WeCom supports text and markdown and
+rejects cards. A webhook is bound to its configured group: request recipient
+overrides are rejected. The existing `title`, `body` and `text` alias are retained;
+if both text fields are supplied they must agree.
+
+Feishu enterprise self-built applications can opt into the fixed Feishu API:
+
+| Setting | Value |
+| --- | --- |
+| `FEISHU_CONNECTOR_MODE` | `api` (default: `webhook`) |
+| `FEISHU_APP_ID` | The operator's application ID |
+| `FEISHU_APP_SECRET_REF` | Existing credential reference, such as `env_key_name:FEISHU_APP_SECRET` or a configured vault `file_key_path:...` |
+| `FEISHU_API_TARGETS_JSON` | Array of 1–64 exact `{tenantId, receiveIdType, targetId}` records |
+
+Allowed recipient types are `open_id`, `user_id`, `union_id`, `email` and
+`chat_id`. The authenticated tenant must match the configured recipient. Neither
+the request nor SDK may override the API origin, application identity, secret
+reference, authorization header or transport. Only Feishu's enterprise internal
+token endpoint is supported; this is not a Lark international API, user OAuth,
+marketplace application, attachment upload or contact discovery implementation.
+
+The runtime validates the message/recipient/key and consumes a durable reservation
+before materializing the application secret or calling authentication. Tokens
+are cached in memory until the returned lifetime minus a 30-second safety margin;
+shutdown clears them and interrupts pending operations. No automatic retry is
+performed after authentication, message rejection, timeout, disconnection or an
+unknown receipt. Token acquisition failure also retains the consumed operation
+key. The existing maximum 24-hour tombstone lifetime still applies: expiry does
+not prove non-delivery and must not be used to justify automatic resending.
+
+API sends use JSON-string `content` and read `data.message_id`; the request is
+accepted only on HTTP success, `code=0` and a valid message ID. Webhook success
+uses the platform's explicit success code and may have no ID. `accepted` means
+the platform accepted the request, not that a recipient received or read it.
+`rejected` retains the established 200 data envelope; unknown message outcomes
+return `502 IM_SEND_OUTCOME_UNKNOWN` with `messageAttempted` and `outcomeUnknown`
+details. Error responses never echo remote messages, raw transport exceptions,
+secrets or tokens. Missing/duplicate/conflicting keys retain the existing 4xx
+codes. `messageAttempted` means the message transport was invoked, not that
+network delivery or a remote write was proven.
+
+Local bounds are 512 UTF-8 bytes for titles, 16 KiB for message text, 30,000 bytes
+for the serialized wire payload and 64 KiB for responses. These are gateway
+limits, not a claim that every platform will accept a message at those sizes.
+The default complete operation deadline is 10 seconds. Existing response-request
+notes remain presentation text and do not implement a callback/listening service.
+`GET /connectors` reports configured modes and tenant-specific allowed-target
+counts, without recipient IDs or secret references. Health describes configuration
+and does not promote it to remote certification based on prior sends.
+
+The shared SDK exposes `connectors()` and
+`sendConnectorMessage(connectorId, message, {externalEffectKey})`. Supply one
+caller-owned key through the method options. Shared key headers are rejected;
+send errors are non-retryable and redirects are rejected. Reconcile an unknown
+outcome with the platform before deciding on any new operation.
+
+Protocol references: [official token manager](https://github.com/larksuite/node-sdk/blob/main/client/token-manager.ts)
+and [official message API definitions](https://github.com/larksuite/node-sdk/blob/main/code-gen/projects/im.ts).
+Local validation uses synthetic credentials and a simulated remote transport;
+actual HTTP identity, tenant, persistence, restart and disconnect boundaries are
+tested separately from protocol wire shapes. No real message is sent by those
+tests. Real send acceptance requires an explicitly authorized recipient/content
+and a safe credential entry; it is not implied by passing local checks.
+
+### IM Language Selection and rollback
+
+New application/protocol logic is TypeScript, while the existing JS Feishu entry
+forwards to it and the small WeCom package retains its existing JS implementation.
+Node 22.18+ matches the workspace and supports the TypeScript entry. No official
+SDK dependency, new database, background sender or general connector framework
+is added. Existing REST, credential resolver, outbound policy and effect gate
+are reused; the gateway only adds workspace links to its two existing packages.
+
+The change necessarily spans the two protocol packages, one application runtime,
+both existing route surfaces, public contracts/SDK, their tests and the outbound
+check. This exceeds eight files because a package-only implementation would not
+enable the actual product route or preserve the SDK contract. Keep the existing
+effect database during rollback. Restore webhook mode or disable configured IM
+targets, then revert the related code/lockfile changes as one unit and reinstall
+the frozen dependencies. Do not clear consumed keys or blindly resend unknown
+messages while rolling back.
 
 ## Verification
 

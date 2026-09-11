@@ -32,6 +32,14 @@ import { createAgentGovernanceService } from "../agent-governance/agentGovernanc
 import { createAgentGovernanceToolProxy } from "../agent-governance/toolProxy.ts";
 import { createGatewayModelProposer } from "../agent-governance/gatewayModelProposer.ts";
 import { resolveGovernanceSecret } from "../agent-governance/governanceSecret.ts";
+import { createGovernanceStateFileBinding } from "../agent-governance/governanceStateAnchor.ts";
+import { freezeGovernedAgentTaskProfile } from "../agentic/governedAgentTaskProfile.ts";
+import { createGovernedAgentTaskWorkspace } from "../agentic/governedAgentTaskWorkspace.ts";
+import { createGovernedAgentTaskRuntime } from "../agentic/governedAgentTaskRuntime.ts";
+import { createGovernedAgentTaskPool } from "../agentic/governedAgentTaskPool.ts";
+import { inheritResidentExecution } from "../agentic/governedAgentTaskResident.ts";
+import { TaskQueueManager } from "../workforce/taskQueueManager.js";
+import { inheritVirtualKeyRequestAccounting } from "../enterprise/virtualKeyRequestAccounting.ts";
 import { createSqliteAgentRegistryStore } from "../agent-governance/sqliteAgentRegistryStore.ts";
 import { createPostgresAgentRegistryStore } from "../agent-governance/postgresAgentRegistryStore.ts";
 import {
@@ -40,8 +48,17 @@ import {
   readRegistryAuthoritySwitchMarkerSync,
 } from "../agent-governance/registryAuthoritySwitch.ts";
 import { createLocalWorkflowService } from "../workflow/localWorkflowService.js";
+import { createWorkflowRunHandoff } from "../workforce/workflowRunHandoff.js";
 import { createWorkforceService } from "../workforce/workforceService.js";
+import { createWorkforceLifecycleHooks } from "../workforce/workforceLifecycleHooks.ts";
 import { createControlledExecutor } from "../workforce/workforceControlledExecutor.js";
+import { createWorkforceRoleProviderFactory } from "../workforce/workforceRoleProvider.ts";
+import { freezeWorkforceRoleExecutionProfile } from "../workforce/workforceRoleExecutionProfile.ts";
+import { createConfiguredWorkforceRoleSelection } from "../workforce/workforceRoleSelection.ts";
+import { freezeWorkforceCodeDeliveryProfile } from "../workforce/workforceCodeDeliveryProfile.ts";
+import { createWorkforceCodeDeliveryFactory } from "../workforce/workforceCodeDeliveryRuntime.ts";
+import { freezeWorkforceExternalRunnerProfile } from "../workforce/workforceExternalRunnerProfile.ts";
+import { createWorkforceExternalRunnerFactory } from "../workforce/workforceExternalRunnerRuntime.ts";
 import { createUserExperienceService } from "../capabilities/userExperienceService.js";
 import { createCapabilityRouterService } from "../capabilities/capabilityRouterService.js";
 import { createEnterpriseGovernanceService } from "../enterprise/enterpriseGovernanceService.js";
@@ -50,6 +67,7 @@ import { createResponseSessionStore } from "../responses/responseSessionStore.js
 import { createEnterpriseOpsService } from "../enterprise/enterpriseOpsService.js";
 import { createCodexExecCrsRuntimeCandidate } from "../runtime-candidate/codexExecCrsRuntimeCandidate.js";
 import { createFiveCapabilityActivationService } from "../real-capabilities/fiveCapabilityActivationService.js";
+import { createTaijiCapabilityService } from "../real-capabilities/taijiCapabilityService.ts";
 import {
   createLocalClientManagementService,
   preflightLocalClientRegistryIntegrity,
@@ -65,6 +83,7 @@ import {
   createLocalClientLoopbackVerificationProbe,
 } from "../capabilities/localClientLoopbackAdapter.ts";
 import { createCredentialResolver } from "../credentials/credentialResolver.js";
+import { createImConnectorRuntime, readImConnectorConfiguration } from "../connectors/imConnectorRuntime.ts";
 import { createWorkforceExecutionControl } from "../workforce/workforceExecutionControlFactory.ts";
 import { createLocalClientProviderRuntimeRouter } from "../routing/localClientProviderRuntimeRouter.ts";
 import { createConfiguredLocalClientProviderPolicyResolver } from "../routing/localClientProviderPolicyConfig.ts";
@@ -93,7 +112,11 @@ import {
   createManagedLocalClientPopIdentityAuthority,
   deriveManagedLocalClientPopKey,
 } from "../capabilities/localClientPopIdentityAuthority.ts";
-import { createLocalClientSqlitePopReplayGuard } from "../capabilities/localClientSqlitePopReplayGuard.ts";
+import { createConfiguredLocalClientPopReplayGuard, readLocalClientPopReplayStoreMode, resolveLocalClientPopReplayPath,
+  requireLocalClientPopReplayHostId, readLocalClientPopReplayNamespace, readStrictLocalClientPopReplayInteger,
+  localClientPopReplayConfigError } from "../capabilities/localClientPopReplayConfiguration.ts";
+import { createNonOwningNativePopReplayGuardPort, isLocalClientNativePopReplayRuntime,
+  prepareLocalClientNativePopReplayRuntime } from "../capabilities/localClientNativePopReplayRuntime.ts";
 import {
   LOCAL_CLIENT_POP_SNAPSHOT_ROLLBACK_BOUNDARIES,
   LOCAL_CLIENT_POP_SNAPSHOT_ROLLBACK_NATIVE_DEPLOYMENT_BLOCKERS,
@@ -123,11 +146,151 @@ export function createGatewayApplicationForLocalClientFixtureTests(env = {}) {
   return createGatewayApplicationInternal(env, LOCAL_CLIENT_FIXTURE_RECEIPT_CLOSURE_CAPABILITY);
 }
 
+function agentLongTaskConfigurationError(reason) {
+  return Object.assign(new Error("Governed Agent tasks require a valid local server configuration."), {
+    code: `AGENT_LONG_TASK_${reason}`, category: "configuration", statusCode: 503, retryable: false,
+  });
+}
+
+function parseAgentLongTaskConfiguration(env) {
+  const raw = env.AI_GATEWAY_AGENT_LONG_TASK_CONFIG_JSON;
+  if (raw === undefined) return null;
+  if (typeof raw !== "string" || !raw.trim() || Buffer.byteLength(raw, "utf8") > 262144) throw agentLongTaskConfigurationError("CONFIGURATION_INVALID");
+  if (env.AI_GATEWAY_AGENT_GOVERNANCE_ENABLED === "false") throw agentLongTaskConfigurationError("GOVERNANCE_REQUIRED");
+  if (![undefined, "false"].includes(env.AI_GATEWAY_MULTI_INSTANCE)
+    || ![undefined, "false"].includes(env.AI_GATEWAY_WORKFORCE_CLAIM_STORE_REQUIRED)
+    || ![undefined, "", "memory"].includes(env.AI_GATEWAY_WORKFORCE_CLAIM_STORE_MODE)
+    || (!env.AI_GATEWAY_WORKFORCE_CLAIM_STORE_MODE && env.AI_GATEWAY_WORKFORCE_CLAIM_POSTGRES_URL)) throw agentLongTaskConfigurationError("LOCAL_STORAGE_REQUIRED");
+  let value;
+  try { value = JSON.parse(raw); } catch { throw agentLongTaskConfigurationError("CONFIGURATION_INVALID"); }
+  function project(input) {
+    if (!input || typeof input !== "object" || Array.isArray(input)
+      || Object.keys(input).sort().join("|") !== "enginePath|profile|repoRoot|scratchRoot|worktreeRoot"
+      || [input.repoRoot, input.worktreeRoot, input.scratchRoot, input.enginePath].some(path => typeof path !== "string" || !isAbsolute(path))) {
+      throw agentLongTaskConfigurationError("CONFIGURATION_INVALID");
+    }
+    return Object.freeze({ ...input, profile: freezeGovernedAgentTaskProfile(input.profile) });
+  }
+  if (value?.version === 1 && Array.isArray(value.projects)) {
+    if (Object.keys(value).sort().join("|") !== "pool|projects|version" || !value.projects.length || value.projects.length > 16
+      || !value.pool || Object.keys(value.pool).sort().join("|") !== "chunkIterations|maxConcurrentWorkers|maxDurationMs|maxGoals"
+      || !Number.isSafeInteger(value.pool.maxConcurrentWorkers) || value.pool.maxConcurrentWorkers < 1 || value.pool.maxConcurrentWorkers > 8
+      || !Number.isSafeInteger(value.pool.maxGoals) || value.pool.maxGoals < 1 || value.pool.maxGoals > 64
+      || value.pool.maxConcurrentWorkers > value.pool.maxGoals
+      || !Number.isSafeInteger(value.pool.chunkIterations) || value.pool.chunkIterations < 1 || value.pool.chunkIterations > 10
+      || !Number.isSafeInteger(value.pool.maxDurationMs) || value.pool.maxDurationMs < 1000 || value.pool.maxDurationMs > 86400000) {
+      throw agentLongTaskConfigurationError("CONFIGURATION_INVALID");
+    }
+    const projects = value.projects.map(project);
+    if (new Set(projects.map(entry => entry.profile.projectId)).size !== projects.length) throw agentLongTaskConfigurationError("DUPLICATE_PROJECT");
+    return Object.freeze({ projects: Object.freeze(projects), pool: Object.freeze({ ...value.pool }) });
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)
+    || Object.keys(value).sort().join("|") !== "enginePath|profile|repoRoot|scratchRoot|worktreeRoot"
+    || [value.repoRoot, value.worktreeRoot, value.scratchRoot, value.enginePath].some(path => typeof path !== "string" || !isAbsolute(path))) {
+    throw agentLongTaskConfigurationError("CONFIGURATION_INVALID");
+  }
+  return Object.freeze({ projects: Object.freeze([project(value)]), pool: null });
+}
+
 function createGatewayApplicationInternal(env, fixtureCapability) {
+  const agentLongTaskConfiguration = parseAgentLongTaskConfiguration(env);
+  let initializeAgentLongTask;
+  let agentLongTaskQueue;
+  let agentLongTaskPool;
+  let agentLongTaskPromise;
+  let agentLongTaskClosing = false;
+  let agentLongTaskClosePromise;
+  const agentLongTaskAbort = new AbortController();
+  const agentLongTaskInFlight = new Set();
+  async function getAgentLongTaskRuntime(selector = {}) {
+    if (agentLongTaskClosing || !initializeAgentLongTask) throw agentLongTaskConfigurationError("UNAVAILABLE");
+    agentLongTaskPromise ??= initializeAgentLongTask();
+    const registry = await agentLongTaskPromise;
+    if (selector.taskId) {
+      const record = agentLongTaskQueue.readRetainedTask(selector.taskId, selector.identity);
+      const selected = registry.get(record.continuation.state?.review?.profile?.profileHash);
+      if (!selected) throw agentLongTaskConfigurationError("PROFILE_CHANGED");
+      return selected;
+    }
+    if (selector.projectId) {
+      const selected = [...registry.values()].find(runtime => runtime.profile.projectId === selector.projectId);
+      if (!selected) throw agentLongTaskConfigurationError("PROJECT_NOT_CONFIGURED"); return selected;
+    }
+    if (registry.size !== 1) throw agentLongTaskConfigurationError("PROJECT_REQUIRED");
+    return registry.values().next().value;
+  }
+  async function startAgentLongTaskRuntime() {
+    if (agentLongTaskConfiguration?.pool) {
+      if (agentLongTaskClosing || !initializeAgentLongTask) throw agentLongTaskConfigurationError("UNAVAILABLE");
+      agentLongTaskPromise ??= initializeAgentLongTask();
+      await agentLongTaskPromise;
+    }
+  }
+  function closeAgentLongTaskRuntime() {
+    agentLongTaskClosing = true;
+    agentLongTaskClosePromise ??= (async () => {
+      await Promise.allSettled(agentLongTaskPromise ? [agentLongTaskPromise] : []);
+      let firstError;
+      try { await agentLongTaskPool?.close(); }
+      catch (error) { firstError = error; }
+      finally { agentLongTaskAbort.abort(agentLongTaskConfigurationError("SHUTDOWN")); }
+      await Promise.allSettled([...agentLongTaskInFlight]);
+      try { await agentLongTaskQueue?.close(); }
+      catch (error) { if (!firstError) firstError = error; }
+      if (firstError) throw firstError;
+    })();
+    return agentLongTaskClosePromise;
+  }
+  const hookSetting = env.AI_GATEWAY_WORKFORCE_LIFECYCLE_HOOKS_ENABLED;
+  if (hookSetting !== undefined && hookSetting !== "true" && hookSetting !== "false") {
+    throw Object.assign(new Error("Workforce lifecycle hooks must be explicitly true or false."), { code: "WORKFORCE_HOOK_CONFIGURATION_INVALID" });
+  }
+  const workforceLifecycleHooks = createWorkforceLifecycleHooks({ enabled: hookSetting === "true" });
+  const externalRunnerSetting = env.AI_GATEWAY_WORKFORCE_EXTERNAL_RUNNER_ENABLED;
+  if (externalRunnerSetting !== undefined && externalRunnerSetting !== "true" && externalRunnerSetting !== "false") {
+    throw Object.assign(new Error("Native Workforce execution must be explicitly true or false."), { code: "WORKFORCE_EXTERNAL_RUNNER_CONFIGURATION_INVALID" });
+  }
+  let workforceExternalRunnerProfiles = [];
+  const externalRunnerJson = String(env.AI_GATEWAY_WORKFORCE_EXTERNAL_RUNNER_PROFILES_JSON ?? "").trim();
+  if (externalRunnerJson) {
+    if (Buffer.byteLength(externalRunnerJson, "utf8") > 262144) throw new Error("Native Workforce profile configuration exceeds its limit.");
+    let profiles;
+    try { profiles = JSON.parse(externalRunnerJson); } catch { throw new Error("Native Workforce profiles must be a JSON array."); }
+    if (!Array.isArray(profiles) || profiles.length > 16) throw new Error("At most sixteen native Workforce profiles may be configured.");
+    workforceExternalRunnerProfiles = profiles.map(profile => { freezeWorkforceExternalRunnerProfile(profile); return profile; });
+  }
+  let workforceCodeDeliveryProfiles = [];
+  const codeDeliveryJson = String(env.AI_GATEWAY_WORKFORCE_CODE_DELIVERY_PROFILES_JSON ?? "").trim();
+  if (codeDeliveryJson) {
+    if (Buffer.byteLength(codeDeliveryJson, "utf8") > 262144) throw new Error("Workforce code profile configuration exceeds its limit.");
+    let profiles;
+    try { profiles = JSON.parse(codeDeliveryJson); } catch { throw new Error("Workforce code profiles must be a JSON array."); }
+    if (!Array.isArray(profiles) || profiles.length > 16) throw new Error("At most sixteen Workforce code profiles may be configured.");
+    workforceCodeDeliveryProfiles = profiles.map(profile => { freezeWorkforceCodeDeliveryProfile(profile); return profile; });
+  }
+  let workforceRoleExecutionProfile = null;
+  let workforceRoleSelectionConfiguration = null;
+  const selectionJson = String(env.AI_GATEWAY_WORKFORCE_ROLE_SELECTION_JSON ?? "").trim();
+  if (selectionJson) {
+    if (String(env.AI_GATEWAY_WORKFORCE_ROLE_EXECUTION_PROFILE_JSON ?? "").trim() || Buffer.byteLength(selectionJson, "utf8") > 65_536) {
+      throw new Error("Configure one bounded Workforce role selection or manual profile, not both.");
+    }
+    try { workforceRoleSelectionConfiguration = JSON.parse(selectionJson); }
+    catch { throw new Error("AI_GATEWAY_WORKFORCE_ROLE_SELECTION_JSON must contain a valid server selection configuration."); }
+  }
+  if (String(env.AI_GATEWAY_WORKFORCE_ROLE_EXECUTION_PROFILE_JSON ?? "").trim()) {
+    let profileInput;
+    try { profileInput = JSON.parse(env.AI_GATEWAY_WORKFORCE_ROLE_EXECUTION_PROFILE_JSON); }
+    catch { throw new Error("AI_GATEWAY_WORKFORCE_ROLE_EXECUTION_PROFILE_JSON must contain a valid execution profile."); }
+    workforceRoleExecutionProfile = freezeWorkforceRoleExecutionProfile(profileInput);
+  }
   const agentExecWorkingDirectory = resolveAgentExecWorkingDirectory(env);
   const localClientFixtureReceiptClosure =
     fixtureCapability === LOCAL_CLIENT_FIXTURE_RECEIPT_CLOSURE_CAPABILITY;
   const parsedLocalClientOnboardingConfiguration = resolveLocalClientOnboardingConfiguration(env);
+  const imConnectorConfiguration = readImConnectorConfiguration(env);
+  const taijiRuntimeEnabled = readStrictBoolean(env.TAIJI_BEIDOU_AUTO_RUNTIME_ENABLED, false, "TAIJI_BEIDOU_AUTO_RUNTIME_ENABLED");
   const localClientSmartManagementSchedulerConfiguration =
     resolveLocalClientSmartManagementSchedulerConfig(env);
   const localClientProtocolPrincipalConfiguration =
@@ -142,6 +305,9 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
     false,
     "AI_GATEWAY_MULTI_INSTANCE",
   );
+  if (taijiRuntimeEnabled && localClientMultiInstanceRequested) {
+    throw Object.assign(new Error("Taiji capability state currently requires a single gateway process."), { code: "TAIJI_STORAGE_PROFILE_UNSUPPORTED" });
+  }
   validateLocalClientStaticConfiguration(env);
   validateLocalClientFeedbackDedupConfiguration(env, localClientExecutionRequested);
   validateLocalClientExecutionFeedbackOutboxConfiguration(env, localClientExecutionRequested);
@@ -203,6 +369,7 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
   const modelLibraryStore = createModelLibraryStore({
     env,
     runtimeCredentialStore,
+    storagePath: env.AI_GATEWAY_MODEL_LIBRARY_STATE_PATH,
   });
   const providerKeyConfigStore = createProviderKeyConfigStore({
     env,
@@ -285,16 +452,36 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
   const knowledgeInfra = createKnowledgeInfra(env);
   const workflowService = createLocalWorkflowService({
     env,
+    lifecycleHooks: workforceLifecycleHooks,
     knowledgeService,
     outputDir: env.WORKFLOW_OUTPUT_DIR,
   });
   const workforceService = createWorkforceService({
     env,
+    lifecycleHooks: workforceLifecycleHooks,
   });
   const workforceExecutor = createControlledExecutor({
     env,
     repoRoot,
     executionDir: env.WORKFORCE_EXECUTION_DIR,
+    workflowHandoffRuntime: createWorkflowRunHandoff({ workflowService }),
+    externalRunnerProfiles: workforceExternalRunnerProfiles,
+    externalRunnerFactory: externalRunnerSetting === "true" ? createWorkforceExternalRunnerFactory({ repoRoot,
+      enginePath: env.AI_GATEWAY_WORKFORCE_EXTERNAL_RUNNER_ENGINE_PATH,
+      windowsHost: { path: env.AI_GATEWAY_WORKFORCE_EXTERNAL_RUNNER_HOST_PATH, sha256: env.AI_GATEWAY_WORKFORCE_EXTERNAL_RUNNER_HOST_SHA256 },
+      ...(env.AI_GATEWAY_WORKFORCE_EXTERNAL_RUNNER_SCRATCH_ROOT ? { scratchRoot: env.AI_GATEWAY_WORKFORCE_EXTERNAL_RUNNER_SCRATCH_ROOT } : {}) }) : null,
+    codeDeliveryProfiles: workforceCodeDeliveryProfiles,
+    codeDeliveryFactory: env.AI_GATEWAY_WORKFORCE_CODE_DELIVERY_ENABLED === "true"
+      ? createWorkforceCodeDeliveryFactory({ repoRoot,
+          enginePath: env.AI_GATEWAY_WORKFORCE_CODE_DELIVERY_ENGINE_PATH,
+          ...(env.AI_GATEWAY_WORKFORCE_CODE_DELIVERY_SCRATCH_ROOT
+            ? { scratchRoot: env.AI_GATEWAY_WORKFORCE_CODE_DELIVERY_SCRATCH_ROOT } : {}) }) : null,
+    roleProviderFactory: workforceRoleExecutionProfile ? createWorkforceRoleProviderFactory({
+      gatewayService, providerRegistry, profile: workforceRoleExecutionProfile,
+    }) : null,
+    roleSelection: selectionJson ? createConfiguredWorkforceRoleSelection({
+      gatewayService, providerRegistry, configuration: workforceRoleSelectionConfiguration,
+    }) : null,
   });
   const userExperienceService = createUserExperienceService({
     config,
@@ -313,7 +500,9 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
   // 无 agentGovernance 身份的 legacy 调用方不受影响；
   // AI_GATEWAY_AGENT_GOVERNANCE_ENABLED=false 可整体关闭。
   const agentGovernanceEnabled = agentGovernanceRuntime.enabled;
+  if (agentLongTaskConfiguration && !agentGovernanceEnabled) throw agentLongTaskConfigurationError("GOVERNANCE_REQUIRED");
   let agentGovernance = null;
+  let taijiCapabilityService = null;
   if (agentGovernanceEnabled) {
     const agentGovernanceDataDir = env.AI_GATEWAY_AGENT_GOVERNANCE_DATA_DIR
       ? (isAbsolute(env.AI_GATEWAY_AGENT_GOVERNANCE_DATA_DIR)
@@ -349,6 +538,10 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
       repoRoot,
       agentGovernanceDataDir,
     );
+    if (agentLongTaskConfiguration && registryConfiguration.mode === "postgres") throw agentLongTaskConfigurationError("LOCAL_STORAGE_REQUIRED");
+    if (taijiRuntimeEnabled && registryConfiguration.mode === "postgres") {
+      throw Object.assign(new Error("Taiji capability state currently requires the local governance profile."), { code: "TAIJI_STORAGE_PROFILE_UNSUPPORTED" });
+    }
     // Establish the no-link/private-ACL governance root before a database can
     // create its authority/checkpoint files in that directory.
     const governanceSecret = resolveGovernanceSecret({ env, dataDir: agentGovernanceDataDir });
@@ -390,6 +583,59 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
             pathExposed: false,
           });
       },
+    });
+    if (agentLongTaskConfiguration) {
+      initializeAgentLongTask = async () => {
+        const queueFile = join(agentGovernanceDataDir, "agent-long-tasks.json");
+        agentLongTaskQueue = new TaskQueueManager({ queueFile, retainedTasks: true,
+          env: { AI_GATEWAY_WORKFORCE_CLAIM_STORE_MODE: "memory" },
+          retainedStateBinding: createGovernanceStateFileBinding({ filePath: queueFile, secret: governanceSecret, kind: "json",
+            validateLegacy() { throw agentLongTaskConfigurationError("UNSIGNED_STATE_REJECTED"); } }) });
+        await agentLongTaskQueue.init();
+        const registry = new Map(), rawRuntimes = new Map();
+        for (const project of agentLongTaskConfiguration.projects) {
+          const workspace = createGovernedAgentTaskWorkspace(project);
+          const runtime = createGovernedAgentTaskRuntime({ queue: agentLongTaskQueue, workspace,
+            governance: agentGovernance.service, toolProxy: agentGovernance.toolProxy, gatewayService, providerRegistry });
+          rawRuntimes.set(runtime.profile.profileHash, runtime);
+          const wrapped = { profile: runtime.profile };
+          for (const name of ["prepare", "read", "plan", "confirm", "run", "control", "scheduleInPool"]) {
+          wrapped[name] = (...args) => {
+            if (agentLongTaskClosing) return Promise.reject(agentLongTaskConfigurationError("SHUTDOWN"));
+            const identityIndex = name === "prepare" ? 0 : 1, identity = args[identityIndex];
+            const execution = { ...identity.execution, signal: AbortSignal.any([identity.execution.signal, agentLongTaskAbort.signal]) };
+            inheritVirtualKeyRequestAccounting(identity.execution, execution);
+            inheritResidentExecution(identity.execution, execution);
+            args[identityIndex] = { ...identity, execution };
+            const pending = Promise.resolve().then(async () => {
+              if (name === "scheduleInPool") {
+                if (!agentLongTaskPool) throw agentLongTaskConfigurationError("POOL_NOT_CONFIGURED");
+                return agentLongTaskPool.schedule(runtime, ...args);
+              }
+              if (name === "control" && agentLongTaskPool) return agentLongTaskPool.control(runtime, ...args);
+              return runtime[name](...args);
+            });
+            agentLongTaskInFlight.add(pending);
+            void pending.finally(() => agentLongTaskInFlight.delete(pending)).catch(() => {});
+            return pending;
+          };
+          }
+          registry.set(runtime.profile.profileHash, Object.freeze(wrapped));
+        }
+        if (agentLongTaskConfiguration.pool) {
+          agentLongTaskPool = createGovernedAgentTaskPool({ queue: agentLongTaskQueue, runtimes: rawRuntimes,
+            config: agentLongTaskConfiguration.pool, enterprise: enterpriseGovernanceService, signal: agentLongTaskAbort.signal });
+          await agentLongTaskPool.recover();
+        }
+        return registry;
+      };
+    }
+  }
+  if (agentGovernance) {
+    taijiCapabilityService = createTaijiCapabilityService({
+      dataDir: agentGovernance.dataDir,
+      secret: resolveGovernanceSecret({ env, dataDir: agentGovernance.dataDir }),
+      enabled: () => taijiRuntimeEnabled,
     });
   }
   const enterpriseOpsService = createEnterpriseOpsService({
@@ -445,6 +691,7 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
       agentGovernance?.registryStore,
       externalEffectGate,
       workforceExecutor,
+      workforceService,
       requestLogger,
       providerDispatchGate,
       mcpGatewayService,
@@ -497,6 +744,7 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
       agentGovernance?.registryStore,
       externalEffectGate,
       workforceExecutor,
+      workforceService,
       requestLogger,
       providerDispatchGate,
       mcpGatewayService,
@@ -544,6 +792,7 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
       agentGovernance?.registryStore,
       externalEffectGate,
       workforceExecutor,
+      workforceService,
       requestLogger,
       providerDispatchGate,
       mcpGatewayService,
@@ -592,6 +841,7 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
       agentGovernance?.registryStore,
       externalEffectGate,
       workforceExecutor,
+      workforceService,
       requestLogger,
       providerDispatchGate,
       mcpGatewayService,
@@ -646,6 +896,7 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
       agentGovernance?.registryStore,
       externalEffectGate,
       workforceExecutor,
+      workforceService,
       requestLogger,
       providerDispatchGate,
       mcpGatewayService,
@@ -747,12 +998,16 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
   });
   const localClientPopSnapshotRollbackProtectionStatus = Object.freeze({
     protocolCoreAvailable: true,
-    configured: false,
-    ready: false,
-    snapshotRollbackProtected: false,
-    nativeDeploymentVerified: false,
-    blockers: LOCAL_CLIENT_POP_SNAPSHOT_ROLLBACK_NATIVE_DEPLOYMENT_BLOCKERS,
-    boundaries: LOCAL_CLIENT_POP_SNAPSHOT_ROLLBACK_BOUNDARIES,
+    get configured() { return localClientAdapterConfiguration.popAuthorityRegistry?.nativeReplayProtection !== null
+      && localClientAdapterConfiguration.popAuthorityRegistry?.nativeReplayProtection !== undefined; },
+    get ready() { return localClientAdapterConfiguration.popAuthorityRegistry?.nativeReplayProtection?.ready === true; },
+    get snapshotRollbackProtected() { return this.ready; },
+    get nativeDeploymentVerified() { return this.ready; },
+    get blockers() { return this.configured ? this.ready ? Object.freeze([]) : Object.freeze(["native_pop_replay_runtime_unavailable"])
+      : LOCAL_CLIENT_POP_SNAPSHOT_ROLLBACK_NATIVE_DEPLOYMENT_BLOCKERS; },
+    get boundaries() { return this.configured ? Object.freeze({ ...LOCAL_CLIENT_POP_SNAPSHOT_ROLLBACK_BOUNDARIES,
+      mutatesOperatingSystem: true, nativeWindowsAdapterImplemented: true, sqliteCheckpointCoordinatorImplemented: true })
+      : LOCAL_CLIENT_POP_SNAPSHOT_ROLLBACK_BOUNDARIES; },
   });
   const localClientExecutionPreview = createLocalClientExecutionPreview({
     routePlanStore: localClientRoutePlanStore,
@@ -916,10 +1171,15 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
     repoRoot,
     workforceService,
     workforceExecutor,
+    taijiCapabilityService,
   });
 
   return {
     agentGovernance,
+    getAgentLongTaskRuntime,
+    startAgentLongTaskRuntime,
+    closeAgentLongTaskRuntime,
+    taijiCapabilityService,
     agentExecWorkingDirectory,
     auditHashChain: enterpriseGovernanceService.getAuditHashChain(),
     capabilityRouterService,
@@ -1074,6 +1334,7 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
     providerRegistry,
     providerStatementReconciliationService,
     responseSessionStore,
+    imConnectorRuntime: createImConnectorRuntime({ env, gate: externalEffectGate, configuration: imConnectorConfiguration }),
     runtimeEnv: env,
     runtimeCredentialStore,
     requestLogger,
@@ -1119,6 +1380,7 @@ function resolveExternalEffectEnabled(env, localClientOnboardingEnabled = false)
     || localClientOnboardingEnabled === true
     || String(env.AI_GATEWAY_LOCAL_CLIENT_EXECUTION_ENABLED ?? "").trim().toLowerCase() === "true"
     || String(env.AI_GATEWAY_LOCAL_CLIENT_EXECUTION_ENABLED ?? "").trim() === "1"
+    || env.FEISHU_CONNECTOR_MODE === "api"
     || Boolean(String(env.FEISHU_WEBHOOK_URL ?? "").trim())
     || Boolean(String(env.WECOM_WEBHOOK_URL ?? "").trim())
     || hasConfiguredMcpUpstreams(env.MCP_UPSTREAM_SERVERS_JSON);
@@ -1594,148 +1856,6 @@ function createDisabledLocalClientIdempotencyCoordinator() {
   });
 }
 
-function createConfiguredLocalClientPopReplayGuard(env, registryIntegrityKey) {
-  const mode = readLocalClientPopReplayStoreMode(env);
-  if (mode === "memory") return null;
-  if (!(registryIntegrityKey instanceof Uint8Array)) {
-    throw localClientPopReplayConfigError(
-      "INTEGRITY_KEY_REQUIRED",
-      "SQLite PoP replay protection requires authenticated local-client adapter material.",
-    );
-  }
-  const dedicatedKey = createHmac("sha256", registryIntegrityKey)
-    .update("local-client-pop-replay-integrity-key-v1")
-    .digest();
-  try {
-    const maxEntries = readStrictLocalClientPopReplayInteger(
-      env.AI_GATEWAY_LOCAL_CLIENT_POP_REPLAY_MAX_ENTRIES,
-      10_000,
-      1,
-      1_000_000,
-      "AI_GATEWAY_LOCAL_CLIENT_POP_REPLAY_MAX_ENTRIES",
-    );
-    const configuredPerScope = String(
-      env.AI_GATEWAY_LOCAL_CLIENT_POP_REPLAY_MAX_ENTRIES_PER_SCOPE ?? "",
-    ).trim();
-    return createLocalClientSqlitePopReplayGuard({
-      sqlitePath: resolveLocalClientPopReplayPath(
-        env.AI_GATEWAY_LOCAL_CLIENT_POP_REPLAY_SQLITE_PATH,
-      ),
-      hostId: requireLocalClientPopReplayHostId(env.AI_GATEWAY_LOCAL_CLIENT_HOST_ID),
-      integrityKey: dedicatedKey,
-      namespace: readLocalClientPopReplayNamespace(
-        env.AI_GATEWAY_LOCAL_CLIENT_POP_REPLAY_NAMESPACE,
-      ),
-      maxEntries,
-      ...(configuredPerScope
-        ? {
-            maxEntriesPerScope: readStrictLocalClientPopReplayInteger(
-              configuredPerScope,
-              1,
-              1,
-              maxEntries,
-              "AI_GATEWAY_LOCAL_CLIENT_POP_REPLAY_MAX_ENTRIES_PER_SCOPE",
-            ),
-          }
-        : {}),
-      busyTimeoutMs: readStrictLocalClientPopReplayInteger(
-        env.AI_GATEWAY_LOCAL_CLIENT_POP_REPLAY_BUSY_TIMEOUT_MS,
-        5_000,
-        100,
-        30_000,
-        "AI_GATEWAY_LOCAL_CLIENT_POP_REPLAY_BUSY_TIMEOUT_MS",
-      ),
-    });
-  } finally {
-    dedicatedKey.fill(0);
-  }
-}
-
-function readLocalClientPopReplayStoreMode(env) {
-  const mode = String(
-    env.AI_GATEWAY_LOCAL_CLIENT_POP_REPLAY_STORE_MODE ?? "memory",
-  ).trim().toLowerCase();
-  if (mode !== "memory" && mode !== "sqlite") {
-    throw localClientPopReplayConfigError(
-      "STORE_MODE_INVALID",
-      "AI_GATEWAY_LOCAL_CLIENT_POP_REPLAY_STORE_MODE must be memory or sqlite.",
-    );
-  }
-  return mode;
-}
-
-function resolveLocalClientPopReplayPath(value) {
-  const path = String(value ?? "");
-  if (
-    !path.trim()
-    || path !== path.trim()
-    || path.length > 4_096
-    || path === ":memory:"
-    || path.startsWith("\\\\")
-    || path.startsWith("//")
-    || /[\u0000-\u001f\u007f]/u.test(path)
-  ) {
-    throw localClientPopReplayConfigError(
-      "SQLITE_PATH_REQUIRED",
-      "SQLite PoP replay protection requires an explicit bounded local database path.",
-    );
-  }
-  const absolute = resolve(repoRoot, path);
-  if (absolute.startsWith("\\\\") || absolute.startsWith("//")) {
-    throw localClientPopReplayConfigError(
-      "SQLITE_PATH_INVALID",
-      "The PoP replay SQLite path must remain on this host.",
-    );
-  }
-  return absolute;
-}
-
-function requireLocalClientPopReplayHostId(value) {
-  const hostId = String(value ?? "").trim();
-  if (
-    hostId.length < 8
-    || hostId.length > 256
-    || /[\u0000-\u001f\u007f]/u.test(hostId)
-  ) {
-    throw localClientPopReplayConfigError(
-      "HOST_ID_REQUIRED",
-      "SQLite PoP replay protection requires AI_GATEWAY_LOCAL_CLIENT_HOST_ID.",
-    );
-  }
-  return hostId;
-}
-
-function readLocalClientPopReplayNamespace(value) {
-  const namespace = String(value ?? "local-client-pop-replay").trim();
-  if (!/^[a-z][a-z0-9._-]{0,127}$/u.test(namespace)) {
-    throw localClientPopReplayConfigError(
-      "CONFIG_INVALID",
-      "AI_GATEWAY_LOCAL_CLIENT_POP_REPLAY_NAMESPACE must be a portable identifier.",
-    );
-  }
-  return namespace;
-}
-
-function readStrictLocalClientPopReplayInteger(value, fallback, minimum, maximum, name) {
-  if (value === undefined || value === null || String(value).trim() === "") return fallback;
-  const normalized = String(value).trim();
-  if (!/^(?:0|[1-9][0-9]*)$/u.test(normalized)) {
-    throw localClientPopReplayConfigError("CONFIG_INVALID", `${name} must be a bounded integer.`);
-  }
-  const parsed = Number(normalized);
-  if (!Number.isSafeInteger(parsed) || parsed < minimum || parsed > maximum) {
-    throw localClientPopReplayConfigError("CONFIG_INVALID", `${name} must be a bounded integer.`);
-  }
-  return parsed;
-}
-
-function localClientPopReplayConfigError(reason, message) {
-  return Object.assign(new Error(message), {
-    code: `LOCAL_CLIENT_POP_REPLAY_${reason}`,
-    category: "configuration",
-    statusCode: 503,
-  });
-}
 
 function createConfiguredLocalClientReceiptJournal({
   env,
@@ -2829,7 +2949,7 @@ function registerConfiguredLocalClientAdapters(registry, env) {
     for (const binding of receiptJournalBindings) {
       void binding.journal.close().catch(() => undefined);
     }
-    try { popReplayGuard?.close?.(); } catch { /* Preserve startup failure. */ }
+    if (popReplayGuard?.close) void Promise.resolve().then(() => popReplayGuard.close()).catch(() => undefined);
     throw error;
   } finally {
     registrySecret.fill(0);
@@ -2837,6 +2957,8 @@ function registerConfiguredLocalClientAdapters(registry, env) {
 }
 
 function createNonOwningLocalClientPopReplayGuardPort(guard) {
+  const nativePort = createNonOwningNativePopReplayGuardPort(guard);
+  if (nativePort) return nativePort;
   return Object.freeze({
     get status() {
       return guard.status;
@@ -2907,6 +3029,16 @@ function createLocalClientPopAuthorityRegistry(rawBindings, ownedReplayGuard = n
     },
     hasBinding(tenantId, clientId) {
       return !closed && bindings.has(`${tenantId ?? ""}\0${clientId ?? ""}`);
+    },
+    async prepareReplayProtection({ tenantId, clientId }) {
+      if (closed || !bindings.has(`${tenantId ?? ""}\0${clientId ?? ""}`)) throw localClientPopUnavailableError();
+      return isLocalClientNativePopReplayRuntime(ownedReplayGuard)
+        ? prepareLocalClientNativePopReplayRuntime(ownedReplayGuard) : true;
+    },
+    get nativeReplayProtection() {
+      if (!isLocalClientNativePopReplayRuntime(ownedReplayGuard)) return null;
+      const status = ownedReplayGuard.status;
+      return Object.freeze({ ready: !closed && status.available === true && status.snapshotRollbackProtected === true });
     },
     async close() {
       if (closed) return;
@@ -3875,7 +4007,10 @@ function validateLocalClientOnboardingGovernanceConfiguration(env, configuration
   const onboardingRootKey = materializeLocalClientOnboardingRootKey(env);
   onboardingRootKey.fill(0);
   const allStorePaths = governancePaths.map((path) => path.toLowerCase());
-  for (const profile of Object.values(configuration.registryOptions.profiles)) {
+  const profiles = configuration.registryOptions.version === 2
+    ? configuration.registryOptions.profiles.map((entry) => entry.paths)
+    : Object.values(configuration.registryOptions.profiles);
+  for (const profile of profiles) {
     const targetPath = resolve(profile.targetPath).toLowerCase();
     const journalPath = resolve(profile.journalPath).toLowerCase();
     const backupDir = resolve(profile.backupDir).toLowerCase();
@@ -3898,7 +4033,10 @@ function assertLocalClientOnboardingPathGraph(configuration, governancePaths) {
     localClientOnboardingPathFact(path, `governance:${index}`)
   ));
   const backupDirectories = [];
-  for (const [profileName, profile] of Object.entries(configuration.registryOptions.profiles)) {
+  const profiles = configuration.registryOptions.version === 2
+    ? configuration.registryOptions.profiles.map((entry) => [entry.profileId, entry.paths])
+    : Object.entries(configuration.registryOptions.profiles);
+  for (const [profileName, profile] of profiles) {
     exclusiveFiles.push(
       localClientOnboardingPathFact(profile.targetPath, `${profileName}:target`),
       localClientOnboardingPathFact(profile.journalPath, `${profileName}:journal`),
@@ -4001,8 +4139,8 @@ function sameLocalClientOnboardingPathFact(left, right) {
 }
 
 function localClientOnboardingPathContains(parentPath, candidatePath) {
-  const suffix = candidatePath.slice(parentPath.length);
-  return suffix.startsWith(sep);
+  const prefix = parentPath.endsWith(sep) ? parentPath : `${parentPath}${sep}`;
+  return candidatePath.startsWith(prefix);
 }
 
 function readStrictLocalClientOnboardingBoolean(value, fallback) {

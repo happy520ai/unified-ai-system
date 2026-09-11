@@ -11,7 +11,7 @@
  *   const handlers = createForgeRouteHandlers({ forge, agentPool, ... });
  */
 
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { TaskStore } from './task-store/index.js';
 import { compileGoal } from './goal-compiler/index.js';
@@ -78,8 +78,8 @@ export class Forge {
       );
     }
 
-    // Ensure .forge directory exists
-    mkdirSync(join(projectRoot, '.forge'), { recursive: true });
+    // An externally owned database must not create an unapproved project directory.
+    if (this.#dbPath !== ':memory:') mkdirSync(dirname(this.#dbPath), { recursive: true });
 
     this.#store = new TaskStore(this.#dbPath);
 
@@ -175,6 +175,7 @@ export class Forge {
       goalText,
       projectRoot: this.#projectRoot,
       skipCodebaseProbe: governanceRequired,
+      webTask: governedExecution?.webTask,
       signal,
     });
     throwIfForgeAborted(signal);
@@ -199,6 +200,11 @@ export class Forge {
     });
 
     const report = await orchestrator.execute(goalId, { signal });
+    if (governedExecution?.webTask) {
+      report.web = governedExecution.webTask.getResult();
+      report.budget = { ...report.budget, tokensUsed: report.web?.tokenUsage?.totalTokens ?? null,
+        costIncurred: null, costStatus: 'not_reported' };
+    }
 
     // P10: Finalize progress
     if (this.#progressReporter) {
@@ -212,7 +218,7 @@ export class Forge {
     console.log(`  Tasks: ${report.completedTasks} completed, ${report.failedTasks} failed`);
     console.log(`  Time:  ${report.durationHuman}`);
     if (report.budget) {
-      console.log(`  Budget: ${report.budget.tokensUsed} tokens, $${(report.budget.costIncurred || 0).toFixed(4)}`);
+      console.log(`  Budget: ${report.budget.tokensUsed ?? 'unknown'} tokens, cost ${Number.isFinite(report.budget.costIncurred) ? '$' + report.budget.costIncurred.toFixed(4) : 'unknown'}`);
     }
     console.log(`${'─'.repeat(60)}\n`);
 

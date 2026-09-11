@@ -5,6 +5,7 @@
  */
 
 import { buildTool, createInputSchema } from "./toolCore.js";
+import { createIsolatedCodeRunner } from "./codeRunIsolation.ts";
 import { safeOutboundFetch } from "../security/safeOutboundFetch.ts";
 
 /**
@@ -162,154 +163,25 @@ export const webFetchTool = buildTool({
   },
 });
 
-export const codeRunTool = buildTool({
-  name: "code_run",
-  description: "执行 JavaScript/Node.js 代码片段。需要 code:run 权限。在沙箱环境中执行。",
-  inputSchema: createInputSchema(
-    {
-      code: {
-        type: "string",
-        description: "要执行的 JavaScript 代码",
-      },
-      timeout_ms: {
-        type: "integer",
-        description: "超时时间（毫秒），默认 10000",
-      },
-    },
-    ["code"]
-  ),
-  requiredPermissions: ["code:run"],
-  isReadOnly: false,
-  async execute(params, _context) {
-    const { code, timeout_ms = 30000 } = params;
-    const ALLOWED_MODULES = [
-      "node:crypto", "node:buffer", "node:util",
-      "node:url", "node:path", "node:querystring",
-    ];
-    const BLOCKED_GLOBALS = [
-      "process", "global", "globalThis", "root",
-      "GLOBAL", "Buffer", "__dirname", "__filename",
-    ];
+export function createCodeRunTool(options) {
+  const execute = createIsolatedCodeRunner(options);
+  return {
+    ...buildTool({
+      name: "code_run",
+      description: "在显式配置的隔离容器中执行 JavaScript。需要 code:run 权限；未配置隔离后端时拒绝执行。无网络、无项目文件挂载，不在宿主进程运行代码。",
+      inputSchema: createInputSchema({
+        code: { type: "string", description: "JavaScript 函数体，最多 65536 UTF-8 字节" },
+        timeout_ms: { type: "integer", description: "代码执行超时，1-30000 毫秒，默认 10000；另需等待有界容器准备与清理" },
+      }, ["code"]),
+      requiredPermissions: ["code:run"],
+      isReadOnly: false,
+      execute,
+    }),
+    execute,
+    // Allow bounded engine attestation/create/kill/remove to finish before the
+    // generic registry timeout; the snippet itself remains capped at 30s.
+    executionTimeoutMs: 180000,
+  };
+}
 
-    try {
-      // ---- 1. Sandbox setup: allowlisted require + minimal safe globals ----
-      const sandbox = Object.create(null);
-
-      // Safe require: only allowlisted built-in modules, returns a Promise
-      sandbox.require = function safeRequire(mod) {
-        if (ALLOWED_MODULES.includes(mod)) {
-          return import(mod);
-        }
-        throw new Error(`模块 ${mod} 不在允许列表中`);
-      };
-
-      // console with safe stubs (no access to underlying streams)
-      const logs = [];
-      sandbox.console = {
-        log: (...a) => logs.push({ level: "log", args: a.map(String) }),
-        warn: (...a) => logs.push({ level: "warn", args: a.map(String) }),
-        error: (...a) => logs.push({ level: "error", args: a.map(String) }),
-        info: (...a) => logs.push({ level: "info", args: a.map(String) }),
-      };
-
-      // Basic constructors only — no access to Function/eval/AsyncFunction
-      sandbox.Object = Object;
-      sandbox.Array = Array;
-      sandbox.String = String;
-      sandbox.Number = Number;
-      sandbox.Boolean = Boolean;
-      sandbox.RegExp = RegExp;
-      sandbox.Date = Date;
-      sandbox.Math = Math;
-      sandbox.JSON = JSON;
-      sandbox.Map = Map;
-      sandbox.Set = Set;
-      sandbox.WeakMap = WeakMap;
-      sandbox.WeakSet = WeakSet;
-      sandbox.Promise = Promise;
-      sandbox.Error = Error;
-      sandbox.TypeError = TypeError;
-      sandbox.RangeError = RangeError;
-      sandbox.SyntaxError = SyntaxError;
-      sandbox.parseInt = parseInt;
-      sandbox.parseFloat = parseFloat;
-      sandbox.isNaN = isNaN;
-      sandbox.isFinite = isFinite;
-      sandbox.undefined = undefined;
-      sandbox.NaN = NaN;
-      sandbox.Infinity = Infinity;
-      sandbox.setTimeout = setTimeout;
-      sandbox.clearTimeout = clearTimeout;
-      sandbox.URL = URL;
-      sandbox.URLSearchParams = URLSearchParams;
-      sandbox.TextEncoder = TextEncoder;
-      sandbox.TextDecoder = TextDecoder;
-
-      // ---- 2. Escape detection: throw if blocked globals are accessed ----
-      for (const name of BLOCKED_GLOBALS) {
-        Object.defineProperty(sandbox, name, {
-          get() {
-            throw new Error(`沙箱逃逸尝试: 访问了被禁止的全局变量 "${name}"`);
-          },
-          configurable: false,
-        });
-      }
-
-      // ---- 3. Compile in sandboxed context ----
-      const context = vm.createContext(sandbox, {
-        codeGeneration: { strings: false, wasm: false },
-      });
-
-      const script = new vm.Script(
-        `(async function() { ${code} })()`,
-        { filename: "code_run_sandbox.js", timeout: timeout_ms },
-      );
-
-      // ---- 4. Execute with memory tracking ----
-      const memBefore = process.memoryUsage();
-      let rawResult;
-      try {
-        rawResult = script.runInContext(context, { timeout: timeout_ms });
-      } catch (err) {
-        // Re-throw escape/memory errors; wrap other compile/runtime errors
-        if (err.message?.includes("沙箱逃逸")) throw err;
-        throw new Error(`沙箱编译/执行错误: ${err.message}`);
-      }
-
-      // ---- 5. Handle async results with timeout race ----
-      let result;
-      if (rawResult && typeof rawResult.then === "function") {
-        result = await Promise.race([
-          rawResult,
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("执行超时")), timeout_ms),
-          ),
-        ]);
-      } else {
-        result = rawResult;
-      }
-
-      const memAfter = process.memoryUsage();
-      const heapDeltaBytes = memAfter.heapUsed - memBefore.heapUsed;
-
-      return {
-        status: "success",
-        result: result !== undefined ? String(result) : "undefined",
-        logs: logs.length > 0 ? logs : undefined,
-        sandbox: "vm-context",
-        memory: {
-          heapDeltaBytes,
-          heapUsedBytes: memAfter.heapUsed,
-        },
-      };
-    } catch (err) {
-      if (err.message?.includes("沙箱逃逸")) {
-        return { status: "error", error: err.message, sandboxEscape: true };
-      }
-      if (err.message === "执行超时") {
-        return { status: "error", error: `执行超时（${timeout_ms}ms）` };
-      }
-      return { status: "error", error: err.message };
-    }
-  },
-});
+export const codeRunTool = createCodeRunTool();

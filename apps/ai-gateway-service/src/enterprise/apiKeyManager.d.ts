@@ -27,6 +27,7 @@ export interface ApiKeyBudgetDescription {
   budgetEnabled: boolean;
   rateLimitEnabled: boolean;
   requestCount: number;
+  rateRequestCount?: number;
   limitTokens?: number;
   windowMs?: number;
   softThreshold?: number;
@@ -66,6 +67,7 @@ export interface ApiKeyManager {
   revoke(input?: { keyId?: string; key?: string; keyHash?: string }): { revoked: boolean; record: ApiKeyPublicRecord | null };
   validate(key: unknown): { valid: boolean; record: ApiKeyPublicRecord | null; error?: string };
   authorizeUsage(input?: { keyId?: string; key?: string; keyHash?: string; estimatedTokens?: number }): ApiKeyAuthorizationResult;
+  checkContinuation(input?: { keyId?: string; estimatedTokens?: number }): ApiKeyAuthorizationResult;
   recordUsage(input?: { keyId?: string; key?: string; keyHash?: string; tokens?: number }): {
     recorded: boolean;
     budget: ApiKeyBudgetDescription | null;

@@ -69,6 +69,44 @@ shape used by the HTTP adapter and add a test for it. A provider does not gain
 verified streaming support merely because its catalog entry lists a chat
 model.
 
+## HTTP Adapter Attempt Budget
+
+The existing `HttpLLMProviderAdapter` option/model setting `maxRetries` counts
+**total attempts, including the first request**, despite its historical name.
+`1` means one request and no retries; `2` permits at most one retry. An explicit
+option takes precedence over the model setting; when both are absent, the
+existing default remains three total attempts. A successful first response
+stops the loop immediately, and non-retryable errors still stop it early.
+
+Before JSON or streaming transport dispatch, the adapter rejects zero,
+negative, fractional, non-finite, unsafe-integer and non-number values with
+`<PROVIDER>_RETRY_CONFIG_INVALID` (`type: configuration`, `retryable: false`).
+Use `1`, not `0`, to disable retries. Invalid values are not silently clamped
+or converted into extra requests, and the error never echoes their raw value.
+This validation preserves all valid positive attempt budgets, their
+option/model precedence, and existing gateway routing and authorization.
+It does not redefine similarly named settings in other modules.
+
+### Language Selection: HTTP Retry Validation
+
+- **Workload:** Validate the existing adapter's attempt budget before either
+  transport can run, without changing request counts for valid configurations.
+- **Primary path:** `httpLlmProviderAdapter.js` and its existing Vitest suite.
+- **Alternatives:** A new TypeScript configuration module offers typed inputs
+  but adds a one-use abstraction; TypeScript alone would still require the same
+  runtime numeric validation. Replacing the adapter or adding a service has no
+  measured benefit for this local defect.
+- **Chosen language:** Keep this bounded check in the existing Node ESM module
+  (domain fit 5/5, maintenance 5/5 versus a new TypeScript helper 5/5 and 3/5).
+  No new runtime module, dependency or persistence format is introduced.
+- **Compatibility/rollback:** Positive budgets retain their existing total
+  attempt semantics; formerly invalid settings now fail with a usable error.
+  Rollback removes only this validation. Fake-provider defaults and valid
+  Provider routing, budgets and retry delays remain unchanged.
+- **Verification:** Mocked JSON/SSE transports cover invalid option/model
+  settings, no dispatch on rejection, immediate success, exhaustion at exact
+  budgets, second-attempt success, and default/model/option precedence.
+
 ## Add Catalog And Configuration Carefully
 
 Add a model entry to `DEFAULT_RUNTIME_CONFIG` only when the gateway can build

@@ -33,6 +33,7 @@ export function createSqliteStoreBackend(dbPath) {
   const deleteAll = db.prepare("DELETE FROM plans");
   const insert = db.prepare("INSERT INTO plans (plan_id, data) VALUES (?, ?)");
   const upsertStmt = db.prepare("INSERT OR REPLACE INTO plans (plan_id, data) VALUES (?, ?)");
+  const insertOnceStmt = db.prepare("INSERT INTO plans (plan_id, data) VALUES (?, ?) ON CONFLICT(plan_id) DO NOTHING");
   const deleteOne = db.prepare("DELETE FROM plans WHERE plan_id = ?");
   const getOne = db.prepare("SELECT data FROM plans WHERE plan_id = ?");
 
@@ -70,6 +71,11 @@ export function createSqliteStoreBackend(dbPath) {
     return deleteOne.run(planId).changes > 0;
   }
 
+  function insertOnce(plan) {
+    const inserted = insertOnceStmt.run(plan.planId, JSON.stringify(plan)).changes > 0;
+    return { inserted, plan: get(plan.planId) };
+  }
+
   function get(planId) {
     const row = getOne.get(planId);
     return row ? JSON.parse(row.data) : null;
@@ -83,6 +89,7 @@ export function createSqliteStoreBackend(dbPath) {
     readStore,
     writeStore,
     upsert,
+    insertOnce,
     remove,
     get,
     listPlans,

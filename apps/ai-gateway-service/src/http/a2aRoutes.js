@@ -16,6 +16,9 @@ import {
   A2A_JWKS_PATH,
 } from "./a2aGateway.js";
 import { readJson } from "./utils/responseUtils.js";
+import { bindA2AGatewayCall, releaseA2AGatewayCall } from "./a2aGatewayExecution.ts";
+import { authenticateManagedLocalClientProtocolRequest, resolveManagedLocalClientProviderRoute, applyManagedLocalClientProviderRoute } from "./openAiCompatibilityRoutes.js";
+import { createExecutionAbortError, EXECUTION_ABORT_CODES, throwIfExecutionAborted } from "@unified-ai-system/shared-utils";
 
 function writeA2AJson(response, statusCode, body, headers = {}) {
   response.writeHead(statusCode, {
@@ -57,6 +60,8 @@ export async function dispatchA2ARoutes(context) {
     url,
     writeServiceLog,
     startedAt,
+    requestExecution,
+    application,
   } = context;
 
   if (request.method === "GET" && url.pathname === A2A_JWKS_PATH) {
@@ -109,16 +114,56 @@ export async function dispatchA2ARoutes(context) {
     return;
   }
 
+  let identity = request.enterpriseIdentity;
+  let managedCall;
+  const clientId = body?.params?.metadata?.unifiedAi?.localClientId;
+  const serverBinding = application?.localClientProtocolPrincipalResolver?.resolve?.(identity);
+  if (serverBinding || identity?.role === "local_client" || identity?.managedClientId
+    || clientId !== undefined || request.headers?.["x-ai-gateway-local-client-proof"] !== undefined) {
+    try {
+      assertManagedA2AMethod(body);
+      if (!serverBinding || identity?.role !== "local_client") throw Object.assign(new Error("Managed A2A principal is not authorized."), {
+        code: "LOCAL_CLIENT_POP_HTTP_UNAUTHORIZED", statusCode: 401,
+      });
+      const principal = await authenticateManagedLocalClientProtocolRequest({ application, request, url,
+        requestBody: { unified_ai: { local_client_id: clientId } } });
+      if (!principal) throw Object.assign(new Error("Managed A2A principal is not authorized."), { code: "LOCAL_CLIENT_POP_HTTP_UNAUTHORIZED", statusCode: 401 });
+      throwIfExecutionAborted(requestExecution?.signal);
+      if (Math.min(requestExecution?.deadlineAt ?? Infinity, principal.expiresAtMs) <= Date.now()) {
+        throw createExecutionAbortError(EXECUTION_ABORT_CODES.GATEWAY_DEADLINE_EXCEEDED, "Managed A2A admission expired.", { retryable: false });
+      }
+      identity = Object.freeze({ ...identity, tenantId: principal.identity.tenantId, userId: principal.identity.subjectId,
+        subject: principal.identity.subjectId, managedClientId: principal.identity.clientId });
+      managedCall = Object.freeze({ expiresAtMs: principal.expiresAtMs,
+        prepareGatewayInput: async (input, signal) => {
+          const route = await resolveManagedLocalClientProviderRoute({ application, principal, gatewayInput: input });
+          throwIfExecutionAborted(signal);
+          response.setHeader("X-AI-Gateway-Local-Client-Routing", "policy-pinned");
+          response.setHeader("X-AI-Gateway-Local-Client-Policy-Revision", route.policyRevision);
+          response.setHeader("X-AI-Gateway-Local-Client-Revision", String(principal.identity.clientRevision));
+          response.setHeader("X-AI-Gateway-Local-Client-Decision-Digest", route.decisionDigest);
+          return applyManagedLocalClientProviderRoute(input, route);
+        },
+      });
+    } catch (error) {
+      writeA2AJson(response, error.statusCode ?? error.status ?? 403, { jsonrpc: "2.0",
+        id: typeof body?.id === "string" || typeof body?.id === "number" ? body.id : null,
+        error: { code: -32001, message: "Managed A2A request authorization failed.", data: { code: error.code ?? "LOCAL_CLIENT_POP_HTTP_UNAUTHORIZED" } } });
+      return;
+    }
+  }
+
   // 未带版本头的请求按网关自身协议版本处理（agentCard 为 1.0）。
   const requestedVersion = request.headers[A2A_VERSION_HEADER.toLowerCase()] ?? A2A_PROTOCOL_VERSION;
   const serverContext = new ServerCallContext({
     requestedVersion: String(requestedVersion),
-    user: requestUser(request),
-    tenant: request.enterpriseIdentity?.tenantId ?? "default",
+    user: requestUser({ enterpriseIdentity: identity }),
+    tenant: identity?.tenantId ?? "default",
     state: new Map([["headers", request.headers]]),
   });
   let result;
   try {
+    bindA2AGatewayCall(serverContext, identity, requestExecution, managedCall);
     validateVersion(serverContext.requestedVersion, a2aGateway.agentCard, "JSONRPC");
     result = await a2aGateway.transportHandler.handle(body, serverContext);
   } catch (error) {
@@ -127,7 +172,7 @@ export async function dispatchA2ARoutes(context) {
       id: body?.id ?? null,
       error: JsonRpcTransportHandler.mapToJSONRPCError(error),
     };
-  }
+  } finally { releaseA2AGatewayCall(serverContext); }
 
   if (result && typeof result[Symbol.asyncIterator] === "function") {
     // A2A 流式：JSON-RPC 响应按规范作为 SSE data 事件透传（content-type
@@ -169,4 +214,19 @@ export async function dispatchA2ARoutes(context) {
     durationMs: Date.now() - startedAt,
   });
   writeA2AJson(response, 200, result);
+}
+
+function assertManagedA2AMethod(body) {
+  const params = body?.params;
+  const configuration = params?.configuration;
+  const executionMode = params?.metadata?.unifiedAi?.executionMode;
+  if (!body || Array.isArray(body) || body.jsonrpc !== "2.0" || body.method !== "SendMessage"
+    || !params || typeof params !== "object" || Array.isArray(params)
+    || (configuration !== undefined && (!configuration || typeof configuration !== "object" || Array.isArray(configuration)
+      || (configuration.returnImmediately !== undefined && configuration.returnImmediately !== false)))
+    || (executionMode !== undefined && executionMode !== "fake-provider")) {
+    throw Object.assign(new Error("Managed A2A permits blocking SendMessage fake chat only."), {
+      code: "LOCAL_CLIENT_A2A_METHOD_UNSUPPORTED", statusCode: 403,
+    });
+  }
 }

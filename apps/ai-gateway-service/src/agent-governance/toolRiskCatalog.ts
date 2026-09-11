@@ -28,6 +28,10 @@ function descriptor(input: {
 }
 
 const BUILT_IN_TOOL_DESCRIPTORS: ToolGovernanceDescriptor[] = [
+  descriptor({ name: "taiji_inspect", actionType: "read", riskTraits: [], riskLevel: "low", defaultDecision: "allow",
+    description: "Read owned Taiji candidates or recorded results with record metering." }),
+  descriptor({ name: "taiji_capability", actionType: "write", riskTraits: ["write_capable"], riskLevel: "medium", defaultDecision: "require_approval",
+    description: "Evaluate, activate, or invoke a fixed local Taiji data adapter with a complete one-shot operator review; never accepts executable code." }),
   descriptor({ name: "file_read", actionType: "read", riskTraits: [], riskLevel: "low", defaultDecision: "allow" }),
   descriptor({ name: "glob", actionType: "read", riskTraits: [], riskLevel: "low", defaultDecision: "allow" }),
   descriptor({ name: "grep", actionType: "read", riskTraits: [], riskLevel: "low", defaultDecision: "allow" }),
@@ -36,8 +40,19 @@ const BUILT_IN_TOOL_DESCRIPTORS: ToolGovernanceDescriptor[] = [
   descriptor({ name: "file_insert", actionType: "write", riskTraits: ["write_capable"], riskLevel: "medium", defaultDecision: "allow" }),
   descriptor({ name: "shell_exec", actionType: "write", riskTraits: ["code_execution", "destructive_operation"], riskLevel: "critical", defaultDecision: "deny" }),
   descriptor({ name: "code_run", actionType: "write", riskTraits: ["code_execution"], riskLevel: "critical", defaultDecision: "deny" }),
+  Object.freeze({ ...descriptor({ name: "workforce_verify_snapshot", actionType: "write", riskTraits: ["code_execution"],
+    riskLevel: "critical", defaultDecision: "allow",
+    description: "Server-only validation of an approved Workforce exact-file snapshot; requires its private one-shot capability." }),
+    riskTraits: Object.freeze(["code_execution"]) as unknown as ToolGovernanceDescriptor["riskTraits"] }),
+  Object.freeze({ ...descriptor({ name: "workforce_external_runner_recover", actionType: "write", riskTraits: ["code_execution"],
+    riskLevel: "critical", defaultDecision: "allow",
+    description: "Reconcile the original native task through its read-only observer and independently governed immutable snapshot verification; requires explicit effective policy permission and never submits a new native turn." }),
+    riskTraits: Object.freeze(["code_execution"]) as unknown as ToolGovernanceDescriptor["riskTraits"] }),
   descriptor({ name: "web_fetch", actionType: "read", riskTraits: ["external_communication"], riskLevel: "medium", defaultDecision: "allow" }),
   descriptor({ name: "web_search", actionType: "read", riskTraits: ["external_communication"], riskLevel: "low", defaultDecision: "allow" }),
+  descriptor({ name: "browser_navigate", actionType: "read", riskTraits: ["external_communication"], riskLevel: "medium", defaultDecision: "allow", description: "Navigate within a server-owned approved local web profile." }),
+  descriptor({ name: "browser_observe", actionType: "read", riskTraits: [], riskLevel: "low", defaultDecision: "allow", description: "Read bounded registered controls or verify a webpage goal." }),
+  descriptor({ name: "browser_interact", actionType: "write", riskTraits: ["external_communication", "write_capable"], riskLevel: "high", defaultDecision: "allow", description: "Perform an exact approved profile interaction; this descriptor alone grants no browser executor." }),
   descriptor({ name: "image_analyze", actionType: "read", riskTraits: [], riskLevel: "low", defaultDecision: "allow" }),
   descriptor({ name: "image_read", actionType: "read", riskTraits: [], riskLevel: "low", defaultDecision: "allow" }),
   descriptor({ name: "semantic_search", actionType: "read", riskTraits: [], riskLevel: "low", defaultDecision: "allow" }),
@@ -88,11 +103,18 @@ export interface ToolRiskCatalog {
 
 export function createToolRiskCatalog(options: { extra?: ToolGovernanceDescriptor[] } = {}): ToolRiskCatalog {
   const byName = new Map<string, ToolGovernanceDescriptor>();
-  for (const item of [...BUILT_IN_TOOL_DESCRIPTORS, ...(options.extra ?? [])]) {
+  for (const item of BUILT_IN_TOOL_DESCRIPTORS) {
+    byName.set(item.name, item);
+  }
+  const reservedWorkforce = (name: string) => ["workforce_verify_snapshot", "workforce_external_runner_recover"]
+    .some(fixed => name === fixed || name.startsWith(fixed + ":"));
+  for (const item of options.extra ?? []) {
+    if (reservedWorkforce(item.name)) throw new Error("The Workforce validation and original recovery tools are server-owned and cannot be replaced.");
     byName.set(item.name, item);
   }
   return {
     lookup(toolName: string) {
+      if (toolName.includes(":") && reservedWorkforce(toolName)) return null;
       const direct = byName.get(toolName);
       if (direct) return direct;
       // Namespaced tools (mcp:<server>:<tool> and similar) inherit the
@@ -106,6 +128,7 @@ export function createToolRiskCatalog(options: { extra?: ToolGovernanceDescripto
       return null;
     },
     register(input: ToolGovernanceDescriptor) {
+      if (reservedWorkforce(input.name)) throw new Error("The Workforce validation and original recovery tools are server-owned and cannot be replaced.");
       byName.set(input.name, input);
     },
     asMap() {

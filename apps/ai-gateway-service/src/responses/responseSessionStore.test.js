@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_RESPONSE_SESSION_MAX_ENTRIES,
   MAX_SESSION_CONTEXT_MESSAGES,
+  bindResponseSessionStore,
   createResponseSessionStore,
   isResponseId,
 } from "./responseSessionStore.js";
@@ -17,6 +18,57 @@ function createFakeClock(start = 1_000_000) {
 }
 
 describe("responseSessionStore", () => {
+  it("captures authenticated identity and isolates key callers from users and anonymous preview", () => {
+    const store = createResponseSessionStore({});
+    const identity = { tenantId: "tenant-a", userId: "alice", apiKeyFingerprint: "a".repeat(64) };
+    const keyA = bindResponseSessionStore(store, identity);
+    keyA.set({ responseId: "resp_identity", assistantOutput: "Key A" });
+    identity.apiKeyFingerprint = "b".repeat(64);
+    expect(keyA.get("resp_identity")?.assistantOutput).toBe("Key A");
+    expect(bindResponseSessionStore(store, identity).get("resp_identity")).toBeNull();
+    expect(bindResponseSessionStore(store, { tenantId: "tenant-a", userId: "alice" }).get("resp_identity")).toBeNull();
+    expect(bindResponseSessionStore(store, null).get("resp_identity")).toBeNull();
+    const sameKey = bindResponseSessionStore(store, { tenantId: "tenant-a", userId: "changed-display-id", apiKeyFingerprint: "a".repeat(64) });
+    expect(sameKey.get("resp_identity")?.assistantOutput).toBe("Key A");
+  });
+
+  it("does not fall back to the anonymous scope for an incomplete authenticated identity", () => {
+    const store = createResponseSessionStore({});
+    store.set({ responseId: "resp_preview", assistantOutput: "Preview" });
+    const incomplete = bindResponseSessionStore(store, { tenantId: "tenant-a" });
+    expect(incomplete.enabled).toBe(false);
+    expect(incomplete.get("resp_preview")).toBeNull();
+    expect(incomplete.delete("resp_preview")).toBe(false);
+    expect(incomplete.set({ responseId: "resp_new" }).stored).toBe(false);
+    expect(store.size()).toBe(1);
+    expect(() => store.set({ responseId: "resp_invalid" }, {})).toThrow(expect.objectContaining({ code: "RESPONSE_SESSION_SCOPE_INVALID" }));
+    expect(store.size()).toBe(1);
+  });
+
+  it("keeps identical response ids distinct for authenticated tenant and owner scopes", () => {
+    const store = createResponseSessionStore({});
+    const alice = { tenantId: "tenant-a", subjectId: "user:alice" };
+    const bob = { tenantId: "tenant-a", subjectId: "user:bob" };
+    const otherTenant = { tenantId: "tenant-b", subjectId: "user:alice" };
+    store.set({ responseId: "resp_shared", assistantOutput: "Alice" }, alice);
+    store.set({ responseId: "resp_shared", assistantOutput: "Bob" }, bob);
+    expect(store.get("resp_shared", alice)?.assistantOutput).toBe("Alice");
+    expect(store.get("resp_shared", bob)?.assistantOutput).toBe("Bob");
+    expect(store.get("resp_shared", otherTenant)).toBeNull();
+    expect(store.get("resp_shared")).toBeNull();
+    expect(store.size()).toBe(2);
+  });
+
+  it("does not let another scope delete an owner's response", () => {
+    const store = createResponseSessionStore({});
+    const owner = { tenantId: "tenant-a", subjectId: "user:alice" };
+    store.set({ responseId: "resp_owned", assistantOutput: "Owned" }, owner);
+    expect(store.delete("resp_owned", { tenantId: "tenant-b", subjectId: "user:alice" })).toBe(false);
+    expect(store.delete("resp_owned")).toBe(false);
+    expect(store.get("resp_owned", owner)?.assistantOutput).toBe("Owned");
+    expect(store.delete("resp_owned", owner)).toBe(true);
+  });
+
   it("stores and restores response session context", () => {
     const store = createResponseSessionStore({ ttlMs: 60_000, now: () => 1 });
     const { responseId } = store.set({

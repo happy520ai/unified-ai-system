@@ -1,9 +1,7 @@
 name: Security Scan
 
-# Advisory dependency-vulnerability scanning and SBOM generation.
-# Blocking CI on these scans starts only after the first triage baseline
-# exists (ROADMAP v0.7.0, item 4); until then findings are visible
-# artifacts, not release gates.
+# Blocking lockfile scan and complete SPDX inventory. The reviewed baseline and
+# exact, expiring CDN exceptions are documented in docs/security/dependency-baseline.md.
 
 on:
   push:
@@ -11,39 +9,46 @@ on:
   pull_request:
     branches: [master, main]
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
 
 jobs:
   dependency-vulnerability-scan:
-    name: OSV dependency scan (advisory)
+    name: Dependency vulnerability gate and SPDX inventory
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "22"
+          package-manager-cache: false
+      - name: Install the locked parser dependencies without lifecycle scripts
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.19.0 --activate
+          pnpm install --frozen-lockfile --ignore-scripts
       # The v2.5.1 GitHub action ships as reusable workflows / a metadata-only
       # root action.yml, so install the pinned release binary directly.
       # Version and SHA256 are pinned from the official v2.5.1 release assets.
       - name: Install pinned osv-scanner v2.5.1
         run: |
-          curl -sSL -o /usr/local/bin/osv-scanner "https://github.com/google/osv-scanner/releases/download/v2.5.1/osv-scanner_linux_amd64"
+          curl --fail --silent --show-error --location -o /usr/local/bin/osv-scanner "https://github.com/google/osv-scanner/releases/download/v2.5.1/osv-scanner_linux_amd64"
           echo "f9f25499a2c8cc367b3af45df2ea7eeca7fbccceab9c35079968f4b3652194be  /usr/local/bin/osv-scanner" | sha256sum -c -
           chmod +x /usr/local/bin/osv-scanner
           osv-scanner --version
-      - name: Scan repository for known vulnerabilities
-        # Advisory until the first triage baseline exists; see the header.
-        continue-on-error: true
-        run: osv-scanner --recursive ./
-
-  sbom:
-    name: SPDX SBOM artifact
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: Generate SPDX JSON SBOM
-        uses: anchore/sbom-action@006b7ce8314066bdf1765b4500370d40fa6917a3 # v0.24.2
+      - name: Scan and enforce the reviewed dependency policy
+        run: node tools/dependency-vulnerability-gate.mjs --scanner /usr/local/bin/osv-scanner --output-dir .tmp/dependency-security
+      - name: Retain raw findings, complete SPDX and policy result
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          format: spdx-json
-          artifact-name: unified-ai-system-sbom.spdx.json
+          name: dependency-security-${{ github.sha }}
+          path: .tmp/dependency-security/
+          if-no-files-found: error

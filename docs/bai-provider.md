@@ -293,11 +293,37 @@ as a runtime observation, not as a release or long-duration reliability gate.
 1. Set `AI_GATEWAY_REAL_PROVIDER_ENABLED=false` and restart the gateway.
 2. Remove `bai` from `AI_GATEWAY_ENABLED_PROVIDERS` and restore the fake default
    provider/model.
-3. Memory-only runtime credentials are cleared by that restart. This checkout
-   does not yet expose an authenticated HTTP/CLI delete operation for one
-   persistent runtime credential. For persistent stores, revoke the B.AI key at
-   the Provider immediately and schedule store maintenance using the deployment
-   master key; do not delete a shared store that contains other Providers.
+3. Clear only B.AI's stored runtime credential with authenticated
+   `DELETE /providers/runtime-credential` and JSON `{ "providerId": "bai" }`.
+   The route requires `provider:write` and the configured platform tenant,
+   like other global Provider mutations. The shared SDK exposes
+   `client.clearRuntimeProviderCredential({ providerId: "bai" })`.
+   This SDK operation refuses HTTP redirects. Oversized clear requests return
+   HTTP 413 before any credential is removed.
+   It reuses per-Provider clearing in memory, encrypted file, and SQLite
+   modes; other Providers remain stored. Never delete a shared store to
+   remove one Provider.
+
+   This removes the current process's runtime override and, when configured,
+   its persisted record. It does not revoke the key at B.AI, disable the
+   Provider, change routing, edit environment/configuration credentials, or
+   invalidate credentials already loaded by another process. Subsequent
+   credential lookups may fall back to an environment/configuration key.
+   Requests that already captured a credential are not cancelled. Drain
+   other instances and apply the change to each active runtime before
+   treating the deployment as cleared. Revoke the actual key through the
+   Provider when upstream revocation is required.
+
+   The response reports `removed` for this store operation and its explicit
+   scope. Repeating the operation for a registered Provider with no runtime
+   credential returns `removed: false`. HTTP 503 with
+   `provider_runtime_credential_clear_unconfirmed` or
+   `provider_runtime_credential_clear_result_audit_unconfirmed` requires
+   reconciliation before retrying. The latter includes `operationCommitted`
+   and the safe store receipt because the store operation completed before
+   its result audit failed. Inspect `/providers` and the audit trail; do not
+   assume that a failed response means the credential remains present, or
+   repeat a clear after another operator has installed a replacement key.
 4. Confirm `bai` is absent from the Provider IDs in `/health/check` and that
    subsequent test traffic carries explicit fake-provider execution evidence.
 
@@ -305,6 +331,28 @@ Do not delete usage or audit records during rollback; they are needed to
 reconcile any request whose external outcome is uncertain.
 
 ## Language Selection
+
+### Runtime credential clearing
+
+- **Workload:** Remove one stored Provider credential through the existing
+  authenticated control plane, with durable audit and a bounded safe receipt.
+- **Primary path:** A TypeScript operation in `src/providers`, existing HTTP
+  dispatcher and SDK ESM glue, and shared TypeScript Provider contracts.
+- **Alternatives:** Keeping all new logic in the existing JavaScript dispatcher
+  would minimize imports but lose a typed operation/receipt boundary. A new
+  service or language would add credential handling and deployment cost without
+  changing the synchronous store operation.
+- **Chosen language:** TypeScript for the new operation and contracts
+  (domain fit 5/5, safety 5/5 versus JavaScript 5/5 and 3/5); minimal ESM glue
+  preserves the existing dispatcher and SDK. No dependency or runtime is added.
+- **Compatibility/rollback:** The DELETE route and SDK method are additive.
+  Rollback removes that entrypoint; existing per-Provider storage semantics,
+  POST configuration, fake defaults, model routing and in-flight calls remain.
+- **Verification:** Temp-fixture HTTP/SDK tests cover platform/RBAC denial,
+  memory/file/SQLite isolation and restart, audit/storage failures, redaction,
+  and subsequent credential lookup including configuration fallback.
+
+### B.AI adapter integration
 
 - **Workload:** Add a declarative OpenAI-compatible provider with fixed routing,
   credential gating, model discovery metadata, tests, and operator docs.

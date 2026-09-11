@@ -1,5 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { A2A_PROTOCOL_VERSION } from "@a2a-js/sdk";
+import { A2A_PROTOCOL_VERSION, SendMessageRequest } from "@a2a-js/sdk";
+import { DefaultExecutionEventBusManager } from "@a2a-js/sdk/server";
+import { GatewayService } from "../core/gatewayService.js";
+import { ProviderRegistry } from "../providers/providerRegistry.js";
+import { createFakeProvider } from "../providers/fakeProvider.js";
+import { createWeightedTrafficPolicy } from "../routing/weightedTrafficPolicy.js";
+import { bindA2AGatewayCall } from "./a2aGatewayExecution.ts";
+import { Readable } from "node:stream";
+import { dispatchA2ARoutes } from "./a2aRoutes.js";
 import {
   A2A_JSONRPC_PATH,
   a2aGatewayInternals,
@@ -12,6 +20,44 @@ function createGateway(env = {}) {
     env,
   });
 }
+
+describe("A2A text validation before task mutation", () => {
+  it.each([{ parts: [] }, { parts: [{}] }, { parts: [{ text: "   " }] }, { parts: [{ data: { kind: "synthetic" } }] }])(
+    "rejects unsupported or empty parts without writing task state ($parts)", async ({ parts }) => {
+      const gateway = createGateway({ AI_GATEWAY_A2A_TASK_STORE_MODE: "memory" });
+      const writes = vi.spyOn(gateway.taskStore, "save");
+      try {
+        await expect(gateway.requestHandler.sendMessage(SendMessageRequest.fromJSON({ message: {
+          messageId: "invalid-text-message", role: "ROLE_USER", parts,
+        } }), { tenant: "fixture", user: { userName: "fixture", isAuthenticated: true }, state: new Map() }))
+          .rejects.toMatchObject({ reason: "CONTENT_TYPE_NOT_SUPPORTED" });
+        expect(writes).not.toHaveBeenCalled();
+      } finally { await gateway.close(); }
+    },
+  );
+});
+
+describe("managed A2A method admission before SDK task side effects", () => {
+  it.each([
+    { method: "GetTask", params: { id: "task" } }, { method: "ListTasks", params: {} },
+    { method: "CancelTask", params: { id: "task" } }, { method: "message/stream", params: {} },
+    { method: "SendMessage", params: { configuration: { returnImmediately: true } } },
+    { method: "SendMessage", params: { configuration: { returnImmediately: "false" } } },
+    { method: "SendMessage", params: { metadata: { unifiedAi: { executionMode: "workforce" } } } },
+    [[]],
+  ])("denies unsupported managed operation %j before handler or task storage", async input => {
+    const gateway = createGateway(); const handle = vi.spyOn(gateway.transportHandler, "handle"); const save = vi.spyOn(gateway.taskStore, "save");
+    const request = Readable.from([Buffer.from(JSON.stringify(Array.isArray(input) ? input : { jsonrpc: "2.0", id: 1, ...input }))]);
+    request.method = "POST"; request.headers = {};
+    request.enterpriseIdentity = { tenantId: "managed", userId: "subject", role: "local_client", managedClientId: "desktop.managed" };
+    let status; let payload;
+    await dispatchA2ARoutes({ a2aGateway: gateway, request, url: new URL("http://127.0.0.1/a2a/jsonrpc"), startedAt: Date.now(),
+      application: { localClientProtocolPrincipalResolver: { resolve: () => ({ tenantId: "managed", subjectId: "subject", clientId: "desktop.managed" }) } },
+      response: { writeHead(value) { status = value; }, end(value) { payload = JSON.parse(value); } } });
+    expect(status).toBe(403); expect(payload.error.data.code).toBe("LOCAL_CLIENT_A2A_METHOD_UNSUPPORTED");
+    expect(handle).not.toHaveBeenCalled(); expect(save).not.toHaveBeenCalled(); await gateway.close();
+  });
+});
 
 describe("A2A gateway profile", () => {
   it("advertises a loopback JSON-RPC v1.0 endpoint and text-only capabilities", () => {
@@ -104,6 +150,63 @@ describe("A2A gateway executor — fake-provider safety boundary", () => {
       },
     };
   }
+
+  function routedCore(kind, realEnabled = true, primaryType = "fake") {
+    const primary = createFakeProvider({ providerId: "local-fake-provider", modelId: "local-fake-model", providerType: primaryType,
+      priority: 1, enabled: true, capabilities: ["chat"] });
+    // This is an in-memory fake implementation, only its type metadata differs.
+    const secondary = createFakeProvider({ providerId: "nonfake-metadata-mock", modelId: "local-fake-model", providerType: "openai",
+      priority: 2, enabled: true, capabilities: ["chat"] });
+    const reply = { text: "local fixture", message: { role: "assistant", content: "local fixture" },
+      usage: { inputTokens: 5, outputTokens: 7, totalTokens: 12 }, raw: {}, warnings: [] };
+    const primaryCall = vi.spyOn(primary, "generate").mockResolvedValue(reply);
+    const secondaryCall = vi.spyOn(secondary, "generate").mockResolvedValue(reply);
+    const registry = new ProviderRegistry(); registry.register(primary); registry.register(secondary);
+    const policy = createWeightedTrafficPolicy({ random: () => 0, env: { AI_GATEWAY_WEIGHTED_ROUTES_JSON: JSON.stringify([{
+      name: "a2a-fake-boundary", match: { source: "a2a-v1" },
+      weights: kind === "weighted" ? { "nonfake-metadata-mock": 100 } : {},
+      ...(kind === "shadow" ? { shadow: { providerId: "nonfake-metadata-mock", percent: 100 } } : {}),
+    }]) } });
+    const shadow = vi.spyOn(policy, "shouldShadow");
+    const gateway = new GatewayService({ providerRegistry: registry, weightedTrafficPolicy: policy,
+      runtimeConfig: { providerMode: realEnabled ? "real" : "fake", realProviderEnabled: realEnabled,
+        shadowRealProviderEnabled: realEnabled, enabledProviders: ["local-fake-provider", "nonfake-metadata-mock"], fallbackEnabled: true },
+      enterpriseAudit: { recordAudit: async () => {} }, requestLogger: { assertDurable: () => true, log: async () => {} } });
+    return { gateway, primaryCall, secondaryCall, shadow };
+  }
+
+  it.each([true, false])("prevents weighted routing from escaping fake-only execution (global real=%s)", async realEnabled => {
+    const f = routedCore("weighted", realEnabled);
+    const executor = new a2aGatewayInternals.GatewayAgentExecutor(f.gateway);
+    await executor.execute(requestContext(), { publish: vi.fn() });
+    expect(f.primaryCall).toHaveBeenCalledOnce(); expect(f.secondaryCall).not.toHaveBeenCalled();
+  });
+
+  it("prevents shadow dispatch before returning a successful fake result", async () => {
+    const f = routedCore("shadow");
+    const executor = new a2aGatewayInternals.GatewayAgentExecutor(f.gateway);
+    await executor.execute(requestContext(), { publish: vi.fn() });
+    expect(f.primaryCall).toHaveBeenCalledOnce(); expect(f.shadow).not.toHaveBeenCalled();
+    expect(f.secondaryCall).not.toHaveBeenCalled();
+  });
+
+  it("rejects a fake-looking provider id with non-fake type before calling either adapter", async () => {
+    const f = routedCore("plain", true, "openai");
+    const executor = new a2aGatewayInternals.GatewayAgentExecutor(f.gateway);
+    const eventBus = { publish: vi.fn() };
+    await executor.execute(requestContext(), eventBus);
+    expect(eventBus.publish.mock.calls.map(([event]) => event)
+      .filter(event => event.kind === "statusUpdate" && event.data.status.state === 4)).toHaveLength(1);
+    expect(f.primaryCall).not.toHaveBeenCalled(); expect(f.secondaryCall).not.toHaveBeenCalled();
+  });
+
+  it("does not accept JSON lookalikes as a private fake-only binding for ordinary Gateway calls", async () => {
+    const f = routedCore("weighted");
+    const result = await f.gateway.execute({ messages: [{ role: "user", content: "fixture" }],
+      providerId: "local-fake-provider", model: "local-fake-model", metadata: { source: "a2a-v1", fakeProviderOnly: true } },
+    { fakeProviderOnly: true });
+    expect(result.success).toBe(true); expect(f.secondaryCall).toHaveBeenCalledOnce();
+  });
 
   it("rejects a result that is not proven fake-provider", async () => {
     const gatewayService = {
@@ -277,6 +380,7 @@ describe("A2A gateway executor — fake-provider safety boundary", () => {
     });
     expect(gatewayService.execute).not.toHaveBeenCalled();
     expect(eventBus.publish).not.toHaveBeenCalled();
+    await expect(executor.close()).resolves.toBeUndefined();
   });
 
   it("does not publish completion after the execution lease is lost", async () => {
@@ -340,9 +444,7 @@ describe("A2A gateway executor — fake-provider safety boundary", () => {
     );
     const eventBus = { publish: vi.fn() };
     const context = requestContext().context;
-    executor.prepareCancellationContext("task-1", context);
-
-    await executor.cancelTask("task-1", eventBus);
+    await executor.withCancellationContext(context, () => executor.cancelTask("task-1", eventBus));
 
     expect(leaseManager.revokeForTask).toHaveBeenCalledWith({
       taskId: "task-1",
@@ -489,5 +591,105 @@ describe("A2A gateway executor — fake-provider safety boundary", () => {
       context,
       undefined,
     );
+  });
+
+  it("keeps concurrent same-ID cancellations scoped until each request is released", async () => {
+    function deferred() {
+      let resolve;
+      const promise = new Promise(done => { resolve = done; });
+      return { promise, resolve };
+    }
+    const contextA = { tenant: "tenant-a", user: { userName: "owner-a" } };
+    const contextB = { tenant: "tenant-b", user: { userName: "owner-b" } };
+    const enteredA = deferred(); const enteredB = deferred();
+    const resumeA = deferred(); const resumeB = deferred();
+    const tasks = new Map([contextA, contextB].map((context, index) => [context, {
+      id: "shared-task-id", contextId: `context-${index}`,
+      status: { state: 2, timestamp: "2026-09-09T00:00:00.000Z" },
+      history: [], artifacts: [], metadata: {},
+    }]));
+    const loadCounts = new Map();
+    const store = {
+      load: vi.fn(async (_taskId, context) => {
+        const count = loadCounts.get(context) ?? 0; loadCounts.set(context, count + 1);
+        if (count === 0 && context === contextA) { enteredA.resolve(); await resumeA.promise; }
+        if (count === 0 && context === contextB) { enteredB.resolve(); await resumeB.promise; }
+        return structuredClone(tasks.get(context) ?? null);
+      }),
+      save: vi.fn(async (task, context) => { tasks.set(context, structuredClone(task)); }),
+    };
+    const executor = new a2aGatewayInternals.GatewayAgentExecutor({ execute: vi.fn() }, null, null, store);
+    const activeA = executor.invocations.begin(contextA, "shared-task-id", "context-0");
+    const activeB = executor.invocations.begin(contextB, "shared-task-id", "context-1");
+    const buses = new DefaultExecutionEventBusManager();
+    buses.createOrGetByTaskId("shared-task-id");
+    const handler = new a2aGatewayInternals.ContextAwareA2ARequestHandler(
+      { capabilities: {} }, store, executor, buses,
+    );
+    const first = handler.cancelTask({ id: "shared-task-id" }, contextA);
+    let second;
+    try {
+      await enteredA.promise;
+      second = handler.cancelTask({ id: "shared-task-id" }, contextB);
+      await enteredB.promise;
+      resumeA.resolve();
+      expect(await first).toMatchObject({ id: "shared-task-id", status: { state: 5 } });
+      expect(activeA.execution.signal.aborted).toBe(true);
+      // B's own scoped load remains blocked; A must not cancel its execution.
+      expect(activeB.execution.signal.aborted).toBe(false);
+    } finally {
+      resumeA.resolve(); resumeB.resolve();
+      await Promise.allSettled([first, second].filter(Boolean));
+      activeA.finish(); activeB.finish();
+      buses.cleanupByTaskId("shared-task-id");
+    }
+  });
+
+  it("aborts in-flight work when lease renewal is lost and releases the lease", async () => {
+    let signal;
+    const gateway = { execute: vi.fn((_input, execution) => new Promise((_resolve, reject) => {
+      signal = execution.signal; signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+    })) };
+    const leases = { status: { enabled: true, heartbeatMs: 5 },
+      acquire: vi.fn(async () => ({ success: true, lease: { mode: "fixture" } })),
+      validate: vi.fn(async () => ({ success: true })), renew: vi.fn(async () => ({ success: false })),
+      release: vi.fn(async () => ({ success: true })) };
+    const executor = new a2aGatewayInternals.GatewayAgentExecutor(gateway, null, leases);
+    const bus = { publish: vi.fn() };
+    await executor.execute(requestContext(), bus);
+    expect(signal.aborted).toBe(true); expect(signal.reason.code).toBe("EXECUTION_LEASE_LOST");
+    expect(leases.release).toHaveBeenCalledOnce(); expect(gateway.execute).toHaveBeenCalledOnce();
+    expect(JSON.stringify(bus.publish.mock.calls)).toContain('"state":4');
+    await executor.close();
+  });
+
+  it("keeps its execution deadline independently of normal transport completion", async () => {
+    const context = requestContext(); let signal;
+    bindA2AGatewayCall(context.context, undefined, { signal: new AbortController().signal, deadlineAt: Date.now() + 20 });
+    const gateway = { execute: vi.fn((_input, execution) => new Promise((_resolve, reject) => {
+      signal = execution.signal; signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+    })) };
+    const executor = new a2aGatewayInternals.GatewayAgentExecutor(gateway);
+    await executor.execute(context, { publish: vi.fn() });
+    expect(signal.aborted).toBe(true); expect(signal.reason.code).toBe("GATEWAY_DEADLINE_EXCEEDED");
+    await executor.close();
+  });
+
+  it("closes only its own active calls even when another executor has the same task ID", async () => {
+    const signals = [];
+    const gateway = { execute: vi.fn((_input, execution) => new Promise((_resolve, reject) => {
+      const signal = execution.signal; signals.push(signal);
+      signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+    })) };
+    const first = new a2aGatewayInternals.GatewayAgentExecutor(gateway);
+    const second = new a2aGatewayInternals.GatewayAgentExecutor(gateway);
+    const calls = [first.execute(requestContext(), { publish: vi.fn() }), second.execute(requestContext(), { publish: vi.fn() })];
+    try {
+      await vi.waitFor(() => expect(signals).toHaveLength(2));
+      await first.close(); await calls[0];
+      expect(signals[0].aborted).toBe(true); expect(signals[0].reason.code).toBe("GATEWAY_SHUTDOWN");
+      expect(signals[1].aborted).toBe(false);
+    } finally { await second.close(); await Promise.allSettled(calls); }
+    await expect(first.execute(requestContext(), { publish: vi.fn() })).rejects.toMatchObject({ code: "GATEWAY_SHUTDOWN" });
   });
 });

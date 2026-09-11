@@ -11,6 +11,7 @@ import {
 } from "./apiKeyManager.js";
 import { createEnterpriseGovernanceService } from "./enterpriseGovernanceService.js";
 import { dispatchOpenAiCompatibilityRoutes } from "../http/openAiCompatibilityRoutes.js";
+import { bindVirtualKeyTestGateway } from "../http/virtualKeyGateway.testHelper.ts";
 
 const descriptors = [
   {
@@ -19,6 +20,41 @@ const descriptors = [
     models: [{ id: "local-fake-model", enabled: true, capabilities: ["chat"] }],
   },
 ];
+
+describe("virtual-key continuation without logical readmission", () => {
+  it("checks the remaining budget but does not charge another RPM or request", () => {
+    const manager = createApiKeyManager({ storePath: null });
+    const { record } = manager.create({ budget: { limitTokens: 10, window: "daily" }, rateLimit: { requestsPerMinute: 1 } });
+    expect(manager.authorizeUsage({ keyId: record.keyId, estimatedTokens: 2 }).allowed).toBe(true);
+    manager.recordUsage({ keyId: record.keyId, tokens: 6 });
+    expect(manager.checkContinuation({ keyId: record.keyId, estimatedTokens: 4 }).allowed).toBe(true);
+    expect(manager.checkContinuation({ keyId: record.keyId, estimatedTokens: 5 }).code).toBe("VIRTUAL_KEY_BUDGET_EXHAUSTED");
+    expect(manager.describeUsage({ keyId: record.keyId })?.usage).toMatchObject({ tokensUsed: 6, requestCount: 1, rateRequestCount: 1 });
+    expect(manager.authorizeUsage({ keyId: record.keyId }).code).toBe("VIRTUAL_KEY_RATE_LIMITED");
+  });
+
+  it("rejects revoked, expired and missing keys during continuation", () => {
+    const manager = createApiKeyManager({ storePath: null });
+    const { record } = manager.create({ rateLimit: { requestsPerMinute: 1 } });
+    manager.authorizeUsage({ keyId: record.keyId });
+    manager.revoke({ keyId: record.keyId });
+    expect(manager.checkContinuation({ keyId: record.keyId }).code).toBe("api_key_invalid");
+    const expired = manager.create({ expiresAt: new Date(Date.now() - 1000).toISOString() });
+    expect(manager.checkContinuation({ keyId: expired.record.keyId }).code).toBe("api_key_invalid");
+    expect(manager.checkContinuation({ keyId: "missing" }).code).toBe("api_key_invalid");
+  });
+
+  it("rolls a budget window without synthesizing another admitted request", () => {
+    let now = 1_000_000_020_000;
+    const manager = createApiKeyManager({ storePath: null, now: () => now });
+    const { record } = manager.create({ budget: { limitTokens: 10, windowMs: 60_000 }, rateLimit: { requestsPerMinute: 1 } });
+    manager.authorizeUsage({ keyId: record.keyId });
+    manager.recordUsage({ keyId: record.keyId, tokens: 10 });
+    now += 60_000;
+    expect(manager.checkContinuation({ keyId: record.keyId, estimatedTokens: 10 }).allowed).toBe(true);
+    expect(manager.describeUsage({ keyId: record.keyId })?.usage).toMatchObject({ tokensUsed: 0, requestCount: 0, rateRequestCount: 0 });
+  });
+});
 
 interface TestRequest extends Readable {
   method: string;
@@ -294,7 +330,7 @@ describe("chat completions virtual key enforcement", () => {
     manager: ApiKeyManager;
     enterpriseIdentity: unknown;
   }) {
-    return {
+    const context = {
       request: createJsonRequest(body, { enterpriseIdentity }),
       response: createResponseRecorder(),
       startedAt: Date.now(),
@@ -305,6 +341,8 @@ describe("chat completions virtual key enforcement", () => {
         ? { getApiKeyManager: () => manager }
         : undefined,
     };
+    context.gatewayService = bindVirtualKeyTestGateway(context);
+    return context;
   }
 
   const chatBody = {

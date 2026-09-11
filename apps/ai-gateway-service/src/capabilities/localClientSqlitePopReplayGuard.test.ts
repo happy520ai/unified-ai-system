@@ -1,13 +1,16 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
+import { chmod, copyFile, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { promisify } from "node:util";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { LocalClientWindowsProtectedAuthorityAnchor } from "./localClientWindowsProtectedAuthorityAnchor.ts";
+import { createLocalClientPopSnapshotRollbackProtectedReplayGuard, LOCAL_CLIENT_POP_PROTECTED_ANCHOR_EVIDENCE_VERSION,
+  type LocalClientPopAnchoredReplayCheckpointPort, type LocalClientPopExternalMonotonicAnchorPort } from "./localClientPopSnapshotRollbackProtection.ts";
 
 import type { ManagedLocalClientPopReplayGuard } from "./localClientPopIdentityAuthority.ts";
 import {
@@ -29,13 +32,16 @@ describe("LocalClientSqlitePopReplayGuard", () => {
   let guards: LocalClientSqlitePopReplayGuard[] = [];
 
   beforeEach(async () => {
-    root = await mkdtemp(join(tmpdir(), "local-client-pop-replay-"));
+    root = await mkdtemp(join(await realpath(tmpdir()), "local-client-pop-replay-"));
     sqlitePath = join(root, "pop-replay.sqlite");
     guards = [];
   });
 
   afterEach(async () => {
-    for (const guard of guards) guard.close();
+    vi.restoreAllMocks();
+    for (const guard of guards) await guard.close();
+    expect(await realpath(root)).toBe(root);
+    expect(dirname(root)).toBe(await realpath(tmpdir()));
     await rm(root, { recursive: true, force: true });
   });
 
@@ -589,7 +595,279 @@ describe("LocalClientSqlitePopReplayGuard", () => {
       code: "LOCAL_CLIENT_POP_REPLAY_SCHEMA_INCOMPATIBLE",
     }));
   });
+
+  it("keeps the unprotected whole-database rollback limitation explicit", async () => {
+    const old = createGuard(); old.close();
+    await copyFile(sqlitePath, join(root, "old.sqlite"));
+    const used = createGuard();
+    expect(used.consumeOnce(input(digest("rollback-example")))).toBe("consumed"); used.close();
+    await copyFile(join(root, "old.sqlite"), sqlitePath);
+    const restored = createGuard();
+    expect(restored.status.snapshotRollbackProtected).toBe(false);
+    expect(restored.consumeOnce(input(digest("rollback-example")))).toBe("consumed");
+  });
+
+  it("requires explicit protected enrollment and keeps native readiness unproved", async () => {
+    const authority = new ReplayAuthorityModel();
+    const guard = createGuard({ protectedAuthority: authority.port, anchorBindingSha256: digest("slot") });
+    await expect(guard.consumeOnce(input(digest("protected")))).rejects.toThrow();
+    expect(authority.current).toBeNull();
+    await expect(guard.enrollProtectedBaseline()).resolves.toMatchObject({ generation: 1 });
+    await expect(guard.consumeOnce(input(digest("protected")))).resolves.toBe("consumed");
+    await expect(guard.consumeOnce(input(digest("protected")))).resolves.toBe("replayed");
+    expect(await guard.readCurrentCheckpoint()).toMatchObject({ generation: 2, state: "ready" });
+    expect(guard.status.snapshotRollbackProtected).toBe(false);
+    await guard.close();
+    expect(() => createGuard()).toThrow();
+  });
+
+  it("persists an authenticated mutation intent before anchor preparation", async () => {
+    const authority = new ReplayAuthorityModel();
+    const guard = createGuard({ protectedAuthority: authority.port, anchorBindingSha256: digest("slot") });
+    await guard.enrollProtectedBaseline();
+    authority.onPrepare = () => {
+      const observer = new DatabaseSync(sqlitePath);
+      try {
+        const intent = observer.prepare("SELECT body, mac FROM local_client_pop_replay_intent").get()!;
+        expect(JSON.parse(String(intent.body))).toMatchObject({ state: "pending", baseGeneration: 1 });
+        for (const raw of [digest("durable-intent"), HOST_ID, NAMESPACE]) expect(String(intent.body)).not.toContain(raw);
+        expect(intent.mac).toMatch(/^[a-f0-9]{64}$/u);
+        expect(observer.prepare("SELECT entry_count FROM local_client_pop_replay_metadata").get()?.entry_count).toBe(0);
+      } finally { observer.close(); }
+    };
+    await expect(guard.consumeOnce(input(digest("durable-intent")))).resolves.toBe("consumed");
+    expect(authority.prepares).toBe(1);
+    expect(authority.finalizes).toBe(1);
+  });
+
+  it("refuses protected upgrade in place, authority stripping and a restored older complete database", async () => {
+    const authority = new ReplayAuthorityModel();
+    const options = { protectedAuthority: authority.port, anchorBindingSha256: digest("slot") };
+    createGuard().close();
+    await expect(Promise.resolve().then(() => createGuard(options))).rejects.toThrow();
+    const protectedPath = join(root, "protected.sqlite");
+    const open = () => createGuard({ ...options, sqlitePath: protectedPath });
+    const first = open(); await first.enrollProtectedBaseline(); await first.close();
+    await copyFile(protectedPath, join(root, "protected-old.sqlite"));
+    const active = open(); await active.recoverProtectedCheckpoint();
+    await expect(active.consumeOnce(input(digest("anchored-nonce")))).resolves.toBe("consumed"); await active.close();
+    expect(() => createGuard({ sqlitePath: protectedPath })).toThrow();
+    await copyFile(join(root, "protected-old.sqlite"), protectedPath);
+    const restored = open();
+    await expect(restored.recoverProtectedCheckpoint()).rejects.toThrow("MODEL_CURRENT_MISMATCH");
+    await expect(restored.consumeOnce(input(digest("anchored-nonce")))).rejects.toThrow();
+    expect(restored.checkpointStatus.available).toBe(false);
+    await restored.close();
+    mutate(protectedPath, "DROP TABLE local_client_pop_replay_intent; DROP TABLE local_client_protected_checkpoint; PRAGMA user_version = 3");
+    expect(() => createGuard({ sqlitePath: protectedPath })).toThrow();
+  });
+
+  it.each(["prepare-before", "prepare-after", "finalize-before", "finalize-after",
+    "intent-commit-before", "intent-commit-after", "store-commit-before", "store-commit-after",
+    "clear-commit-before", "clear-commit-after"])("keeps explicit recovery fail closed at %s without replaying a consume", async fault => {
+    const authority = new ReplayAuthorityModel();
+    const open = () => createGuard({ protectedAuthority: authority.port, anchorBindingSha256: digest("slot") });
+    const first = open(); await first.enrollProtectedBaseline();
+    if (!fault.includes("commit")) authority.fault = fault as ReplayAuthorityModel["fault"];
+    else {
+      const targetCommit = fault.startsWith("intent") ? 1 : fault.startsWith("store") ? 2 : 3;
+      const original = DatabaseSync.prototype.exec; let commits = 0;
+      vi.spyOn(DatabaseSync.prototype, "exec").mockImplementation(function(this: DatabaseSync, sql: string) {
+        if (sql === "COMMIT" && ++commits === targetCommit) {
+          if (fault.endsWith("after")) Reflect.apply(original, this, [sql]);
+          throw new Error(`SQLITE_FAULT_${fault}`);
+        }
+        return Reflect.apply(original, this, [sql]);
+      });
+    }
+    await expect(first.consumeOnce(input(digest("crash-window")))).rejects.toThrow();
+    vi.restoreAllMocks();
+    expect(first.checkpointStatus.available).toBe(false);
+    await first.close();
+    const reopened = open();
+    const prepareCalls = authority.prepares;
+    if (fault === "prepare-after" || fault === "store-commit-before") {
+      await expect(reopened.recoverProtectedCheckpoint()).rejects.toThrow("PENDING_BASE_REQUIRES_RECOVERY");
+      await expect(reopened.consumeOnce(input(digest("crash-window")))).rejects.toThrow();
+      expect(authority.pending?.generation).toBe(2);
+    } else {
+      await reopened.recoverProtectedCheckpoint();
+      expect(authority.prepares).toBe(prepareCalls);
+      const committed = fault.startsWith("finalize") || fault.startsWith("clear") || fault === "store-commit-after";
+      await expect(reopened.consumeOnce(input(digest("crash-window")))).resolves.toBe(committed ? "replayed" : "consumed");
+      expect((await reopened.readCurrentCheckpoint()).generation).toBe(2);
+    }
+  });
+
+  it("anchors cleanup and clock changes even when the result is replayed or capacity", async () => {
+    const authority = new ReplayAuthorityModel();
+    const guard = createGuard({ protectedAuthority: authority.port, anchorBindingSha256: digest("slot"), maxEntries: 2, maxEntriesPerScope: 1 });
+    await guard.enrollProtectedBaseline();
+    await expect(guard.consumeOnce(input(digest("one"), START_MS, 10, digest("scope-a")))).resolves.toBe("consumed");
+    await expect(guard.consumeOnce(input(digest("one"), START_MS + 1, 10, digest("scope-a")))).resolves.toBe("replayed");
+    await expect(guard.consumeOnce(input(digest("two"), START_MS + 2, 10, digest("scope-a")))).resolves.toBe("capacity");
+    await expect(guard.consumeOnce(input(digest("two"), START_MS + 11, 10, digest("scope-a")))).resolves.toBe("consumed");
+    expect((await guard.readCurrentCheckpoint()).generation).toBe(5);
+    expect(authority.prepares).toBe(4); expect(authority.finalizes).toBe(4);
+  });
+
+  it("rejects changed signed intent, checkpoint generation and another anchor binding", async () => {
+    const authority = new ReplayAuthorityModel();
+    const options = { protectedAuthority: authority.port, anchorBindingSha256: digest("slot") };
+    const guard = createGuard(options); await guard.enrollProtectedBaseline(); await guard.close();
+    expect(() => createGuard({ ...options, anchorBindingSha256: digest("other-slot") })).toThrow();
+    await copyFile(sqlitePath, join(root, "clean-protected.sqlite"));
+    mutate(sqlitePath, "UPDATE local_client_pop_replay_intent SET body = '{\"state\":\"pending\"}'");
+    expect(() => createGuard(options)).toThrow();
+    await copyFile(join(root, "clean-protected.sqlite"), sqlitePath);
+    mutate(sqlitePath, "UPDATE local_client_protected_checkpoint SET generation = generation + 1");
+    const changed = createGuard(options);
+    await expect(changed.recoverProtectedCheckpoint()).rejects.toThrow("INTEGRITY_INVALID");
+    expect(authority.current?.generation).toBe(1);
+  });
+
+  it("queues one instance, fences competing connections, and never makes readCurrentCheckpoint clean a pending intent", async () => {
+    const authority = new ReplayAuthorityModel();
+    const options = { protectedAuthority: authority.port, anchorBindingSha256: digest("slot"), busyTimeoutMs: 100 };
+    const first = createGuard(options); await first.enrollProtectedBaseline();
+    const second = createGuard(options); await second.recoverProtectedCheckpoint();
+    const results = await Promise.allSettled([first.consumeOnce(input(digest("race"))), second.consumeOnce(input(digest("race")))]);
+    expect(results.filter(result => result.status === "fulfilled" && result.value === "consumed")).toHaveLength(1);
+    await first.recoverProtectedCheckpoint(); await second.recoverProtectedCheckpoint();
+    await expect(second.consumeOnce(input(digest("race")))).resolves.toBe("replayed");
+    expect((await second.readCurrentCheckpoint()).generation).toBe(2);
+    authority.fault = "prepare-before";
+    await expect(first.consumeOnce(input(digest("interrupted"), START_MS + 1))).rejects.toThrow();
+    await expect(first.readCurrentCheckpoint()).rejects.toThrow();
+    const reader = new DatabaseSync(sqlitePath);
+    try { expect(JSON.parse(String(reader.prepare("SELECT body FROM local_client_pop_replay_intent").get()!.body)).state).toBe("pending"); }
+    finally { reader.close(); }
+  });
+
+  it("drains admitted protected calls before closing and rejects later admissions", async () => {
+    const authority = new ReplayAuthorityModel();
+    const guard = createGuard({ protectedAuthority: authority.port, anchorBindingSha256: digest("slot") });
+    await guard.enrollProtectedBaseline();
+    let started!: () => void; let release!: () => void;
+    const entered = new Promise<void>(resolve => { started = resolve; });
+    const paused = new Promise<void>(resolve => { release = resolve; });
+    authority.onPrepare = async () => { started(); await paused; };
+    const active = guard.consumeOnce(input(digest("drain")));
+    await entered;
+    let closed = false; const closing = Promise.resolve(guard.close()).then(() => { closed = true; });
+    expect(closed).toBe(false);
+    expect(() => guard.consumeOnce(input(digest("late")))).toThrow();
+    release(); await expect(active).resolves.toBe("consumed"); await closing;
+    expect(guard.status.available).toBe(false);
+    expect(authority.current?.generation).toBe(2);
+  });
+
+  it("does not clear another operation's committed intent after an interleaved recovery", async () => {
+    const authority = new ReplayAuthorityModel();
+    const options = { protectedAuthority: authority.port, anchorBindingSha256: digest("slot") };
+    const first = createGuard(options); await first.enrollProtectedBaseline();
+    const second = createGuard(options); await second.recoverProtectedCheckpoint();
+    let entered!: () => void; let release!: () => void;
+    const otherCommitted = new Promise<void>(resolve => { entered = resolve; });
+    const pauseOther = new Promise<void>(resolve => { release = resolve; });
+    let other: Promise<PromiseSettledResult<unknown>> | undefined; let started = false;
+    authority.afterCurrent = async generation => {
+      if (generation !== 2 || started) return;
+      started = true;
+      await second.recoverProtectedCheckpoint();
+      let paused = false;
+      authority.afterCurrent = async next => { if (next === 3 && !paused) { paused = true; entered(); await pauseOther; } };
+      other = Promise.resolve(second.consumeOnce(input(digest("other-operation")))).then(
+        value => ({ status: "fulfilled", value }), reason => ({ status: "rejected", reason }));
+      await otherCommitted;
+    };
+    let own: PromiseSettledResult<unknown> | undefined; let otherOutcome: PromiseSettledResult<unknown> | undefined;
+    let pendingSnapshot: unknown;
+    try {
+      own = await Promise.resolve(first.consumeOnce(input(digest("original-operation")))).then(
+        value => ({ status: "fulfilled", value }), reason => ({ status: "rejected", reason }));
+      const reader = new DatabaseSync(sqlitePath);
+      try { const saved = JSON.parse(String(reader.prepare("SELECT body FROM local_client_pop_replay_intent").get()!.body));
+        pendingSnapshot = { state: saved.state, baseGeneration: saved.baseGeneration, targetGeneration: saved.targetGeneration }; }
+      finally { reader.close(); }
+    } finally { release(); if (other) otherOutcome = await other; }
+    expect({ owner: own?.status, intent: pendingSnapshot, other: otherOutcome?.status }).toMatchObject({ owner: "rejected",
+      intent: { state: "committed", baseGeneration: 2, targetGeneration: 3 }, other: "fulfilled" });
+    expect(otherOutcome).toMatchObject({ value: "consumed" });
+  });
+
+  it("MODEL: composes the actual SQLite checkpoint port without treating configured ports as native evidence", async () => {
+    const authority = new ReplayAuthorityModel(); const anchorBinding = digest("slot");
+    const guard = createGuard({ protectedAuthority: authority.port, anchorBindingSha256: anchorBinding });
+    await guard.enrollProtectedBaseline();
+    const checkpointPort: LocalClientPopAnchoredReplayCheckpointPort = guard;
+    let modelEvidenceEnabled = false; let attestations = 0;
+    const deployment = digest("MODEL-only-not-native-deployment");
+    // Positive evidence below is a protocol fixture, never a native deployment producer.
+    const anchorPort: LocalClientPopExternalMonotonicAnchorPort = {
+      get status() { return { available: true, mode: "MODEL-only", anchorBindingSha256: anchorBinding,
+        deploymentEvidenceSha256: deployment, nativeDeploymentVerified: modelEvidenceEnabled,
+        monotonic: true, externalToReplayStoreSnapshot: true, protectedFromReplayStoreWriter: true, challengeAttestation: true }; },
+      async verifyCurrent({ checkpoint, challenge }) {
+        attestations++;
+        await authority.assertCurrent(checkpoint.generation, checkpoint.checkpointDigestSha256);
+        return { evidenceVersion: LOCAL_CLIENT_POP_PROTECTED_ANCHOR_EVIDENCE_VERSION,
+          evidenceKind: "native-protected-external-monotonic-anchor", anchorBindingSha256: anchorBinding,
+          storeBindingSha256: checkpoint.storeBindingSha256, generation: checkpoint.generation,
+          checkpointDigestSha256: checkpoint.checkpointDigestSha256,
+          challengeSha256: createHash("sha256").update(challenge).digest("hex"), deploymentEvidenceSha256: deployment,
+          nativeDeploymentVerified: true, monotonic: true, externalToReplayStoreSnapshot: true,
+          protectedFromReplayStoreWriter: true, attestationVerified: true };
+      },
+    };
+    const composed = await createLocalClientPopSnapshotRollbackProtectedReplayGuard({ checkpointPort, anchorPort });
+    expect(composed.status.snapshotRollbackProtected).toBe(false);
+    await expect(composed.consumeOnce(input(digest("composition")))).rejects.toThrow();
+    expect(attestations).toBe(0);
+    expect((await guard.readCurrentCheckpoint()).generation).toBe(1);
+    modelEvidenceEnabled = true;
+    await composed.refresh();
+    await expect(composed.consumeOnce(input(digest("composition")))).resolves.toBe("consumed");
+    expect(attestations).toBe(3);
+    expect((await guard.readCurrentCheckpoint()).generation).toBe(2);
+    expect(guard.status.snapshotRollbackProtected).toBe(false);
+    await composed.close();
+  });
 });
+
+/** Counter model only: no native deployment, Windows authority, or attestation proof. */
+class ReplayAuthorityModel {
+  current: { generation: number; digest: string } | null = null;
+  pending: { generation: number; digest: string } | null = null;
+  prepares = 0; finalizes = 0;
+  onPrepare?: () => void | Promise<void>;
+  afterCurrent?: (generation: number) => void | Promise<void>;
+  fault: "prepare-before" | "prepare-after" | "finalize-before" | "finalize-after" | null = null;
+  get port() { return this as unknown as LocalClientWindowsProtectedAuthorityAnchor; }
+  async inspect() { return { state: this.pending ? "pending-recovery" : this.current ? "ready" : "uninitialized",
+    currentGeneration: this.current?.generation ?? 0, currentDigest: this.current?.digest ?? null,
+    pendingGeneration: this.pending?.generation ?? null, pendingDigest: this.pending?.digest ?? null }; }
+  async assertCurrent(generation: number, digest: string) {
+    if (this.pending || this.current?.generation !== generation || this.current.digest !== digest) throw new Error("MODEL_CURRENT_MISMATCH");
+    await this.afterCurrent?.(generation);
+    return { generation, digest };
+  }
+  async enrollBaseline(digest: string) {
+    if (this.pending || (this.current && (this.current.generation !== 1 || this.current.digest !== digest))) throw new Error("MODEL_BASELINE_MISMATCH");
+    this.current = { generation: 1, digest }; return this.inspect();
+  }
+  async prepareNext(generation: number, digest: string) {
+    if (this.pending || this.current?.generation !== generation) throw new Error("MODEL_PREPARE_MISMATCH");
+    this.prepares++; await this.onPrepare?.(); this.fail("prepare-before");
+    this.pending = { generation: generation + 1, digest }; this.fail("prepare-after"); return this.inspect();
+  }
+  async finalize(generation: number, digest: string) {
+    if (this.pending?.generation !== generation || this.pending.digest !== digest) throw new Error("MODEL_FINALIZE_MISMATCH");
+    this.finalizes++; this.fail("finalize-before"); this.current = this.pending; this.pending = null;
+    this.fail("finalize-after"); return this.inspect();
+  }
+  fail(stage: string) { if (this.fault === stage) { this.fault = null; throw new Error(`MODEL_${stage}`); } }
+}
 
 function freshKey(): Buffer {
   return Buffer.alloc(32, KEY_BYTE);

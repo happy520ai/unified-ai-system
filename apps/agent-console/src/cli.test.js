@@ -1,27 +1,180 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
+import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
 import {
   mkdir,
   mkdtemp,
+  lstat,
+  link,
+  readFile,
+  readdir,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, parse, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { readVerificationSource, readWindowsVerificationHistory, summarizeWindowsVerification } from "./verificationHistory.ts";
 
 import {
   CliUsageError,
   parseCliArgs,
+  runCli,
 } from "./cli-core.js";
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
 const cliEntrypoint = resolve(currentDirectory, "cli.js");
 const repoRoot = resolve(currentDirectory, "../../..");
 const onboardingPlanId = `onboarding_${"a".repeat(64)}`;
+
+function verificationFixture(milliseconds = Date.now() - 10_000, head = "a".repeat(40)) {
+  const startedAt = new Date(milliseconds).toISOString();
+  const runId = `${startedAt.replace(/[:.]/g, "-")}-12345678-1234-4234-8234-123456789abc`;
+  const source = { head, worktree: "clean" };
+  return { schemaVersion: 2, profileId: "windows-local-v1", runId, source, sourceAfter: { ...source },
+    platform: "win32", arch: process.arch, nodeVersion: process.version, startedAt,
+    finishedAt: new Date(milliseconds + 1000).toISOString(), status: "passed", cleanup: { confirmed: true },
+    coverage: { realProviderCallsMade: false }, stages: ["critical-js", "typecheck", "mcp-management", "windows-client-boundaries"].map((id, index) =>
+      ({ id, status: "passed", reason: null, exitCode: 0, counts: index < 2 ? null : { total: 2, passed: 2, failed: 0, skipped: 0 } })) };
+}
+const verificationExpected = (head = "a".repeat(40)) => ({ source: { head, worktree: "clean" }, now: Date.now(),
+  platform: "win32", arch: process.arch, nodeVersion: process.version });
+async function verificationRoot(t) {
+  const root = await mkdtemp(join(tmpdir(), "uai-verification-reader-"));
+  t.after(async () => {
+    assert.ok(resolve(root).startsWith(`${resolve(tmpdir())}${process.platform === "win32" ? "\\" : "/"}`));
+    await rm(root, { recursive: true, force: true });
+  });
+  return root;
+}
+async function writeVerification(root, value, raw = JSON.stringify(value)) {
+  const directory = join(root, "apps/ai-gateway-service/evidence/windows-validation", value.runId);
+  await mkdir(directory, { recursive: true });
+  const path = join(directory, "result.json"); await writeFile(path, raw); return path;
+}
+
+test("verification history accepts only a current complete scope and whitelists displayed fields", () => {
+  const value = verificationFixture(); value.rawLog = "synthetic-private-log";
+  value.stages[0].extra = "synthetic-private-path";
+  const result = summarizeWindowsVerification(value, value.runId, verificationExpected());
+  assert.equal(result.assessment, "current_scoped_pass");
+  assert.doesNotMatch(JSON.stringify(result), /synthetic-private/);
+  value.status = "failed"; value.reason = "synthetic-private-reason";
+  assert.equal(summarizeWindowsVerification(value, value.runId, verificationExpected()).reason, "unrecognized_reason");
+});
+
+test("verification history never upgrades stale, dirty, foreign, interrupted, legacy or skipped records", () => {
+  const cases = [
+    [v => { v.finishedAt = undefined; }, "not_finished"],
+    [v => { v.sourceAfter.head = "b".repeat(40); }, "source_mismatch"],
+    [v => { v.source.worktree = "dirty"; }, "source_not_clean"],
+    [v => { v.nodeVersion = "v1.0.0"; }, "environment_mismatch"],
+    [v => { v.cleanup.confirmed = false; }, "cleanup_unconfirmed"],
+    [v => { v.schemaVersion = 1; delete v.cleanup; }, "cleanup_unconfirmed"],
+    [v => { v.stages[2].counts = { total: 2, passed: 1, failed: 0, skipped: 1 }; }, "tests_skipped"],
+    [v => { v.coverage.realProviderCallsMade = true; }, "execution_scope_unconfirmed"],
+    [v => { v.startedAt = "2026-99-09T01:00:00.000Z"; }, "schema_invalid"],
+    [v => { v.stages[2].counts.failed = 1; }, "schema_invalid"],
+  ];
+  for (const [change, expected] of cases) {
+    const value = verificationFixture(); change(value);
+    assert.equal(summarizeWindowsVerification(value, value.runId, verificationExpected()).assessment, expected);
+  }
+  const old = verificationFixture(Date.now() - 86_402_000);
+  assert.equal(summarizeWindowsVerification(old, old.runId, verificationExpected()).assessment, "stale");
+  const future = verificationFixture(Date.now() + 600_000);
+  assert.equal(summarizeWindowsVerification(future, future.runId, verificationExpected()).assessment, "future_timestamp");
+});
+
+test("verification history keeps first failure after a later pass and never selects an older pass over an invalid latest", async t => {
+  const root = await verificationRoot(t); const failed = verificationFixture(Date.now() - 30_000);
+  failed.status = "failed"; failed.stages[3].status = "failed"; failed.stages[3].exitCode = 1;
+  failed.stages[3].counts = { total: 2, passed: 1, failed: 1, skipped: 0 };
+  const passed = verificationFixture();
+  await writeVerification(root, failed); await writeVerification(root, passed);
+  const history = readWindowsVerificationHistory(root, verificationExpected());
+  assert.equal(history.ok, true); assert.deepEqual(history.runs.map(run => run.status), ["passed", "failed"]);
+  const newer = verificationFixture(Date.now() - 2000); await writeVerification(root, newer, "{incomplete");
+  const broken = readWindowsVerificationHistory(root, verificationExpected());
+  assert.equal(broken.ok, false); assert.equal(broken.latest.runId, newer.runId); assert.equal(broken.runs.length, 3);
+});
+
+test("verification history rejects hardlinks, directory links, oversized and invalid UTF-8 summaries", async t => {
+  const root = await verificationRoot(t); const value = verificationFixture();
+  const file = await writeVerification(root, value); const target = join(root, "owned-summary.json");
+  await link(file, target);
+  assert.equal(readWindowsVerificationHistory(root, verificationExpected()).ok, false);
+  await rm(target);
+  await writeFile(file, Buffer.alloc(262_145));
+  assert.equal(readWindowsVerificationHistory(root, verificationExpected()).ok, false);
+  await writeFile(file, Buffer.from([0xc3, 0x28]));
+  assert.equal(readWindowsVerificationHistory(root, verificationExpected()).ok, false);
+  const secondRoot = await verificationRoot(t); await mkdir(join(secondRoot, "apps"));
+  await symlink(join(root, "apps/ai-gateway-service"), join(secondRoot, "apps/ai-gateway-service"), process.platform === "win32" ? "junction" : "dir");
+  assert.equal(readWindowsVerificationHistory(secondRoot, verificationExpected()).status, "evidence_path_or_inventory_invalid");
+});
+
+test("verification history keeps missing and over-capacity evidence non-passing", async t => {
+  const root = await verificationRoot(t);
+  assert.equal(readWindowsVerificationHistory(root, verificationExpected()).status, "missing");
+  const directory = join(root, "apps/ai-gateway-service/evidence/windows-validation");
+  const base = Date.now() - 1000;
+  for (let i = 0; i < 101; i++) await mkdir(join(directory, verificationFixture(base - i).runId), { recursive: true });
+  const result = readWindowsVerificationHistory(root, verificationExpected());
+  assert.equal(result.ok, false); assert.equal(result.status, "evidence_path_or_inventory_invalid");
+});
+
+test("verification history rejects contradictory cleanup types and reasons instead of a false pass", () => {
+  const changes = [v => { v.scratchRetained = "true"; }, v => { v.stages[0].cleanupUnconfirmed = "true"; },
+    v => { v.reason = "temporary_cleanup_unconfirmed"; }, v => { v.stages[0].reason = "command_interrupted"; }];
+  for (const change of changes) {
+    const value = verificationFixture(); change(value);
+    assert.equal(summarizeWindowsVerification(value, value.runId, verificationExpected()).assessment, "schema_invalid");
+  }
+});
+
+test("verification history cannot promote an older pass by changing its directory timestamp", async t => {
+  const root = await verificationRoot(t);
+  const failed = verificationFixture(); failed.status = "failed"; failed.reason = "validation_incomplete";
+  await writeVerification(root, failed);
+  const old = verificationFixture(Date.now() - 30_000);
+  old.runId = `9999-99-99T99-99-99-999Z-12345678-1234-4234-8234-123456789abc`;
+  await writeVerification(root, old);
+  assert.equal(readWindowsVerificationHistory(root, verificationExpected()).ok, false);
+  const mismatch = verificationFixture();
+  mismatch.runId = verificationFixture(Date.now() + 60_000).runId;
+  assert.equal(summarizeWindowsVerification(mismatch, mismatch.runId, verificationExpected()).assessment, "schema_invalid");
+});
+
+test("verification history uses a clean owned Git checkout and the actual CLI without contacting a gateway", async t => {
+  const root = await verificationRoot(t);
+  const env = Object.fromEntries(Object.keys(process.env).filter(key => /^(PATH|SYSTEMROOT|WINDIR|COMSPEC|PATHEXT)$/i.test(key)).map(key => [key, process.env[key]]));
+  Object.assign(env, { GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: process.platform === "win32" ? "NUL" : "/dev/null" });
+  const git = args => {
+    const result = spawnSync("git", ["-c", "core.hooksPath=", "-c", "commit.gpgsign=false", ...args], { cwd: root, env, encoding: "utf8", windowsHide: true });
+    assert.equal(result.status, 0, result.stderr); return result.stdout.trim();
+  };
+  git(["-c", "init.templateDir=", "init"]);
+  await writeFile(join(root, ".gitignore"), "apps/ai-gateway-service/evidence/\n"); git(["add", ".gitignore"]);
+  git(["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-m", "owned fixture"]);
+  const source = readVerificationSource(root); assert.equal(source.worktree, "clean");
+  const value = verificationFixture(Date.now() - 10_000, source.head); await writeVerification(root, value);
+  let stdout = ""; let stderr = "";
+  const run = async args => { stdout = ""; stderr = ""; return runCli(args, { env: {}, verificationRepoRoot: root,
+    stdout: { isTTY: false, write: chunk => { stdout += chunk; } }, stderr: { write: chunk => { stderr += chunk; } } }); };
+  assert.equal(await run(["verification", "--json"]), process.platform === "win32" ? 0 : 2);
+  const result = JSON.parse(stdout); assert.equal(result.source.head, source.head);
+  assert.equal(result.runningDeploymentVerified, false); assert.equal(stderr, "");
+  await writeFile(join(root, "uncommitted.txt"), "owned change");
+  assert.equal(await run(["verification"]), 2); assert.match(stdout, /source_not_clean/);
+  assert.match(stdout, /Local unsigned summaries/);
+  assert.throws(() => parseCliArgs(["verification", "--url", "http://127.0.0.1:1"], {}), CliUsageError);
+  assert.throws(() => parseCliArgs(["verification", "../outside"], {}), CliUsageError);
+});
 
 test("parseCliArgs supports terminal commands and machine output", () => {
   const parsed = parseCliArgs(
@@ -198,10 +351,10 @@ test("forge command uses canonical positional parsing", () => {
   assert.equal(status.command, "forge");
   assert.deepEqual(status.positionals, ["status"]);
 
-  assert.throws(
-    () => parseCliArgs(["forge", "polish", "make", "this", "clear"], {}),
-    (error) => error instanceof CliUsageError && error.message.includes("remain disabled"),
-  );
+  const polish = parseCliArgs(["forge", "polish", "make", "this", "clear"], {});
+  assert.deepEqual(polish.positionals, ["polish", "make", "this", "clear"]);
+  assert.equal(polish.confirmed, false);
+  assert.throws(() => parseCliArgs(["forge", "polish", "draft", "--tool", "file_write"], {}), CliUsageError);
 });
 
 test("agents uses canonical v1 routes with scoped authentication", async (context) => {
@@ -278,6 +431,230 @@ test("agents uses canonical v1 routes with scoped authentication", async (contex
   });
 });
 
+test("agents approvals shows complete Workforce model bindings and the request versus token budget boundary", async (context) => {
+  const bindings = ["ceo", "pm", "architect", "frontend-engineer", "backend-engineer", "qa", "reviewer"].map((roleId, index) => ({
+    roleId, employeeId: `employee-${roleId}`, providerId: "approved-provider", modelId: `approved-model-${index}`,
+    maxRequests: 1, maxInputTokens: 8192, maxOutputTokens: 2048, timeoutMs: 30000,
+  }));
+  const review = { schemaVersion: 1, reviewable: true, effectType: "workforce:execute", policyHash: `sha256:${"a".repeat(64)}`,
+    workforce: { goal: "Review the actual employee contributions", planId: "plan-bounded", planDigest: `sha256:${"b".repeat(64)}`,
+      autonomyMode: "controlled-execution", options: { selectedRoleCount: 7, templateSelected: false,
+        roleExecution: { version: 1, mode: "gateway-llm-required", profileId: "reviewed-profile", profileHash: `sha256:${"c".repeat(64)}`,
+          maxTotalRequests: 7, maxConcurrentRoles: 2, bindings } } } };
+  const gateway = await createAgentGovernanceMockGateway({ approvalReview: review }); context.after(gateway.close);
+  const args = ["agents", "approvals", "--url", gateway.url];
+  const processOptions = { env: { AGENT_CONSOLE_ADMIN_KEY: "uai-mock-admin-key" } };
+  const plain = await runCliProcess(args, "", processOptions);
+  assert.equal(plain.code, 0, plain.stderr);
+  for (const binding of bindings) {
+    assert.ok(plain.stdout.includes(binding.employeeId)); assert.ok(plain.stdout.includes(binding.modelId));
+  }
+  assert.match(plain.stdout, /Request dispatch hard limit: 7/);
+  assert.match(plain.stdout, /Concurrent roles: 2/);
+  assert.match(plain.stdout, /input estimate=8192; output parameter=2048; timeout=30000ms/);
+  assert.match(plain.stdout, /upstream usage/); assert.match(plain.stdout, /Unknown usage and USD cost remain null/);
+  assert.doesNotMatch(plain.stdout, /Deterministic selection rules|Qualification|Rejected candidates/);
+  const json = await runCliProcess([...args, "--json"], "", processOptions);
+  assert.equal(json.code, 0, json.stderr);
+  assert.equal(JSON.parse(json.stdout).data[0].review.workforce.options.roleExecution.bindings[0].maxInputTokens, 8192);
+});
+
+test("agents approvals keeps template output compatible and rejects an unreadable Workforce token budget", async (context) => {
+  const ordinary = await createAgentGovernanceMockGateway(); context.after(ordinary.close);
+  const processOptions = { env: { AGENT_CONSOLE_ADMIN_KEY: "uai-mock-admin-key" } };
+  const original = await runCliProcess(["agents", "approvals", "--url", ordinary.url], "", processOptions);
+  assert.equal(original.code, 0); assert.match(original.stdout, /Publish the reviewed change/);
+  assert.doesNotMatch(original.stdout, /Request dispatch hard limit/);
+  const invalid = await createAgentGovernanceMockGateway({ approvalReview: { reviewable: true, effectType: "workforce:execute",
+    workforce: { options: { roleExecution: { bindings: [{ maxInputTokens: "sensitive-token-fixture", maxOutputTokens: 5 }] } } } } });
+  context.after(invalid.close);
+  const response = await runCliProcess(["agents", "approvals", "--url", invalid.url], "", processOptions);
+  assert.notEqual(response.code, 0); assert.doesNotMatch(response.stdout + response.stderr, /sensitive-token-fixture/);
+});
+
+test("agents approvals shows the complete Workforce selection and preserves exact numeric qualification budgets", async (context) => {
+  const review = await workforceSelectionApprovalFixture();
+  const expected = structuredClone(review.workforce.options.selectionReview);
+  // Transport object-key order is not the deterministic decision's hash order.
+  for (const assignment of review.workforce.options.selectionReview.assignments) {
+    assignment.qualification = Object.fromEntries(Object.entries(assignment.qualification).reverse());
+    assignment.binding = Object.fromEntries(Object.entries(assignment.binding).reverse());
+  }
+  const { readFrozenWorkforceSelectionReview } = await import("../../ai-gateway-service/src/workforce/workforceSelectionReview.ts");
+  assert.deepEqual(readFrozenWorkforceSelectionReview(review.workforce.options.selectionReview, review.workforce.options.roleExecution), expected);
+  const gateway = await createAgentGovernanceMockGateway({ approvalReview: review }); context.after(gateway.close);
+  const args = ["agents", "approvals", "--url", gateway.url];
+  const processOptions = { env: { AGENT_CONSOLE_ADMIN_KEY: "uai-mock-admin-key" } };
+  const plain = await runCliProcess(args, "", processOptions);
+  assert.equal(plain.code, 0, plain.stderr);
+  for (const value of [expected.catalogHash, expected.selectionHash, expected.taskType, expected.executionMode]) assert.ok(plain.stdout.includes(value));
+  assert.match(plain.stdout, /Deterministic selection rules: v1/);
+  assert.match(plain.stdout, /Selected role scope: ceo, pm/);
+  assert.match(plain.stdout, /Request dispatch hard limit: 3; Concurrent roles: 2/);
+  for (const { binding, qualification } of expected.assignments) {
+    for (const key of ["employeeId", "roleId", "providerId", "modelId"]) assert.ok(plain.stdout.includes(binding[key]));
+    assert.ok(plain.stdout.includes(`requests<=${binding.maxRequests}; input estimate=${binding.maxInputTokens}; output parameter=${binding.maxOutputTokens}; timeout=${binding.timeoutMs}ms`));
+    for (const key of ["qualificationId", "status", "origin", "executionMode", "evidenceHash", "validUntil"]) assert.ok(plain.stdout.includes(qualification[key]));
+    assert.ok(plain.stdout.includes(`Qualified roles: ${qualification.roleIds.join(", ")}; task types: ${qualification.taskTypes.join(", ")}`));
+  }
+  assert.match(plain.stdout, /Rejected candidates: 3/);
+  for (const rejected of expected.rejected) assert.ok(plain.stdout.includes(`${rejected.employeeId}: ${rejected.reason}`));
+  // Expiry is displayed even for an old review; only the server controls admission.
+  assert.match(plain.stdout, /valid until: 2001-01-01T00:00:00.000Z/);
+  const json = await runCliProcess([...args, "--json"], "", processOptions);
+  assert.equal(json.code, 0, json.stderr);
+  const projected = JSON.parse(json.stdout).data[0].review;
+  assert.deepEqual(projected.workforce.options.selectionReview, expected);
+  assert.equal(projected.authorization, "[redacted]");
+  assert.doesNotMatch(plain.stdout + json.stdout, /private selection token-value|\[truncated\]/);
+});
+
+test("agents approvals rejects incomplete or replaced Workforce selection without leaking unsafe review data", async (context) => {
+  const baseline = await workforceSelectionApprovalFixture();
+  const unsafeIdentifier = "sk-" + "q".repeat(32);
+  const { freezeWorkforceRoleExecutionProfile } = await import("../../ai-gateway-service/src/workforce/workforceRoleExecutionProfile.ts");
+  const mutations = {
+    "selection hash": ({ selection }) => { selection.selectionHash = `sha256:${"0".repeat(64)}`; },
+    "catalog hash": ({ selection }) => { selection.catalogHash = `sha256:${"9".repeat(64)}`; },
+    "task type": ({ selection }) => { selection.taskType = "different-task"; },
+    "qualification mode": ({ selection }) => { selection.assignments[0].qualification.executionMode = "real"; },
+    "unknown selection field": ({ selection }) => { selection.credential = "private selection token-value"; },
+    "unknown qualification field": ({ selection }) => { selection.assignments[0].qualification.apiKey = "private selection token-value"; },
+    "string token budget": ({ selection }) => { selection.assignments[0].binding.maxInputTokens = "sensitive-token-fixture"; },
+    "profile binding replacement": ({ profile }) => { profile.bindings[0].modelId = "replacement-model"; },
+    "profile id replacement": ({ profile }) => { profile.profileId = "selection-" + "1".repeat(64); },
+    "profile hash replacement": ({ profile }) => { profile.profileHash = `sha256:${"2".repeat(64)}`; },
+    "missing assignment": ({ selection }) => { selection.assignments.pop(); },
+    "duplicate assignment": ({ selection }) => { selection.assignments[1] = selection.assignments[0]; },
+    "missing qualification evidence": ({ selection }) => { delete selection.assignments[0].qualification.evidenceHash; },
+    "invalid qualification date": ({ selection }) => { selection.assignments[0].qualification.validUntil = "invalid-date"; },
+    "unknown rejection reason": ({ selection }) => { selection.rejected[0].reason = "private selection token-value"; },
+    "selection without profile": ({ review }) => { delete review.workforce.options.roleExecution; },
+    "unreviewable selection": ({ review }) => { review.reviewable = false; },
+    "secret-like identifier with resealed hashes": ({ selection, profile }) => {
+      selection.assignments[0].qualification.qualificationId = unsafeIdentifier;
+      const { selectionHash: _selectionHash, ...decision } = selection;
+      selection.selectionHash = `sha256:${createHash("sha256").update(JSON.stringify(decision)).digest("hex")}`;
+      const { profileHash: _profileHash, ...profileInput } = profile;
+      Object.assign(profile, freezeWorkforceRoleExecutionProfile({ ...profileInput, profileId: `selection-${selection.selectionHash.slice(7)}` }));
+    },
+  };
+  for (const [label, mutate] of Object.entries(mutations)) {
+    const review = structuredClone(baseline);
+    mutate({ review, profile: review.workforce.options.roleExecution, selection: review.workforce.options.selectionReview });
+    const gateway = await createAgentGovernanceMockGateway({ approvalReview: review }); context.after(gateway.close);
+    const result = await runCliProcess(["agents", "approvals", "--url", gateway.url, "--json"], "", { env: { AGENT_CONSOLE_ADMIN_KEY: "uai-mock-admin-key" } });
+    assert.equal(result.code, 1, label);
+    assert.doesNotMatch(result.stdout + result.stderr, /private selection token-value|sensitive-token-fixture|replacement-model/, label);
+    assert.equal((result.stdout + result.stderr).includes(unsafeIdentifier), false, label);
+    assert.deepEqual(gateway.requests.map(({ method, path }) => `${method} ${path}`), ["GET /v1/approvals"], label);
+  }
+});
+
+async function workforceSelectionApprovalFixture() {
+  const { freezeWorkforceRoleExecutionProfile } = await import("../../ai-gateway-service/src/workforce/workforceRoleExecutionProfile.ts");
+  const bindings = ["ceo", "pm"].map((roleId, index) => ({
+    roleId, employeeId: `employee-${roleId}`, providerId: "approved-provider", modelId: `approved-model-${index}`,
+    maxRequests: index + 1, maxInputTokens: 8192 * (index + 1), maxOutputTokens: 2048 * (index + 1), timeoutMs: 30000 * (index + 1),
+  }));
+  const decision = {
+    version: 1, catalogHash: `sha256:${"d".repeat(64)}`, taskType: "implementation", roleIds: ["ceo", "pm"], executionMode: "fake",
+    assignments: bindings.map((binding, index) => ({ binding, qualification: {
+      qualificationId: `qualification-${binding.roleId}`, employeeId: binding.employeeId, providerId: binding.providerId, modelId: binding.modelId,
+      roleIds: [binding.roleId], taskTypes: ["analysis", "implementation"], status: "accepted", origin: "synthetic", executionMode: "fake",
+      evidenceHash: `sha256:${String(index + 1).repeat(64)}`, validUntil: "2001-01-01T00:00:00.000Z",
+    } })),
+    rejected: ["not_enabled", "not_qualified", "not_selected"].map((reason, index) => ({ employeeId: `rejected-${index}`, reason })),
+    maxConcurrentRoles: 2, maxTotalRequests: 3,
+  };
+  const selectionHash = `sha256:${createHash("sha256").update(JSON.stringify(decision)).digest("hex")}`;
+  const roleExecution = freezeWorkforceRoleExecutionProfile({ version: 1, mode: "gateway-llm-required", profileId: `selection-${selectionHash.slice(7)}`,
+    maxTotalRequests: 3, maxConcurrentRoles: 2, bindings });
+  return { schemaVersion: 1, reviewable: true, effectType: "workforce:execute", policyHash: `sha256:${"a".repeat(64)}`,
+    authorization: "private selection token-value",
+    workforce: { goal: "Review selected employee assignments", planId: "plan-selected", planDigest: `sha256:${"b".repeat(64)}`,
+      autonomyMode: "controlled-execution", options: { selectedRoleCount: 2, templateSelected: false, roleExecution,
+        selectionReview: { ...decision, selectionHash } } } };
+}
+
+test("agents approvals displays the complete code delivery scope and preserves its exact JSON contract", async (context) => {
+  const review = await workforceCodeApprovalFixture();
+  const expected = structuredClone(review.workforce.options.codeDelivery);
+  const gateway = await createAgentGovernanceMockGateway({ approvalReview: review }); context.after(gateway.close);
+  const args = ["agents", "approvals", "--url", gateway.url];
+  const options = { env: { AGENT_CONSOLE_ADMIN_KEY: "uai-mock-admin-key" } };
+  const plain = await runCliProcess(args, "", options);
+  assert.equal(plain.code, 0, plain.stderr);
+  assert.match(plain.stdout, /Code delivery: forge-owned-worktree-artifact/);
+  for (const value of [expected.profile.profileId, expected.profile.projectId, expected.profile.baselineRevision,
+    expected.profile.profileHash, expected.configuredRepositoryHash, expected.roleProfileHash,
+    ...expected.profile.readPaths, ...expected.profile.writePaths, expected.profile.verification.image,
+    expected.profile.verification.immutableTests[0].sha256]) assert.ok(plain.stdout.includes(value), value);
+  assert.ok(plain.stdout.includes(JSON.stringify(expected.profile.verification.command)));
+  assert.match(plain.stdout, /Workspace: read-only; network: disabled/);
+  assert.match(plain.stdout, /timeout=30000ms; memory=256MB; output=32768 bytes; processes=32; CPUs=0.5/);
+  assert.match(plain.stdout, /changed files<=1; file bytes<=65536; diff bytes<=131072/);
+  assert.match(plain.stdout, /artifact only; automatic merge: disabled/);
+  const json = await runCliProcess([...args, "--json"], "", options);
+  assert.equal(json.code, 0, json.stderr);
+  assert.deepEqual(JSON.parse(json.stdout).data[0].review.workforce.options.codeDelivery, expected);
+  assert.deepEqual(gateway.requests.map(({ method, path }) => `${method} ${path}`), ["GET /v1/approvals", "GET /v1/approvals"]);
+});
+
+test("agents approvals rejects incomplete or altered code delivery scope before printing it", async (context) => {
+  const baseline = await workforceCodeApprovalFixture();
+  const { stableStringify } = await import("../../../packages/policy-engine/src/integrity.ts");
+  const resealCommand = (review, command) => {
+    const profile = review.workforce.options.codeDelivery.profile;
+    profile.verification.command = command;
+    const { profileHash: _old, ...input } = profile;
+    profile.profileHash = `sha256:${createHash("sha256").update(stableStringify(input)).digest("hex")}`;
+  };
+  const mutations = {
+    "profile hash": review => { review.workforce.options.codeDelivery.profile.profileHash = `sha256:${"0".repeat(64)}`; },
+    "role binding": review => { review.workforce.options.roleExecution.bindings[0].modelId = "altered-code-model"; },
+    "missing test hash": review => { delete review.workforce.options.codeDelivery.profile.verification.immutableTests[0].sha256; },
+    "command alteration": review => { review.workforce.options.codeDelivery.profile.verification.command = "unexpected-command"; },
+    "unknown field": review => { review.workforce.options.codeDelivery.apiKey = "private-code-delivery-value"; },
+    "network enabled": review => { review.workforce.options.codeDelivery.profile.verification.networkAccess = true; },
+    "missing role": review => { delete review.workforce.options.roleExecution; },
+    "unreviewable": review => { review.reviewable = false; },
+    "wrong effect": review => { review.effectType = "different-effect"; },
+    "null scope": review => { review.workforce.options.codeDelivery = null; },
+    "signed secret text": review => { resealCommand(review, 'node -e "TOKEN=private-code-delivery-value"'); },
+    "signed terminal escape": review => { resealCommand(review, 'node \u001b[31munexpected-command'); },
+    "signed bidi override": review => { resealCommand(review, 'node \u202eunexpected-command'); },
+  };
+  for (const [label, mutate] of Object.entries(mutations)) {
+    const review = structuredClone(baseline); mutate(review);
+    const gateway = await createAgentGovernanceMockGateway({ approvalReview: review }); context.after(gateway.close);
+    for (const format of [[], ["--json"]]) {
+      const response = await runCliProcess(["agents", "approvals", "--url", gateway.url, ...format], "", { env: { AGENT_CONSOLE_ADMIN_KEY: "uai-mock-admin-key" } });
+      assert.equal(response.code, 1, `${label} ${format}`);
+      assert.doesNotMatch(response.stdout + response.stderr, /private-code-delivery-value|unexpected-command|altered-code-model|code-project/);
+    }
+    assert.ok(gateway.requests.every(request => request.method === "GET" && request.path === "/v1/approvals"));
+  }
+});
+
+async function workforceCodeApprovalFixture() {
+  const { freezeWorkforceRoleExecutionProfile } = await import("../../ai-gateway-service/src/workforce/workforceRoleExecutionProfile.ts");
+  const { freezeWorkforceCodeDeliveryProfile, createWorkforceCodeDeliveryReview } = await import("../../ai-gateway-service/src/workforce/workforceCodeDeliveryProfile.ts");
+  const roleExecution = freezeWorkforceRoleExecutionProfile({ version: 1, mode: "gateway-llm-required", profileId: "code-employees",
+    maxTotalRequests: 3, maxConcurrentRoles: 1, bindings: [{ roleId: "backend-engineer", employeeId: "code-employee",
+      providerId: "approved-provider", modelId: "approved-model", maxRequests: 3, maxInputTokens: 32768, maxOutputTokens: 16384, timeoutMs: 30000 }] });
+  const profile = freezeWorkforceCodeDeliveryProfile({ version: 1, mode: "forge-owned-worktree-artifact", profileId: "code-profile", projectId: "code-project",
+    baselineRevision: "a".repeat(40), roleId: "backend-engineer", readPaths: ["src/calc.js", "tests/calc.test.js", ...Array.from({ length: 30 }, (_, index) => `fixtures/allowed-${index}.js`)], writePaths: ["src/calc.js"],
+    verification: { verificationId: "code-tests", command: `node --test --test-name-pattern="keeps  two spaces ${"n".repeat(280)}" tests/calc.test.js`,
+      immutableTests: [{ path: "tests/calc.test.js", sha256: "c".repeat(64) }], image: `node@sha256:${"b".repeat(64)}`,
+      workspaceMode: "ro", networkAccess: false, timeoutMs: 30000, maxMemoryMB: 256, maxOutputBytes: 32768, pidsLimit: 32, cpus: 0.5 },
+    artifactLimits: { maxChangedFiles: 1, maxFileBytes: 65536, maxDiffBytes: 131072 } });
+  return { schemaVersion: 1, reviewable: true, effectType: "workforce:execute", policyHash: `sha256:${"d".repeat(64)}`,
+    workforce: { goal: "Create a reviewed code artifact", planId: "code-plan", planDigest: `sha256:${"e".repeat(64)}`, autonomyMode: "controlled-execution",
+      options: { selectedRoleCount: 1, templateSelected: false, roleExecution, codeDelivery: createWorkforceCodeDeliveryReview({ profile,
+        configuredRepositoryHash: `sha256:${"f".repeat(64)}`, roleExecution }) } } };
+}
+
 test("agents run keeps transport alive beyond a shorter global timeout", async (context) => {
   const gateway = await createAgentGovernanceMockGateway({ runDelayMs: 350 });
   context.after(gateway.close);
@@ -347,6 +724,336 @@ test("status reports gateway readiness as JSON", async (context) => {
   assert.equal(output.realProviderEnabled, false);
   assert.deepEqual(output.providers, ["local-fake-provider"]);
   assert.equal(output.chatReady, true);
+});
+
+test("control-center reports one redacted view of shared models, budget, tools, and clients", async (context) => {
+  const gateway = await createMockGateway();
+  context.after(gateway.close);
+
+  const result = await runCliProcess([
+    "control-center",
+    "--json",
+    "--url",
+    gateway.url,
+    "--admin-key",
+    "uai-mock-admin-key",
+  ]);
+
+  assert.equal(result.code, 0, result.stderr);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.ok, true);
+  assert.equal(output.command, "control-center");
+  assert.equal(output.mode, "read-only");
+  assert.equal(output.writesPerformed, false);
+  assert.equal(output.gateway.chatReady, true);
+  assert.equal(output.shared.models.count, 1);
+  assert.deepEqual(output.shared.models.items, [{
+    id: "local-fake-model",
+    providerId: "local-fake-provider",
+    executionMode: "fake",
+  }]);
+  assert.equal(output.shared.budget.activeKeys, 1);
+  assert.equal(output.shared.budget.tokensUsed, 4200);
+  assert.equal(output.shared.tools.serverName, "unified-ai-system");
+  assert.equal(output.shared.tools.sharedByMultipleClients, true);
+  assert.equal(output.clients.onboarding.installedProfileCount, 3);
+  assert.deepEqual(
+    output.clients.onboarding.profiles.map(({ client, state }) => [client, state]),
+    [["claude-compatible", "exact"], ["cursor", "exact"], ["vscode", "exact"]],
+  );
+  assert.equal(output.assurance.nativeModelLoginRerouted, false);
+  assert.equal(output.assurance.realClientCertified, false);
+  assert.equal(gateway.lastModelsAuthorization, "Bearer uai-mock-admin-key");
+  assert.equal(gateway.lastSpendAuthorization, "Bearer uai-mock-admin-key");
+  assert.equal(gateway.lastClientsAuthorization, "Bearer uai-mock-admin-key");
+  assert.equal(gateway.lastOnboardingAuthorization, "Bearer uai-mock-admin-key");
+  assert.doesNotMatch(result.stdout, /uai-mock-admin-key/);
+});
+
+test("control-center returns setup actions when fewer than two client profiles are installed", async (context) => {
+  const gateway = await createMockGateway({
+    missingProfileIds: ["cursor-mcp-json", "vscode-mcp-json"],
+  });
+  context.after(gateway.close);
+
+  const result = await runCliProcess([
+    "center",
+    "--json",
+    "--url",
+    gateway.url,
+    "--admin-key",
+    "uai-mock-admin-key",
+  ]);
+
+  assert.equal(result.code, 1, result.stderr);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.ok, false);
+  assert.equal(output.shared.tools.sharedByMultipleClients, false);
+  assert.equal(output.clients.onboarding.installedProfileCount, 1);
+  assert.equal(output.nextActions.length, 1);
+  assert.match(output.nextActions[0], /control-center configure/);
+  assert.equal(output.writesPerformed, false);
+});
+
+test("control-center reports a safe failed surface, error code, and duration", async (context) => {
+  const gateway = await createMockGateway({ modelsHttpStatus: 503 });
+  context.after(gateway.close);
+  const result = await runCliProcess(["control-center", "--json", "--url", gateway.url, "--admin-key", "uai-mock-admin-key"]);
+  assert.equal(result.code, 1);
+  const output = JSON.parse(result.stderr);
+  assert.equal(output.kind, "required-surface");
+  assert.equal(output.surface, "models");
+  assert.equal(output.code, "CONTROL_CENTER_HTTP_503");
+  assert.equal(Number.isSafeInteger(output.durationMs), true);
+  assert.equal(output.durationMs >= 0, true);
+  assert.doesNotMatch(result.stderr, /private-failure-payload|uai-mock-admin-key/u);
+});
+
+test("control-center refuses to perform network I/O without an admin key", async () => {
+  const result = await runCliProcess([
+    "control-center",
+    "--url",
+    "http://127.0.0.1:43199",
+  ]);
+
+  assert.equal(result.code, 2);
+  assert.match(result.stderr, /admin key/i);
+  assert.doesNotMatch(result.stderr, /could not read all required gateway surfaces/i);
+});
+
+test("control-center rejects credentials embedded in the gateway URL", () => {
+  assert.throws(
+    () => parseCliArgs([
+      "control-center",
+      "--url",
+      "http://user:secret@127.0.0.1:3100",
+    ], { AGENT_CONSOLE_ADMIN_KEY: "uai-mock-admin-key" }),
+    (error) => error instanceof CliUsageError && error.message.includes("userinfo credentials"),
+  );
+});
+
+test("control-center configure plans every profile from one bounded manifest without client writes", async (context) => {
+  const gateway = await createMockGateway({
+    missingProfileIds: [
+      "claude-compatible-mcp-json",
+      "cursor-mcp-json",
+      "vscode-mcp-json",
+    ],
+  });
+  const root = await mkdtemp(join(tmpdir(), "uai-control-center-plan-"));
+  context.after(async () => {
+    await gateway.close();
+    await rm(root, { recursive: true, force: true });
+  });
+  await writeFile(
+    join(root, "control-center.json"),
+    JSON.stringify(controlCenterManifest(gateway.url)),
+    "utf8",
+  );
+
+  const result = await runCliProcess([
+    "control-center",
+    "configure",
+    "--manifest",
+    "control-center.json",
+    "--json",
+    "--url",
+    gateway.url,
+    "--admin-key",
+    "uai-mock-admin-key",
+  ], "", { cwd: root });
+
+  assert.equal(result.code, 0, result.stderr);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.status, "planned");
+  assert.equal(output.mode, "plan");
+  assert.equal(output.clientConfigWritesPerformed, false);
+  assert.equal(output.plans.length, 3);
+  assert.equal(output.completed.length, 0);
+  assert.equal(output.atomicAcrossClients, false);
+  assert.equal(gateway.controlCenterRequestCount("plan"), 3);
+  assert.equal(gateway.controlCenterMutationRequestCount, 0);
+});
+
+test("control-center configure applies one manifest with per-client approval, receipts, and verification", async (context) => {
+  const profiles = [
+    "claude-compatible-mcp-json",
+    "cursor-mcp-json",
+    "vscode-mcp-json",
+  ];
+  const gateway = await createMockGateway({ missingProfileIds: profiles });
+  const root = await mkdtemp(join(tmpdir(), "uai-control-center-apply-"));
+  context.after(async () => {
+    await gateway.close();
+    await rm(root, { recursive: true, force: true });
+  });
+  await writeFile(
+    join(root, "control-center.json"),
+    JSON.stringify(controlCenterManifest(gateway.url)),
+    "utf8",
+  );
+
+  const result = await runCliProcess([
+    "control-center",
+    "configure",
+    "--manifest",
+    "control-center.json",
+    "--apply",
+    "--yes",
+    "--idempotency-key",
+    "personal-setup-001",
+    "--json",
+    "--url",
+    gateway.url,
+    "--admin-key",
+    "uai-mock-admin-key",
+  ], "", { cwd: root });
+
+  assert.equal(result.code, 0, result.stderr);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.status, "completed");
+  assert.equal(output.clientConfigWritesPerformed, true);
+  assert.equal(output.completed.length, 3);
+  assert.equal(output.verification.installedProfileCount, 3);
+  assert.equal(output.retryAllowed, false);
+  assert.equal(output.atomicAcrossClients, false);
+  assert.equal(output.automaticRollbackPerformed, false);
+  assert.ok(output.completed.every((entry) => entry.receipt.redacted === true));
+  assert.equal(gateway.controlCenterRequestCount("approve"), 3);
+  assert.equal(gateway.controlCenterRequestCount("apply"), 3);
+  assert.deepEqual(gateway.controlCenterIdempotencyKeys, [
+    "personal-setup-001:approve:1",
+    "personal-setup-001:apply:1",
+    "personal-setup-001:approve:2",
+    "personal-setup-001:apply:2",
+    "personal-setup-001:approve:3",
+    "personal-setup-001:apply:3",
+  ]);
+  assert.doesNotMatch(result.stdout, /personal-setup-001/);
+});
+
+test("control-center configure stops on the first uncertain mutation and preserves completed receipts", async (context) => {
+  const profiles = [
+    "claude-compatible-mcp-json",
+    "cursor-mcp-json",
+    "vscode-mcp-json",
+  ];
+  const gateway = await createMockGateway({
+    missingProfileIds: profiles,
+    failApplyProfileId: "cursor-mcp-json",
+  });
+  const root = await mkdtemp(join(tmpdir(), "uai-control-center-partial-"));
+  context.after(async () => {
+    await gateway.close();
+    await rm(root, { recursive: true, force: true });
+  });
+  await writeFile(
+    join(root, "control-center.json"),
+    JSON.stringify(controlCenterManifest(gateway.url)),
+    "utf8",
+  );
+
+  const result = await runCliProcess([
+    "control-center",
+    "configure",
+    "--manifest",
+    "control-center.json",
+    "--apply",
+    "--yes",
+    "--idempotency-key",
+    "personal-setup-002",
+    "--json",
+    "--url",
+    gateway.url,
+    "--admin-key",
+    "uai-mock-admin-key",
+  ], "", { cwd: root });
+
+  assert.equal(result.code, 1, result.stderr);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.status, "partial");
+  assert.equal(output.completed.length, 1);
+  assert.equal(output.completed[0].profileId, "claude-compatible-mcp-json");
+  assert.equal(output.completed[0].receipt.redacted, true);
+  assert.equal(output.failure.profileId, "cursor-mcp-json");
+  assert.equal(output.failure.status, "unknown-reconcile-required");
+  assert.equal(output.failure.retryAllowed, false);
+  assert.equal(output.automaticRollbackPerformed, false);
+  assert.equal(gateway.controlCenterRequestCount("apply"), 2);
+  assert.equal(gateway.controlCenterRequestCount("rollback"), 0);
+});
+
+test("control-center does not claim no client writes when the first apply commits but loses its receipt", async (context) => {
+  const profiles = ["claude-compatible-mcp-json", "cursor-mcp-json", "vscode-mcp-json"];
+  const gateway = await createMockGateway({ missingProfileIds: profiles, failApplyProfileId: profiles[0], commitBeforeFailedApply: true });
+  const root = await mkdtemp(join(tmpdir(), "uai-control-center-unknown-"));
+  context.after(async () => { await gateway.close(); await rm(root, { recursive: true, force: true }); });
+  await writeFile(join(root, "control-center.json"), JSON.stringify(controlCenterManifest(gateway.url)), "utf8");
+  const result = await runCliProcess([
+    "control-center", "configure", "--manifest", "control-center.json", "--apply", "--yes",
+    "--idempotency-key", "unknown-first-apply", "--json", "--url", gateway.url, "--admin-key", "uai-mock-admin-key",
+  ], "", { cwd: root });
+  assert.equal(result.code, 1, result.stderr);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.completed.length, 0);
+  assert.equal(output.verification.profiles[0].installed, true);
+  assert.equal(output.clientConfigWritesPerformed, null);
+  assert.equal(output.clientConfigOutcomeUnknown, true);
+  assert.equal(output.status, "unknown-reconcile-required");
+  assert.equal(output.failure.operation, "apply");
+  assert.equal(output.retryAllowed, false);
+  assert.equal(output.automaticRollbackPerformed, false);
+  assert.equal(gateway.controlCenterRequestCount("apply"), 1);
+  assert.equal(gateway.controlCenterRequestCount("rollback"), 0);
+});
+
+test("control-center configure rejects unsafe manifests and incomplete mutation authority before I/O", async (context) => {
+  const gateway = await createMockGateway();
+  const root = await mkdtemp(join(tmpdir(), "uai-control-center-invalid-"));
+  context.after(async () => {
+    await gateway.close();
+    await rm(root, { recursive: true, force: true });
+  });
+  await writeFile(join(root, "one-client.json"), JSON.stringify({
+    ...controlCenterManifest(gateway.url),
+    profiles: ["cursor-mcp-json"],
+  }), "utf8");
+
+  const invalid = await runCliProcess([
+    "control-center",
+    "configure",
+    "--manifest",
+    "one-client.json",
+    "--json",
+    "--url",
+    gateway.url,
+    "--admin-key",
+    "uai-mock-admin-key",
+  ], "", { cwd: root });
+  assert.equal(invalid.code, 2);
+  assert.equal(gateway.controlCenterRequestCount(), 0);
+
+  await writeFile(join(root, "jsonc-v1.json"), JSON.stringify({
+    ...controlCenterManifest(gateway.url), profiles: ["cursor-mcp-json", "vscode-mcp-jsonc-v1"],
+  }));
+  const unchangedV1 = await runCliProcess([
+    "control-center", "configure", "--manifest", "jsonc-v1.json", "--json", "--url", gateway.url,
+    "--admin-key", "uai-mock-admin-key",
+  ], "", { cwd: root });
+  assert.equal(unchangedV1.code, 2);
+  assert.equal(gateway.controlCenterRequestCount(), 0);
+
+  assert.throws(
+    () => parseCliArgs([
+      "control-center",
+      "configure",
+      "--manifest",
+      "control-center.json",
+      "--apply",
+      "--yes",
+    ], { AGENT_CONSOLE_ADMIN_KEY: "uai-mock-admin-key" }),
+    (error) => error instanceof CliUsageError && error.message.includes("idempotency-key"),
+  );
 });
 
 test("spend reports per-key token spend with an admin key", async (context) => {
@@ -1506,6 +2213,91 @@ test("chat blocks a real-provider runtime until explicitly authorized", async (c
   assert.equal(output.executionMode, "real");
 });
 
+test("doctor enforces the package engine boundaries", async (context) => {
+  const cases = [
+    { name: "Node 20 is unsupported", nodeVersion: "20.19.0", pnpmVersion: "11.19.0", nodePassed: false, pnpmPassed: true },
+    { name: "Node below the minimum patch is unsupported", nodeVersion: "22.17.0", pnpmVersion: "11.19.0", nodePassed: false, pnpmPassed: true },
+    { name: "the minimum toolchain is supported", nodeVersion: "22.18.0", pnpmVersion: "11.19.0", nodePassed: true, pnpmPassed: true },
+    { name: "pnpm 9 is unsupported", nodeVersion: "22.18.0", pnpmVersion: "9.15.0", nodePassed: true, pnpmPassed: false },
+    { name: "pnpm below the minimum minor is unsupported", nodeVersion: "22.18.0", pnpmVersion: "11.18.9", nodePassed: true, pnpmPassed: false },
+    { name: "pnpm 12 is unsupported", nodeVersion: "22.18.0", pnpmVersion: "12.0.0", nodePassed: true, pnpmPassed: false },
+    { name: "later supported stable versions work", nodeVersion: "25.8.1", pnpmVersion: "11.20.0", nodePassed: true, pnpmPassed: true },
+    { name: "unknown Node version fails closed", nodeVersion: "unknown", pnpmVersion: "11.19.0", nodePassed: false, pnpmPassed: true },
+    { name: "unknown pnpm version fails closed", nodeVersion: "22.18.0", pnpmVersion: "11.invalid", nodePassed: true, pnpmPassed: false },
+    { name: "pnpm prerelease is not a supported stable release", nodeVersion: "22.18.0", pnpmVersion: "11.19.0-beta.1", nodePassed: true, pnpmPassed: false },
+  ];
+  for (const fixture of cases) {
+    await context.test(fixture.name, async () => {
+      const { code, payload } = await runDoctorFixture(fixture);
+      assert.equal(payload.checks.find((check) => check.id === "node").passed, fixture.nodePassed);
+      assert.equal(payload.checks.find((check) => check.id === "pnpm").passed, fixture.pnpmPassed);
+      assert.equal(payload.ok, fixture.nodePassed && fixture.pnpmPassed);
+      assert.equal(code, payload.ok ? 0 : 1);
+      assert.equal(payload.gateway.reachable, false);
+    });
+  }
+});
+
+test("doctor exposes engine requirements and rejects a missing pnpm executable", async () => {
+  const { code, payload } = await runDoctorFixture({ nodeVersion: "22.18.0", pnpmVersion: "", pnpmStatus: 1 });
+  assert.equal(code, 1);
+  const nodeCheck = payload.checks.find((check) => check.id === "node");
+  const pnpmCheck = payload.checks.find((check) => check.id === "pnpm");
+  assert.equal(nodeCheck.required, ">=22.18.0");
+  assert.equal(pnpmCheck.required, ">=11.19.0 <12");
+  assert.equal(pnpmCheck.passed, false);
+  assert.match(pnpmCheck.detail, /not found on PATH/u);
+});
+
+test("doctor human output explains required versions", async () => {
+  const { code, stdout } = await runDoctorFixture({ nodeVersion: "22.17.0", pnpmVersion: "12.0.0", json: false });
+  assert.equal(code, 1);
+  assert.match(stdout, /Node\.js 22\.17\.0 \(requires >=22\.18\.0\)/u);
+  assert.match(stdout, /pnpm 12\.0\.0 \(requires >=11\.19\.0 <12\)/u);
+});
+
+test("doctor fails closed for missing or unsupported engine declarations", async (context) => {
+  for (const engines of [{}, { node: "", pnpm: "" }, { node: "^22.18.0", pnpm: ">=11.19.0 || <12" }]) {
+    await context.test(JSON.stringify(engines), async () => {
+      const { code, payload } = await runDoctorFixture({ nodeVersion: "22.18.0", pnpmVersion: "11.19.0", engineRequirements: engines });
+      assert.equal(code, 1);
+      assert.equal(payload.ok, false);
+      assert.equal(payload.checks.find((check) => check.id === "node").passed, false);
+      assert.equal(payload.checks.find((check) => check.id === "pnpm").passed, false);
+    });
+  }
+});
+
+test("doctor reads changed requirements rather than keeping old hard-coded minimums", async () => {
+  const { code, payload } = await runDoctorFixture({ nodeVersion: "22.18.0", pnpmVersion: "11.19.0", engineRequirements: { node: ">=25.8.1", pnpm: ">=11.20.0 <12" } });
+  assert.equal(code, 1);
+  assert.equal(payload.checks.find((check) => check.id === "node").required, ">=25.8.1");
+  assert.equal(payload.checks.find((check) => check.id === "node").passed, false);
+  assert.equal(payload.checks.find((check) => check.id === "pnpm").passed, false);
+});
+
+async function runDoctorFixture({ nodeVersion, pnpmVersion, pnpmStatus = 0, json = true, engineRequirements }) {
+  let stdout = "";
+  let stderr = "";
+  let spawnCount = 0;
+  const code = await runCli([
+    "doctor", ...(json ? ["--json"] : []), "--url", "http://127.0.0.1:9", "--timeout", "1",
+  ], {
+    env: {},
+    nodeVersion,
+    engineRequirements,
+    stdout: { isTTY: false, write(chunk) { stdout += chunk; } },
+    stderr: { write(chunk) { stderr += chunk; } },
+    spawnSynchronous() {
+      spawnCount += 1;
+      return { status: pnpmStatus, stdout: pnpmVersion };
+    },
+  });
+  assert.equal(stderr, "");
+  assert.equal(spawnCount, 1);
+  return { code, stdout, payload: json ? JSON.parse(stdout) : null };
+}
+
 test("doctor treats an offline gateway as optional", async () => {
   const result = await runCliProcess([
     "doctor",
@@ -1522,6 +2314,463 @@ test("doctor treats an offline gateway as optional", async () => {
   assert.equal(output.gateway.reachable, false);
   assert.equal(output.nextAction, "pnpm gateway serve");
 });
+
+test("CLI workflow requests a real approval and publishes the exact reviewed artifact once", { timeout: 60_000 }, async (context) => {
+  // This integration must never load a user's model-library runtime state.
+  await assert.rejects(lstat(join(repoRoot, "apps/ai-gateway-service/evidence/phase-312a-model-library-state.json")), { code: "ENOENT" });
+  const [{ createGatewayApplication }, { createGatewayHttpServer }, { createAgentApprovalStore }] = await Promise.all([
+    import("../../ai-gateway-service/src/application/createGatewayApplication.js"),
+    import("../../ai-gateway-service/src/http/httpServer.js"),
+    import("../../ai-gateway-service/src/agent-governance/agentApprovalStore.ts"),
+  ]);
+  const root = await mkdtemp(join(tmpdir(), "cli-real-workflow-"));
+  const outputDir = join(root, "artifacts");
+  const token = "cli-workflow-integration-fixture-token";
+  const identity = { tenantId: "cli-workflow-tenant", userId: "cli-workflow-owner", role: "admin", permissions: ["*"] };
+  let server;
+  context.after(async () => {
+    if (server) {
+      await new Promise(resolveClose => { server.close(() => resolveClose()); server.closeAllConnections(); });
+      await server.shutdownResources?.();
+    }
+    assert.ok(resolve(root).startsWith(resolve(tmpdir()) + (process.platform === "win32" ? "\\" : "/")));
+    await rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+  });
+  const application = createGatewayApplication({
+    NODE_ENV: "test", AI_GATEWAY_PROVIDER_MODE: "fake", AI_GATEWAY_REAL_PROVIDER_ENABLED: "false",
+    PME_RUNTIME_CREDENTIAL_STORE_MODE: "memory", KNOWLEDGE_STORAGE_MODE: "memory",
+    AI_GATEWAY_AGENT_GOVERNANCE_ENABLED: "true", AI_GATEWAY_AGENT_GOVERNANCE_DATA_DIR: join(root, "governance"),
+    AI_GATEWAY_AGENT_GOVERNANCE_HMAC_KEY: "cli-workflow-governance-fixture-key-0123456789",
+    WORKFLOW_OUTPUT_DIR: outputDir, WORKFORCE_PLAN_STORE_PATH: join(root, "workforce-plans.json"), WORKFORCE_EXECUTION_DIR: join(root, "workforce"),
+    AI_GATEWAY_USAGE_LOG_DIR: join(root, "usage"), PME_ENTERPRISE_AUTH_ENABLED: "true",
+    PME_AUTH_TOKEN: token, PME_AUTH_USER_ID: identity.userId, PME_AUTH_TENANT_ID: identity.tenantId,
+    PME_AUTH_ROLE: identity.role, PME_ENTERPRISE_PLATFORM_TENANT_ID: identity.tenantId,
+    PME_ENTERPRISE_USER_STORE_PATH: join(root, "users.json"), PME_API_KEY_STORE_PATH: join(root, "keys.json"),
+    PME_AUDIT_LOG_PATH: join(root, "audit.jsonl"), PME_AUDIT_CHAIN_PATH: join(root, "audit.chain.jsonl"),
+    AI_GATEWAY_RATE_LIMIT_WHITELIST: "127.0.0.1",
+  });
+  server = createGatewayHttpServer(application);
+  const agent = await application.agentGovernance.service.generateAgent({
+    name: "cli-workflow-writer", task: "write a controlled local report", requestedTools: ["file_write"], ttlSeconds: 3600, parentAgentId: null,
+  }, identity);
+  server.listen(0, "127.0.0.1"); await once(server, "listening");
+  const url = "http://127.0.0.1:" + server.address().port;
+  const common = ["--admin-key", token, "--url", url, "--json"];
+  const runArgs = ["workflow", "run", "--workflow-id", "cli-real-report", "--goal", "Explain the local gateway", "--agent-id", agent.agentId, "--artifact-name", "cli-report.md"];
+  const run = await runCliProcess([...runArgs, ...common]);
+  assert.equal(run.code, 0, run.stderr);
+  const completion = JSON.parse(run.stdout).data;
+  const stored = application.workflowService.getRun("cli-real-report", identity);
+  assert.equal(stored.status, "completed"); assert.equal(stored.canResume, false); assert.equal(stored.resumeAction, null);
+  assert.equal(completion.artifact.fileName, "cli-report.md");
+  assert.ok(resolve(stored.result.artifact.absolutePath).startsWith(resolve(outputDir) + (process.platform === "win32" ? "\\" : "/")));
+  const report = await readFile(stored.result.artifact.absolutePath);
+  assert.equal(completion.artifact.bytes, report.length);
+  assert.equal(completion.artifact.sha256, createHash("sha256").update(report).digest("hex"));
+  for (const operation of ["status", "recover"]) {
+    const result = await runCliProcess(["workflow", operation, "--workflow-id", "cli-real-report", ...common]);
+    assert.equal(result.code, 0, result.stderr); assert.equal(JSON.parse(result.stdout).data.status, "completed");
+  }
+  const listed = await runCliProcess(["workflow", "list", ...common]);
+  assert.equal(listed.code, 0, listed.stderr);
+  assert.equal(JSON.parse(listed.stdout).data.runs[0].workflowId, "cli-real-report");
+
+  // Activate a restrictive policy BEFORE issuing a fresh Agent. Reconfiguring
+  // the already-run Agent introduced a separate execution fence in the first run.
+  await application.agentGovernance.service.createPolicyVersion({
+    policyKey: "task:workflow-review", version: 1, policyType: "task", scopeKey: "workflow-review",
+    content: { toolRules: { file_write: "require_approval" } },
+  }, identity);
+  await application.agentGovernance.service.activatePolicyVersion("task:workflow-review", 1, identity);
+  const restrictedAgent = await application.agentGovernance.service.generateAgent({
+    name: "approval-required-workflow", task: "write a controlled local report", requestedTools: ["file_write"],
+    ttlSeconds: 3600, parentAgentId: null, taskPolicyKeys: ["workflow-review"],
+  }, identity);
+  assert.equal((await application.agentGovernance.service.getEffectivePolicy(restrictedAgent.agentId, identity.tenantId)).toolDecisions.file_write, "require_approval");
+  const approvalRun = ["workflow", "run", "--workflow-id", "approval-reviewed-report", "--goal",
+    "Review the complete local artifact. ".repeat(70).trim(), "--artifact-name", "reviewed-report.md", "--agent-id", restrictedAgent.agentId, ...common];
+  const pending = await runCliProcess(approvalRun);
+  assert.equal(pending.code, 1); const blocked = JSON.parse(pending.stderr);
+  assert.equal(blocked.code, "TOOL_APPROVAL_REQUIRED"); assert.match(blocked.approvalId, /^appr_/);
+  assert.match(blocked.nextAction, /review the exact file_write request/);
+  assert.equal(application.workflowService.getRun("approval-reviewed-report", identity).error.code, "TOOL_APPROVAL_REQUIRED");
+  assert.deepEqual((await readdir(dirname(stored.result.artifact.absolutePath))).filter(name => name.endsWith(".md")), ["cli-report.md"]);
+  const approvals = await runCliProcess(["agents", "approvals", "--agent-id", restrictedAgent.agentId, ...common]);
+  assert.equal(approvals.code, 0, approvals.stderr);
+  const approval = JSON.parse(approvals.stdout).data[0]; const reviewed = approval.review.workflow;
+  assert.equal(approval.id, blocked.approvalId); assert.equal(approval.status, "PENDING");
+  assert.equal(approval.review.effectType, "workflow:artifact-write"); assert.equal(reviewed.target.fileName, "reviewed-report.md");
+  assert.ok(reviewed.content.length > 4_000); assert.equal(reviewed.contentBytes, Buffer.byteLength(reviewed.content));
+  assert.equal(reviewed.contentHash, "sha256:" + createHash("sha256").update(reviewed.content).digest("hex"));
+  const plain = await runCliProcess(["agents", "approvals", "--agent-id", restrictedAgent.agentId, "--admin-key", token, "--url", url]);
+  assert.equal(plain.code, 0, plain.stderr); assert.ok(plain.stdout.includes(reviewed.content)); assert.match(plain.stdout, /End of complete Markdown content/);
+  const decision = await runCliProcess(["agents", "approve", "--approval-id", approval.id, "--yes", ...common]);
+  assert.equal(decision.code, 0, decision.stderr); assert.equal(JSON.parse(decision.stdout).data.status, "APPROVED");
+  const approvedRun = await runCliProcess(approvalRun);
+  assert.equal(approvedRun.code, 0, approvedRun.stderr);
+  const published = application.workflowService.getRun("approval-reviewed-report", identity);
+  assert.equal(await readFile(published.result.artifact.absolutePath, "utf8"), reviewed.content);
+  assert.equal(JSON.parse(approvedRun.stdout).data.artifact.sha256, reviewed.contentHash.slice(7));
+  const approvalReader = () => createAgentApprovalStore({ storePath: join(root, "governance", "approvals.json"), secret: "cli-workflow-governance-fixture-key-0123456789" });
+  assert.equal((await approvalReader().get(approval.id)).status, "CONSUMED");
+  const usage = await application.agentGovernance.service.getUsage(restrictedAgent.agentId);
+  const replay = await runCliProcess(approvalRun); assert.equal(replay.code, 0, replay.stderr);
+  assert.equal((await application.agentGovernance.service.getUsage(restrictedAgent.agentId)).toolCalls, usage.toolCalls);
+  assert.equal((await approvalReader().get(approval.id)).status, "CONSUMED");
+  const unsafe = await runCliProcess(["workflow", "run", "--workflow-id", "unsafe-review-report", "--goal", "password=synthetic-secret-value", "--agent-id", restrictedAgent.agentId, ...common]);
+  assert.equal(unsafe.code, 1); assert.equal(JSON.parse(unsafe.stderr).code, "APPROVAL_REVIEW_UNAVAILABLE");
+  assert.equal(application.workflowService.getRun("unsafe-review-report", identity).error.code, "APPROVAL_REVIEW_UNAVAILABLE");
+  assert.deepEqual(await application.agentGovernance.service.listApprovals(restrictedAgent.agentId, identity.tenantId), []);
+  const artifacts = (await readdir(dirname(stored.result.artifact.absolutePath))).filter(name => name.endsWith(".md"));
+  assert.deepEqual(artifacts.sort(), ["cli-report.md", "reviewed-report.md"]);
+});
+
+
+for (const fixture of [
+  {
+    label: "JSONC", profileId: "vscode-mcp-jsonc-v1", client: "vscode", format: "jsonc", containerKey: "servers",
+    target: ["vscode-fixture", "mcp.jsonc"],
+    original: '\ufeff{\r\n // JSONC original comment\r\n "servers": {"unmanaged" : {"args":["literal",],},}, /* footer */\r\n}',
+  },
+  {
+    label: "Codex TOML", profileId: "codex-mcp-toml-v1", client: "codex", format: "toml", containerKey: "mcp_servers",
+    target: ["codex-fixture", "config.toml"],
+    original: "# TOML original comment\r\nmodel = 'synthetic-native-model'\r\n[native]\r\nbase_url = 'https://native.invalid'\r\n[mcp_servers.unmanaged]\r\ncommand = 'unmanaged'\r\nargs = [ 'literal', ]\r\n\r\n",
+  },
+  {
+    label: "Continue YAML", profileId: "continue-mcp-yaml-v1", client: "continue", format: "yaml", containerKey: "mcpServers",
+    target: ["continue-fixture", "config.yaml"],
+    original: '# YAML original comment\r\nname: "Fixture assistant"\r\nversion: "1.0.0"\r\nschema: v1\r\nmodels:\r\n  - name: native fixture\r\n    provider: openai\r\n    model: synthetic-native-model\r\n    apiBase: https://native.invalid\r\nmcpServers:\r\n  - name: unmanaged\r\n    command: unmanaged\r\n    args: [literal]\r\n',
+  },
+]) {
+test(`CLI ${fixture.label} onboarding uses real approval, durable replay, exact rollback and explicit recovery`, { timeout: 60_000 }, async (context) => {
+  const [{ createGatewayApplication }, { createGatewayHttpServer }] = await Promise.all([
+    import("../../ai-gateway-service/src/application/createGatewayApplication.js"),
+    import("../../ai-gateway-service/src/http/httpServer.js"),
+  ]);
+  const root = await mkdtemp(join(tmpdir(), `cli-real-${fixture.format}-onboarding-`));
+  const targetPath = join(root, ...fixture.target);
+  const backupDir = join(root, "config-backups");
+  const journalPath = join(root, "config-state", "journal.json");
+  const original = Buffer.from(fixture.original);
+  await mkdir(dirname(targetPath), { recursive: true });
+  await writeFile(targetPath, original);
+  const token = "cli-jsonc-integration-fixture-token";
+  const { profileId, format } = fixture;
+  const config = {
+    version: 2, ownerTenantId: "cli-jsonc-tenant",
+    profiles: [{ profileId, paths: { targetPath, allowedRoot: root, backupDir, journalPath, maxBytes: 65536, maxTransactions: 16 } }],
+    serverDefinition: { transport: "stdio", command: join(root, "bin", "node.exe"), args: [join(root, "gateway-entry.mjs")], cwd: root },
+  };
+  const env = {
+    NODE_ENV: "test", AI_GATEWAY_PROVIDER_MODE: "fake", AI_GATEWAY_REAL_PROVIDER_ENABLED: "false",
+    PME_RUNTIME_CREDENTIAL_STORE_MODE: "memory", KNOWLEDGE_STORAGE_MODE: "memory",
+    AI_GATEWAY_MODEL_LIBRARY_STATE_PATH: join(root, "model-library.json"),
+    WORKFLOW_OUTPUT_DIR: join(root, "artifacts"), WORKFORCE_PLAN_STORE_PATH: join(root, "workforce-plans.json"), WORKFORCE_EXECUTION_DIR: join(root, "workforce"),
+    AI_GATEWAY_USAGE_LOG_DIR: join(root, "usage"), PME_ENTERPRISE_AUTH_ENABLED: "true",
+    PME_AUTH_TOKEN: token, PME_AUTH_USER_ID: "cli-jsonc-owner", PME_AUTH_TENANT_ID: config.ownerTenantId,
+    PME_AUTH_ROLE: "admin", PME_ENTERPRISE_PLATFORM_TENANT_ID: config.ownerTenantId,
+    PME_ENTERPRISE_USER_STORE_PATH: join(root, "users.json"), PME_API_KEY_STORE_PATH: join(root, "keys.json"),
+    PME_AUDIT_LOG_PATH: join(root, "audit.jsonl"), PME_AUDIT_CHAIN_PATH: join(root, "audit.chain.jsonl"),
+    AI_GATEWAY_RATE_LIMIT_WHITELIST: "127.0.0.1",
+    AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_ENABLED: "true", AI_GATEWAY_LOCAL_CLIENT_HOST_ID: "cli-jsonc-test-host",
+    AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_CONFIG_JSON: JSON.stringify(config),
+    AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_RECEIPT_AUTHORITY_SQLITE_PATH: join(root, "receipt-authority.sqlite"),
+    AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_RECEIPT_AUTHORITY_NAMESPACE: "cli-jsonc-test",
+    AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_RECEIPT_AUTHORITY_TTL_MS: "2592000000",
+    AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_RECEIPT_AUTHORITY_LEASE_TTL_MS: "600000",
+    AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_ROOT_SECRET_REF: "env_key_name:CLI_JSONC_TEST_ROOT_SECRET",
+    CLI_JSONC_TEST_ROOT_SECRET: "hex:" + "9c".repeat(32),
+    AI_GATEWAY_LOCAL_CLIENT_REGISTRY_PATH: join(root, "client-registry.json"),
+    AI_GATEWAY_LOCAL_CLIENT_EXECUTION_LOG_PATH: join(root, "client-execution.jsonl"),
+    AI_GATEWAY_LOCAL_CLIENT_CONTROL_STORE_MODE: "local", AI_GATEWAY_LOCAL_CLIENT_EXECUTION_CONTROL_DIR: join(root, "control"),
+    AI_GATEWAY_IDEMPOTENCY_STORE_MODE: "sqlite", AI_GATEWAY_IDEMPOTENCY_SQLITE_PATH: join(root, "idempotency.sqlite"),
+    AI_GATEWAY_IDEMPOTENCY_HMAC_SECRET: "cli-jsonc-idempotency-fixture".padEnd(64, "x"),
+    AI_GATEWAY_EXTERNAL_EFFECT_STORE_MODE: "sqlite", AI_GATEWAY_EXTERNAL_EFFECT_SQLITE_PATH: join(root, "external-effects.sqlite"),
+    AI_GATEWAY_EXTERNAL_EFFECT_HMAC_SECRET: "cli-jsonc-external-fixture".padEnd(64, "x"),
+    AI_GATEWAY_EXTERNAL_EFFECT_CENTRAL_REQUIRED: "false",
+  };
+  let server;
+  let application;
+  let url;
+  async function stop() {
+    if (!server) return;
+    await new Promise(resolveClose => { server.close(() => resolveClose()); server.closeAllConnections(); });
+    await server.shutdownResources?.();
+    server = null;
+  }
+  async function start() {
+    application = createGatewayApplication(env);
+    server = createGatewayHttpServer(application);
+    server.listen(0, "127.0.0.1"); await once(server, "listening");
+    url = "http://127.0.0.1:" + server.address().port;
+  }
+  async function invoke(args) {
+    const result = await runCliProcess(["clients-onboarding", ...args, "--admin-key", token, "--url", url, "--json"], "", { cwd: root });
+    assert.equal(result.code, 0, result.stderr);
+    assert.doesNotMatch(result.stdout, /(?:JSONC|TOML|YAML) original comment|synthetic-native-model|native\.invalid|gateway-entry\.mjs|cli-jsonc-integration-fixture-token/);
+    return JSON.parse(result.stdout);
+  }
+  const mutate = (operation, planId, idempotencyKey) => invoke([operation, "--plan-id", planId, "--yes", "--idempotency-key", idempotencyKey]);
+  context.after(async () => {
+    await stop();
+    assert.ok(resolve(root).startsWith(resolve(tmpdir()) + (process.platform === "win32" ? "\\" : "/")));
+    await rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+  });
+  // The v2 selection must pass through the same application path-isolation graph.
+  const conflictConfig = structuredClone(config);
+  conflictConfig.profiles[0].paths.targetPath = env.AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_RECEIPT_AUTHORITY_SQLITE_PATH;
+  assert.throws(() => createGatewayApplication({ ...env, AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_CONFIG_JSON: JSON.stringify(conflictConfig) }),
+    error => error?.code === "LOCAL_CLIENT_ONBOARDING_PATH_CONFLICT");
+  for (const parent of [dirname(targetPath), parse(targetPath).root,
+    ...(process.platform === "win32" ? [dirname(targetPath).toUpperCase() + "\\"] : [])]) {
+    const containedConfig = structuredClone(config);
+    containedConfig.profiles[0].paths.backupDir = parent;
+    assert.throws(() => createGatewayApplication({ ...env, AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_CONFIG_JSON: JSON.stringify(containedConfig) }),
+      error => error?.code === "LOCAL_CLIENT_ONBOARDING_PATH_CONFLICT");
+  }
+  await start();
+  assert.equal(application.localClientGovernedOnboardingStatus.configurationVersion, 2);
+  const profiles = await invoke(["profiles"]);
+  assert.deepEqual(profiles.data.profiles.map(({ profileId, client, format, containerKey }) => ({ profileId, client, format, containerKey })),
+    [{ profileId, client: fixture.client, format, containerKey: fixture.containerKey }]);
+  const inspect = await invoke(["inspect", "--profile-id", profileId]);
+  assert.equal(inspect.data.installation.state, "absent");
+  const plan = await invoke(["plan", "--profile-id", profileId, "--action", "enable"]);
+  const planId = plan.data.planId;
+  assert.deepEqual(await readFile(targetPath), original);
+  const unapproved = await runCliProcess(["clients-onboarding", "apply", "--plan-id", planId, "--yes", "--idempotency-key", "jsonc-unapproved", "--admin-key", token, "--url", url, "--json"], "", { cwd: root });
+  assert.equal(unapproved.code, 1);
+  assert.deepEqual(await readFile(targetPath), original);
+  await mutate("approve", planId, "jsonc-approve");
+  const applied = await mutate("apply", planId, "jsonc-apply");
+  const receipt = applied.data.result.receipt;
+  assert.equal(receipt.profileId, profileId); assert.equal(receipt.format, format);
+  const enabled = await readFile(targetPath);
+  if (format === "jsonc") {
+    assert.ok(enabled.toString().includes('"unmanaged" : {"args":["literal",],}'));
+    assert.ok(enabled.toString().includes("// JSONC original comment\r\n"));
+  } else if (format === "yaml") {
+    const expected = Buffer.from(fixture.original + '  - ' + JSON.stringify({ name: "unified-ai-system",
+      command: join(root, "bin", "node.exe"), args: [join(root, "gateway-entry.mjs")], cwd: root }) + '\r\n');
+    assert.deepEqual(enabled, expected);
+  } else {
+    // Authored expected bytes, independent of the production TOML parser/editor.
+    const expected = Buffer.from(fixture.original.slice(0, -4)
+      + '\r\n[mcp_servers."unified-ai-system"]\r\n'
+      + `command = ${JSON.stringify(join(root, "bin", "node.exe"))}\r\n`
+      + `args = [${JSON.stringify(join(root, "gateway-entry.mjs"))}]\r\n`
+      + `cwd = ${JSON.stringify(root)}\r\n\r\n`);
+    assert.deepEqual(enabled, expected);
+  }
+  assert.equal(createHash("sha256").update(enabled).digest("hex"), receipt.transaction.afterSha256);
+  const enabledIdentity = await lstat(targetPath);
+  await mutate("apply", planId, "jsonc-apply");
+  assert.equal((await lstat(targetPath)).ino, enabledIdentity.ino);
+  assert.equal((await invoke(["verify", "--profile-id", profileId])).data.state, "exact");
+  await stop(); await start();
+  assert.equal((await mutate("apply", planId, "jsonc-apply")).data.replayed, true);
+  await writeFile(join(root, "receipt.json"), JSON.stringify(receipt));
+  const rollbackPlan = await invoke(["plan", "--profile-id", profileId, "--action", "rollback", "--receipt-file", "receipt.json"]);
+  await mutate("approve", rollbackPlan.data.planId, "jsonc-rollback-approve");
+  const rolledBack = await mutate("rollback", rollbackPlan.data.planId, "jsonc-rollback");
+  assert.equal(rolledBack.data.result.receipt.format, format);
+  assert.deepEqual(await readFile(targetPath), original);
+  const restoredIdentity = await lstat(targetPath);
+  await mutate("rollback", rollbackPlan.data.planId, "jsonc-rollback");
+  assert.equal((await lstat(targetPath)).ino, restoredIdentity.ino);
+  assert.deepEqual(await readFile(targetPath), original);
+
+  // Authored pending-journal fixture verifies the real HTTP recovery path; it is not a process-kill claim.
+  const secondPlan = await invoke(["plan", "--profile-id", profileId, "--action", "enable"]);
+  await mutate("approve", secondPlan.data.planId, "jsonc-recovery-enable-approve");
+  const secondApply = await mutate("apply", secondPlan.data.planId, "jsonc-recovery-enable");
+  const recoveryBefore = await readFile(targetPath);
+  await stop();
+  const journal = JSON.parse(await readFile(journalPath, "utf8"));
+  const entry = journal.entries.find(item => item.transactionId === secondApply.data.result.receipt.transaction.transactionId);
+  assert.ok(entry);
+  Object.assign(entry, { status: "pending", afterIdentityFingerprint: null, committedAtMs: null, receiptDigest: null, rolledBackAtMs: null, rollbackReceiptDigest: null });
+  await writeFile(journalPath, JSON.stringify(journal));
+  await start();
+  assert.equal((await invoke(["inspect", "--profile-id", profileId])).data.recoveryRequired, true);
+  const recoveryPlan = await invoke(["plan", "--profile-id", profileId, "--action", "recover"]);
+  await mutate("approve", recoveryPlan.data.planId, "jsonc-recovery-approve");
+  const recovered = await mutate("recover", recoveryPlan.data.planId, "jsonc-recover");
+  assert.equal(recovered.data.result.receipt.format, format);
+  assert.deepEqual(await readFile(targetPath), recoveryBefore);
+  await mutate("recover", recoveryPlan.data.planId, "jsonc-recover");
+  assert.equal((await invoke(["inspect", "--profile-id", profileId])).data.recoveryRequired, false);
+  for (const missing of ["claude", "cursor", "vscode-backups"]) await assert.rejects(lstat(join(root, missing)), { code: "ENOENT" });
+});
+
+test(`CLI ${fixture.label} profile refuses a wrong-format verification or rollback receipt`, async (context) => {
+  const { profileId, format } = fixture;
+  assert.equal(parseCliArgs(["clients-onboarding", "verify", "--profile-id", profileId], {}).onboardingProfileId, profileId);
+  const gateway = await createOnboardingMockGateway(); context.after(gateway.close);
+  const verification = await runCliProcess(["clients-onboarding", "verify", "--profile-id", profileId, "--json", "--url", gateway.url]);
+  assert.equal(verification.code, 1);
+  assert.equal(gateway.requestCount("verify"), 1);
+  const root = await mkdtemp(join(tmpdir(), `cli-${format}-wrong-receipt-`));
+  context.after(() => rm(root, { recursive: true, force: true }));
+  for (const wrongFormat of ["json-only", "jsonc", "toml", "yaml"].filter(value => value !== format)) {
+    await writeFile(join(root, "receipt.json"), JSON.stringify({ ...onboardingApplyReceipt(profileId), format: wrongFormat }));
+    const rollback = await runCliProcess(["clients-onboarding", "plan", "--profile-id", profileId, "--action", "rollback", "--receipt-file", "receipt.json", "--json", "--url", gateway.url], "", { cwd: root });
+    assert.equal(rollback.code, 2);
+    assert.equal(gateway.requestCount("plan"), 0);
+  }
+});
+}
+
+test("workflow/provider commands use explicit identifiers without a new confirmation layer", () => {
+  const env = { AGENT_CONSOLE_ADMIN_KEY: "operator-fixture-key" };
+  const run = parseCliArgs(["--goal", "Local report", "workflow", "run", "--workflow-id", "report-001", "--agent-id", "agt_report"], env);
+  assert.equal(run.confirmed, false);
+  assert.equal(run.workflowId, "report-001");
+  assert.equal(parseCliArgs(["providers", "clear-credential", "--provider-id", "bai"], env).confirmed, false);
+  assert.throws(() => parseCliArgs(["providers", "clear-credential", "--provider-id", "bai"], {}), CliUsageError);
+  assert.throws(() => parseCliArgs(["workflow", "list"], {}), CliUsageError);
+  for (const args of [
+    ["workflow", "run", "--goal", "report", "--agent-id", "agt_report"],
+    ["workflow", "run", "--workflow-id", "report-001", "--goal", "report"],
+    ["workflow", "status", "--workflow-id", "../escape"],
+    ["workflow", "recover", "--workflow-id", "report-001", "--goal", "new input"],
+    ["workflow", "list", "--limit", "101"],
+    ["workflow", "run", "--workflow-id", "report-001", "--goal", "report", "--agent-id", "agt_report", "--provider-id", "bai"],
+    ["providers", "clear-credential", "--provider-id", "../bai"],
+    ["agents", "status", "--workflow-id", "report-001"],
+  ]) assert.throws(() => parseCliArgs(args, env), CliUsageError);
+});
+
+test("workflow run/list/status/recover use their SDK routes once and preserve recorded IDs", async (context) => {
+  const gateway = await createWorkflowOperatorFixture(); context.after(gateway.close);
+  const run = await runWorkflowOperatorFixture(["workflow", "run", "--workflow-id", "report-001", "--goal", "Local report", "--agent-id", "agt_report", "--artifact-name", "report.md"], gateway.url);
+  assert.equal(run.code, 0, run.stderr);
+  assert.deepEqual(gateway.requests[0].body, { workflowId: "report-001", goal: "Local report", agentId: "agt_report", artifactName: "report.md" });
+  assert.equal(gateway.requests[0].method, "POST");
+  assert.equal(gateway.requests[0].authorization, "Bearer operator-fixture-key");
+  assert.equal(JSON.parse(run.stdout).data.artifact.sha256, "a".repeat(64));
+  const list = await runWorkflowOperatorFixture(["workflow", "list", "--limit", "5"], gateway.url);
+  const status = await runWorkflowOperatorFixture(["workflow", "status", "--workflow-id", "report-001"], gateway.url);
+  const recover = await runWorkflowOperatorFixture(["workflow", "recover", "--workflow-id", "report-001"], gateway.url);
+  assert.deepEqual([list.code, status.code, recover.code], [0, 0, 0]);
+  assert.deepEqual(gateway.requests.map(row => [row.method, row.url]), [
+    ["POST", "/workflow/run"], ["GET", "/workflow/runs?limit=5"], ["GET", "/workflow/runs/report-001"], ["POST", "/workflow/runs/report-001/recover"],
+  ]);
+  assert.deepEqual(gateway.requests[3].body, {});
+  for (const result of [run, list, status, recover]) assert.doesNotMatch(result.stdout + result.stderr, /fixture-secret|private-path|owner-spoof/);
+});
+
+test("workflow unknown recovery reports the next action without automatically running again", async (context) => {
+  const gateway = await createWorkflowOperatorFixture({ inspection: { status: "unknown", canResume: true, resumeAction: "recheck-governance-only", outcomeUnknown: true } });
+  context.after(gateway.close);
+  const result = await runWorkflowOperatorFixture(["workflow", "recover", "--workflow-id", "report-001"], gateway.url);
+  assert.equal(result.code, 1);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.data.status, "unknown"); assert.equal(output.data.resumeAction, "recheck-governance-only");
+  assert.equal(output.retryAllowed, false); assert.match(output.nextAction, /result governance only/);
+  assert.equal(gateway.requests.length, 1);
+  assert.equal(gateway.requests[0].url, "/workflow/runs/report-001/recover");
+});
+
+test("workflow recovery does not mark a missing completion receipt as success", async (context) => {
+  const gateway = await createWorkflowOperatorFixture({ inspection: { result: null } }); context.after(gateway.close);
+  const result = await runWorkflowOperatorFixture(["workflow", "recover", "--workflow-id", "report-001"], gateway.url);
+  const failure = JSON.parse(result.stderr);
+  assert.equal(result.code, 1); assert.equal(failure.status, "unknown-reconcile-required");
+  assert.equal(failure.workflowId, "report-001"); assert.equal(gateway.requests.length, 1);
+});
+
+test("workflow admission directs a required approval to the existing Agent approval surface", async (context) => {
+  const gateway = await createWorkflowOperatorFixture({ status: 409, error: { code: "TOOL_APPROVAL_REQUIRED" } }); context.after(gateway.close);
+  const result = await runWorkflowOperatorFixture(["workflow", "run", "--workflow-id", "report-001", "--goal", "Local report", "--agent-id", "agt_report"], gateway.url);
+  const failure = JSON.parse(result.stderr);
+  assert.equal(result.code, 1); assert.equal(failure.code, "TOOL_APPROVAL_REQUIRED");
+  assert.match(failure.nextAction, /agents approvals --agent-id agt_report/);
+  assert.equal(failure.workflowId, "report-001"); assert.equal(gateway.requests.length, 1);
+});
+
+test("workflow failures retain the explicit ID, redact untrusted errors and never retry", async (context) => {
+  for (const options of [
+    { status: 503, error: { code: "WORKFLOW_STATE_UNAVAILABLE", message: "fixture-secret private-path", details: { workflowId: "owner-spoof" } } },
+    { disconnect: true }, { badCompletion: true },
+  ]) {
+    const gateway = await createWorkflowOperatorFixture(options); context.after(gateway.close);
+    const result = await runWorkflowOperatorFixture(["workflow", "run", "--workflow-id", "report-001", "--goal", "Local report", "--agent-id", "agt_report"], gateway.url);
+    assert.equal(result.code, 1);
+    const failure = JSON.parse(result.stderr);
+    assert.equal(failure.workflowId, "report-001"); assert.equal(failure.status, "unknown-reconcile-required");
+    assert.equal(failure.retryAllowed, false); assert.equal(gateway.requests.length, 1);
+    assert.doesNotMatch(result.stdout + result.stderr, /fixture-secret|private-path|owner-spoof/);
+  }
+});
+
+test("provider credential clearing reports exact store receipts and preserves uncertain committed outcomes", async (context) => {
+  for (const removed of [true, false]) {
+    const gateway = await createWorkflowOperatorFixture({ removed }); context.after(gateway.close);
+    const result = await runWorkflowOperatorFixture(["providers", "clear-credential", "--provider-id", "bai"], gateway.url);
+    assert.equal(result.code, 0, result.stderr); const output = JSON.parse(result.stdout);
+    assert.equal(output.data.removed, removed); assert.equal(output.data.providerKeyRevoked, false);
+    assert.match(output.nextAction, /Environment\/configuration credentials may still apply/);
+    assert.deepEqual(gateway.requests.map(row => [row.method, row.url, row.body]), [["DELETE", "/providers/runtime-credential", { providerId: "bai" }]]);
+  }
+  const gateway = await createWorkflowOperatorFixture({ status: 503, error: {
+    code: "provider_runtime_credential_clear_result_audit_unconfirmed", message: "fixture-secret private-path",
+    details: { ...workflowCredentialReceipt(true), operationCommitted: true, privatePath: "private-path" },
+  } }); context.after(gateway.close);
+  const result = await runWorkflowOperatorFixture(["providers", "clear-credential", "--provider-id", "bai"], gateway.url);
+  const failure = JSON.parse(result.stderr);
+  assert.equal(result.code, 1); assert.equal(failure.status, "unknown-reconcile-required"); assert.equal(failure.receipt.removed, true);
+  assert.equal(gateway.requests.length, 1); assert.doesNotMatch(result.stdout + result.stderr, /fixture-secret|private-path/);
+});
+
+test("credential clearing separates pre-effect rejection from an unconfirmed receipt", async (context) => {
+  for (const [options, status, code] of [
+    [{ status: 403, error: { code: "private-path", message: "fixture-secret" } }, "rejected", "CREDENTIAL_CLEAR_REJECTED"],
+    [{ status: 503, error: { code: "provider_runtime_credential_clear_audit_unavailable", details: { operationStarted: false } } }, "rejected", "CREDENTIAL_CLEAR_NOT_STARTED"],
+    [{ removed: "unconfirmed" }, "unknown-reconcile-required", "CREDENTIAL_CLEAR_OUTCOME_UNKNOWN"],
+  ]) {
+    const gateway = await createWorkflowOperatorFixture(options); context.after(gateway.close);
+    const result = await runWorkflowOperatorFixture(["providers", "clear-credential", "--provider-id", "bai"], gateway.url);
+    const failure = JSON.parse(result.stderr);
+    assert.equal(result.code, 1); assert.equal(failure.status, status); assert.equal(failure.code, code);
+    assert.equal(failure.providerId, "bai"); assert.equal(failure.retryAllowed, false);
+    assert.equal(gateway.requests.length, 1); assert.doesNotMatch(result.stderr, /fixture-secret|private-path/);
+  }
+});
+
+async function runWorkflowOperatorFixture(args, url) {
+  let stdout = ""; let stderr = "";
+  const code = await runCli([...args, "--url", url, "--json"], {
+    env: { AGENT_CONSOLE_ADMIN_KEY: "operator-fixture-key" },
+    stdout: { isTTY: false, write: value => { stdout += value; } }, stderr: { write: value => { stderr += value; } },
+  });
+  return { code, stdout, stderr };
+}
+function workflowCredentialReceipt(removed) {
+  return { providerId: "bai", removed, scope: "runtime-credential-store", appliesTo: "subsequent-credential-lookups",
+    inFlightRequestsCancelled: false, providerKeyRevoked: false, otherCredentialSourcesModified: false, otherProcessesInvalidated: false };
+}
+async function createWorkflowOperatorFixture(options = {}) {
+  const requests = [];
+  const completion = { workflowId: "report-001", status: "completed", artifact: { fileName: "report.md", bytes: 12, sha256: "a".repeat(64), absolutePath: "private-path" }, secret: "fixture-secret" };
+  const server = createServer(async (request, response) => {
+    const body = await readJsonBody(request);
+    requests.push({ method: request.method, url: request.url, body, authorization: request.headers.authorization });
+    if (options.disconnect) { request.socket.destroy(); return; }
+    if (options.status) { writeJson(response, options.status, { error: options.error }); return; }
+    const inspection = { workflowId: "report-001", status: "completed", stage: "artifact.write", attempt: 1,
+      canResume: false, resumeAction: null, outcomeUnknown: false, error: null, result: completion,
+      persistence: { storageMode: "single-host-sqlite", automaticRedispatch: false }, privatePath: "private-path", ...options.inspection };
+    const data = request.method === "DELETE" ? { ...workflowCredentialReceipt(options.removed ?? true), secret: "fixture-secret" }
+      : request.url === "/workflow/run" ? options.badCompletion ? { ...completion, workflowId: "owner-spoof" } : completion
+        : request.url.startsWith("/workflow/runs?") ? { runs: [inspection] } : inspection;
+    writeJson(response, 200, { data });
+  });
+  server.listen(0, "127.0.0.1"); await once(server, "listening");
+  return { url: `http://127.0.0.1:${server.address().port}`, requests,
+    close: () => new Promise(resolveClose => { server.close(() => resolveClose()); server.closeAllConnections(); }) };
+}
 
 async function createAgentGovernanceMockGateway(options = {}) {
   const requests = [];
@@ -1551,7 +2800,7 @@ async function createAgentGovernanceMockGateway(options = {}) {
     status: "PENDING",
     requestedAt: "2026-08-30T00:10:00.000Z",
     expiresAt: "2026-08-30T00:20:00.000Z",
-    review: {
+    review: options.approvalReview ?? {
       kind: "generic",
       summary: "Publish the reviewed change",
       authorization: "private authorization token-value",
@@ -1668,7 +2917,7 @@ async function createAgentGovernanceMockGateway(options = {}) {
       });
     }
     if (request.method === "GET" && url.pathname === "/forge/status") {
-      return writeJson(response, 200, { status: "ok", data: { status: "ready" } });
+      return writeJson(response, 200, { status: "ok", data: { status: "ready", enabled: true } });
     }
     return writeJson(response, 404, {
       status: "error",
@@ -1705,8 +2954,43 @@ async function createMockGateway(options = {}) {
   let lastSpendAuthorization = null;
   let lastClientsAuthorization = null;
   let lastOnboardingAuthorization = null;
+  let lastModelsAuthorization = null;
   const realProviderEnabled = options.realProviderEnabled === true;
+  const profileIds = [
+    "claude-compatible-mcp-json",
+    "cursor-mcp-json",
+    "vscode-mcp-json",
+  ];
+  const installedProfiles = new Set(
+    profileIds.filter((profileId) => !new Set(options.missingProfileIds ?? []).has(profileId)),
+  );
+  const plansById = new Map();
+  const controlCenterRequests = [];
   const server = createServer(async (request, response) => {
+    if (request.method === "GET" && request.url === "/v1/models") {
+      lastModelsAuthorization = request.headers.authorization ?? null;
+      if (options.modelsHttpStatus) {
+        return writeJson(response, options.modelsHttpStatus, { error: { code: "UPSTREAM_UNAVAILABLE", message: "private-failure-payload" } });
+      }
+      if (request.headers.authorization !== "Bearer uai-mock-admin-key") {
+        return writeJson(response, 401, {
+          error: { code: "UNAUTHENTICATED" },
+        });
+      }
+      return writeJson(response, 200, {
+        object: "list",
+        data: [{
+          id: "local-fake-model",
+          object: "model",
+          owned_by: "local-fake-provider",
+          unified_ai: {
+            provider_id: "local-fake-provider",
+            execution_mode: "fake",
+          },
+        }],
+      });
+    }
+
     if (request.method === "GET" && request.url === "/enterprise/spend-report") {
       lastSpendAuthorization = request.headers.authorization ?? null;
       if (request.headers.authorization !== "Bearer uai-mock-admin-key") {
@@ -1830,6 +3114,137 @@ async function createMockGateway(options = {}) {
           onboardingProfile("cursor-mcp-json", "cursor"),
           onboardingProfile("vscode-mcp-json", "vscode"),
         ],
+      });
+    }
+
+    const onboardingVerifyMatch = /^\/local-clients\/onboarding\/profiles\/([^/]+)\/verify$/u.exec(
+      request.url ?? "",
+    );
+    if (request.method === "GET" && onboardingVerifyMatch) {
+      lastOnboardingAuthorization = request.headers.authorization ?? null;
+      if (request.headers.authorization !== "Bearer uai-mock-admin-key") {
+        return writeJson(response, 401, {
+          status: "error",
+          error: { code: "UNAUTHENTICATED" },
+        });
+      }
+      const profileId = decodeURIComponent(onboardingVerifyMatch[1]);
+      return writeJson(response, 200, {
+        status: "ok",
+        data: onboardingVerification(profileId, installedProfiles.has(profileId)),
+      });
+    }
+
+    if (request.method === "POST" && request.url === "/local-clients/onboarding/plans") {
+      const body = await readJsonBody(request);
+      controlCenterRequests.push({
+        operation: "plan",
+        authorization: request.headers.authorization ?? null,
+        idempotencyKey: request.headers["idempotency-key"] ?? null,
+        body,
+      });
+      if (request.headers.authorization !== "Bearer uai-mock-admin-key") {
+        return writeJson(response, 401, {
+          status: "error",
+          error: { code: "UNAUTHENTICATED" },
+        });
+      }
+      const profileIndex = profileIds.indexOf(body.profileId);
+      if (profileIndex === -1 || body.action !== "enable") {
+        return writeJson(response, 400, {
+          status: "error",
+          error: { code: "LOCAL_CLIENT_ONBOARDING_REQUEST_INVALID" },
+        });
+      }
+      const planId = `onboarding_${String(profileIndex + 1).repeat(64)}`;
+      plansById.set(planId, body.profileId);
+      const now = Date.now();
+      return writeJson(response, 200, {
+        status: "ok",
+        data: {
+          apiVersion: "local-client-governed-onboarding-api-v1",
+          planVersion: "local-client-governed-onboarding-plan-v1",
+          planId,
+          profileId: body.profileId,
+          action: "enable",
+          createdAtMs: now,
+          expiresAtMs: now + 300_000,
+          writesPerformed: false,
+          redacted: true,
+        },
+      });
+    }
+
+    const controlCenterMutationMatch = /^\/local-clients\/onboarding\/(approve|apply|rollback)$/u.exec(
+      request.url ?? "",
+    );
+    if (request.method === "POST" && controlCenterMutationMatch) {
+      const operation = controlCenterMutationMatch[1];
+      const body = await readJsonBody(request);
+      const profileId = plansById.get(body.planId);
+      controlCenterRequests.push({
+        operation,
+        authorization: request.headers.authorization ?? null,
+        idempotencyKey: request.headers["idempotency-key"] ?? null,
+        body,
+        profileId,
+      });
+      if (request.headers.authorization !== "Bearer uai-mock-admin-key" || !profileId) {
+        return writeJson(response, 401, {
+          status: "error",
+          error: { code: "UNAUTHENTICATED" },
+        });
+      }
+      if (operation === "approve") {
+        const now = Date.now();
+        return writeJson(response, 200, {
+          status: "ok",
+          data: {
+            apiVersion: "local-client-governed-onboarding-api-v1",
+            operation: "approve",
+            status: "approved",
+            approvalId: `approval_${profileIds.indexOf(profileId) + 1}`,
+            planId: body.planId,
+            approvedAt: new Date(now).toISOString(),
+            expiresAt: new Date(now + 300_000).toISOString(),
+            writesPerformed: false,
+            redacted: true,
+          },
+        });
+      }
+      if (operation === "apply" && options.failApplyProfileId === profileId) {
+        if (options.commitBeforeFailedApply) installedProfiles.add(profileId);
+        return writeJson(response, 503, {
+          status: "error",
+          error: {
+            code: "LOCAL_CLIENT_ONBOARDING_OUTCOME_UNKNOWN",
+            message: "private mutation detail must not be returned",
+          },
+        });
+      }
+      if (operation === "apply") installedProfiles.add(profileId);
+      return writeJson(response, 200, {
+        status: "ok",
+        data: {
+          accepted: true,
+          status: "completed",
+          statusCode: 200,
+          idempotencyStatus: "created",
+          replayed: false,
+          replayable: true,
+          operationInvoked: true,
+          retryAllowed: false,
+          result: {
+            apiVersion: "local-client-governed-onboarding-api-v1",
+            operation,
+            profileId,
+            action: operation === "apply" ? "enable" : operation,
+            planId: body.planId,
+            status: "completed",
+            receipt: onboardingApplyReceipt(profileId),
+            redacted: true,
+          },
+        },
       });
     }
 
@@ -1971,6 +3386,22 @@ async function createMockGateway(options = {}) {
     get lastOnboardingAuthorization() {
       return lastOnboardingAuthorization;
     },
+    get lastModelsAuthorization() {
+      return lastModelsAuthorization;
+    },
+    get controlCenterMutationRequestCount() {
+      return controlCenterRequests.filter(({ operation }) => operation !== "plan").length;
+    },
+    get controlCenterIdempotencyKeys() {
+      return controlCenterRequests
+        .map(({ idempotencyKey }) => idempotencyKey)
+        .filter(Boolean);
+    },
+    controlCenterRequestCount(operation) {
+      return operation === undefined
+        ? controlCenterRequests.length
+        : controlCenterRequests.filter((entry) => entry.operation === operation).length;
+    },
     close: () =>
       new Promise((resolvePromise, reject) => {
         server.close((error) => {
@@ -1993,6 +3424,18 @@ function onboardingProfile(profileId, client) {
     supportedActions: ["enable", "disable"],
     certificationStatus: "fixture-tested-not-real-client-certified",
     redacted: true,
+  };
+}
+
+function controlCenterManifest(gatewayUrl) {
+  return {
+    schema: "unified-ai-system/local-ai-control-center/v1",
+    gatewayUrl,
+    profiles: [
+      "claude-compatible-mcp-json",
+      "cursor-mcp-json",
+      "vscode-mcp-json",
+    ],
   };
 }
 
@@ -2495,24 +3938,24 @@ function writeOnboardingMockError(response, options, operation) {
   return true;
 }
 
-function onboardingVerification(profileId) {
+function onboardingVerification(profileId, installed = true) {
   return {
     profileId,
-    installed: true,
-    state: "exact",
+    installed,
+    state: installed ? "exact" : "absent",
     format: "json-only",
     certificationStatus: "fixture-tested-not-real-client-certified",
     redacted: true,
   };
 }
 
-function onboardingApplyReceipt() {
+function onboardingApplyReceipt(profileId = "cursor-mcp-json") {
   const transactionPlanId = "b".repeat(64);
   return {
     receiptVersion: "local-client-onboarding-receipt-v1",
-    profileId: "cursor-mcp-json",
+    profileId,
     action: "enable",
-    planId: `onboard:cursor-mcp-json:${transactionPlanId}`,
+    planId: `onboard:${profileId}:${transactionPlanId}`,
     transaction: {
       receiptVersion: "local-client-config-receipt-v1",
       transactionId: `tx_${"c".repeat(64)}`,
@@ -2591,3 +4034,128 @@ function writeJson(response, statusCode, body) {
   });
   response.end(JSON.stringify(body));
 }
+
+test("control-center v2 applies and rolls back four actual formats with separate governed receipts", { timeout: 60_000 }, async context => {
+  const [{ createGatewayApplication }, { createGatewayHttpServer }] = await Promise.all([
+    import("../../ai-gateway-service/src/application/createGatewayApplication.js"),
+    import("../../ai-gateway-service/src/http/httpServer.js"),
+  ]);
+  const root = await mkdtemp(join(tmpdir(), "cli-control-center-v2-"));
+  let server;
+  context.after(async () => {
+    if (server) {
+      await new Promise(resolveClose => { server.close(resolveClose); server.closeAllConnections(); });
+      await server.shutdownResources?.();
+    }
+    assert.ok(resolve(root).startsWith(resolve(tmpdir()) + (process.platform === "win32" ? "\\" : "/")));
+    await rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+  });
+  const fixtures = [
+    { profileId: "cursor-mcp-json", format: "json-only", text: '{"unmanaged":"bulk-native-value","mcpServers":{}}\r\n' },
+    { profileId: "vscode-mcp-jsonc-v1", format: "jsonc", text: '{\r\n// bulk original comment\r\n"servers":{},\r\n"unmanaged":"bulk-native-value",\r\n}' },
+    { profileId: "codex-mcp-toml-v1", format: "toml", text: '# bulk original comment\r\nmodel = "bulk-native-value"\r\n' },
+    { profileId: "continue-mcp-yaml-v1", format: "yaml", text: '# bulk original comment\r\nname: "Bulk fixture"\r\nversion: "1.0.0"\r\nschema: v1\r\nmcpServers: []\r\n' },
+  ];
+  const profiles = [];
+  for (const [index, fixture] of fixtures.entries()) {
+    const targetPath = join(root, "config", `${index}.config`);
+    await mkdir(dirname(targetPath), { recursive: true });
+    await writeFile(targetPath, fixture.text);
+    fixture.targetPath = targetPath;
+    profiles.push({ profileId: fixture.profileId, paths: { targetPath, allowedRoot: root,
+      backupDir: join(root, `backup-${index}`), journalPath: join(root, `journal-${index}`, "journal.json"), maxBytes: 65536, maxTransactions: 16 } });
+  }
+  const token = "cli-bulk-integration-fixture-token";
+  const config = { version: 2, ownerTenantId: "cli-jsonc-tenant", profiles,
+    serverDefinition: { transport: "stdio", command: join(root, "bin", "node.exe"), args: [join(root, "gateway-entry.mjs")], cwd: root } };
+  const env = {
+    NODE_ENV: "test", AI_GATEWAY_PROVIDER_MODE: "fake", AI_GATEWAY_REAL_PROVIDER_ENABLED: "false",
+    PME_RUNTIME_CREDENTIAL_STORE_MODE: "memory", KNOWLEDGE_STORAGE_MODE: "memory",
+    AI_GATEWAY_MODEL_LIBRARY_STATE_PATH: join(root, "model-library.json"),
+    WORKFLOW_OUTPUT_DIR: join(root, "artifacts"), WORKFORCE_PLAN_STORE_PATH: join(root, "workforce-plans.json"), WORKFORCE_EXECUTION_DIR: join(root, "workforce"),
+    AI_GATEWAY_USAGE_LOG_DIR: join(root, "usage"), PME_ENTERPRISE_AUTH_ENABLED: "true",
+    PME_AUTH_TOKEN: token, PME_AUTH_USER_ID: "cli-jsonc-owner", PME_AUTH_TENANT_ID: config.ownerTenantId,
+    PME_AUTH_ROLE: "admin", PME_ENTERPRISE_PLATFORM_TENANT_ID: config.ownerTenantId,
+    PME_ENTERPRISE_USER_STORE_PATH: join(root, "users.json"), PME_API_KEY_STORE_PATH: join(root, "keys.json"),
+    PME_AUDIT_LOG_PATH: join(root, "audit.jsonl"), PME_AUDIT_CHAIN_PATH: join(root, "audit.chain.jsonl"),
+    AI_GATEWAY_RATE_LIMIT_WHITELIST: "127.0.0.1",
+    AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_ENABLED: "true", AI_GATEWAY_LOCAL_CLIENT_HOST_ID: "cli-jsonc-test-host",
+    AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_CONFIG_JSON: JSON.stringify(config),
+    AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_RECEIPT_AUTHORITY_SQLITE_PATH: join(root, "receipt-authority.sqlite"),
+    AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_RECEIPT_AUTHORITY_NAMESPACE: "cli-jsonc-test",
+    AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_RECEIPT_AUTHORITY_TTL_MS: "2592000000",
+    AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_RECEIPT_AUTHORITY_LEASE_TTL_MS: "600000",
+    AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_ROOT_SECRET_REF: "env_key_name:CLI_JSONC_TEST_ROOT_SECRET",
+    CLI_JSONC_TEST_ROOT_SECRET: "hex:" + "9c".repeat(32),
+    AI_GATEWAY_LOCAL_CLIENT_REGISTRY_PATH: join(root, "client-registry.json"),
+    AI_GATEWAY_LOCAL_CLIENT_EXECUTION_LOG_PATH: join(root, "client-execution.jsonl"),
+    AI_GATEWAY_LOCAL_CLIENT_CONTROL_STORE_MODE: "local", AI_GATEWAY_LOCAL_CLIENT_EXECUTION_CONTROL_DIR: join(root, "control"),
+    AI_GATEWAY_IDEMPOTENCY_STORE_MODE: "sqlite", AI_GATEWAY_IDEMPOTENCY_SQLITE_PATH: join(root, "idempotency.sqlite"),
+    AI_GATEWAY_IDEMPOTENCY_HMAC_SECRET: "cli-jsonc-idempotency-fixture".padEnd(64, "x"),
+    AI_GATEWAY_EXTERNAL_EFFECT_STORE_MODE: "sqlite", AI_GATEWAY_EXTERNAL_EFFECT_SQLITE_PATH: join(root, "external-effects.sqlite"),
+    AI_GATEWAY_EXTERNAL_EFFECT_HMAC_SECRET: "cli-jsonc-external-fixture".padEnd(64, "x"),
+    AI_GATEWAY_EXTERNAL_EFFECT_CENTRAL_REQUIRED: "false",
+  };
+  const application = createGatewayApplication(env);
+  server = createGatewayHttpServer(application);
+  server.listen(0, "127.0.0.1"); await once(server, "listening");
+  const url = "http://127.0.0.1:" + server.address().port;
+  const keyResponse = await fetch(url + "/enterprise/virtual-keys", { method: "POST",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    body: JSON.stringify({ role: "operator", tenantId: config.ownerTenantId, budget: { limitTokens: 1000, window: "daily" } }) });
+  assert.equal(keyResponse.status, 200);
+  await keyResponse.body?.cancel();
+  await writeFile(join(root, "manifest.json"), JSON.stringify({ schema: "unified-ai-system/local-ai-control-center/v2", gatewayUrl: url, profiles: fixtures.map(item => item.profileId) }));
+  async function invoke(args) {
+    const response = await runCliProcess([...args, "--admin-key", token, "--url", url, "--json"], "", { cwd: root });
+    assert.equal(response.code, 0, response.stderr || response.stdout);
+    assert.doesNotMatch(response.stdout, /bulk original comment|bulk-native-value|cli-bulk-integration-fixture-token|gateway-entry\.mjs/);
+    return JSON.parse(response.stdout);
+  }
+  const common = ["control-center", "configure", "--manifest", "manifest.json"];
+  const planned = await invoke(common);
+  assert.equal(planned.manifest.schema, "unified-ai-system/local-ai-control-center/v2");
+  assert.equal(planned.plans.length, 4); assert.equal(planned.clientConfigWritesPerformed, false);
+  for (const fixture of fixtures) assert.equal(await readFile(fixture.targetPath, "utf8"), fixture.text);
+  const applied = await invoke([...common, "--apply", "--yes", "--idempotency-key", "bulk-four"]);
+  assert.equal(applied.status, "completed"); assert.equal(applied.atomicAcrossClients, false);
+  assert.equal(applied.automaticRollbackPerformed, false); assert.equal(applied.completed.length, 4);
+  assert.deepEqual(applied.completed.map(item => item.receipt.format), fixtures.map(item => item.format));
+  assert.equal(new Set(applied.completed.map(item => item.approvalId)).size, 4);
+  assert.equal(new Set(applied.completed.map(item => item.receipt.transaction.transactionId)).size, 4);
+  assert.ok(applied.verification.profiles.every(item => item.state === "exact"));
+  for (const [index, fixture] of fixtures.entries()) {
+    const receipt = applied.completed[index].receipt;
+    assert.equal(createHash("sha256").update(await readFile(fixture.targetPath)).digest("hex"), receipt.transaction.afterSha256);
+    await writeFile(join(root, "receipt.json"), JSON.stringify(receipt));
+    const rollback = await invoke(["clients-onboarding", "plan", "--profile-id", fixture.profileId, "--action", "rollback", "--receipt-file", "receipt.json"]);
+    await invoke(["clients-onboarding", "approve", "--plan-id", rollback.data.planId, "--yes", "--idempotency-key", `bulk-rollback-approve-${index}`]);
+    await invoke(["clients-onboarding", "rollback", "--plan-id", rollback.data.planId, "--yes", "--idempotency-key", `bulk-rollback-${index}`]);
+    assert.equal(await readFile(fixture.targetPath, "utf8"), fixture.text);
+  }
+});
+
+test("control-center v2 rejects invalid profile selections before network I/O", async context => {
+  const gateway = await createMockGateway();
+  const root = await mkdtemp(join(tmpdir(), "cli-control-center-v2-invalid-"));
+  context.after(async () => { await gateway.close(); await rm(root, { recursive: true, force: true }); });
+  const valid = { schema: "unified-ai-system/local-ai-control-center/v2", gatewayUrl: gateway.url,
+    profiles: ["cursor-mcp-json", "continue-mcp-yaml-v1"] };
+  const invalid = [
+    { ...valid, schema: "unified-ai-system/local-ai-control-center/v3" },
+    { ...valid, profiles: ["continue-mcp-yaml-v1"] },
+    { ...valid, profiles: ["cursor-mcp-json", "cursor-mcp-json"] },
+    { ...valid, profiles: ["cursor-mcp-json", "unknown-yaml"] },
+    { ...valid, profiles: ["cursor-mcp-json", null] },
+    { ...valid, profiles: ["cursor-mcp-json", "claude-compatible-mcp-json", "vscode-mcp-json", "vscode-mcp-jsonc-v1", "codex-mcp-toml-v1", "continue-mcp-yaml-v1", "seventh"] },
+    { ...valid, extra: true },
+    { ...valid, gatewayUrl: "http://wrong.invalid" },
+  ];
+  for (const manifest of invalid) {
+    await writeFile(join(root, "manifest.json"), JSON.stringify(manifest));
+    const response = await runCliProcess(["control-center", "configure", "--manifest", "manifest.json", "--json", "--url", gateway.url,
+      "--admin-key", "uai-mock-admin-key"], "", { cwd: root });
+    assert.equal(response.code, 2, response.stdout + response.stderr);
+  }
+  assert.equal(gateway.controlCenterRequestCount(), 0);
+});

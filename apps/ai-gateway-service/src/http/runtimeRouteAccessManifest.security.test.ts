@@ -28,6 +28,7 @@ const EXPECTED_RUNTIME_PERMISSIONS = [
   ["GET", "/workbench/diagnostics/status", "dashboard:read"],
   ["POST", "/chat-gateway/execute", "chat:use"],
   ["POST", "/chat/gateway", "chat:use"],
+  ["POST", "/prompts/enhance-llm", "chat:use"],
   ["POST", "/three-mode/execute", "workflow:run"],
   ["POST", "/chat-gateway/dry-run-task", "chat:use"],
   ["POST", "/chat-gateway/latency-dry-run", "chat:use"],
@@ -55,6 +56,11 @@ describe("runtime route authorization boundary", () => {
       permission: resolvePermission("POST", "/future/unmapped/admin-action"),
       authorizationAllowed: true,
     })).toBe(true);
+  });
+
+  it("keeps unsupported LLM enhancement methods unmapped", () => {
+    expect(shouldRejectUnmappedRoute({ isPublic: false,
+      permission: resolvePermission("GET", "/prompts/enhance-llm"), authorizationAllowed: true })).toBe(true);
   });
 
   it("does not retain admin/changeme as implicit development credentials", async () => {

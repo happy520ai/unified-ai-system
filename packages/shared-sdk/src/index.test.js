@@ -615,6 +615,288 @@ async function closeServer(server) {
   }
 }
 
+test("operator SDK methods keep exact routes, request bodies, authorization and model dispatch keys", async () => {
+  const observed = [];
+  const { server, baseUrl } = await startServer(async (request, response) => {
+    let text = ""; for await (const chunk of request) text += chunk;
+    observed.push({ path: request.url, method: request.method, authorization: request.headers.authorization,
+      dispatchKey: request.headers["provider-dispatch-key"], body: text ? JSON.parse(text) : null });
+    response.writeHead(200, { "content-type": "application/json" }); response.end(JSON.stringify({ status: "ok", data: { ok: true } }));
+  });
+  try {
+    let generated = 0;
+    const client = createGatewayClient({ baseUrl, headers: { authorization: "Bearer operator-fixture" }, providerDispatchKeyFactory: () => `operator-${++generated}` });
+    await client.knowledgeHealth(); await client.knowledgeSources(); await client.routeModes();
+    await client.routingPreview("quality-cost", { query: "bounded query" });
+    await client.forgeStatus(); await client.forgeRuns();
+    await client.forgePolish({ content: "draft", modelSelection: { providerId: "fake", modelId: "model" } });
+    await client.forgeQuality({ code: "export const x = 1;" });
+    await client.forgeRemember({ content: "memo", action: "unexpected" }); await client.forgeRecall({ query: "memo" });
+    await client.forgeOrchestrate({ goal: "bounded goal", agentId: "agt_fixture" });
+    await client.taijiCompile({ request: "draft a capability" }); await client.workforcePreview({ task: "local preview" });
+    assert.deepEqual(observed.map(call => call.path), ["/knowledge/health", "/knowledge/sources", "/route/modes", "/routing/quality-cost/preview",
+      "/forge/status", "/forge/runs", "/forge/polish", "/forge/quality", "/forge/memory", "/forge/memory", "/forge/orchestrate", "/taiji/compile", "/workforce/preview"]);
+    assert.ok(observed.every(call => call.authorization === "Bearer operator-fixture"));
+    assert.equal(observed[8].body.action, "remember"); assert.equal(observed[9].body.action, "recall");
+    assert.equal(observed[6].body.modelSelection.providerId, "fake");
+    assert.equal(observed[6].dispatchKey, "operator-1"); assert.equal(observed[10].dispatchKey, "operator-2");
+    assert.throws(() => client.routingPreview("../route", { query: "x" })); assert.equal(observed.length, 13);
+  } finally { await closeServer(server); }
+});
+
+test("operator mutations never follow redirects or advertise an uncertain request as retryable", async () => {
+  let received = 0, redirected = 0;
+  const target = await startServer((_request, response) => { redirected++; response.end("unexpected"); });
+  const source = await startServer((request, response) => {
+    received++;
+    if (request.url === "/knowledge/load") { response.writeHead(307, { location: target.baseUrl + "/changed" }); response.end(); }
+    else { response.writeHead(503, { "content-type": "application/json" }); response.end(JSON.stringify({ status: "error", error: { code: "FORGE_EXTERNAL_EFFECT_OUTCOME_UNCERTAIN" } })); }
+  });
+  try {
+    const client = createGatewayClient({ baseUrl: source.baseUrl });
+    await assert.rejects(client.knowledgeLoad({ sourceId: "fixture", documents: [{ content: "fixture" }] }), error => error instanceof GatewayClientError && error.retryable === false);
+    await assert.rejects(client.forgeOrchestrate({ goal: "x", agentId: "agt_fixture" }), error => error instanceof GatewayClientError && error.retryable === false);
+    assert.equal(received, 2); assert.equal(redirected, 0);
+  } finally { await closeServer(source.server); await closeServer(target.server); }
+});
+
+test("explicit Context Codec chat and streams refuse redirects before forwarding their data", async () => {
+  let received = 0, redirected = 0;
+  const target = await startServer((_request, response) => { redirected++; response.end("unexpected"); });
+  const origin = await startServer(async (request, response) => {
+    for await (const _chunk of request) { /* consume only the owned synthetic request */ }
+    received++; response.writeHead(307, { location: target.baseUrl }); response.end();
+  });
+  try {
+    const client = createGatewayClient({ baseUrl: origin.baseUrl, headers: { authorization: "Bearer codec-sdk-fixture" } });
+    const body = { taskType: "chat", providerId: "fixture", model: "fixture-model", messages: [{ role: "user", content: "synthetic context" }], contextCodec: { profile: "off" } };
+    await assert.rejects(client.chat(body), error => error.code === "GATEWAY_NETWORK_ERROR");
+    await assert.rejects(async () => { for await (const _event of client.chatStream(body)) { assert.fail("A redirect must not produce a stream event."); } },
+      error => error.code === "GATEWAY_NETWORK_ERROR");
+    assert.equal(received, 2); assert.equal(redirected, 0);
+  } finally { await closeServer(origin.server); await closeServer(target.server); }
+});
+
+test("Taiji SDK uses fixed paths, scoped read parameters and non-retryable mutations", async () => {
+  const calls = [];
+  const { server, baseUrl } = await startServer(async (request, response) => {
+    let raw = ""; for await (const chunk of request) raw += chunk;
+    calls.push({ path: request.url, body: raw ? JSON.parse(raw) : null, auth: request.headers.authorization, dispatch: request.headers["provider-dispatch-key"] });
+    response.writeHead(request.url.endsWith("/revoke") ? 503 : 200, { "content-type": "application/json" });
+    response.end(JSON.stringify({ status: "ok", data: { status: "fixture" } }));
+  });
+  try {
+    const client = createGatewayClient({ baseUrl, headers: { authorization: "Bearer taiji-sdk-fixture" } });
+    await client.taijiCapabilities("agt_fixture", { limit: 2, offset: 1 });
+    await client.taijiCapabilityRun("agt_fixture", "run-1");
+    const body = { agentId: "agt_fixture", capabilityId: "facts", expectedLifecycleRevision: 0 };
+    await client.evaluateTaijiCapability({ ...body, request: "Preserve facts", profileId: "context-jsonl-v1" });
+    await client.activateTaijiCapability({ ...body, revision: 1 });
+    await client.executeTaijiCapability({ ...body, revision: 1, runId: "run-1", arguments: { facts: [{ key: "x", value: false }] } });
+    await assert.rejects(client.revokeTaijiCapability({ ...body, revision: 1 }), error => error instanceof GatewayClientError && error.retryable === false);
+    await client.repairTaijiCapability({ ...body, revision: 1, sourceRunId: "failed", sourceArguments: { text: "ship production", expectedSignals: ["deploy_release"] }, addRiskKeywords: { deploy_release: ["ship production"] } });
+    await client.reweightTaijiCapability({ ...body, revision: 1, sourceRunId: "failed" });
+    await client.pruneTaijiCapability({ ...body, revision: 1, sourceRunId: "failed" });
+    assert.deepEqual(calls.map(call => call.path), ["/taiji/capabilities?agentId=agt_fixture&limit=2&offset=1", "/taiji/capabilities/runs/run-1?agentId=agt_fixture",
+      "/taiji/capabilities/evaluate", "/taiji/capabilities/activate", "/taiji/capabilities/execute", "/taiji/capabilities/revoke",
+      "/taiji/capabilities/repair", "/taiji/capabilities/reweight", "/taiji/capabilities/prune"]);
+    assert.ok(calls.every(call => call.auth === "Bearer taiji-sdk-fixture" && call.dispatch === undefined));
+    assert.equal(calls[4].body.arguments.facts[0].value, false);
+    assert.throws(() => client.taijiCapabilities("agt_fixture", { limit: 0 }));
+    assert.throws(() => client.taijiCapabilityRun("agt_fixture", "../secrets")); assert.equal(calls.length, 9);
+  } finally { await closeServer(server); }
+});
+
+test("IM SDK carries an explicit operation key and treats unknown results as non-retryable", async () => {
+  const calls = [];
+  const { server, baseUrl } = await startServer(async (request, response) => {
+    let raw = ""; for await (const chunk of request) raw += chunk;
+    calls.push({ path: request.url, headers: request.headers, body: raw ? JSON.parse(raw) : null });
+    const unknown = raw.includes("unknown");
+    response.writeHead(unknown ? 502 : 200, { "content-type": "application/json" });
+    response.end(JSON.stringify(unknown ? { ok: false, error: { code: "IM_SEND_OUTCOME_UNKNOWN", details: { outcomeUnknown: true } } }
+      : { ok: true, data: request.method === "GET" ? { connectors: [] } : { status: "accepted", delivered: true } }));
+  });
+  try {
+    const client = createGatewayClient({ baseUrl, headers: { authorization: "Bearer fixture-user" } });
+    await client.connectors();
+    await client.sendConnectorMessage("feishu", { body: "message", targetId: "fixture", receiveIdType: "chat_id" }, { externalEffectKey: "stable-operation" });
+    assert.equal(calls[1].path, "/connectors/feishu/send");
+    assert.equal(calls[1].headers["external-effect-key"], "stable-operation");
+    assert.equal(calls[1].headers["idempotency-key"], undefined);
+    assert.equal(calls[1].headers.authorization, "Bearer fixture-user");
+    assert.equal(calls[1].body.body, "message");
+    await assert.rejects(client.sendConnectorMessage("wecom", { body: "unknown" }, { externalEffectKey: "unknown-operation" }),
+      error => error instanceof GatewayClientError && error.retryable === false && error.statusCode === 502);
+    assert.equal(calls.length, 3);
+    for (const headers of [{ "Idempotency-Key": "conflicting" }, { "External-Effect-Key": "conflicting" }]) {
+      await assert.rejects(createGatewayClient({ baseUrl, headers }).sendConnectorMessage("feishu", { body: "x" }, { externalEffectKey: "caller-key" }),
+        { code: GATEWAY_CLIENT_ERROR_CODES.PROTOCOL });
+    }
+    await assert.rejects(client.sendConnectorMessage("other", { body: "x" }, { externalEffectKey: "caller-key" }), { code: GATEWAY_CLIENT_ERROR_CODES.PROTOCOL });
+    await assert.rejects(client.sendConnectorMessage("feishu", { body: "x" }, {}), { code: GATEWAY_CLIENT_ERROR_CODES.PROTOCOL });
+    assert.equal(calls.length, 3);
+  } finally { await closeServer(server); }
+});
+
+test("IM SDK never follows a message redirect", async () => {
+  let forwarded = 0;
+  const target = await startServer((_request, response) => { forwarded++; response.end("unexpected"); });
+  const source = await startServer((_request, response) => { response.writeHead(307, { location: target.baseUrl + "/forward" }); response.end(); });
+  try {
+    const client = createGatewayClient({ baseUrl: source.baseUrl });
+    await assert.rejects(client.sendConnectorMessage("feishu", { body: "message" }, { externalEffectKey: "redirect-operation" }),
+      error => error instanceof GatewayClientError && error.retryable === false);
+    assert.equal(forwarded, 0);
+  } finally { await closeServer(source.server); await closeServer(target.server); }
+});
+
+test("workflow history SDK methods preserve identity headers, stable IDs and caller cancellation", async () => {
+  const requests = [];
+  const { server, baseUrl } = await startServer(async (request, response) => {
+    let body = ""; for await (const chunk of request) body += chunk;
+    requests.push({ method: request.method, url: request.url, authorization: request.headers.authorization, body: body ? JSON.parse(body) : null });
+    response.setHeader("content-type", "application/json");
+    response.end(JSON.stringify({ data: { workflowId: "workflow-1", status: "unknown", canResume: false } }));
+  });
+  const controller = new AbortController();
+  const client = createGatewayClient({ baseUrl, headers: { authorization: "Bearer sdk-workflow-fixture" }, signal: controller.signal });
+  try {
+    await client.workflowRun({ workflowId: "workflow-1", goal: "local report", agentId: "agt_report" });
+    await client.workflowRuns({ limit: 7 });
+    await client.workflowRunStatus("workflow-1");
+    const recovered = await client.recoverWorkflowRun("workflow-1");
+    assert.equal(recovered.data.status, "unknown");
+    assert.deepEqual(requests, [
+      { method: "POST", url: "/workflow/run", authorization: "Bearer sdk-workflow-fixture", body: { workflowId: "workflow-1", goal: "local report", agentId: "agt_report" } },
+      { method: "GET", url: "/workflow/runs?limit=7", authorization: "Bearer sdk-workflow-fixture", body: null },
+      { method: "GET", url: "/workflow/runs/workflow-1", authorization: "Bearer sdk-workflow-fixture", body: null },
+      { method: "POST", url: "/workflow/runs/workflow-1/recover", authorization: "Bearer sdk-workflow-fixture", body: {} },
+    ]);
+    for (const id of [null, "", "../escape", "has/slash", "x".repeat(161)]) {
+      assert.throws(() => client.workflowRunStatus(id), GatewayClientError);
+      assert.throws(() => client.recoverWorkflowRun(id), GatewayClientError);
+    }
+    for (const options of [null, { limit: 0 }, { limit: 101 }, { limit: 1.5 }, { tenantId: "spoof" }]) {
+      assert.throws(() => client.workflowRuns(options), GatewayClientError);
+    }
+    controller.abort();
+    await assert.rejects(client.workflowRunStatus("workflow-1"), GatewayClientAbortError);
+    assert.equal(requests.length, 4);
+  } finally { await closeServer(server); }
+});
+
+test("workflow run and recovery refuse redirects without another request or automatic resume", async () => {
+  const requests = [];
+  const { server, baseUrl } = await startServer((request, response) => {
+    requests.push(request.url);
+    response.writeHead(307, { location: "/unexpected-redirect" }); response.end();
+  });
+  const client = createGatewayClient({ baseUrl });
+  try {
+    await assert.rejects(client.recoverWorkflowRun("workflow-1"), error => error instanceof GatewayClientError && error.retryable === false);
+    await assert.rejects(client.workflowRun({ workflowId: "workflow-1", goal: "local report" }), error => error instanceof GatewayClientError && error.retryable === false);
+    assert.deepEqual(requests, ["/workflow/runs/workflow-1/recover", "/workflow/run"]);
+  } finally { await closeServer(server); }
+});
+
+test("Workforce status and atomic workflow recovery preserve exact original IDs and cancellation", async () => {
+  const ids = { executionId: "wf-scope-fixture", taskId: "task-report", workflowId: "workflow-report" }, requests = [];
+  const { server, baseUrl } = await startServer(async (request, response) => {
+    let raw = ""; for await (const chunk of request) raw += chunk;
+    requests.push({ path: request.url, method: request.method, body: JSON.parse(raw), authorization: request.headers.authorization });
+    response.writeHead(200, { "content-type": "application/json" }); response.end(JSON.stringify({ status: "ok", data: ids }));
+  });
+  const controller = new AbortController(), client = createGatewayClient({ baseUrl, signal: controller.signal, headers: { authorization: "Bearer workforce-sdk-fixture" } });
+  try {
+    await client.workforceExecutionStatus(ids.executionId); await client.recoverWorkforceWorkflow(ids);
+    assert.deepEqual(requests, [
+      { path: "/workforce/execute/status", method: "POST", body: { executionId: ids.executionId }, authorization: "Bearer workforce-sdk-fixture" },
+      { path: "/workforce/execute/handoff/recover", method: "POST", body: ids, authorization: "Bearer workforce-sdk-fixture" },
+    ]);
+    for (const value of [null, "", "../escape", "x".repeat(513)]) assert.throws(() => client.workforceExecutionStatus(value), GatewayClientError);
+    for (const value of [null, { ...ids, goal: "new goal" }, { ...ids, taskId: "../escape" }, { executionId: ids.executionId }]) assert.throws(() => client.recoverWorkforceWorkflow(value), GatewayClientError);
+    controller.abort(); await assert.rejects(client.recoverWorkforceWorkflow(ids), GatewayClientAbortError); assert.equal(requests.length, 2);
+  } finally { await closeServer(server); }
+});
+
+test("Workforce status and recovery reject redirects without forwarding IDs or retrying", async () => {
+  const requests = [];
+  const { server, baseUrl } = await startServer((request, response) => { requests.push(request.url); response.writeHead(307, { location: "/unexpected-redirect" }); response.end(); });
+  const client = createGatewayClient({ baseUrl });
+  try {
+    await assert.rejects(client.workforceExecutionStatus("wf-scope-fixture"), error => error instanceof GatewayClientError && error.retryable === false);
+    await assert.rejects(client.recoverWorkforceWorkflow({ executionId: "wf-scope-fixture", taskId: "task-report", workflowId: "workflow-report" }), error => error instanceof GatewayClientError && error.retryable === false);
+    assert.deepEqual(requests, ["/workforce/execute/status", "/workforce/execute/handoff/recover"]);
+  } finally { await closeServer(server); }
+});
+
+test("Workforce native review, execution and original recovery preserve exact selectors, full review and IDs", async () => {
+  const request = { goal: "Implement the reviewed change", planId: "native-plan", agentId: "agt_native", autonomyMode: "controlled-execution",
+    externalRunner: { profileId: "native-fixture" } };
+  const recovery = { executionId: "wf-scope-native", operationId: "wfr_" + "a".repeat(64), agentId: request.agentId };
+  const fullReview = { profile: { artifact: { readPaths: ["src/value.mjs", "test/value.mjs"], writePaths: ["src/value.mjs"] } },
+    prompt: "BEGIN " + "x".repeat(524276) + " END" };
+  const requests = [];
+  const { server, baseUrl } = await startServer(async (incoming, response) => {
+    let raw = ""; for await (const chunk of incoming) raw += chunk;
+    requests.push({ path: incoming.url, method: incoming.method, body: JSON.parse(raw) });
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify({ status: "ok", data: { selectedRoleCount: 8, externalRunner: fullReview } }));
+  });
+  const controller = new AbortController(), client = createGatewayClient({ baseUrl, signal: controller.signal });
+  try {
+    const result = await client.workforceExecutionReview(request); assert.deepEqual(result.data.externalRunner, fullReview);
+    assert.equal(result.data.selectedRoleCount, 8);
+    await client.workforceExecute(request); await client.recoverWorkforceExternalRunner(recovery);
+    assert.deepEqual(requests, [
+      { path: "/workforce/execute/review", method: "POST", body: request },
+      { path: "/workforce/execute", method: "POST", body: request },
+      { path: "/workforce/execute/external-runner/recover", method: "POST", body: recovery },
+    ]);
+    controller.abort(); await assert.rejects(client.recoverWorkforceExternalRunner(recovery), GatewayClientAbortError);
+    assert.equal(requests.length, 3);
+  } finally { await closeServer(server); }
+});
+
+test("Workforce native methods reject model or launch overrides, incomplete IDs, accessors and mixing before dispatch", () => {
+  const client = createGatewayClient({ baseUrl: "http://127.0.0.1:1" });
+  const valid = { goal: "Keep the approved scope", agentId: "agt_native", externalRunner: { profileId: "native-fixture" } };
+  const forbidden = [{ ...valid, modelId: "override" }, { ...valid, providerId: "override" }, { ...valid, roleExecution: {} },
+    { ...valid, externalRunner: { profileId: "native-fixture", nativeModel: { modelId: "override" } } },
+    { ...valid, externalRunner: { profileId: "native-fixture", binary: "other-program" } },
+    { ...valid, externalRunner: { profileId: "native-fixture", args: [] } }, { ...valid, codeDelivery: { profileId: "forge" } },
+    { ...valid, workflowHandoff: {} }, { ...valid, consensusReview: {} }, { ...valid, autonomyMode: "sandbox-merge" },
+    { goal: valid.goal, externalRunner: valid.externalRunner }];
+  let accessed = false;
+  const getter = { ...valid }; Object.defineProperty(getter, "goal", { enumerable: true, get() { accessed = true; return "changed"; } });
+  const nested = { ...valid, context: Object.defineProperty({}, "getter", { enumerable: true, get() { accessed = true; return true; } }) };
+  const sparse = Array(1); sparse.custom = "ignored";
+  for (const value of [...forbidden, getter, nested, { ...valid, selectedRoles: sparse }]) {
+    assert.throws(() => client.workforceExecutionReview(value), GatewayClientError);
+    assert.throws(() => client.workforceExecute(value), GatewayClientError);
+  }
+  assert.equal(accessed, false);
+  const ids = { executionId: "execution", operationId: "operation", agentId: "agt_native" };
+  for (const value of [null, { ...ids, goal: "new goal" }, { ...ids, threadId: "another-thread" },
+    { ...ids, operationId: "../escape" }, { ...ids, agentId: "not-agent" }, { executionId: ids.executionId },
+    { ...ids, executionId: "x".repeat(257) }]) assert.throws(() => client.recoverWorkforceExternalRunner(value), GatewayClientError);
+});
+
+test("Workforce native methods reject redirects with zero forwarding and no retries", async () => {
+  const requests = [];
+  const { server, baseUrl } = await startServer((request, response) => { requests.push(request.url); response.writeHead(307, { location: "/unexpected" }); response.end(); });
+  const client = createGatewayClient({ baseUrl });
+  const input = { goal: "Keep reviewed task", agentId: "agt_native", externalRunner: { profileId: "native-fixture" } };
+  try {
+    for (const call of [() => client.workforceExecutionReview(input), () => client.workforceExecute(input),
+      () => client.recoverWorkforceExternalRunner({ executionId: "execution", operationId: "operation", agentId: "agt_native" })]) {
+      await assert.rejects(call(), error => error instanceof GatewayClientError && error.retryable === false);
+    }
+    assert.deepEqual(requests, ["/workforce/execute/review", "/workforce/execute", "/workforce/execute/external-runner/recover"]);
+  } finally { await closeServer(server); }
+});
+
 test("validates and normalizes the gateway base URL", () => {
   assert.throws(
     () => createGatewayClient(),
@@ -990,6 +1272,75 @@ test("exposes the Agent Governance lifecycle through canonical gateway paths", a
   } finally {
     await closeServer(server);
   }
+});
+
+test("Agent task SDK preserves complete requests and the original UUID across explicit bounded operations", async () => {
+  const observed = [], taskId = "7de31f92-d0fd-45f4-b2f5-e7d9c41ccaca";
+  const { server, baseUrl } = await startServer(async (request, response) => {
+    let raw = ""; for await (const chunk of request) raw += chunk;
+    observed.push({ method: request.method, path: request.url, body: raw ? JSON.parse(raw) : null, dispatch: request.headers["provider-dispatch-key"] });
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify({ status: "ok", data: { taskId, phase: "paused", usage: { totalTokens: null } } }));
+  });
+  try {
+    const client = createGatewayClient({ baseUrl }), original = { goal: "  Exact goal\n", prompt: "Complete original prompt\r\n" + "x".repeat(20000) + "\nFINAL", projectId: "configured-project" };
+    await client.prepareGovernedAgentTask("agt_sdk", original);
+    await client.planGovernedAgentTask("agt_sdk", taskId, { revision: 0, providerDispatchKey: "fixed-planning-request" });
+    await client.confirmGovernedAgentTask("agt_sdk", taskId, { revision: 3, reviewHash: "sha256:" + "a".repeat(64), planHash: "sha256:" + "b".repeat(64), approvalId: "apr_sdk" });
+    const chunk = await client.runGovernedAgentTask("agt_sdk", taskId, { revision: 5, maxIterations: 2 });
+    assert.equal(chunk.data.usage.totalTokens, null);
+    await client.governedAgentTask("agt_sdk", taskId);
+    await client.pauseGovernedAgentTask("agt_sdk", taskId, { revision: 12 });
+    await client.scheduleGovernedAgentTask("agt_sdk", taskId, { revision: 13 });
+    await client.cancelGovernedAgentTask("agt_sdk", taskId, { revision: 13 });
+    assert.deepEqual(observed.map(call => call.path), ["/v1/agents/agt_sdk/tasks", ...["plan", "confirm", "run", "", "pause", "schedule", "cancel"].map(operation => `/v1/agents/agt_sdk/tasks/${taskId}${operation ? "/" + operation : ""}`)]);
+    assert.deepEqual(observed[0].body, original);
+    assert.deepEqual(observed[1].body, { revision: 0 }); assert.equal(observed[1].dispatch, "fixed-planning-request");
+    assert.deepEqual(observed[3].body, { revision: 5, maxIterations: 2 }); assert.equal(typeof observed[3].dispatch, "string");
+    assert.equal(observed[4].method, "GET"); assert.equal(observed.length, 8);
+    assert.deepEqual(observed[6].body, { revision: 13 }); assert.equal(observed[6].dispatch, undefined);
+    assert.ok(observed.every(call => !call.path.includes("/approvals")));
+  } finally { await closeServer(server); }
+});
+
+test("Agent task SDK rejects replacement IDs/settings and never retries an uncertain bounded chunk", async () => {
+  let calls = 0; const taskId = "7de31f92-d0fd-45f4-b2f5-e7d9c41ccaca";
+  const { server, baseUrl } = await startServer(async (_request, response) => {
+    calls++; response.writeHead(503, { "content-type": "application/json" });
+    response.end(JSON.stringify({ status: "error", error: { code: "AGENT_LONG_TASK_UNKNOWN", message: "Unknown outcome", details: { outcomeUnknown: true } } }));
+  });
+  try {
+    const client = createGatewayClient({ baseUrl });
+    for (const request of [{ revision: -1 }, { revision: 0, modelId: "override" }, { revision: 0, profileId: "override" }, { revision: 0, maxIterations: 11 },
+      { revision: 0, commands: ["arbitrary"] }, { revision: 0, path: "source.mjs" }]) assert.throws(() => client.runGovernedAgentTask("agt_sdk", taskId, request));
+    for (const id of ["new-task", "../tasks", undefined, " " + taskId]) assert.throws(() => client.governedAgentTask("agt_sdk", id));
+    assert.throws(() => client.prepareGovernedAgentTask("agt_sdk", { goal: "goal", prompt: "prompt", profile: {} }));
+    for (const body of [{ revision: 0, authority: {} }, { revision: 0, tenantId: "other" }, { revision: 0, maxIterations: 100 }]) {
+      assert.throws(() => client.scheduleGovernedAgentTask("agt_sdk", taskId, body));
+    }
+    assert.throws(() => client.prepareGovernedAgentTask("agt_sdk", { goal: "goal", prompt: "prompt", projectId: "../other" }));
+    assert.throws(() => client.confirmGovernedAgentTask("agt_sdk", taskId, { revision: 1, approvalId: "apr_sdk" }));
+    assert.equal(calls, 0);
+    await assert.rejects(client.runGovernedAgentTask("agt_sdk", taskId, { revision: 1, maxIterations: 1 }));
+    assert.equal(calls, 1);
+  } finally { await closeServer(server); }
+});
+
+test("Agent task SDK refuses redirects before forwarding original review, IDs or provider dispatch headers", async () => {
+  const calls = [], taskId = "7de31f92-d0fd-45f4-b2f5-e7d9c41ccaca";
+  const { server, baseUrl } = await startServer(async (request, response) => {
+    calls.push(request.url); response.writeHead(307, { location: "/redirect-target" }); response.end();
+  });
+  try {
+    const client = createGatewayClient({ baseUrl });
+    for (const invoke of [() => client.prepareGovernedAgentTask("agt_sdk", { goal: "Exact goal", prompt: "Original prompt" }),
+      () => client.governedAgentTask("agt_sdk", taskId), () => client.planGovernedAgentTask("agt_sdk", taskId, { revision: 0 }),
+      () => client.confirmGovernedAgentTask("agt_sdk", taskId, { revision: 3, reviewHash: "sha256:" + "a".repeat(64), planHash: "sha256:" + "b".repeat(64), approvalId: "apr_original" }),
+      () => client.runGovernedAgentTask("agt_sdk", taskId, { revision: 5 }), () => client.pauseGovernedAgentTask("agt_sdk", taskId, { revision: 7 }),
+      () => client.cancelGovernedAgentTask("agt_sdk", taskId, { revision: 8 }),
+      () => client.scheduleGovernedAgentTask("agt_sdk", taskId, { revision: 9 })]) await assert.rejects(invoke());
+    assert.equal(calls.length, 8); assert.ok(!calls.includes("/redirect-target"));
+  } finally { await closeServer(server); }
 });
 
 test("inspects one local client through a bounded registry-list helper", async () => {

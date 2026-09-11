@@ -432,6 +432,10 @@ function extractBoundary(contentType) {
 }
 
 function resolveMultimodalErrorStatus(error) {
+  if (error?.code === "VIRTUAL_KEY_BUDGET_EXHAUSTED" || error?.code === "VIRTUAL_KEY_RATE_LIMITED") return 429;
+  if (error?.code === "VIRTUAL_KEY_ACCOUNTING_UNAVAILABLE") return 503;
+  if (error?.code === "api_key_invalid") return 401;
+  if (error?.code === "VIRTUAL_KEY_METERING_UNSUPPORTED") return 400;
   const dispatchStatus = resolveProviderDispatchHttpStatus(error?.code);
   if (dispatchStatus !== null) return dispatchStatus;
   if (error?.code === "MULTIMODAL_GOVERNED_GATEWAY_REQUIRED") return 503;

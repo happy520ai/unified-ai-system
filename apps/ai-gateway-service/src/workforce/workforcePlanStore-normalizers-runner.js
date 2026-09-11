@@ -70,7 +70,7 @@ export function normalizeExecutionReadinessPreflight(source) {
     ],
     blockedReasons: [
       "real Agent execution is disabled",
-      "workflow run handoff is explicit-invocation only (claim-token gated)",
+      "workflow run handoff is library-only and is not connected to production routes",
       "worktree isolation is required but not enabled",
       "execution requires a consumed executionApprovalGate record (not the preview approval)",
     ],
@@ -231,7 +231,7 @@ export function normalizeExternalRunnerProtocolFreeze(source) {
       "execution requires a consumed executionApprovalGate record (not the preview approval)",
       "external runner dispatch is disabled",
       "worktree isolation is implemented and active only in the real-execution line",
-      "workflow run handoff is explicit-invocation only (claim-token gated)",
+      "workflow run handoff is library-only and is not connected to production routes",
       "oh-my-codex CLI is not called",
       "default NVIDIA /chat lane is unchanged",
     ],

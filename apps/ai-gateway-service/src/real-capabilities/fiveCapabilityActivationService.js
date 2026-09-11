@@ -3,14 +3,6 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import {
-  buildRuntimeRegistry,
-  executeSandboxAutoRuntime,
-  reviewRuntimeEligibility,
-  runTaijiBeidouSelfUseDryRun,
-  scheduleRuntimeExecutions,
-  sampleNaturalLanguageIntakes,
-} from "@unified-ai-system/taiji-beidou-engine";
-import {
   FIVE_CAPABILITY_EVIDENCE_DIR,
   FIVE_CAPABILITY_MARKDOWN_PATH,
   FIVE_CAPABILITY_MODE,
@@ -22,6 +14,7 @@ import {
   redactSecrets,
   rollbackGvcEvidenceWrite,
   writeEvidence,
+  writeText,
 } from "./fiveCapabilityActivationSupport.js";
 import {
   runWorkforceRealLocal,
@@ -29,7 +22,7 @@ import {
 } from "../workforce/workforceRealLocalRunner.js";
 
 
-export function createFiveCapabilityActivationService({ repoRoot, workforceService, application }) {
+export function createFiveCapabilityActivationService({ repoRoot, workforceService, application, taijiCapabilityService }) {
   const root = repoRoot || process.cwd();
 
   async function getStatus() {
@@ -48,12 +41,12 @@ export function createFiveCapabilityActivationService({ repoRoot, workforceServi
     };
   }
 
-  async function activateFive(input = {}) {
+  async function activateFive(input = {}, context = {}) {
     const startedAt = new Date().toISOString();
     const runId = `fcr_${randomBytes(6).toString("hex")}`;
     const workforce = await runWorkforce(input);
     const threeMode = inspectThreeMode();
-    const taijiBeidou = await runTaijiBeidou(root);
+    const taijiBeidou = await runTaijiBeidou(input, context.identity);
     const gvc = await runGvc(root, runId);
     const codex = await runCodexBridge();
     const opencode = await inspectCli("opencode", ["--version"]);
@@ -73,12 +66,11 @@ export function createFiveCapabilityActivationService({ repoRoot, workforceServi
       runId,
       startedAt,
       completedAt,
-      executionStatus: allReady ? "completed" : "blocked",
-      completionVerified: allReady,
-      verificationReason: allReady
-        ? "Five capability activation completed with scoped real local execution and guarded real bridge checks."
-        : "One or more capability gates did not pass; failed gates are recorded without being marked as success.",
-      realCapabilityActivationReady: allReady,
+      executionStatus: allReady ? "ready" : "blocked",
+      completionVerified: false,
+      verificationReason: "This endpoint collects scoped checks and prior verified receipts; it does not execute and verify all five capabilities in this request.",
+      realCapabilityActivationReady: false,
+      scopedChecksReady: allReady,
       previewOnly: false,
       dryRunOnly: false,
       capabilities,
@@ -123,8 +115,7 @@ export function createFiveCapabilityActivationService({ repoRoot, workforceServi
         projectFileWrites: gvc.projectFileWrites === true,
         allowedProjectFileWrites: gvc.mutatedFiles ?? [],
       }),
-      userVisibleSummary:
-        "五大能力已进入真实可用激活状态：Workforce 本地执行完成，Three-Mode 真实 Provider 执行器已就绪，Taiji/Beidou 本地沙箱运行完成，GVC 完成受控低风险真实写入，Codex CLI 桥接检测通过；未读取密钥，未部署发布，未提交推送。",
+      userVisibleSummary: `已记录有限状态检查与本地写入结果。Taiji：${taijiBeidou.status}；新执行须使用候选评估、审批、激活和执行入口。此记录不代表五项能力均已在本次请求中执行完成。`,
     });
 
     await writeEvidence(root, result);
@@ -191,69 +182,25 @@ export function createFiveCapabilityActivationService({ repoRoot, workforceServi
     };
   }
 
-  async function runTaijiBeidou(rootPath) {
-    const intakes = [
-      "为五能力激活生成本地安全门控能力",
-      "为老板界面生成可读状态说明能力",
-      "为低风险本地执行生成回滚证据能力",
-    ];
-    const selfUse = runTaijiBeidouSelfUseDryRun(intakes.length ? intakes : sampleNaturalLanguageIntakes);
-    const artifactsById = Object.fromEntries(
-      selfUse.manifests.map((manifest, index) => {
-        const verifier = selfUse.verifierBundles[index];
-        return [
-          manifest.capabilityId,
-          {
-            verifierResult: verifier.verifierResult,
-            rollbackPlan: verifier.rollbackPlan,
-            dryRunResult: selfUse.dryRunResults[index],
-            evidenceRefs: [`${FIVE_CAPABILITY_EVIDENCE_DIR}/taiji-${manifest.capabilityId}.json`],
-            rollbackRef: verifier.rollbackPlan.disableFlag,
-          },
-        ];
-      }),
-    );
-    const admission = reviewRuntimeEligibility({ manifests: selfUse.manifests, artifactsById });
-    const registry = buildRuntimeRegistry(admission);
-    const scheduled = scheduleRuntimeExecutions(registry.admittedCapabilities);
-    const executions = scheduled.map((item, index) => executeSandboxAutoRuntime({
-      capability: registry.admittedCapabilities[index],
-      lease: item.lease,
-      dryRunResult: selfUse.dryRunResults[index],
-      tokenEstimate: 600,
-      durationMs: 5,
-    }));
-    await writeJson(rootPath, `${FIVE_CAPABILITY_EVIDENCE_DIR}/taiji-beidou-local-runtime-result.json`, {
-      phase: FIVE_CAPABILITY_PHASE,
-      selfUseSummary: selfUse.evidenceSummary,
-      admission,
-      scheduled,
-      executions,
-      providerCallsMade: false,
-      secretValueExposed: false,
-      chatRouteModified: false,
-      chatGatewayExecuteModified: false,
+  async function runTaijiBeidou(input, identity) {
+    const base = { id: "taijiBeidou", label: "Taiji/Beidou 引擎", mode: "governed-local-capability-runtime",
+      ready: false, status: "approval-required", realLocalExecution: false, priorExecutionVerified: false,
+      providerCallsMade: false, projectFileWrites: false, secretValueExposed: false,
+      productionRuntimeAutoEnabled: false, route: "POST /taiji/capabilities/evaluate" };
+    if (!taijiCapabilityService || !identity?.tenantId || !identity?.userId || !input.agentId) return base;
+    const snapshot = await taijiCapabilityService.status({ tenantId: identity.tenantId, userId: identity.userId, agentId: input.agentId });
+    const verified = snapshot.runs.filter(run => {
+      const capability = snapshot.capabilities.find(item => item.id === run.capabilityId);
+      const version = capability?.versions.find(item => item.revision === run.revision);
+      return snapshot.enabled && run.status === "passed" && capability?.activation?.epoch === run.activationEpoch
+        && capability.activation.expiresAt > Date.now() && version?.status === "evaluated"
+        && snapshot.profiles.some(profile => profile.id === version.profileId && profile.implementationHash === version.implementationHash)
+        && run.result?.actualExecution === true && run.result?.workerClosed === true && run.result?.artifact?.sha256;
     });
-
-    return {
-      id: "taijiBeidou",
-      label: "Taiji/Beidou 引擎",
-      ready: executions.length > 0 && executions.every((item) => item.executionStatus === "passed"),
-      status: executions.every((item) => item.executionStatus === "passed") ? "completed" : "blocked",
-      mode: "real-local-sandbox-runtime",
-      realLocalExecution: true,
-      capabilityCount: selfUse.manifests.length,
-      admittedCapabilityCount: registry.admittedCapabilities.length,
-      executionCount: executions.length,
-      executionStatuses: executions.map((item) => item.executionStatus),
-      evidencePath: `${FIVE_CAPABILITY_EVIDENCE_DIR}/taiji-beidou-local-runtime-result.json`,
-      providerCallsMade: false,
-      projectFileWrites: false,
-      secretValueExposed: false,
-      productionRuntimeAutoEnabled: false,
-    };
+    return { ...base, status: verified.length ? "prior-execution-verified" : base.status,
+      priorExecutionVerified: verified.length > 0, verifiedRunIds: verified.map(run => run.id),
+      evidenceSource: "signed-owned-capability-run-store", newExecutionPerformed: false };
   }
-
   async function runGvc(rootPath, runId) {
     const targetPath = `${FIVE_CAPABILITY_EVIDENCE_DIR}/gvc-real-local-${runId}.md`;
     const content = [

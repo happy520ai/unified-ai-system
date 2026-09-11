@@ -2,10 +2,17 @@ import { EventEmitter } from "node:events";
 import { Readable } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
 import {
-  dispatchOpenAiResponsesRoutes,
+  dispatchOpenAiResponsesRoutes as dispatchResponsesRoutes,
   normalizeOpenAiResponseRequest,
 } from "./openAiResponsesRoutes.js";
-import { createResponseSessionStore } from "../responses/responseSessionStore.js";
+import { bindResponseSessionStore, createResponseSessionStore } from "../responses/responseSessionStore.js";
+import { createGuardrailsEngineForTests, setGuardrailsEngineForTests } from "../guardrails/guardrailsEngine.ts";
+import { createApiKeyManager } from "../enterprise/apiKeyManager.js";
+import { bindVirtualKeyTestGateway } from "./virtualKeyGateway.testHelper.ts";
+
+function dispatchOpenAiResponsesRoutes(context) {
+  return dispatchResponsesRoutes({ ...context, gatewayService: bindVirtualKeyTestGateway(context) });
+}
 
 const descriptors = [
   {
@@ -225,6 +232,95 @@ describe("OpenAI Responses compatibility routes", () => {
     expect(gatewayInput.metadata.openAiCompatibility.droppedIncludeTokens).toEqual(["reasoning.encrypted_content"]);
     expect(gatewayInput.metadata.openAiCompatibility.droppedParameters).toEqual(["prompt_cache_key"]);
   });
+
+  it.each([false, true])("reports normalized ignored items on public and stored responses (stream=%s)", async stream => {
+    const response = createResponseRecorder();
+    const store = createResponseSessionStore({});
+    const functionTool = { type: "function", name: "lookup", description: "Look up the fixture", parameters: { type: "object", properties: { query: { type: "string" } } }, strict: true };
+    const expected = { version: 1, ignored_tool_types: ["namespace", "mcp"],
+      ignored_include: ["reasoning.encrypted_content"],
+      ignored_parameters: ["prompt_cache_key", "prompt_cache_options", "prompt_cache_retention"],
+      ignored_reasoning_input_items: 2 };
+    await dispatchOpenAiResponsesRoutes(createContext({ response, responseSessionStore: store,
+      body: { model: "local-fake-model", stream, store: true,
+        input: [{ type: "message", role: "user", content: "Continue the fixture" },
+          { type: "reasoning", encrypted_content: "ignored-reasoning-private-value" }, { type: "reasoning", summary: [{ text: "ignored-summary-private-value" }] }],
+        tools: [functionTool, { type: "namespace", name: "ignored-namespace-private-value" },
+          { type: "mcp", authorization: "ignored-authorization-private-value" }, { type: "namespace" }],
+        tool_choice: { type: "function", name: "lookup" }, include: ["reasoning.encrypted_content", "reasoning.encrypted_content"],
+        prompt_cache_key: "ignored-cache-key-private-value", prompt_cache_options: { routing: "ignored-cache-options-private-value" }, prompt_cache_retention: "ignored-cache-retention-private-value",
+        unified_ai: { compatibility: { version: 999, ignored_tool_types: ["spoofed"] } },
+        metadata: { openAiCompatibility: { droppedToolTypes: ["spoofed"], droppedReasoningInputItems: 999 } } } }));
+    expect(response.statusCode).toBe(200);
+    const frames = stream ? response.text.split("\n").filter(line => line.startsWith("data: {")).map(line => JSON.parse(line.slice(6)))
+      .filter(event => ["response.created", "response.in_progress", "response.completed"].includes(event.type)).map(event => event.response) : [response.body];
+    expect(frames).toHaveLength(stream ? 3 : 1);
+    for (const frame of frames) {
+      expect(frame.unified_ai.compatibility).toEqual(expected);
+      expect(frame.tools).toEqual([functionTool]);
+      expect(frame.tool_choice).toEqual({ type: "function", name: "lookup" });
+      expect(JSON.stringify(frame)).not.toContain("ignored-");
+    }
+    const completed = frames.at(-1);
+    expect(completed.store).toBe(true);
+    const retrieved = createResponseRecorder();
+    await dispatchOpenAiResponsesRoutes(createContext({ method: "GET", path: "/v1/responses/" + completed.id, responseSessionStore: store, response: retrieved }));
+    expect(retrieved.statusCode).toBe(200);
+    expect(retrieved.body.unified_ai.compatibility).toEqual(expected);
+    expect(retrieved.body.tools).toEqual([functionTool]);
+    expect(JSON.stringify(retrieved.body)).not.toContain("ignored-");
+  });
+
+  it.each([false, true])("omits notices for ordinary function tools despite client metadata lookalikes (stream=%s)", async stream => {
+    const response = createResponseRecorder();
+    const functionTool = { type: "function", name: "lookup", description: "Fixture", parameters: { type: "object" }, strict: false };
+    await dispatchOpenAiResponsesRoutes(createContext({ response,
+      body: { model: "local-fake-model", input: "Use the declared function", stream, tools: [functionTool],
+        unified_ai: { compatibility: { version: 999, ignored_parameters: ["spoofed"] } },
+        metadata: { openAiCompatibility: { droppedToolTypes: ["spoofed"], droppedReasoningInputItems: 999 } } } }));
+    expect(response.statusCode).toBe(200);
+    const frames = stream ? response.text.split("\n").filter(line => line.startsWith("data: {")).map(line => JSON.parse(line.slice(6)))
+      .filter(event => event.response).map(event => event.response) : [response.body];
+    expect(frames.length).toBeGreaterThan(0);
+    for (const frame of frames) {
+      expect(frame.unified_ai).not.toHaveProperty("compatibility");
+      expect(frame.tools).toEqual([functionTool]);
+    }
+  });
+
+  it.each([false, true])("retains normalization evidence when downstream gateway metadata changes (stream=%s)", async stream => {
+    const response = createResponseRecorder(); const gatewayService = createGatewayService();
+    const mutate = vi.fn(input => {
+      const metadata = input.metadata.openAiCompatibility;
+      metadata.droppedToolTypes.splice(0, metadata.droppedToolTypes.length, "downstream-tool");
+      metadata.droppedIncludeTokens.splice(0, metadata.droppedIncludeTokens.length, "downstream-include");
+      metadata.droppedParameters.splice(0, metadata.droppedParameters.length, "downstream-parameter");
+      metadata.droppedReasoningInputItems = 999;
+    });
+    const execute = gatewayService.execute; const executeStream = gatewayService.executeStream;
+    gatewayService.execute = vi.fn(async input => { mutate(input); return execute(input); });
+    gatewayService.executeStream = async function* (input) { mutate(input); yield* executeStream(input); };
+    await dispatchOpenAiResponsesRoutes(createContext({ response, gatewayService,
+      body: { model: "local-fake-model", stream,
+        input: [{ type: "message", role: "user", content: "Immutable notice fixture" }, { type: "reasoning", summary: [] }],
+        tools: [{ type: "namespace" }], include: ["reasoning.encrypted_content"], prompt_cache_key: "fixture" } }));
+    expect(response.statusCode).toBe(200); expect(mutate).toHaveBeenCalledOnce();
+    const frames = stream ? response.text.split("\n").filter(line => line.startsWith("data: {")).map(line => JSON.parse(line.slice(6)))
+      .filter(event => event.response).map(event => event.response) : [response.body];
+    expect(frames.length).toBeGreaterThan(0);
+    for (const frame of frames) expect(frame.unified_ai.compatibility).toEqual({ version: 1,
+      ignored_tool_types: ["namespace"], ignored_include: ["reasoning.encrypted_content"],
+      ignored_parameters: ["prompt_cache_key"], ignored_reasoning_input_items: 1 });
+  });
+
+  it.each([{ include: ["unsupported.fixture"] }, { tools: [{ type: "web_search" }], tool_choice: { type: "web_search" } }])(
+    "keeps unsupported include and mandatory built-in tool selection as errors: %j", async options => {
+      const response = createResponseRecorder(); const gatewayService = createGatewayService();
+      await dispatchOpenAiResponsesRoutes(createContext({ response, gatewayService,
+        body: { model: "local-fake-model", input: "Unsupported fixture", ...options } }));
+      expect(response.statusCode).toBe(400); expect(response.body.error.code).toBe("unsupported_parameter");
+      expect(gatewayService.execute).not.toHaveBeenCalled();
+    });
 
   it("skips blank assistant history items instead of rejecting them", async () => {
     const gatewayService = createGatewayService();
@@ -476,19 +572,20 @@ describe("OpenAI Responses compatibility routes", () => {
 
   it("enforces the virtual key budget gate on the Responses path", async () => {
     const gatewayService = createGatewayService();
-    const authorizeUsage = vi.fn(() => ({
-      allowed: false,
-      code: "VIRTUAL_KEY_BUDGET_EXHAUSTED",
-    }));
+    const manager = createApiKeyManager({ storePath: null });
+    const { key, record } = manager.create({ budget: { limitTokens: 10, window: "daily" } });
+    expect(manager.validate(key).valid).toBe(true);
+    manager.recordUsage({ keyId: record.keyId, tokens: 10 });
+    const authorizeUsage = vi.spyOn(manager, "authorizeUsage");
     const response = createResponseRecorder();
     await dispatchOpenAiResponsesRoutes(createContext({
       body: { model: "local-fake-model", input: "Over budget" },
       gatewayService,
       response,
       enterpriseGovernanceService: {
-        getApiKeyManager: () => ({ authorizeUsage, recordUsage: vi.fn() }),
+        getApiKeyManager: () => manager,
       },
-      enterpriseIdentity: { apiKeyFingerprint: "fp123", tenantId: "default" },
+      enterpriseIdentity: { apiKeyFingerprint: record.keyFingerprint, tenantId: record.tenantId },
       responseSessionStore: createResponseSessionStore({}),
     }));
 
@@ -503,24 +600,24 @@ describe("OpenAI Responses compatibility routes", () => {
 
   it("records virtual key usage after a successful Responses call", async () => {
     const gatewayService = createGatewayService();
-    const recordUsage = vi.fn(() => ({ softBudgetExceeded: false }));
+    const manager = createApiKeyManager({ storePath: null });
+    const { key, record } = manager.create({ budget: { limitTokens: 1000, window: "daily" } });
+    expect(manager.validate(key).valid).toBe(true);
+    const recordUsage = vi.spyOn(manager, "recordUsage");
     const response = createResponseRecorder();
     await dispatchOpenAiResponsesRoutes(createContext({
       body: { model: "local-fake-model", input: "Record me" },
       gatewayService,
       response,
       enterpriseGovernanceService: {
-        getApiKeyManager: () => ({
-          authorizeUsage: () => ({ allowed: true }),
-          recordUsage,
-        }),
+        getApiKeyManager: () => manager,
       },
-      enterpriseIdentity: { apiKeyFingerprint: "fp456", tenantId: "default" },
+      enterpriseIdentity: { apiKeyFingerprint: record.keyFingerprint, tenantId: record.tenantId },
       responseSessionStore: createResponseSessionStore({}),
     }));
 
     expect(response.statusCode).toBe(200);
-    expect(recordUsage).toHaveBeenCalledWith(expect.objectContaining({ keyId: "fp456" }));
+    expect(recordUsage).toHaveBeenCalledWith(expect.objectContaining({ keyId: record.keyFingerprint }));
   });
 });
 
@@ -707,6 +804,84 @@ describe("OpenAI Responses request normalization", () => {
       { type: "image_url", image_url: { url: imageUrl, detail: "low" } },
     ]);
     expect(request.metadata.openAiCompatibility.api).toBe("responses");
+  });
+});
+
+describe("Responses server-owned session scope", () => {
+  const owner = { tenantId: "session-tenant-a", userId: "alice" };
+  it("does not save a blocked output as a retrievable successful response", async () => {
+    const store = createResponseSessionStore({}); const response = createResponseRecorder();
+    setGuardrailsEngineForTests(createGuardrailsEngineForTests({ enabled: true, bannedTerms: ["completed"] }));
+    try {
+      await dispatchOpenAiResponsesRoutes(createContext({ body: { model: "local-fake-model", input: "Owned context", store: true },
+        responseSessionStore: store, enterpriseIdentity: owner, response }));
+      expect(response.statusCode).toBe(400); expect(response.body.error.code).toBe("guardrail_blocked");
+      expect(store.size()).toBe(0);
+    } finally { setGuardrailsEngineForTests(null); }
+  });
+
+  it.each([false, true])("rechecks stored output against the current owner policy (stream=%s)", async stream => {
+    const store = createResponseSessionStore({}); const response = createResponseRecorder();
+    const engine = createGuardrailsEngineForTests({ enabled: true, bannedTerms: [] });
+    setGuardrailsEngineForTests(engine);
+    try {
+      await dispatchOpenAiResponsesRoutes(createContext({ body: { model: "local-fake-model", input: "Owned context", store: true, stream },
+        responseSessionStore: store, enterpriseIdentity: owner, response }));
+      expect(response.statusCode).toBe(200);
+      const created = stream ? response.text.split("\n").filter(line => line.startsWith("data: {")).map(line => JSON.parse(line.slice(6)))
+        .find(event => event.type === "response.completed").response : response.body;
+      expect(created.store).toBe(true);
+      engine.applyOverrides({ bannedTerms: [stream ? "Hello" : "completed"] });
+      const readback = createResponseRecorder();
+      await dispatchOpenAiResponsesRoutes(createContext({ method: "GET", path: `/v1/responses/${created.id}`,
+        responseSessionStore: store, enterpriseIdentity: owner, response: readback }));
+      expect(readback.statusCode).toBe(400); expect(readback.body.error.code).toBe("guardrail_blocked");
+      expect(readback.text).not.toContain(created.output_text);
+    } finally { setGuardrailsEngineForTests(null); }
+  });
+
+  it("keeps stored assistant context consistent with redacted output", async () => {
+    const store = createResponseSessionStore({}); const response = createResponseRecorder();
+    const gateway = createGatewayService();
+    const originalExecute = gateway.execute;
+    gateway.execute = vi.fn(async () => {
+      const result = await originalExecute(); result.data.message.content = "Contact alice@example.test"; return result;
+    });
+    setGuardrailsEngineForTests(createGuardrailsEngineForTests({ enabled: true }));
+    try {
+      await dispatchOpenAiResponsesRoutes(createContext({ body: { model: "local-fake-model", input: "Owned context", store: true },
+        responseSessionStore: store, gatewayService: gateway, enterpriseIdentity: owner, response }));
+      expect(response.statusCode).toBe(200); expect(response.body.output_text).toBe("Contact [redacted-email]");
+      const saved = bindResponseSessionStore(store, owner).get(response.body.id);
+      expect(saved.assistantOutput).toBe(response.body.output_text);
+      expect(saved.contextMessages.findLast(message => message.role === "assistant").content).toBe(response.body.output_text);
+    } finally { setGuardrailsEngineForTests(null); }
+  });
+  it.each([
+    ["GET", { tenantId: "session-tenant-b", userId: "alice" }],
+    ["POST", { tenantId: "session-tenant-b", userId: "alice" }],
+    ["DELETE", { tenantId: "session-tenant-b", userId: "alice" }],
+    ["GET", { tenantId: "session-tenant-a", userId: "bob" }],
+    ["POST", { tenantId: "session-tenant-a", userId: "bob" }],
+    ["DELETE", { tenantId: "session-tenant-a", userId: "bob" }],
+  ])("refuses %s from another authenticated owner %j without dispatch", async (method, other) => {
+    const store = createResponseSessionStore({}); const gateway = createGatewayService();
+    const first = createResponseRecorder();
+    await dispatchOpenAiResponsesRoutes(createContext({ body: { model: "local-fake-model", input: "Owned context", store: true },
+      responseSessionStore: store, gatewayService: gateway, enterpriseIdentity: owner, response: first }));
+    expect(first.statusCode).toBe(200); expect(first.body.store).toBe(true);
+    const denied = createResponseRecorder();
+    await dispatchOpenAiResponsesRoutes(createContext({ method,
+      path: method === "POST" ? "/v1/responses" : `/v1/responses/${first.body.id}`,
+      body: { model: "local-fake-model", input: "Continue", previous_response_id: first.body.id,
+        metadata: { tenantId: owner.tenantId, userId: owner.userId }, unified_ai: { enterpriseIdentity: owner } },
+      responseSessionStore: store, gatewayService: gateway, enterpriseIdentity: other, response: denied }));
+    expect(denied.statusCode).toBe(404); expect(denied.body.error.code).toBe("response_not_found");
+    expect(gateway.execute).toHaveBeenCalledOnce();
+    const readback = createResponseRecorder();
+    await dispatchOpenAiResponsesRoutes(createContext({ method: "GET", path: `/v1/responses/${first.body.id}`,
+      responseSessionStore: store, gatewayService: gateway, enterpriseIdentity: owner, response: readback }));
+    expect(readback.statusCode).toBe(200); expect(readback.body.output_text).toBe(first.body.output_text);
   });
 });
 

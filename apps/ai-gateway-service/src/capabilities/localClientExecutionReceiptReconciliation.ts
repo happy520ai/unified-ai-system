@@ -8,6 +8,8 @@ import {
 import { chmodSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { LocalClientProtectedSqliteCheckpoint } from "./localClientProtectedSqliteCheckpoint.ts";
+import type { LocalClientWindowsProtectedAuthorityAnchor } from "./localClientWindowsProtectedAuthorityAnchor.ts";
 
 import {
   LOCAL_CLIENT_DISPATCH_INTENT_VERSION,
@@ -117,6 +119,8 @@ export interface LocalClientSqliteExecutionReceiptJournalOptions {
   readonly allowedClockSkewMs?: number;
   readonly busyTimeoutMs?: number;
   readonly now?: () => number;
+  /** Opt-in coordination only; explicit baseline enrollment and native attestation remain separate. */
+  readonly protectedAuthority?: LocalClientWindowsProtectedAuthorityAnchor;
 }
 
 export type LocalClientReceiptJournalRecord = Readonly<{
@@ -357,6 +361,7 @@ export class LocalClientSqliteExecutionReceiptJournal {
   #trustedSchemaDisabled = false;
   #defensiveSupported = false;
   #defensiveEnabled = false;
+  #protectedCheckpoint: LocalClientProtectedSqliteCheckpoint | null = null;
 
   constructor(options: LocalClientSqliteExecutionReceiptJournalOptions) {
     assertOptions(options);
@@ -445,6 +450,9 @@ export class LocalClientSqliteExecutionReceiptJournal {
       // parent directory ACLs/modes remain user-owned and are never rewritten.
       mkdirSync(dirname(this.#sqlitePath), { recursive: true, mode: 0o700 });
       this.#db = new DatabaseSync(this.#sqlitePath);
+      if (!options.protectedAuthority && this.#db.prepare(
+        "SELECT name FROM sqlite_schema WHERE name = 'local_client_protected_checkpoint'",
+      ).get()) throw configurationError();
       this.#db.exec(`PRAGMA busy_timeout = ${this.#busyTimeoutMs}`);
       const journal = this.#db.prepare("PRAGMA journal_mode = WAL").get() as { journal_mode?: unknown } | undefined;
       if (String(journal?.journal_mode ?? "").toLowerCase() !== "wal") throw schemaError();
@@ -467,6 +475,21 @@ export class LocalClientSqliteExecutionReceiptJournal {
       this.#assertNoUnknownTargetTriggers();
       this.#assertDatabaseHealthy();
       this.#assertAuthenticatedRowSet();
+      if (options.protectedAuthority) {
+        this.#protectedCheckpoint = new LocalClientProtectedSqliteCheckpoint({
+          db: this.#db, integrityKey: this.#integrityKey,
+          bindingId: `${this.#role}:${this.#hostBindingHmac}:${this.#namespaceBindingHmac}`,
+          authority: options.protectedAuthority,
+          readDataDigest: () => {
+            this.#assertRuntimeHardening();
+            this.#assertNoUnknownTargetTriggers();
+            this.#assertAuthenticatedRowSet();
+            const metadata = this.#readMetadata();
+            if (!metadata) throw integrityError();
+            return metadata.metadata_hmac;
+          },
+        });
+      }
       try { chmodSync(this.#sqlitePath, 0o600); } catch { /* Best effort on Windows. */ }
       this.#available = true;
     } catch (error) {
@@ -504,7 +527,26 @@ export class LocalClientSqliteExecutionReceiptJournal {
       defensiveEnabled: this.#lifecycle === "open" && this.#defensiveEnabled,
       recoveryContextEncrypted: this.#role === "gateway"
         && this.#recoveryEncryptionKey !== null,
+      ...(this.#protectedCheckpoint ? { protectedCheckpointState: this.#protectedCheckpoint.status.state } : {}),
     });
+  }
+
+  /** Provisioning workflow only. Ordinary dispatch/startup never enrolls an anchor. */
+  async enrollProtectedBaseline() {
+    this.#assertOpen();
+    if (!this.#protectedCheckpoint) throw configurationError();
+    const checkpoint = await this.#protectedCheckpoint.enrollBaseline();
+    this.#available = true;
+    return checkpoint;
+  }
+
+  /** No dispatch callback is accepted or replayed during protected recovery. */
+  async recoverProtectedCheckpoint() {
+    this.#assertOpen();
+    if (!this.#protectedCheckpoint) throw configurationError();
+    const checkpoint = await this.#protectedCheckpoint.recover();
+    this.#available = true;
+    return checkpoint;
   }
 
   /** Gateway phase 1: persist bindings before the external-effect reservation is armed. */
@@ -792,6 +834,34 @@ export class LocalClientSqliteExecutionReceiptJournal {
         receipt: this.#receiptFromRow(updated),
         record: toPublicRecord(updated),
       });
+    });
+  }
+
+  /** Import a native resource's already committed receipt. This projects an
+   * atomic resource result into the client journal; it never claims an effect
+   * or authorizes redispatch. The receiving adapter must obtain the receipt
+   * from its actual native resource store, not manufacture it from a flag. */
+  async recordNativeCompleted(rawReceipt: LocalClientDurableExecutionReceipt) {
+    this.#assertRole("client");
+    return this.#transaction(() => {
+      const nowMs = this.#observeNow();
+      const receipt = validateDurableReceipt(this.#protocolKey, rawReceipt, nowMs, this.#allowedClockSkewMs);
+      const row = this.#requiredRow(receipt.executionId);
+      assertRowMatchesReceipt(row, receipt);
+      if (row.state === "completed") {
+        if (row.receipt_id !== receipt.receiptId || row.terminal_at_ms !== receipt.completedAtMs) {
+          throw identityMismatchError();
+        }
+        return Object.freeze({ recorded: false, replayed: true, receipt: this.#receiptFromRow(row), record: toPublicRecord(row) });
+      }
+      if (row.state !== "effect-started" || receipt.completedAtMs < row.effect_started_at_ms) throw stateError();
+      const updated = signJournalRow(this.#integrityKey, {
+        ...row, state: "completed", terminal_at_ms: receipt.completedAtMs,
+        terminal_outcome: "completed", receipt_id: receipt.receiptId,
+        retire_at_ms: 0, updated_at_ms: nowMs,
+      });
+      this.#replace(row, updated);
+      return Object.freeze({ recorded: true, replayed: false, receipt: this.#receiptFromRow(updated), record: toPublicRecord(updated) });
     });
   }
 
@@ -1083,7 +1153,7 @@ export class LocalClientSqliteExecutionReceiptJournal {
   }
 
   async checkHealth() {
-    const counts = this.#transaction(() => {
+    const counts = await this.#transaction(() => {
       const nowMs = this.#observeNow();
       this.#purgeRetired(nowMs);
       this.#assertDatabaseHealthy();
@@ -1101,8 +1171,9 @@ export class LocalClientSqliteExecutionReceiptJournal {
     this.#secureDeleteEnabled = false;
     this.#trustedSchemaDisabled = false;
     this.#defensiveEnabled = false;
-    const attempt = Promise.resolve().then(() => {
+    const attempt = Promise.resolve().then(async () => {
       try {
+        await this.#protectedCheckpoint?.close();
         this.#db.close();
         this.#lifecycle = "closed";
         this.#closeFailed = false;
@@ -1873,11 +1944,11 @@ export class LocalClientSqliteExecutionReceiptJournal {
     this.#assertMetadata(metadata);
   }
 
-  #transaction<T>(operation: () => T, allowRecovery = false): T {
+  async #transaction<T>(operation: () => T, allowRecovery = false): Promise<T> {
     this.#assertOpen();
     if (!this.#available && !allowRecovery) throw unavailableError();
     try {
-      const result = this.#rawTransaction(() => {
+      const checked = () => {
         this.#assertRuntimeHardening();
         this.#assertNoUnknownTargetTriggers();
         this.#assertAuthenticatedRowSet();
@@ -1886,7 +1957,10 @@ export class LocalClientSqliteExecutionReceiptJournal {
         this.#assertAuthenticatedRowSet();
         this.#assertRuntimeHardening();
         return value;
-      });
+      };
+      const result = this.#protectedCheckpoint
+        ? await this.#protectedCheckpoint.run(checked)
+        : this.#rawTransaction(checked);
       this.#available = true;
       return result;
     } catch (error) {
@@ -2010,6 +2084,28 @@ function intentBaseFromBindings(
 
 function deriveIntentId(protocolKey: Uint8Array, base: ReturnType<typeof intentBaseFromBindings>): string {
   return `lcdi_${keyedDigest(protocolKey, "dispatch-intent-id", canonicalJson(base))}`;
+}
+
+/** Application-private verifier for native effect stores. Expired intents may
+ * authenticate a read-only recovery lookup, never a fresh effect authorization. */
+export function authenticateLocalClientDispatchIntent(
+  protocolKey: Uint8Array,
+  intent: LocalClientDispatchIntent,
+  options: Readonly<{ nowMs?: number; allowExpired?: boolean }> = {},
+): LocalClientDispatchIntent {
+  const nowMs = options.nowMs ?? Date.now();
+  if (!isSafeNonNegativeInteger(nowMs)
+    || (options.allowExpired !== undefined && typeof options.allowExpired !== "boolean")) {
+    throw configurationError();
+  }
+  const key = cloneKey(protocolKey);
+  try {
+    const authenticated = validateDispatchIntent(
+      key, intent, nowMs, DEFAULT_CLOCK_SKEW_MS, MAX_INTENT_TTL_MS, options.allowExpired !== true,
+    );
+    if (authenticated.issuedAtMs > safeAdd(nowMs, DEFAULT_CLOCK_SKEW_MS)) throw intentExpiredError();
+    return authenticated;
+  } finally { key.fill(0); }
 }
 
 function validateDispatchIntent(
@@ -2779,7 +2875,7 @@ function assertOptions(options: LocalClientSqliteExecutionReceiptJournalOptions)
   assertExactKeys(options, [
     "sqlitePath", "role", "hostId", "integrityKey", "protocolKey", "recoveryEncryptionKey", "namespace",
     "maxEntries", "retentionMs", "intentTtlMs", "queryTtlMs", "allowedClockSkewMs",
-    "busyTimeoutMs", "now",
+    "busyTimeoutMs", "now", "protectedAuthority",
   ], true, configurationError);
   for (const key of ["sqlitePath", "role", "hostId", "integrityKey", "protocolKey"] as const) {
     if (!Object.hasOwn(options, key)) throw configurationError();

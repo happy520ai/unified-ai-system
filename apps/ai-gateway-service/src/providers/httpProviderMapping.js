@@ -3,6 +3,7 @@
 // stream parsing, response validation, and quality scoring.
 
 import { createProviderResponse } from "./providerMapping.js";
+import { observeProviderUsage } from "./providerUsageObservation.ts";
 import { getOrCreateAgent, fetchWithAgent } from "../http/connectionPool.js";
 import { resolveSafeOutboundUrl } from "../security/outboundUrlPolicy.ts";
 import {
@@ -209,6 +210,7 @@ function safeParseToolArguments(args) {
 }
 
 export function mapChatCompletionsResponseToProviderResponse(body, { providerRequest, latencyMs }) {
+  const observed = observeProviderUsage("openai", body?.usage, true);
   const choice = body?.choices?.[0];
   const apiMessage = choice?.message;
   const content = apiMessage?.content ?? "";
@@ -245,18 +247,15 @@ export function mapChatCompletionsResponseToProviderResponse(body, { providerReq
     text,
     message,
     toolCalls: parsedToolCalls,
-    usage: {
-      inputTokens: body?.usage?.prompt_tokens ?? 0,
-      outputTokens: body?.usage?.completion_tokens ?? 0,
-      totalTokens: body?.usage?.total_tokens ?? 0,
-      reasoningTokens: body?.usage?.completion_tokens_details?.reasoning_tokens ?? 0,
-    },
+    usage: observed.usage,
     latencyMs,
     executionStatus: "success",
     raw: {
       id: body?.id,
       model: body?.model,
       finishReason: choice?.finish_reason,
+      usageObservation: observed.usageObservation,
+      outputTextPresent: typeof content === "string" && content.length > 0,
     },
   });
 }
@@ -275,7 +274,7 @@ function readReasoningContent(apiMessage) {
 }
 
 // ── Stream Parsing ──
-function parseStreamLine(line) {
+function parseStreamLine(line, usageState) {
   const trimmed = line.trim();
 
   if (!trimmed || !trimmed.startsWith("data:")) {
@@ -294,17 +293,49 @@ function parseStreamLine(line) {
     const textDelta = choice?.delta?.content ?? "";
     const toolCallsDelta = choice?.delta?.tool_calls;
     const finishReason = choice?.finish_reason;
+    const reasoningDelta = readReasoningContent(choice?.delta);
 
-    if (!textDelta && !Array.isArray(toolCallsDelta) && !finishReason) {
+    const hasUsage = parsed?.usage != null;
+    if (!textDelta && !Array.isArray(toolCallsDelta) && !finishReason && !hasUsage && !reasoningDelta) {
       return null;
+    }
+
+    let observedUsage;
+    if (hasUsage) {
+      const usage = parsed.usage;
+      if (typeof usage === "object" && !Array.isArray(usage)) {
+        // Usage frames may update only one cumulative component. Preserve
+        // omitted fields; reported counters replace prior values, never add.
+        const merged = { ...usageState.snapshot, ...usage };
+        for (const key of ["prompt_tokens_details", "completion_tokens_details"]) {
+          if (usage[key] && typeof usage[key] === "object" && !Array.isArray(usage[key])) {
+            const prior = usageState.snapshot[key];
+            merged[key] = { ...(prior && typeof prior === "object" && !Array.isArray(prior) ? prior : {}), ...usage[key] };
+          }
+        }
+        const componentsChanged = ["prompt_tokens", "completion_tokens"].some(key =>
+          Object.hasOwn(usage, key) && usage[key] !== usageState.snapshot[key])
+          || (merged.completion_tokens === undefined && usage.completion_tokens_details
+            && Object.hasOwn(usage.completion_tokens_details, "reasoning_tokens")
+            && usage.completion_tokens_details.reasoning_tokens !== usageState.snapshot.completion_tokens_details?.reasoning_tokens);
+        // A total belongs to its component snapshot, not to later updates.
+        if (!Object.hasOwn(usage, "total_tokens") && componentsChanged) delete merged.total_tokens;
+        usageState.snapshot = merged;
+        observedUsage = observeProviderUsage("openai", merged, false);
+      } else {
+        observedUsage = observeProviderUsage("openai", usage, false);
+      }
     }
 
     return {
       textDelta,
+      ...(reasoningDelta ? { reasoningDelta } : {}),
+      usageOnly: !textDelta && !Array.isArray(toolCallsDelta) && !finishReason,
       raw: {
-        id: parsed?.id,
-        model: parsed?.model,
-        finishReason,
+        ...(parsed?.id !== undefined ? { id: parsed.id } : {}),
+        ...(parsed?.model !== undefined ? { model: parsed.model } : {}),
+        ...(finishReason ? { finishReason } : {}),
+        ...(observedUsage ?? {}),
         ...(Array.isArray(toolCallsDelta) ? { toolCallsDelta } : {}),
       },
     };
@@ -326,6 +357,8 @@ export async function* readChatCompletionsStream(response, providerRequest, sign
 
   const decoder = new TextDecoder();
   let buffer = "";
+  let latestRaw = observeProviderUsage("openai", undefined, false);
+  const usageState = { snapshot: {} };
   const MAX_SSE_BUFFER = 1024 * 1024; // 1MB cap
 
   throwIfExecutionAborted(signal);
@@ -347,9 +380,11 @@ export async function* readChatCompletionsStream(response, providerRequest, sign
     buffer = lines.pop() ?? "";
 
     for (const line of lines) {
-      const parsed = parseStreamLine(line);
+      const parsed = parseStreamLine(line, usageState);
 
       if (parsed === "done") {
+        yield { textDelta: "", usageOnly: true, raw: { ...latestRaw,
+          usageObservation: { ...latestRaw.usageObservation, complete: true } } };
         return;
       }
 
@@ -358,20 +393,29 @@ export async function* readChatCompletionsStream(response, providerRequest, sign
       // function calls on providers that emit them in one piece.
       if (
         parsed
-        && (parsed.textDelta || Array.isArray(parsed.raw?.toolCallsDelta) || parsed.raw?.finishReason)
+        && (parsed.textDelta || parsed.reasoningDelta || Array.isArray(parsed.raw?.toolCallsDelta) || parsed.raw?.finishReason || parsed.raw?.usageObservation)
       ) {
-        yield parsed;
+        const { toolCallsDelta: _delta, ...persistentRaw } = parsed.raw;
+        latestRaw = { ...latestRaw, ...persistentRaw };
+        yield { ...parsed, raw: { ...latestRaw, ...parsed.raw } };
       }
     }
   }
 
-  const remaining = parseStreamLine(buffer);
+  const remaining = parseStreamLine(buffer, usageState);
+  if (remaining === "done") {
+    yield { textDelta: "", usageOnly: true, raw: { ...latestRaw,
+      usageObservation: { ...latestRaw.usageObservation, complete: true } } };
+    return;
+  }
 
   if (
     remaining
-    && (remaining.textDelta || Array.isArray(remaining.raw?.toolCallsDelta) || remaining.raw?.finishReason)
+    && (remaining.textDelta || remaining.reasoningDelta || Array.isArray(remaining.raw?.toolCallsDelta) || remaining.raw?.finishReason || remaining.raw?.usageObservation)
   ) {
-    yield remaining;
+    const { toolCallsDelta: _delta, ...persistentRaw } = remaining.raw;
+    latestRaw = { ...latestRaw, ...persistentRaw };
+    yield { ...remaining, raw: { ...latestRaw, ...remaining.raw } };
   }
 }
 

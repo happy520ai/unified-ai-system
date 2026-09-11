@@ -1,4 +1,5 @@
 import { listModelImportProviders } from "../../model-import/providerProbeRegistry.js";
+import { getRuntimeBuildIdentity } from "../../application/runtimeBuildIdentity.ts";
 
 export function createHealth(application) {
   const realProviderEnabled = application.config.aiGatewayService.realProviderEnabled === true;
@@ -74,6 +75,7 @@ export function createHealth(application) {
     || managedProtocolDispatch.ready === true;
   return {
     app: "ai-gateway-service",
+    buildIdentity: getRuntimeBuildIdentity(),
     status: usageLedgerReady
       && enterpriseReady
       && localClientFeedbackReady
@@ -263,6 +265,39 @@ export function createSetupReadiness(application) {
   const workforceReady = workforceHealth.status === "ready" && workforceHealth.ready === true;
   const agentGovernanceBlocksSetup = health.agentGovernance.enabled === true
     && health.agentGovernance.ready !== true;
+  const providerMode = ["fake", "auto", "real"].includes(health.providerMode)
+    ? health.providerMode
+    : "unknown";
+  const providerSelection = application.config.aiGatewayService.providerSelection;
+  const configuredDefault = providerSelection?.defaultProviderId;
+  const registeredDefault = providerDescriptors.find((provider) => provider.id === configuredDefault)?.id;
+  const fixedDefaultUnavailable = providerSelection?.mode === "fixed"
+    && Boolean(configuredDefault) && !registeredDefault;
+  const routeDescription = providerSelection?.mode !== "fixed"
+    ? "由已注册 Provider 按服务端路由策略选择"
+    : registeredDefault
+      ? `固定路由配置默认 Provider：${registeredDefault}；模型匹配仍需验证`
+      : fixedDefaultUnavailable
+        ? "固定默认 Provider 未注册或未启用，请检查路由配置"
+        : "固定路由未指定默认 Provider，请核对默认模型配置";
+  const modeLabel = {
+    fake: "本地模拟模式（fake）",
+    auto: "自动选择模式（auto）",
+    real: "真实供应方模式（real）",
+    unknown: "运行模式未知",
+  }[providerMode];
+  const defaultLane = [
+    modeLabel,
+    health.realProviderEnabled ? "真实调用开关已开启，仍受执行策略约束" : "真实调用已禁用",
+    routeDescription,
+  ].join("；");
+  const chatNextAction = fixedDefaultUnavailable
+    ? "先检查固定路由配置：默认 Provider 必须已注册并启用，默认模型需匹配；使用 pnpm gateway status --json 查看当前实例。"
+    : !chatReady
+    ? "先运行 pnpm gateway status --json 查看失败条件，再运行 pnpm gateway doctor --json 检查本地环境。"
+    : providerMode !== "unknown" && providerMode !== "real" && !health.realProviderEnabled
+      ? '使用 pnpm gateway chat "你好" --json 验证本地调用；本就绪检查尚未执行该请求。'
+      : "先核对 pnpm gateway status --json 的模式与策略；只有明确允许本次真实调用时，才为 pnpm gateway chat 添加 --allow-real-provider。";
 
   return {
     phase: "phase-104a-first-run-setup",
@@ -270,14 +305,14 @@ export function createSetupReadiness(application) {
     // dependencies. Agent Governance is different when explicitly enabled:
     // its owner and integrity fences are mandatory execution prerequisites.
     status: agentGovernanceBlocksSetup ? "degraded" : "ready",
-    userMessage: "首次使用只需要按步骤完成健康检查、模型检测，然后就可以开始聊天；知识库和 Agent Workforce 可以按需打开。",
+    userMessage: "按步骤检查当前实例的装配条件；这些检查不会调用模型。聊天、知识和受治理执行应分别验证。",
     steps: [
       {
         stepId: "service-health",
         title: "系统健康检查",
         status: health.status === "ready" ? "ready" : "needs_attention",
         ready: health.status === "ready",
-        nextAction: "如果不是 ready，先运行 health / doctor / logs 查看服务状态。",
+        nextAction: "运行 pnpm gateway status --json 查看实例状态，使用 pnpm gateway doctor --json 检查本地环境；部署流量就绪状态以 GET /ready 为准。",
       },
       {
         stepId: "agent-governance",
@@ -290,38 +325,38 @@ export function createSetupReadiness(application) {
       },
       {
         stepId: "model-import",
-        title: "添加模型 / 检测 API Key",
+        title: "模型导入（可选）",
         status: modelImportReady ? "ready" : "needs_attention",
         ready: modelImportReady,
-        nextAction: "粘贴 API Key 后点击识别可用模型；识别不了时选择 provider 或填写 Base URL。",
+        nextAction: "这是可选的真实 Provider 导入步骤；目录可用只代表存在导入适配器。本地 fake 体验无需密钥，真实模型验证通过已授权的 /models/import/preview 接口进行。",
       },
       {
         stepId: "chat",
         title: "开始聊天",
         status: chatReady ? "ready" : "needs_attention",
         ready: chatReady,
-        nextAction: "模型检测通过后直接在聊天框输入问题，也可以先用服务端默认路由试聊。",
+        nextAction: chatNextAction,
       },
       {
         stepId: "workforce",
         title: "Agent Workforce 计划预览",
         status: workforceReady ? "ready" : "needs_attention",
         ready: workforceReady,
-        nextAction: "输入目标生成 AI 团队计划；当前只做计划预览，不执行代码、不修改文件。",
+        nextAction: "使用计划与导出接口拆解目标；实际任务执行须走独立的受治理执行路径。本检查不会执行任务或修改文件。",
       },
       {
         stepId: "knowledge-rag",
         title: "Knowledge / RAG 可选",
         status: knowledgeReady ? "ready" : "needs_attention",
         ready: knowledgeReady,
-        nextAction: "拖入文档或使用知识库接口装载资料；聊天会在需要时检索本地知识。",
+        nextAction: "按知识库接口文档装载资料并验证检索；需要 RAG 的聊天请求须显式启用相应选项，不会自动读取所有资料。",
       },
       {
         stepId: "release-boundary",
         title: "发布前限制说明",
         status: "preview",
         ready: true,
-        nextAction: "当前不是全球发布完成态；多 provider 自动路由、真实 fallback、真实多 Agent 执行仍需后续明确主线。",
+        nextAction: "本次检查未验证真实 Provider、客户端操作、备份恢复或持续运行。上线前需用同一候选版本分别完成这些验证。",
       },
     ],
     readiness: {
@@ -334,13 +369,13 @@ export function createSetupReadiness(application) {
       modelImport: {
         ready: modelImportReady,
         providerCatalogCount: providerCatalog.length,
-        nextAction: "使用 /models/import/preview 真实调用 provider models/list，不靠 API Key 文本猜模型。",
+        nextAction: "目录数量表示可用的导入适配器，不代表已验证模型。经明确授权后使用 /models/import/preview 查询真实 Provider 的模型列表。",
       },
       chat: {
         ready: chatReady,
         providerCount: providerDescriptors.length,
-        defaultLane: "NVIDIA single-provider / server-side configured route remains unchanged",
-        nextAction: "普通用户直接从聊天框开始；失败时先按模型配置提示处理。",
+        defaultLane,
+        nextAction: chatNextAction,
       },
       knowledge: {
         ready: knowledgeReady,
@@ -352,15 +387,15 @@ export function createSetupReadiness(application) {
         ready: workforceReady,
         mode: workforceHealth.mode,
         roleCount: workforceHealth.roleCount,
-        nextAction: "适合做需求拆解、角色分工、任务包导出；不会自动执行。",
+        nextAction: "计划与交付包用于审阅；实际动作须走受治理执行接口，并另行检查审批、权限和执行回执。",
       },
     },
     limitations: [
-      "Agent Workforce is plan preview only; it does not run code or modify project files.",
+      "Workforce planning and delivery packages remain previews; governed execution uses separate approval-gated routes.",
       "Model import discovers models through provider models/list; it does not guess models from API key text.",
       "Default /chat main lane remains unchanged.",
       "This readiness check does not call real providers and does not expose API keys.",
-      "This is not a claim that global release, SSO/IAM, real fallback execution, or production multi-agent execution is complete.",
+      "Readiness does not replace real-provider, client, failover, recovery, or production verification.",
     ],
     safety: {
       apiKeyExposed: false,

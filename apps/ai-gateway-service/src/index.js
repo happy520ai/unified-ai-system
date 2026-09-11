@@ -2,7 +2,7 @@ import { createGatewayApplication } from "./application/createGatewayApplication
 import { createGatewayHttpServer } from "./http/httpServer.js";
 import { destroyAllPools } from "./http/connectionPool.js";
 import { createPinoLogger } from "./logging/pinoLogger.js";
-import { createGatewayShutdownController, readBoundedDuration } from "./http/gatewayShutdown.ts";
+import { bindManagedGatewayParent, createGatewayShutdownController, readBoundedDuration } from "./http/gatewayShutdown.ts";
 
 const application = createGatewayApplication();
 const { host, port } = application.config.aiGatewayService.endpoint;
@@ -32,7 +32,11 @@ const shutdownController = createGatewayShutdownController({
   timeoutMs: shutdownTimeoutMs,
 });
 
-server.listen(port, host, () => {
+const ownerConnected = process.env.AI_GATEWAY_MANAGED_PARENT_IPC !== "1"
+  || bindManagedGatewayParent(process, shutdownController);
+
+if (ownerConnected) await application.startAgentLongTaskRuntime?.();
+if (ownerConnected) server.listen(port, host, () => {
   logger.info({
     event: "service_ready",
     status: "ready",

@@ -5,6 +5,8 @@
  */
 
 import { resolve } from "node:path";
+import { attachWorkforceConsensusResult } from "./workforceConsensusReport.ts";
+import { attachExternalRunnerState, externalRunnerLifecycleProjection, preserveExternalRunnerSummary } from "./workforceExternalRunnerState.ts";
 import {
   buildValidTransitions,
   validateTransition as validateTransitionImpl,
@@ -35,7 +37,7 @@ const VALID_TRANSITIONS = buildValidTransitions(EXECUTION_STATUS);
  * 创建执行生命周期管理器
  * @param {object} [options] - 配置选项
  * @param {string} [options.lifecycleDir] - 生命周期记录目录
- * @returns {object} 执行生命周期管理器实例
+ * 返回包含持久化与状态读取方法的生命周期管理器，类型由实际返回值推导。
  */
 export function createExecutionLifecycle(options = {}) {
   const lifecycleDir = options.lifecycleDir || DEFAULT_LIFECYCLE_DIR;
@@ -318,6 +320,21 @@ export function createExecutionLifecycle(options = {}) {
      * @param {object} [summary] - 执行摘要
      * @returns {Promise<object>} 完成结果
      */
+    async recordConsensusResult(planId, report) {
+      const state = getState(planId), previous = state.summary;
+      state.summary = attachWorkforceConsensusResult(state, planId, report);
+      try { await persistState(lifecycleDir, planId, state); }
+      catch (error) { state.summary = previous; throw error; }
+      return { success: true, reportHash: state.summary.consensusReport.reportHash };
+    },
+    async recordExternalRunnerState(planId, record) {
+      const state = getState(planId), previous = state.summary;
+      state.summary = attachExternalRunnerState(state, planId, record);
+      try { await persistState(lifecycleDir, planId, state); }
+      catch (error) { state.summary = previous; throw error; }
+      return { success: true, stateHash: state.summary.externalRunnerState.stateHash };
+    },
+
     async complete(planId, finalStatus, summary = {}) {
       const state = getState(planId);
       const targetStatus = finalStatus || EXECUTION_STATUS.COMPLETED;
@@ -325,7 +342,7 @@ export function createExecutionLifecycle(options = {}) {
       validateTransition(state, targetStatus);
       transition(state, targetStatus, `执行已结束: ${targetStatus}`);
       state.completedAt = new Date().toISOString();
-      state.summary = summary;
+      state.summary = preserveExternalRunnerSummary(state, planId, summary);
 
       await persistState(lifecycleDir, planId, state);
 
@@ -386,6 +403,13 @@ export function createExecutionLifecycle(options = {}) {
           transitions: memState.transitions,
           tenantFingerprint: memState.metadata?.tenantFingerprint ?? null,
           subjectFingerprint: memState.metadata?.subjectFingerprint ?? null,
+          ...externalRunnerLifecycleProjection(memState, planId.trim()),
+          ...(memState.metadata?.workflowHandoff ? { workflowHandoff: memState.metadata.workflowHandoff } : {}),
+          ...(memState.metadata?.consensusReview ? { consensusReview: memState.metadata.consensusReview,
+            consensusReport: memState.summary?.consensusReport ?? null } : {}),
+          ...(memState.metadata?.codeDelivery === true ? { codeDelivery: {
+            evidence: memState.summary?.codeDeliveryEvidence ?? null,
+            recoveryRequired: memState.summary?.recoveryRequired !== false } } : {}),
         };
       }
 
@@ -406,6 +430,13 @@ export function createExecutionLifecycle(options = {}) {
           transitions: diskState.transitions,
           tenantFingerprint: diskState.metadata?.tenantFingerprint ?? null,
           subjectFingerprint: diskState.metadata?.subjectFingerprint ?? null,
+          ...externalRunnerLifecycleProjection(diskState, planId.trim()),
+          ...(diskState.metadata?.workflowHandoff ? { workflowHandoff: diskState.metadata.workflowHandoff } : {}),
+          ...(diskState.metadata?.consensusReview ? { consensusReview: diskState.metadata.consensusReview,
+            consensusReport: diskState.summary?.consensusReport ?? null } : {}),
+          ...(diskState.metadata?.codeDelivery === true ? { codeDelivery: {
+            evidence: diskState.summary?.codeDeliveryEvidence ?? null,
+            recoveryRequired: diskState.summary?.recoveryRequired !== false } } : {}),
         };
       }
 

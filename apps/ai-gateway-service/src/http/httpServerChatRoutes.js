@@ -3,7 +3,7 @@ import { createRouteFailureEnvelope } from "../core/gatewayService.js";
 import { writeJson, writeSseHeaders, writeSseEvent, writeServiceLog } from "./utils/responseUtils.js";
 import { normalizeChatBody, extractChatPrompt } from "./utils/chatUtils.js";
 import { evaluateTaijiBeidouChatPreviewHook } from "../gateway/taijiBeidouChatPreviewHook.js";
-import { getGuardrailsEngine } from "../guardrails/guardrailsEngine.ts";
+import { captureGuardrailsOutputPolicy, getGuardrailsEngine, inspectGuardrailsOutputStream, consumeGuardrailsGeneratedEmptyText } from "../guardrails/guardrailsEngine.ts";
 import {
   recordGuardrailEvaluation,
   recordGuardrailFinding,
@@ -22,6 +22,7 @@ export function createChatRoutes(ctx) {
   handlers.set("POST /chat/stream", async (request, response, { startedAt, body }) => {
     const streamInput = normalizeChatBody(body, application.config);
     const guardrailsEngine = getGuardrailsEngine(request.enterpriseIdentity?.tenantId);
+    const outputPolicy = captureGuardrailsOutputPolicy(guardrailsEngine);
     const guardrailInputVerdict = guardrailsEngine.inspectInput({ messages: streamInput?.messages });
     if (guardrailInputVerdict.decision === "block") {
       recordGuardrailEvaluation("input", "block");
@@ -42,8 +43,8 @@ export function createChatRoutes(ctx) {
     }
     for (const replacement of guardrailInputVerdict.replacements) {
       const message = streamInput?.messages?.[replacement.index];
-      if (message && typeof message.content === "string") {
-        message.content = replacement.content;
+      if (message) {
+        message.content = consumeGuardrailsGeneratedEmptyText(replacement.content) ? "" : replacement.content;
       }
     }
     const providerKey = streamInput?.providerId ?? streamInput?.provider ?? "gateway";
@@ -65,19 +66,12 @@ export function createChatRoutes(ctx) {
 
     try {
       const streamFn = async () => {
-        for await (const event of gatewayService.executeStream(streamInput)) {
+        for await (const event of inspectGuardrailsOutputStream(gatewayService.executeStream(streamInput), outputPolicy, () => clientClosed)) {
           if (clientClosed) break;
           if (event.type === "error") {
             failed = true;
             writeSseEvent(response, "error", event.envelope);
             throw new Error(event.envelope?.code || "stream_error");
-          }
-          // Guardrails 输出侧（流式）：对每个 delta 尽力脱敏，fail-open 保证流不中断。
-          if (typeof event.textDelta === "string" && event.textDelta) {
-            const redactedDelta = guardrailsEngine.inspectSseDelta(event.textDelta);
-            if (redactedDelta !== event.textDelta) {
-              event.textDelta = redactedDelta;
-            }
           }
           writeSseEvent(response, event.type, event);
         }
@@ -181,8 +175,8 @@ export function createChatRoutes(ctx) {
     }
     for (const replacement of chatGuardrailVerdict.replacements) {
       const message = chatInput?.messages?.[replacement.index];
-      if (message && typeof message.content === "string") {
-        message.content = replacement.content;
+      if (message) {
+        message.content = consumeGuardrailsGeneratedEmptyText(replacement.content) ? "" : replacement.content;
       }
     }
     const providerKey = chatInput?.providerId ?? chatInput?.provider ?? "gateway";

@@ -87,8 +87,11 @@ describe("Batch9-2: SSE stream client disconnect detection", () => {
     const chatStreamHandler = src.indexOf('if (url.pathname === "/chat/stream") {');
     assert.ok(chatStreamHandler > 0, "/chat/stream handler block should exist");
 
-    // Search within ~800 chars of the handler
-    const chatSection = src.slice(chatStreamHandler, chatStreamHandler + 800);
+    // Bound the actual stream branch by the following ordinary-response path,
+    // rather than truncating it when a wrapper or preflight check grows.
+    const chatStreamEnd = src.indexOf("\n    let result;", chatStreamHandler);
+    assert.ok(chatStreamEnd > chatStreamHandler, "The ordinary-response path must follow the stream branch");
+    const chatSection = src.slice(chatStreamHandler, chatStreamEnd);
     assert.ok(chatSection.includes("clientClosed"), "Chat stream should track clientClosed state");
     assert.ok(chatSection.includes('response.on("close"'), "Chat stream should listen for response close event");
     assert.ok(chatSection.includes("if (clientClosed) break"), "Chat stream should break on client disconnect");

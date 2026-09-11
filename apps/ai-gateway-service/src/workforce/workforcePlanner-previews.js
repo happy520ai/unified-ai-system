@@ -1,5 +1,7 @@
 import { createClarificationAnswers } from "./workforcePlanner-core.js";
 
+import { normalizeWorkflowHandoffPreviewState } from "./workflowRunHandoff.js";
+
 export function createConsensusPreview(goal) {
   return [
     {
@@ -37,26 +39,26 @@ export function createHookEventsPreview() {
     {
       event: "beforePlan",
       enabled: false,
-      purpose: "Preview the shape of a future pre-plan validation hook.",
-      payloadSchema: ["workforceId", "goal", "clarifyQuestions"],
+      purpose: "Schema preview for the fixed goal guard; actual calls are recorded in hookAudit.",
+      payloadSchema: ["goal"],
     },
     {
       event: "afterPlan",
       enabled: false,
-      purpose: "Preview the shape of a future post-plan audit hook.",
-      payloadSchema: ["workforceId", "planState", "consensusPreview"],
+      purpose: "Schema preview for the fixed plan audit; actual calls are recorded in hookAudit.",
+      payloadSchema: ["goal", "workforceId", "roleCount", "previewOnly"],
     },
     {
       event: "beforeExport",
       enabled: false,
-      purpose: "Preview export readiness checks without running handlers.",
-      payloadSchema: ["workforceId", "formats", "safety"],
+      purpose: "Schema preview for the read-only export guard; actual calls accompany the export response.",
+      payloadSchema: ["goal", "workforceId", "planId", "previewOnly"],
     },
     {
       event: "beforeWorkflowRun",
       enabled: false,
-      purpose: "Document the future handoff point while keeping workflow run disconnected.",
-      payloadSchema: ["workforceId", "workflowRunHandoff", "requiredApprovals"],
+      purpose: "Schema preview for the governed workflow guard; actual calls are stored with the original workflow origin.",
+      payloadSchema: ["goal", "planId", "workflowId", "taskId", "agentId", "reviewHash", "outputRootHash"],
     },
   ];
 }
@@ -66,11 +68,11 @@ export function createEventLedgerPreview({ createdAt, workforceId, goal }) {
     ["workforce.plan.beforeCreate", `Plan preview requested for ${goal}.`],
     ["workforce.plan.afterCreate", `Plan preview created for ${workforceId}.`],
     ["workforce.plan.beforeSave", "Save event is previewed and will be recorded as metadata when a plan is saved."],
-    ["workforce.plan.afterSave", "Saved-plan event is previewed; no hook handler will run."],
-    ["workforce.plan.beforeExport", "Export event is previewed and will remain metadata only."],
+    ["workforce.plan.afterSave", "Preview metadata; inspect hookAudit for an actual planning invocation."],
+    ["workforce.plan.beforeExport", "Preview metadata; inspect the export response for an actual guard invocation."],
     ["workforce.review.requested", "Review package may be requested for a saved plan without execution."],
     ["workforce.approval.recorded", "Approval gate decisions are metadata only and do not grant execution."],
-    ["workforce.workflowRun.blocked", "Workflow run handoff is disabled for Agent Workforce."],
+    ["workforce.workflowRun.blocked", "Preview metadata grants no handoff permission; actual workflow hooks require the approved execution path."],
     ["workforce.omxHandoff.generated", "OMX-compatible handoff suggestions were generated as preview metadata."],
   ];
 
@@ -123,7 +125,7 @@ export function createLifecyclePreview(clarificationAnswers = []) {
 
 export function createPlanState({ clarificationAnswers = [] } = {}) {
   const hasAnswers = createClarificationAnswers(clarificationAnswers).length > 0;
-  return {
+  return normalizeWorkflowHandoffPreviewState({
     current: hasAnswers ? "clarified" : "export_ready",
     lifecycleStatus: hasAnswers ? "clarified" : "draft",
     lifecycleStatuses: ["draft", "clarified", "saved", "exported", "handoff-disabled"],
@@ -137,20 +139,12 @@ export function createPlanState({ clarificationAnswers = [] } = {}) {
         : "Clarification and consensus are ready for human review; execution remains disabled.",
       blockers: [
         "Real Agent execution is not enabled.",
-        "Workflow run handoff is not implemented.",
+        "Workflow run handoff is not connected to this preview.",
         "Worktree creation is not allowed in this phase.",
       ],
       nextDecision: "Review the preview package and approve a later explicit implementation phase.",
     },
-    workflowRunHandoff: {
-      status: "implemented-explicit-invocation",
-      lifecycleStatus: "handoff-available",
-      implemented: true,
-      enabled: false,
-      enabledByDefault: false,
-      reason: "Handoff is implemented (workflowRunHandoff.js) but runs only on explicit invocation with a valid single-use task claim token; previews never trigger it.",
-    },
-  };
+  });
 }
 
 export function createReviewPackagePreview(plan) {
@@ -242,8 +236,8 @@ export function createApprovalGatePreview(plan) {
       },
       {
         checkId: "consensus-reviewed",
-        label: "Consensus reviewed",
-        satisfied: plan.consensusPreview.length === 3,
+        label: "Independent consensus review has not run",
+        satisfied: false,
         previewOnly: true,
       },
       {
@@ -328,7 +322,9 @@ export function createWorkforceHudPreview({
       total: clarifyQuestions.length,
     },
     consensus: {
-      ready: ["Planner", "Architect", "Critic"].every((role) => consensusRoles.includes(role)),
+      ready: false,
+      previewComplete: ["Planner", "Architect", "Critic"].every((role) => consensusRoles.includes(role)),
+      previewOnly: true,
       roles: consensusRoles,
     },
     reviewPackage: {
@@ -357,4 +353,3 @@ export function createWorkforceHudPreview({
     },
   };
 }
-

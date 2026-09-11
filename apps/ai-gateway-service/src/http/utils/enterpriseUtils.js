@@ -413,6 +413,8 @@ export function resolvePermission(method, pathname) {
 
   if (
     normalizedPath === "/taiji/compile"
+    || normalizedPath === "/taiji/capabilities"
+    || normalizedPath.startsWith("/taiji/capabilities/")
     || normalizedPath === "/workforce/preview"
     || normalizedPath === "/forge/quality"
     || normalizedPath === "/forge/orchestrate"
@@ -468,7 +470,7 @@ export function resolvePermission(method, pathname) {
     return "workflow:approve";
   }
 
-  if (normalizedMethod === "POST" && normalizedPath === "/workforce/execute/status") {
+  if (normalizedMethod === "POST" && ["/workforce/execute/status", "/workforce/execute/review"].includes(normalizedPath)) {
     return "dashboard:read";
   }
 
@@ -480,6 +482,8 @@ export function resolvePermission(method, pathname) {
     normalizedPath === "/workforce/plan" ||
     normalizedPath === "/workforce/execute" ||
     normalizedPath === "/workforce/execute/cancel" ||
+    normalizedPath === "/workforce/execute/handoff/recover" ||
+    normalizedPath === "/workforce/execute/external-runner/recover" ||
     normalizedPath === "/workforce/run-local" ||
     normalizedPath === "/real-capabilities/activate-five" ||
     normalizedPath === "/workforce/plans/save" ||
@@ -505,6 +509,7 @@ export function resolvePermission(method, pathname) {
     normalizedPath === "/completions" ||
     normalizedPath === "/responses" ||
     normalizedPath === "/prompts/enhance"
+    || (normalizedMethod === "POST" && normalizedPath === "/prompts/enhance-llm")
     || normalizedPath === "/v1/chat/completions"
     || normalizedPath === "/v1/completions"
     || normalizedPath === "/v1/responses"

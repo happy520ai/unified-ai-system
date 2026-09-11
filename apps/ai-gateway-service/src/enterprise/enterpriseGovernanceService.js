@@ -18,6 +18,8 @@ import {
 } from "./enterpriseUserStore.js";
 import { createSqliteUserStoreBackend } from "./enterpriseUserStore-sqlite.js";
 import { createApiKeyManager } from "./apiKeyManager.js";
+import { createVirtualKeyRequestAccounting } from "./virtualKeyRequestAccounting.ts";
+import { readResidentAuthorityRef, residentAuthorityError, residentAuthorityIdentity, residentAuthorityIdentityHash } from "./enterpriseResidentAuthority.ts";
 import { createAuditHashChain } from "./auditHashChain.js";
 import { createAuditCheckpointStore } from "./auditCheckpointStore.ts";
 import { createEnterpriseAuditStore } from "./enterpriseAuditStoreFactory.ts";
@@ -88,6 +90,10 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
   }
   refreshStoredUsers({ force: true });
   const revokedTokens = parseRevokedTokens(env.PME_ENTERPRISE_REVOKED_TOKENS);
+  // Only the existing public fingerprint leaves this service. Ambiguous matches fail closed.
+  const revokedFingerprints = new Set([...revokedTokens].filter(value => /^[a-f0-9]{64}$/u.test(value)).map(value => value.slice(0, 12)));
+  const residentRequests = new WeakMap();
+  let residentClosed = false;
   // 虚拟 key（uai- 前缀）：SHA-256 落盘于 .data/enterprise/api-keys.json
   const apiKeyStorePath = env.PME_API_KEY_STORE_PATH ?? resolve(".data/enterprise/api-keys.json");
   const apiKeyManager = createApiKeyManager({ storePath: apiKeyStorePath });
@@ -137,7 +143,34 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
     lastErrorCode: null,
   };
 
-  return {
+  function resolveResidentAuthority(reference) {
+    if (!authEnabled || residentClosed) throw residentAuthorityError("RESIDENT_AUTHORITY_UNAVAILABLE", 503);
+    if (auditPersistence.consecutiveFailures > 0) throw residentAuthorityError("RESIDENT_AUTHORITY_AUDIT_UNAVAILABLE", 503);
+    const ref = readResidentAuthorityRef(reference);
+    let record, identity;
+    if (ref.kind === "configured-user") {
+      refreshStoredUsers({ force: true });
+      const matches = [...users.values()].filter(user => user.tokenFingerprint === ref.fingerprint);
+      if (matches.length !== 1) throw residentAuthorityError("RESIDENT_AUTHORITY_NOT_FOUND");
+      record = matches[0];
+      if (isUserRevoked(record, revokedTokens)) throw residentAuthorityError("RESIDENT_AUTHORITY_REVOKED");
+      identity = residentAuthorityIdentity(record);
+    } else {
+      const matches = apiKeyManager.list().keys.filter(key => key.keyFingerprint === ref.fingerprint);
+      if (matches.length !== 1) throw residentAuthorityError("RESIDENT_AUTHORITY_NOT_FOUND");
+      record = matches[0];
+      if (record.revoked || revokedFingerprints.has(ref.fingerprint)) throw residentAuthorityError("RESIDENT_AUTHORITY_REVOKED");
+      identity = residentAuthorityIdentity({ tenantId: record.tenantId, userId: `api-key:${record.keyFingerprint}`, role: record.role,
+        permissions: DEFAULT_ROLES[record.role] ?? [], apiKeyFingerprint: record.keyFingerprint });
+    }
+    const expiresAt = record.expiresAt ?? null;
+    if (expiresAt !== null && (typeof expiresAt !== "string" || !Number.isFinite(Date.parse(expiresAt)) || isExpired(expiresAt))) throw residentAuthorityError("RESIDENT_AUTHORITY_EXPIRED");
+    if (identity.tenantId !== ref.tenantId || identity.userId !== ref.userId) throw residentAuthorityError("RESIDENT_AUTHORITY_IDENTITY_CHANGED");
+    if (!["workflow:run", "chat:use"].every(permission => isPermissionAllowed(identity.permissions, permission))) throw residentAuthorityError("RESIDENT_AUTHORITY_PERMISSION_DENIED");
+    return { ref, identity, expiresAt, identityHash: residentAuthorityIdentityHash(ref, identity) };
+  }
+
+  const governanceService = {
     refreshUsers() {
       refreshStoredUsers({ force: true });
       return {
@@ -150,8 +183,9 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
     getHealth() {
       const centralAudit = centralAuditStore?.getHealth?.() ?? null;
       const centralAuditReady = !centralAuditStore || centralAudit?.status === "ready";
+      const apiKeys = apiKeyManager.getHealth();
       return {
-        status: centralAuditReady ? "ready" : "degraded",
+        status: centralAuditReady && apiKeys.status === "ready" ? "ready" : "degraded",
         mode: "local-enterprise-governance",
         authEnabled,
         unauthenticatedScope: authEnabled
@@ -170,7 +204,7 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
           path: userStorePath,
           storedUserCount: storedUsers.length,
         },
-        apiKeys: apiKeyManager.getHealth(),
+        apiKeys,
         audit: {
           mode: centralAuditStore ? "postgres-hmac-chain-plus-local-mirror" : "jsonl-file",
           path: auditPath,
@@ -193,8 +227,9 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
     },
 
     getPublicHealth() {
+      const centralAuditReady = !centralAuditStore || centralAuditStore.getHealth?.()?.status === "ready";
       return {
-        status: "ready",
+        status: centralAuditReady && apiKeyManager.getHealth().status === "ready" ? "ready" : "degraded",
         mode: "local-enterprise-governance",
         authEnabled,
         unauthenticatedScope: authEnabled
@@ -251,6 +286,48 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
 
     getApiKeyManager() {
       return apiKeyManager;
+    },
+
+    /** @returns {import("./enterpriseResidentAuthority.ts").ResidentAuthorityRef} */
+    captureResidentAuthority(request) {
+      const original = request && typeof request === "object" ? residentRequests.get(request) : null;
+      if (!original) throw residentAuthorityError("RESIDENT_AUTHORITY_AUTHENTICATED_REQUEST_REQUIRED");
+      const effective = request.enterpriseIdentity;
+      if (effective && (effective.actorAgentId != null || effective.managedClientId != null
+        || residentAuthorityIdentityHash(original.ref, residentAuthorityIdentity(effective)) !== original.identityHash)) {
+        throw residentAuthorityError("RESIDENT_AUTHORITY_REQUEST_IDENTITY_CHANGED");
+      }
+      const current = resolveResidentAuthority(original.ref);
+      if (current.identityHash !== original.identityHash) throw residentAuthorityError("RESIDENT_AUTHORITY_IDENTITY_CHANGED");
+      return current.ref;
+    },
+
+    /** Internal only: the caller must first verify the signed original task grant; this reference is not a bearer credential.
+     * @param {import("./enterpriseResidentAuthority.ts").ResidentAuthorityRef} reference
+     * @returns {import("./enterpriseResidentAuthority.ts").ResidentAuthorityAuthorization}
+     */
+    authorizeResidentAuthority(reference) {
+      const initial = resolveResidentAuthority(reference), { ref, identity, identityHash, expiresAt } = initial;
+      let accountingAuditFailed = false;
+      const assertCurrent = () => {
+        if (accountingAuditFailed) throw residentAuthorityError("VIRTUAL_KEY_ACCOUNTING_UNAVAILABLE", 503);
+        const current = resolveResidentAuthority(ref);
+        if (current.identityHash !== identityHash) throw residentAuthorityError("RESIDENT_AUTHORITY_IDENTITY_CHANGED");
+        if (ref.kind === "virtual-key") {
+          const decision = apiKeyManager.checkContinuation({ keyId: ref.fingerprint, estimatedTokens: 0 });
+          if (!decision.allowed) throw residentAuthorityError(decision.code === "api_key_invalid" ? "RESIDENT_AUTHORITY_REVOKED" : decision.code,
+            decision.code === "api_key_invalid" ? 403 : 429);
+        }
+      };
+      assertCurrent();
+      const audit = governanceService.recordAudit.bind(governanceService);
+      const accounting = ref.kind === "virtual-key" ? createVirtualKeyRequestAccounting({ manager: apiKeyManager, keyFingerprint: ref.fingerprint,
+        onEvent: async event => {
+          try { await audit({ identity, method: "INTERNAL", path: "resident-agent:chunk", permission: "chat:use",
+            outcome: event.state, code: "VIRTUAL_KEY_USAGE_SETTLED", details: event }); }
+          catch (error) { accountingAuditFailed = true; throw error; }
+        } }) : undefined;
+      return Object.freeze({ identity, identityHash, expiresAt, accounting, async assertActive() { assertCurrent(); } });
     },
 
     getAuditHashChain() {
@@ -370,6 +447,7 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
     },
 
     authenticate(request) {
+      if (request && typeof request === "object") residentRequests.delete(request);
       if (!authEnabled) {
         const remoteAddress = request?.socket?.remoteAddress;
         if (remoteAddress && !isLoopbackAddress(remoteAddress)) {
@@ -468,10 +546,14 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
         };
       }
 
-      return {
-        authenticated: true,
-        identity,
-      };
+      const ref = { version: 1, kind: configured.apiKeyFingerprint ? "virtual-key" : "configured-user",
+        fingerprint: configured.tokenFingerprint, tenantId: identity.tenantId, userId: identity.userId };
+      // Branding is process-private and exists only after the actual credential and tenant checks succeeded.
+      // Unsupported legacy identity shapes keep their ordinary HTTP behavior but cannot mint a resident grant.
+      try { const reference = readResidentAuthorityRef(ref);
+        residentRequests.set(request, Object.freeze({ ref: reference, identityHash: residentAuthorityIdentityHash(reference, residentAuthorityIdentity(identity)) })); }
+      catch { residentRequests.delete(request); }
+      return { authenticated: true, identity };
     },
 
     authorize(request, permission) {
@@ -662,11 +744,13 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
     },
 
     async close() {
+      residentClosed = true;
       await auditWriteTail;
       await centralAuditStore?.close?.();
       userStoreBackend?.close?.();
     },
   };
+  return governanceService;
 }
 
 function resolveDefaultAuditPath(env) {

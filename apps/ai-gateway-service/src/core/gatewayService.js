@@ -1,4 +1,6 @@
 import { createProviderRequest } from "../providers/providerMapping.js";
+import { beginVirtualKeyUsage, finishVirtualKeyUsage, inheritVirtualKeyBilling, observeVirtualKeyUsageChunk } from "./virtualKeyUsageAccounting.ts";
+import { inheritVirtualKeyRequestAccounting } from "../enterprise/virtualKeyRequestAccounting.ts";
 import {
   createAttemptSelection,
   createFallbackAttempts,
@@ -11,6 +13,7 @@ import {
   writeGatewayLog,
 } from "./gatewayServiceHelpers.js";
 import { normalizeGatewayRequest } from "./requestNormalizer.js";
+import { applyGatewayContextCodec, assertContextCodecInput, readContextCodecReport, validateContextCodecRuntimeConfig } from "../gateway/contextCodecRuntime.ts";
 import { enforceTokenCostGuard } from "../cost/tokenCostGuard.js";
 import {
   compactMessageHistory,
@@ -36,11 +39,67 @@ const PROVIDER_OPERATION_TYPES = new Set([
 export const MANAGED_LOCAL_CLIENT_PROVIDER_PIN = Symbol("managed-local-client-provider-pin");
 /** Server-owned Agent attribution; JSON callers cannot construct this symbol. */
 export const AGENT_GOVERNANCE_EXECUTION_CONTEXT = Symbol("agent-governance-execution-context");
+const providerSelectionExecutions = new WeakMap();
+const providerCallObservations = new WeakMap();
+
+/** Actual whole-execution facts; JSON copies and caller flags carry no proof. */
+export function readGatewayProviderCallAttempted(result) {
+  return result && typeof result === "object" ? providerCallObservations.get(result) : undefined;
+}
+
+/** Restrictive server capability: JSON flags cannot create or replace it. */
+export function bindFakeProviderExecution(execution, target) {
+  bindProviderSelectionExecution(execution, target, true);
+}
+
+/** Exact server-owned selection also disables weighted/shadow rerouting. */
+export function bindExactProviderExecution(execution, target) {
+  bindProviderSelectionExecution(execution, target, false);
+}
+
+function bindProviderSelectionExecution(execution, target, requireFake) {
+  if (!execution || typeof execution !== "object" || typeof target?.providerId !== "string" || !target.providerId
+    || typeof target?.modelId !== "string" || !target.modelId || providerSelectionExecutions.has(execution)) {
+    throw new Error("Invalid fake-provider execution binding.");
+  }
+  providerSelectionExecutions.set(execution, Object.freeze({ providerId: target.providerId, modelId: target.modelId, requireFake }));
+}
+
+/** Preserve restrictions across server-owned request wrappers; JSON has no binding. */
+export function inheritProviderSelectionExecution(source, target) {
+  const required = source && typeof source === "object" ? providerSelectionExecutions.get(source) : null;
+  if (!required) return;
+  const existing = providerSelectionExecutions.get(target);
+  if (existing && (existing.providerId !== required.providerId || existing.modelId !== required.modelId)) {
+    throw Object.assign(new Error("Provider execution restrictions conflict."), { code: "PROVIDER_EXECUTION_BINDING_CONFLICT" });
+  }
+  providerSelectionExecutions.set(target, Object.freeze({ ...required, requireFake: required.requireFake || existing?.requireFake === true }));
+}
+
+function assertFakeProviderExecution(execution, selection) {
+  const required = providerSelectionExecutions.get(execution);
+  if (required && (required.requireFake && selection.selected.providerType !== "fake"
+    || selection.selected.target.providerId !== required.providerId || selection.selected.target.modelId !== required.modelId)) {
+    throw Object.assign(new Error(required.requireFake ? "This execution requires the bound local fake provider and model." : "This execution requires the bound provider and model."),
+      { code: required.requireFake ? "FAKE_PROVIDER_EXECUTION_REQUIRED" : "PROVIDER_SELECTION_REQUIRED", category: "governance", retryable: false });
+  }
+}
+
+function bindContextCodecExecution(request, execution) {
+  if (request.contextCodec === undefined) return;
+  const required = providerSelectionExecutions.get(execution);
+  if (required && (required.providerId !== request.providerId || required.modelId !== request.model)) {
+    throw Object.assign(new Error("Context Codec target conflicts with the existing execution restriction."),
+      { code: "PROVIDER_EXECUTION_BINDING_CONFLICT", category: "governance", retryable: false });
+  }
+  if (!required) bindExactProviderExecution(execution, { providerId: request.providerId, modelId: request.model });
+}
 
 export class GatewayService {
   constructor({ providerRegistry, runtimeConfig = {}, healthScorer = null, requestLogger = null, enterpriseAudit = null, governance = null, contentGuardrails = null, weightedTrafficPolicy = null, providerDispatchGate = null }) {
     this.providerRegistry = providerRegistry;
     this.runtimeConfig = runtimeConfig;
+    validateContextCodecRuntimeConfig(runtimeConfig.chatContextCompaction);
     // Optional health scorer — when present, provider call outcomes are recorded
     // to power health-weighted selection in providerSelectionPolicy.
     this.healthScorer = healthScorer;
@@ -68,11 +127,14 @@ export class GatewayService {
     let request;
     let selection;
     let compactionWarnings = [];
+    let providerCallAttempted = false;
 
     try {
       throwIfExecutionAborted(execution.signal);
       request = normalizeGatewayRequest(input);
+      if (request.contextCodec !== undefined) this.#enforceContentGuardrails(request);
       compactionWarnings = this.#applyContextCompaction(request);
+      bindContextCodecExecution(request, execution);
       this.#enforceContentGuardrails(request);
       if (this.runtimeConfig.costGuardEnforce) {
         this.#enforceCostGuard(request);
@@ -87,7 +149,7 @@ export class GatewayService {
         &&
         request.metadata?.managedLocalClientProviderRouting?.providerPinned === true
         && request.metadata?.managedLocalClientProviderRouting?.modelPinned === true;
-      if (this.weightedTrafficPolicy && !execution.shadow && !managedLocalClientProviderPinned) {
+      if (this.weightedTrafficPolicy && !execution.shadow && !managedLocalClientProviderPinned && !providerSelectionExecutions.has(execution)) {
         const weighted = this.weightedTrafficPolicy.apply(request);
         if (weighted?.overrideProviderId && weighted.overrideProviderId !== baseSelection.selected.target.providerId) {
           const shadowOfWeighted = request;
@@ -105,6 +167,7 @@ export class GatewayService {
         onAttemptSelected: (attemptSelection) => {
           selection = attemptSelection;
         },
+        onProviderCallStarted: () => { providerCallAttempted = true; },
       });
       selection = attemptResult.selection;
       const providerResult = attemptResult.providerResult;
@@ -116,16 +179,20 @@ export class GatewayService {
         executionStatus: providerResult.executionStatus ?? "success",
         durationMs: Date.now() - startedAt,
       });
+      assertContextCodecInput(request);
       const response = createGatewayResponse(request, selection, providerResult, startedAt, this.runtimeConfig, [...compactionWarnings, ...attemptResult.warnings]);
 
       // 影子流量:主响应已定,旁路复制到 shadow provider,仅观测不影响主响应。
-      if (this.weightedTrafficPolicy && !execution.shadow && !managedLocalClientProviderPinned) {
+      if (this.weightedTrafficPolicy && !execution.shadow && !managedLocalClientProviderPinned && !providerSelectionExecutions.has(execution)) {
         this.#fireShadowTraffic(request, execution);
       }
-      return createRouteSuccessEnvelope(response, {
+      const envelope = createRouteSuccessEnvelope(response, {
         traceId: request.context.traceId,
         startedAt,
       });
+      inheritVirtualKeyBilling(providerResult, envelope);
+      providerCallObservations.set(envelope, providerCallAttempted);
+      return envelope;
     } catch (error) {
       const cancellation = findExecutionAbortError(error, execution.signal);
       if (cancellation) {
@@ -146,16 +213,21 @@ export class GatewayService {
         message: error instanceof Error ? error.message : "Gateway route execution failed.",
         durationMs: Date.now() - startedAt,
       });
-      return createRouteFailureEnvelope(error, {
+      const envelope = createRouteFailureEnvelope(error, {
         request,
         selection,
         startedAt,
         runtimeConfig: this.runtimeConfig,
       });
+      providerCallObservations.set(envelope, providerCallAttempted);
+      return envelope;
     }
   }
 
   async *executeStream(input, execution = {}) {
+    if (execution.workforceDispatchFence !== undefined) {
+      throw workforceDispatchError("WORKFORCE_PROVIDER_STREAM_UNSUPPORTED");
+    }
     const startedAt = Date.now();
     let request;
     let selection;
@@ -164,7 +236,9 @@ export class GatewayService {
     try {
       throwIfExecutionAborted(execution.signal);
       request = normalizeGatewayRequest(input);
+      if (request.contextCodec !== undefined) this.#enforceContentGuardrails(request);
       this.#applyContextCompaction(request);
+      bindContextCodecExecution(request, execution);
       this.#enforceContentGuardrails(request);
       if (this.runtimeConfig.costGuardEnforce) {
         this.#enforceCostGuard(request);
@@ -174,6 +248,7 @@ export class GatewayService {
       for (const attempt of createFallbackAttempts(baseSelection, this.runtimeConfig)) {
         throwIfExecutionAborted(execution.signal);
         selection = createAttemptSelection(baseSelection, attempt.candidate, attempt.index);
+        assertFakeProviderExecution(execution, selection);
         assertManagedLocalClientProviderAttempt(request, selection.selected.target);
         if (this.runtimeConfig.modelAccessEnforce) {
           this.#enforceModelAccess(request, selection);
@@ -195,6 +270,7 @@ export class GatewayService {
           error.retryable = false;
           throw error;
         }
+        const accountingAttempt = beginVirtualKeyUsage(request, execution);
 
         await this.#reserveProviderDispatch({
           request,
@@ -212,6 +288,8 @@ export class GatewayService {
         });
         let emittedChunk = false;
         let finalProviderRaw;
+        let streamCompleted = false;
+        let ledgerSettled = false;
 
         yield createStreamEvent("start", {
           request,
@@ -228,6 +306,7 @@ export class GatewayService {
             startedAt,
             shadow: execution.shadow === true,
           });
+          assertContextCodecInput(request);
           providerCallStarted = true;
           for await (const providerChunk of selection.selected.provider.generateStream({
             ...createProviderRequest({
@@ -236,10 +315,16 @@ export class GatewayService {
               execution,
             }),
           })) {
-            throwIfExecutionAborted(execution.signal);
             const textDelta = providerChunk.textDelta ?? "";
             finalProviderRaw = providerChunk.raw;
+            observeVirtualKeyUsageChunk(accountingAttempt, providerChunk);
             outputText += textDelta;
+            // Preserve a result observed just before cancellation.
+            throwIfExecutionAborted(execution.signal);
+            // Newly retained accounting frames do not emit application output
+            // or disable the existing pre-output fallback policy.
+            if (providerChunk.usageOnly === true && !textDelta
+              && !Array.isArray(providerChunk.raw?.toolCallsDelta)) continue;
             emittedChunk = true;
 
             yield createStreamEvent("chunk", {
@@ -252,6 +337,9 @@ export class GatewayService {
               runtimeConfig: this.runtimeConfig,
             });
           }
+          streamCompleted = true;
+          await finishVirtualKeyUsage(accountingAttempt, { raw: finalProviderRaw, outputText,
+            completed: true, usageAttemptId });
 
           writeGatewayLog("provider_stream_completed", {
             requestId: request.context.requestId,
@@ -269,9 +357,11 @@ export class GatewayService {
             );
           }
 
+          ledgerSettled = true;
           await this.#recordUsage({
             request,
             selection,
+            ...(finalProviderRaw?.usage ? { providerResult: { usage: finalProviderRaw.usage } } : {}),
             providerCallAttempted: true,
             startedAt,
             outputText,
@@ -279,7 +369,8 @@ export class GatewayService {
             usageAttemptId,
           });
 
-          yield createStreamEvent("done", {
+          assertContextCodecInput(request);
+          const doneEvent = createStreamEvent("done", {
             request,
             selection,
             startedAt,
@@ -287,13 +378,23 @@ export class GatewayService {
             raw: finalProviderRaw,
             runtimeConfig: this.runtimeConfig,
           });
+          inheritVirtualKeyBilling(accountingAttempt, doneEvent);
+          yield doneEvent;
           return;
         } catch (error) {
-          if (!isProviderEvidenceError(error) && providerCallStarted) {
+          if (providerCallStarted) await finishVirtualKeyUsage(accountingAttempt, { raw: finalProviderRaw,
+            outputText, completed: streamCompleted, usageAttemptId });
+          if (isProviderEvidenceError(error)) {
+            if (providerCallStarted) error.retryable = false;
+            throw error;
+          }
+          if (providerCallStarted) {
             try {
+              ledgerSettled = true;
               await this.#recordUsage({
                 request,
                 selection,
+                ...(finalProviderRaw?.usage ? { providerResult: { usage: finalProviderRaw.usage } } : {}),
                 providerCallAttempted: true,
                 startedAt,
                 error,
@@ -302,6 +403,7 @@ export class GatewayService {
                 usageAttemptId,
               });
             } catch (usageError) {
+              if (isProviderEvidenceError(usageError)) usageError.retryable = false;
               throw usageError;
             }
           }
@@ -342,6 +444,19 @@ export class GatewayService {
           if (!canFallback) {
             throw error;
           }
+        } finally {
+          if (providerCallStarted) {
+            await finishVirtualKeyUsage(accountingAttempt, { raw: finalProviderRaw,
+              outputText, completed: streamCompleted, usageAttemptId });
+            if (!ledgerSettled) {
+              ledgerSettled = true;
+              await this.#recordUsage({ request, selection, providerCallAttempted: true,
+                ...(finalProviderRaw?.usage ? { providerResult: { usage: finalProviderRaw.usage } } : {}),
+                startedAt, outputText, shadow: execution.shadow === true, usageAttemptId,
+                error: Object.assign(new Error("Gateway stream consumer closed before completion."),
+                  { code: "STREAM_CONSUMER_CLOSED", retryable: false }) });
+            }
+          }
         }
       }
 
@@ -374,6 +489,9 @@ export class GatewayService {
   }
 
   async executeProviderOperation(input, execution = {}) {
+    if (execution.workforceDispatchFence !== undefined) {
+      throw workforceDispatchError("WORKFORCE_PROVIDER_OPERATION_UNSUPPORTED");
+    }
     const operation = normalizeProviderOperation(input);
     const startedAt = Date.now();
     const requestId = String(
@@ -401,10 +519,13 @@ export class GatewayService {
     };
     let providerCallStarted = false;
     let usageAttemptId = null;
+    let accountingAttempt;
+    let observedResult;
 
     try {
       throwIfExecutionAborted(execution.signal);
       assertManagedLocalClientProviderAttempt(request, selection.selected.target);
+      assertFakeProviderExecution(execution, selection);
       if (this.runtimeConfig.modelAccessEnforce) {
         this.#enforceModelAccess(request, selection);
       }
@@ -415,6 +536,7 @@ export class GatewayService {
         shadowRequest: false,
       });
       await this.#assertUsageLedgerReady(selection);
+      accountingAttempt = beginVirtualKeyUsage(request, execution, false);
       await this.#reserveProviderDispatch({
         request,
         selection,
@@ -433,11 +555,13 @@ export class GatewayService {
       throwIfExecutionAborted(execution.signal);
       providerCallStarted = true;
       const result = await operation.invoke();
+      observedResult = normalizeProviderOperationResult(result);
+      await finishVirtualKeyUsage(accountingAttempt, { result: observedResult, completed: true, usageAttemptId });
       throwIfExecutionAborted(execution.signal);
       await this.#recordUsage({
         request,
         selection,
-        providerResult: normalizeProviderOperationResult(result),
+        providerResult: observedResult,
         providerCallAttempted: true,
         startedAt,
         usageAttemptId,
@@ -455,10 +579,17 @@ export class GatewayService {
     } catch (error) {
       const cancellation = findExecutionAbortError(error, execution.signal);
       const terminalError = cancellation ?? error;
+      if (providerCallStarted) await finishVirtualKeyUsage(accountingAttempt, {
+        result: observedResult, completed: Boolean(observedResult), usageAttemptId });
+      if (isProviderEvidenceError(terminalError) && providerCallStarted) {
+        terminalError.retryable = false;
+        throw terminalError;
+      }
       try {
         await this.#recordUsage({
           request,
           selection,
+          providerResult: observedResult,
           providerCallAttempted: providerCallStarted,
           startedAt,
           error: terminalError,
@@ -466,6 +597,7 @@ export class GatewayService {
           usagePath: operation.path,
         });
       } catch (usageError) {
+        if (providerCallStarted && isProviderEvidenceError(usageError)) usageError.retryable = false;
         throw usageError;
       }
       writeGatewayLog("provider_operation_failed", {
@@ -497,12 +629,19 @@ export class GatewayService {
     for (const attempt of createFallbackAttempts(baseSelection, this.runtimeConfig)) {
       throwIfExecutionAborted(execution.signal);
       const attemptSelection = createAttemptSelection(baseSelection, attempt.candidate, attempt.index);
+      assertFakeProviderExecution(execution, attemptSelection);
       assertManagedLocalClientProviderAttempt(request, attemptSelection.selected.target);
       hooks.onAttemptSelected?.(attemptSelection);
       let providerCallStarted = false;
       let usageAttemptId = null;
+      let accountingAttempt;
+      let observedResult;
+      let ledgerSettled = false;
 
       try {
+        if (execution.workforceDispatchFence !== undefined) {
+          await assertWorkforceProviderAttempt(execution, attemptSelection.selected.target, "reserve");
+        }
         if (this.runtimeConfig.modelAccessEnforce) {
           this.#enforceModelAccess(request, attemptSelection);
         }
@@ -513,6 +652,7 @@ export class GatewayService {
           shadowRequest: execution.shadow === true,
         });
         await this.#assertUsageLedgerReady(attemptSelection);
+        accountingAttempt = beginVirtualKeyUsage(request, execution);
         await this.#reserveProviderDispatch({
           request,
           selection: attemptSelection,
@@ -525,6 +665,10 @@ export class GatewayService {
           startedAt,
           shadow: execution.shadow === true,
         });
+        const workforceFence = execution.workforceDispatchFence === undefined ? null
+          : await assertWorkforceProviderAttempt(execution, attemptSelection.selected.target, "commit");
+        assertContextCodecInput(request);
+        if (workforceFence && attemptSelection.selected.providerType === "fake") workforceFence.onDispatch();
         writeGatewayLog("provider_call_start", {
           requestId: request.context.requestId,
           traceId: request.context.traceId,
@@ -541,7 +685,10 @@ export class GatewayService {
             execution,
           }),
         });
+        observedResult = providerResult;
+        await finishVirtualKeyUsage(accountingAttempt, { result: providerResult, completed: true, usageAttemptId });
         throwIfExecutionAborted(execution.signal);
+        ledgerSettled = true;
         await this.#recordUsage({
           request,
           selection: attemptSelection,
@@ -576,13 +723,23 @@ export class GatewayService {
         };
       } catch (error) {
         lastError = error;
+        if (providerCallStarted) await finishVirtualKeyUsage(accountingAttempt, {
+          result: observedResult, completed: Boolean(observedResult), usageAttemptId });
 
-        if (isProviderEvidenceError(error)) throw error;
-        if (providerCallStarted) {
+        // A returned provider result must not be bought again because a local
+        // post-call observer failed, even if that observer labels its error retryable.
+        if (observedResult && error && typeof error === "object") error.retryable = false;
+
+        if (isProviderEvidenceError(error)) {
+          if (providerCallStarted) error.retryable = false;
+          throw error;
+        }
+        if (providerCallStarted && !ledgerSettled) {
           try {
             await this.#recordUsage({
               request,
               selection: attemptSelection,
+              providerResult: observedResult,
               providerCallAttempted: true,
               startedAt,
               error,
@@ -590,9 +747,10 @@ export class GatewayService {
               usageAttemptId,
             });
           } catch (usageError) {
+            if (isProviderEvidenceError(usageError)) usageError.retryable = false;
             throw usageError;
           }
-        } else {
+        } else if (!providerCallStarted) {
           await this.#recordUsage({
             request,
             selection: attemptSelection,
@@ -606,8 +764,8 @@ export class GatewayService {
         const cancellation = findExecutionAbortError(error, execution.signal);
         if (cancellation) throw cancellation;
 
-        // Record failed call for health-weighted selection
-        if (this.healthScorer) {
+        // A local post-call failure does not make the returned Provider work fail.
+        if (this.healthScorer && !observedResult) {
           this.healthScorer.recordFailure(
             attemptSelection.selected.target.providerId,
             error?.code ?? "unknown",
@@ -658,6 +816,13 @@ export class GatewayService {
   // error never blocks the request. Returns a warnings array for the response.
   #applyContextCompaction(request) {
     const config = this.runtimeConfig?.chatContextCompaction;
+    if (request.contextCodec !== undefined) {
+      applyGatewayContextCodec(request, config);
+      const report = readContextCodecReport(request);
+      return [{ code: report.status === "applied" ? "context_codec_applied" : "context_codec_original",
+        message: report.status === "applied" ? "Selected JSON context data was re-encoded and verified." : "Original context was retained.",
+        details: { profile: report.profile, status: report.status, reason: report.reason } }];
+    }
     if (!config || !Array.isArray(request.messages)) return [];
     const thresholdMessages = Number(config.thresholdMessages ?? 0);
     const maxContextTokens = Number(config.maxContextTokens ?? 0);
@@ -792,7 +957,9 @@ export class GatewayService {
       );
       const signals = [execution.signal, AbortSignal.timeout(shadowTimeoutMs)].filter(Boolean);
       const shadowSignal = signals.length === 1 ? signals[0] : AbortSignal.any(signals);
-      void this.execute(shadowRequest, { ...execution, shadow: true, signal: shadowSignal })
+      const shadowExecution = { ...execution, shadow: true, signal: shadowSignal };
+      inheritVirtualKeyRequestAccounting(execution, shadowExecution);
+      void this.execute(shadowRequest, shadowExecution)
         .then((result) => {
           writeGatewayLog("shadow_traffic_completed", {
             requestId: request.context?.requestId,
@@ -896,7 +1063,9 @@ export class GatewayService {
     } catch (err) {
       writeGatewayLog("usage_ledger_write_failed", { message: err?.message ?? "unknown" });
       if (billable && this.runtimeConfig.realProviderEnabled === true) {
-        throw createUsageLedgerFailure(err?.code, err);
+        const failure = createUsageLedgerFailure(err?.code, err);
+        failure.retryable = false;
+        throw failure;
       }
     }
   }
@@ -1058,6 +1227,31 @@ function readAgentGovernanceExecutionContext(request) {
     || !/^agr_[A-Za-z0-9_-]{1,128}$/u.test(String(context.runId ?? ""))
     || !/^sha256:[a-f0-9]{64}$/u.test(String(context.policyHash ?? ""))) return null;
   return context;
+}
+
+async function assertWorkforceProviderAttempt(execution, target, phase) {
+  const fence = execution?.workforceDispatchFence;
+  if (fence === undefined) return null;
+  if (!fence || typeof fence.assertActive !== "function" || typeof fence.onDispatch !== "function"
+    || execution.shadow === true || fence.providerId !== target?.providerId || fence.modelId !== target?.modelId) {
+    throw workforceDispatchError("WORKFORCE_PROVIDER_DISPATCH_DENIED");
+  }
+  try {
+    await fence.assertActive(phase);
+    throwIfExecutionAborted(execution.signal);
+  } catch (error) {
+    const cancellation = findExecutionAbortError(error, execution.signal);
+    if (cancellation) throw cancellation;
+    if (error?.category === "provider" && String(error.code).startsWith("WORKFORCE_")) throw error;
+    throw workforceDispatchError("WORKFORCE_PROVIDER_DISPATCH_DENIED");
+  }
+  return fence;
+}
+
+function workforceDispatchError(code) {
+  return Object.assign(new Error("The Workforce binding does not authorize this Provider dispatch."), {
+    code, category: "provider", type: "authorization", retryable: false,
+  });
 }
 
 function assertManagedLocalClientProviderAttempt(request, target) {

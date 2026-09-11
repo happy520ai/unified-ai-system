@@ -22,6 +22,8 @@ import {
 import { createA2ATaskStore } from "./a2aTaskStore.ts";
 import { createA2AExecutionLeaseManager } from "./a2aExecutionLease.ts";
 import { applyPromptEnhancement } from "./utils/chatUtils.js";
+import { createA2AGatewayExecutionLifecycle } from "./a2aGatewayExecution.ts";
+import { createExecutionAbortError, EXECUTION_ABORT_CODES, throwIfExecutionAborted } from "@unified-ai-system/shared-utils";
 
 export const A2A_AGENT_CARD_PATH = "/.well-known/agent-card.json";
 export const A2A_JSONRPC_PATH = "/a2a/jsonrpc";
@@ -57,6 +59,13 @@ function status(state, message) {
   };
 }
 
+function publishGatewayFailure(eventBus, contextId, taskId, error) {
+  const code = typeof error?.code === "string" && /^[A-Za-z][A-Za-z0-9_]{0,127}$/u.test(error.code)
+    ? error.code : "GATEWAY_EXECUTION_FAILED";
+  eventBus.publish(AgentEvent.statusUpdate({ taskId, contextId,
+    status: status(TaskState.TASK_STATE_FAILED, agentMessage({ contextId, taskId, text: `Gateway execution failed: ${code}` })), metadata: {} }));
+}
+
 function readTextMessage(message) {
   if (!message?.parts?.length) {
     throw new ContentTypeNotSupportedError("A2A message must contain a text part.");
@@ -79,6 +88,13 @@ class ContextAwareA2ARequestHandler extends DefaultRequestHandler {
   constructor(agentCard, taskStore, agentExecutor, ...rest) {
     super(agentCard, taskStore, agentExecutor, ...rest);
     this.contextAwareExecutor = agentExecutor;
+  }
+
+  async sendMessage(params, context) {
+    // Validate the supported text profile before the SDK creates a task or runs
+    // its executor fallback, which can publish more than one terminal update.
+    if (params?.message) readTextMessage(params.message);
+    return super.sendMessage(params, context);
   }
 
   async cancelTask(params, context) {
@@ -104,12 +120,13 @@ class ContextAwareA2ARequestHandler extends DefaultRequestHandler {
         throw error;
       }
     }
-    this.contextAwareExecutor.prepareCancellationContext(params?.id, context);
-    try {
-      return await super.cancelTask(params, context);
-    } finally {
-      this.contextAwareExecutor.clearCancellationContext(params?.id);
-    }
+    return this.contextAwareExecutor.withCancellationContext(context, async () => {
+      const result = await super.cancelTask(params, context);
+      // The SDK may persist cancellation without calling the executor when no
+      // local bus exists, even if a late provider operation still exists.
+      this.contextAwareExecutor.abortScopedTask?.(params?.id, context);
+      return result;
+    });
   }
 }
 
@@ -131,14 +148,21 @@ class GatewayAgentExecutor {
     this.executionLeaseManager = executionLeaseManager;
     this.taskStoreControl = taskStoreControl?.store ? taskStoreControl : null;
     this.taskStore = taskStoreControl?.store ?? taskStoreControl;
-    this.cancelledTaskIds = new Set();
-    this.taskContexts = new Map();
-    this.activeLeases = new Map();
-    this.cancellationContexts = new Map();
+    this.invocations = createA2AGatewayExecutionLifecycle();
   }
 
   async execute(requestContext, eventBus) {
+    const invocation = this.invocations.begin(requestContext.context, requestContext.taskId, requestContext.contextId);
+    try {
+      await this.executeInvocation(requestContext, eventBus, invocation);
+    } catch (error) {
+      if (!invocation.cancelled) throw error;
+    } finally { invocation.finish(); }
+  }
+
+  async executeInvocation(requestContext, eventBus, invocation) {
     const { contextId, taskId, userMessage } = requestContext;
+    throwIfExecutionAborted(invocation.execution.signal);
     const executionScope = readExecutionScope(requestContext.context);
     let executionLease = null;
     let leaseHeartbeat = null;
@@ -164,10 +188,11 @@ class GatewayAgentExecutor {
         throw a2aExecutionLeaseError(acquired.code, acquired.reason);
       }
       executionLease = acquired.lease;
-      this.activeLeases.set(taskId, { lease: executionLease, scope: executionScope });
       leaseHeartbeat = startExecutionLeaseHeartbeat(
         this.executionLeaseManager,
         executionLease,
+        () => invocation.abort(createExecutionAbortError(EXECUTION_ABORT_CODES.EXECUTION_LEASE_LOST,
+          "The A2A execution lease was lost.", { retryable: false })),
       );
       if (this.taskStoreControl?.status?.atomicTerminalFence === true) {
         try {
@@ -180,22 +205,18 @@ class GatewayAgentExecutor {
               if (!committed) {
                 await this.executionLeaseManager.release(executionLease).catch(() => undefined);
               }
-              this.activeLeases.delete(taskId);
-              this.taskContexts.delete(taskId);
-              this.cancelledTaskIds.delete(taskId);
             },
           });
           terminalFenceBound = true;
         } catch (error) {
           await leaseHeartbeat.stop();
           await this.executionLeaseManager.release(executionLease).catch(() => undefined);
-          this.activeLeases.delete(taskId);
           throw error;
         }
       }
     }
-    this.taskContexts.set(taskId, contextId);
     try {
+      throwIfExecutionAborted(invocation.execution.signal);
       eventBus.publish(AgentEvent.task({
         id: taskId,
         contextId,
@@ -234,6 +255,7 @@ class GatewayAgentExecutor {
           throw new Error("Controlled workforce execution is unavailable.");
         }
         await leaseHeartbeat?.assertActive();
+        throwIfExecutionAborted(invocation.execution.signal);
         const workforceResult = await this.workforceExecutor.execute({
           goal: input,
           autonomyMode: "dry-run",
@@ -250,9 +272,10 @@ class GatewayAgentExecutor {
                 }
               : {}),
           },
-        });
+        }, { signal: invocation.execution.signal });
 
-        if (this.cancelledTaskIds.has(taskId)) return;
+        if (invocation.cancelled) return;
+        throwIfExecutionAborted(invocation.execution.signal);
         await leaseHeartbeat?.assertActive();
 
         const workforceText = formatWorkforceResult(workforceResult);
@@ -305,11 +328,29 @@ class GatewayAgentExecutor {
       }
 
       await leaseHeartbeat?.assertActive();
-      const result = await this.gatewayService.execute(gatewayInput);
-      if (this.cancelledTaskIds.has(taskId)) return;
+      throwIfExecutionAborted(invocation.execution.signal);
+      if (invocation.identity) gatewayInput = { ...gatewayInput, enterpriseIdentity: invocation.identity };
+      let result;
+      try {
+        if (invocation.prepareGatewayInput) {
+          invocation.assertActive();
+          gatewayInput = await invocation.prepareGatewayInput(gatewayInput);
+          invocation.assertActive();
+        }
+        result = await this.gatewayService.execute(gatewayInput, invocation.execution);
+      }
+      catch (error) {
+        if (!invocation.cancelled) publishGatewayFailure(eventBus, contextId, taskId, error);
+        return;
+      }
+      if (invocation.cancelled) return;
+      throwIfExecutionAborted(invocation.execution.signal);
       await leaseHeartbeat?.assertActive();
       if (!result.success) {
-        throw new Error(result.error?.message ?? result.message ?? "A2A gateway execution failed.");
+        // One terminal update: the SDK's thrown-error fallback emits both a
+        // terminal Task and another update, conflicting with immutable tasks.
+        publishGatewayFailure(eventBus, contextId, taskId, result.error);
+        return;
       }
       if (
         result.data?.executionMode !== "fake"
@@ -356,9 +397,6 @@ class GatewayAgentExecutor {
         if (executionLease) {
           await this.executionLeaseManager.release(executionLease).catch(() => undefined);
         }
-        this.activeLeases.delete(taskId);
-        this.taskContexts.delete(taskId);
-        this.cancelledTaskIds.delete(taskId);
       }
     }
   }
@@ -366,6 +404,10 @@ class GatewayAgentExecutor {
   supportsAtomicCancellation() {
     return this.taskStoreControl?.status?.atomicTerminalFence === true;
   }
+
+  abortScopedTask(taskId, context) { this.invocations.cancel(context, taskId); }
+
+  async close() { await this.invocations.close(); }
 
   async cancelTaskAtomically(taskId, context, eventBus) {
     if (!this.supportsAtomicCancellation()) {
@@ -386,7 +428,6 @@ class GatewayAgentExecutor {
       TaskState.TASK_STATE_CANCELED,
       cancellationMessage,
     );
-    this.cancelledTaskIds.add(taskId);
     const cancelledTask = await this.taskStoreControl.cancelTaskAtomically(
       taskId,
       context,
@@ -397,6 +438,7 @@ class GatewayAgentExecutor {
       error.code = "A2A_TASK_STORE_NOT_FOUND";
       throw error;
     }
+    this.abortScopedTask(taskId, context);
     if (eventBus) {
       eventBus.publish(AgentEvent.statusUpdate({
         taskId,
@@ -406,28 +448,17 @@ class GatewayAgentExecutor {
       }));
       eventBus.finished?.();
     }
-    this.taskContexts.delete(taskId);
-    this.cancelledTaskIds.delete(taskId);
     return cancelledTask;
   }
 
-  prepareCancellationContext(taskId, context) {
-    if (typeof taskId === "string" && taskId) {
-      this.cancellationContexts.set(taskId, context);
-    }
-  }
-
-  clearCancellationContext(taskId) {
-    if (typeof taskId === "string" && taskId) {
-      this.cancellationContexts.delete(taskId);
-    }
-  }
+  withCancellationContext(context, action) { return this.invocations.withCancellation(context, action); }
 
   async cancelTask(taskId, eventBus) {
-    this.cancelledTaskIds.add(taskId);
-    const callContext = this.cancellationContexts.get(taskId);
-    const localLease = this.activeLeases.get(taskId);
-    const scope = localLease?.scope ?? (callContext ? readExecutionScope(callContext) : null);
+    const callContext = this.invocations.cancellationContext();
+    if (!callContext) throw new TaskNotFoundError("A scoped A2A cancellation context is required.");
+    const persistedTask = await this.taskStore?.load?.(taskId, callContext);
+    if (this.taskStore?.load && !persistedTask) throw new TaskNotFoundError("The scoped A2A task was not found.");
+    const scope = readExecutionScope(callContext);
     if (this.executionLeaseManager?.status?.enabled === true && scope) {
       const revoked = await this.executionLeaseManager.revokeForTask({
         taskId,
@@ -441,12 +472,9 @@ class GatewayAgentExecutor {
         );
       }
     }
-    let contextId = this.taskContexts.get(taskId);
-    if (!contextId && callContext && this.taskStore?.load) {
-      const persistedTask = await this.taskStore.load(taskId, callContext);
-      contextId = persistedTask?.contextId;
-    }
+    const contextId = persistedTask?.contextId ?? this.invocations.contextId(callContext, taskId);
     if (!contextId) return;
+    this.abortScopedTask(taskId, callContext);
     eventBus.publish(AgentEvent.statusUpdate({
       taskId,
       contextId,
@@ -460,7 +488,6 @@ class GatewayAgentExecutor {
       ),
       metadata: {},
     }));
-    this.taskContexts.delete(taskId);
   }
 }
 
@@ -639,6 +666,7 @@ export function createA2AGateway({ gatewayService, workforceExecutor = null, env
     requestHandler,
     transportHandler: new JsonRpcTransportHandler(requestHandler),
     async close() {
+      await agentExecutor.close();
       await Promise.allSettled([
         taskStoreHandle.close(),
         executionLeaseManager.close(),
@@ -690,7 +718,7 @@ function a2aExecutionLeaseError(code, message) {
   });
 }
 
-function startExecutionLeaseHeartbeat(manager, lease) {
+function startExecutionLeaseHeartbeat(manager, lease, onLost = () => {}) {
   let stopped = false;
   let lost = false;
   let pending = Promise.resolve();
@@ -699,9 +727,9 @@ function startExecutionLeaseHeartbeat(manager, lease) {
       if (stopped || lost) return;
       try {
         const result = await manager.renew(lease);
-        if (!result.success) lost = true;
+        if (!result.success) { lost = true; onLost(); }
       } catch {
-        lost = true;
+        lost = true; onLost();
       }
     });
   };
@@ -714,6 +742,7 @@ function startExecutionLeaseHeartbeat(manager, lease) {
       const result = await manager.validate(lease);
       if (!result.success) {
         lost = true;
+        onLost();
         throw lostExecutionLease();
       }
     },

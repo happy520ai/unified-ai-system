@@ -2,6 +2,9 @@ import { EventEmitter } from "node:events";
 import { Readable } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { dispatchOpenAiCompatibilityRoutes } from "../http/openAiCompatibilityRoutes.js";
+import { dispatchOpenAiResponsesRoutes } from "../http/openAiResponsesRoutes.js";
+import { dispatchGeminiCompatibilityRoutes } from "../http/geminiCompatibilityRoutes.ts";
+import { createChatRoutes } from "../http/httpServerChatRoutes.js";
 import {
   createGuardrailsEngineForTests,
   setGuardrailsEngineForTests,
@@ -217,6 +220,76 @@ describe("chat completions guardrails wiring", () => {
     expect(response.body.type).toBe("error");
     expect(response.body.error.type).toBe("api_error");
     expect(gatewayService.execute).not.toHaveBeenCalled();
+  });
+});
+
+const streamRoutes = [
+  { path: "/v1/chat/completions", body: { model: "local-fake-model", stream: true, messages: [{ role: "user", content: "Continue" }] } },
+  { path: "/v1/completions", body: { model: "local-fake-model", stream: true, prompt: "Continue" } },
+  { path: "/v1/messages", body: { model: "local-fake-model", stream: true, max_tokens: 64, messages: [{ role: "user", content: "Continue" }] } },
+  { path: "/v1/responses", body: { model: "local-fake-model", stream: true, input: "Continue" } },
+  { path: "/v1beta/models/local-fake-model:streamGenerateContent", body: { contents: [{ role: "user", parts: [{ text: "Continue" }] }] } },
+  { path: "/chat/stream", body: { model: "local-fake-model", messages: [{ role: "user", content: "Continue" }] } },
+];
+
+async function runGuardedStream(route: typeof streamRoutes[number], deltas: string[]) {
+  const context = createContext({ body: route.body });
+  context.url = new URL(`http://127.0.0.1${route.path}`);
+  let iteratorClosed = false;
+  context.gatewayService.executeStream = async function* () {
+    const common = { requestId: "guardrail-fixture", selectedModel: "local-fake-model", executionMode: "fake" };
+    let outputText = "";
+    try {
+      yield { ...common, type: "start", outputText };
+      for (const textDelta of deltas) { outputText += textDelta; yield { ...common, type: "chunk", textDelta, outputText }; }
+      yield { ...common, type: "done", outputText };
+    } finally { iteratorClosed = true; }
+  };
+  if (route.path === "/v1/responses") await dispatchOpenAiResponsesRoutes(context);
+  else if (route.path.startsWith("/v1beta/")) await dispatchGeminiCompatibilityRoutes(context);
+  else if (route.path === "/chat/stream") {
+    const { handlers } = createChatRoutes({ application: { config: { aiGatewayService: {
+      providerSelection: { mode: "fixed", defaultProviderId: "local-fake-provider", defaultModelId: "local-fake-model" },
+      providerModels: [],
+    } } }, gatewayService: context.gatewayService });
+    await handlers.get("POST /chat/stream")!(context.request, context.response, { startedAt: context.startedAt, body: route.body });
+  } else await dispatchOpenAiCompatibilityRoutes(context);
+  const text = context.response.text.split("\n").filter(line => line.startsWith("data: ") && line !== "data: [DONE]")
+    .map(line => JSON.parse(line.slice(6))).map(value => {
+      if (route.path === "/v1/responses") return value.type === "response.output_text.delta" ? value.delta : "";
+      if (route.path === "/v1/messages") return value.delta?.text ?? "";
+      if (route.path.startsWith("/v1beta/")) return value.candidates?.[0]?.content?.parts?.map((part: any) => part.text ?? "").join("") ?? "";
+      if (route.path === "/chat/stream") return value.textDelta ?? "";
+      return value.choices?.[0]?.delta?.content ?? value.choices?.[0]?.text ?? "";
+    }).join("");
+  expect(iteratorClosed).toBe(true);
+  expect(context.response.writableEnded).toBe(true);
+  return { context, text };
+}
+
+describe("streaming guardrail output contract", () => {
+  it.each(streamRoutes)("blocks a complete forbidden output on $path", async route => {
+    setGuardrailsEngineForTests(createGuardrailsEngineForTests({ enabled: true, bannedTerms: ["redwood-flag"] }));
+    const { context, text } = await runGuardedStream(route, ["redwood-flag"]);
+    expect(text).not.toContain("redwood-flag");
+    expect(context.response.text).toContain(route.path === "/v1/messages"
+      ? '"error":{"type":"api_error","message":"Response blocked by chat guardrails."}' : "guardrail_blocked");
+  });
+
+  it.each(streamRoutes)("blocks a forbidden term split across deltas on $path", async route => {
+    setGuardrailsEngineForTests(createGuardrailsEngineForTests({ enabled: true, bannedTerms: ["redwood-flag"] }));
+    const { context, text } = await runGuardedStream(route, ["redwood-", "flag"]);
+    expect(text).not.toContain("redwood-flag");
+    expect(context.response.text).toContain(route.path === "/v1/messages"
+      ? '"error":{"type":"api_error","message":"Response blocked by chat guardrails."}' : "guardrail_blocked");
+  });
+
+  it.each(streamRoutes)("redacts a sensitive address split across deltas on $path", async route => {
+    const { context, text } = await runGuardedStream(route, ["reach sample@", "corp.example now"]);
+    expect(text).not.toContain("sample@corp.example");
+    expect(context.response.text).not.toContain("sample@corp.example");
+    expect(text).toContain("[redacted-email]");
+    expect(text).toContain(" now");
   });
 });
 

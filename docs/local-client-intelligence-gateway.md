@@ -51,7 +51,7 @@ source and a reproducible test support them.
 
 | Dimension | 9Router verified baseline | Unified AI System acceptance gate |
 | --- | --- | --- |
-| Client reach | Known client catalog and protocol proxying | Server-bound managed OpenAI, Anthropic, Gemini, and native HTTP today; MCP/A2A principal binding and each non-protocol adapter must pass their own versioned certification gate |
+| Client reach | Known client catalog and protocol proxying | Server-bound managed OpenAI, Anthropic, Gemini, native HTTP, and the limited A2A blocking SendMessage profile; MCP, other A2A operations and each non-protocol adapter still need their own certification |
 | Local inventory | Known-tool checks; no general governed process registry found | General observation API, but observed processes remain `unverified` and non-routable until explicitly managed |
 | Routing | Fallback, round-robin, cooldown/backoff, modality checks, Fusion | Policy filter first; then exact capability, health, bounded EWMA reliability, latency, cost, quota, priority, and trust scoring with per-candidate explanations |
 | Feedback | Usage/quota/latency records | Authenticated, bounded feedback; replay resistance; failure quarantine; controlled recovery; restart persistence |
@@ -273,9 +273,10 @@ fail-closed execution foundation. The current safe boundary is:
   approve, execute, status, and cancel routes. Shared contracts and SDK methods
   cover those routes, and governed execution requires an explicit
   `Idempotency-Key` header;
-- governed named-client onboarding now composes the JSON transaction engine for
-  three code-registered profiles: Claude-compatible and Cursor use
-  `mcpServers`, while VS Code uses `servers` with an explicit stdio type. It is
+- governed named-client onboarding composes one transaction engine for the
+  three original JSON-only profiles plus explicit `vscode-mcp-jsonc-v1`.
+  Claude-compatible and Cursor use `mcpServers`; both VS Code profiles use
+  `servers` with an explicit stdio type. It is
   default-off and lazy; startup validates only the versioned operator
   configuration and does not discover, open, create, or change a client file.
   Protected list/inspect/verify/plan/approve/apply/rollback/recover routes,
@@ -285,9 +286,10 @@ fail-closed execution foundation. The current safe boundary is:
   Plans and results expose hashes and opaque identifiers only. Apply preserves
   unrelated JSON fields, replay performs no second write, rollback restores the
   exact prior bytes, and an uncertain post-commit outcome requires explicit
-  reconciliation. The profiles remain `json-only` and
-  `fixture-tested-not-real-client-certified`;
-  the versioned server configuration binds all three host-level profiles to one
+  reconciliation. The original profiles remain `json-only`; the explicit JSONC
+  profile also preserves comments and unmodified source bytes. Every profile
+  remains `fixture-tested-not-real-client-certified`. Configuration v1 binds all
+  three original profiles, while v2 binds only its selected known profiles to one
   exact owner tenant, and every read, plan, approval, mutation, recovery, and
   verification request is rejected before file initialization when the
   authenticated tenant differs. The owner identifier is never returned;
@@ -344,7 +346,7 @@ fail-closed execution foundation. The current safe boundary is:
   Endpoint, client identity, manifest digest, and a dedicated hex secret must all
   validate before the adapter is added; the secret is absent from descriptors
   and status output;
-- a reusable JSON-only client configuration transaction engine now provides
+- the shared JSON and explicitly selected JSONC/TOML/YAML configuration transaction engine provides
   redacted content-addressed dry-runs, safe set/delete paths, prototype-pollution
   rejection, cross-process locks, precondition hashes, fsynced backups and
   journals, atomic replacement, exact byte rollback, and explicit crash
@@ -358,9 +360,8 @@ fail-closed execution foundation. The current safe boundary is:
   committed backups expire with the receipt-authority TTL, while pending or
   ambiguous entries are never pruned. Canonical path, cross-role containment,
   symlink/junction, and existing target file-identity collisions are rejected
-  before independent locks can govern the same storage. It deliberately does
-  not claim JSONC/YAML support. The three MCP
-  profiles above are its first governed adapters; arbitrary paths, commands,
+  before independent locks can govern the same storage. The code-registered MCP
+  profiles use this boundary; arbitrary paths, commands,
   args, cwd, environment values, scopes, and digests cannot be supplied through
   an HTTP request;
   application startup also builds a role-aware path graph covering governance
@@ -507,25 +508,260 @@ fingerprint, or derived key.
   before/after reads, and an external anchor advancement for every mutation;
   configuration flags or a `rollbackResistant` boolean cannot manufacture its
   evidence. The gateway exposes the unsatisfied native blockers in local-client
-  status and keeps real-provider managed dispatch closed. A check-only
-  provisioning plan exists, but
-  there is still no native Windows OS-port adapter, authenticated IPC transport,
-  installed service SID, protected key provisioning, actual ACL/HKLM mutation,
-  operational replay-checkpoint coordinator, clean-machine proof, or power-loss drill.
-  Its assurance remains `same-user-resistant-if-provisioned`,
+  status and keeps real-provider managed dispatch closed. An optional native
+  receipt/workcopy package now implements the Windows OS port, authenticated
+  local IPC, demand-start service installer and dedicated DPAPI key provisioning.
+  Its build and read-only checks are separate from installation and real service
+  validation. The default PoP runtime still lacks its bound replay-checkpoint
+  coordinator and native evidence adapter; clean-machine and power-loss proof
+  also remain open.
+  The default PoP runtime's assurance remains `same-user-resistant-if-provisioned`,
   `not-admin-resistant`, and `not-provisioner`, not deployed rollback resistance.
 
-Additional lossless adapters for clients that require JSONC/YAML/TOML or other
-formats, MCP/A2A client-principal dispatch binding, real-client adapter
+Other client-specific JSONC/TOML/YAML shapes and formats, MCP/A2A client-principal
+dispatch binding, real-client adapter
 certification, OS/service-account isolation and an independently protected
 monotonic revocation anchor, a distributed PoP replay guard, async PostgreSQL
-readiness, real-client atomic receipt/reconciliation implementation and
-certification, distributed
-route-plan/claim/feedback/outbox state, native
-Windows broker deployment, full public-clone evidence, long-run soak, and
+readiness, real-client atomic receipt/reconciliation certification, distributed
+route-plan/claim/feedback/outbox state, production
+Windows broker deployment certification, full public-clone evidence, long-run soak, and
 clean-VM certification remain release gates. Current SQLite stores,
 authenticated registry, durable PoP replay guard, feedback outbox, and
 scheduler are explicitly single-host authority boundaries.
+
+## Explicit lossless VS Code JSONC onboarding
+
+The optional profile `vscode-mcp-jsonc-v1` uses `jsonc` and the known
+`servers.unified-ai-system` stdio entry. It uses Microsoft's pinned
+[`jsonc-parser` 3.3.1](https://github.com/microsoft/node-jsonc-parser)
+scanner/tree offsets. The editor does not use whole-document formatting or
+`modify`: those operations can remove comments around a replaced property.
+The [VS Code MCP configuration reference](https://code.visualstudio.com/docs/agents/reference/mcp-configuration)
+defines the target shape; these tests do not certify a running VS Code client.
+
+Configuration v1 retains its three required named profiles and its existing
+JSON-only behavior and status shape. An explicit configuration v2 selects 1–4
+unique known profiles; absent profiles are never discovered or initialized:
+
+```json
+{
+  "version": 2,
+  "ownerTenantId": "operator-tenant",
+  "profiles": [{
+    "profileId": "vscode-mcp-jsonc-v1",
+    "paths": {
+      "targetPath": "E:/Example/clients/vscode/mcp.jsonc",
+      "allowedRoot": "E:/Example/clients",
+      "backupDir": "E:/Example/clients/managed-backups",
+      "journalPath": "E:/Example/clients/managed-state/journal.json"
+    }
+  }],
+  "serverDefinition": {
+    "transport": "stdio",
+    "command": "E:/Example/runtime/node.exe",
+    "args": ["E:/Example/gateway/mcp-entry.mjs"]
+  }
+}
+```
+
+This is the value for `AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_CONFIG_JSON`,
+alongside the existing explicit enablement, owner authentication, durable
+idempotency/external-effect/receipt stores and credential-reference prerequisites.
+Startup configuration is strict JSON, including for v2; comments and trailing
+commas are accepted only in the selected JSONC target file. Configuration v2
+reports the actual profile count, unique clients and `formats`. No extension
+guessing or request-supplied parser/target is supported.
+
+The JSONC codec preserves UTF-8 BOM, CRLF/LF, final-newline state, every original
+comment lexeme, whitespace and every token outside the managed property. It
+removes only scanner-proven syntax from that property's value (or the property
+and one separator on disable). Comments inside a replaced/deleted value remain
+in their original order; after replacing a whole object they can appear beside
+the new value rather than inside it. Newly owned content is compact JSON.
+Missing containers are inserted at an AST boundary. Each edit is strictly
+reparsed and compared with the transaction evaluator's complete expected object.
+Duplicate decoded keys (including escaped aliases), prototype keys, invalid
+UTF-8, nonfinite numbers, unknown syntax and exceeded byte/depth/node budgets
+reject before backup creation. Original JSON-only parsing remains unchanged.
+
+The versioned JSONC codec domain-separates the target fingerprint. Existing plan
+hashes, encrypted-backup AAD and transaction receipts therefore bind the codec,
+path, exact before/after bytes and identity. The onboarding profile ID and full
+receipt fingerprint bind the same format through approval, durable replay and
+one-time rollback authority; JSON-only receipts are rejected on the JSONC
+profile and the reverse. JSONC uses `local-client-config-journal-jsonc-v1`;
+the original JSON-only journal version is unchanged. Neither engine may open
+the other's journal, even when a target happens to contain plain JSON.
+
+Use the existing `clients-onboarding` profiles/inspect/verify/plan/approve/apply/
+rollback/recover commands and `--profile-id vscode-mcp-jsonc-v1`. The same explicit
+approval and idempotency requirements apply. Rollback restores the encrypted
+original bytes, including comments and formatting, with the existing identity
+checks. Replaying a completed request never performs a second file mutation.
+The existing `control-center configure` v1 bulk manifest retains its two/three
+JSON-only profile contract. Its explicit v2 manifest selects two to six supported
+profiles across formats; see [control-center configuration](local-ai-control-center.md).
+
+Downgrade requires preserving the JSONC journal, encrypted backups and receipt
+authority until a compatible gateway can finish recovery/rollback; do not reset
+or relabel those files to make an older reader accept them. No database table,
+HTTP route, SDK operation, long-running service or native-client installation is
+added. The 21-file change follows the existing closed profile/format checks
+through each owner, plus fixes application path containment so equal-length
+sibling directories are accepted and actual descendants still reject.
+
+Language Selection: bounded parsing/editing and typed profile/receipt projection
+use TypeScript with the existing Node transaction engine. A handwritten parser
+would add unsupported syntax ambiguity; a separate Go/Rust process would add a
+filesystem/credential boundary without a measured benefit. Existing JavaScript
+CLI/composition adapters receive only the required profile/path projections.
+The pinned MIT parser has no runtime dependencies. No JSON-only migration or
+new transaction implementation is introduced.
+
+Validation covers pure source-range preservation, real temporary-file effects,
+encrypted restart rollback, durable receipt/idempotency replay, owner/format
+rejection and actual HTTP/CLI approval. An authored pending-journal fixture
+exercises explicit recovery and is not evidence of a real process kill or power
+loss. These fixtures do not prove native client loading, real Provider calls,
+clean-machine installation or production durability. Codex TOML and Continue
+YAML use the separate profiles below.
+
+## Governed Codex TOML profile
+
+`codex-mcp-toml-v1` is an explicitly selected onboarding configuration v2 profile
+with client `codex`, format `toml`, and container `mcp_servers`. Configuration v2
+accepts one to six known profiles; v1 retains its original three JSON profiles.
+Use the existing `clients-onboarding` CLI with `--profile-id codex-mcp-toml-v1`
+for inspect, plan, approval, apply, verify, receipt-bound rollback and recovery.
+The existing HTTP routes and shared SDK carry the same named profile. Targets
+must be explicitly bound server-side; there is no home/configuration discovery.
+The codec itself remains pure. The transaction engine performs the approved
+file effect; native login, model settings, Base URL and quota are outside the
+owned member. Native Codex loading/certification remains separate verification.
+
+The codec pins `toml-eslint-parser` 1.0.3 (MIT) and explicitly selects TOML 1.0;
+the parser's default 1.1 is not silently adopted. Its one runtime dependency is
+the locked `eslint-visitor-keys` 5.0.1 (Apache-2.0); no ESLint runner is added.
+Input is at most 64 KiB of valid UTF-8, including the empty-file case. Larger
+configured limits fail closed. This first profile rejects a BOM, dates,
+nonfinite/unsafe numbers, duplicate or forbidden keys, and excessive nesting.
+It accepts one ordinary `mcp_servers."unified-ai-system"` table with only
+`command`, string `args`, and `cwd`; managed inline/dotted/array-table forms,
+descendants, legacy `unified_ai_system`, and extra transport/credential/policy
+fields are refused. These are editor-profile limits, not a statement that the
+native client rejects every such TOML feature.
+
+AST token ranges change only the owned syntax. Comments, unrelated slices,
+newline convention and final-newline state remain; the complete result is
+reparsed against the original expected semantic object. Unsupported managed
+types and unsafe values are rejected before conversion to JavaScript objects.
+The codec snapshots input bytes and rejects accessor-bearing operation data.
+Parser failures expose a fixed error instead of source text. Parsing is bounded
+by input size and structural limits, without a claim of a formal CPU bound.
+
+The TOML codec version is part of the target fingerprint, which binds the plan,
+encrypted-backup AAD and receipt digest. Its journal version is
+`local-client-config-journal-codex-toml-v1`; JSON and JSONC readers reject that
+journal instead of resetting it. Owner checks, exact approval, durable
+idempotency, the external-effect reservation, file identity/lock, atomic replace
+and one-time receipt authority use the existing transaction path. Empty-file
+rollback authenticates the encrypted empty original and restores exactly zero
+bytes. Direct registry configuration also rejects managed `env` fields rather
+than omitting them. API and CLI projections require the expected format;
+unknown effects require reconciliation and do not become retryable success.
+
+Language Selection: TypeScript keeps the codec and its transaction/profile
+integration within the existing Node runtime and checked operation types;
+the existing JavaScript CLI needs only one metadata entry. Domain/maintenance/operations/safety/
+migration/ecosystem scores are TS 5/5/5/5/5/5 (30), JS 5/4/5/3/5/5 (27), and a
+separate runtime 3/3/2/4/2/3 (17). An AST parser is necessary to preserve source
+trivia; parse/stringify alone cannot satisfy that requirement. No new dependency,
+database schema, service or transaction abstraction is added by the integration.
+Its cross-owner file count is necessary to close format, receipt and CLI checks
+together. On downgrade, preserve TOML journals, encrypted backups and receipt
+authority until compatible code completes rollback/recovery; never relabel or
+delete that history. Existing JSON/JSONC formats and fingerprints are retained.
+Temporary-file tests cover byte-exact restart rollback, format/identity
+conflicts, encrypted backups, recovery and durable owner/receipt replay. Actual
+HTTP plus Node CLI fixtures execute approval before apply and rollback, restart
+replay and explicit recovery. Authored pending journals do not prove a process
+kill or power-loss result. A separate isolated signed Codex CLI 0.153.4 run loaded
+the actual generated TOML with unchanged bytes and exactly one enabled stdio
+entry; it did not start that MCP server or call a model. Real Providers, complete
+native-client certification, cold install and production durability remain
+separate work. Control-center v2 can include this profile in a governed batch;
+that does not extend the native-client evidence above.
+
+## Governed Continue YAML profile
+
+Select `continue-mcp-yaml-v1` in onboarding configuration v2. It reports client
+`continue`, format `yaml`, and container `mcpServers`. The container is a list;
+only its unique `name: unified-ai-system` entry is managed. Use the existing
+`clients-onboarding` commands with this profile for inspect, plan, approve, apply,
+verify, receipt-bound rollback and explicit recovery. No filename-based format
+detection or automatic change to a native client's configuration is performed.
+
+The input must be one YAML 1.2 mapping with nonempty string `name` and `version`
+and `schema: v1`, as described by the [Continue configuration reference](https://docs.continue.dev/reference).
+`mcpServers`, when present, must contain uniquely named mapping entries. The
+managed entry accepts only `name`, `command`, optional string-array `args`,
+optional `cwd`, and optional `type: stdio`. The server definition remains trusted
+startup configuration; HTTP callers cannot supply paths, commands, environment
+values or a replacement list.
+
+The codec retains BOM, newline style, final-newline state, original comments and
+unmodified source ranges, including unrelated literal blocks. A new entry appends
+to the list, replacement keeps its position, and removal leaves other entries in
+their original order. The registry plans a root-list set and the codec independently
+checks that every other entry is unchanged. If another entry changes between the
+registry read and transaction snapshot, planning fails instead of overwriting it.
+The generated document is parsed again and compared with the complete expected
+value and original comment sequence before any write is approved.
+
+This editing profile has a 64 KiB input/output limit, maximum depth 64 and at most
+128 server entries. It rejects anchors, aliases, merge keys, explicit tags,
+YAML 1.1, multiple documents, duplicate/unsafe keys, invalid UTF-8, unsafe numbers,
+unnamed/imported MCP entries, and managed block scalars or extra fields such as
+`env`. Continue itself supports more YAML features; these are explicit limits of
+this profile. Empty YAML files are rejected. TOML's existing empty-file behavior
+is not extended to YAML. Parser failures return a fixed error without source text.
+
+The codec version participates in the target fingerprint and uses
+`local-client-config-journal-continue-yaml-v1`. Plans, receipts, replay and rollback
+must retain this format identity; JSON, JSONC and TOML records cannot authorize a
+YAML mutation. Existing AES-256-GCM backups, path/identity checks, atomic replacement
+and durable one-time receipt authority apply. Repair a reported pending transaction
+with its original profile and recovery command. Before downgrading, preserve its
+journal, encrypted backups and authority state and complete rollback/recovery with
+compatible code; do not relabel them as another format.
+
+Language Selection: the bounded codec and governance contracts stay in TypeScript,
+with the existing ESM JavaScript CLI. `yaml` 2.9.0 (ISC) supplies source-preserving
+CST ranges. This adds one directly pinned parser dependency; the lock also records
+Vite's existing optional YAML peer. Compared with a handwritten parser or whole-file
+serialization, CST editing preserves the current file without another transaction
+engine. The integration exceeds eight files because format fingerprints, named-list
+planning, v2 configuration, API/receipt validation and the CLI must change together;
+the corresponding tests verify that boundary. There is no new database, service,
+route or CLI command. Roll back the profile, codec, CLI and dependency as a unit.
+
+The pure codec, transaction/registry/approval/recovery tests and real temporary-file
+HTTP/CLI flow cover exact preservation, unauthorised apply refusal, restart replay,
+byte-for-byte rollback and explicit recovery. An authored pending journal is not a
+process-kill or power-loss test. A Windows run of the official Continue CLI 1.5.47
+read this profile's actual approved YAML, preserving comments and an unowned MCP
+entry. It initialized the current gateway MCP server, discovered its 15 tools,
+and completed one successful `gateway_health` call with verified loopback
+authentication. The native process exited with code 0, left the file unchanged,
+and an approved rollback restored the original bytes. Its model interaction used
+the local fake provider in an isolated home with telemetry disabled; no user
+configuration, native login or real Provider credentials were used.
+
+That run required the verification harness to stop lingering MCP child processes
+after the native process exited. It proves the governed configuration and scoped
+tool interaction, not autonomous child cleanup, cold-VM certification, real
+Provider behavior or production durability. Control-center v2 has separate actual
+four-format approval/application/rollback tests.
 
 ## Language Selection
 
@@ -556,7 +792,251 @@ The initial service and adapter registry are now strict TypeScript. The migratio
 uses neither `ts-nocheck` nor a language-policy exception; shared public DTOs are
 imported from `packages/shared-contracts`.
 
+## Bounded editor receiver module
+
+`localClientLoopbackReceiver.ts` implements the receiving side of the existing
+loopback v2 protocol and reuses the client receipt journal. It is an opt-in module;
+the application does not install an editor extension or start this receiver.
+`apps/agent-console/src/editor/localClientEditorAction.ts` accepts the actual
+VS Code-compatible API and one explicitly bound workspace/file. It validates the
+original content, clean document state, canonical path, and single file link before
+using WorkspaceEdit and document.save. Incoming actions cannot choose a path or
+invoke a shell, model, provider, or arbitrary editor command.
+
+Cancellation before effect claim records failed-before-effect. Save failures and
+crashes after effect claim remain unknown and cannot authorize another edit.
+Concurrent duplicates are rejected before preparing the active owner's intent.
+Closing stops admission and waits for existing handlers to finish before erasing
+the shared secret; callers must keep the journal open until close resolves.
+The editor buffer is checked again after asynchronous disk reads and immediately
+before applyEdit to preserve edits that arrive during validation.
+Completed receipts survive a journal reopen, but editor saves and journal writes
+do not share an atomic transaction. This module supplies no Windows identity
+broker, protected snapshot anchor, secret provisioning, or readiness override.
+The formal governed execution entry remains blocked until its existing
+requirements are actually satisfied. Component tests and a native editor API
+exercise are not clean-VM certification or production deployment.
+
+Language Selection: TypeScript keeps the receiver and editor port checked by the
+existing toolchain (type safety 5/5, ecosystem fit 5/5); JavaScript would remove
+those interface checks, and another runtime would require an unnecessary bridge.
+The five implementation/test files exceed 500 added lines because both receiving
+transport and editor API boundaries lacked implementations and need rejection,
+cancellation, unknown-outcome, and restart tests. Existing wire signing and SQLite
+journals are reused; no dependency, shared contract, or database schema is added.
+Rollback removes these opt-in modules and the application-private codec export;
+no default runtime registration or client configuration needs migration.
+
 ## Required verification sequence
+
+### Governed workcopies
+
+The optional workcopy path stores one bounded resource's encrypted content and
+execution-bound completion state in one SQLite transaction. It reuses existing
+dispatch-intent validation and SDK receipt signing. A reopened session fences
+unfinished older operations; committed records remain immutable and capacity
+fails closed without evicting evidence. Only those persisted committed records
+can produce a native receipt. Matching current text alone cannot do so.
+
+The console's `localClientWorkcopyEditor.ts` registers a `uai-workcopy` filesystem
+provider when explicitly instantiated. The editor uses its actual document/edit/
+save API, while the provider admits only an armed operation's exact approved
+bytes. Completed resources retain a read-only view. Ordinary `file://` saving
+keeps its separate unknown-outcome/no-redispatch semantics; workcopies do not
+make editor buffers, extension events, formatters or arbitrary files atomic.
+
+`recordNativeCompleted` projects an already committed native receipt into an
+existing effect-started client journal row after full signature and binding
+checks. Reconciliation authenticates its query before native lookup and never
+calls prepare, applyEdit or save. No native return value, module capability flag
+or configuration boolean independently enables formal execution readiness.
+
+This backend requires a runtime with `DatabaseSync.enableDefensive`; Node 25.8.1
+has been tested. Node 22.23.2 runs the explicit unavailable-backend refusal check
+and skips native transaction assertions. Those skips are not feature acceptance.
+The constructor refuses that runtime before creating persistent state.
+
+Language Selection: this is Node/SQLite and editor API orchestration, so it uses
+the existing TypeScript toolchain and shared SDK. TypeScript retains typed ports
+and no runtime bridge (safety 5/5, ecosystem 5/5); JavaScript loses those checks
+(3/5, 5/5), while a new runtime requires a bridge without a demonstrated benefit
+(4/5, 2/5). The added encrypted state structure is necessary to commit content
+and execution attribution together; a sidecar receipt cannot close that window.
+Storage, editor, receiving/recovery boundaries and direct tests span eight code/
+test files plus this runbook and exceed 500 lines. No external dependency, public
+wire schema or default application registration is added. Rollback disables the
+optional provider/receiver binding and preserves its database; ordinary-file and
+default gateway operation do not require a migration.
+
+Storage transactions, actual process-termination tests, modelled editor API tests
+and a packaged VSIX are distinct evidence layers. Bounded runs in both VS Code
+and Cursor have now exercised actual document/edit/save callbacks, duplicate
+suppression, recovery after an owned backend-process crash without repeating an
+edit, exact content rollback, request cancellation and receiver revocation before
+effects. These runs used disposable stores without a protected authority binding.
+Native identity, persistent business-key provisioning, protected snapshot anchors
+in that same execution chain, and formal execution readiness remain separate
+requirements for that composed deployment.
+
+### Protected receipt checkpoint coordination
+
+An explicitly configured receipt journal can coordinate its authenticated logical
+state with an independent Windows authority slot. Baseline enrollment is a
+separate operation: ordinary construction, reads and dispatch never enroll or
+reset a slot. A signed checkpoint generation and digest live in the same SQLite
+transaction as the journal rows. The coordinator serializes admitted operations,
+holds the write lock during authority preparation, and releases a result only
+after SQLite commit and authority finalization. It does not retain a replay queue.
+
+Recovery accepts no operation callback. If the committed local generation matches
+the authority's pending target, recovery may finalize that exact checkpoint.
+A local base with a pending target, a divergent file/HKLM pair, or a restored old
+database fails closed and requires explicit recovery investigation. It never
+repeats an editor save or interprets missing evidence as permission to dispatch.
+Closing drains admitted operations before the journal or its keys are closed.
+
+The Windows broker supports independently bound slots beneath its fixed storage
+root and explicit zero-to-one baseline enrollment. The legacy slot remains the
+default for existing callers. Slot paths are included in existing signed request,
+file and response bindings; nonce replay protection remains service-wide.
+These modules do not install a service, provision secrets, or attest native ACLs.
+The diagnostic checkpoint state does not change execution-readiness flags.
+
+Language Selection: TypeScript reuses the existing asynchronous broker and journal
+interfaces (domain fit 5/5, maintenance 5/5, safety 5/5); JavaScript scores 5/5,
+4/5, 3/5 for the same criteria, and a separate runtime scores 2/5, 2/5, 4/5
+because it adds another protocol boundary. Seven implementation/test files plus
+this runbook and a small signed checkpoint table are necessary to cover slot
+binding, enrollment and SQLite/authority crash windows; the batch exceeds 500
+lines but adds no dependency or generic redo subsystem. Rollback disables the
+opt-in binding and preserves the checkpointed database and authority. Opening a
+checkpointed journal without its authority is rejected; rollback must not erase
+or silently downgrade its protection history.
+
+The workcopy store uses the same coordinator for its authenticated logical state,
+including content, completion records and the session epoch. Its document and
+operation methods are asynchronous so they can wait for authority confirmation.
+Opening a protected store does not change that epoch or abandon operations before
+authority verification. Explicit recovery only finalizes an already committed
+target; the next admitted operation starts and fences the new session. Existing
+editor ports await these calls, and shutdown drains them before erasing keys.
+The checkpoint diagnostic remains distinct from native OS protection/readiness.
+
+### Optional anchored SQLite PoP storage component
+
+`LocalClientSqlitePopReplayGuard` accepts an explicit `protectedAuthority` and
+`anchorBindingSha256`. This selects schema 4 for a new database; the ordinary
+schema-3 profile remains unprotected against complete snapshot rollback. Neither
+profile upgrades or downgrades the other's database, including when the schema
+marker is removed. Preserve the caller's stable host, namespace, limits, key and
+authority binding. Construction consumes and wipes the supplied integrity-key
+Buffer; closing drains admitted operations before closing SQLite and wiping its
+internal key. The caller retains ownership of the supplied authority.
+
+Protected construction starts unavailable. Call `enrollProtectedBaseline()` only
+for an explicit initial enrollment, or `recoverProtectedCheckpoint()` for an
+existing store. Ordinary consume/read does neither. A signed intent commits
+before anchor preparation; replay state and the committed-intent checkpoint
+share the next SQLite commit; admission is released only after finalization and
+operation-bound intent cleanup. Expiry, clock and quota-result mutations use the
+same path. Recovery never invokes a consume callback: a committed target may be
+finalized, a proven unchanged intent may be abandoned, and local base plus pending
+anchor remains blocked. `readCurrentCheckpoint()` accepts only idle signed state.
+
+The store's `snapshotRollbackProtected` remains false. Its checkpoint port can
+compose with the existing snapshot-protection wrapper, but native challenge
+evidence, dedicated native slots and gateway startup wiring are separate work.
+Model-authority/SQLite tests do not prove native deployment, power-loss behavior
+or production readiness. This component does not migrate outstanding proofs or
+authorize replacement of an active replay database. Rollback disables the optional
+profile and preserves its database/intent/authority state; legacy code must not
+open the protected DB.
+
+Language Selection: TypeScript reuses the existing checked SQLite and authority
+interfaces and checkpoint coordinator; no native code, dependency, service or
+general transaction framework is added. The optional schema is necessary for
+authenticated generation and durable intent and has no silent migration path.
+This three-file change crosses the 500-line checkpoint because the storage
+protocol, ten fault windows, concurrent intent ownership, wrapper integration and
+operator lifecycle must be implemented and verified together.
+
+### Optional Windows authority package
+
+The native package contains five runtime files and two license notices. The
+TypeScript worker reuses the broker's HMAC and transition rules. A C++ Node-API
+module supplies Win32 token, ACL, Registry64 and handle-bound filesystem calls;
+the C++ SCM host owns the fixed local named pipe and one bounded Node worker per
+request. The actual pipe token is passed over private worker stdin, and the client
+checks the pipe server PID against SCM. Requests cannot supply a token handle,
+command, executable or arbitrary filesystem target.
+
+Six fixed runtime slots cover gateway journal, client journal and workcopy for
+VS Code and Cursor. Six separate `validation-*` slots support one-use native
+verification without enrolling or consuming those runtime baselines. The package
+contains exactly these twelve slots; it offers no arbitrary namespace or reset.
+Nonces persist under the authority with a capacity of 4096 and no
+automatic eviction. A dedicated authority HMAC key is protected with DPAPI and
+private ACLs. Its explicit bootstrap endpoint delivers that key in memory only
+after caller-token and all-slot protection checks; it never includes SQLite row,
+workcopy encryption, Provider or OAuth keys. The ordinary caller retains read
+access to anchor files for independent local verification. Private key, nonce and
+ownership files remain unreadable to that caller.
+
+`tools/build-local-client-windows-authority.mjs` uses an installed x64 MSVC/Windows
+SDK/Node header toolchain and the existing Rolldown dependency. It performs no
+installation or dependency download. A separately supplied, verified Node 25.8.1
+license notice accompanies the bundled Node binary. The installer defaults to
+`--check-only`; application requires elevation, `--apply`, `--yes`, and the exact
+reviewed `--expected-manifest-sha256`. It copies from pinned, hashed source handles
+into the fixed protected ProgramData subtree and registers a demand-start service.
+It does not start that service or enroll a positive checkpoint automatically.
+
+Rollback first verifies the installation id, root identity, package hashes and
+service configuration. It removes only matching code/service objects and retains
+all checkpoint, nonce, DPAPI, bootstrap and ownership state, including partial
+installation state. It never resets an accepted generation. A conflicting
+installation or an untrusted ancestor prevents application. An inheritable
+CREATOR OWNER placeholder is recognized only on the checked Software ancestor;
+actual user write grants, OWNER RIGHTS and owned-subtree ACL requirements remain
+strict. This follows the [Windows inheritance model](https://learn.microsoft.com/en-us/windows/win32/secauthz/well-known-sids).
+
+The bounded validation sequence installs and explicitly starts the demand-start
+service, uses only the six validation slots, then stops the service and performs
+rollback check-only. On one authorized Windows host, this sequence passed with
+actual service attestation, receipt readback across verification-worker restart,
+duplicate rejection, cancellation before effect, exact content restoration and
+rejection of older SQLite snapshots. The six runtime slots remained at zero;
+the service was left stopped with manual start and all authority state retained.
+This does not verify real editor callbacks, the complete governed HTTP flow,
+SCM restart, clean-machine recovery or administrator resistance. Actual removal
+is deferred until editor acceptance or an explicit cleanup request. The one-use
+driver keeps independent SQLite keys in memory only; its completed validation
+state is not a persistent runtime key-provisioning solution.
+
+Language Selection: the native workload is Windows security descriptor/token/SCM
+access unavailable directly in the installed Node runtime. Protocol and SQLite
+coordination stay TypeScript. The following are engineering scores, not benchmarks:
+
+| Criterion | C++ for Win32 only | TypeScript alone | C# with installed .NET 6 |
+| --- | ---: | ---: | ---: |
+| Domain fit | 5 | 1 | 5 |
+| Maintenance | 3 | 5 | 3 |
+| Operability | 4 | 3 | 1 |
+| Safety | 4 | 3 | 4 |
+| Migration cost | 4 | 2 | 2 |
+| Existing ecosystem | 4 | 5 | 2 |
+| Total | 24 | 19 | 17 |
+
+The measured inputs are the installed compiler/SDK and successful strict native
+build and read-only API probes. Node-API avoids a private V8 ABI. The two C++ files
+have an exact, expiring language-policy exception; broad path exceptions cannot
+admit C++. Native/worker/installer, tests, build tooling and this language gate
+span more than eight files and 500 lines because all are needed for a reviewable
+privileged installation boundary. No general plugin framework or new runtime
+dependency is introduced. Disabling the optional package and retaining authority
+state is the rollback boundary. Installation and any further system validation
+require explicit scoped authorization; the bounded result above does not certify
+other installations or extend the default PoP runtime's evidence.
 
 1. Run the focused client service and HTTP tests without `tasklist`, `ps`, real
    providers, or real adapters.

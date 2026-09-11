@@ -552,6 +552,13 @@ binds the exact source `agents.json` digest to the SQLite v2 authority/checkpoin
 and is immutable. Its existence permanently blocks JSON-mode startup; SQLite
 startup verifies the marker whenever the anchored `agents.json` remains.
 
+Authority-file identity checks use full `BigInt` device/file identifiers in both
+synchronous and asynchronous reads, including publication recovery. Large NTFS
+file identifiers can round to the same JavaScript `Number`; converting that
+rounded value to a string does not restore the identity. This TypeScript-local
+fix changes no signed bytes, storage format, or migration policy. A code rollback
+must never delete a switch marker or treat an old JSON snapshot as authoritative.
+
 Stop the gateway first. Pending state, generation, or policy-activation journals
 must be recovered by the original JSON runtime before migration. The target
 database, checkpoint, and reserved `.migration-staging` paths must not contain
@@ -802,6 +809,169 @@ is required to detect that physical-administration scenario.
   attribution.
 
 ## Language Selection
+
+### Explicit employee model contributions
+
+`AI_GATEWAY_WORKFORCE_ROLE_EXECUTION_PROFILE_JSON` is optional and absent by
+default. Setting it defines a server-owned `gateway-llm-required` profile;
+`WORKFORCE_EXECUTION_ENABLED=true`, authenticated HTTP identity, a current
+Agent lease, Tool Proxy approval and a matching one-time Workforce plan approval
+remain required to execute. Request JSON cannot define or replace this profile.
+The fixed employee bindings must use existing Workforce role IDs and include
+their dependencies. Only those roles run; optional request `selectedRoles` must
+match the server set exactly. Imported position catalogs are not enabled by this
+configuration and dynamic employee selection is a separate capability.
+
+The JSON profile contains `version: 1`, `mode: "gateway-llm-required"`, `profileId`,
+`maxTotalRequests`, `maxConcurrentRoles`, and `bindings`. Each binding contains
+`roleId`, `employeeId`, `providerId`, `modelId`, `maxRequests`, `maxInputTokens`,
+`maxOutputTokens`, and `timeoutMs`. A dependency-free `ceo` binding can authorize
+one contribution. The configured Provider/model must already be available in
+the existing gateway. The first runtime supports the fake Provider and the
+existing HTTP-LLM adapter with its final dispatch fence; it does not read native
+client credentials or make other Provider paths implicitly available.
+
+Both approval layers seal the complete profile and plan digest. Changing the
+model, employee, request count or token limits invalidates the old plan approval.
+`agents approvals` displays every binding and its actual bounds:
+
+- `maxRequests` and `maxTotalRequests` cap dispatch attempts, including retries.
+  Already dispatched or uncertain attempts are never refunded within a run.
+- `maxInputTokens` uses the gateway's input estimate before dispatch, followed
+  by validation when upstream usage is reported. `maxOutputTokens` is sent as an
+  upstream parameter and checked against reported output usage.
+- These token checks do not guarantee a prepaid token or invoice cap. A reported
+  overrun fails the contribution after consumption; it cannot undo those tokens.
+  Missing usage and unknown USD cost stay `null`, not zero or verified budget.
+- Timeout, Agent and task-claim checks reach the last controlled HTTP dispatch
+  point after DNS and on every retry. Cancellation drains active work before
+  terminal completion or reports an uncertain result.
+
+Each successful result contains a server-bound `workforceContribution` from
+`employee-brain-adapter`, plus its actual gateway-operation receipt. Empty
+responses, missing receipts, tool calls and Provider failures cannot become
+template successes in this mode. `roleExecution` reports dispatch counts and
+separates fake and real successful contributions. Preview/template mode remains
+separate; fake receipts and tests do not establish real Provider access, content
+quality or production evidence.
+
+The runtime adapter and binding contracts use TypeScript; existing JavaScript
+application, route, role executor and CLI files receive local connection and
+review changes. This reuses the existing GatewayService and employee package,
+without a new transport, dependency, credential store or background service.
+Rollback removes the optional profile configuration and restarts the runtime;
+old profile-bound approvals cannot authorize a different execution descriptor.
+
+### Evaluated employee selection module (S1)
+
+`createRuntimeEmployeeSelector` accepts a bounded server-owned configuration:
+at most five candidate assignments, three selected roles and 64 qualification
+records. `select` accepts only task type, role IDs and execution mode. Occupation
+candidates and preview employees remain ineligible, and enabled assignments
+need a separate accepted qualification matching their employee, role, task and
+Provider/model. Synthetic qualification records only permit the fake lane.
+The caller is responsible for accepting the referenced evaluation evidence;
+this parser does not independently establish occupational competence.
+
+The module snapshots the configuration, uses stable priority/employee-ID order
+and complete bounded assignment, and never consults live health when choosing.
+`createWorkforceRoleSelection` expands the existing role dependencies, refuses
+missing coverage or an over-budget dependency set, and compiles the decision
+into the unchanged v1 execution profile. It reuses the existing A/B role
+Provider and employee contribution interfaces. Qualification expiry or a target
+becoming unavailable blocks the original selection at the existing dispatch
+fence; it never substitutes another employee or Provider. The execution deadline
+is also tightened to the earliest qualification expiry.
+The existing role Provider factory has an optional synchronous dispatch check:
+selection rechecks its frozen targets after asynchronous Agent/task fences and
+immediately before incrementing the dispatch counter. This closes the observed
+microtask window without changing the manual v1 profile. The ninth affected file
+is this existing factory; keeping checks only in the new selection module was
+insufficient, as the retained failing dispatch tests demonstrated.
+
+S1 provides the selector/profile module boundary, with owned synthetic Git,
+governance, approval, claim and security components used in fake contribution
+tests. The production opt-in below reuses that boundary; it does not alter the
+preview API or turn occupational catalog records into evaluated employees.
+
+### Governed employee selection and factual feedback (S2)
+
+Set `AI_GATEWAY_WORKFORCE_ROLE_SELECTION_JSON` to a bounded JSON object with
+exactly `version: 1`, `executionMode: "fake" | "real"`, and `catalog` containing
+the S1 configuration described above. The limit is 64 KiB. Configuration is
+absent by default; configuring both this value and
+`AI_GATEWAY_WORKFORCE_ROLE_EXECUTION_PROFILE_JSON` rejects at startup.
+`WORKFORCE_EXECUTION_ENABLED=true`, enabled Agent Governance and both existing
+approval layers remain required. Credential values and evaluation originals
+are not selection configuration. A server operator must independently accept
+the referenced qualification evidence before enrolling an assignment.
+
+The task type is the normalized plan template ID, such as `feature-development`;
+the request may name canonical `selectedRoles`, such as `["ceo"]`. Selection
+expands all required dependencies. The existing default seven-role plan exceeds
+this first selector's three-role bound and is refused; necessary dependencies
+are never silently dropped. Request JSON cannot supply selectionReview,
+qualification, catalog, employee or Provider/model authority. Synthetic
+qualifications permit only the fake lane, and `occupation_candidate` remains
+ineligible even when its display title matches a requested role.
+
+The frozen catalog produces immutable decisions cached by normalized task/role
+requirements, with a 128-context cap and explicit refusal at capacity. Approval
+and execution reuse these decisions; there is no ranking by current health,
+time, feedback or load, and no catalog hot reload. Each execution keeps its
+chosen factory in a local value and that factory creates separate per-run
+state. Provider unavailability or qualification expiry only blocks the chosen
+binding. A changed catalog revision invalidates the old approval even when
+the resulting employees and targets happen to be identical.
+
+Both approval layers carry complete `options.selectionReview` alongside the
+unchanged v1 role profile. It includes algorithm version 1, catalogHash,
+selectionHash, task requirements, every selected binding and budget, accepted
+qualification scope/mode/evidenceHash/validUntil, and all rejected candidates'
+reasons. The catalog hash covers the frozen rules, catalog revision and
+qualification records; the selection hash is recomputed from the complete
+decision, and the profile ID/bindings/budgets must match. Selection descriptors
+use approval digest domain v3. Manual profile v2 and original template v1
+digests remain unchanged. CLI approval text and JSON show every selection item
+and numeric budget, rather than hiding them behind hashes or generic redaction.
+
+`selectionFeedback` is built from actual server-owned contribution/receipt facts:
+employee/role/task/execution/profile/selection links, contribution text hash,
+and receipt status, mode, request ID, target, attempted flag and error code.
+Usage/request totals stay in the existing linked receipts. Feedback has
+`quality: "unassessed"` and `qualityScore: null`; it never grants qualification
+or changes a running selection. Successful task outputs, existing evidence
+deliverables, and terminal lifecycle summaries retain the feedback. Failed
+receipt facts are retained without pretending that a missing contribution or
+unattempted call succeeded; absent receipts do not generate invented feedback.
+The generic evidence redactor otherwise treats long hex strings as secrets.
+Only exact, deeply frozen feedback objects registered by the private constructor
+retain their public hashes and execution IDs during persistence; ordinary JSON,
+clones and forged source/request fields receive the existing redaction. This
+exception preserves factual links without disabling secret or long-hex masking.
+
+Validation uses the actual application configuration/descriptor and a matching
+executor with the same Gateway/ProviderRegistry bound to an owned temporary Git
+repository, then real local HTTP, enterprise authentication and both approval
+layers. It covers accepted fake contributions, failure facts, request-authority
+refusal, changed/expired selection, and exact persisted feedback. The temporary
+repository replacement is a test composition boundary: default-checkout
+production execution, real Provider calls, independently assessed role quality,
+cross-run employee capacity, hosted deployment and production recovery are
+separate evidence. No new route, CLI command, dependency, schema or service is
+introduced; the cross-owner files are necessary to close the same approval and
+execution chain. Rollback disables the selection configuration and restarts
+the application; preserve existing approval and execution history, whose
+selection-bound hashes cannot authorize a different manual profile.
+
+Language Selection: TypeScript owns the pure exact review and feedback contracts;
+existing JavaScript orchestrator, HTTP, factory and CLI receive bounded wiring.
+For domain/maintenance/operations/safety/migration/ecosystem, TypeScript scores
+5/5/5/5/5/5 (30), JavaScript-only 5/4/5/3/5/5 (27), and a separate runtime
+3/3/2/4/2/3 (17). This keeps the existing Node effect/fence path and avoids a
+second scheduler or cross-process credential boundary.
+
+### Existing policy runtime
 
 Workload: deterministic policy calculus (merge algebra, validation,
 compilation, hashing) plus gateway-runtime stores and enforcement.

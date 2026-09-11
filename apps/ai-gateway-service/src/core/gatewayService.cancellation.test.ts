@@ -48,6 +48,21 @@ function createService(primary: any, fallback: any, healthScorer: any, options: 
 }
 
 describe("GatewayService execution cancellation", () => {
+  it("keeps the existing pre-output fallback when a provider only reports usage", async () => {
+    const primary = { generateStream: vi.fn(async function* () {
+      yield { textDelta: "", usageOnly: true, raw: { usage: { totalTokens: 2 },
+        usageObservation: { version: 1, source: "partial", totalTokens: null, knownTokens: 2 } } };
+      throw Object.assign(new Error("fixture overloaded"), { code: "FIXTURE_OVERLOADED", retryable: true });
+    }) };
+    const fallback = { generateStream: vi.fn(async function* () { yield { textDelta: "recovered", raw: {} }; }) };
+    const service = createService(primary, fallback, null);
+    const events = [];
+    for await (const event of service.executeStream({ messages: [{ role: "user", content: "fixture" }] })) events.push(event);
+    expect(fallback.generateStream).toHaveBeenCalledOnce();
+    expect(events.filter((event) => event.type === "chunk").map((event) => event.textDelta)).toEqual(["recovered"]);
+    expect(events.at(-1)).toMatchObject({ type: "done", outputText: "recovered" });
+  });
+
   it("propagates cancellation without fallback or health-failure pollution", async () => {
     const controller = new AbortController();
     const primary = {

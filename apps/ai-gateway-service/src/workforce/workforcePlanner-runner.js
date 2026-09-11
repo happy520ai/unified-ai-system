@@ -60,7 +60,7 @@ export function createExecutionReadinessPreflight() {
     implementedCapabilities: {
       taskClaimToken: "workforce/taskClaimTokenService.js (single-use, TTL-bound)",
       cancellableExecution: "workforce/executionLifecycleService.js (AbortController-backed)",
-      workflowRunHandoff: "workforce/workflowRunHandoff.js (claim-token gated, explicit-invocation only)",
+      workflowRunHandoff: "workforce/workflowRunHandoff.js (library-only; not connected to production routes)",
       humanApprovalGate: "workforce/executionApprovalGate.js (file-persisted, TTL, consumed by workforceControlledExecutor)",
       worktreeIsolation: "workforce/worktreeIsolation.js (real git worktrees, used by workforceControlledExecutor)",
       controlledExecutionLine: "workforce/workforceControlledExecutor.js (approval → worktree → lifecycle → role executors → evidence)",

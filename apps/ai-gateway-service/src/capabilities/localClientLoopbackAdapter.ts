@@ -210,6 +210,15 @@ type ProtocolReceipt = {
   readonly signature: string;
 };
 
+// Application-private wire codec shared with the receiving side. Sharing these
+// functions keeps request/response domains and receipt hashing identical.
+export type LocalClientLoopbackActionRequest = ActionRequest;
+export const localClientLoopbackWire = Object.freeze({
+  signChallengeRequest, signChallengeResponse, signVerificationRequest,
+  signVerificationResponse, signAction, signReceipt, deriveReceiptId,
+  safeSignatureEqual, canonicalJson, sha256, hasExactKeys,
+});
+
 type ExactLoopbackEndpoint = Readonly<{
   origin: string;
   hostname: "127.0.0.1" | "::1";

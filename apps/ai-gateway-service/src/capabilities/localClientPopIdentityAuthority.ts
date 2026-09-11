@@ -4,6 +4,7 @@ import {
   randomBytes,
   timingSafeEqual,
 } from "node:crypto";
+import { isLocalClientNativePopReplayRuntime } from "./localClientNativePopReplayRuntime.ts";
 
 export const MANAGED_LOCAL_CLIENT_POP_PROOF_VERSION =
   "managed-local-client-pop-proof-v1" as const;
@@ -575,7 +576,7 @@ function assertReplayGuard(value: ManagedLocalClientPopReplayGuard): void {
     throw configurationError();
   }
   const status = cloneReplayGuardStatus(value.status);
-  if (!status.available) throw configurationError();
+  if (!status.available && !isLocalClientNativePopReplayRuntime(value)) throw configurationError();
 }
 
 function cloneReplayGuardStatus(

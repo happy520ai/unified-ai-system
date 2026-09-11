@@ -7,7 +7,7 @@ import {
   openSync,
   readSync,
   realpathSync,
-  type Stats,
+  type BigIntStats,
 } from "node:fs";
 import {
   chmod,
@@ -399,7 +399,7 @@ async function recoverExclusivePublication(options: {
     return existing;
   }
 
-  if (!stagingStats?.isFile() || stagingStats.isSymbolicLink() || stagingStats.nlink !== 1) {
+  if (!stagingStats?.isFile() || stagingStats.isSymbolicLink() || stagingStats.nlink !== 1n) {
     throw authorityError(
       "AGENT_REGISTRY_AUTHORITY_SWITCH_CONFLICT",
       "The Registry authority switch staging path is linked or unsafe.",
@@ -437,8 +437,8 @@ async function removeMatchingStagingFile(
   candidate: RegistryAuthoritySwitchMarker,
   secret: string,
 ): Promise<void> {
-  const stats = await lstat(path);
-  if (!stats.isFile() || stats.isSymbolicLink() || stats.nlink !== 1) {
+  const stats = await lstat(path, { bigint: true });
+  if (!stats.isFile() || stats.isSymbolicLink() || stats.nlink !== 1n) {
     throw authorityError(
       "AGENT_REGISTRY_AUTHORITY_SWITCH_CONFLICT",
       "The Registry authority switch staging path is linked or unsafe.",
@@ -478,7 +478,7 @@ async function readOptionalRegularFile(
 ): Promise<Buffer | null> {
   const stats = await optionalLstat(path);
   if (!stats) return null;
-  if (!stats.isFile() || stats.isSymbolicLink() || stats.nlink !== 1 || stats.size > maxBytes) {
+  if (!stats.isFile() || stats.isSymbolicLink() || stats.nlink !== 1n || stats.size > BigInt(maxBytes)) {
     throw authorityError(
       "AGENT_REGISTRY_AUTHORITY_FILE_UNSAFE",
       "A Registry authority file is linked, oversized, or not a regular file.",
@@ -492,11 +492,11 @@ async function readBoundedFile(
   path: string,
   maxBytes: number,
   allowHardLink: boolean,
-  expectedStats: Stats | undefined = undefined,
+  expectedStats: BigIntStats | undefined = undefined,
 ): Promise<Buffer> {
-  const before = expectedStats ?? await lstat(path);
+  const before = expectedStats ?? await lstat(path, { bigint: true });
   if (!before.isFile() || before.isSymbolicLink()
-    || (!allowHardLink && before.nlink !== 1) || before.size > maxBytes) {
+    || (!allowHardLink && before.nlink !== 1n) || before.size > BigInt(maxBytes)) {
     throw authorityError(
       "AGENT_REGISTRY_AUTHORITY_FILE_UNSAFE",
       "A Registry authority file is linked, oversized, or not a regular file.",
@@ -513,9 +513,9 @@ async function readBoundedFile(
     );
   }
   try {
-    const stats = await handle.stat();
+    const stats = await handle.stat({ bigint: true });
     if (!stats.isFile() || stats.isSymbolicLink()
-      || (!allowHardLink && stats.nlink !== 1) || stats.size > maxBytes
+      || (!allowHardLink && stats.nlink !== 1n) || stats.size > BigInt(maxBytes)
       || !sameFileIdentity(before, stats)) {
       throw authorityError(
         "AGENT_REGISTRY_AUTHORITY_FILE_UNSAFE",
@@ -525,10 +525,10 @@ async function readBoundedFile(
     await assertResolvedDirectChild(path);
     const bytes = Buffer.alloc(Number(stats.size));
     const { bytesRead } = await handle.read(bytes, 0, bytes.length, 0);
-    const [after, afterPath] = await Promise.all([handle.stat(), lstat(path)]);
+    const [after, afterPath] = await Promise.all([handle.stat({ bigint: true }), lstat(path, { bigint: true })]);
     if (bytesRead !== bytes.length || after.size !== stats.size
       || !sameFileIdentity(stats, after) || !sameFileIdentity(stats, afterPath)
-      || (!allowHardLink && afterPath.nlink !== 1)) {
+      || (!allowHardLink && afterPath.nlink !== 1n)) {
       throw authorityError(
         "AGENT_REGISTRY_AUTHORITY_FILE_CHANGED",
         "A Registry authority file changed while it was being verified.",
@@ -542,9 +542,9 @@ async function readBoundedFile(
 
 function readOptionalRegularFileSync(path: string, maxBytes: number): Buffer | null {
   let before;
-  try { before = lstatSync(path); }
+  try { before = lstatSync(path, { bigint: true }); }
   catch (error) { if (isMissing(error)) return null; throw error; }
-  if (!before.isFile() || before.isSymbolicLink() || before.nlink !== 1 || before.size > maxBytes) {
+  if (!before.isFile() || before.isSymbolicLink() || before.nlink !== 1n || before.size > BigInt(maxBytes)) {
     throw authorityError(
       "AGENT_REGISTRY_AUTHORITY_FILE_UNSAFE",
       "A Registry authority file is linked, oversized, or not a regular file.",
@@ -553,9 +553,9 @@ function readOptionalRegularFileSync(path: string, maxBytes: number): Buffer | n
   let descriptor: number | null = null;
   try {
     descriptor = openSync(path, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
-    const stats = fstatSync(descriptor);
-    if (!stats.isFile() || stats.isSymbolicLink() || stats.nlink !== 1
-      || stats.size > maxBytes || !sameFileIdentity(before, stats)) {
+    const stats = fstatSync(descriptor, { bigint: true });
+    if (!stats.isFile() || stats.isSymbolicLink() || stats.nlink !== 1n
+      || stats.size > BigInt(maxBytes) || !sameFileIdentity(before, stats)) {
       throw authorityError(
         "AGENT_REGISTRY_AUTHORITY_FILE_UNSAFE",
         "A Registry authority file is linked, oversized, or not a regular file.",
@@ -564,11 +564,11 @@ function readOptionalRegularFileSync(path: string, maxBytes: number): Buffer | n
     assertResolvedDirectChildSync(path);
     const bytes = Buffer.alloc(Number(stats.size));
     const bytesRead = readSync(descriptor, bytes, 0, bytes.length, 0);
-    const after = fstatSync(descriptor);
-    const afterPath = lstatSync(path);
+    const after = fstatSync(descriptor, { bigint: true });
+    const afterPath = lstatSync(path, { bigint: true });
     if (bytesRead !== bytes.length || after.size !== stats.size
       || !sameFileIdentity(stats, after) || !sameFileIdentity(stats, afterPath)
-      || afterPath.nlink !== 1) {
+      || afterPath.nlink !== 1n) {
       throw authorityError(
         "AGENT_REGISTRY_AUTHORITY_FILE_CHANGED",
         "A Registry authority file changed while it was being verified.",
@@ -613,8 +613,10 @@ function assertResolvedDirectChildSync(path: string): void {
   }
 }
 
-function sameFileIdentity(left: { dev: number | bigint; ino: number | bigint }, right: { dev: number | bigint; ino: number | bigint }): boolean {
-  return String(left.dev) === String(right.dev) && String(left.ino) === String(right.ino);
+function sameFileIdentity(left: { dev: bigint; ino: bigint }, right: { dev: bigint; ino: bigint }): boolean {
+  // NTFS file IDs can exceed Number's exact range. Converting rounded Stats
+  // values to strings cannot distinguish two different files.
+  return left.dev === right.dev && left.ino === right.ino;
 }
 
 function samePath(left: string, right: string): boolean {
@@ -636,7 +638,7 @@ async function ensurePrivateDirectory(path: string): Promise<void> {
 }
 
 async function optionalLstat(path: string) {
-  try { return await lstat(path); }
+  try { return await lstat(path, { bigint: true }); }
   catch (error) { if (isMissing(error)) return null; throw error; }
 }
 

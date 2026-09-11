@@ -12,6 +12,7 @@ import { lstat, readdir, realpath, stat } from 'node:fs/promises';
 import { isAbsolute, resolve, sep } from 'node:path';
 
 const DEFAULT_MAX_OUTPUT_BYTES = 1_048_576;
+const MAX_STDIN_BYTES = 64 * 1024;
 const DEFAULT_CONTAINER_ENV = Object.freeze({
   PATH: '/usr/local/bin:/usr/bin:/bin',
   HOME: '/scratch',
@@ -85,10 +86,18 @@ function appendBounded(chunks, state, chunk, limit) {
   if (slice.length !== chunk.length) state.truncated = true;
 }
 
+function validateStdin(stdin) {
+  if (stdin === undefined) return;
+  if (typeof stdin !== 'string' || Buffer.byteLength(stdin, 'utf8') > MAX_STDIN_BYTES) {
+    throw makeError('SANDBOX_STDIN_INVALID', `stdin must be a string of at most ${MAX_STDIN_BYTES} UTF-8 bytes`);
+  }
+}
+
 /**
  * Run a fixed executable with an argv array. This helper is used only for the
  * container engine itself; untrusted commands remain arguments to /bin/sh
- * inside the container.
+ * inside the container. Optional stdin is capped at 64 KiB of UTF-8. A false
+ * stdinFailed verdict proves pipe delivery, not consumption by the application.
  */
 export function runContainerEngineProcess(executable, args, options = {}) {
   const {
@@ -96,12 +105,22 @@ export function runContainerEngineProcess(executable, args, options = {}) {
     maxOutputBytes = DEFAULT_MAX_OUTPUT_BYTES,
     signal,
     env = buildHostToolEnvironment(),
+    stdin,
   } = options;
+  validateStdin(stdin);
+  const hasStdin = stdin !== undefined;
+
+  if (signal?.aborted) {
+    return Promise.resolve({ exitCode: -1, stdout: '', stderr: '', timedOut: false, aborted: true, truncated: false,
+      ...(hasStdin ? { stdinFailed: true } : {}) });
+  }
 
   return new Promise((resolvePromise) => {
     let settled = false;
     let timedOut = false;
     let aborted = false;
+    let stdinFinished = !hasStdin;
+    let stdinFailed = false;
     const stdoutChunks = [];
     const stderrChunks = [];
     const stdoutState = { length: 0, truncated: false };
@@ -113,16 +132,17 @@ export function runContainerEngineProcess(executable, args, options = {}) {
         env,
         shell: false,
         windowsHide: true,
-        stdio: ['ignore', 'pipe', 'pipe'],
+        stdio: [hasStdin ? 'pipe' : 'ignore', 'pipe', 'pipe'],
       });
     } catch (error) {
       resolvePromise({
         exitCode: -1,
         stdout: '',
-        stderr: error.message,
+        stderr: hasStdin ? 'container engine process failed' : error.message,
         timedOut: false,
         aborted: false,
         truncated: false,
+        ...(hasStdin ? { stdinFailed: true } : {}),
       });
       return;
     }
@@ -131,8 +151,20 @@ export function runContainerEngineProcess(executable, args, options = {}) {
     child.stderr.on('data', (chunk) => appendBounded(stderrChunks, stderrState, chunk, maxOutputBytes));
 
     const stopCli = () => {
+      child.stdin?.destroy();
       try { child.kill('SIGKILL'); } catch { /* process already exited */ }
     };
+    const failStdin = () => {
+      stdinFailed = true;
+      stopCli();
+    };
+    if (hasStdin) {
+      child.stdin.once('finish', () => { stdinFinished = true; });
+      // Keep this listener through close: EPIPE may arrive after cancellation
+      // or a child process error. Stream errors must never expose input bytes.
+      child.stdin.on('error', failStdin);
+      child.stdin.once('close', () => { if (!stdinFinished) failStdin(); });
+    }
     const onAbort = () => {
       aborted = true;
       stopCli();
@@ -154,18 +186,31 @@ export function runContainerEngineProcess(executable, args, options = {}) {
       clearTimeout(timer);
       signal?.removeEventListener?.('abort', onAbort);
       const stderr = Buffer.concat(stderrChunks).toString('utf8');
+      const inputFailed = hasStdin && (stdinFailed || !stdinFinished || error != null);
+      const errorMessage = hasStdin ? 'container engine process failed' : error?.message;
       resolvePromise({
-        exitCode: exitCode ?? -1,
+        exitCode: inputFailed ? -1 : (exitCode ?? -1),
         stdout: Buffer.concat(stdoutChunks).toString('utf8'),
-        stderr: error ? `${stderr}${stderr ? '\n' : ''}${error.message}` : stderr,
+        stderr: error ? `${stderr}${stderr ? '\n' : ''}${errorMessage}` : stderr,
         timedOut,
         aborted,
         truncated: stdoutState.truncated || stderrState.truncated,
+        ...(hasStdin ? { stdinFailed: inputFailed } : {}),
       });
     };
 
     child.once('close', (code) => finish(code, null));
-    child.once('error', (error) => finish(-1, error));
+    child.once('error', (error) => {
+      if (hasStdin) stopCli();
+      finish(-1, error);
+    });
+    if (hasStdin && !aborted) {
+      try {
+        child.stdin.end(stdin, 'utf8', (error) => { if (error) failStdin(); });
+      } catch {
+        failStdin();
+      }
+    }
   });
 }
 
@@ -237,6 +282,7 @@ export class ContainerSandboxBackend {
       maxOutputBytes: options.maxOutputBytes,
       signal: options.signal,
       env: buildHostToolEnvironment(),
+      ...(options.stdin !== undefined ? { stdin: options.stdin } : {}),
     });
   }
 
@@ -320,11 +366,14 @@ export class ContainerSandboxBackend {
 
   async run(options) {
     const startTime = Date.now();
+    validateStdin(options.stdin);
+    const hasStdin = options.stdin !== undefined;
     const command = options.command;
     if (typeof command !== 'string' || !command.trim()) {
       throw makeError('SANDBOX_COMMAND_INVALID', 'command must be a non-empty string');
     }
     if (command.includes('\0')) throw makeError('SANDBOX_COMMAND_INVALID', 'command contains a null byte');
+    if (options.signal?.aborted) throw makeError('SANDBOX_ABORTED', 'execution was cancelled before creation');
 
     await this.attest();
     const workspaceInfo = await this.#resolveWorkspace(options.workspace);
@@ -349,6 +398,7 @@ export class ContainerSandboxBackend {
       '--label', 'forge.sandbox.managed=true',
       '--label', `forge.sandbox.lease=${name}`,
       '--network', networkAccess ? 'bridge' : 'none',
+      '--log-driver', 'none',
       '--read-only', '--user', '65532:65532',
       '--cap-drop', 'ALL',
       '--security-opt', 'no-new-privileges',
@@ -361,29 +411,35 @@ export class ContainerSandboxBackend {
       '--tmpfs', '/scratch:rw,nosuid,nodev,noexec,size=64m,uid=65532,gid=65532,mode=0700',
       '--tmpfs', '/tmp:rw,nosuid,nodev,noexec,size=32m,mode=1777',
     ];
+    if (hasStdin) createArgs.push('-i');
     if (workspaceInfo.hideGitDirectory) {
       createArgs.push('--tmpfs', '/workspace/.git:rw,nosuid,nodev,noexec,size=1m,uid=65532,gid=65532,mode=0700');
     }
     for (const [key, value] of Object.entries(env)) createArgs.push('--env', `${key}=${value}`);
     createArgs.push(this.#image, '/bin/sh', '-c', command);
 
-    let created = false;
+    let createAttempted = false;
+    let executionError = null;
     let cleanupUncertain = false;
     let startResult = null;
     let state = null;
     try {
+      if (options.signal?.aborted) throw makeError('SANDBOX_ABORTED', 'execution was cancelled before creation');
+      createAttempted = true;
       const createResult = await this.#cli(createArgs, { timeoutMs: 30_000, maxOutputBytes });
       if (createResult.exitCode !== 0 || !/^[a-f0-9]{12,64}$/i.test(createResult.stdout.trim())) {
         throw makeError('SANDBOX_CREATE_FAILED', (createResult.stderr || createResult.stdout || 'container create failed').trim());
       }
-      created = true;
+      if (options.signal?.aborted) throw makeError('SANDBOX_ABORTED', 'execution was cancelled during creation');
 
-      startResult = await this.#cli(['start', '--attach', name], {
+      startResult = await this.#cli(['start', '--attach', ...(hasStdin ? ['--interactive'] : []), name], {
         timeoutMs,
         maxOutputBytes,
         signal: options.signal,
+        ...(hasStdin ? { stdin: options.stdin } : {}),
       });
-      if (startResult.timedOut || startResult.aborted) {
+      if (startResult.timedOut || startResult.aborted
+        || (hasStdin && startResult.stdinFailed !== false)) {
         await this.#cli(['kill', name], { timeoutMs: 10_000, maxOutputBytes: 64_000 });
       }
 
@@ -394,25 +450,41 @@ export class ContainerSandboxBackend {
       if (inspectResult.exitCode === 0) {
         try { state = JSON.parse(inspectResult.stdout.trim()); } catch { state = null; }
       }
+    } catch (error) {
+      executionError = error;
     } finally {
-      if (created) {
-        const removeResult = await this.#cli(['rm', '--force', name], {
-          timeoutMs: 10_000,
-          maxOutputBytes: 64_000,
-        });
-        cleanupUncertain = removeResult.exitCode !== 0;
+      // A failed/timed-out create response does not prove the daemon did not
+      // create the named container. Always attempt removal after admission.
+      if (createAttempted) {
+        try {
+          const removeResult = await this.#cli(['rm', '--force', name], {
+            timeoutMs: 10_000,
+            maxOutputBytes: 64_000,
+          });
+          cleanupUncertain = removeResult.exitCode !== 0;
+        } catch {
+          cleanupUncertain = true;
+        }
       }
+    }
+    if (executionError) {
+      executionError.cleanupUncertain = cleanupUncertain;
+      throw executionError;
     }
 
     const timedOut = startResult?.timedOut === true;
     const aborted = startResult?.aborted === true;
     const oomKilled = state?.OOMKilled === true;
-    const killed = timedOut || aborted || oomKilled || cleanupUncertain;
+    const stateUnverified = state?.Running !== false || !Number.isInteger(state?.ExitCode);
+    const stdinFailed = hasStdin && startResult?.stdinFailed !== false;
+    const killed = timedOut || aborted || oomKilled || cleanupUncertain || stateUnverified || stdinFailed;
     const killReason = timedOut ? `timeout (${timeoutMs}ms)`
       : aborted ? 'aborted'
         : oomKilled ? 'memory limit exceeded'
           : cleanupUncertain ? 'container cleanup uncertain'
-            : null;
+            : stateUnverified ? 'container state unverified'
+              : stdinFailed ? 'stdin delivery failed'
+                : null;
 
     const observedExitCode = Number.isInteger(state?.ExitCode) ? state.ExitCode : (startResult?.exitCode ?? -1);
     return {
@@ -425,6 +497,8 @@ export class ContainerSandboxBackend {
       peakMemoryMB: 0,
       oomKilled,
       cleanupUncertain,
+      truncated: startResult?.truncated === true,
+      ...(hasStdin ? { stdinFailed } : {}),
       backend: 'container',
       isolation: await this.attest(),
     };

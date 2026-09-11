@@ -15,13 +15,13 @@
 
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { readJson, writeJson, writeSseHeaders } from "./utils/responseUtils.js";
-import { getGuardrailsEngine } from "../guardrails/guardrailsEngine.ts";
+import { captureGuardrailsOutputPolicy, getGuardrailsEngine, inspectGuardrailsOutputStream } from "../guardrails/guardrailsEngine.ts";
 import {
   applyVirtualKeyRequestGate,
   applyManagedLocalClientProviderRoute,
   authenticateManagedLocalClientProtocolRequest,
   normalizeOpenAiChatCompletionRequest,
-  recordVirtualKeyUsage,
+  applyNormalizedGuardrailsInputLimit,
   resolveManagedLocalClientProviderRoute,
   resolveOpenAiErrorStatus,
 } from "./openAiCompatibilityRoutes.js";
@@ -38,6 +38,7 @@ import {
   iteratePrimedGatewayStream,
   primeGatewayStream,
   readPrimedGatewayStreamError,
+  resolveGatewayStreamPreflightStatus,
 } from "./gatewayStreamPreflight.ts";
 import { resolveProviderDispatchHttpStatus } from "./providerDispatchHttpStatus.ts";
 
@@ -405,6 +406,19 @@ function translateGeminiToolConfig(toolConfig: unknown) {
 
 // ── Response translation: gateway result → Gemini GenerateContentResponse ──
 
+function createGeminiUsageMetadata(usage: Record<string, any>, fallbackInput = 0, fallbackOutput = 0) {
+  const input = Number(usage.inputTokens ?? fallbackInput);
+  const output = Number(usage.outputTokens ?? fallbackOutput);
+  const reasoning = usage.reasoningTokens;
+  const hasReasoning = Number.isSafeInteger(reasoning) && reasoning >= 0 && reasoning <= output;
+  return {
+    promptTokenCount: input,
+    candidatesTokenCount: output - (hasReasoning ? reasoning : 0),
+    ...(hasReasoning ? { thoughtsTokenCount: reasoning } : {}),
+    totalTokenCount: Number(usage.totalTokens ?? input + output),
+  };
+}
+
 export function createGeminiGenerateContentResponse(
   result: Record<string, any>,
   options: { requestedModel?: string } = {},
@@ -440,13 +454,7 @@ export function createGeminiGenerateContentResponse(
         index: 0,
       },
     ],
-    usageMetadata: {
-      promptTokenCount: Number(usage.inputTokens ?? 0),
-      candidatesTokenCount: Number(usage.outputTokens ?? 0),
-      totalTokenCount: Number(
-        usage.totalTokens ?? Number(usage.inputTokens ?? 0) + Number(usage.outputTokens ?? 0),
-      ),
-    },
+    usageMetadata: createGeminiUsageMetadata(usage),
     modelVersion: data.selectedModel ?? options.requestedModel ?? "",
     ...(data.id ?? result?.meta?.requestId
       ? { responseId: String(data.id ?? result?.meta?.requestId) }
@@ -613,35 +621,36 @@ export async function dispatchGeminiCompatibilityRoutes(context: Record<string, 
       }
       for (const replacement of verdict.replacements) {
         const message = entryBody.messages?.[replacement.index];
-        if (message && typeof message.content === "string") {
+        if (message) {
           message.content = replacement.content;
         }
       }
       convertedEntries.push(entryBody);
     }
-    // 预算门以第一条的输入近似预检(批量按实际消耗记账)。
-    const firstInput = normalizeOpenAiChatCompletionRequest(
-      convertedEntries[0],
-      gatewayService.getProviderDescriptors(),
-    );
-    if (applyVirtualKeyRequestGate({
+    const normalizedInputs = convertedEntries.map(entry => normalizeOpenAiChatCompletionRequest(entry, gatewayService.getProviderDescriptors()));
+    for (const [index, input] of normalizedInputs.entries()) {
+      if (!applyNormalizedGuardrailsInputLimit(input, batchGuardrails, [])) {
+        writeGeminiError(response, 400, `Request ${index} exceeds the configured input character limit.`);
+        return;
+      }
+    }
+    const aggregateInputEstimate = normalizedInputs.reduce((sum, input) => sum + estimateTokens(input).estimatedInputTokens, 0);
+    if (applyGeminiVirtualKeyGate({
       enterpriseGovernanceService,
       request,
-      gatewayInput: firstInput,
+      gatewayInput: normalizedInputs[0],
+      estimatedInputTokens: aggregateInputEstimate,
       response,
       writeServiceLog,
       startedAt,
+      path: pathname,
     })) {
       return;
     }
     const responses: Record<string, any>[] = [];
     let failures = 0;
-    for (const [index, entryBody] of convertedEntries.entries()) {
+    for (const [index, entryInput] of normalizedInputs.entries()) {
       try {
-        const entryInput = normalizeOpenAiChatCompletionRequest(
-          entryBody,
-          gatewayService.getProviderDescriptors(),
-        );
         entryInput.metadata = {
           ...entryInput.metadata,
           source: "gemini-compatible-api",
@@ -659,14 +668,6 @@ export async function dispatchGeminiCompatibilityRoutes(context: Record<string, 
           continue;
         }
         responses.push(createGeminiGenerateContentResponse(result, { requestedModel: route.modelId }));
-        const usage = result.data?.usage ?? {};
-        recordVirtualKeyUsage({
-          enterpriseGovernanceService,
-          request,
-          writeServiceLog,
-          tokens: Number(usage.totalTokens ?? 0),
-          path: pathname,
-        });
       } catch (error) {
         if (error instanceof GeminiTranslationError) throw error;
         failures += 1;
@@ -727,7 +728,7 @@ export async function dispatchGeminiCompatibilityRoutes(context: Record<string, 
   }
   for (const replacement of guardrailInputVerdict.replacements) {
     const message = openAiBody.messages?.[replacement.index];
-    if (message && typeof message.content === "string") {
+    if (message) {
       message.content = replacement.content;
     }
   }
@@ -738,6 +739,10 @@ export async function dispatchGeminiCompatibilityRoutes(context: Record<string, 
       openAiBody,
       gatewayService.getProviderDescriptors(),
     );
+    if (!applyNormalizedGuardrailsInputLimit(gatewayInput, guardrailsEngine, guardrailInputVerdict.findings)) {
+      writeGeminiError(response, 400, "Normalized request exceeds the configured input character limit.");
+      return;
+    }
   } catch (error) {
     const validationError = readErrorDetails(error);
     writeServiceLog?.("gemini_generate_validation_failed", {
@@ -804,6 +809,7 @@ export async function dispatchGeminiCompatibilityRoutes(context: Record<string, 
 
 
 
+  if (applyGeminiVirtualKeyGate({ enterpriseGovernanceService, request, gatewayInput, response, writeServiceLog, startedAt, path: pathname })) return;
   const result = await gatewayService.execute(gatewayInput);
   if (!result?.success) {
     const error = readErrorDetails(result?.error ?? {
@@ -888,6 +894,14 @@ function readErrorDetails(value: unknown): { code?: unknown; param?: unknown; me
     : {};
 }
 
+function applyGeminiVirtualKeyGate(options: {
+  enterpriseGovernanceService: any; request: any; gatewayInput: any; response: any;
+  writeServiceLog: any; startedAt: number; path: string; estimatedInputTokens?: number;
+}) {
+  return applyVirtualKeyRequestGate({ ...options, errorFactory: ({ code, message }: { code: string; message: string }) =>
+    createGeminiErrorPayload(code === "VIRTUAL_KEY_ACCOUNTING_UNAVAILABLE" ? 503 : 429, message, { reason: code }) });
+}
+
 async function streamGeminiGenerateContent({
   gatewayInput,
   gatewayService,
@@ -910,13 +924,14 @@ async function streamGeminiGenerateContent({
   });
 
   // 虚拟 key 门对流式请求同样生效；必须在写出 SSE 头之前拒绝。
-  if (applyVirtualKeyRequestGate({
+  if (applyGeminiVirtualKeyGate({
     enterpriseGovernanceService,
     request,
     gatewayInput,
     response,
     writeServiceLog,
     startedAt,
+    path: pathname,
   })) {
     return;
   }
@@ -925,7 +940,7 @@ async function streamGeminiGenerateContent({
     gatewayService.executeStream(gatewayInput),
   );
   const preflightError = readPrimedGatewayStreamError(primedStream);
-  const preflightStatus = resolveProviderDispatchHttpStatus(preflightError?.code);
+  const preflightStatus = resolveGatewayStreamPreflightStatus(preflightError?.code);
   if (preflightError && preflightStatus !== null) {
     await closePrimedGatewayStream(primedStream);
     writeServiceLog?.("gemini_stream_failed", {
@@ -945,7 +960,8 @@ async function streamGeminiGenerateContent({
   writeSseHeaders(response);
 
   const guardrailsEngine = getGuardrailsEngine(request.enterpriseIdentity?.tenantId);
-  for await (const event of iteratePrimedGatewayStream(primedStream)) {
+  const outputPolicy = captureGuardrailsOutputPolicy(guardrailsEngine);
+  for await (const event of inspectGuardrailsOutputStream(iteratePrimedGatewayStream(primedStream), outputPolicy, () => clientClosed)) {
     if (clientClosed) break;
     if (event.type === "error") {
       failed = true;
@@ -955,11 +971,6 @@ async function streamGeminiGenerateContent({
     finalEvent = event;
     selectedModel = event.selectedModel ?? selectedModel;
     if (typeof event.textDelta === "string" && event.textDelta) {
-      // Guardrails 输出侧（流式）：对每个 delta 尽力脱敏，fail-open 保证流不中断。
-      const redactedDelta = guardrailsEngine.inspectSseDelta(event.textDelta);
-      if (redactedDelta !== event.textDelta) {
-        event.textDelta = redactedDelta;
-      }
       if (!firstTokenAt) {
         firstTokenAt = Date.now();
         recordChatTtft(pathname, firstTokenAt, startedAt);
@@ -993,15 +1004,8 @@ async function streamGeminiGenerateContent({
             index: 0,
           },
         ],
-        usageMetadata: {
-          promptTokenCount: Number(usage.inputTokens ?? estimateTokens(gatewayInput).estimatedInputTokens),
-          candidatesTokenCount: Number(usage.outputTokens ?? estimateTextTokens(streamOutputText)),
-          totalTokenCount: Number(
-            usage.totalTokens
-              ?? (usage.inputTokens ?? estimateTokens(gatewayInput).estimatedInputTokens)
-                + (usage.outputTokens ?? estimateTextTokens(streamOutputText)),
-          ),
-        },
+        usageMetadata: createGeminiUsageMetadata(usage,
+          estimateTokens(gatewayInput).estimatedInputTokens, estimateTextTokens(streamOutputText)),
       }),
     );
   }

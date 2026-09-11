@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   LOCAL_CLIENT_EXECUTION_RECEIPT_RECONCILIATION_BOUNDARIES,
   LocalClientExecutionReceiptReconciliationError,
+  authenticateLocalClientDispatchIntent,
   createLocalClientSqliteExecutionReceiptJournal,
   type LocalClientDispatchIntent,
   type LocalClientReceiptReconciliationIdentity,
@@ -96,6 +97,50 @@ async function closeAll(...stores: LocalClientSqliteExecutionReceiptJournal[]) {
 }
 
 describe("local-client durable receipt reconciliation", () => {
+  it("authenticates old intents only for recovery and preserves the caller's key", async () => {
+    const root = workspace(), now = () => START_MS;
+    const gateway = openGateway(root, now);
+    try {
+      await gateway.prepareDispatch(identity());
+      const { intent } = await gateway.armDispatch(identity());
+      const keyBefore = Buffer.from(PROTOCOL_KEY);
+      expect(authenticateLocalClientDispatchIntent(PROTOCOL_KEY, intent, { nowMs: START_MS })).toEqual(intent);
+      expect(() => authenticateLocalClientDispatchIntent(PROTOCOL_KEY, intent, { nowMs: START_MS + 600_000 })).toThrow();
+      expect(authenticateLocalClientDispatchIntent(PROTOCOL_KEY, intent, { nowMs: START_MS + 600_000, allowExpired: true })).toEqual(intent);
+      expect(() => authenticateLocalClientDispatchIntent(PROTOCOL_KEY, { ...intent, signature: "0".repeat(64) }, { nowMs: START_MS, allowExpired: true })).toThrow();
+      expect(() => authenticateLocalClientDispatchIntent(PROTOCOL_KEY, intent, { nowMs: START_MS - 10_000, allowExpired: true })).toThrow();
+      expect(PROTOCOL_KEY).toEqual(keyBefore);
+    } finally { await gateway.close(); }
+  });
+
+  it("projects a signed native completion after claim and keeps its identity across reopen", async () => {
+    const root = workspace();
+    let nowMs = START_MS;
+    const now = () => nowMs, gateway = openGateway(root, now);
+    let client = openClient(root, now);
+    try {
+      await gateway.prepareDispatch(identity());
+      const { intent } = await gateway.armDispatch(identity());
+      await client.acceptDispatchIntent(intent);
+      const nativeReceipt = await createLocalClientDurableExecutionReceipt({ protocolKey: PROTOCOL_KEY, intent, completedAtMs: START_MS + 10, nowMs: START_MS + 10 });
+      await expect(client.recordNativeCompleted(nativeReceipt)).rejects.toMatchObject({ code: "LOCAL_CLIENT_RECEIPT_RECONCILIATION_STATE_INVALID" });
+      await client.claimEffect(intent);
+      nowMs += 20;
+      const projected = await client.recordNativeCompleted(nativeReceipt);
+      expect(projected.receipt).toEqual(nativeReceipt);
+      expect(projected.recorded).toBe(true);
+      await client.close(); client = openClient(root, now);
+      expect(await client.recordNativeCompleted(nativeReceipt)).toMatchObject({ recorded: false, replayed: true, receipt: nativeReceipt });
+      const query = await gateway.createReconciliationQuery(identity().executionId);
+      expect((await client.reconcile(query)).receipt).toEqual(nativeReceipt);
+      await expect(gateway.confirmReceipt(nativeReceipt)).resolves.toMatchObject({ confirmed: true });
+      const conflict = await createLocalClientDurableExecutionReceipt({ protocolKey: PROTOCOL_KEY, intent, completedAtMs: START_MS + 11, nowMs });
+      await expect(client.recordNativeCompleted(conflict)).rejects.toThrow();
+      await expect(client.recordNativeCompleted({ ...nativeReceipt, signature: "0".repeat(64) })).rejects.toThrow();
+      expect(client.status.clientAtomicEffectReceiptVerified).toBe(false);
+    } finally { await closeAll(gateway, client); }
+  });
+
   it("persists a one-shot dispatch intent and advances the full completed state machine", async () => {
     const root = workspace();
     let nowMs = START_MS;

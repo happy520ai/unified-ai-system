@@ -15,6 +15,9 @@ export function resolveChatResultHttpStatus(result) {
 
   const error = result?.error ?? {};
   const code = String(result?.code ?? error.code ?? "").toUpperCase();
+  if (code === "VIRTUAL_KEY_ACCOUNTING_UNAVAILABLE") return 503;
+  if (code === "VIRTUAL_KEY_BUDGET_EXHAUSTED" || code === "VIRTUAL_KEY_RATE_LIMITED") return 429;
+  if (code === "API_KEY_INVALID") return 401;
   const providerDispatchStatus = resolveProviderDispatchHttpStatus(code);
   if (providerDispatchStatus !== null) return providerDispatchStatus;
   if (code.includes("TIMEOUT") || code.includes("DEADLINE_EXCEEDED")) return 504;

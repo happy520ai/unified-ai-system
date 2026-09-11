@@ -19,8 +19,7 @@ const requiredSafeFetchFiles = [
   "claude-code-patterns/mcpTransports.js",
   "claude-code-patterns/sandboxTools.js",
   "enterprise/oauth2Provider.js",
-  "http/httpServerCapabilityRoutes.js",
-  "http/httpServerRoutes03.js",
+  "connectors/imConnectorRuntime.ts",
   "knowledge/vectorProductionProbe.js",
   "model-import/modelImportService.js",
   "model-import/providerProbeRegistry.js",
@@ -48,7 +47,7 @@ const allowedPackageDirectFetchFiles = new Set([
   "forge-core/src/multimodal-client/helpers.js", // guarded by isObviouslyUnsafeNetworkTarget
   "forge-core/src/skills/githubSkillSearcher.js", // api.github.com only
   "forge-core/src/verification/smokeTest.js", // fixed 127.0.0.1 target
-  "im-connector-feishu/src/index.js", // operator-configured webhook target
+  "im-connector-feishu/src/index.ts", // fixed Feishu API or operator webhook; app supplies safe transport
   "im-connector-wecom/src/index.js", // operator-configured webhook target
   "mcp-server/src/runtime.js", // loopback-or-HTTPS validated target
   "shared-sdk/src/index.js", // client library pointed at the user's gateway
@@ -57,13 +56,14 @@ const allowedPackageDirectFetchFiles = new Set([
 const requiredPackageMarkers = new Map([
   ["forge-core/src/llm-client-helpers.js", "isObviouslyUnsafeNetworkTarget"],
   ["forge-core/src/multimodal-client/helpers.js", "isObviouslyUnsafeNetworkTarget"],
-  ["im-connector-feishu/src/index.js", "externalEffectGuard.reserveAndCommit"],
+  ["im-connector-feishu/src/index.ts", "guard.reserveAndCommit"],
   ["im-connector-wecom/src/index.js", "externalEffectGuard.reserveAndCommit"],
 ]);
 const requiredExternalEffectMarkers = new Map([
   ["alerting/alertEngine.js", "externalEffectGuard.reserveAndCommit"],
-  ["http/httpServerCapabilityRoutes.js", "reserveWebhookExternalEffect"],
-  ["http/httpServerRoutes03.js", "reserveWebhookExternalEffect"],
+  ["connectors/imConnectorRuntime.ts", "gate.reserve"],
+  ["http/httpServerCapabilityRoutes.js", "application.imConnectorRuntime.send"],
+  ["http/httpServerRoutes03.js", "application.imConnectorRuntime.send"],
 ]);
 const requiredMcpEffectMarkers = new Map([
   ["agentic/agenticCodingLoop-helpers.js", "context.commitExternalEffect"],
@@ -115,6 +115,19 @@ function usesDirectFetch(source) {
   return /\bfetch\s*\(/.test(source) || /globalThis\.fetch\b/.test(source);
 }
 
+function checkApprovedBrowserFetch(source) {
+  // The local browser uses Playwright's response interception, not native
+  // fetch. Admit one fixed no-redirect/no-retry/cancellable call only. Runtime
+  // browser/HTTP tests additionally prove the target and interaction boundary.
+  const call = /\broute\.fetch\(\{ maxRedirects: 0, maxRetries: 0, timeout: 5000, signal \}\)/g;
+  const matches = [...source.matchAll(call)];
+  const guards = ["resolveGovernedWebTaskRequest", "outgoing.url() === expectedRequest", "allowedUrls.has(outgoing.url())",
+    "outgoing.frame() === page.mainFrame()", "expectedRequest = null; networkRequests++", 'governed("browser_navigate"',
+    "fetched.status() >= 300", "body.length > 262144"];
+  return matches.length === 1 && !usesDirectFetch(source.replace(call, "approvedBrowserFetch()"))
+    && guards.every(marker => source.includes(marker));
+}
+
 function walk(directory) {
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const absolute = path.join(directory, entry.name);
@@ -128,7 +141,9 @@ for (const absolute of walk(sourceDir)) {
   const relative = path.relative(sourceDir, absolute).split(path.sep).join("/");
   if (/\.(?:test|security\.test)\./.test(relative)) continue;
   const source = fs.readFileSync(absolute, "utf8");
-  if (usesDirectFetch(source) && !allowedDirectFetchFiles.has(relative)) {
+  if (relative === "forge/governedWebTaskRuntime.ts") {
+    if (!checkApprovedBrowserFetch(source)) failures.push(`${relative}: bounded Playwright response interception contract is missing or another fetch was added`);
+  } else if (usesDirectFetch(source) && !allowedDirectFetchFiles.has(relative)) {
     failures.push(`${relative}: direct fetch() or globalThis.fetch bypasses safeOutboundFetch`);
   }
   for (const rule of governedMcpDirectUseRules) {

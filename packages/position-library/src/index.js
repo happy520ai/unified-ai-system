@@ -19,3 +19,4 @@ export * from "./normalize/sourceDeduper.js";
 export * from "./search/positionSearchIndex.js";
 export * from "./search/positionQueryService.js";
 export * from "./data/sourceBackedExpandedSeed.js";
+export * from "./import/officialOnetImporter.ts";

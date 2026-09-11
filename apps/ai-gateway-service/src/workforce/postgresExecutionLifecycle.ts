@@ -5,6 +5,9 @@ import type {
   WorkforceClaimPostgresPool as PostgresPool,
 } from "./postgresTaskClaimLease.ts";
 import { createLogRedactor } from "./logRedactor.js";
+import { readWorkflowHandoffMetadata } from "./workforceWorkflowHandoffBinding.ts";
+import { attachWorkforceConsensusResult, readWorkforceConsensusMetadata, readWorkforceConsensusReport } from "./workforceConsensusReport.ts";
+import { attachExternalRunnerState, externalRunnerLifecycleProjection, preserveExternalRunnerSummary, readExternalRunnerMetadata } from "./workforceExternalRunnerState.ts";
 
 export const POSTGRES_EXECUTION_STATUS = Object.freeze({
   PENDING: "pending",
@@ -326,13 +329,24 @@ export function createPostgresExecutionLifecycle(rawOptions: PostgresExecutionLi
       });
     },
 
+    async recordConsensusResult(executionId: unknown, report: unknown) {
+      const id = normalizeExecutionId(executionId);
+      return mutate(id, state => { state.summary = attachWorkforceConsensusResult(state, id, report);
+        return { success: true, reportHash: state.summary.consensusReport.reportHash }; });
+    },
+    async recordExternalRunnerState(executionId: unknown, record: unknown) {
+      const id = normalizeExecutionId(executionId);
+      return mutate(id, state => { state.summary = attachExternalRunnerState(state, id, record);
+        return { success: true, stateHash: state.summary.externalRunnerState.stateHash }; });
+    },
+
     async complete(executionId: unknown, finalStatusInput?: unknown, summaryInput: unknown = {}) {
       const targetStatus = normalizeTerminalStatus(finalStatusInput ?? "completed");
       return mutate(executionId, (state, timestamp) => {
         validateTransition(state, targetStatus);
         transition(state, targetStatus, `执行已结束: ${targetStatus}`, timestamp, options.maxTransitions);
         state.completedAt = timestamp;
-        state.summary = redactor.redactObject(summaryInput);
+        state.summary = preserveExternalRunnerSummary(state, normalizeExecutionId(executionId), redactor.redactObject(summaryInput));
         return {
           success: true,
           status: targetStatus,
@@ -596,6 +610,21 @@ function normalizeOptions(options: PostgresExecutionLifecycleOptions) {
 
 function encodeState(state: LifecycleState, maxStateBytes: number) {
   const sanitized = redactor.redactObject(state);
+  if (state.metadata?.externalRunner) {
+    const metadata = readExternalRunnerMetadata(state.metadata.externalRunner);
+    (sanitized as LifecycleState).metadata.externalRunner = metadata;
+    if (state.summary?.externalRunnerState) {
+      const projection = externalRunnerLifecycleProjection(state, state.summary.externalRunnerState.executionId);
+      (sanitized as LifecycleState).summary.externalRunnerState = projection.externalRunner.state;
+    }
+  }
+  if (state.metadata?.workflowHandoff) (sanitized as LifecycleState).metadata.workflowHandoff = readWorkflowHandoffMetadata(state.metadata.workflowHandoff);
+  if (state.metadata?.consensusReview) {
+    const metadata = readWorkforceConsensusMetadata(state.metadata.consensusReview);
+    (sanitized as LifecycleState).metadata.consensusReview = metadata;
+    if (state.summary?.consensusReport) (sanitized as LifecycleState).summary.consensusReport = readWorkforceConsensusReport(state.summary.consensusReport,
+      { executionId: state.summary.consensusReport.executionId, metadata });
+  }
   let json: string;
   try {
     json = JSON.stringify(sanitized);
@@ -673,13 +702,21 @@ function statusProjection(executionId: string, state: LifecycleState, version: n
     transitions: state.transitions,
     tenantFingerprint: state.metadata?.tenantFingerprint ?? null,
     subjectFingerprint: state.metadata?.subjectFingerprint ?? null,
+    ...externalRunnerLifecycleProjection(state, executionId),
+    ...(state.metadata?.workflowHandoff ? { workflowHandoff: state.metadata.workflowHandoff } : {}),
+    ...(state.metadata?.consensusReview ? { consensusReview: state.metadata.consensusReview,
+      consensusReport: state.summary?.consensusReport ?? null } : {}),
     version,
   };
 }
 
 function sanitizeMetadata(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-  return redactor.redactObject(value) as Record<string, unknown>;
+  const metadata = redactor.redactObject(value) as Record<string, unknown>;
+  if ((value as Record<string, unknown>).externalRunner) metadata.externalRunner = readExternalRunnerMetadata((value as Record<string, unknown>).externalRunner);
+  if ((value as Record<string, unknown>).workflowHandoff) metadata.workflowHandoff = readWorkflowHandoffMetadata((value as Record<string, unknown>).workflowHandoff);
+  if ((value as Record<string, unknown>).consensusReview) metadata.consensusReview = readWorkforceConsensusMetadata((value as Record<string, unknown>).consensusReview);
+  return metadata;
 }
 
 function executionIdentity(executionId: string) {

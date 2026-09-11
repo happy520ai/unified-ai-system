@@ -3,6 +3,7 @@ export * from "./employeeCatalogSeed.js";
 export * from "./workforcePlanner.js";
 export * from "./roleRouter.js";
 export * from "./employeeSelector.js";
+export * from "./runtimeEmployeeSelection.ts";
 export * from "./fanoutPolicy.js";
 export * from "./loadPolicy.js";
 export * from "./budgetPolicy.js";

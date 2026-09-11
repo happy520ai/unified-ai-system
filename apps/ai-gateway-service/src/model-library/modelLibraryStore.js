@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { closeSync, constants, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -7,9 +8,25 @@ import { buildUnifiedModelRegistry, buildUnifiedModelRegistryWithLiveDiscovery }
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../..");
 const DEFAULT_STATE_PATH = resolve(repoRoot, "apps/ai-gateway-service/evidence/phase-312a-model-library-state.json");
+const MAX_STATE_BYTES = 16 * 1024 * 1024;
 
 export function createModelLibraryStore({ env = process.env, runtimeCredentialStore, storagePath = DEFAULT_STATE_PATH } = {}) {
-  let state = loadState(storagePath);
+  const loaded = loadState(storagePath);
+  let state = loaded.state;
+  let expectedDigest = loaded.digest;
+  let outcomeUnknown = false;
+
+  function assertAvailable() {
+    if (outcomeUnknown) throw stateError("WRITE_UNCERTAIN");
+  }
+  function commit(nextState) {
+    assertAvailable();
+    let snapshot;
+    try { snapshot = JSON.parse(JSON.stringify(nextState)); } catch { throw stateError("INVALID"); }
+    try { expectedDigest = saveState(storagePath, snapshot, expectedDigest); }
+    catch (error) { if (error.code === "MODEL_LIBRARY_STATE_WRITE_UNCERTAIN") outcomeUnknown = true; throw error; }
+    state = snapshot;
+  }
 
   function providerConfigSnapshot() {
     const runtimeCredential = runtimeCredentialStore?.describe?.("nvidia");
@@ -30,6 +47,7 @@ export function createModelLibraryStore({ env = process.env, runtimeCredentialSt
   }
 
   function getRegistry() {
+    assertAvailable();
     const cachedDiscovery = Array.isArray(state.lastDiscoveryRecords) && state.lastDiscoveryRecords.length
       ? {
           records: state.lastDiscoveryRecords,
@@ -40,15 +58,16 @@ export function createModelLibraryStore({ env = process.env, runtimeCredentialSt
           },
         }
       : undefined;
-    return buildUnifiedModelRegistry({
+    return structuredClone(buildUnifiedModelRegistry({
       providerConfig: providerConfigSnapshot(),
       smokeState: state.smokeState,
       taskDefaults: state.taskDefaults,
       discovery: cachedDiscovery,
-    });
+    }));
   }
 
   async function refreshCatalog({ allowLiveDiscovery = false } = {}) {
+    assertAvailable();
     const registry = allowLiveDiscovery
       ? await buildUnifiedModelRegistryWithLiveDiscovery({
           providerConfig: providerConfigSnapshot(),
@@ -56,7 +75,7 @@ export function createModelLibraryStore({ env = process.env, runtimeCredentialSt
           taskDefaults: state.taskDefaults,
         })
       : getRegistry();
-    state = {
+    const nextState = {
       ...state,
       lastRefreshAt: new Date().toISOString(),
       lastDiscovery: registry.discovery,
@@ -65,12 +84,12 @@ export function createModelLibraryStore({ env = process.env, runtimeCredentialSt
         : state.lastDiscoveryRecords ?? null,
       catalogSummary: registry.summary,
     };
-    saveState(storagePath, state);
+    commit(nextState);
     return registry;
   }
 
   function recordProviderTest({ providerId = "nvidia", success, code, message, testedAt = new Date().toISOString(), realExternalCall = false } = {}) {
-    state = {
+    const nextState = {
       ...state,
       providerStatus: {
         ...(state.providerStatus ?? {}),
@@ -87,8 +106,8 @@ export function createModelLibraryStore({ env = process.env, runtimeCredentialSt
         },
       },
     };
-    saveState(storagePath, state);
-    return state.providerStatus[providerId];
+    commit(nextState);
+    return structuredClone(state.providerStatus[providerId]);
   }
 
   function recordSmokeResult({ providerId = "nvidia", modelId, result } = {}) {
@@ -98,7 +117,7 @@ export function createModelLibraryStore({ env = process.env, runtimeCredentialSt
     const now = new Date().toISOString();
     const success = result?.success === true;
     const sanitized = sanitizeSmokeResult(result);
-    state = {
+    const nextState = {
       ...state,
       smokeState: {
         ...(state.smokeState ?? {}),
@@ -113,8 +132,8 @@ export function createModelLibraryStore({ env = process.env, runtimeCredentialSt
         },
       },
     };
-    saveState(storagePath, state);
-    return state.smokeState[providerId][modelId];
+    commit(nextState);
+    return structuredClone(state.smokeState[providerId][modelId]);
   }
 
   function setTaskDefault({ providerId = "nvidia", modelId } = {}) {
@@ -131,7 +150,7 @@ export function createModelLibraryStore({ env = process.env, runtimeCredentialSt
         model,
       };
     }
-    state = {
+    const nextState = {
       ...state,
       taskDefaults: {
         ...(state.taskDefaults ?? {}),
@@ -140,12 +159,13 @@ export function createModelLibraryStore({ env = process.env, runtimeCredentialSt
         updatedAt: new Date().toISOString(),
       },
     };
-    saveState(storagePath, state);
-    return { success: true, code: "task_default_set", message: "Task default model updated.", taskDefaults: state.taskDefaults };
+    commit(nextState);
+    return { success: true, code: "task_default_set", message: "Task default model updated.", taskDefaults: structuredClone(state.taskDefaults) };
   }
 
   function getState() {
-    return JSON.parse(JSON.stringify(state));
+    assertAvailable();
+    return structuredClone(state);
   }
 
   return {
@@ -160,17 +180,86 @@ export function createModelLibraryStore({ env = process.env, runtimeCredentialSt
 }
 
 function loadState(storagePath) {
-  if (!existsSync(storagePath)) {
-    return createEmptyState();
+  let before;
+  try { before = lstatSync(storagePath, { bigint: true }); }
+  catch (error) {
+    if (error.code === "ENOENT") return { state: createEmptyState(), digest: null };
+    throw stateError("UNAVAILABLE");
   }
+  if (!before.isFile() || before.isSymbolicLink() || before.size < 1n || before.size > BigInt(MAX_STATE_BYTES)) throw stateError("INVALID");
+  let descriptor;
   try {
-    return {
-      ...createEmptyState(),
-      ...JSON.parse(readFileSync(storagePath, "utf8")),
-    };
-  } catch {
-    return createEmptyState();
+    descriptor = openSync(storagePath, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    if (!sameFile(fstatSync(descriptor, { bigint: true }), before, true)) throw stateError("UNAVAILABLE");
+    const buffer = Buffer.alloc(Number(before.size) + 1);
+    let length = 0;
+    while (length < buffer.length) {
+      const count = readSync(descriptor, buffer, length, buffer.length - length, length);
+      if (count === 0) break;
+      length += count;
+    }
+    if (length !== Number(before.size) || !sameFile(fstatSync(descriptor, { bigint: true }), before, true)
+      || !sameFile(lstatSync(storagePath, { bigint: true }), before, true)) throw stateError("UNAVAILABLE");
+    const bytes = buffer.subarray(0, length);
+    let parsed;
+    try { parsed = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)); }
+    catch { throw stateError("INVALID"); }
+    validateState(parsed);
+    return { state: { ...createEmptyState(), ...parsed }, digest: digest(bytes) };
+  } catch (error) {
+    throw error.code?.startsWith("MODEL_LIBRARY_STATE_") ? error : stateError("UNAVAILABLE");
+  } finally {
+    if (descriptor !== undefined) {
+      try { closeSync(descriptor); } catch { throw stateError("UNAVAILABLE"); }
+    }
   }
+}
+
+function isRecord(value) { return value !== null && typeof value === "object" && !Array.isArray(value); }
+function validateState(value) {
+  if (!isRecord(value) || value.version !== 1) throw stateError("INVALID");
+  for (const key of ["smokeState", "providerStatus", "taskDefaults"]) {
+    if (value[key] !== undefined && !isRecord(value[key])) throw stateError("INVALID");
+  }
+  for (const key of ["phase", "warning"]) if (value[key] !== undefined && typeof value[key] !== "string") throw stateError("INVALID");
+  for (const key of ["lastDiscovery", "catalogSummary"]) if (value[key] != null && !isRecord(value[key])) throw stateError("INVALID");
+  if (value.lastRefreshAt != null && (typeof value.lastRefreshAt !== "string" || !Number.isFinite(Date.parse(value.lastRefreshAt)))) throw stateError("INVALID");
+  if (value.lastDiscoveryRecords != null && (!Array.isArray(value.lastDiscoveryRecords) || !value.lastDiscoveryRecords.every(isRecord))) throw stateError("INVALID");
+  for (const record of Object.values(value.providerStatus ?? {})) {
+    if (!isRecord(record) || record.lastTestResult != null && !isRecord(record.lastTestResult)) throw stateError("INVALID");
+    for (const key of ["providerId", "keyStatus", "lastTestAt"]) if (record[key] != null && typeof record[key] !== "string") throw stateError("INVALID");
+  }
+  for (const record of Object.values(value.smokeState ?? {})) {
+    if (!isRecord(record)) throw stateError("INVALID");
+    // Legacy v1 can contain either provider->model maps or flat model entries.
+    const entries = "testStatus" in record || "lastSmokeResult" in record ? [record] : Object.values(record);
+    for (const entry of entries) {
+      if (!isRecord(entry) || entry.lastSmokeResult != null && !isRecord(entry.lastSmokeResult)) throw stateError("INVALID");
+      for (const key of ["testStatus", "lastSmokeAt", "notes"]) if (entry[key] != null && typeof entry[key] !== "string") throw stateError("INVALID");
+    }
+  }
+  for (const key of ["chatDefaultProviderId", "chatDefaultModelId", "updatedAt"]) {
+    if (value.taskDefaults?.[key] != null && typeof value.taskDefaults[key] !== "string") throw stateError("INVALID");
+  }
+}
+
+function stateError(reason) {
+  const messages = {
+    INVALID: "Model-library state is invalid; existing evidence was preserved.",
+    UNAVAILABLE: "Model-library state could not be accessed safely.",
+    CHANGED: "Model-library state changed outside this writer; reopen it before writing.",
+    SAVE_FAILED: "Model-library state was not saved; the last committed snapshot remains unchanged.",
+    WRITE_UNCERTAIN: "Model-library save outcome is uncertain; verify the stored state and reopen before continuing.",
+    CLEANUP_FAILED: "Model-library save did not complete cleanly; only owned temporary files may be removed.",
+  };
+  return Object.assign(new Error(messages[reason]), { code: `MODEL_LIBRARY_STATE_${reason}`, statusCode: 503,
+    category: "persistence", retryable: false, ...(reason === "WRITE_UNCERTAIN" ? { outcomeUnknown: true } : {}) });
+}
+function digest(bytes) { return createHash("sha256").update(bytes).digest("hex"); }
+function sameFile(current, expected, includeContentMetadata = false) {
+  return current.isFile() && !current.isSymbolicLink() && current.dev === expected.dev && current.ino === expected.ino
+    && current.birthtimeNs === expected.birthtimeNs
+    && (!includeContentMetadata || current.size === expected.size && current.mtimeNs === expected.mtimeNs);
 }
 
 function createEmptyState() {
@@ -202,11 +291,60 @@ function stripRuntimeSelectionFields(models = []) {
   });
 }
 
-function saveState(storagePath, state) {
-  mkdirSync(dirname(storagePath), { recursive: true });
-  const tmpPath = `${storagePath}.${process.pid}.tmp`;
-  writeFileSync(tmpPath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
-  renameSync(tmpPath, storagePath);
+function saveState(storagePath, state, expectedDigest) {
+  validateState(state);
+  let bytes;
+  try { bytes = Buffer.from(`${JSON.stringify(state, null, 2)}\n`, "utf8"); }
+  catch { throw stateError("INVALID"); }
+  if (bytes.length > MAX_STATE_BYTES) throw stateError("INVALID");
+  const nextDigest = digest(bytes);
+  const assertUnchanged = () => {
+    if (loadState(storagePath).digest !== expectedDigest) throw stateError("CHANGED");
+  };
+  assertUnchanged();
+  const tmpPath = `${storagePath}.${process.pid}.${randomUUID()}.tmp`;
+  let descriptor;
+  let identity;
+  let renameAttempted = false;
+  let failure;
+  try {
+    mkdirSync(dirname(storagePath), { recursive: true, mode: 0o700 });
+    descriptor = openSync(tmpPath, "wx", 0o600);
+    identity = fstatSync(descriptor, { bigint: true });
+    writeFileSync(descriptor, bytes);
+    fsyncSync(descriptor);
+    closeSync(descriptor); descriptor = undefined;
+    assertUnchanged();
+    renameAttempted = true;
+    renameSync(tmpPath, storagePath);
+    if (loadState(storagePath).digest !== nextDigest) throw stateError("WRITE_UNCERTAIN");
+    // Windows has no portable Node directory-fsync guarantee. File fsync and
+    // verified rename still apply; the documented power-loss boundary is weaker.
+    if (process.platform !== "win32") {
+      const directory = openSync(dirname(storagePath), constants.O_RDONLY | (constants.O_DIRECTORY ?? 0));
+      try { fsyncSync(directory); } finally { closeSync(directory); }
+    }
+  } catch (error) {
+    failure = renameAttempted ? stateError("WRITE_UNCERTAIN")
+      : error.code?.startsWith("MODEL_LIBRARY_STATE_") ? error : stateError("SAVE_FAILED");
+  } finally {
+    if (descriptor !== undefined) {
+      try { closeSync(descriptor); } catch { failure ??= stateError("SAVE_FAILED"); }
+    }
+    if (identity) {
+      try {
+        let current;
+        try { current = lstatSync(tmpPath, { bigint: true }); }
+        catch (error) { if (error.code !== "ENOENT") throw error; }
+        if (current) {
+          if (!sameFile(current, identity)) throw stateError("CLEANUP_FAILED");
+          unlinkSync(tmpPath);
+        }
+      } catch { failure ??= stateError(renameAttempted ? "WRITE_UNCERTAIN" : "CLEANUP_FAILED"); }
+    }
+  }
+  if (failure) throw failure;
+  return nextDigest;
 }
 
 function sanitizeSmokeResult(result = {}) {

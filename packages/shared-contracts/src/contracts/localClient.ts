@@ -293,10 +293,6 @@ export interface LocalClientStatusResult {
   onboarding?: {
     enabled: boolean;
     initializationState: "disabled" | "not-started" | "initializing" | "ready" | "recovery-required" | "closed" | "failed";
-    configurationVersion: 1;
-    configuredProfileCount: 0 | 3;
-    clients: ["claude-compatible", "cursor", "vscode"];
-    format: "json-only";
     certificationStatus: "fixture-tested-not-real-client-certified";
     requiresExplicitApproval: true;
     requiresDurableIdempotency: true;
@@ -306,7 +302,17 @@ export interface LocalClientStatusResult {
     sensitiveConfigurationRedacted: true;
     tenantOwned: true;
     backupProtection: "aes-256-gcm";
-  };
+  } & ({
+    configurationVersion: 1;
+    configuredProfileCount: 0 | 3;
+    clients: ["claude-compatible", "cursor", "vscode"];
+    format: "json-only";
+  } | {
+    configurationVersion: 2;
+    configuredProfileCount: 1 | 2 | 3 | 4 | 5 | 6;
+    clients: ("claude-compatible" | "cursor" | "vscode" | "codex" | "continue")[];
+    formats: LocalClientOnboardingFormat[];
+  });
   boundaries: {
     previewOnly: boolean;
     tenantScoped: boolean;
@@ -623,7 +629,12 @@ export interface CancelGovernedLocalClientExecutionResult {
 export type LocalClientOnboardingProfileId =
   | "claude-compatible-mcp-json"
   | "cursor-mcp-json"
-  | "vscode-mcp-json";
+  | "vscode-mcp-json"
+  | "vscode-mcp-jsonc-v1"
+  | "codex-mcp-toml-v1"
+  | "continue-mcp-yaml-v1";
+
+export type LocalClientOnboardingFormat = "json-only" | "jsonc" | "toml" | "yaml";
 
 export type GovernedLocalClientOnboardingAction =
   | "enable"
@@ -633,9 +644,9 @@ export type GovernedLocalClientOnboardingAction =
 
 export interface LocalClientOnboardingProfileSummary {
   profileId: LocalClientOnboardingProfileId;
-  client: "claude-compatible" | "cursor" | "vscode";
-  format: "json-only";
-  containerKey: "mcpServers" | "servers";
+  client: "claude-compatible" | "cursor" | "vscode" | "codex" | "continue";
+  format: LocalClientOnboardingFormat;
+  containerKey: "mcpServers" | "servers" | "mcp_servers";
   serverName: "unified-ai-system";
   transport: "stdio";
   backupProtection: "aes-256-gcm" | "0600-plaintext";
@@ -648,7 +659,7 @@ export interface LocalClientOnboardingVerificationResult {
   profileId: LocalClientOnboardingProfileId;
   installed: boolean;
   state: "exact" | "absent" | "different";
-  format: "json-only";
+  format: LocalClientOnboardingFormat;
   certificationStatus: "fixture-tested-not-real-client-certified";
   redacted: true;
 }
@@ -699,7 +710,7 @@ export interface LocalClientOnboardingApplyReceipt {
   planId: string;
   transaction: LocalClientOnboardingConfigApplyReceipt;
   receiptDigest: string;
-  format: "json-only";
+  format: LocalClientOnboardingFormat;
   certificationStatus: "fixture-tested-not-real-client-certified";
   redacted: true;
 }
@@ -710,7 +721,7 @@ export interface LocalClientOnboardingRollbackReceipt {
   action: "enable" | "disable";
   planId: string;
   transaction: LocalClientOnboardingConfigRollbackReceipt;
-  format: "json-only";
+  format: LocalClientOnboardingFormat;
   certificationStatus: "fixture-tested-not-real-client-certified";
   redacted: true;
 }
@@ -729,7 +740,7 @@ export interface LocalClientOnboardingRecoveryReceipt {
   recoveryVersion: "local-client-onboarding-recovery-v1";
   profileId: LocalClientOnboardingProfileId;
   transaction: LocalClientOnboardingConfigRecoveryReceipt;
-  format: "json-only";
+  format: LocalClientOnboardingFormat;
   certificationStatus: "fixture-tested-not-real-client-certified";
   redacted: true;
 }

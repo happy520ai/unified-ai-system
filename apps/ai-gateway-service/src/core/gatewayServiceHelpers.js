@@ -1,5 +1,6 @@
 import { createRequestId } from "@unified-ai-system/shared-utils";
 import { createPinoLogger } from "../logging/pinoLogger.js";
+import { readContextCodecReport } from "../gateway/contextCodecRuntime.ts";
 
 const gatewayLogger = createPinoLogger({ app: "ai-gateway-service", level: "info" });
 
@@ -96,6 +97,7 @@ export function createGatewayResponse(request, selection, providerResult, starte
       trace,
       warnings,
       rawProviderMeta: providerResult.raw,
+      ...(readContextCodecReport(request) ? { contextCodec: readContextCodecReport(request) } : {}),
     },
   };
 }
@@ -149,6 +151,8 @@ export function createStreamEvent(type, { request, selection, startedAt, outputT
       providerMode: runtimeConfig?.providerMode ?? "unknown",
       realProviderEnabled: runtimeConfig?.realProviderEnabled ?? false,
       durationMs: Date.now() - startedAt,
+      ...((type === "start" || type === "done") && readContextCodecReport(request)
+        ? { contextCodec: readContextCodecReport(request) } : {}),
     },
   };
 }

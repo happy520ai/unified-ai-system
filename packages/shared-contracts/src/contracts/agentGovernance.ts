@@ -1,5 +1,7 @@
 import type { ContractMetadata, ResultEnvelope } from "./common.js";
 import type { RiskLevel } from "./governance.js";
+import type { ProviderTarget } from "./routing.js";
+import type { WorkforceCodeDeliveryReview, WorkforceRoleExecutionProfile, WorkforceSelectionDecision, WorkforceWorkflowHandoffReview, WorkforceConsensusReview, WorkforceExternalRunnerReview } from "./workforce.js";
 
 /**
  * Agent Governance contracts.
@@ -346,11 +348,42 @@ export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED" | "EXPIRED" | "
  * remain inside the authenticated encrypted execution envelope. Any external
  * text that will actually be published must be present here in full.
  */
+export interface ForgeWebTaskReview {
+  readonly profile: Readonly<{
+    id: string;
+    tenantId: string;
+    origin: string;
+    startPath: string;
+    searchPath: string;
+    detailPath: string;
+    targets: Readonly<Record<"query" | "search" | "details" | "result", string>>;
+    browserChannel?: "chrome" | "msedge";
+    maxSteps: number;
+    timeoutMs: number;
+  }>;
+  readonly profileHash: string;
+  readonly itemId: string;
+  readonly expectedText: string;
+}
+
 export interface AgentToolApprovalReview {
   schemaVersion: 1;
   reviewable: boolean;
   effectType: string;
   policyHash: string;
+  /** Complete frozen task and plan; the Agent runtime revalidates both before consuming this approval. */
+  agentTask?: {
+    taskId: string;
+    agentRunId: string;
+    review: Readonly<Record<string, unknown>>;
+    plan: Readonly<Record<string, unknown>>;
+  };
+  taiji?: {
+    operation: "evaluate" | "activate" | "execute" | "repair" | "reweight" | "prune";
+    params: ContractMetadata;
+    paramsHash: string;
+    effect: string;
+  };
   unavailableReason?: string;
   repository?: {
     displayName: string;
@@ -412,6 +445,11 @@ export interface AgentToolApprovalReview {
         maxMinutes?: number;
       };
       checkpointAfter?: string[];
+      /** Complete server-resolved profile and exact expected result, sealed with the goal. */
+      webTask?: ForgeWebTaskReview;
+      /** Optional exact model selection, sealed with the same operator approval. */
+      modelSelection?: Readonly<ProviderTarget>;
+      maxOutputTokens?: number;
     };
   };
   workforce?: {
@@ -427,7 +465,33 @@ export interface AgentToolApprovalReview {
     options: {
       selectedRoleCount: number | null;
       templateSelected: boolean;
+      /** Absent preserves the original template approval; present is fully reviewed and sealed. */
+      roleExecution?: WorkforceRoleExecutionProfile;
+      /** Complete server-selected v1 decision, bound to the same sealed profile and approval. */
+      selectionReview?: WorkforceSelectionDecision;
+      /** Complete reviewed intent; no executable code approval is issued before its runtime exists. */
+      codeDelivery?: WorkforceCodeDeliveryReview;
+      workflowHandoff?: WorkforceWorkflowHandoffReview;
+      consensusReview?: WorkforceConsensusReview;
+      externalRunner?: WorkforceExternalRunnerReview;
     };
+  };
+  workflow?: {
+    workflowId: string;
+    inputHash: string;
+    subjectFingerprint: string;
+    target: {
+      scope: "managed-workflow-output";
+      tenantPartition: string;
+      fileName: string;
+      rootFingerprint: string;
+      fingerprint: string;
+    };
+    /** Complete bounded UTF-8 Markdown. Unsafe or omitted text is unreviewable. */
+    content: string;
+    contentHash: string;
+    contentBytes: number;
+    writeMode: "exclusive-no-overwrite";
   };
 }
 

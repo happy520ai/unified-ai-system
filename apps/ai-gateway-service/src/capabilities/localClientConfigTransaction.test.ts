@@ -716,6 +716,258 @@ describe("local client JSON config transaction engine", () => {
       code: "LOCAL_CLIENT_CONFIG_JOURNAL_CAPACITY",
     });
   });
+
+  it.each(["", '# retained\r\nmodel = "original-model"\r\n[mcp_servers.other]\r\ncommand = "unchanged"'])
+  ("applies TOML with format-bound encryption and exact restart rollback: %j", async (source) => {
+    const original = Buffer.from(source);
+    await writeFile(targetPath, original);
+    const options = { format: "toml", backupEncryptionKey: Buffer.alloc(32, 0x65) };
+    const engine = await openEngine(options);
+    const legacy = await openEngine();
+    const jsonc = await openEngine({ format: "jsonc" });
+    expect(new Set([engine, legacy, jsonc].map(item => item.getStatus().targetFingerprint)).size).toBe(3);
+    await Promise.all([legacy.close(), jsonc.close()]);
+    const plan = await engine.plan({ operations: [{ op: "set", path: ["mcp_servers", "unified-ai-system"], value: { command: "node", args: [] } }] });
+    expect(await readFile(targetPath)).toEqual(original);
+    expect(await exists(journalPath)).toBe(false);
+    const receipt = await engine.apply({ planId: plan.planId });
+    const enabled = await readFile(targetPath);
+    expect(enabled.toString()).toBe(source + (source ? '\r\n' : '') + '[mcp_servers."unified-ai-system"]' + (source ? '\r\n' : '\n') + 'command = "node"' + (source ? '\r\n' : '\n') + 'args = []');
+    expect(sha256(enabled)).toBe(plan.afterSha256);
+    const journal = await readJournal(journalPath);
+    expect(journal.journalVersion).toBe("local-client-config-journal-codex-toml-v1");
+    const backup = await readFile(join(backupDir, journal.entries[0].backupFileName), "utf8");
+    expect(JSON.parse(backup).algorithm).toBe("aes-256-gcm");
+    expect(backup).not.toContain("original-model");
+    await engine.close();
+    for (const format of ["json-only", "jsonc"]) {
+      const wrong = await openEngine({ format });
+      expect(wrong.getStatus()).toMatchObject({ journalCorrupt: true, recoveryRequired: true });
+      await wrong.close();
+    }
+    expect(await readJournal(journalPath)).toEqual(journal);
+    const wrongKey = await openEngine({ ...options, backupEncryptionKey: Buffer.alloc(32, 0x66) });
+    await expect(wrongKey.rollback({ receipt })).rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_BACKUP_INVALID" });
+    await wrongKey.close();
+    const restarted = await openEngine(options);
+    await expect(restarted.rollback({ receipt: { ...receipt, targetFingerprint: "0".repeat(64) } })).rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_RECEIPT_INVALID" });
+    await restarted.rollback({ receipt });
+    expect(await readFile(targetPath)).toEqual(original);
+    await expect(restarted.rollback({ receipt })).rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_RECEIPT_INVALID" });
+    await restarted.close();
+  });
+
+  it("recovers TOML pending publication and refuses to overwrite unknown target content", async () => {
+    const original = Buffer.from('# recovery original\nmodel = "preserved"\n');
+    await writeFile(targetPath, original);
+    const options = { format: "toml", backupEncryptionKey: Buffer.alloc(32, 0x66) };
+    const engine = await openEngine(options);
+    const plan = await engine.plan({ operations: [{ op: "set", path: ["mcp_servers", "unified-ai-system"], value: { command: "node" } }] });
+    const receipt = await engine.apply({ planId: plan.planId });
+    const enabled = await readFile(targetPath);
+    const journal = await readJournal(journalPath);
+    makeApplyPending(journal.entries[0]);
+    await writeJournal(journalPath, journal);
+    await engine.close();
+    const restarted = await openEngine(options);
+    expect(restarted.getStatus().recoveryRequired).toBe(true);
+    await writeFile(targetPath, '# externally replaced\nmodel = "unknown"\n');
+    const changed = await readFile(targetPath);
+    await expect(restarted.recover({ transactionId: receipt.transactionId })).rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_RECOVERY_AMBIGUOUS" });
+    expect(await readFile(targetPath)).toEqual(changed);
+    expect(await readJournal(journalPath)).toEqual(journal);
+    await writeFile(targetPath, enabled);
+    const recovered = await restarted.recover({ transactionId: receipt.transactionId });
+    expect(recovered).toMatchObject({ resolution: "apply-committed", currentSha256: plan.afterSha256 });
+    expect(await readFile(targetPath)).toEqual(enabled);
+    await restarted.rollback({ receipt: recovered.applyReceipt! });
+    expect(await readFile(targetPath)).toEqual(original);
+    await restarted.close();
+  });
+
+  it("rejects unsupported TOML operations and byte budgets before publication, then detects target identity changes", async () => {
+    await expect(openEngine({ format: "toml", maxBytes: 65_537 })).rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_CONFIGURATION_INVALID" });
+    const engine = await openEngine({ format: "toml" });
+    const operation = { operations: [{ op: "set" as const, path: ["mcp_servers", "unified-ai-system"], value: { command: "node" } }] };
+    for (const text of ['model = "a"\nmodel = "b"', '[mcp_servers.unified_ai_system]\ncommand = "legacy"', '[mcp_servers."unified-ai-system"]\nenv = {}']) {
+      await writeFile(targetPath, text);
+      await expect(engine.plan(operation)).rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_TOML_INVALID" });
+      expect(await exists(journalPath)).toBe(false);
+      expect(await exists(backupDir)).toBe(false);
+    }
+    await writeFile(targetPath, "#".repeat(65_537));
+    await expect(engine.plan(operation)).rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_TOO_LARGE" });
+    await writeFile(targetPath, 'model = "protected"\n');
+    await expect(engine.plan({ operations: [{ op: "set", path: ["model"], value: "rejected" }] })).rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_TOML_INVALID" });
+    const plan = await engine.plan(operation);
+    const original = await readFile(targetPath);
+    await rm(targetPath);
+    await writeFile(targetPath, original);
+    await expect(engine.apply({ planId: plan.planId })).rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_TARGET_CHANGED" });
+    expect(await readFile(targetPath)).toEqual(original);
+    await engine.close();
+  });
+
+  it("applies YAML with an independent format domain, encrypted original and exact restart rollback", async () => {
+    const original = Buffer.from('\ufeffname: Fixture\r\nversion: "1"\r\nschema: v1\r\nmcpServers:\r\n  - {name: other, command: untouched}\r\n');
+    await writeFile(targetPath, original);
+    const options = { format: "yaml", backupEncryptionKey: Buffer.alloc(32, 0x6a) };
+    const engine = await openEngine(options);
+    const others = await Promise.all(["json-only", "jsonc", "toml"].map(format => openEngine({ format })));
+    expect(new Set([engine, ...others].map(item => item.getStatus().targetFingerprint)).size).toBe(4);
+    await Promise.all(others.map(item => item.close()));
+    expect(engine.getStatus()).toMatchObject({ format: "yaml", boundaries: { yamlSupported: true } });
+    const plan = await engine.plan({ operations: [{ op: "set", path: ["mcpServers"], value: [
+      { name: "other", command: "untouched" }, { name: "unified-ai-system", command: "node", args: [] },
+    ] }] });
+    expect(await readFile(targetPath)).toEqual(original); expect(await exists(journalPath)).toBe(false);
+    const receipt = await engine.apply({ planId: plan.planId });
+    const modified = await readFile(targetPath);
+    expect(modified.toString()).toBe(original.toString() + '  - {"name":"unified-ai-system","command":"node","args":[]}\r\n');
+    expect(sha256(modified)).toBe(plan.afterSha256);
+    const journal = await readJournal(journalPath);
+    expect(journal.journalVersion).toBe("local-client-config-journal-continue-yaml-v1");
+    const encrypted = await readFile(join(backupDir, journal.entries[0].backupFileName), "utf8");
+    expect(JSON.parse(encrypted).algorithm).toBe("aes-256-gcm"); expect(encrypted).not.toContain("untouched");
+    await engine.close();
+    for (const format of ["json-only", "jsonc", "toml"]) {
+      const wrong = await openEngine({ format });
+      expect(wrong.getStatus()).toMatchObject({ journalCorrupt: true, recoveryRequired: true }); await wrong.close();
+    }
+    expect(await readJournal(journalPath)).toEqual(journal); expect(await readFile(targetPath)).toEqual(modified);
+    const wrongKey = await openEngine({ ...options, backupEncryptionKey: Buffer.alloc(32, 0x6b) });
+    await expect(wrongKey.rollback({ receipt })).rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_BACKUP_INVALID" }); await wrongKey.close();
+    const restarted = await openEngine(options);
+    await expect(restarted.rollback({ receipt: { ...receipt, targetFingerprint: "0".repeat(64) } })).rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_RECEIPT_INVALID" });
+    await restarted.rollback({ receipt }); expect(await readFile(targetPath)).toEqual(original); await restarted.close();
+  });
+
+  it("rejects a stale YAML list and unsupported operations before effects, retaining current sibling content", async () => {
+    await expect(openEngine({ format: "yaml", maxBytes: 65_537 })).rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_CONFIGURATION_INVALID" });
+    const engine = await openEngine({ format: "yaml" });
+    const header = 'name: Fixture\nversion: "1"\nschema: v1\n';
+    const original = header + 'mcpServers:\n  - {name: other, command: newer}\n'; await writeFile(targetPath, original);
+    await expect(engine.plan({ operations: [{ op: "set", path: ["mcpServers"], value: [
+      { name: "other", command: "stale" }, { name: "unified-ai-system", command: "node" },
+    ] }] })).rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_YAML_INVALID" });
+    await expect(engine.plan({ operations: [{ op: "set", path: ["name"], value: "replacement" }] })).rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_YAML_INVALID" });
+    expect(await readFile(targetPath, "utf8")).toBe(original); expect(await exists(backupDir)).toBe(false); expect(await exists(journalPath)).toBe(false);
+    await writeFile(targetPath, "");
+    await expect(engine.plan({ operations: [{ op: "set", path: ["mcpServers"], value: [] }] })).rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_TARGET_INVALID" });
+    await writeFile(targetPath, "#".repeat(65_537));
+    await expect(engine.plan({ operations: [{ op: "set", path: ["mcpServers"], value: [] }] })).rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_TOO_LARGE" });
+    await engine.close();
+  });
+
+  it("recovers YAML pending publication without rewriting unknown content and rolls back original bytes", async () => {
+    const original = Buffer.from('name: Recovery\nversion: "1"\nschema: v1\nmcpServers: []\n');
+    await writeFile(targetPath, original);
+    const options = { format: "yaml", backupEncryptionKey: Buffer.alloc(32, 0x6c) }; const engine = await openEngine(options);
+    const plan = await engine.plan({ operations: [{ op: "set", path: ["mcpServers"], value: [{ name: "unified-ai-system", command: "node" }] }] });
+    const receipt = await engine.apply({ planId: plan.planId }); const after = await readFile(targetPath);
+    const journal = await readJournal(journalPath); makeApplyPending(journal.entries[0]); await writeJournal(journalPath, journal); await engine.close();
+    const restarted = await openEngine(options); expect(restarted.getStatus().recoveryRequired).toBe(true);
+    const unknown = Buffer.from('name: External\nversion: "1"\nschema: v1\n'); await writeFile(targetPath, unknown);
+    await expect(restarted.recover({ transactionId: receipt.transactionId })).rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_RECOVERY_AMBIGUOUS" });
+    expect(await readFile(targetPath)).toEqual(unknown); expect(await readJournal(journalPath)).toEqual(journal);
+    await writeFile(targetPath, after); const recovered = await restarted.recover({ transactionId: receipt.transactionId });
+    expect(recovered.resolution).toBe("apply-committed"); await restarted.rollback({ receipt: recovered.applyReceipt! });
+    expect(await readFile(targetPath)).toEqual(original); await restarted.close();
+  });
+
+  it("applies JSONC with bound hashes and encrypted backup then rolls back exact bytes after restart", async () => {
+    const original = Buffer.from('\ufeff{\r\n // private-original-note\r\n "servers": {"other" : [1e2,],}, /* keep */\r\n}');
+    await writeFile(targetPath, original);
+    const options = { format: "jsonc", backupEncryptionKey: Buffer.alloc(32, 0x65) };
+    const engine = await openEngine(options);
+    expect(engine.getStatus()).toMatchObject({ format: "jsonc", boundaries: { jsoncSupported: true } });
+    const plan = await engine.plan({ operations: [{ op: "set", path: ["servers", "unified-ai-system"], value: { type: "stdio", command: "node", args: [] } }] });
+    expect(await readFile(targetPath)).toEqual(original);
+    expect(await exists(journalPath)).toBe(false);
+    const receipt = await engine.apply({ planId: plan.planId });
+    const modified = await readFile(targetPath);
+    expect(sha256(modified)).toBe(plan.afterSha256);
+    expect(receipt.beforeSha256).toBe(sha256(original));
+    expect(modified.toString()).toContain('"other" : [1e2,]');
+    expect(modified.toString()).toContain("// private-original-note\r\n");
+    const journal = await readJournal(journalPath);
+    expect(journal.journalVersion).toBe("local-client-config-journal-jsonc-v1");
+    const encrypted = await readFile(join(backupDir, journal.entries[0].backupFileName), "utf8");
+    expect(JSON.parse(encrypted).algorithm).toBe("aes-256-gcm");
+    expect(encrypted).not.toContain("private-original-note");
+    await engine.close();
+    const restarted = await openEngine(options);
+    clockMs += 1;
+    await restarted.rollback({ receipt });
+    expect(await readFile(targetPath)).toEqual(original);
+    await expect(restarted.rollback({ receipt })).rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_RECEIPT_INVALID" });
+    await restarted.close();
+  });
+
+  it("domain-separates JSONC plans and refuses interpreting either format's journal as the other", async () => {
+    const legacy = await openEngine();
+    const jsonc = await openEngine({ format: "jsonc" });
+    const operation = { operations: [{ op: "set" as const, path: ["managed"], value: true }] };
+    const oldPlan = await legacy.plan(operation);
+    const newPlan = await jsonc.plan(operation);
+    expect(newPlan.targetFingerprint).not.toBe(oldPlan.targetFingerprint);
+    expect(newPlan.planId).not.toBe(oldPlan.planId);
+    await jsonc.apply({ planId: newPlan.planId });
+    const beforeJournal = await readFile(journalPath);
+    const beforeTarget = await readFile(targetPath);
+    const wrongReader = await openEngine();
+    expect(wrongReader.getStatus()).toMatchObject({ journalCorrupt: true, recoveryRequired: true });
+    await expect(legacy.apply({ planId: oldPlan.planId })).rejects.toBeDefined();
+    expect(await readFile(journalPath)).toEqual(beforeJournal);
+    expect(await readFile(targetPath)).toEqual(beforeTarget);
+    await Promise.all([legacy.close(), jsonc.close(), wrongReader.close()]);
+    const legacyJournalPath = join(root, "legacy-journal.json");
+    const legacyWriter = await openEngine({ journalPath: legacyJournalPath });
+    const anotherPlan = await legacyWriter.plan({ operations: [{ op: "set", path: ["legacy"], value: true }] });
+    await legacyWriter.apply({ planId: anotherPlan.planId });
+    const wrongJsoncReader = await openEngine({ format: "jsonc", journalPath: legacyJournalPath });
+    expect(wrongJsoncReader.getStatus()).toMatchObject({ journalCorrupt: true, recoveryRequired: true });
+    await Promise.all([legacyWriter.close(), wrongJsoncReader.close()]);
+  });
+
+  it("recovers JSONC pending publication using encrypted original bytes and retains exact rollback", async () => {
+    const original = Buffer.from('{ /* retained */ "servers":{}, "unmanaged" : 1e2, }\r\n');
+    await writeFile(targetPath, original);
+    const options = { format: "jsonc", backupEncryptionKey: Buffer.alloc(32, 0x66) };
+    const engine = await openEngine(options);
+    const plan = await engine.plan({ operations: [{ op: "set", path: ["servers", "unified-ai-system"], value: {} }] });
+    const receipt = await engine.apply({ planId: plan.planId });
+    const journal = await readJournal(journalPath);
+    makeApplyPending(journal.entries[0]);
+    await writeJournal(journalPath, journal);
+    await engine.close();
+    const restarted = await openEngine(options);
+    expect(restarted.getStatus().recoveryRequired).toBe(true);
+    const recovery = await restarted.recover({ transactionId: receipt.transactionId });
+    expect(recovery).toMatchObject({ resolution: "apply-committed", currentSha256: plan.afterSha256 });
+    expect(recovery.applyReceipt).not.toBeNull();
+    await restarted.rollback({ receipt: recovery.applyReceipt! });
+    expect(await readFile(targetPath)).toEqual(original);
+    await restarted.close();
+  });
+
+  it("rejects ambiguous JSONC before backups and detects exact target replacement after a valid plan", async () => {
+    const engine = await openEngine({ format: "jsonc" });
+    await writeFile(targetPath, '{"servers":{},"ser\\u0076ers":{}}');
+    await expect(engine.plan({ operations: [{ op: "set", path: ["managed"], value: true }] }))
+      .rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_JSON_INVALID" });
+    expect(await exists(backupDir)).toBe(false);
+    expect(await exists(journalPath)).toBe(false);
+    const original = Buffer.from('{ /* preserved */ "servers":{}, }');
+    await writeFile(targetPath, original);
+    const plan = await engine.plan({ operations: [{ op: "set", path: ["managed"], value: true }] });
+    await rm(targetPath);
+    await writeFile(targetPath, original);
+    await expect(engine.apply({ planId: plan.planId })).rejects.toMatchObject({ code: "LOCAL_CLIENT_CONFIG_TARGET_CHANGED" });
+    expect(await readFile(targetPath)).toEqual(original);
+    expect(await exists(backupDir)).toBe(false);
+    await engine.close();
+  });
 });
 
 function fixtureConfig(): string {

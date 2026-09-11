@@ -3,7 +3,7 @@
  * Core execution flow for a single worker task
  */
 
-import { CODE_MUTATING_TYPES } from './constants.js';
+import { CODE_MUTATING_TYPES, governedPoolError } from './constants.js';
 import { releaseFileLocks } from './file-locks.js';
 import { runAutoVerification, runSelfLoopDecision } from './worker-verification.js';
 import { handleTaskFailure, handleWorkerException } from './worker-failure.js';
@@ -19,6 +19,17 @@ import { handleTaskFailure, handleWorkerException } from './worker-failure.js';
  * @param {object} callbacks - { cleanupAssignmentFn, enqueueNewlyReadyTasksFn, checkGoalCompletionFn, processQueueFn }
  */
 export async function executeWorker(s, assignmentId, entry, worker, task, callbacks) {
+  if (s.governedChunkExecutor) {
+    const assignment = s.activeWorkers.get(assignmentId), tracker = s.goalTrackers.get(entry.goalId);
+    if (!assignment || !tracker?.admitted || assignment.goalId !== tracker.goalId) throw governedPoolError('ASSIGNMENT_UNKNOWN');
+    if (tracker.control !== 'run' || s.shuttingDown || assignment.abortController.signal.aborted) {
+      return { goalId: assignment.goalId, taskId: assignment.taskId, bindingHash: assignment.goal.bindingHash,
+        revision: assignment.goal.revision, status: tracker.control === 'cancel' ? 'cancelled' : 'paused' };
+    }
+    assignment.dispatched = true;
+    return s.governedChunkExecutor.executeChunk(Object.freeze({ goal: assignment.goal, assignmentId,
+      signal: assignment.abortController.signal }));
+  }
   const { goalId, userId } = entry;
   const tracker = s.goalTrackers.get(goalId);
   let result;

@@ -1,7 +1,9 @@
 // Deep Polish Batch 14 — 8 fixes, 8 test suites
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { join } from "path";
+import { mkdtemp, realpath, rm, truncate, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "path";
 import { fileURLToPath } from "node:url";
 import { createSourceReader } from "./helpers/source-closure.js";
 
@@ -109,9 +111,37 @@ describe("Batch14 Fix4: agenticCodingLoop checkpoint size limit", () => {
     assert.ok(src.includes("stat(checkpointPath)"), "should stat the checkpoint file");
   });
 
-  it("rejects checkpoint if file too large", () => {
-    assert.ok(src.includes("checkpoint rejected"), "should log rejection");
-    assert.ok(src.includes("File too large"), "should mention file too large");
+  it("rejects an oversized checkpoint before Provider or tool execution", async (context) => {
+    const { createAgenticLoop } = await import("../../../apps/ai-gateway-service/src/agentic/agenticCodingLoop.js");
+    const base = await realpath(tmpdir());
+    const root = await mkdtemp(join(base, "batch14-checkpoint-"));
+    context.after(async () => {
+      assert.equal(await realpath(root), root);
+      assert.equal(dirname(root), base);
+      assert.ok(root.startsWith(join(base, "batch14-checkpoint-")));
+      await rm(root, { recursive: true, force: false });
+    });
+    const checkpointPath = join(root, "checkpoint-11111111-1111-4111-8111-111111111111.json");
+    await writeFile(checkpointPath, "not valid JSON");
+    await truncate(checkpointPath, 10 * 1024 * 1024 + 1);
+    let providerCalls = 0, toolCalls = 0;
+    const loop = createAgenticLoop({
+      workingDirectory: root,
+      checkpointDir: root,
+      memoryDir: join(root, "memory"),
+      sessionStoreDir: join(root, "sessions"),
+      providerAdapter: { generate: async () => { providerCalls++; return { text: "Unexpected execution" }; } },
+      toolRegistry: {
+        listTools: () => [],
+        executeTool: async () => { toolCalls++; return { status: "success" }; },
+      },
+    });
+
+    await assert.rejects(loop.execute({ goal: "Resume the saved task", resumeFromCheckpoint: checkpointPath }), {
+      code: "CHECKPOINT_SIZE_REJECTED",
+    });
+    assert.equal(providerCalls, 0);
+    assert.equal(toolCalls, 0);
   });
 
   it("parses JSON only after the size check", () => {

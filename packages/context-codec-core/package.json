@@ -8,8 +8,12 @@
     ".": "./src/index.js"
   },
   "scripts": {
-    "check": "node --no-warnings --experimental-vm-modules ../../tools/check-package-source-syntax.mjs src && node ./test/context-codec-core.test.js",
+    "check": "node --no-warnings --experimental-vm-modules ../../tools/check-package-source-syntax.mjs src && node --check ./src/runtimeContextCodec.ts && pnpm test",
     "build": "pnpm check",
-    "test": "node ./test/context-codec-core.test.js"
+    "test": "node ./test/context-codec-core.test.js && node --test ./src/runtimeContextCodec.test.ts"
+  },
+  "dependencies": {
+    "jsonc-parser": "3.3.1",
+    "yaml": "2.9.0"
   }
 }

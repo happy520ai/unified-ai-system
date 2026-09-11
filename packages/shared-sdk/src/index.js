@@ -511,6 +511,70 @@ async function createLocalClientReceiptlessReconciliationResponse(options, state
   }
 }
 
+function requireWorkflowRunId(value) {
+  if (typeof value !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$/.test(value)) {
+    throw createGatewayProtocolError("Workflow ID must be a bounded portable identifier.");
+  }
+  return value;
+}
+
+function requireWorkforceRecordId(value) {
+  if (typeof value !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,511}$/u.test(value)) {
+    throw createGatewayProtocolError("Workforce record ID must be a bounded portable identifier.");
+  }
+  return value;
+}
+
+function workforceRecoveryRequest(value, keys = ["executionId", "taskId", "workflowId"]) {
+  if (!value || typeof value !== "object" || Array.isArray(value) || ![Object.prototype, null].includes(Object.getPrototypeOf(value))
+    || Reflect.ownKeys(value).length !== keys.length) throw createGatewayProtocolError("Recovery requires only the three original record IDs.");
+  return Object.fromEntries(keys.map(key => {
+    const field = Object.getOwnPropertyDescriptor(value, key);
+    if (!field || !("value" in field) || !field.enumerable) throw createGatewayProtocolError("Recovery IDs must be plain data.");
+    return [key, requireWorkforceRecordId(field.value)];
+  }));
+}
+
+function workforceExecutionRequest(value) {
+  const allowed = ["goal", "agentId", "planId", "autonomyMode", "selectedRoles", "selectedTemplate", "templateId", "clarificationAnswers",
+    "context", "metadata", "operationId", "operationType", "externalRunner", "codeDelivery", "workflowHandoff", "consensusReview"];
+  const invalid = () => { throw createGatewayProtocolError("Workforce execution accepts reviewed intent and profile selectors, not native settings or model overrides."); };
+  let nodes = 0, chars = 0;
+  const seen = new WeakSet();
+  const inspect = (item, depth = 0) => {
+    if (++nodes > 20000 || depth > 16) invalid();
+    if (typeof item === "string") { chars += item.length; if (chars > 1048576) invalid(); return; }
+    if (item === null || typeof item === "boolean" || typeof item === "number" && Number.isFinite(item)) return;
+    if (!item || typeof item !== "object" || seen.has(item)) invalid();
+    seen.add(item);
+    const array = Array.isArray(item), keys = Reflect.ownKeys(item);
+    if (array ? Object.getPrototypeOf(item) !== Array.prototype || keys.length !== item.length + 1
+      : ![Object.prototype, null].includes(Object.getPrototypeOf(item))) invalid();
+    for (const key of keys) {
+      if (array && key === "length") continue;
+      const field = Object.getOwnPropertyDescriptor(item, key);
+      if (typeof key !== "string" || array && (!/^(0|[1-9][0-9]*)$/u.test(key) || Number(key) >= item.length)
+        || ["__proto__", "prototype", "constructor"].includes(key) || !field?.enumerable || !("value" in field)) invalid();
+      inspect(field.value, depth + 1);
+    }
+    seen.delete(item);
+  };
+  inspect(value);
+  if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).some(key => !allowed.includes(key))
+    || typeof value.goal !== "string" || !value.goal.trim() || value.goal.length > 4000
+    || value.agentId !== undefined && (typeof value.agentId !== "string" || !/^agt_[A-Za-z0-9_-]{1,128}$/u.test(value.agentId))
+    || value.planId !== undefined && (typeof value.planId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/u.test(value.planId))
+    || value.autonomyMode !== undefined && !["dry-run", "controlled-execution", "sandbox-merge", "sandbox-merge-auto"].includes(value.autonomyMode)) invalid();
+  if (Object.hasOwn(value, "externalRunner")) {
+    const selector = value.externalRunner;
+    if (!selector || typeof selector !== "object" || Array.isArray(selector) || Object.keys(selector).join() !== "profileId"
+      || typeof selector.profileId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u.test(selector.profileId)
+      || !value.agentId || ["codeDelivery", "workflowHandoff", "consensusReview"].some(key => Object.hasOwn(value, key))
+      || value.autonomyMode !== undefined && !["dry-run", "controlled-execution"].includes(value.autonomyMode)) invalid();
+  }
+  return JSON.parse(JSON.stringify(value));
+}
+
 export function createGatewayClient(options = {}) {
   const baseUrl = normalizeBaseUrl(options.baseUrl);
   const headers = options.headers ?? {};
@@ -521,6 +585,15 @@ export function createGatewayClient(options = {}) {
     requestJsonImpl({ baseUrl, headers, timeoutMs, signal, ...requestOptions });
   const requestSse = (requestOptions) =>
     requestSseImpl({ baseUrl, headers, timeoutMs, signal, ...requestOptions });
+  const operatorPost = async (path, body, providerOperation = false) => {
+    const prepared = providerOperation ? prepareProviderRequest(body, headers, providerDispatchKeyFactory) : { body, headers };
+    try {
+      return await requestJson({ path, method: "POST", body: prepared.body, headers: prepared.headers, redirect: "error" });
+    } catch (error) {
+      if (error instanceof GatewayClientError) error.retryable = false;
+      throw error;
+    }
+  };
 
   return {
     baseUrl,
@@ -546,6 +619,17 @@ export function createGatewayClient(options = {}) {
         path: "/local-clients/status",
         headers,
         timeoutMs,
+      });
+    },
+    clearRuntimeProviderCredential(request) {
+      if (!request || typeof request !== "object" || Array.isArray(request)
+        || Object.keys(request).length !== 1 || typeof request.providerId !== "string"
+        || !/^[a-z][a-z0-9._-]{0,127}$/.test(request.providerId)) {
+        throw createGatewayProtocolError("Credential clearing requires exactly one canonical providerId.");
+      }
+      return requestJson({
+        path: "/providers/runtime-credential", method: "DELETE", body: { providerId: request.providerId },
+        redirect: "error",
       });
     },
     localClients(options = {}) {
@@ -828,6 +912,7 @@ export function createGatewayClient(options = {}) {
         body: prepared.body,
         headers: prepared.headers,
         timeoutMs,
+        redirect: request?.contextCodec === undefined ? "follow" : "error",
       });
     },
     managedLocalClientChat(request, proofOptions) {
@@ -861,6 +946,7 @@ export function createGatewayClient(options = {}) {
         body: prepared.body,
         headers: prepared.headers,
         timeoutMs,
+        redirect: request?.contextCodec === undefined ? "follow" : "error",
       });
     },
     knowledgeRetrieve(request) {
@@ -871,17 +957,68 @@ export function createGatewayClient(options = {}) {
         body: request,
         headers,
         timeoutMs,
+        redirect: "error",
       });
     },
+    knowledgeHealth() { return requestJson({ path: "/knowledge/health", redirect: "error" }); },
+    knowledgeSources() { return requestJson({ path: "/knowledge/sources", redirect: "error" }); },
+    routeModes() { return requestJson({ path: "/route/modes", redirect: "error" }); },
+    routingPreview(kind, request) {
+      if (kind !== "answer-path" && kind !== "quality-cost") throw createProviderKeyConfigurationError("Unsupported routing preview kind.");
+      return requestJson({ path: `/routing/${kind}/preview`, method: "POST", body: request, redirect: "error" });
+    },
+    forgeStatus() { return requestJson({ path: "/forge/status", redirect: "error" }); },
+    forgeRuns() { return requestJson({ path: "/forge/runs", redirect: "error" }); },
+    forgePolish(request) { return operatorPost("/forge/polish", request, true); },
+    forgeQuality(request) { return operatorPost("/forge/quality", request); },
+    forgeRemember(request) { return operatorPost("/forge/memory", { ...request, action: "remember" }); },
+    forgeRecall(request) { return requestJson({ path: "/forge/memory", method: "POST", body: { ...request, action: "recall" }, redirect: "error" }); },
+    forgeOrchestrate(request) { return operatorPost("/forge/orchestrate", request, true); },
+    taijiCompile(request) { return operatorPost("/taiji/compile", request); },
+    taijiCapabilities(agentId, options = {}) {
+      if (typeof agentId !== "string" || !/^agt_[A-Za-z0-9_-]{1,128}$/.test(agentId)) throw createProviderKeyConfigurationError("A root Agent ID is required.");
+      const query = new URLSearchParams({ agentId });
+      for (const [name, min, max] of [["limit", 1, 100], ["offset", 0, 1000]]) {
+        if (options[name] !== undefined) {
+          if (!Number.isSafeInteger(options[name]) || options[name] < min || options[name] > max) throw createProviderKeyConfigurationError("Invalid capability pagination.");
+          query.set(name, String(options[name]));
+        }
+      }
+      return requestJson({ path: `/taiji/capabilities?${query}`, redirect: "error" });
+    },
+    taijiCapabilityRun(agentId, runId) {
+      if (typeof agentId !== "string" || !/^agt_[A-Za-z0-9_-]{1,128}$/.test(agentId)
+        || typeof runId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(runId)) throw createProviderKeyConfigurationError("Bounded Agent and run IDs are required.");
+      return requestJson({ path: `/taiji/capabilities/runs/${encodeURIComponent(runId)}?agentId=${encodeURIComponent(agentId)}`, redirect: "error" });
+    },
+    evaluateTaijiCapability(request) { return operatorPost("/taiji/capabilities/evaluate", request); },
+    activateTaijiCapability(request) { return operatorPost("/taiji/capabilities/activate", request); },
+    executeTaijiCapability(request) { return operatorPost("/taiji/capabilities/execute", request); },
+    revokeTaijiCapability(request) { return operatorPost("/taiji/capabilities/revoke", request); },
+    repairTaijiCapability(request) { return operatorPost("/taiji/capabilities/repair", request); },
+    reweightTaijiCapability(request) { return operatorPost("/taiji/capabilities/reweight", request); },
+    pruneTaijiCapability(request) { return operatorPost("/taiji/capabilities/prune", request); },
+    workforcePreview(request) { return operatorPost("/workforce/preview", request); },
+    connectors() {
+      return requestJson({ path: "/connectors", redirect: "error" });
+    },
+    async sendConnectorMessage(connectorId, request, executionOptions) {
+      if (connectorId !== "feishu" && connectorId !== "wecom") throw createProviderKeyConfigurationError("Unsupported IM connector.");
+      if (Object.keys(headers).some(name => name.toLowerCase() === "external-effect-key")) {
+        throw createProviderKeyConfigurationError("Set the IM operation key through send options, not shared headers.");
+      }
+      const keyedHeaders = prepareRequiredIdempotencyHeaders(headers, { idempotencyKey: executionOptions?.externalEffectKey }, "IM message send");
+      const { "idempotency-key": operationKey, ...otherHeaders } = keyedHeaders;
+      try {
+        return await requestJson({ path: `/connectors/${connectorId}/send`, method: "POST", body: request,
+          headers: { ...otherHeaders, "external-effect-key": operationKey }, redirect: "error" });
+      } catch (error) {
+        if (error instanceof GatewayClientError) error.retryable = false;
+        throw error;
+      }
+    },
     knowledgeLoad(request) {
-      return requestJson({
-        baseUrl,
-        path: "/knowledge/load",
-        method: "POST",
-        body: request,
-        headers,
-        timeoutMs,
-      });
+      return operatorPost("/knowledge/load", request);
     },
     knowledgeInfraReadiness() {
       return requestJson({
@@ -965,6 +1102,39 @@ export function createGatewayClient(options = {}) {
         headers,
         timeoutMs,
       });
+    },
+    prepareGovernedAgentTask(agentId, request) {
+      return requestJson({ baseUrl, path: governedTaskPath(agentId), method: "POST",
+        body: governedTaskBody(request, "prepare"), headers, timeoutMs, redirect: "error" });
+    },
+    governedAgentTask(agentId, taskId) {
+      return requestJson({ baseUrl, path: governedTaskPath(agentId, taskId), headers, timeoutMs, redirect: "error" });
+    },
+    planGovernedAgentTask(agentId, taskId, request) {
+      const prepared = prepareProviderRequest(governedTaskBody(request, "plan"), headers, providerDispatchKeyFactory);
+      return requestJson({ baseUrl, path: governedTaskPath(agentId, taskId) + "/plan", method: "POST",
+        body: prepared.body, headers: prepared.headers, timeoutMs, redirect: "error" });
+    },
+    confirmGovernedAgentTask(agentId, taskId, request) {
+      return requestJson({ baseUrl, path: governedTaskPath(agentId, taskId) + "/confirm", method: "POST",
+        body: governedTaskBody(request, "confirm"), headers, timeoutMs, redirect: "error" });
+    },
+    runGovernedAgentTask(agentId, taskId, request) {
+      const prepared = prepareProviderRequest(governedTaskBody(request, "run"), headers, providerDispatchKeyFactory);
+      return requestJson({ baseUrl, path: governedTaskPath(agentId, taskId) + "/run", method: "POST",
+        body: prepared.body, headers: prepared.headers, timeoutMs, redirect: "error" });
+    },
+    pauseGovernedAgentTask(agentId, taskId, request) {
+      return requestJson({ baseUrl, path: governedTaskPath(agentId, taskId) + "/pause", method: "POST",
+        body: governedTaskBody(request, "pause"), headers, timeoutMs, redirect: "error" });
+    },
+    scheduleGovernedAgentTask(agentId, taskId, request) {
+      return requestJson({ baseUrl, path: governedTaskPath(agentId, taskId) + "/schedule", method: "POST",
+        body: governedTaskBody(request, "schedule"), headers, timeoutMs, redirect: "error" });
+    },
+    cancelGovernedAgentTask(agentId, taskId, request) {
+      return requestJson({ baseUrl, path: governedTaskPath(agentId, taskId) + "/cancel", method: "POST",
+        body: governedTaskBody(request, "cancel"), headers, timeoutMs, redirect: "error" });
     },
     revokeGovernedAgent(agentId, request = {}) {
       return requestJson({
@@ -1055,7 +1225,44 @@ export function createGatewayClient(options = {}) {
         body: request,
         headers,
         timeoutMs,
+        redirect: "error",
       });
+    },
+    workflowRuns(options = {}) {
+      if (!options || typeof options !== "object" || Array.isArray(options)
+        || Object.keys(options).some(key => key !== "limit")
+        || options.limit !== undefined && (!Number.isInteger(options.limit) || options.limit < 1 || options.limit > 100)) {
+        throw createGatewayProtocolError("Workflow list accepts only a limit between 1 and 100.");
+      }
+      return requestJson({ path: `/workflow/runs?limit=${options.limit ?? 50}`, redirect: "error" });
+    },
+    workflowRunStatus(workflowId) {
+      return requestJson({ path: `/workflow/runs/${encodeURIComponent(requireWorkflowRunId(workflowId))}`, redirect: "error" });
+    },
+    recoverWorkflowRun(workflowId) {
+      return requestJson({
+        path: `/workflow/runs/${encodeURIComponent(requireWorkflowRunId(workflowId))}/recover`,
+        method: "POST", body: {}, redirect: "error",
+      });
+    },
+    workforceExecutionStatus(executionId) {
+      return operatorPost("/workforce/execute/status", { executionId: requireWorkforceRecordId(executionId) });
+    },
+    recoverWorkforceWorkflow(request) {
+      return operatorPost("/workforce/execute/handoff/recover", workforceRecoveryRequest(request));
+    },
+    workforceExecutionReview(request) {
+      return operatorPost("/workforce/execute/review", workforceExecutionRequest(request));
+    },
+    workforceExecute(request) {
+      return operatorPost("/workforce/execute", workforceExecutionRequest(request));
+    },
+    recoverWorkforceExternalRunner(request) {
+      const body = workforceRecoveryRequest(request, ["executionId", "operationId", "agentId"]);
+      if (!/^agt_[A-Za-z0-9_-]{1,128}$/u.test(body.agentId) || body.executionId.length > 256 || body.operationId.length > 256) {
+        throw createGatewayProtocolError("Native recovery requires the exact original execution, operation and owning Agent IDs.");
+      }
+      return operatorPost("/workforce/execute/external-runner/recover", body);
     },
     workforceHealth() {
       return requestJson({
@@ -1188,6 +1395,40 @@ function normalizeGovernanceId(value, label) {
 
 function encodeGovernancePathId(value, label) {
   return encodeURIComponent(normalizeGovernanceId(value, label));
+}
+
+function governedTaskPath(agentId, taskId) {
+  if (typeof agentId !== "string" || !/^agt_[A-Za-z0-9_-]{1,128}$/u.test(agentId)
+    || arguments.length > 1 && (typeof taskId !== "string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u.test(taskId))) {
+    throw createGatewayProtocolError("Agent tasks require the original server-issued Agent and task identifiers.");
+  }
+  return `/v1/agents/${agentId}/tasks${taskId === undefined ? "" : `/${taskId}`}`;
+}
+function governedTaskBody(value, operation) {
+  const required = operation === "prepare" ? ["goal", "prompt"] : operation === "confirm"
+    ? ["revision", "reviewHash", "planHash", "approvalId"] : ["revision"];
+  const optional = operation === "run" ? ["maxIterations", "providerDispatchKey", "idempotencyKey"]
+    : operation === "plan" ? ["providerDispatchKey", "idempotencyKey"] : operation === "prepare" ? ["projectId"] : [];
+  const invalid = () => { throw createGatewayProtocolError("Agent task request is incomplete or contains unapproved settings."); };
+  if (!value || typeof value !== "object" || ![Object.prototype, null].includes(Object.getPrototypeOf(value))) invalid();
+  const body = {};
+  for (const key of Reflect.ownKeys(value)) {
+    const property = Object.getOwnPropertyDescriptor(value, key);
+    if (typeof key !== "string" || ![...required, ...optional].includes(key) || !property?.enumerable || !("value" in property)) invalid();
+    body[key] = property.value;
+  }
+  if (required.some(key => !Object.hasOwn(body, key))) invalid();
+  if (operation === "prepare") {
+    if (typeof body.goal !== "string" || !body.goal.trim() || body.goal.length > 4000
+      || typeof body.prompt !== "string" || !body.prompt.trim() || new TextEncoder().encode(body.prompt).length > 524288) invalid();
+  } else if (!Number.isSafeInteger(body.revision) || body.revision < 0) invalid();
+  if (operation === "confirm" && (![body.reviewHash, body.planHash].every(value => typeof value === "string" && /^sha256:[a-f0-9]{64}$/u.test(value))
+    || typeof body.approvalId !== "string" || !/^[A-Za-z0-9_-]{1,160}$/u.test(body.approvalId))) invalid();
+  if (body.maxIterations !== undefined && (!Number.isSafeInteger(body.maxIterations) || body.maxIterations < 1 || body.maxIterations > 10)) invalid();
+  if (body.projectId !== undefined && (typeof body.projectId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u.test(body.projectId))) invalid();
+  for (const key of ["providerDispatchKey", "idempotencyKey"]) if (body[key] !== undefined
+    && (typeof body[key] !== "string" || !/^[\x21-\x7e]{1,255}$/u.test(body[key]))) invalid();
+  return body;
 }
 
 async function inspectLocalClientFromRegistry({
@@ -2214,12 +2455,14 @@ async function requestJsonImpl({
   headers,
   signal,
   timeoutMs,
+  redirect = /** @type {"follow" | "error" | "manual"} */ ("follow"),
 }) {
   const requestController = createRequestController({ signal, timeoutMs });
 
   try {
     const response = await fetch(`${baseUrl}${path}`, {
       method,
+      redirect,
       headers: {
         "content-type": "application/json",
         ...headers,
@@ -2288,12 +2531,14 @@ async function* requestSseImpl({
   headers,
   signal,
   timeoutMs,
+  redirect = /** @type {"follow" | "error" | "manual"} */ ("follow"),
 }) {
   const requestController = createRequestController({ signal, timeoutMs });
 
   try {
     const response = await fetch(`${baseUrl}${path}`, {
       method,
+      redirect,
       headers: {
         "content-type": "application/json",
         ...headers,

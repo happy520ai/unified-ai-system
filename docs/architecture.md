@@ -67,8 +67,10 @@ provider.
 
 The default MCP command is self-contained: it allocates a local port, starts a
 fake-provider gateway, serves the governed stdio tools, and tears the child
-process down when the host disconnects. The source build and pinned `0.5.0`
-release both expose twelve tools, including provider-free prompt enhancement. An
+process down when the host disconnects. The current source build exposes fifteen
+tools, including provider-free prompt enhancement and Agent governance queries.
+Published image tags and the working tree have separate version boundaries;
+inspect the installed image's tool list rather than inferring it from source. An
 ephemeral ten-minute least-privilege token authenticates the MCP process to its
 managed gateway and is never included in tool results. An explicit
 `AI_GATEWAY_MCP_URL` can point the server at an existing safe gateway only when
@@ -82,6 +84,14 @@ Origin allowlists before the listener starts. HTTP and stdio create servers from
 the same tool factory, so their public tool definitions cannot drift.
 
 ## Operational readiness
+
+The Workforce planner and its saved/exported packages remain non-executing
+previews. `workflowRunHandoff.js` is a claim-token-gated library implementation,
+but the production application does not construct it. Its preview status is
+`module-only`, `implemented=true`, `runtimeConnected=false`, and `enabled=false`.
+The active `/workforce/execute` route uses `workforceControlledExecutor` with its
+own approval, worktree, lifecycle and role-execution path; it is not evidence
+that the separate Workflow handoff library is connected.
 
 Gateway readiness and resilience are observable through:
 

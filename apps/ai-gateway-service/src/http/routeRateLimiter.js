@@ -28,6 +28,10 @@ const DEFAULT_ROUTE_LIMITS = Object.freeze({
   // independently from the global fallback because they can hold provider,
   // filesystem, DAG, policy-compilation, or durable-state resources.
   "/agent-exec/run": { windowMs: 60_000, maxRequests: 10 },
+  "/agent-long-tasks/prepare": { windowMs: 60_000, maxRequests: 20 },
+  "/agent-long-tasks/execute": { windowMs: 60_000, maxRequests: 10 },
+  "/agent-long-tasks/control": { windowMs: 60_000, maxRequests: 30 },
+  "/agent-long-tasks/read": { windowMs: 60_000, maxRequests: 120 },
   "/forge/orchestrate": { windowMs: 60_000, maxRequests: 5 },
   "/mcp/call": { windowMs: 60_000, maxRequests: 30 },
   "/workflow/run": { windowMs: 60_000, maxRequests: 20 },
@@ -94,6 +98,9 @@ export function createRouteRateLimiter(options = {}) {
   function getRouteLimiter(pathname, method = "GET") {
     pathname = String(pathname ?? "/").replace(/\/+$/u, "") || "/";
     method = String(method ?? "GET").toUpperCase();
+    const taskRoute = /^\/v1\/agents\/agt_[A-Za-z0-9_-]{1,128}\/tasks(?:\/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}(?:\/(plan|confirm|run|pause|cancel))?)?$/u.exec(pathname);
+    if (taskRoute) pathname = `/agent-long-tasks/${method === "GET" ? "read" : !taskRoute[1] ? "prepare"
+      : ["plan", "run"].includes(taskRoute[1]) ? "execute" : "control"}`;
     if (/^\/v1\/agents\/agt_[A-Za-z0-9_-]{1,128}\/run$/u.test(pathname)) {
       pathname = "/agent-exec/run";
     } else if (method === "POST" && pathname === "/v1/policies") {

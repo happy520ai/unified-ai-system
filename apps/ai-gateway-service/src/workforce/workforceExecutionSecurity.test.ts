@@ -207,7 +207,10 @@ describe("public workforce entrypoints", () => {
       },
     }, eventBus);
 
-    expect(workforceExecutor.execute).toHaveBeenCalledWith(expect.objectContaining({ autonomyMode: "dry-run" }));
+    expect(workforceExecutor.execute).toHaveBeenCalledWith(
+      expect.objectContaining({ autonomyMode: "dry-run" }),
+      { signal: expect.any(AbortSignal) },
+    );
     expect(gatewayService.execute).not.toHaveBeenCalled();
   });
 });

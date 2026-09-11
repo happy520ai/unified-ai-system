@@ -149,6 +149,11 @@ export class HttpLLMProviderAdapter {
         });
       }
 
+      if (providerRequest.execution?.workforceDispatchFence !== undefined) {
+        const workforceFence = await this._authorizeWorkforceDispatch(providerRequest, requestControl.signal);
+        throwIfExecutionAborted(requestControl.signal);
+        workforceFence.onDispatch();
+      }
       const response = await fetchWithAgent(destination.url, {
         method: "POST",
         headers: {
@@ -189,6 +194,15 @@ export class HttpLLMProviderAdapter {
         providerRequest,
         latencyMs: Date.now() - startedAt,
       });
+      if (providerRequest.execution?.workforceDispatchFence !== undefined) {
+        const reported = (value) => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+        const content = body?.choices?.[0]?.message?.content;
+        providerResponse.raw = { ...providerResponse.raw, workforceObservation: {
+          contentPresent: typeof content === "string" && content.trim().length > 0,
+          usageReported: { inputTokens: reported(body?.usage?.prompt_tokens),
+            outputTokens: reported(body?.usage?.completion_tokens), totalTokens: reported(body?.usage?.total_tokens) },
+        } };
+      }
 
       this._health.successfulRequests++;
       this._health.totalLatencyMs += Date.now() - requestStartedAt;
@@ -223,6 +237,10 @@ export class HttpLLMProviderAdapter {
   }
 
   async *generateStream(providerRequest) {
+    if (providerRequest.execution?.workforceDispatchFence !== undefined) {
+      throw createProviderError({ code: "WORKFORCE_PROVIDER_STREAM_UNSUPPORTED", type: "authorization",
+        message: "Workforce role contributions require the non-streaming Provider path.", retryable: false });
+    }
     if (this.modelConfig.dryRun) {
       const text = `[dry-run:${providerRequest.target.providerId}/${providerRequest.target.modelId}] streaming provider adapter reserved`;
       yield { textDelta: text, raw: { dryRun: true } };
@@ -352,11 +370,41 @@ export class HttpLLMProviderAdapter {
   }
 
   resolveRetryConfig() {
+    const maxRetries = this.options.maxRetries ?? this.modelConfig.maxRetries ?? DEFAULT_MAX_RETRIES;
+    // Historical HTTP adapter semantics: this is the total attempt count, including the first.
+    if (!Number.isSafeInteger(maxRetries) || maxRetries < 1) {
+      throw createProviderError({
+        code: `${this.errorPrefix}_RETRY_CONFIG_INVALID`,
+        type: "configuration",
+        message: "HTTP provider maxRetries must be a positive safe integer counting total attempts; use 1 for no retries.",
+        retryable: false,
+        details: { parameter: "maxRetries", minimum: 1, semantics: "total-attempts" },
+      });
+    }
     return {
-      maxRetries: this.options.maxRetries ?? this.modelConfig.maxRetries ?? DEFAULT_MAX_RETRIES,
+      maxRetries,
       baseDelayMs: this.options.retryBaseDelayMs ?? DEFAULT_RETRY_BASE_DELAY_MS,
       maxDelayMs: this.options.retryMaxDelayMs ?? DEFAULT_RETRY_MAX_DELAY_MS,
     };
+  }
+
+  async _authorizeWorkforceDispatch(providerRequest, signal) {
+    const fence = providerRequest.execution?.workforceDispatchFence;
+    if (fence === undefined) return;
+    const denied = () => createProviderError({ code: "WORKFORCE_PROVIDER_DISPATCH_DENIED", type: "authorization",
+      message: "The Workforce task claim or binding no longer authorizes Provider dispatch.", retryable: false });
+    if (!fence || typeof fence.assertActive !== "function" || typeof fence.onDispatch !== "function"
+      || fence.providerId !== providerRequest.target?.providerId || fence.modelId !== providerRequest.target?.modelId) throw denied();
+    try {
+      await fence.assertActive("commit");
+      throwIfExecutionAborted(signal);
+    } catch (error) {
+      const cancellation = findExecutionAbortError(error, signal);
+      if (cancellation) throw cancellation;
+      if (error?.category === "provider" && String(error.code).startsWith("WORKFORCE_")) throw error;
+      throw denied();
+    }
+    return fence;
   }
 
   _recordQuality(providerResponse) {

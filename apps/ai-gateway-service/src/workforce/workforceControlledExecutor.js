@@ -8,7 +8,9 @@
  * Default: dry-run mode (execution preview only).
  */
 
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { resolve } from "node:path";
+import { createRuntimeGatewayBrainAdapter } from "@unified-ai-system/employee-brain-adapter";
 
 import { createWorktreeIsolation } from "./worktreeIsolation.js";
 import { createWorkforceTaskQueueManager } from "./workforceTaskQueueFactory.ts";
@@ -24,7 +26,25 @@ import { createSandboxMergeExecutor, SANDBOX_MERGE_MODE } from "./sandboxMergeEx
 import { createDiagnosticReadChannel } from "./diagnosticReadChannel.js";
 import { AUTONOMY_MODES, DEFAULT_AUTONOMY_MODE, resolveAutonomyModeFrom } from "./autonomyModes.js";
 import { createWorkforceExecutionDescriptor } from "./workforceExecutionAuthorization.ts";
+import { readFrozenWorkforceRoleExecutionProfile } from "./workforceRoleExecutionProfile.ts";
+import { CODE_DELIVERY_READINESS, codeDeliveryError, createWorkforceCodeDeliveryReview,
+  freezeWorkforceCodeDeliveryProfile, readWorkforceCodeDeliverySelector, rejectUnimplementedCodeDelivery,
+} from "./workforceCodeDeliveryProfile.ts";
+import { assertWorkforceCodeDeliveryPreflight, createWorkforceCodeDeliveryEvidenceIndex, isWorkforceCodeDeliveryFactory, preflightWorkforceCodeDelivery,
+  runWorkforceCodeDelivery } from "./workforceCodeDeliveryRuntime.ts";
+import { createWorkforceSelectionFeedback } from "./workforceSelectionReview.ts";
+import { createWorkforceWorkflowHandoffReview } from "./workforceWorkflowHandoffProfile.ts";
+import { isWorkforceWorkflowHandoff } from "./workforceWorkflowHandoffRuntime.ts";
+import { readWorkflowHandoffMetadata, workflowHandoffError } from "./workforceWorkflowHandoffBinding.ts";
 import { executeWorkforceDag } from "./workforceDagExecutor.ts";
+import { compileConsensusReview } from "./workforceConsensusReview.ts";
+import { createWorkforceConsensusSession } from "./workforceConsensusRuntime.ts";
+import { consensusError, readWorkforceConsensusMetadata, readWorkforceConsensusReport } from "./workforceConsensusReport.ts";
+import { freezeWorkforceExternalRunnerProfile, readWorkforceExternalRunnerSelector, externalRunnerError } from "./workforceExternalRunnerProfile.ts";
+import { createExternalRunnerMetadata } from "./workforceExternalRunnerState.ts";
+import { isWorkforceExternalRunnerFactory, reviewWorkforceExternalRunner, preflightWorkforceExternalRunner,
+  assertWorkforceExternalRunnerPreflight, runWorkforceExternalRunner, readVerifiedWorkforceExternalRunnerResult,
+  recoverWorkforceExternalRunner } from "./workforceExternalRunnerRuntime.ts";
 import { createAutonomyTierGovernor, TIERS as TIER_VALUES } from "./autonomyTierGovernor.js";
 import {
   CONTROLLED_EXECUTION_PHASE,
@@ -151,7 +171,14 @@ async function reserveGovernedRoleStep(governedExecution) {
  * @param {string} [options.executionDir] — base dir for lifecycle/evidence persistence
  * @param {object} [options.env] — environment variables (defaults to process.env)
  * @param {object} [options.providerAdapter] — governed provider adapter
+ * @param {ReturnType<typeof import("./workforceRoleProvider.ts").createWorkforceRoleProviderFactory> | null} [options.roleProviderFactory] — server-owned per-run role bindings
+ * @param {ReturnType<typeof import("./workforceRoleSelection.ts").createConfiguredWorkforceRoleSelection> | null} [options.roleSelection] — explicit frozen server selection mode
  * @param {object} [options.forgeService] — optional isolated-root-aware Forge adapter
+ * @param {readonly import("@unified-ai-system/shared-contracts").WorkforceCodeDeliveryProfileInput[]} [options.codeDeliveryProfiles] — server-owned, non-executable reviewed intents
+ * @param {import("./workforceCodeDeliveryRuntime.ts").WorkforceCodeDeliveryFactory | null} [options.codeDeliveryFactory] — concrete local delivery implementation
+ * @param {readonly import("@unified-ai-system/shared-contracts").WorkforceExternalRunnerProfileInput[]} [options.externalRunnerProfiles]
+ * @param {import("./workforceExternalRunnerRuntime.ts").WorkforceExternalRunnerFactory | null} [options.externalRunnerFactory]
+ * @param {ReturnType<typeof import("./workforceWorkflowHandoffRuntime.ts").createWorkforceWorkflowHandoff> | null} [options.workflowHandoffRuntime] — concrete governed workflow implementation
  * @param {object} [options.sandboxMerger] — injected sandbox merge boundary
  * @param {object} [options.tierGovernor] — injected autonomy tier governor
  * @param {object} [options.workspaceGuard] — injected workspace safety boundary
@@ -170,6 +197,16 @@ export function createControlledExecutor(options = {}) {
   const executionEnabled = env.WORKFORCE_EXECUTION_ENABLED === "true";
   const dryRun = !executionEnabled || options.dryRun === true;
   const providerAdapter = options.providerAdapter ?? null;
+  const roleSelection = options.roleSelection ?? null;
+  const roleProviderFactory = options.roleProviderFactory ?? null;
+  const roleExecutionProfile = roleProviderFactory
+    ? readFrozenWorkforceRoleExecutionProfile(roleProviderFactory.profile) : null;
+  if (roleProviderFactory && (providerAdapter || typeof roleProviderFactory.forRun !== "function")) {
+    throw Object.assign(new Error("A single governed Workforce role factory is required."), { code: "WORKFORCE_ROLE_FACTORY_INVALID" });
+  }
+  if (roleSelection && (roleProviderFactory || providerAdapter || typeof roleSelection.resolve !== "function")) {
+    throw Object.assign(new Error("Configure exactly one Workforce selection or manual role profile."), { code: "WORKFORCE_ROLE_FACTORY_INVALID" });
+  }
   if (executionEnabled && providerAdapter && providerAdapter.governedProviderOperation !== true) {
     throw Object.assign(
       new Error("Workforce provider execution must re-enter the governed GatewayService provider-operation lane."),
@@ -177,6 +214,33 @@ export function createControlledExecutor(options = {}) {
     );
   }
   const forgeService = options.forgeService ?? null;
+  const codeDeliveryFactory = options.codeDeliveryFactory ?? null;
+  const externalRunnerFactory = options.externalRunnerFactory ?? null;
+  const externalRunnerProfiles = new Map();
+  if (!Array.isArray(options.externalRunnerProfiles ?? []) || (options.externalRunnerProfiles ?? []).length > 16) {
+    throw externalRunnerError("WORKFORCE_EXTERNAL_RUNNER_CONFIGURATION_INVALID", "At most sixteen native runner profiles may be configured.", 503);
+  }
+  for (const source of options.externalRunnerProfiles ?? []) {
+    const profile = freezeWorkforceExternalRunnerProfile(source);
+    if (externalRunnerProfiles.has(profile.profileId)) throw externalRunnerError("WORKFORCE_EXTERNAL_RUNNER_CONFIGURATION_INVALID", "Native runner profile identifiers must be unique.", 503);
+    externalRunnerProfiles.set(profile.profileId, profile);
+  }
+  const workflowHandoffRuntime = options.workflowHandoffRuntime ?? null;
+  const configuredCodeProfiles = options.codeDeliveryProfiles ?? [];
+  if (!Array.isArray(configuredCodeProfiles) || configuredCodeProfiles.length > 16) {
+    throw codeDeliveryError("WORKFORCE_CODE_DELIVERY_PROFILE_INVALID", 503, "At most sixteen server code delivery profiles may be configured.");
+  }
+  const codeDeliveryProfiles = new Map();
+  for (const source of configuredCodeProfiles) {
+    const profile = freezeWorkforceCodeDeliveryProfile(source);
+    if (codeDeliveryProfiles.has(profile.profileId)) {
+      throw codeDeliveryError("WORKFORCE_CODE_DELIVERY_PROFILE_INVALID", 503, "Code delivery profile identifiers must be unique.");
+    }
+    codeDeliveryProfiles.set(profile.profileId, profile);
+  }
+  const configuredRoot = codeDeliveryProfiles.size ? resolve(options.repoRoot ?? process.cwd()).replaceAll("\\", "/") : null;
+  const configuredRepositoryHash = configuredRoot === null ? null : "sha256:" + createHash("sha256")
+    .update(JSON.stringify(["workforce-code-repository-config/v1", process.platform === "win32" ? configuredRoot.toLowerCase() : configuredRoot])).digest("hex");
   const maxConcurrent = readBoundedInteger(env.WORKFORCE_MAX_CONCURRENT, DEFAULT_MAX_CONCURRENT_AGENTS, 1, 16);
   const timeoutMs = readBoundedInteger(
     env.WORKFORCE_EXECUTION_TIMEOUT_MS,
@@ -210,6 +274,22 @@ export function createControlledExecutor(options = {}) {
   const approvalGate = options.approvalGate ?? executionControl?.approvalGate;
   if (!lifecycle || !approvalGate) {
     throw new Error("A complete Workforce execution control backend is required.");
+  }
+  function assertCodeDeliveryRuntimeConfigured() {
+    if (!isWorkforceCodeDeliveryFactory(codeDeliveryFactory)) rejectUnimplementedCodeDelivery();
+    if (executionControl?.getHealth?.().distributed === true || lifecycle.getInfo?.().distributed === true
+      || env.AI_GATEWAY_MULTI_INSTANCE === "true") {
+      throw codeDeliveryError("WORKFORCE_CODE_DELIVERY_LOCAL_CONTROL_REQUIRED", 409,
+        "Code delivery currently requires local execution control and an owned local worktree.");
+    }
+  }
+  function assertExternalRunnerConfigured() {
+    if (!isWorkforceExternalRunnerFactory(externalRunnerFactory) || typeof lifecycle.recordExternalRunnerState !== "function") {
+      throw externalRunnerError("WORKFORCE_EXTERNAL_RUNNER_UNAVAILABLE", "The native runner and original lifecycle must be connected.", 503);
+    }
+    if (executionControl?.getHealth?.().distributed === true || lifecycle.getInfo?.().distributed === true || env.AI_GATEWAY_MULTI_INSTANCE === "true") {
+      throw externalRunnerError("WORKFORCE_EXTERNAL_RUNNER_LOCAL_CONTROL_REQUIRED", "Native execution currently requires local control of its owned worktree.");
+    }
   }
   const worktree = options.worktreeIsolation ?? createWorktreeIsolation({
     repoRoot: options.repoRoot ?? undefined,
@@ -287,10 +367,71 @@ export function createControlledExecutor(options = {}) {
   }
 
   async function prepareExecution(input = {}) {
-    const plan = createWorkforcePlan(input);
+    const externalProfileId = readWorkforceExternalRunnerSelector(input);
+    const externalProfile = externalProfileId === undefined ? null : externalRunnerProfiles.get(externalProfileId);
+    if (externalProfileId !== undefined && !externalProfile) throw externalRunnerError("WORKFORCE_EXTERNAL_RUNNER_PROFILE_NOT_FOUND", "The selected native runner profile is unavailable.");
+    const codeProfileId = readWorkforceCodeDeliverySelector(input);
+    const codeProfile = codeProfileId === undefined ? null : codeDeliveryProfiles.get(codeProfileId);
+    if (codeProfileId !== undefined && !codeProfile) {
+      throw codeDeliveryError("WORKFORCE_CODE_DELIVERY_PROFILE_NOT_FOUND", 409, "The selected server code delivery profile is unavailable.");
+    }
+    let plan = createWorkforcePlan(input);
     const autonomyMode = await resolveAutonomyModeAsync(input);
-    const descriptor = createWorkforceExecutionDescriptor({ input, plan, autonomyMode });
-    return { plan, autonomyMode, descriptor };
+    if (roleSelection && ["selectionReview", "catalog", "candidates", "qualifications", "qualification", "employeeId", "providerId", "modelId", "roleExecution", "executionMode"].some(key => Object.hasOwn(input, key))) {
+      throw Object.assign(new Error("Workforce selection authority must come from the server configuration."), { code: "WORKFORCE_SELECTION_AUTHORITY_FORBIDDEN", statusCode: 400 });
+    }
+    const selection = externalProfile ? null : roleSelection?.resolve({ taskType: plan.selectedTemplate.id,
+      roleIds: input.selectedRoles ?? plan.taskBreakdown.map(task => task.roleId),
+    });
+    const selectedProfile = externalProfile ? null : selection?.profile ?? roleExecutionProfile;
+    if (externalProfile && (Object.hasOwn(input, "codeDelivery")
+      || Object.hasOwn(input, "workflowHandoff") || Object.hasOwn(input, "consensusReview"))) {
+      throw externalRunnerError("WORKFORCE_EXTERNAL_RUNNER_MODE_CONFLICT", "A native runner task requires its own explicitly reviewed execution mode.", 400);
+    }
+    if (selectedProfile) {
+      const selected = selectedProfile.bindings.map((binding) => binding.roleId).sort();
+      if (!selection && input.selectedRoles !== undefined && (!Array.isArray(input.selectedRoles)
+        || JSON.stringify([...input.selectedRoles].sort()) !== JSON.stringify(selected))) {
+        throw Object.assign(new Error("Requested roles must exactly match the server execution profile."), {
+          code: "WORKFORCE_ROLE_BINDING_REQUIRED", statusCode: 409,
+        });
+      }
+      const tasks = plan.taskBreakdown.filter((task) => selected.includes(task.roleId));
+      if (tasks.length !== selected.length) throw Object.assign(new Error("The profile contains an unsupported Workforce role."), {
+        code: "WORKFORCE_ROLE_BINDING_REQUIRED", statusCode: 409,
+      });
+      if (tasks.some((task) => task.dependsOnRoleIds.some((dependency) => !selected.includes(dependency)))) {
+        throw Object.assign(new Error("The execution profile must include each selected role's dependencies."), {
+          code: "WORKFORCE_ROLE_DEPENDENCY_REQUIRED", statusCode: 409,
+        });
+      }
+      plan = { ...plan, selectedRoles: selected, taskBreakdown: tasks };
+    }
+    let workflowHandoff;
+    let externalRunner;
+    if (externalProfile) {
+      assertExternalRunnerConfigured();
+      plan = { ...plan, selectedRoles: plan.taskBreakdown.map(task => task.roleId) };
+      if (!plan.selectedRoles.includes(externalProfile.roleId)) throw externalRunnerError("WORKFORCE_EXTERNAL_RUNNER_ROLE_REQUIRED", "The selected plan does not contain the configured native worker role.", 400);
+      externalRunner = await reviewWorkforceExternalRunner(externalRunnerFactory, externalProfile, plan.goal);
+    }
+    if (Object.hasOwn(input, "workflowHandoff")) {
+      if (!isWorkforceWorkflowHandoff(workflowHandoffRuntime)) throw workflowHandoffError("WORKFORCE_WORKFLOW_UNAVAILABLE", "The existing local workflow must be connected before reviewing a handoff.", 503);
+      // The legacy planner lists display names; execution and handoff bind the actual task role IDs.
+      plan = { ...plan, selectedRoles: plan.taskBreakdown.map(task => task.roleId) };
+      workflowHandoff = createWorkforceWorkflowHandoffReview({ input, plan, outputRootHash: workflowHandoffRuntime.getInfo().outputRootHash });
+    }
+    const descriptor = createWorkforceExecutionDescriptor({ input, plan, autonomyMode,
+      ...(Object.hasOwn(input, "consensusReview") ? { consensusReview: compileConsensusReview({ input, plan, profile: selectedProfile }) } : {}),
+      ...(workflowHandoff ? { workflowHandoff } : {}),
+      ...(externalRunner ? { externalRunner } : {}),
+      ...(selectedProfile ? { roleExecution: selectedProfile } : {}),
+      ...(selection ? { selectionReview: selection.decision } : {}),
+      ...(codeProfile ? { codeDelivery: createWorkforceCodeDeliveryReview({ profile: codeProfile,
+        configuredRepositoryHash, roleExecution: selectedProfile }) } : {}),
+    });
+    return { plan, autonomyMode, descriptor, roleExecutionProfile: selectedProfile,
+      roleProviderFactory: externalProfile ? null : selection?.roleProviderFactory ?? roleProviderFactory, selectionReview: selection?.decision ?? null };
   }
 
   return {
@@ -300,6 +441,13 @@ export function createControlledExecutor(options = {}) {
         mode: CONTROLLED_EXECUTION_MODE,
         executionEnabled,
         dryRun,
+        roleExecution: roleExecutionProfile,
+        externalRunner: { configured: isWorkforceExternalRunnerFactory(externalRunnerFactory), enabledByDefault: false,
+          profiles: [...externalRunnerProfiles.values()].map(profile => ({ profileId: profile.profileId, profileHash: profile.profileHash,
+            roleId: profile.roleId, nativeModel: profile.nativeModel, platform: profile.binary.platform, version: profile.binary.version })) },
+        workflowHandoff: isWorkforceWorkflowHandoff(workflowHandoffRuntime) ? workflowHandoffRuntime.getInfo()
+          : { implemented: true, runtimeConnected: false, enabledByDefault: false },
+        ...(roleSelection ? { selection: { catalogHash: roleSelection.catalogHash, executionMode: roleSelection.executionMode } } : {}),
         maxConcurrentAgents: maxConcurrent,
         timeoutMs,
         defaultAutonomyMode: DEFAULT_AUTONOMY_MODE,
@@ -370,8 +518,22 @@ export function createControlledExecutor(options = {}) {
      */
     async execute(input = {}, executionOptions = {}) {
       const startedAt = new Date();
-      const { plan, autonomyMode: mode, descriptor } = await prepareExecution(input);
+      const { plan, autonomyMode: mode, descriptor, roleExecutionProfile, roleProviderFactory, selectionReview } = await prepareExecution(input);
       const governedExecution = normalizeGovernedExecution(executionOptions.agentGovernance);
+      if (descriptor.codeDelivery) {
+        assertCodeDeliveryRuntimeConfigured();
+        assertWorkforceCodeDeliveryPreflight(executionOptions.codeDeliveryPreflight, {
+          factory: codeDeliveryFactory, tenantId: input.tenantId, userId: input.userId,
+          agentId: governedExecution?.context.agentId, policyHash: governedExecution?.policy.policyHash,
+          planId: descriptor.planId, planDigest: descriptor.planDigest });
+      }
+      if (descriptor.externalRunner) {
+        assertExternalRunnerConfigured();
+        assertWorkforceExternalRunnerPreflight(executionOptions.externalRunnerPreflight, {
+          factory: externalRunnerFactory, tenantId: input.tenantId, userId: input.userId,
+          agentId: governedExecution?.context.agentId, policyHash: governedExecution?.policy.policyHash,
+          planId: descriptor.planId, planDigest: descriptor.planDigest });
+      }
       const executionSignal = combineWorkforceExecutionSignals(
         executionOptions.signal,
         governedExecution?.executionLease.signal,
@@ -385,7 +547,7 @@ export function createControlledExecutor(options = {}) {
         remainingSteps: governedExecution?.remainingSteps,
       });
       const effectiveTimeoutMs = governedBounds.timeoutMs;
-      const effectiveMaxConcurrent = governedBounds.maxConcurrent;
+      const effectiveMaxConcurrent = Math.min(governedBounds.maxConcurrent, roleExecutionProfile?.maxConcurrentRoles ?? Infinity);
       const planId = descriptor.planId;
       const userId = typeof input.userId === "string" ? input.userId.trim() : "";
       const tenantId = typeof input.tenantId === "string" && input.tenantId.trim()
@@ -422,6 +584,22 @@ export function createControlledExecutor(options = {}) {
         return createBlockedResult(plan, planId, "execution_identity_required",
           "Real workforce execution requires an authenticated identity.", { approval: descriptor });
       }
+      if (descriptor.workflowHandoff && (!governedExecution || !executionOptions.workflowGovernance
+        || executionOptions.identity?.tenantId !== tenantId || executionOptions.identity?.userId !== userId
+        || governedExecution.context.tenantId !== tenantId || governedExecution.context.userId !== userId)) {
+        throw workflowHandoffError("WORKFORCE_WORKFLOW_GOVERNANCE_REQUIRED", "Workflow handoff requires the authenticated Workforce and Agent execution boundary.", 403);
+      }
+      const workflowMetadata = descriptor.workflowHandoff ? readWorkflowHandoffMetadata({ version: 1,
+        agentId: governedExecution.context.agentId, planId, planDigest: descriptor.planDigest, review: descriptor.workflowHandoff }) : null;
+      const externalMetadata = descriptor.externalRunner ? createExternalRunnerMetadata({ agentId: governedExecution.context.agentId,
+        planId, planDigest: descriptor.planDigest, review: descriptor.externalRunner }) : null;
+      if (roleProviderFactory && (!governedExecution || !executionOptions.requestExecution || !executionOptions.identity
+        || executionOptions.identity.tenantId !== tenantId || executionOptions.identity.userId !== userId
+        || governedExecution.context.tenantId !== tenantId || governedExecution.context.userId !== userId)) {
+        throw Object.assign(new Error("Employee model execution requires authenticated HTTP and Agent execution capabilities."), {
+          code: "WORKFORCE_ROLE_GOVERNANCE_REQUIRED", statusCode: 403,
+        });
+      }
       if (governedExecution
         && (mode === AUTONOMY_MODES.SANDBOX_MERGE || mode === AUTONOMY_MODES.SANDBOX_MERGE_AUTO)) {
         throw Object.assign(new Error(
@@ -452,6 +630,21 @@ export function createControlledExecutor(options = {}) {
         planId,
         approvalCheck.approval?.approvalId ?? "approved",
       );
+      const agentRunId = roleProviderFactory || externalMetadata ? `agr_${randomUUID()}` : null;
+      const roleProviderRun = roleProviderFactory?.forRun({
+        identity: executionOptions.identity, agentId: governedExecution.context.agentId,
+        agentRunId, policyHash: governedExecution.policy.policyHash,
+        executionId: executionScopeId, planId, planDigest: descriptor.planDigest,
+        profileHash: roleExecutionProfile.profileHash, requestExecution: executionOptions.requestExecution,
+        signal: executionSignal, agentFence: governedExecution.executionLease,
+        ...(descriptor.consensusReview ? { preserveMessages: true } : {}),
+      });
+      const consensusMetadata = descriptor.consensusReview ? readWorkforceConsensusMetadata({ version: 1,
+        agentId: governedExecution.context.agentId, agentRunId, planId, planDigest: descriptor.planDigest,
+        profileHash: roleExecutionProfile.profileHash, review: descriptor.consensusReview }) : null;
+      const consensusSession = consensusMetadata ? createWorkforceConsensusSession({ executionId: executionScopeId,
+        metadata: consensusMetadata, agentFence: governedExecution.executionLease }) : null;
+      roleProviderRun?.validateRoles((plan.taskBreakdown ?? []).map((task) => task.roleId));
 
       if (mode === AUTONOMY_MODES.SANDBOX_MERGE || mode === AUTONOMY_MODES.SANDBOX_MERGE_AUTO) {
         return sandboxMerger.execute({
@@ -499,6 +692,11 @@ export function createControlledExecutor(options = {}) {
         subjectFingerprint: identityFingerprint(userId),
         worktreeId: worktreeRecord.worktreeId,
         roleCount: (plan.selectedRoles ?? []).length,
+        ...(agentRunId ? { agentRunId, profileHash: roleExecutionProfile?.profileHash ?? externalMetadata.review.profile.profileHash } : {}),
+        ...(descriptor.codeDelivery ? { codeDelivery: true } : {}),
+        ...(workflowMetadata ? { workflowHandoff: workflowMetadata } : {}),
+        ...(consensusMetadata ? { consensusReview: consensusMetadata } : {}),
+        ...(externalMetadata ? { externalRunner: externalMetadata } : {}),
         startedAt: startedAt.toISOString(),
       });
       await lifecycle.start(executionScopeId);
@@ -526,11 +724,19 @@ export function createControlledExecutor(options = {}) {
       const context = {
         plan,
         priorOutputs: {},
+        ...(descriptor.codeDelivery || workflowMetadata || consensusMetadata || externalMetadata ? { executionId: executionScopeId, agentRunId } : {}),
         ...(governedExecution ? { governedAgentId: governedExecution.context.agentId } : {}),
       };
       let executionGraph = null;
       let forgeExecuted = false;
       let requestedFinalStatus = null;
+      let legacyProviderCallsMade = false;
+      let codeDeliveryResult = null;
+      let codeFailure = null;
+      let codeDeliveryEvidence = null;
+      let workflowHandoffOutcome = null;
+      let externalRunnerResult = null;
+      let externalRunnerFailure = null;
 
       try {
         let _timeoutTimer;
@@ -563,13 +769,14 @@ export function createControlledExecutor(options = {}) {
           abortDrainTimeoutMs,
           agentExecutionFence: governedExecution?.executionLease,
           context,
-          executeRole: async (roleId, roleContext) => {
+          executeRole: async (roleId, roleContext, task) => {
             await reserveGovernedRoleStep(governedExecution);
             await roleContext?.externalEffectFence?.assertActive?.("commit");
             const capture = evidenceCapture.startCapture?.({
               planId: executionScopeId,
               agentId: governedExecution?.context.agentId ?? roleId,
               role: roleId,
+              ...(descriptor.codeDelivery || workflowMetadata || consensusMetadata || externalMetadata ? { taskId: task.queueTaskId } : {}),
               goal: plan.goal,
               context: {
                 publicPlanId: planId,
@@ -577,12 +784,95 @@ export function createControlledExecutor(options = {}) {
               },
             });
             try {
-              const result = providerAdapter
-                ? await executeRoleWithLLM(roleId, plan.goal, roleContext, providerAdapter)
+              const roleAbort = new AbortController();
+              const rawRoleAdapter = roleProviderRun?.createRoleAdapter({ roleId, taskId: task.queueTaskId,
+                signal: AbortSignal.any([roleContext.signal, roleAbort.signal]), taskFence: roleContext.externalEffectFence });
+              const roleAdapter = externalMetadata ? null : roleProviderRun ? createRuntimeGatewayBrainAdapter({
+                context: {
+                  employeeId: roleExecutionProfile.bindings.find((binding) => binding.roleId === roleId).employeeId,
+                  roleId, governedAgentId: governedExecution.context.agentId, agentRunId,
+                  executionId: executionScopeId, taskId: task.queueTaskId, planId,
+                  planDigest: descriptor.planDigest, profileHash: roleExecutionProfile.profileHash,
+                },
+                providerAdapter: rawRoleAdapter,
+              }) : providerAdapter ? { ...providerAdapter, generate: (...args) => {
+                legacyProviderCallsMade = true;
+                return providerAdapter.generate(...args);
+              } } : null;
+              let result = consensusSession
+                ? await consensusSession.runRole(roleId, task.queueTaskId, rawRoleAdapter, roleContext.externalEffectFence, roleContext.signal)
+                : roleAdapter
+                ? await executeRoleWithLLM(roleId, plan.goal, roleContext, roleAdapter,
+                  { requireRuntimeContribution: Boolean(roleProviderRun) })
                 : await createRoleExecutor(roleId).analyze(plan.goal, roleContext);
+              if (descriptor.codeDelivery?.profile.roleId === roleId) {
+                try {
+                  codeDeliveryResult = await runWorkforceCodeDelivery(codeDeliveryFactory, executionOptions.codeDeliveryPreflight, {
+                    executionId: executionScopeId, taskId: task.queueTaskId, agentRunId,
+                    planApprovalId: approvalCheck.approval?.approvalId, manager: worktree, worktreeId: worktreeRecord.worktreeId,
+                    roleProviderOperation: rawRoleAdapter, agentFence: governedExecution.executionLease,
+                    taskFence: roleContext.externalEffectFence, toolProxy: executionOptions.codeDeliveryToolProxy,
+                    signal: roleContext.signal, abort: error => roleAbort.abort(error), goal: plan.goal });
+                  result = { ...result, codeDelivery: codeDeliveryResult };
+                  forgeExecuted = true;
+                } catch (error) { codeFailure = error.details ?? { recoveryRequired: true, projectFileWrites: null }; throw error; }
+              }
+              if (externalMetadata?.review.profile.roleId === roleId) {
+                try {
+                  externalRunnerResult = await runWorkforceExternalRunner(externalRunnerFactory, executionOptions.externalRunnerPreflight, {
+                    executionId: executionScopeId, taskId: task.queueTaskId, agentRunId, planApprovalId: approvalCheck.approval?.approvalId,
+                    manager: worktree, worktreeId: worktreeRecord.worktreeId, agentFence: governedExecution.executionLease,
+                    taskFence: roleContext.externalEffectFence, toolProxy: executionOptions.externalRunnerToolProxy,
+                    signal: roleContext.signal, abort: error => roleAbort.abort(error),
+                    persist: state => lifecycle.recordExternalRunnerState(executionScopeId, state) });
+                  result = { ...result, externalRunner: externalRunnerResult };
+                } catch (error) { externalRunnerFailure = error.details ?? { recoveryRequired: true, projectFileWrites: null }; throw error; }
+              }
+              if (workflowMetadata?.review.roleId === roleId) {
+                try {
+                  workflowHandoffOutcome = await workflowHandoffRuntime.run({ executionId: executionScopeId, metadata: workflowMetadata,
+                    identity: executionOptions.identity, taskId: task.queueTaskId, agentRunId, taskFence: roleContext.externalEffectFence,
+                    agentFence: governedExecution.executionLease, governance: executionOptions.workflowGovernance, signal: roleContext.signal });
+                  result = { ...result, workflowHandoff: { workflowId: workflowHandoffOutcome.workflowId, taskId: task.queueTaskId,
+                    roleId, status: "completed", artifactVerified: true } };
+                } catch (error) {
+                  try { workflowHandoffOutcome = await workflowHandoffRuntime.inspect({ executionId: executionScopeId, metadata: workflowMetadata, identity: executionOptions.identity }); }
+                  catch { workflowHandoffOutcome = { status: "unknown", originVerified: false, artifactVerified: null }; }
+                  throw error;
+                }
+              }
+              if (selectionReview && result.workforceContribution) {
+                result = { ...result, selectionFeedback: createWorkforceSelectionFeedback({ selection: selectionReview,
+                  profile: roleExecutionProfile, executionId: executionScopeId, roleId,
+                  employeeId: result.workforceContribution.employeeId, taskId: task.queueTaskId,
+                  receipt: result.workforceContribution.receipt, contribution: result.workforceContribution }) };
+              }
               if (capture) {
-                capture.setOutput({ summary: summarizeEvidenceOutput(result, logRedactor) });
+                capture.setOutput({ summary: summarizeEvidenceOutput(result, logRedactor),
+                  ...((result.selectionFeedback || result.workflowHandoff) ? { deliverables: [result.selectionFeedback, result.workflowHandoff].filter(Boolean) } : {}),
+                  ...(result.codeDelivery ? { codeDelivery: result.codeDelivery } : {}),
+                  ...(result.externalRunner ? { externalRunner: result.externalRunner } : {}),
+                });
                 await capture.finish();
+                if (result.codeDelivery) {
+                  const loaded = await evidenceCapture.load(executionScopeId, governedExecution.context.agentId, task.queueTaskId);
+                  if (loaded?.success !== true || JSON.stringify(loaded.evidence?.output?.codeDelivery) !== JSON.stringify(capture.evidence?.output?.codeDelivery)) {
+                    throw Object.assign(new Error("Verified code evidence could not be read back."), { code: "WORKFORCE_CODE_EVIDENCE_UNAVAILABLE" });
+                  }
+                  codeDeliveryEvidence = createWorkforceCodeDeliveryEvidenceIndex(result.codeDelivery,
+                    { executionId: executionScopeId, agentId: governedExecution.context.agentId, taskId: task.queueTaskId },
+                    loaded.evidence.output.codeDelivery);
+                  result = { ...result, codeDelivery: { status: "verified", diffSha256: result.codeDelivery.artifact.diffSha256 } };
+                }
+                if (result.externalRunner) {
+                  const verified = readVerifiedWorkforceExternalRunnerResult(result.externalRunner,
+                    { executionId: executionScopeId, taskId: task.queueTaskId, agentId: governedExecution.context.agentId });
+                  const persisted = await lifecycle.getStatus(executionScopeId);
+                  if (persisted.externalRunner?.state?.stateHash !== verified.state.stateHash) throw externalRunnerError("WORKFORCE_EXTERNAL_RUNNER_EVIDENCE_UNAVAILABLE", "The verified native result could not be read back from the original task.", 503);
+                  result = { ...result, externalRunner: { status: "verified", operationId: verified.state.operationId, diffSha256: verified.state.artifact.diffSha256 } };
+                }
+              } else if (result.codeDelivery || result.externalRunner) {
+                throw Object.assign(new Error("Verified code delivery requires durable task evidence."), { code: "WORKFORCE_CODE_EVIDENCE_UNAVAILABLE" });
               }
               const lifecycleDecision = await lifecycle.onAgentCompleted(
                 executionScopeId,
@@ -592,9 +882,19 @@ export function createControlledExecutor(options = {}) {
               assertLifecycleDecisionAllowsContinuation(lifecycleDecision);
               return result;
             } catch (error) {
+              if (descriptor.codeDelivery && (codeDeliveryResult || codeFailure?.recoveryRequired)) worktreeCleanupAllowed = false;
+              if (externalMetadata && (externalRunnerResult || externalRunnerFailure?.recoveryRequired)) worktreeCleanupAllowed = false;
               if (capture) {
                 try {
-                  capture.setOutput({ summary: `failed: ${logRedactor.redactString?.(error?.message) ?? "role execution failed"}` });
+                  const binding = selectionReview && roleExecutionProfile.bindings.find(item => item.roleId === roleId);
+                  const feedback = binding && error?.workforceReceipt ? createWorkforceSelectionFeedback({ selection: selectionReview,
+                    profile: roleExecutionProfile, executionId: executionScopeId, roleId, employeeId: binding.employeeId,
+                    taskId: task.queueTaskId, receipt: error.workforceReceipt }) : null;
+                  capture.setOutput({ summary: `failed: ${logRedactor.redactString?.(error?.message) ?? "role execution failed"}`,
+                    ...((feedback || workflowHandoffOutcome) ? { deliverables: [feedback, workflowHandoffOutcome ? {
+                      workflowId: workflowHandoffOutcome.workflowId ?? null, taskId: task.queueTaskId,
+                      status: workflowHandoffOutcome.status, approvalId: workflowHandoffOutcome.error?.approvalId ?? null } : null].filter(Boolean) } : {}),
+                  });
                   await capture.finish();
                 } catch {
                   // Preserve the original execution or evidence failure.
@@ -661,7 +961,7 @@ export function createControlledExecutor(options = {}) {
       }
 
       // --- Step 8b: Forge code execution (if available) ---
-      if (!requestedFinalStatus && forgeService && roleResults["backend-engineer"]) {
+      if (!descriptor.codeDelivery && !externalMetadata && !requestedFinalStatus && forgeService && roleResults["backend-engineer"]) {
         try {
           const forgeCapabilities = forgeService.getCapabilities?.() ?? {};
           if (forgeService.supportsIsolatedProjectRoot !== true
@@ -709,9 +1009,13 @@ export function createControlledExecutor(options = {}) {
       }
 
       // --- Step 10: Cleanup worktree before committing the lifecycle terminal state ---
+      if (descriptor.codeDelivery && executionErrors.length > 0 && (codeDeliveryResult || codeFailure?.recoveryRequired)) worktreeCleanupAllowed = false;
+      if (externalMetadata && executionErrors.length > 0 && (externalRunnerResult || externalRunnerFailure?.recoveryRequired)) worktreeCleanupAllowed = false;
       cleanupAttempted = true;
       if (!worktreeCleanupAllowed) {
-        executionErrors.push("worktree_cleanup_skipped: execution quiescence was not confirmed");
+        executionErrors.push(descriptor.codeDelivery
+          ? "worktree_cleanup_skipped: recovery or unconfirmed execution quiescence requires retention"
+          : "worktree_cleanup_skipped: execution quiescence was not confirmed");
       } else {
         try {
           const cleanup = await worktree.remove(worktreeRecord.worktreeId);
@@ -725,6 +1029,10 @@ export function createControlledExecutor(options = {}) {
       }
 
       // --- Step 11: Complete lifecycle ---
+      const selectionFeedback = selectionReview ? roleProviderRun.getReceipts().map(item => createWorkforceSelectionFeedback({
+        selection: selectionReview, profile: roleExecutionProfile, executionId: executionScopeId, ...item,
+        contribution: roleResults[item.roleId]?.workforceContribution ?? null,
+      })) : null;
       let finalStatus = requestedFinalStatus
         ?? (executionErrors.length === 0 ? "completed" : "failed");
       const lifecycleSnapshot = await lifecycle.getStatus(executionScopeId);
@@ -737,10 +1045,22 @@ export function createControlledExecutor(options = {}) {
           errors: executionErrors,
           executionGraph,
           postScan: postScan.result,
+          ...(selectionFeedback ? { selectionFeedback } : {}),
+          ...(descriptor.codeDelivery ? { codeDeliveryEvidence, recoveryRequired: !worktreeCleanedUp } : {}),
+          ...(externalMetadata ? { recoveryRequired: !worktreeCleanedUp } : {}),
         });
       }
 
+      let consensusReport = null;
+      if (consensusSession) {
+        if (typeof lifecycle.recordConsensusResult !== "function") throw consensusError("WORKFORCE_CONSENSUS_PERSISTENCE_UNAVAILABLE", "The original lifecycle cannot record the complete review.", 503);
+        consensusReport = consensusSession.finish(finalStatus, roleProviderRun);
+        await lifecycle.recordConsensusResult(executionScopeId, consensusReport);
+        const persisted = await lifecycle.getStatus(executionScopeId);
+        consensusReport = readWorkforceConsensusReport(persisted.consensusReport, { executionId: executionScopeId, metadata: consensusMetadata });
+      }
       const completedAt = new Date();
+      const externalProjection = externalMetadata ? (await lifecycle.getStatus(executionScopeId)).externalRunner : null;
       return {
         success: finalStatus === "completed",
         phase: CONTROLLED_EXECUTION_PHASE,
@@ -755,6 +1075,19 @@ export function createControlledExecutor(options = {}) {
         rolesExecuted: Object.keys(roleResults).length,
         totalRoles: tasks.length,
         roleResults,
+        ...(selectionReview ? { selectionFeedback } : {}),
+        ...(workflowMetadata ? { workflowHandoff: workflowHandoffOutcome } : {}),
+        ...(consensusMetadata ? { consensusReport } : {}),
+        ...(externalMetadata ? { externalRunner: externalProjection,
+          recoveryRequired: !worktreeCleanedUp, ...(externalRunnerFailure ? { externalRunnerFailure } : {}) } : {}),
+        ...(descriptor.codeDelivery ? { codeDelivery: codeDeliveryResult,
+          recoveryRequired: !worktreeCleanedUp, ...(codeFailure ? { codeDeliveryFailure: codeFailure } : {}) } : {}),
+        ...(roleProviderRun ? { agentRunId, roleExecution: {
+          profile: roleExecutionProfile, receipts: roleProviderRun.getReceipts(),
+          requestsDispatched: roleProviderRun.getUsage().totalRequests,
+          realContributions: Object.values(roleResults).filter((result) => result.workforceContribution?.receipt.executionMode === "real").length,
+          fakeContributions: Object.values(roleResults).filter((result) => result.workforceContribution?.receipt.executionMode === "fake").length,
+        } } : {}),
         errors: executionErrors,
         security: {
           preScan: preScan.result,
@@ -764,6 +1097,7 @@ export function createControlledExecutor(options = {}) {
         worktree: {
           created: true,
           cleanedUp: worktreeCleanedUp,
+          ...((descriptor.codeDelivery || externalMetadata) && !worktreeCleanedUp ? { retainedWorktreeId: worktreeRecord.worktreeId } : {}),
         },
         approval: {
           checked: true,
@@ -772,11 +1106,18 @@ export function createControlledExecutor(options = {}) {
         safety: {
           executionEnabled: true,
           dryRun: false,
-          providerCallsMade: Boolean(providerAdapter),
+          providerCallsMade: externalMetadata ? null : roleProviderRun
+            ? roleProviderRun.getReceipts().some(({ receipt }) => receipt.providerCallAttempted === true)
+            : legacyProviderCallsMade,
+          ...(externalMetadata ? { gatewayProviderCallsMade: false, nativeTurnsDispatched: externalProjection?.state?.turnId ? 1
+            : externalRunnerFailure?.outcomeUnknown ? null : 0, nativeModelRequestCount: null, nativeUsage: externalProjection?.state?.nativeUsage ?? null } : {}),
           secretValueExposed: postScan.result === "pass" ? false : null,
           secretScanPassed: postScan.result === "pass",
-          projectFileWrites: forgeExecuted,
-          projectWritesIsolated: forgeExecuted ? true : null,
+          projectFileWrites: externalMetadata ? externalRunnerResult ? true : externalRunnerFailure?.projectFileWrites ?? null : descriptor.codeDelivery ? codeDeliveryResult ? true
+            : codeFailure && Object.hasOwn(codeFailure, "projectFileWrites") ? codeFailure.projectFileWrites : false : forgeExecuted,
+          projectWritesIsolated: externalMetadata ? externalRunnerResult ? true : null : descriptor.codeDelivery ? codeDeliveryResult || codeFailure?.projectWriteAttempted === true ? true : null : forgeExecuted ? true : null,
+          ...(workflowMetadata ? { workflowArtifactWrite: workflowHandoffOutcome?.artifactVerified === true ? true
+            : workflowHandoffOutcome?.outcomeUnknown || !workflowHandoffOutcome?.originVerified ? null : false } : {}),
           deployExecuted: false,
           releaseExecuted: false,
         },
@@ -797,7 +1138,7 @@ export function createControlledExecutor(options = {}) {
     /**
      * Request approval for a workforce plan execution.
      */
-    async approveExecution(input = {}, userId, approvedScopes = []) {
+    async approveExecution(input = {}, userId, approvedScopes = [], executionOptions = {}) {
       if (!executionEnabled) {
         const error = new Error("WORKFORCE_EXECUTION_ENABLED=true is required before issuing execution approvals.");
         error.code = "WORKFORCE_EXECUTION_DISABLED";
@@ -805,6 +1146,18 @@ export function createControlledExecutor(options = {}) {
         throw error;
       }
       const { autonomyMode, descriptor } = await prepareExecution(input);
+      if (descriptor.codeDelivery) {
+        assertCodeDeliveryRuntimeConfigured();
+        assertWorkforceCodeDeliveryPreflight(executionOptions.codeDeliveryPreflight, {
+          factory: codeDeliveryFactory, tenantId: input.tenantId, userId, agentId: executionOptions.context?.agentId,
+          policyHash: executionOptions.policy?.policyHash, planId: descriptor.planId, planDigest: descriptor.planDigest });
+      }
+      if (descriptor.externalRunner) {
+        assertExternalRunnerConfigured();
+        assertWorkforceExternalRunnerPreflight(executionOptions.externalRunnerPreflight, {
+          factory: externalRunnerFactory, tenantId: input.tenantId, userId, agentId: executionOptions.context?.agentId,
+          policyHash: executionOptions.policy?.policyHash, planId: descriptor.planId, planDigest: descriptor.planDigest });
+      }
       if (autonomyMode === AUTONOMY_MODES.DRY_RUN) {
         const error = new Error("A non-dry-run autonomyMode is required for execution approval.");
         error.code = "WORKFORCE_EXECUTION_MODE_REQUIRED";
@@ -846,6 +1199,8 @@ export function createControlledExecutor(options = {}) {
      */
     async checkApproval(input = {}, userId) {
       const { descriptor } = await prepareExecution(input);
+      if (descriptor.codeDelivery) assertCodeDeliveryRuntimeConfigured();
+      if (descriptor.externalRunner) assertExternalRunnerConfigured();
       return approvalGate.check({
         planId: descriptor.planId,
         tenantId: typeof input.tenantId === "string" && input.tenantId.trim()
@@ -866,7 +1221,34 @@ export function createControlledExecutor(options = {}) {
 
     async describeExecution(input = {}) {
       const { descriptor } = await prepareExecution(input);
-      return descriptor;
+      return descriptor.codeDelivery
+        ? Object.freeze({ ...descriptor, codeDeliveryReadiness: Object.freeze({ ...CODE_DELIVERY_READINESS,
+          implementation: isWorkforceCodeDeliveryFactory(codeDeliveryFactory) ? "available" : "unavailable" }) }) : descriptor;
+    },
+
+    /** Called before the HTTP Tool Proxy may consume its separate approval. */
+    async assertExecutionPrerequisites(input = {}) {
+      const { descriptor } = await prepareExecution(input);
+      if (descriptor.codeDelivery) assertCodeDeliveryRuntimeConfigured();
+      if (descriptor.externalRunner) assertExternalRunnerConfigured();
+    },
+
+    async prepareCodeDeliveryAdmission(input = {}, serverContext = {}) {
+      const { descriptor, roleExecutionProfile } = await prepareExecution(input);
+      if (!descriptor.codeDelivery) return null;
+      assertCodeDeliveryRuntimeConfigured();
+      return preflightWorkforceCodeDelivery(codeDeliveryFactory, { ...serverContext,
+        review: descriptor.codeDelivery, roleProfile: roleExecutionProfile,
+        planId: descriptor.planId, planDigest: descriptor.planDigest });
+    },
+
+    async prepareExternalRunnerAdmission(input = {}, serverContext = {}) {
+      const { descriptor, plan } = await prepareExecution(input);
+      if (!descriptor.externalRunner) return null;
+      assertExternalRunnerConfigured();
+      return preflightWorkforceExternalRunner(externalRunnerFactory, { ...serverContext,
+        review: descriptor.externalRunner, roleCount: plan.taskBreakdown.length,
+        planId: descriptor.planId, planDigest: descriptor.planDigest });
     },
 
     /**
@@ -876,7 +1258,57 @@ export function createControlledExecutor(options = {}) {
       const snapshot = await lifecycle.getStatus(executionId);
       assertExecutionAccess(snapshot, identity);
       const { tenantFingerprint: _tenant, subjectFingerprint: _subject, ...safe } = snapshot;
+      if (snapshot.consensusReview) {
+        const metadata = readWorkforceConsensusMetadata(snapshot.consensusReview);
+        delete safe.consensusReview;
+        safe.consensusReport = snapshot.consensusReport
+          ? readWorkforceConsensusReport(snapshot.consensusReport, { executionId, metadata }) : null;
+        safe.consensusObservation = safe.consensusReport ? "recorded" : "not-recorded-no-automatic-redispatch";
+      }
+      if (snapshot.workflowHandoff) {
+        if (!isWorkforceWorkflowHandoff(workflowHandoffRuntime)) throw workflowHandoffError("WORKFORCE_WORKFLOW_UNAVAILABLE", "The workflow journal is unavailable.", 503);
+        safe.workflowHandoff = await workflowHandoffRuntime.inspect({ executionId, metadata: snapshot.workflowHandoff, identity });
+      }
+      if (snapshot.codeDelivery) {
+        const index = snapshot.codeDelivery.evidence;
+        let codeDelivery = null;
+        try {
+          if (index?.version !== 1 || index.executionId !== executionId || typeof index.agentId !== "string"
+            || typeof index.taskId !== "string" || !/^[a-f0-9]{64}$/u.test(index.evidenceHash)) throw new Error("index unavailable");
+          const loaded = await evidenceCapture.load(executionId, index.agentId, index.taskId);
+          const value = loaded.evidence?.output?.codeDelivery;
+          if (!loaded.success || loaded.evidence.planId !== executionId || loaded.evidence.agentId !== index.agentId
+            || loaded.evidence.taskId !== index.taskId || value?.status !== "verified" || value.profileHash !== index.profileHash
+            || value.artifact?.diffSha256 !== index.diffSha256 || createHash("sha256").update(JSON.stringify(value)).digest("hex") !== index.evidenceHash) throw new Error("evidence mismatch");
+          codeDelivery = value;
+        } catch { /* Unavailable or inconsistent evidence never authorizes execution or invents a verified artifact. */ }
+        return { ...safe, codeDelivery, evidenceUnavailable: codeDelivery === null,
+          recoveryRequired: snapshot.codeDelivery.recoveryRequired === true };
+      }
       return safe;
+    },
+
+    async recoverWorkflowHandoff(input, identity, governance, signal) {
+      const snapshot = await lifecycle.getStatus(input.executionId);
+      assertExecutionAccess(snapshot, identity);
+      if (["running", "pending", "paused"].includes(snapshot.status)) throw workflowHandoffError("WORKFORCE_WORKFLOW_PARENT_ACTIVE", "The original Workforce execution has not reached a terminal state.");
+      if (!snapshot.workflowHandoff || !isWorkforceWorkflowHandoff(workflowHandoffRuntime)) throw workflowHandoffError("WORKFORCE_WORKFLOW_UNAVAILABLE", "This execution has no recorded workflow handoff.");
+      const result = await workflowHandoffRuntime.recover({ ...input, identity, governance, signal, metadata: snapshot.workflowHandoff });
+      return { ...result, parentExecutionStatus: snapshot.status, parentExecutionResumed: false, employeeRolesRerun: false };
+    },
+
+    async recoverExternalRunner(input, identity, serverContext) {
+      assertExternalRunnerConfigured();
+      const snapshot = await lifecycle.getStatus(input.executionId);
+      assertExecutionAccess(snapshot, identity);
+      if (!snapshot.externalRunner?.metadata || !snapshot.externalRunner.state) throw externalRunnerError("WORKFORCE_EXTERNAL_RUNNER_ORIGINAL_UNAVAILABLE", "This execution has no original native task to reconcile.");
+      if (input.operationId !== snapshot.externalRunner.state.operationId || input.agentId !== snapshot.externalRunner.metadata.agentId) {
+        throw externalRunnerError("WORKFORCE_EXTERNAL_RUNNER_ORIGINAL_MISMATCH", "Recovery identifiers must match the original native task.", 403);
+      }
+      const result = await recoverWorkforceExternalRunner(externalRunnerFactory, { ...serverContext, identity,
+        metadata: snapshot.externalRunner.metadata, state: snapshot.externalRunner.state,
+        persist: state => lifecycle.recordExternalRunnerState(input.executionId, state) });
+      return { ...result, parentExecutionStatus: snapshot.status, parentExecutionResumed: false, employeeRolesRerun: false };
     },
 
     /**

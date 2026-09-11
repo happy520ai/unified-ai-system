@@ -27,12 +27,22 @@ import {
   sep,
 } from "node:path";
 import { platform } from "node:os";
+import { LOCAL_CLIENT_JSONC_CODEC_VERSION, parseLocalClientJsoncObject, editLocalClientJsoncObject } from "./localClientConfigJsonc.ts";
+import { LOCAL_CLIENT_CODEX_TOML_CODEC_VERSION, parseLocalClientCodexTomlObject, editLocalClientCodexTomlObject } from "./localClientCodexToml.ts";
+import { LOCAL_CLIENT_CONTINUE_YAML_CODEC_VERSION, LOCAL_CLIENT_CONTINUE_YAML_MAX_BYTES, parseLocalClientContinueYamlObject, editLocalClientContinueYamlObject } from "./localClientContinueYaml.ts";
 
 export const LOCAL_CLIENT_CONFIG_PLAN_VERSION = "local-client-config-plan-v1" as const;
 export const LOCAL_CLIENT_CONFIG_RECEIPT_VERSION = "local-client-config-receipt-v1" as const;
 export const LOCAL_CLIENT_CONFIG_ROLLBACK_RECEIPT_VERSION = "local-client-config-rollback-receipt-v1" as const;
 export const LOCAL_CLIENT_CONFIG_RECOVERY_RECEIPT_VERSION = "local-client-config-recovery-receipt-v1" as const;
 export const LOCAL_CLIENT_CONFIG_JOURNAL_VERSION = "local-client-config-journal-v2" as const;
+export const LOCAL_CLIENT_CONFIG_JSONC_JOURNAL_VERSION = "local-client-config-journal-jsonc-v1" as const;
+export const LOCAL_CLIENT_CONFIG_TOML_JOURNAL_VERSION = "local-client-config-journal-codex-toml-v1" as const;
+export const LOCAL_CLIENT_CONFIG_TOML_MAX_BYTES = 65_536;
+export const LOCAL_CLIENT_CONFIG_YAML_JOURNAL_VERSION = "local-client-config-journal-continue-yaml-v1" as const;
+export const LOCAL_CLIENT_CONFIG_YAML_MAX_BYTES = LOCAL_CLIENT_CONTINUE_YAML_MAX_BYTES;
+export type LocalClientConfigFormat = "json-only" | "jsonc" | "toml" | "yaml";
+type JournalVersion = typeof LOCAL_CLIENT_CONFIG_JOURNAL_VERSION | typeof LOCAL_CLIENT_CONFIG_JSONC_JOURNAL_VERSION | typeof LOCAL_CLIENT_CONFIG_TOML_JOURNAL_VERSION | typeof LOCAL_CLIENT_CONFIG_YAML_JOURNAL_VERSION;
 export const LOCAL_CLIENT_CONFIG_BACKUP_ENVELOPE_VERSION = "local-client-config-backup-aes-256-gcm-v1" as const;
 
 const LOCK_VERSION = "local-client-config-lock-v1" as const;
@@ -80,6 +90,7 @@ export type LocalClientConfigOperation =
   }>;
 
 export interface LocalClientConfigTransactionOptions {
+  readonly format?: LocalClientConfigFormat;
   readonly targetPath: string;
   readonly allowedRoot: string;
   readonly backupDir: string;
@@ -146,7 +157,7 @@ export interface LocalClientConfigRecoveryReceipt {
 
 export interface LocalClientConfigTransactionStatus {
   readonly available: boolean;
-  readonly format: "json-only";
+  readonly format: LocalClientConfigFormat;
   readonly targetFingerprint: string;
   readonly recoveryRequired: boolean;
   readonly journalCorrupt: boolean;
@@ -156,8 +167,9 @@ export interface LocalClientConfigTransactionStatus {
   readonly committedRetentionMs: number;
   readonly backupProtection: "aes-256-gcm" | "0600-plaintext";
   readonly boundaries: Readonly<{
-    jsoncSupported: false;
-    yamlSupported: false;
+    jsoncSupported: boolean;
+    tomlSupported?: true;
+    yamlSupported: boolean;
     rawPathsExposed: false;
     rawValuesExposed: false;
     crossProcessExclusiveLock: true;
@@ -172,6 +184,8 @@ export type LocalClientConfigTransactionErrorCode =
   | "LOCAL_CLIENT_CONFIG_TARGET_INVALID"
   | "LOCAL_CLIENT_CONFIG_TOO_LARGE"
   | "LOCAL_CLIENT_CONFIG_JSON_INVALID"
+  | "LOCAL_CLIENT_CONFIG_TOML_INVALID"
+  | "LOCAL_CLIENT_CONFIG_YAML_INVALID"
   | "LOCAL_CLIENT_CONFIG_OPERATION_INVALID"
   | "LOCAL_CLIENT_CONFIG_PLAN_CAPACITY"
   | "LOCAL_CLIENT_CONFIG_PLAN_UNKNOWN"
@@ -252,7 +266,7 @@ type JournalEntry = {
 };
 
 type Journal = {
-  journalVersion: typeof LOCAL_CLIENT_CONFIG_JOURNAL_VERSION;
+  journalVersion: JournalVersion;
   sequence: number;
   lastObservedAtMs: number;
   entries: JournalEntry[];
@@ -277,11 +291,12 @@ const BOUNDARIES = Object.freeze({
 });
 
 /**
- * Transaction engine for one code-bound, plain JSON object file. JSONC and
- * YAML are intentionally unsupported; adapters for those formats need their
- * own structured parser and lossless writer before they may use this boundary.
+ * Transaction engine for one code-bound JSON or explicitly selected JSONC/TOML/YAML file.
+ * Source codecs share the same filesystem effect and recovery boundary.
  */
 export class LocalClientConfigTransactionEngine {
+  readonly #format: LocalClientConfigFormat;
+  readonly #journalVersion: JournalVersion;
   readonly #targetPath: string;
   readonly #allowedRoot: string;
   readonly #backupDir: string;
@@ -294,7 +309,7 @@ export class LocalClientConfigTransactionEngine {
   readonly #backupEncryptionKey: Buffer | null;
   readonly #clock: () => number;
   readonly #plans = new Map<string, InternalPlan>();
-  #journal: Journal = createEmptyJournal();
+  #journal: Journal;
   #journalCorrupt = false;
   #recoveryRequired = false;
   #closed = false;
@@ -310,19 +325,30 @@ export class LocalClientConfigTransactionEngine {
       "committedRetentionMs",
       "backupEncryptionKey",
       "clock",
+      "format",
     ], new Set([
       "maxBytes",
       "maxTransactions",
       "committedRetentionMs",
       "backupEncryptionKey",
       "clock",
+      "format",
     ]), configurationError);
+    if (options.format !== undefined && options.format !== "json-only" && options.format !== "jsonc" && options.format !== "toml" && options.format !== "yaml") throw configurationError();
+    this.#format = options.format ?? "json-only";
+    this.#journalVersion = this.#format === "yaml" ? LOCAL_CLIENT_CONFIG_YAML_JOURNAL_VERSION : this.#format === "toml" ? LOCAL_CLIENT_CONFIG_TOML_JOURNAL_VERSION
+      : this.#format === "jsonc" ? LOCAL_CLIENT_CONFIG_JSONC_JOURNAL_VERSION : LOCAL_CLIENT_CONFIG_JOURNAL_VERSION;
+    this.#journal = createEmptyJournal(this.#journalVersion);
     this.#targetPath = assertAbsolutePath(options.targetPath);
     this.#allowedRoot = assertAbsolutePath(options.allowedRoot);
     this.#backupDir = assertAbsolutePath(options.backupDir);
     this.#journalPath = assertAbsolutePath(options.journalPath);
     this.#lockPath = `${this.#journalPath}.lock`;
-    this.#maxBytes = boundedInteger(options.maxBytes, DEFAULT_MAX_BYTES, 256, HARD_MAX_BYTES);
+    this.#maxBytes = this.#format === "yaml"
+      ? boundedInteger(options.maxBytes, LOCAL_CLIENT_CONFIG_YAML_MAX_BYTES, 256, LOCAL_CLIENT_CONFIG_YAML_MAX_BYTES)
+      : this.#format === "toml"
+      ? boundedInteger(options.maxBytes, LOCAL_CLIENT_CONFIG_TOML_MAX_BYTES, 256, LOCAL_CLIENT_CONFIG_TOML_MAX_BYTES)
+      : boundedInteger(options.maxBytes, DEFAULT_MAX_BYTES, 256, HARD_MAX_BYTES);
     this.#maxTransactions = boundedInteger(
       options.maxTransactions,
       DEFAULT_MAX_TRANSACTIONS,
@@ -337,7 +363,11 @@ export class LocalClientConfigTransactionEngine {
     );
     if (options.clock !== undefined && typeof options.clock !== "function") throw configurationError();
     this.#clock = options.clock ?? Date.now;
-    this.#targetFingerprint = sha256Text(normalizePathForFingerprint(this.#targetPath));
+    const normalizedTarget = normalizePathForFingerprint(this.#targetPath);
+    this.#targetFingerprint = sha256Text(this.#format === "yaml"
+      ? JSON.stringify([LOCAL_CLIENT_CONTINUE_YAML_CODEC_VERSION, normalizedTarget]) : this.#format === "toml"
+      ? JSON.stringify([LOCAL_CLIENT_CODEX_TOML_CODEC_VERSION, normalizedTarget]) : this.#format === "jsonc"
+      ? JSON.stringify([LOCAL_CLIENT_JSONC_CODEC_VERSION, normalizedTarget]) : normalizedTarget);
     assertBoundPaths({
       allowedRoot: this.#allowedRoot,
       targetPath: this.#targetPath,
@@ -365,7 +395,7 @@ export class LocalClientConfigTransactionEngine {
       .map((entry) => entry.transactionId);
     return Object.freeze({
       available: !this.#closed,
-      format: "json-only",
+      format: this.#format,
       targetFingerprint: this.#targetFingerprint,
       recoveryRequired: this.#recoveryRequired,
       journalCorrupt: this.#journalCorrupt,
@@ -374,7 +404,9 @@ export class LocalClientConfigTransactionEngine {
       maxTransactions: this.#maxTransactions,
       committedRetentionMs: this.#committedRetentionMs,
       backupProtection: this.#backupEncryptionKey === null ? "0600-plaintext" : "aes-256-gcm",
-      boundaries: BOUNDARIES,
+      boundaries: this.#format === "yaml" ? Object.freeze({ ...BOUNDARIES, yamlSupported: true })
+        : this.#format === "toml" ? Object.freeze({ ...BOUNDARIES, tomlSupported: true as const })
+        : this.#format === "jsonc" ? Object.freeze({ ...BOUNDARIES, jsoncSupported: true }) : BOUNDARIES,
     });
   }
 
@@ -402,10 +434,36 @@ export class LocalClientConfigTransactionEngine {
     }
     const operations = normalizeOperations(input.operations, this.#maxBytes);
     await this.#assertSafeTopology({ requireTarget: true });
-    const snapshot = await readBoundTarget(this.#targetPath, this.#allowedRoot, this.#maxBytes);
-    const root = parsePlainJsonObject(snapshot.bytes, this.#maxBytes);
-    const updated = applyOperations(root, operations);
-    const afterBytes = serializeLikeOriginal(updated, snapshot.bytes);
+    const snapshot = await readBoundTarget(this.#targetPath, this.#allowedRoot, this.#maxBytes, this.#format);
+    let afterBytes: Buffer;
+    if (this.#format === "yaml") {
+      try {
+        const root = parseLocalClientContinueYamlObject(snapshot.bytes, this.#maxBytes);
+        afterBytes = editLocalClientContinueYamlObject(snapshot.bytes, operations, applyOperations(root, operations), this.#maxBytes);
+      } catch (error) {
+        if (error instanceof LocalClientConfigTransactionError) throw error;
+        throw transactionError("LOCAL_CLIENT_CONFIG_YAML_INVALID", "The bounded Continue YAML configuration cannot be safely parsed or edited.", "validation", 422);
+      }
+    } else if (this.#format === "toml") {
+      try {
+        const root = parseLocalClientCodexTomlObject(snapshot.bytes, this.#maxBytes);
+        afterBytes = editLocalClientCodexTomlObject(snapshot.bytes, operations, applyOperations(root, operations), this.#maxBytes);
+      } catch (error) {
+        if (error instanceof LocalClientConfigTransactionError) throw error;
+        throw transactionError("LOCAL_CLIENT_CONFIG_TOML_INVALID", "The bounded Codex TOML configuration cannot be safely parsed or edited.", "validation", 422);
+      }
+    } else if (this.#format === "jsonc") {
+      try {
+        const root = parseLocalClientJsoncObject(snapshot.bytes, this.#maxBytes);
+        afterBytes = editLocalClientJsoncObject(snapshot.bytes, operations, applyOperations(root, operations), this.#maxBytes);
+      } catch (error) {
+        if (error instanceof LocalClientConfigTransactionError) throw error;
+        throw jsonError();
+      }
+    } else {
+      const root = parsePlainJsonObject(snapshot.bytes, this.#maxBytes);
+      afterBytes = serializeLikeOriginal(applyOperations(root, operations), snapshot.bytes);
+    }
     if (afterBytes.byteLength > this.#maxBytes) throw tooLargeError();
     const beforeSha256 = sha256Bytes(snapshot.bytes);
     const afterSha256 = sha256Bytes(afterBytes);
@@ -474,7 +532,7 @@ export class LocalClientConfigTransactionEngine {
         );
       }
       await this.#assertSafeTopology({ requireTarget: true });
-      const current = await readBoundTarget(this.#targetPath, this.#allowedRoot, this.#maxBytes);
+      const current = await readBoundTarget(this.#targetPath, this.#allowedRoot, this.#maxBytes, this.#format);
       if (
         !identityEqual(current.identity, stored.beforeIdentity)
         || !safeSha256Equal(sha256Bytes(current.bytes), stored.publicPlan.beforeSha256)
@@ -568,7 +626,7 @@ export class LocalClientConfigTransactionEngine {
           this.#allowedRoot,
           transactionId,
         );
-        const after = await readBoundTarget(this.#targetPath, this.#allowedRoot, this.#maxBytes);
+        const after = await readBoundTarget(this.#targetPath, this.#allowedRoot, this.#maxBytes, this.#format);
         if (!safeSha256Equal(sha256Bytes(after.bytes), entry.afterSha256)) throw persistError();
         entry.afterIdentityFingerprint = fingerprintIdentity(after.identity);
         entry.status = "committed";
@@ -603,7 +661,7 @@ export class LocalClientConfigTransactionEngine {
         throw receiptError();
       }
       await this.#assertSafeTopology({ requireTarget: true });
-      const current = await readBoundTarget(this.#targetPath, this.#allowedRoot, this.#maxBytes);
+      const current = await readBoundTarget(this.#targetPath, this.#allowedRoot, this.#maxBytes, this.#format);
       if (
         !safeSha256Equal(sha256Bytes(current.bytes), receipt.afterSha256)
         || fingerprintIdentity(current.identity) !== receipt.afterIdentityFingerprint
@@ -625,7 +683,7 @@ export class LocalClientConfigTransactionEngine {
           this.#allowedRoot,
           `${entry.transactionId}.rollback`,
         );
-        const restored = await readBoundTarget(this.#targetPath, this.#allowedRoot, this.#maxBytes);
+        const restored = await readBoundTarget(this.#targetPath, this.#allowedRoot, this.#maxBytes, this.#format);
         if (!safeSha256Equal(sha256Bytes(restored.bytes), entry.beforeSha256)) throw persistError();
         entry.status = "rolled-back";
         entry.rolledBackAtMs = this.#observeClock();
@@ -660,7 +718,7 @@ export class LocalClientConfigTransactionEngine {
       }
       await this.#assertSafeTopology({ requireTarget: true });
       await this.#readBackup(entry);
-      const current = await readBoundTarget(this.#targetPath, this.#allowedRoot, this.#maxBytes);
+      const current = await readBoundTarget(this.#targetPath, this.#allowedRoot, this.#maxBytes, this.#format);
       const currentSha256 = sha256Bytes(current.bytes);
       let resolution: LocalClientConfigRecoveryReceipt["resolution"];
       let applyReceipt: LocalClientConfigReceipt | null = null;
@@ -739,7 +797,7 @@ export class LocalClientConfigTransactionEngine {
         throw error;
       });
       if (!journalStat) {
-        this.#journal = createEmptyJournal();
+        this.#journal = createEmptyJournal(this.#journalVersion);
         this.#recoveryRequired = false;
         return;
       }
@@ -747,7 +805,7 @@ export class LocalClientConfigTransactionEngine {
         throw journalCorruptError();
       }
       const raw = await readFile(this.#journalPath, "utf8");
-      this.#journal = parseJournal(raw, this.#maxTransactions);
+      this.#journal = parseJournal(raw, this.#maxTransactions, this.#journalVersion);
       if (this.#journal.entries.some((entry) => (
         !safeSha256Equal(entry.targetFingerprint, this.#targetFingerprint)
       ))) {
@@ -757,7 +815,7 @@ export class LocalClientConfigTransactionEngine {
         entry.status === "pending" || entry.status === "rollback-pending"
       ));
     } catch (error) {
-      this.#journal = createEmptyJournal();
+      this.#journal = createEmptyJournal(this.#journalVersion);
       this.#journalCorrupt = true;
       this.#recoveryRequired = true;
       if (error instanceof LocalClientConfigTransactionError) return;
@@ -792,7 +850,7 @@ export class LocalClientConfigTransactionEngine {
     }
     let persisted: Journal;
     try {
-      persisted = parseJournal(await readFile(this.#journalPath, "utf8"), this.#maxTransactions);
+      persisted = parseJournal(await readFile(this.#journalPath, "utf8"), this.#maxTransactions, this.#journalVersion);
     } catch {
       throw cleanupError();
     }
@@ -827,7 +885,7 @@ export class LocalClientConfigTransactionEngine {
     }
     let backup: Readonly<{ bytes: Buffer; identity: FileIdentity }>;
     try {
-      backup = await readBoundFile(backupPath, this.#backupDir, maxBackupFileBytes(this.#maxBytes));
+      backup = await readBoundFile(backupPath, this.#backupDir, maxBackupFileBytes(this.#maxBytes), this.#format === "toml" ? 0 : 1);
     } catch {
       throw backupError();
     }
@@ -836,6 +894,7 @@ export class LocalClientConfigTransactionEngine {
       protection: entry.backupProtection,
       fileBytes: backup.bytes,
       maxPlaintextBytes: this.#maxBytes,
+      minPlaintextBytes: this.#format === "toml" ? 0 : 1,
       transactionId: entry.transactionId,
       targetFingerprint: entry.targetFingerprint,
       beforeSha256: entry.beforeSha256,
@@ -1052,9 +1111,9 @@ export async function createLocalClientConfigTransactionEngine(
   return LocalClientConfigTransactionEngine.open(options);
 }
 
-function createEmptyJournal(): Journal {
+function createEmptyJournal(journalVersion: JournalVersion): Journal {
   return {
-    journalVersion: LOCAL_CLIENT_CONFIG_JOURNAL_VERSION,
+    journalVersion,
     sequence: 0,
     lastObservedAtMs: 0,
     entries: [],
@@ -1063,7 +1122,7 @@ function createEmptyJournal(): Journal {
 
 function cloneJournal(journal: Journal): Journal {
   return {
-    journalVersion: LOCAL_CLIENT_CONFIG_JOURNAL_VERSION,
+    journalVersion: journal.journalVersion,
     sequence: journal.sequence,
     lastObservedAtMs: journal.lastObservedAtMs,
     entries: journal.entries.map((entry) => ({ ...entry })),
@@ -1120,9 +1179,10 @@ function decodeBackupFileBytes(input: BackupCipherContext & Readonly<{
   protection: BackupProtection;
   fileBytes: Buffer;
   maxPlaintextBytes: number;
+  minPlaintextBytes: 0 | 1;
 }>): Buffer {
   if (input.protection === "0600-plaintext") {
-    if (input.fileBytes.byteLength < 1 || input.fileBytes.byteLength > input.maxPlaintextBytes) {
+    if (input.fileBytes.byteLength < input.minPlaintextBytes || input.fileBytes.byteLength > input.maxPlaintextBytes) {
       throw backupError();
     }
     return Buffer.from(input.fileBytes);
@@ -1142,7 +1202,7 @@ function decodeBackupFileBytes(input: BackupCipherContext & Readonly<{
     || parsed.algorithm !== "aes-256-gcm"
     || !isCanonicalBase64(parsed.nonce)
     || !isCanonicalBase64(parsed.tag)
-    || !isCanonicalBase64(parsed.ciphertext)
+    || !(input.minPlaintextBytes === 0 && parsed.ciphertext === "") && !isCanonicalBase64(parsed.ciphertext)
   ) throw backupError();
   const envelope: BackupEnvelope = {
     backupVersion: LOCAL_CLIENT_CONFIG_BACKUP_ENVELOPE_VERSION,
@@ -1158,7 +1218,7 @@ function decodeBackupFileBytes(input: BackupCipherContext & Readonly<{
   if (
     nonce.byteLength !== 12
     || tag.byteLength !== 16
-    || ciphertext.byteLength < 1
+    || ciphertext.byteLength < input.minPlaintextBytes
     || ciphertext.byteLength > input.maxPlaintextBytes
   ) throw backupError();
   try {
@@ -1166,7 +1226,7 @@ function decodeBackupFileBytes(input: BackupCipherContext & Readonly<{
     decipher.setAAD(createBackupAad(input));
     decipher.setAuthTag(tag);
     const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
-    if (plaintext.byteLength < 1 || plaintext.byteLength > input.maxPlaintextBytes) throw backupError();
+    if (plaintext.byteLength < input.minPlaintextBytes || plaintext.byteLength > input.maxPlaintextBytes) throw backupError();
     if (!safeSha256Equal(sha256Bytes(plaintext), input.beforeSha256)) throw backupError();
     return plaintext;
   } catch (error) {
@@ -1394,14 +1454,16 @@ async function readBoundTarget(
   targetPath: string,
   allowedRoot: string,
   maxBytes: number,
+  format: LocalClientConfigFormat,
 ): Promise<Readonly<{ bytes: Buffer; identity: FileIdentity }>> {
-  return readBoundFile(targetPath, allowedRoot, maxBytes);
+  return readBoundFile(targetPath, allowedRoot, maxBytes, format === "toml" ? 0 : 1);
 }
 
 async function readBoundFile(
   filePath: string,
   allowedRoot: string,
   maxBytes: number,
+  minBytes = 1,
 ): Promise<Readonly<{ bytes: Buffer; identity: FileIdentity }>> {
   assertInside(allowedRoot, filePath);
   await assertNoSymlinkComponents(allowedRoot, filePath, true);
@@ -1420,7 +1482,7 @@ async function readBoundFile(
   });
   try {
     const before = await handle.stat();
-    if (!before.isFile() || before.isSymbolicLink() || before.size < 1 || before.size > maxBytes) {
+    if (!before.isFile() || before.isSymbolicLink() || before.size < minBytes || before.size > maxBytes) {
       throw before.size > maxBytes ? tooLargeError() : targetError();
     }
     const beforeIdentity = identityFromStat(before);
@@ -1604,7 +1666,7 @@ function fingerprintIdentity(identity: FileIdentity): string {
   ]));
 }
 
-function parseJournal(raw: string, maxTransactions: number): Journal {
+function parseJournal(raw: string, maxTransactions: number, journalVersion: JournalVersion): Journal {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -1613,7 +1675,7 @@ function parseJournal(raw: string, maxTransactions: number): Journal {
   }
   if (
     !hasExactKeys(parsed, ["journalVersion", "sequence", "lastObservedAtMs", "entries"])
-    || parsed.journalVersion !== LOCAL_CLIENT_CONFIG_JOURNAL_VERSION
+    || parsed.journalVersion !== journalVersion
     || !Number.isSafeInteger(parsed.sequence)
     || Number(parsed.sequence) < 0
     || !Number.isSafeInteger(parsed.lastObservedAtMs)
@@ -1630,7 +1692,7 @@ function parseJournal(raw: string, maxTransactions: number): Journal {
     seen.add(entry.transactionId);
   }
   return {
-    journalVersion: LOCAL_CLIENT_CONFIG_JOURNAL_VERSION,
+    journalVersion,
     sequence: Number(parsed.sequence),
     lastObservedAtMs: Number(parsed.lastObservedAtMs),
     entries,

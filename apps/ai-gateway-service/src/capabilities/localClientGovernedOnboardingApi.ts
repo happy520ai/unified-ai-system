@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 
 import {
   LOCAL_CLIENT_ONBOARDING_PROFILE_IDS,
+  getLocalClientOnboardingProfileFormat,
   type LocalClientOnboardingAction,
   type LocalClientOnboardingInspection,
   type LocalClientOnboardingPlan,
@@ -1130,9 +1131,16 @@ function projectProfile(raw: LocalClientOnboardingProfileSummary): LocalClientOn
   ]);
   const profileId = normalizeProfileId(raw.profileId);
   if (
-    !new Set(["claude-compatible", "cursor", "vscode"]).has(raw.client)
-    || raw.format !== "json-only"
-    || (raw.containerKey !== "mcpServers" && raw.containerKey !== "servers")
+    !new Set(["claude-compatible", "cursor", "vscode", "codex", "continue"]).has(raw.client)
+    || raw.format !== getLocalClientOnboardingProfileFormat(raw.profileId)
+    || (raw.containerKey !== "mcpServers" && raw.containerKey !== "servers" && raw.containerKey !== "mcp_servers")
+    || (profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.vscodeJsonc && (raw.client !== "vscode" || raw.containerKey !== "servers"))
+    || (profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.codexToml
+      ? raw.client !== "codex" || raw.containerKey !== "mcp_servers"
+      : raw.client === "codex" || raw.containerKey === "mcp_servers")
+    || (profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.continueYaml
+      ? raw.client !== "continue" || raw.containerKey !== "mcpServers"
+      : raw.client === "continue")
     || raw.serverName !== "unified-ai-system"
     || raw.transport !== "stdio"
     || (raw.backupProtection !== "aes-256-gcm" && raw.backupProtection !== "0600-plaintext")
@@ -1145,7 +1153,7 @@ function projectProfile(raw: LocalClientOnboardingProfileSummary): LocalClientOn
   return Object.freeze({
     profileId,
     client: raw.client,
-    format: "json-only",
+    format: raw.format,
     containerKey: raw.containerKey,
     serverName: "unified-ai-system",
     transport: "stdio",
@@ -1211,7 +1219,7 @@ function projectVerification(
     || typeof raw.installed !== "boolean"
     || !new Set(["exact", "absent", "different"]).has(raw.state)
     || raw.installed !== (raw.state === "exact")
-    || raw.format !== "json-only"
+    || raw.format !== getLocalClientOnboardingProfileFormat(raw.profileId)
     || raw.certificationStatus !== "fixture-tested-not-real-client-certified"
     || raw.redacted !== true
   ) {
@@ -1221,7 +1229,7 @@ function projectVerification(
     profileId: expectedProfileId,
     installed: raw.installed,
     state: raw.state,
-    format: "json-only",
+    format: raw.format,
     certificationStatus: "fixture-tested-not-real-client-certified",
     redacted: true,
   });
@@ -1260,7 +1268,7 @@ function projectRegistryPlan(
     || raw.createdAtMs < 0
     || raw.createdAtMs >= raw.expiresAtMs
     || raw.writesPerformed !== false
-    || raw.format !== "json-only"
+    || raw.format !== getLocalClientOnboardingProfileFormat(raw.profileId)
     || raw.certificationStatus !== "fixture-tested-not-real-client-certified"
     || raw.redacted !== true
   ) {
@@ -1291,7 +1299,7 @@ function projectApplyReceipt(
     || typeof raw.planId !== "string"
     || !/^onboard:[a-z0-9-]+:[a-f0-9]{64}$/u.test(raw.planId)
     || !SHA256_PATTERN.test(raw.receiptDigest)
-    || raw.format !== "json-only"
+    || raw.format !== getLocalClientOnboardingProfileFormat(raw.profileId)
     || raw.certificationStatus !== "fixture-tested-not-real-client-certified"
     || raw.redacted !== true
   ) {
@@ -1402,7 +1410,7 @@ function projectRollbackReceipt(
     || raw.profileId !== stored.profileId
     || raw.action !== stored.applyReceipt?.action
     || raw.planId !== stored.applyReceipt?.planId
-    || raw.format !== "json-only"
+    || raw.format !== getLocalClientOnboardingProfileFormat(raw.profileId)
     || raw.certificationStatus !== "fixture-tested-not-real-client-certified"
     || raw.redacted !== true
   ) {
@@ -1434,7 +1442,7 @@ function projectRollbackReceiptForReplay(
     || raw.action !== appliedAction
     || typeof raw.planId !== "string"
     || !/^onboard:[a-z0-9-]+:[a-f0-9]{64}$/u.test(raw.planId)
-    || raw.format !== "json-only"
+    || raw.format !== getLocalClientOnboardingProfileFormat(raw.profileId)
     || raw.certificationStatus !== "fixture-tested-not-real-client-certified"
     || raw.redacted !== true
   ) {
@@ -1527,7 +1535,7 @@ function projectRecoveryReceipt(
   if (
     raw.recoveryVersion !== "local-client-onboarding-recovery-v1"
     || raw.profileId !== expectedProfileId
-    || raw.format !== "json-only"
+    || raw.format !== getLocalClientOnboardingProfileFormat(raw.profileId)
     || raw.certificationStatus !== "fixture-tested-not-real-client-certified"
     || raw.redacted !== true
   ) {
@@ -1574,7 +1582,7 @@ function projectRecoveryReceipt(
     recoveryVersion: "local-client-onboarding-recovery-v1",
     profileId: expectedProfileId,
     transaction,
-    format: "json-only",
+    format: raw.format,
     certificationStatus: "fixture-tested-not-real-client-certified",
     redacted: true,
   });

@@ -557,29 +557,44 @@ describeDurableLocalClientSqlite("governed local-client onboarding API", () => {
     expect(rollbackPlan.scopes).toContain("local-client:onboarding:rollback");
   });
 
-  it("replays apply after a full API restart and authorizes rollback from durable receipt authority", async () => {
+  it.each([PROFILE_ID, LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.vscodeJsonc, LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.codexToml, LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.continueYaml] as const)("replays %s apply after restart and authorizes exact rollback from durable receipt authority", async (profileId) => {
+    const targetPath = profileId === PROFILE_ID ? paths.cursor.targetPath : paths.vscode.targetPath;
+    if (profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.codexToml) await writeFile(targetPath, '# preserve API TOML\r\nmodel = "unchanged"\r\n');
+    if (profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.vscodeJsonc) await writeFile(targetPath, '\ufeff{\r\n // preserve API JSONC\r\n "servers":{}, "unrelated" : [1e2,], }');
+    if (profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.continueYaml) await writeFile(targetPath, 'name: Fixture\r\nversion: "1"\r\nschema: v1\r\n# preserve API YAML\r\n');
+    const original = await readFile(targetPath);
     const idempotencyPath = join(root, "restart-idempotency.sqlite");
     const authorityPath = join(root, "restart-authority.sqlite");
     const firstCoordinator = durableIdempotency(idempotencyPath);
     const firstAuthority = durableReceiptAuthority(authorityPath);
     closeables.push(firstCoordinator, firstAuthority);
     const first = await createHarness({
+      registry: await createRegistry(paths, profileId),
       idempotencyCoordinator: firstCoordinator,
       receiptAuthorityStore: firstAuthority,
     });
-    const plan = await planAndApprove(first, "enable");
+    const plan = await planAndApprove(first, "enable", profileId);
     const request = { ...IDENTITY_A, planId: plan.planId };
     const port = requestPort("restart-apply-key");
     const applied = await first.api.apply(request, port);
     expectCompleted(applied, false);
     const receipt = applied.result.receipt as LocalClientOnboardingReceipt;
+    expect(receipt.format).toBe(profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.continueYaml ? "yaml" : profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.codexToml ? "toml" : profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.vscodeJsonc ? "jsonc" : "json-only");
+    if (receipt.format === "yaml") expect((await readFile(targetPath)).toString()).toContain("# preserve API YAML\r\n");
+    if (receipt.format === "toml") expect((await readFile(targetPath)).toString()).toContain('# preserve API TOML\r\nmodel = "unchanged"\r\n');
+    if (receipt.format === "jsonc") {
+      expect(await first.api.list(IDENTITY_A)).toHaveLength(1);
+      expect((await readFile(targetPath)).toString()).toContain('"unrelated" : [1e2,]');
+      expect((await readFile(targetPath)).toString()).toContain("// preserve API JSONC\r\n");
+    }
+    await first.registry.close();
     await firstCoordinator.close();
     await firstAuthority.close();
 
     const restartedCoordinator = durableIdempotency(idempotencyPath);
     const restartedAuthority = durableReceiptAuthority(authorityPath);
     closeables.push(restartedCoordinator, restartedAuthority);
-    const restartedRegistry = await createRegistry(paths);
+    const restartedRegistry = await createRegistry(paths, profileId);
     const restarted = await createHarness({
       registry: restartedRegistry,
       idempotencyCoordinator: restartedCoordinator,
@@ -597,14 +612,14 @@ describeDurableLocalClientSqlite("governed local-client onboarding API", () => {
     expect(restarted.registryPort.apply).not.toHaveBeenCalled();
     await expect(restarted.api.plan({
       ...IDENTITY_B,
-      profileId: PROFILE_ID,
+      profileId,
       action: "rollback",
       receipt,
     })).rejects.toMatchObject({ code: "LOCAL_CLIENT_ONBOARDING_API_PLAN_UNKNOWN" });
 
     const rollbackPlan = await restarted.api.plan({
       ...IDENTITY_A,
-      profileId: PROFILE_ID,
+      profileId,
       action: "rollback",
       receipt,
     });
@@ -618,6 +633,8 @@ describeDurableLocalClientSqlite("governed local-client onboarding API", () => {
     );
     expectCompleted(rolledBack, false);
     expect(restarted.registryPort.rollback).toHaveBeenCalledTimes(1);
+    expect(await readFile(targetPath)).toEqual(original);
+    await restarted.registry.close();
     await restartedCoordinator.close();
     await restartedAuthority.close();
 
@@ -625,7 +642,7 @@ describeDurableLocalClientSqlite("governed local-client onboarding API", () => {
     const thirdAuthority = durableReceiptAuthority(authorityPath);
     closeables.push(thirdCoordinator, thirdAuthority);
     const third = await createHarness({
-      registry: await createRegistry(paths),
+      registry: await createRegistry(paths, profileId),
       idempotencyCoordinator: thirdCoordinator,
       receiptAuthorityStore: thirdAuthority,
     });
@@ -634,10 +651,11 @@ describeDurableLocalClientSqlite("governed local-client onboarding API", () => {
       requestPort("restart-rollback-key"),
     );
     expectCompleted(rollbackReplay, true);
+    expect(await readFile(targetPath)).toEqual(original);
     expect(third.registryPort.rollback).not.toHaveBeenCalled();
     await expect(third.api.plan({
       ...IDENTITY_A,
-      profileId: PROFILE_ID,
+      profileId,
       action: "rollback",
       receipt,
     })).rejects.toMatchObject({ code: "LOCAL_CLIENT_ONBOARDING_API_PLAN_UNKNOWN" });
@@ -739,11 +757,13 @@ describeDurableLocalClientSqlite("governed local-client onboarding API", () => {
     expect(releaseHarness.registryPort.rollback).not.toHaveBeenCalled();
   });
 
-  it("requires separately scoped approval for explicit recovery", async () => {
-    const directRegistry = await createRegistry(paths);
-    const registryPlan = await directRegistry.plan(PROFILE_ID, "enable");
+  it.each([PROFILE_ID, LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.continueYaml])("requires separately scoped approval for %s recovery", async profileId => {
+    const storage = profileId === PROFILE_ID ? paths.cursor : paths.vscode;
+    if (profileId !== PROFILE_ID) await writeFile(storage.targetPath, 'name: Fixture\nversion: "1"\nschema: v1\n');
+    const directRegistry = await createRegistry(paths, profileId);
+    const registryPlan = await directRegistry.plan(profileId, "enable");
     await directRegistry.apply(registryPlan.planId);
-    const journal = JSON.parse(await readFile(paths.cursor.journalPath, "utf8"));
+    const journal = JSON.parse(await readFile(storage.journalPath, "utf8"));
     const entry = journal.entries[0];
     entry.status = "pending";
     entry.afterIdentityFingerprint = null;
@@ -751,8 +771,8 @@ describeDurableLocalClientSqlite("governed local-client onboarding API", () => {
     entry.receiptDigest = null;
     entry.rolledBackAtMs = null;
     entry.rollbackReceiptDigest = null;
-    await writeFile(paths.cursor.journalPath, `${JSON.stringify(journal, null, 2)}\n`, "utf8");
-    const restarted = await createRegistry(paths);
+    await writeFile(storage.journalPath, `${JSON.stringify(journal, null, 2)}\n`, "utf8");
+    const restarted = await createRegistry(paths, profileId);
     const recoveryIdempotencyPath = join(root, "recovery-replay-idempotency.sqlite");
     const recoveryAuthorityPath = join(root, "recovery-replay-authority.sqlite");
     const recoveryCoordinator = durableIdempotency(recoveryIdempotencyPath);
@@ -765,7 +785,7 @@ describeDurableLocalClientSqlite("governed local-client onboarding API", () => {
     });
     const recoveryPlan = await harness.api.plan({
       ...IDENTITY_A,
-      profileId: PROFILE_ID,
+      profileId,
       action: "recover",
     });
     expect(recoveryPlan.scopes).toContain("local-client:onboarding:recover");
@@ -793,7 +813,7 @@ describeDurableLocalClientSqlite("governed local-client onboarding API", () => {
     const replayAuthority = durableReceiptAuthority(recoveryAuthorityPath);
     closeables.push(replayCoordinator, replayAuthority);
     const replayHarness = await createHarness({
-      registry: await createRegistry(paths),
+      registry: await createRegistry(paths, profileId),
       idempotencyCoordinator: replayCoordinator,
       receiptAuthorityStore: replayAuthority,
     });
@@ -803,6 +823,52 @@ describeDurableLocalClientSqlite("governed local-client onboarding API", () => {
     );
     expectCompleted(recoveryReplay, true);
     expect(replayHarness.registryPort.recover).not.toHaveBeenCalled();
+  });
+
+  it.each([LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.vscodeJsonc, LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.codexToml, LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.continueYaml])("rejects %s with JSON-only dependency projections before granting approval", async (profileId) => {
+    if (profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.continueYaml) await writeFile(paths.vscode.targetPath, 'name: Fixture\nversion: "1"\nschema: v1\n');
+    if (profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.codexToml) await writeFile(paths.vscode.targetPath, 'model = "original"\n');
+    const registry = await createRegistry(paths, profileId);
+    const harness = await createHarness({ registry });
+    const before = await readFile(paths.vscode.targetPath);
+    const summary = registry.listProfiles()[0]!;
+    if (profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.codexToml || profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.continueYaml) {
+      for (const mismatch of [{ format: "jsonc" as const }, { client: "vscode" as const }, { containerKey: "servers" as const }]) {
+        harness.registryPort.listProfiles.mockReturnValueOnce([{ ...summary, ...mismatch }]);
+        await expect(harness.api.list(IDENTITY_A)).rejects.toMatchObject({ code: "LOCAL_CLIENT_ONBOARDING_API_DEPENDENCY_FAILED" });
+      }
+    }
+    harness.registryPort.listProfiles.mockReturnValueOnce([{ ...summary, format: "json-only" }]);
+    await expect(harness.api.list(IDENTITY_A)).rejects.toMatchObject({ code: "LOCAL_CLIENT_ONBOARDING_API_DEPENDENCY_FAILED" });
+    const inspection = await registry.inspect(profileId);
+    harness.registryPort.inspect.mockResolvedValueOnce({ ...inspection, installation: { ...inspection.installation, format: "json-only" } });
+    await expect(harness.api.inspect({ ...IDENTITY_A, profileId })).rejects.toMatchObject({ code: "LOCAL_CLIENT_ONBOARDING_API_DEPENDENCY_FAILED" });
+    harness.registryPort.verifyInstalled.mockResolvedValueOnce({ ...inspection.installation, format: "json-only" });
+    await expect(harness.api.verify({ ...IDENTITY_A, profileId })).rejects.toMatchObject({ code: "LOCAL_CLIENT_ONBOARDING_API_DEPENDENCY_FAILED" });
+    const registryPlan = await registry.plan(profileId, "enable");
+    harness.registryPort.plan.mockResolvedValueOnce({ ...registryPlan, format: "json-only" });
+    await expect(harness.api.plan({ ...IDENTITY_A, profileId, action: "enable" })).rejects.toMatchObject({ code: "LOCAL_CLIENT_ONBOARDING_API_DEPENDENCY_FAILED" });
+    expect(harness.approval.approve).not.toHaveBeenCalled();
+    expect(harness.external.reserve).not.toHaveBeenCalled();
+    expect(await readFile(paths.vscode.targetPath)).toEqual(before);
+    await registry.close();
+  });
+
+  it.each([LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.vscodeJsonc, LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.codexToml, LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.continueYaml])("retains unknown when %s apply dependency returns a mismatched format after the effect", async (profileId) => {
+    if (profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.continueYaml) await writeFile(paths.vscode.targetPath, 'name: Fixture\nversion: "1"\nschema: v1\n');
+    if (profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.codexToml) await writeFile(paths.vscode.targetPath, 'model = "original"\n');
+    const registry = await createRegistry(paths, profileId);
+    const harness = await createHarness({ registry, registryApply: async (planId) => ({ ...await registry.apply(planId), format: "json-only" }) });
+    const plan = await planAndApprove(harness, "enable", profileId);
+    const request = { ...IDENTITY_A, planId: plan.planId };
+    const result = await harness.api.apply(request, requestPort("jsonc-invalid-receipt"));
+    expect(result).toMatchObject({ status: "unknown-reconcile-required", retryAllowed: false });
+    const after = await readFile(paths.vscode.targetPath);
+    const replay = await harness.api.apply(request, requestPort("jsonc-invalid-receipt"));
+    expect(replay).toMatchObject({ status: "unknown-reconcile-required", operationInvoked: false });
+    expect(harness.registryPort.apply).toHaveBeenCalledTimes(1);
+    expect(await readFile(paths.vscode.targetPath)).toEqual(after);
+    await registry.close();
   });
 });
 
@@ -840,9 +906,11 @@ async function initializeProfileFiles(paths: ReturnType<typeof profilePaths>) {
   }
 }
 
-async function createRegistry(paths: ReturnType<typeof profilePaths>) {
+async function createRegistry(paths: ReturnType<typeof profilePaths>, profileId?: LocalClientOnboardingProfileId) {
   return createLocalClientOnboardingRegistry({
-    profiles: paths,
+    ...((profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.vscodeJsonc || profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.codexToml || profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.continueYaml)
+      ? { version: 2 as const, profiles: [{ profileId, paths: paths.vscode }], backupEncryptionKey: Buffer.alloc(32, 0x6b) }
+      : { profiles: paths }),
     serverDefinition: {
       transport: "stdio",
       command: PRIVATE_COMMAND,

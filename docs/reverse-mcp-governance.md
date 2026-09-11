@@ -43,16 +43,53 @@ it is never accepted from request input.
   tracking, JSON or SSE responses). URL must be HTTPS.
 - `stdio`: spawned child process speaking newline-delimited JSON-RPC over
   stdio. The command comes from operator config only.
-- `openapi` (REST→MCP): the gateway fetches the OpenAPI 3 spec (HTTPS, size
-  capped), generates one MCP tool per operation (`operationId` naming; path/
-  query/body parameters mapped into the tool input schema), and executes
-  calls as ordinary REST requests against `baseUrl`.
+- `openapi` (REST→MCP): the gateway fetches a size-capped OpenAPI 3.0.x/3.1.x
+  JSON document over HTTPS, or uses an inline document. It generates tools for
+  GET, PUT, POST, PATCH and DELETE operations using `operationId` naming, then
+  executes the supported input bindings as REST requests against `baseUrl`.
 - `allowedTools`: glob allowlist (`*` suffix). Missing or empty means no tools
   are exposed.
 - `readOnlyTools`: separate operator-attested glob allowlist. An allowed tool
   absent from this list is treated as a mutation and requires a durable
   external-effect key before `tools/call` or a generated REST request. MCP
   descriptor hints do not grant read-only authority.
+
+## REST bridge input mapping
+
+Path-item parameters are inherited and operation parameters override the same
+name/location pair. The tool uses bare path names, `query_<name>`,
+`header_<name>`, `cookie_<name>` and `body`. Required flags are retained in the
+descriptor for every location and JSON request bodies. Missing required values
+are refused before dispatch; a present JSON `null` body remains valid. Both
+discovery and dispatch use the same frozen operation bindings.
+
+Path and custom header parameters support `simple`; query parameters support
+`form`, including scalar and flat-array/object values and explicit `explode`.
+Default query arrays repeat their key. Query encoding retains URLSearchParams
+form encoding; path/header components are percent-encoded before delimiter
+assembly. Cookie parameters support scalars as `name=percent-encoded-value`,
+joined with `; `; composite cookies are rejected because OpenAPI form-style
+cookie collection serialization is not interoperable. See [OpenAPI Appendix D](https://spec.openapis.org/oas/v3.0.4.html#appendix-d-serializing-headers-and-cookies).
+
+Accept, Content-Type and Authorization parameter definitions are ignored as
+required by OpenAPI; operator-configured headers remain authoritative. Dynamic
+headers cannot collide case-insensitively with configured headers, use transport
+framing fields, or define Cookie as a raw header. Cookie parameters cannot
+replace a configured Cookie header, and a JSON body cannot overwrite a configured
+non-JSON Content-Type. Header control characters, unknown argument bindings,
+dot-segment path values and query-key collisions are refused before dispatch.
+
+Same-document JSON Pointer references are resolved for Path Items, Parameters,
+JSON request bodies and nested input schemas; examples are left as literal data.
+Expansion is bounded to 32 levels, 100,000 visited nodes and two million copied
+string characters, including operation paths/summaries and schema property names.
+External/missing/cyclic references, reference siblings beyond
+annotations/extensions, schema resource/dynamic-reference keywords, unsupported
+styles, parameter content encodings, non-JSON bodies, known nested parameter
+collections and ambiguous input-name/operation-ID collisions produce an explicit
+listing error. No partial tool catalog is published for that upstream and no
+external reference is fetched. This is a transport subset, not a general schema
+validation engine; business constraints remain upstream-owned.
 
 ## Consume (authenticated tenants)
 

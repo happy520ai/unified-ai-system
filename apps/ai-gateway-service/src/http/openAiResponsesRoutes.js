@@ -8,20 +8,20 @@ import {
   normalizeOpenAiChatCompletionRequest,
   resolveOpenAiErrorStatus,
   applyVirtualKeyRequestGate,
-  recordVirtualKeyUsage,
 } from "./openAiCompatibilityRoutes.js";
 import { readJson, writeJson, writeSseHeaders } from "./utils/responseUtils.js";
-import { getGuardrailsEngine } from "../guardrails/guardrailsEngine.ts";
+import { captureGuardrailsOutputPolicy, getGuardrailsEngine, inspectGuardrailsOutputStream } from "../guardrails/guardrailsEngine.ts";
 import {
   recordGuardrailEvaluation,
   recordGuardrailFinding,
 } from "../observability/aiMetrics.ts";
-import { isResponseId } from "../responses/responseSessionStore.js";
+import { bindResponseSessionStore, isResponseId } from "../responses/responseSessionStore.js";
 import {
   closePrimedGatewayStream,
   iteratePrimedGatewayStream,
   primeGatewayStream,
   readPrimedGatewayStreamError,
+  resolveGatewayStreamPreflightStatus,
 } from "./gatewayStreamPreflight.ts";
 import { resolveProviderDispatchHttpStatus } from "./providerDispatchHttpStatus.ts";
 
@@ -35,8 +35,8 @@ const REASONING_SUMMARY_MODES = new Set(["auto", "concise", "detailed"]);
 // Declarative/built-in tool shapes that cannot be served on the
 // chat-completions wire (namespace grouping, web_search, code_interpreter …).
 // They are accepted and dropped instead of failing the whole request; the
-// drop is recorded in gateway request metadata. Unknown tool types are still
-// rejected loudly.
+// drop is recorded in gateway request metadata and public compatibility notices.
+// Unknown tool types are still rejected.
 const DROPPED_TOOL_TYPES = new Set([
   "namespace",
   "web_search",
@@ -112,6 +112,10 @@ export async function dispatchOpenAiResponsesRoutes(context) {
     application,
   } = context;
   const normalized = normalizeOpenAiResponsesPath(url.pathname);
+  const sessionStore = bindResponseSessionStore(
+    responseSessionStore ?? application?.responseSessionStore ?? null,
+    request.enterpriseIdentity,
+  );
 
   const retrieveMatch = normalized.path.match(/^\/v1\/responses\/(resp_[A-Za-z0-9_-]{1,64})$/);
   if (retrieveMatch) {
@@ -120,7 +124,8 @@ export async function dispatchOpenAiResponsesRoutes(context) {
       method: request.method,
       response,
       startedAt,
-      sessionStore: responseSessionStore ?? application?.responseSessionStore ?? null,
+      sessionStore,
+      guardrailsEngine: getGuardrailsEngine(request.enterpriseIdentity?.tenantId),
       writeServiceLog,
     });
     return;
@@ -156,12 +161,10 @@ export async function dispatchOpenAiResponsesRoutes(context) {
     ? { ...body, model: normalized.modelFromPath }
     : body;
 
-  const sessionStore = responseSessionStore
-    ?? application?.responseSessionStore
-    ?? null;
-
   let gatewayInput;
   let session;
+  let compatibilityNotice;
+  let responseTools = [];
   let mergedWireMessages = [];
   try {
     session = normalizeResponseSessionOptions(normalizedBody, sessionStore);
@@ -173,6 +176,7 @@ export async function dispatchOpenAiResponsesRoutes(context) {
     );
     mergedWireMessages = mergeSessionMessages(session.previous, turnMessages);
     const toolNormalization = normalizeResponseTools(normalizedBody.tools);
+    responseTools = (toolNormalization?.tools ?? []).map(tool => ({ type: "function", ...tool.function }));
     gatewayInput = normalizeOpenAiResponseRequest(
       normalizedBody,
       gatewayService.getProviderDescriptors(),
@@ -198,6 +202,16 @@ export async function dispatchOpenAiResponsesRoutes(context) {
     }
     if (messageMeta.droppedReasoningItems > 0) {
       gatewayInput.metadata.openAiCompatibility.droppedReasoningInputItems = messageMeta.droppedReasoningItems;
+    }
+    // Construct public evidence from local normalization, never caller metadata.
+    if (droppedToolTypes.length || droppedIncludeTokens.length || droppedParameters.length || messageMeta.droppedReasoningItems) {
+      compatibilityNotice = Object.freeze({
+        version: 1,
+        ...(droppedToolTypes.length ? { ignored_tool_types: Object.freeze([...droppedToolTypes]) } : {}),
+        ...(droppedIncludeTokens.length ? { ignored_include: Object.freeze([...droppedIncludeTokens]) } : {}),
+        ...(droppedParameters.length ? { ignored_parameters: Object.freeze([...droppedParameters]) } : {}),
+        ...(messageMeta.droppedReasoningItems ? { ignored_reasoning_input_items: messageMeta.droppedReasoningItems } : {}),
+      });
     }
   } catch (error) {
     writeServiceLog?.("openai_response_validation_failed", {
@@ -242,7 +256,7 @@ export async function dispatchOpenAiResponsesRoutes(context) {
   }
   for (const replacement of guardrailInputVerdict.replacements) {
     const message = gatewayInput.messages?.[replacement.index];
-    if (message && typeof message.content === "string") {
+    if (message) {
       message.content = replacement.content;
     }
   }
@@ -262,6 +276,8 @@ export async function dispatchOpenAiResponsesRoutes(context) {
   if (normalizedBody.stream === true) {
     await streamOpenAiResponse({
       body: normalizedBody,
+      compatibilityNotice,
+      responseTools,
       gatewayInput,
       mergedWireMessages,
       gatewayService,
@@ -295,27 +311,12 @@ export async function dispatchOpenAiResponsesRoutes(context) {
 
   const openAiResponse = createOpenAiResponse(result, {
     body: normalizedBody,
+    compatibilityNotice,
+    responseTools,
     createdAt: Math.floor(startedAt / 1000),
     promptEnhancement: gatewayInput.metadata?.promptEnhancement,
     session,
   });
-  const storedSession = storeResponseSession({
-    sessionStore,
-    session,
-    responseId: openAiResponse.id,
-    instructions: normalizedBody.instructions ?? session.previous?.instructions ?? null,
-    contextMessages: [
-      ...mergedWireMessages,
-      ...createAssistantWireReplies(result),
-    ],
-    assistantOutput: openAiResponse.output_text,
-    reasoningSummary: readGatewayReasoningSummary(result),
-    model: openAiResponse.model,
-    providerId: result.data?.selectedProvider ?? null,
-    responseBody: openAiResponse,
-  });
-  openAiResponse.store = storedSession;
-
   // Guardrails 输出侧：对最终 output_text 脱敏/拦截；fail-open 保证不影响正常响应。
   if (typeof openAiResponse.output_text === "string" && openAiResponse.output_text) {
     const outputVerdict = guardrailsEngine.inspectOutputText(openAiResponse.output_text);
@@ -357,13 +358,23 @@ export async function dispatchOpenAiResponsesRoutes(context) {
       }
     }
   }
-  recordVirtualKeyUsage({
-    enterpriseGovernanceService,
-    request,
-    writeServiceLog,
-    tokens: Number(result.data?.usage?.totalTokens ?? 0),
-    path: RESPONSES_PATH,
+  const storedSession = storeResponseSession({
+    sessionStore,
+    session,
+    responseId: openAiResponse.id,
+    instructions: normalizedBody.instructions ?? session.previous?.instructions ?? null,
+    contextMessages: [
+      ...mergedWireMessages,
+      ...createAssistantWireReplies(result).map(message => message.role === "assistant" && typeof message.content === "string"
+        ? { ...message, content: openAiResponse.output_text } : message),
+    ],
+    assistantOutput: openAiResponse.output_text,
+    reasoningSummary: readGatewayReasoningSummary(result),
+    model: openAiResponse.model,
+    providerId: result.data?.selectedProvider ?? null,
+    responseBody: openAiResponse,
   });
+  openAiResponse.store = storedSession;
   writeServiceLog?.("openai_response_completed", {
     method: request.method,
     path: normalized.path,
@@ -504,6 +515,7 @@ function dispatchResponseRetrieval({
   response,
   startedAt,
   sessionStore,
+  guardrailsEngine,
   writeServiceLog,
 }) {
   if (method !== "GET" && method !== "DELETE") {
@@ -537,12 +549,27 @@ function dispatchResponseRetrieval({
       writeJson(response, 404, createOpenAiError(error));
       return;
     }
+    const outputVerdict = guardrailsEngine.inspectOutputText(record.responseBody.output_text ?? "");
+    recordGuardrailEvaluation("output", outputVerdict.decision);
+    for (const finding of outputVerdict.findings) recordGuardrailFinding(finding.rule, finding.action);
+    if (outputVerdict.decision === "block") {
+      writeJson(response, 400, createOpenAiError({ code: "guardrail_blocked", category: "governance",
+        message: "Stored response blocked by current chat guardrails.", param: "response_id" }));
+      return;
+    }
+    const responseBody = outputVerdict.text === record.responseBody.output_text ? record.responseBody : {
+      ...record.responseBody,
+      output_text: outputVerdict.text,
+      output: record.responseBody.output?.map(item => item?.type === "message" && Array.isArray(item.content)
+        ? { ...item, content: item.content.map(part => part?.type === "output_text"
+          ? { ...part, text: outputVerdict.text } : part) } : item),
+    };
     writeServiceLog?.("openai_response_retrieved", {
       method,
       path: `/v1/responses/${responseId}`,
       durationMs: Date.now() - startedAt,
     });
-    writeJson(response, 200, record.responseBody);
+    writeJson(response, 200, responseBody);
     return;
   }
 
@@ -650,7 +677,7 @@ export function createOpenAiResponse(result, options = {}) {
     parallel_tool_calls: body.parallel_tool_calls ?? false,
     temperature: body.temperature ?? null,
     tool_choice: body.tool_choice ?? "auto",
-    tools: body.tools ?? [],
+    tools: options.responseTools ?? [],
     top_p: body.top_p ?? null,
     max_output_tokens: body.max_output_tokens ?? null,
     previous_response_id: session?.previousResponseId ?? null,
@@ -668,11 +695,10 @@ export function createOpenAiResponse(result, options = {}) {
       output_tokens_details: { reasoning_tokens: usage.reasoningTokens ?? 0 },
       total_tokens: usage.totalTokens ?? 0,
     },
-    unified_ai: createUnifiedAiMetadata(
-      data,
-      result.meta,
-      options.promptEnhancement,
-    ),
+    unified_ai: {
+      ...createUnifiedAiMetadata(data, result.meta, options.promptEnhancement),
+      ...(options.compatibilityNotice ? { compatibility: options.compatibilityNotice } : {}),
+    },
   };
 }
 
@@ -1039,6 +1065,8 @@ function validateResponseTextOptions(text) {
 
 async function streamOpenAiResponse({
   body,
+  compatibilityNotice,
+  responseTools,
   gatewayInput,
   mergedWireMessages = [],
   gatewayService,
@@ -1062,13 +1090,14 @@ async function streamOpenAiResponse({
   const accumulatedToolCalls = new Map();
   const createdAt = Math.floor(startedAt / 1000);
   const guardrailsEngine = getGuardrailsEngine(request.enterpriseIdentity?.tenantId);
+  const outputPolicy = captureGuardrailsOutputPolicy(guardrailsEngine);
 
   response.on("close", () => {
     clientClosed = true;
   });
   const primedStream = await primeGatewayStream(gatewayService.executeStream(gatewayInput));
   const preflightError = readPrimedGatewayStreamError(primedStream);
-  const preflightStatus = resolveProviderDispatchHttpStatus(preflightError?.code);
+  const preflightStatus = resolveGatewayStreamPreflightStatus(preflightError?.code);
   if (preflightError && preflightStatus !== null) {
     await closePrimedGatewayStream(primedStream);
     writeServiceLog?.("openai_response_stream_failed", {
@@ -1084,6 +1113,8 @@ async function streamOpenAiResponse({
 
   const initialResponse = createStreamingResponse({
     body,
+    compatibilityNotice,
+    responseTools,
     createdAt,
     model: selectedModel,
     responseId,
@@ -1101,7 +1132,7 @@ async function streamOpenAiResponse({
   });
 
   try {
-    for await (const event of iteratePrimedGatewayStream(primedStream)) {
+    for await (const event of inspectGuardrailsOutputStream(iteratePrimedGatewayStream(primedStream), outputPolicy, () => clientClosed)) {
       if (clientClosed) break;
       if (event.type === "error") {
         failed = true;
@@ -1131,8 +1162,7 @@ async function streamOpenAiResponse({
         });
       }
       if (event.type === "chunk") {
-        // Guardrails 输出侧（流式）：对每个 delta 尽力脱敏，fail-open 保证流不中断。
-        const delta = guardrailsEngine.inspectSseDelta(event.textDelta ?? "");
+        const delta = event.textDelta ?? "";
         outputText += delta;
         writeResponseSse(response, {
           type: "response.output_text.delta",
@@ -1215,6 +1245,8 @@ async function streamOpenAiResponse({
     });
     const completed = createStreamingResponse({
       body,
+      compatibilityNotice,
+      responseTools,
       createdAt,
       executionMode,
       model: selectedModel,
@@ -1247,13 +1279,6 @@ async function streamOpenAiResponse({
       responseBody: completed,
     });
     completed.store = storedSession;
-    recordVirtualKeyUsage({
-      enterpriseGovernanceService,
-      request,
-      writeServiceLog,
-      tokens: estimateStreamTokens(gatewayInput, outputText),
-      path: RESPONSES_PATH,
-    });
     writeResponseSse(response, {
       type: "response.completed",
       sequence_number: sequenceNumber++,
@@ -1275,6 +1300,8 @@ async function streamOpenAiResponse({
 
 function createStreamingResponse({
   body,
+  compatibilityNotice,
+  responseTools = [],
   createdAt,
   executionMode = null,
   model,
@@ -1304,7 +1331,7 @@ function createStreamingResponse({
     parallel_tool_calls: body.parallel_tool_calls ?? false,
     temperature: body.temperature ?? null,
     tool_choice: body.tool_choice ?? "auto",
-    tools: body.tools ?? [],
+    tools: responseTools,
     top_p: body.top_p ?? null,
     max_output_tokens: body.max_output_tokens ?? null,
     previous_response_id: session?.previousResponseId ?? null,
@@ -1316,6 +1343,7 @@ function createStreamingResponse({
       selected_provider: selectedProvider,
       selected_model: model,
       execution_mode: executionMode,
+      ...(compatibilityNotice ? { compatibility: compatibilityNotice } : {}),
     },
   };
 }

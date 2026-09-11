@@ -1,4 +1,5 @@
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
+import { clearRuntimeProviderCredential } from "../providers/clearRuntimeProviderCredential.ts";
 
 export async function dispatchHttpRoutes04(context) {
   const {
@@ -21,7 +22,7 @@ export async function dispatchHttpRoutes04(context) {
     readEnterpriseJson, writeEnterpriseError, writeCapabilityError, normalizeChatBody,
     normalizeRagChatBody, extractChatPrompt, createRagRetrieveRequest, createRagCitations,
     createRagPrompt, createRagChatData, OWNER_AUTOMATION_CHAT_PROPOSAL_FLAG, application,
-    request, response, url, startedAt,
+    request, response, url, startedAt, requestExecution,
     approvalStore, fileContextStore, phase319LocalOperation, connectorFeishuDryRun,
     connectorWeComDryRun, capabilityRouterService, codexExecCrsRuntimeCandidate, enterpriseGovernanceService,
     enterpriseOpsService, fiveCapabilityActivationService, gatewayService, knowledgeService,
@@ -72,6 +73,29 @@ export async function dispatchHttpRoutes04(context) {
           details: sanitizeCredentialErrorDetails(error?.details),
         }),
       );
+    }
+    return;
+  }
+
+  if (request.method === "DELETE" && url.pathname === "/providers/runtime-credential") {
+    let body;
+    try {
+      body = await readJson(request);
+    } catch (error) {
+      const oversized = error?.code === "request_payload_too_large" && error?.statusCode === 413;
+      writeJson(response, oversized ? 413 : 400, createErrorEnvelope(
+        oversized ? "request_payload_too_large" : "provider_runtime_credential_clear_invalid_json",
+        oversized ? "Credential clearing request body is too large." : "Credential clearing requires a valid JSON body.",
+        { startedAt, category: "validation", retryable: false },
+      ));
+      return;
+    }
+    try {
+      const result = await clearRuntimeProviderCredential(application, body, request.enterpriseIdentity);
+      writeJson(response, 200, createOkEnvelope(result, { startedAt }));
+    } catch (error) {
+      writeJson(response, error.statusCode ?? 503, createErrorEnvelope(error.code,
+        error.message, { startedAt, category: error.category, retryable: false, details: error.details }));
     }
     return;
   }
@@ -286,11 +310,14 @@ export async function dispatchHttpRoutes04(context) {
     if (!body) return;
 
       try {
-        const result = workforceService.plan(body);
-        const autoSaveResult = await workforceService.savePlan({ plan: result }, request.enterpriseIdentity?.tenantId);
+        const operation = await workforceService.planAndSave(body, { identity: request.enterpriseIdentity,
+          signal: requestExecution?.signal, deadlineAt: requestExecution?.deadlineAt });
+        const result = operation.plan;
+        const autoSaveResult = operation.saved;
         const responseData = {
           ...result,
           autoSaved: true,
+          hookReplayed: operation.replayed,
           planId: autoSaveResult.planId,
           autoSave: {
             phase: "phase-225a-agent-workforce-auto-save-latest-plan",
@@ -345,7 +372,8 @@ export async function dispatchHttpRoutes04(context) {
     if (!body) return;
 
     try {
-      const result = await workforceService.runLocal(body, { tenantId: request.enterpriseIdentity?.tenantId });
+      const result = await workforceService.runLocal(body, { tenantId: request.enterpriseIdentity?.tenantId, identity: request.enterpriseIdentity,
+        signal: requestExecution?.signal, deadlineAt: requestExecution?.deadlineAt });
       writeServiceLog("workforce_real_local_run_completed", {
         method: request.method,
         path: url.pathname,
@@ -374,7 +402,8 @@ export async function dispatchHttpRoutes04(context) {
     if (!body) return;
 
     try {
-      const result = await workforceService.savePlan(body, request.enterpriseIdentity?.tenantId);
+      const result = await workforceService.savePlan(body, request.enterpriseIdentity?.tenantId, { identity: request.enterpriseIdentity,
+        signal: requestExecution?.signal, deadlineAt: requestExecution?.deadlineAt });
       writeServiceLog("workforce_plan_saved", {
         method: request.method,
         path: url.pathname,

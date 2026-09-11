@@ -97,8 +97,8 @@ describe("workflowRunHandoff", () => {
     return { handoff, claimTokens, lifecycle, workflowService };
   }
 
-  it("executes workflowService.run when the claim token is valid", async () => {
-    const { handoff, claimTokens } = createFixture();
+  it("keeps legacy standalone tokens insufficient for workflow publication", async () => {
+    const { handoff, claimTokens, workflowService, lifecycle } = createFixture();
     const claim = claimTokens.issueTaskClaimToken({ planId: "plan-1", taskId: "task-1" });
     const result = await handoff.handoff({
       planId: "plan-1",
@@ -106,9 +106,10 @@ describe("workflowRunHandoff", () => {
       claimToken: claim.token,
       workflowRequest: { goal: "do it" },
     });
-    expect(result.handedOff).toBe(true);
-    expect(result.status).toBe("completed");
-    expect(result.result.ok).toBe(true);
+    expect(result).toMatchObject({ handedOff: false, status: "refused", code: "HANDOFF_GOVERNED_CONTEXT_REQUIRED" });
+    expect(workflowService.run).not.toHaveBeenCalled();
+    expect(lifecycle.listActiveExecutions()).toHaveLength(0);
+    expect(claimTokens.consumeTaskClaimToken({ planId: "plan-1", taskId: "task-1", token: claim.token }).valid).toBe(true);
   });
 
   it("refuses handoff without consuming a token and never calls run", async () => {
@@ -117,31 +118,24 @@ describe("workflowRunHandoff", () => {
     const refused = await handoff.handoff({ planId: "p", taskId: "t", claimToken: "tct_invalid" });
     expect(refused.handedOff).toBe(false);
     expect(refused.status).toBe("refused");
-    expect(refused.code).toBe("CLAIM_TOKEN_MISMATCH");
+    expect(refused.code).toBe("HANDOFF_GOVERNED_CONTEXT_REQUIRED");
     expect(workflowService.run).not.toHaveBeenCalled();
 
-    // 单次使用：第二次同令牌请求被拒。
+    // Neither a valid legacy token nor replay can create concrete DAG authority.
     await handoff.handoff({ planId: "p", taskId: "t", claimToken: claim.token });
     const replay = await handoff.handoff({ planId: "p", taskId: "t", claimToken: claim.token });
-    expect(replay.code).toBe("CLAIM_NOT_FOUND");
-    expect(workflowService.run).toHaveBeenCalledTimes(1);
+    expect(replay.code).toBe("HANDOFF_GOVERNED_CONTEXT_REQUIRED");
+    expect(workflowService.run).not.toHaveBeenCalled();
+    expect(claimTokens.consumeTaskClaimToken({ planId: "p", taskId: "t", token: claim.token }).valid).toBe(true);
   });
 
-  it("reports cancelled when the execution is aborted mid-run", async () => {
-    const { handoff, claimTokens, lifecycle } = createFixture({
-      runImpl: (request, context) => new Promise((_resolve, reject) => {
-        context.signal.addEventListener("abort", () => reject(context.signal.reason));
-      }),
-    });
+  it("never starts an ungoverned cancellable operation on a foreign workflow service", async () => {
+    const runImpl = vi.fn(() => new Promise(() => {}));
+    const { handoff, claimTokens, lifecycle } = createFixture({ runImpl });
     const claim = claimTokens.issueTaskClaimToken({ planId: "p", taskId: "t" });
-    const pending = handoff.handoff({ planId: "p", taskId: "t", claimToken: claim.token });
-    await Promise.resolve();
-    const active = lifecycle.listActiveExecutions();
-    expect(active).toHaveLength(1);
-    lifecycle.cancelExecution(active[0].runId, "test-cancel");
-    const result = await pending;
-    expect(result.status).toBe("cancelled");
-    expect(result.error.message).toContain("test-cancel");
+    const result = await handoff.handoff({ planId: "p", taskId: "t", claimToken: claim.token });
+    expect(result).toMatchObject({ status: "refused", code: "HANDOFF_GOVERNED_CONTEXT_REQUIRED" });
+    expect(runImpl).not.toHaveBeenCalled(); expect(lifecycle.listActiveExecutions()).toHaveLength(0);
   });
 
   it("refuses honestly when dependencies are missing", async () => {

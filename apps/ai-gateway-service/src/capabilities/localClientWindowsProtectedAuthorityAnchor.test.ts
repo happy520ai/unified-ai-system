@@ -1,17 +1,22 @@
 import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join, win32 } from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { performance } from "node:perf_hooks";
 
 import {
   LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_VERSION,
   LOCAL_CLIENT_WINDOWS_AUTHORITY_FILE_VERSION,
   LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_VERSION,
+  LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_V2_VERSION,
+  LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_V2_VERSION,
   LOCAL_CLIENT_WINDOWS_PROTECTED_AUTHORITY_BOUNDARIES,
   createLocalClientWindowsAuthorityFileHmac,
   createLocalClientWindowsAuthorityRequestHmac,
   createLocalClientWindowsAuthorityResponseHmac,
+  createLocalClientWindowsAuthorityRequestDigest,
   createLocalClientWindowsProtectedAuthorityAnchor,
   type LocalClientWindowsAuthorityAclFacts,
   type LocalClientWindowsAuthorityBrokerRequest,
@@ -20,6 +25,8 @@ import {
   type LocalClientWindowsAuthorityFileCheckpoint,
   type LocalClientWindowsAuthorityPrivilegedBrokerPort,
   type LocalClientWindowsProtectedAuthorityEnabledOptions,
+  type LocalClientWindowsAuthorityUnsignedResponse,
+  type LocalClientWindowsAuthorityRequestV2,
 } from "./localClientWindowsProtectedAuthorityAnchor.ts";
 
 const HOST_ID = "protected-authority-test-host";
@@ -55,6 +62,7 @@ describe("LocalClientWindowsProtectedAuthorityAnchor", () => {
   });
 
   afterEach(async () => {
+    vi.restoreAllMocks();
     await rm(container, { recursive: true, force: true });
   });
 
@@ -82,9 +90,193 @@ describe("LocalClientWindowsProtectedAuthorityAnchor", () => {
     await expect(anchor.prepareNext(1, DIGEST_TWO)).rejects.toMatchObject({
       code: "LOCAL_CLIENT_WINDOWS_AUTHORITY_UNAVAILABLE",
     });
+    await expect(anchor.enrollBaseline(DIGEST_ONE)).rejects.toMatchObject({
+      code: "LOCAL_CLIENT_WINDOWS_AUTHORITY_UNAVAILABLE",
+    });
   });
 
   describeWindowsAnchorFlows("broker-attested win32 flows", () => {
+    it("uses v2 for enrollment, reads, advance, finalize and challenge with immutable full context", async () => {
+      const f = await createPopAnchor(checkpoint(0, null));
+      await f.anchor.enrollBaseline(DIGEST_ONE);
+      await f.anchor.prepareNext(1, DIGEST_TWO);
+      await f.anchor.finalize(2, DIGEST_TWO);
+      const challenge = Buffer.alloc(32, 71);
+      const proof = await f.anchor.verifyCheckpointChallenge({ generation: 2, digest: DIGEST_TWO,
+        challenge, bindingSha256: "6".repeat(64), storeBindingSha256: "7".repeat(64) });
+      const requests = f.broker.requests as LocalClientWindowsAuthorityRequestV2[];
+      expect(requests.every(request => request.requestVersion === LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_V2_VERSION)).toBe(true);
+      expect(new Set(requests.map(request => request.operation))).toEqual(new Set(["inspect", "enroll-baseline", "prepare-next", "finalize"]));
+      expect(requests.map(request => request.requestSequence)).toEqual(requests.map((_request, index) => index + 1));
+      const last = requests.at(-1)!;
+      expect(last.attestationContext).toEqual({ storeBindingSha256: "7".repeat(64),
+        anchorBindingSha256: "4".repeat(64), installedManifestSha256: "5".repeat(64), bindingSha256: "6".repeat(64),
+        generation: 2, digest: DIGEST_TWO, challengeSha256: createHash("sha256").update(challenge).digest("hex") });
+      expect(requests.slice(0, -1).every(request => request.attestationContext === null)).toBe(true);
+      expect(Object.isFrozen(last)).toBe(true);
+      expect(Object.isFrozen(last.attestationContext)).toBe(true);
+      expect(proof).toMatchObject({ nonce: last.nonce, serviceInstanceId: last.serviceInstanceId, expiresAtMs: last.expiresAtMs });
+      await f.anchor.close();
+    });
+
+    it.each(["requestDigestSha256", "serviceInstanceId", "clientSessionId", "requestSequence", "issuedAtMs", "expiresAtMs", "observedAtMs"] as const)
+      ("rejects a correctly signed v2 response with changed %s", async field => {
+        const f = await createPopAnchor(checkpoint(1, DIGEST_ONE), { mutateUnsignedResponse(response) {
+          if (response.brokerVersion !== LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_V2_VERSION) throw new Error("expected v2");
+          if (field === "observedAtMs") return { ...response, observedAtMs: response.expiresAtMs };
+          if (field === "requestSequence" || field === "issuedAtMs" || field === "expiresAtMs") return { ...response, [field]: response[field] + 1 };
+          return { ...response, [field]: "f".repeat(64) };
+        } });
+        await expect(f.anchor.inspect()).resolves.toMatchObject({ available: false, brokerAttested: false });
+        await f.anchor.close();
+      });
+
+    it("rejects v1 downgrade responses even when correctly signed with the legacy key", async () => {
+      const f = await createPopAnchor(checkpoint(1, DIGEST_ONE), { mutateUnsignedResponse(response) {
+        if (response.brokerVersion !== LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_V2_VERSION) throw new Error("expected v2");
+        const { serviceInstanceId: _instance, clientSessionId: _session, requestSequence: _sequence,
+          requestDigestSha256: _digest, issuedAtMs: _issued, expiresAtMs: _expiry, observedAtMs: _observed, ...legacy } = response;
+        return { ...legacy, brokerVersion: LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_VERSION };
+      } });
+      await expect(f.anchor.inspect()).resolves.toMatchObject({ available: false, brokerAttested: false });
+      await f.anchor.close();
+    });
+
+    it("rejects captured v2 responses after cache eviction and a new client binding", async () => {
+      const f = await createPopAnchor(checkpoint(1, DIGEST_ONE));
+      const original = f.broker.inspect.bind(f.broker);
+      let captured: LocalClientWindowsAuthorityBrokerResponse | undefined;
+      let replay = false;
+      f.broker.inspect = async request => {
+        if (replay) return captured!;
+        const response = await original(request);
+        captured ??= response;
+        return response;
+      };
+      const input = { generation: 1, digest: DIGEST_ONE, challenge: Buffer.alloc(32, 72),
+        bindingSha256: "6".repeat(64), storeBindingSha256: "7".repeat(64) };
+      await f.anchor.verifyCheckpointChallenge(input);
+      for (let remaining = 1025; remaining > 0; remaining -= 32) {
+        const statuses = await Promise.all(Array.from({ length: Math.min(remaining, 32) }, () => f.anchor.inspect()));
+        expect(statuses.every(status => status.available)).toBe(true);
+      }
+      // Repeating the challenge obtains a new, independently bound proof; an old frame is still invalid.
+      await f.anchor.verifyCheckpointChallenge(input);
+      replay = true;
+      await expect(f.anchor.verifyCheckpointChallenge(input)).rejects.toThrow();
+      const next = createLocalClientWindowsProtectedAuthorityAnchor({ ...f.configuration, broker: f.broker });
+      await expect(next.verifyCheckpointChallenge(input)).rejects.toThrow();
+      await next.close(); await f.anchor.close();
+    });
+
+    it("rejects expiry at equality and monotonic timeout even while UTC is unchanged", async () => {
+      let now = 1_900_000_000_000, tick = 100;
+      vi.spyOn(Date, "now").mockImplementation(() => now);
+      vi.spyOn(performance, "now").mockImplementation(() => tick);
+      const f = await createPopAnchor(checkpoint(1, DIGEST_ONE));
+      const original = f.broker.inspect.bind(f.broker);
+      f.broker.inspect = async request => { const response = await original(request); now += 8000; return response; };
+      await expect(f.anchor.inspect()).resolves.toMatchObject({ available: false });
+      f.broker.inspect = async request => { const response = await original(request); tick += 8000; return response; };
+      await expect(f.anchor.inspect()).resolves.toMatchObject({ available: false });
+      await f.anchor.close();
+    });
+
+    it("latches a UTC rollback for the client binding and rejects close during a response", async () => {
+      let now = 1_900_000_000_000;
+      vi.spyOn(Date, "now").mockImplementation(() => now);
+      const f = await createPopAnchor(checkpoint(1, DIGEST_ONE));
+      const original = f.broker.inspect.bind(f.broker);
+      f.broker.inspect = async request => { const response = await original(request); now--; return response; };
+      await expect(f.anchor.inspect()).resolves.toMatchObject({ available: false });
+      now += 2;
+      await expect(f.anchor.inspect()).resolves.toMatchObject({ available: false });
+      expect(f.broker.requests).toHaveLength(1);
+      const next = createLocalClientWindowsProtectedAuthorityAnchor({ ...f.configuration, broker: f.broker });
+      f.broker.inspect = async request => { const response = await original(request); await next.close(); return response; };
+      await expect(next.inspect()).resolves.toMatchObject({ available: false });
+      await f.anchor.close();
+    });
+
+    it("requires complete PoP configuration on fixed PoP slots and rejects it on legacy slots", async () => {
+      const popProtocol = { serviceInstanceId: "1".repeat(64), anchorBindingSha256: "4".repeat(64), installedManifestSha256: "5".repeat(64) };
+      expect(() => createLocalClientWindowsProtectedAuthorityAnchor(createConfiguration({ popProtocol }))).toThrow();
+      const f = await createPopAnchor(checkpoint(1, DIGEST_ONE));
+      const { popProtocol: _pop, ...withoutProtocol } = f.configuration;
+      expect(() => createLocalClientWindowsProtectedAuthorityAnchor(withoutProtocol)).toThrow();
+      await expect(f.anchor.verifyCheckpointChallenge({ generation: 1, digest: DIGEST_ONE,
+        challenge: Buffer.alloc(32, 1), bindingSha256: "6".repeat(64) })).rejects.toThrow();
+      expect(f.broker.requests).toHaveLength(0);
+      await f.anchor.close();
+    });
+
+    it("binds the supplied PoP challenge and checkpoint context into the HMAC-verified broker nonce", async () => {
+      const broker = new FakeBroker(createConfiguration({ broker: undefined }), checkpoint(1, DIGEST_ONE));
+      await broker.persistFile();
+      const requests: LocalClientWindowsAuthorityBrokerRequest[] = [];
+      const anchor = createAnchor({ inspect: request => { requests.push(request); return broker.inspect(request); },
+        prepareNext: broker.prepareNext.bind(broker), finalize: broker.finalize.bind(broker) });
+      const bindingSha256 = "1".repeat(64), challenge = Buffer.alloc(32, 42);
+      const proof = await anchor.verifyCheckpointChallenge({ generation: 1, digest: DIGEST_ONE, bindingSha256, challenge });
+      const challengeSha256 = createHash("sha256").update(challenge).digest("hex");
+      const nonce = createHash("sha256").update(JSON.stringify([
+        "local-client-pop-native-challenge-v1", bindingSha256, 1, DIGEST_ONE, challengeSha256,
+      ])).digest("hex");
+      expect(requests[0]!.nonce).toBe(nonce);
+      expect(proof).toMatchObject({ generation: 1, digest: DIGEST_ONE, nonce, challengeSha256,
+        attestationSha256: expect.stringMatching(/^[a-f0-9]{64}$/u) });
+      await expect(anchor.verifyCheckpointChallenge({ generation: 1, digest: DIGEST_ONE, bindingSha256, challenge })).rejects.toThrow();
+      await anchor.verifyCheckpointChallenge({ generation: 1, digest: DIGEST_ONE, bindingSha256, challenge: Buffer.alloc(32, 43) });
+      expect(requests[1]!.nonce).not.toBe(nonce);
+      expect(broker.operations).toEqual(["inspect", "inspect"]);
+      await anchor.close();
+    });
+
+    it.each(["hmac", "nonce", "checkpoint"] as const)("rejects a PoP challenge proof with incorrect %s binding", async failure => {
+      const broker = new FakeBroker(createConfiguration({ broker: undefined }), checkpoint(1, DIGEST_ONE),
+        failure === "hmac" ? { forgeResponseHmac: true } : failure === "nonce"
+          ? { mutateUnsignedResponse: response => ({ ...response, nonce: "f".repeat(64) }) } : {});
+      await broker.persistFile();
+      const anchor = createAnchor(broker);
+      await expect(anchor.verifyCheckpointChallenge({ generation: failure === "checkpoint" ? 2 : 1, digest: DIGEST_ONE,
+        bindingSha256: "1".repeat(64), challenge: Buffer.alloc(32, 44) })).rejects.toThrow();
+      await anchor.close();
+    });
+
+    it("explicitly enrolls an authenticated zero baseline and retries only the exact generation-one digest", async () => {
+      const broker = new FakeBroker(createConfiguration({ broker: undefined }), checkpoint(0, null));
+      await broker.persistFile();
+      const anchor = createAnchor(broker);
+      await expect(anchor.inspect()).resolves.toMatchObject({ available: false, state: "uninitialized" });
+      await expect(anchor.prepareNext(0, DIGEST_ONE)).rejects.toThrow();
+      await expect(anchor.enrollBaseline(DIGEST_ONE)).resolves.toMatchObject({
+        state: "ready", currentGeneration: 1, currentDigest: DIGEST_ONE, pendingGeneration: null,
+      });
+      await expect(anchor.enrollBaseline(DIGEST_ONE)).resolves.toMatchObject({ currentGeneration: 1 });
+      await expect(anchor.enrollBaseline(DIGEST_TWO)).rejects.toThrow();
+      expect(broker.operations.filter((value) => value === "enroll-baseline")).toHaveLength(2);
+      await expect(anchor.assertCurrent(1, DIGEST_ONE)).resolves.toMatchObject({ generation: 1 });
+    });
+
+    it.each([checkpoint(0, null, 1, DIGEST_ONE), checkpoint(1, DIGEST_ONE, 2, DIGEST_TWO), checkpoint(2, DIGEST_ONE)])(
+      "does not re-enroll pending or advanced authority: %j", async (state) => {
+        const broker = new FakeBroker(createConfiguration({ broker: undefined }), state);
+        await broker.persistFile();
+        await expect(createAnchor(broker).enrollBaseline(DIGEST_ONE)).rejects.toThrow();
+        expect(broker.operations).toEqual(["inspect"]);
+      },
+    );
+
+    it("keeps legacy broker ports inspectable while rejecting unsupported explicit enrollment", async () => {
+      const broker = new FakeBroker(createConfiguration({ broker: undefined }), checkpoint(0, null));
+      await broker.persistFile();
+      const legacy = { inspect: broker.inspect.bind(broker), prepareNext: broker.prepareNext.bind(broker), finalize: broker.finalize.bind(broker) };
+      const anchor = createAnchor(legacy);
+      await expect(anchor.inspect()).resolves.toMatchObject({ state: "uninitialized" });
+      await expect(anchor.enrollBaseline(DIGEST_ONE)).rejects.toThrow();
+      expect(broker.operations).not.toContain("enroll-baseline");
+    });
+
       it("completes a broker-only two-phase advance and rejects an older generation", async () => {
       const broker = new FakeBroker(
         createConfiguration({ broker: undefined }),
@@ -340,19 +532,32 @@ describe("LocalClientWindowsProtectedAuthorityAnchor", () => {
       ...overrides,
     };
   }
+
+  async function createPopAnchor(state: LocalClientWindowsAuthorityCheckpointState, options: FakeBrokerOptions = {}) {
+    const root = win32.join(container, "anchors", "pop-replay");
+    await mkdir(root, { recursive: true });
+    const configuration = createConfiguration({ programDataRoot: root, anchorPath: win32.join(root, "authority.json"),
+      hklmKeyPath: `${HKLM_KEY}\\Anchors\\pop-replay`,
+      popProtocol: { serviceInstanceId: "1".repeat(64), anchorBindingSha256: "4".repeat(64), installedManifestSha256: "5".repeat(64) } });
+    const broker = new FakeBroker(configuration, state, options);
+    await broker.persistFile();
+    const anchor = createLocalClientWindowsProtectedAuthorityAnchor({ ...configuration, broker });
+    return { anchor, broker, configuration };
+  }
 });
 
 type FakeBrokerOptions = Readonly<{
   forgeResponseHmac?: boolean;
   mutateUnsignedResponse?: (
-    response: Omit<LocalClientWindowsAuthorityBrokerResponse, "responseHmacSha256">,
-  ) => Omit<LocalClientWindowsAuthorityBrokerResponse, "responseHmacSha256">;
+    response: LocalClientWindowsAuthorityUnsignedResponse,
+  ) => LocalClientWindowsAuthorityUnsignedResponse;
   acl?: LocalClientWindowsAuthorityAclFacts;
   hklmCheckpoint?: LocalClientWindowsAuthorityCheckpointState;
 }>;
 
 class FakeBroker implements LocalClientWindowsAuthorityPrivilegedBrokerPort {
   readonly operations: string[] = [];
+  readonly requests: LocalClientWindowsAuthorityBrokerRequest[] = [];
   readonly #configuration: LocalClientWindowsProtectedAuthorityEnabledOptions;
   readonly #options: FakeBrokerOptions;
   #state: LocalClientWindowsAuthorityCheckpointState;
@@ -401,6 +606,21 @@ class FakeBroker implements LocalClientWindowsAuthorityPrivilegedBrokerPort {
     return this.#response(request);
   }
 
+  async enrollBaseline(request: LocalClientWindowsAuthorityBrokerRequest): Promise<LocalClientWindowsAuthorityBrokerResponse> {
+    this.#verifyRequest(request, "enroll-baseline");
+    this.operations.push("enroll-baseline");
+    if (request.expectedCurrentGeneration !== 0 || request.expectedCurrentDigest !== null
+      || request.nextGeneration !== 1 || request.nextDigest === null || this.#state.pendingGeneration !== null
+      || !(this.#state.currentGeneration === 0 || (this.#state.currentGeneration === 1 && this.#state.currentDigest === request.nextDigest))) {
+      throw new Error("invalid enrollment request");
+    }
+    if (this.#state.currentGeneration === 0) {
+      this.#state = checkpoint(1, request.nextDigest);
+      await this.persistFile();
+    }
+    return this.#response(request);
+  }
+
   async finalize(
     request: LocalClientWindowsAuthorityBrokerRequest,
   ): Promise<LocalClientWindowsAuthorityBrokerResponse> {
@@ -426,16 +646,18 @@ class FakeBroker implements LocalClientWindowsAuthorityPrivilegedBrokerPort {
     const { requestHmacSha256, ...unsigned } = request;
     const expected = createLocalClientWindowsAuthorityRequestHmac(KEY, unsigned);
     if (
-      request.requestVersion !== LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_VERSION
+      request.requestVersion !== (this.#configuration.popProtocol
+        ? LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_V2_VERSION : LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_VERSION)
       || request.operation !== operation
       || requestHmacSha256 !== expected
     ) throw new Error("invalid broker request");
+    this.requests.push(request);
   }
 
   #response(
     request: LocalClientWindowsAuthorityBrokerRequest,
   ): LocalClientWindowsAuthorityBrokerResponse {
-    let unsigned: Omit<LocalClientWindowsAuthorityBrokerResponse, "responseHmacSha256"> = {
+    let unsigned: LocalClientWindowsAuthorityUnsignedResponse = {
       brokerVersion: LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_VERSION,
       operation: request.operation,
       nonce: request.nonce,
@@ -448,8 +670,15 @@ class FakeBroker implements LocalClientWindowsAuthorityPrivilegedBrokerPort {
       hklmView: "registry64",
       fileCheckpoint: this.#state,
       hklmCheckpoint: this.#options.hklmCheckpoint ?? this.#state,
-      acl: this.#options.acl ?? safeAcl(),
+      acl: this.#options.acl ?? { ...safeAcl(), hklmKeyPath: this.#configuration.hklmKeyPath },
     };
+    if (request.requestVersion === LOCAL_CLIENT_WINDOWS_AUTHORITY_REQUEST_V2_VERSION) {
+      const { requestHmacSha256: _mac, ...unsignedRequest } = request;
+      unsigned = { ...unsigned, brokerVersion: LOCAL_CLIENT_WINDOWS_AUTHORITY_BROKER_V2_VERSION,
+        serviceInstanceId: request.serviceInstanceId, clientSessionId: request.clientSessionId,
+        requestSequence: request.requestSequence, issuedAtMs: request.issuedAtMs, expiresAtMs: request.expiresAtMs,
+        observedAtMs: Date.now(), requestDigestSha256: createLocalClientWindowsAuthorityRequestDigest(unsignedRequest) };
+    }
     unsigned = this.#options.mutateUnsignedResponse?.(unsigned) ?? unsigned;
     const responseHmacSha256 = createLocalClientWindowsAuthorityResponseHmac(KEY, unsigned);
     return Object.freeze({

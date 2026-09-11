@@ -21,10 +21,14 @@ import {
 import { classifyImmuneRisk, generateManifestDraft } from "@unified-ai-system/taiji-beidou-engine";
 import { runRealTaskWorkforceDryRun } from "../workforce-preview/workforcePreviewService.js";
 import { redactSecretsInText } from "../security/secretSafety.js";
+import { resolveGovernedWebTaskRequest, createGovernedWebTaskExecution } from "../forge/governedWebTaskRuntime.ts";
+import { readForgeModelSelection, readForgeOutputTokenLimit } from "../forge/forgeModelSelection.ts";
+import { dispatchTaijiCapabilityRoutes } from "./taijiCapabilityRoutes.ts";
 
 export function isForgeRoute(pathname) {
   const path = String(pathname ?? "");
-  return path.startsWith("/forge/") || path === "/taiji/compile" || path === "/workforce/preview";
+  return path.startsWith("/forge/") || path === "/taiji/compile" || path === "/taiji/capabilities"
+    || path.startsWith("/taiji/capabilities/") || path === "/workforce/preview";
 }
 
 function buildForgeGovernanceIdentity(request, agentId, requestId) {
@@ -68,6 +72,16 @@ function combineForgeRouteSignals(...candidates) {
 function sanitizeGovernedForgeOptions(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return Object.freeze({});
   const safe = {};
+  if (value.maxOutputTokens !== undefined) {
+    const limit = readForgeOutputTokenLimit(value.maxOutputTokens);
+    if (!limit) throw Object.assign(new Error("Invalid Forge output token limit."), { code: "FORGE_MODEL_LIMIT_INVALID", statusCode: 400 });
+    safe.maxOutputTokens = limit;
+  }
+  if (value.modelSelection !== undefined) {
+    const selection = readForgeModelSelection(value.modelSelection);
+    if (!selection) throw Object.assign(new Error("Invalid Forge model selection."), { code: "FORGE_MODEL_SELECTION_INVALID", statusCode: 400 });
+    safe.modelSelection = selection;
+  }
   if (typeof value.useRefiner === "boolean") safe.useRefiner = value.useRefiner;
   const maxConcurrent = boundedNumber(value.maxConcurrent, { min: 1, max: 8, integer: true });
   if (maxConcurrent !== undefined) safe.maxConcurrent = maxConcurrent;
@@ -92,12 +106,12 @@ function sanitizeGovernedForgeOptions(value) {
   return Object.freeze(safe);
 }
 
-function buildForgeOrchestrateParams(goal, options) {
+function buildForgeOrchestrateParams(goal, options, webTask = null) {
   const goalDigest = createHash("sha256").update(goal, "utf8").digest("hex");
   return Object.freeze({
     goalDigest,
     goalBytes: Buffer.byteLength(goal, "utf8"),
-    options: sanitizeGovernedForgeOptions(options),
+    options: Object.freeze({ ...sanitizeGovernedForgeOptions(options), ...(webTask ? { webTask } : {}) }),
   });
 }
 
@@ -140,7 +154,17 @@ function readApprovedForgeOptions(verdict, requestedParams) {
     error.code = "FORGE_APPROVED_PARAMS_INVALID";
     throw error;
   }
-  return sanitizeGovernedForgeOptions(approved.options);
+  if (requestedParams.options.webTask && stableStringify(approved.options?.webTask) !== stableStringify(requestedParams.options.webTask)) {
+    throw Object.assign(new Error("Approved webpage profile or goal parameters changed."), { code: "FORGE_APPROVED_PARAMS_INVALID" });
+  }
+  if (stableStringify(approved.options?.modelSelection ?? null) !== stableStringify(requestedParams.options.modelSelection ?? null)) {
+    throw Object.assign(new Error("Approved Forge model selection changed."), { code: "FORGE_APPROVED_PARAMS_INVALID" });
+  }
+  if ((approved.options?.maxOutputTokens ?? null) !== (requestedParams.options.maxOutputTokens ?? null)) {
+    throw Object.assign(new Error("Approved Forge output token limit changed."), { code: "FORGE_APPROVED_PARAMS_INVALID" });
+  }
+  return Object.freeze({ ...sanitizeGovernedForgeOptions(approved.options),
+    ...(requestedParams.options.webTask ? { webTask: requestedParams.options.webTask } : {}) });
 }
 
 async function executeForgeOrchestration({
@@ -157,6 +181,7 @@ async function executeForgeOrchestration({
 }) {
   const governance = application?.agentGovernance;
   if (!governance) {
+    if (options?.webTask !== undefined) return { error: { status: 503, code: "FORGE_WEB_GOVERNANCE_REQUIRED", message: "Web tasks require Agent Governance." } };
     return {
       result: await forge.orchestrate({
         goal,
@@ -231,7 +256,8 @@ async function executeForgeOrchestration({
       };
     }
 
-    const requestedParams = buildForgeOrchestrateParams(goal, options);
+    const webTask = resolveGovernedWebTaskRequest(application.runtimeEnv ?? {}, options?.webTask, identity.tenantId);
+    const requestedParams = buildForgeOrchestrateParams(goal, options, webTask);
     reconciliation = Object.freeze({
       required: true,
       agentId: identity.agentId,
@@ -288,12 +314,18 @@ async function executeForgeOrchestration({
     }
     topActionLease = topVerdict.executionLease ?? null;
     const approvedOptions = readApprovedForgeOptions(topVerdict, requestedParams);
-    const governedExecution = createForgeGovernedExecution({
+    const baseExecution = createForgeGovernedExecution({
       context: identity,
       toolProxy,
       executionLease: runLease,
       signal: routeSignal,
     });
+    const governedExecution = webTask ? Object.freeze({ ...baseExecution, webTask: createGovernedWebTaskExecution({
+      request: webTask, context: identity, toolProxy, executionLease: runLease, signal: routeSignal,
+      policyHash: topVerdict.policy.policyHash, gatewayService, maxTokens: approvedOptions.budget?.maxTokens,
+      modelSelection: approvedOptions.modelSelection,
+      maxOutputTokens: approvedOptions.maxOutputTokens,
+    }) }) : baseExecution;
     const orchestrationResult = await forge.orchestrate({
       goal,
       options: approvedOptions,
@@ -303,6 +335,9 @@ async function executeForgeOrchestration({
       governanceRequired: true,
       signal: routeSignal,
     });
+    if (webTask && orchestrationResult.code === "FORGE_ACTION_OUTCOME_UNCERTAIN") {
+      return forgeOutcomeUncertain(orchestrationResult, reconciliation, orchestrationResult);
+    }
     if (routeSignal?.aborted) throw routeSignal.reason;
     completedResult = orchestrationResult;
     if (isForgePostExecutionGovernanceFailure(completedResult)) {
@@ -315,7 +350,11 @@ async function executeForgeOrchestration({
         toolName: "forge_orchestrate",
         policy: topVerdict.policy,
         result,
-        descriptor: { kind: "zero-records" },
+        descriptor: webTask && Array.isArray(result?.result?.web?.records)
+          ? { kind: "record-array", selector: ["result", "web", "records"], itemKind: "object", onLimitExceeded: "replace" }
+          : webTask && Array.isArray(result?.web?.records)
+            ? { kind: "record-array", selector: ["web", "records"], itemKind: "object", onLimitExceeded: "replace" }
+          : { kind: "zero-records" },
       });
       if (!resultVerdict || typeof resultVerdict !== "object"
         || !Object.hasOwn(resultVerdict, "result")) {
@@ -354,6 +393,7 @@ async function executeForgeOrchestration({
 }
 
 function forgeOutcomeUncertain(completedResult, reconciliation, cause) {
+  const web = completedResult?.web ?? completedResult?.result?.web;
   const runId = safeForgeReconciliationId(
     completedResult?.runId ?? completedResult?.result?.runId,
   );
@@ -369,7 +409,11 @@ function forgeOutcomeUncertain(completedResult, reconciliation, cause) {
           ...(reconciliation ?? { required: true, effectType: "forge:orchestrate" }),
           ...(runId ? { runId } : {}),
         },
-        causeCode: safeForgeCauseCode(cause?.code),
+        causeCode: safeForgeCauseCode(web?.error ?? cause?.code),
+        ...(web ? { web: { profileId: safeForgeReconciliationId(web.profileId),
+          taskId: safeForgeReconciliationId(web.taskId), browserClosed: web.browserClosed === true,
+          actionsCompleted: Number.isSafeInteger(web.actionsCompleted) ? web.actionsCompleted : null,
+          networkRequests: Number.isSafeInteger(web.networkRequests) ? web.networkRequests : null } } : {}),
       },
     },
   };
@@ -406,6 +450,7 @@ export async function dispatchForgeRoutes(context) {
     requestId,
   } = context;
   if (!isForgeRoute(url.pathname)) return ROUTE_NOT_HANDLED;
+  if (url.pathname === "/taiji/capabilities" || url.pathname.startsWith("/taiji/capabilities/")) return dispatchTaijiCapabilityRoutes(context);
 
   // 服务实例挂在 application 上(与 knowledgeService 等同生命周期),惰性构造。
   const gatewayService = context.gatewayService ?? application?.gatewayService;
@@ -487,6 +532,9 @@ export async function dispatchForgeRoutes(context) {
     "/forge/polish": async (body) => {
       const result = await forge.polish({
         content: body.content,
+        modelSelection: readForgeModelSelection(body.modelSelection),
+        maxOutputTokens: readForgeOutputTokenLimit(body.maxOutputTokens),
+        signal: requestExecution?.signal ?? null,
         task: body.task ?? {},
         passes: body.passes,
         tenantIdentity,

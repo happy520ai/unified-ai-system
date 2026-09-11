@@ -14,8 +14,10 @@ import {
   WORKFORCE_PLAN_SAFE_DESKTOP_RUNNER_DESIGN_PHASE,
   WORKFORCE_PLAN_REVIEW_APPROVAL_PHASE,
 } from "./workforcePlanStore-constants.js";
+import { readPlanHookAudit } from "./workforceHookOperations.ts";
 
 export function formatTaskPackageMarkdown({ plan, planId, savedAt }) {
+  const hookAudit = plan.hookAudit ? readPlanHookAudit(plan.hookAudit, { plan }) : null;
   const lines = [
     "# Agent Workforce Task Package",
     "",
@@ -26,6 +28,12 @@ export function formatTaskPackageMarkdown({ plan, planId, savedAt }) {
     "- Saved at: " + savedAt,
     "- Goal: " + plan.goal,
     "- Selected template: " + (plan.selectedTemplate?.name || plan.templateContext?.selectedTemplateName || "n/a"),
+    ...(hookAudit ? ["", "## Recorded Planning Hooks", "",
+      "- Operation ID: " + hookAudit.binding.operationId,
+      "- Request hash: " + hookAudit.binding.requestHash,
+      "- Audit hash: " + hookAudit.auditHash,
+      ...hookAudit.receipts.map(receipt => "- " + receipt.event + " / " + receipt.handlerId + ": " + receipt.outcome + " (" + receipt.recordedAt + ")"),
+      "", "These receipts record planning and saving only. They do not authorize employee or workflow execution."] : []),
     "",
     "## Product Templates Preview",
     "- Phase: " + (plan.productTemplatesPreview?.phase || WORKFORCE_PLAN_PRODUCT_TEMPLATE_PACK_PHASE),

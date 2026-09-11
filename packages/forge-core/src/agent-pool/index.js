@@ -54,12 +54,13 @@ import { UnifiedConfigHub } from '../config-hub/index.js';
 import { ContextEngine } from '../context-engine/index.js';
 
 // Extracted helper modules
-import { submitGoal as _submitGoal, enqueueNewlyReadyTasks as _enqueueNewlyReadyTasks, checkGoalCompletion as _checkGoalCompletion, cancelGoal as _cancelGoal, resumeGoal as _resumeGoal, recoverInterruptedGoals as _recoverInterruptedGoals } from './goal-lifecycle.js';
+import { submitGoal as _submitGoal, enqueueGovernedGoal as _enqueueGovernedGoal, enqueueNewlyReadyTasks as _enqueueNewlyReadyTasks, checkGoalCompletion as _checkGoalCompletion, cancelGoal as _cancelGoal, resumeGoal as _resumeGoal, recoverInterruptedGoals as _recoverInterruptedGoals } from './goal-lifecycle.js';
 import { processQueue as _processQueue } from './process-queue.js';
 import { executeWorker as _executeWorker } from './worker-execution.js';
-import { reapOrphanTasks as _reapOrphanTasks } from './orphan-reaper.js';
+import { reapOrphanTasks as _reapOrphanTasks, recoverGovernedGoals as _recoverGovernedGoals } from './orphan-reaper.js';
 import { getStatus as _getStatus, getMetrics as _getMetrics, getPlugins as _getPlugins, getResilience as _getResilience, getSelfLoop as _getSelfLoop, getCostCalculator as _getCostCalculator, getDeadLetterQueue as _getDeadLetterQueue, getProgressEstimator as _getProgressEstimator, getMemoryEngine as _getMemoryEngine, getGoalProgress as _getGoalProgress, getGoalBudget as _getGoalBudget, getTracing as _getTracing, getTracingManager as _getTracingManager } from './pool-status.js';
-import { shutdown as _shutdown } from './shutdown.js';
+import { shutdown as _shutdown, controlGovernedGoal as _controlGovernedGoal } from './shutdown.js';
+import { readGovernedChunkExecutor, governedPoolError } from './constants.js';
 
 export class AgentPoolManager {
   /** @type {object} Consolidated state object for extraction */
@@ -67,8 +68,8 @@ export class AgentPoolManager {
 
   /**
    * @param {object} options
-   * @param {import('../task-store/index.js').TaskStore} options.store — TaskStore instance
-   * @param {string} options.projectRoot — absolute path to the project root
+   * @param {import('../task-store/index.js').TaskStore} [options.store] — TaskStore instance (legacy mode)
+   * @param {string} [options.projectRoot] — absolute project root (legacy mode)
    * @param {number} [options.maxConcurrent=4] — maximum number of parallel workers (GLOBAL across all goals)
    * @param {object} [options.llmOptions] — default LLM options passed to workers
    * @param {object} [options.budget] — global budget limits { maxTokens, maxCost, maxMinutes }
@@ -76,11 +77,13 @@ export class AgentPoolManager {
    * @param {boolean} [options.enableVerification=true] — enable verification engine for verify tasks
    * @param {boolean} [options.enableAutoVerify=true] — auto-run verification after code-mutating tasks
    * @param {number} [options.maxGoals=3] — maximum number of goals executing in parallel
+   * @param {number} [options.maxQueuedGoals] — governed waiting capacity, defaults to maxGoals
+   * @param {import('./constants.js').GovernedChunkExecutor} [options.governedChunkExecutor] — server-owned signed-state and execution boundary
    * @param {import('../config/index.js').ForgeConfig} [options.config] — ForgeConfig instance for centralized settings
    * @param {import('../plugins/index.js').PluginManager} [options.pluginManager] — plugin manager for hooks & middleware
    * @param {import('../tracing/index.js').TraceManager} [options.tracingManager] — distributed tracing manager
    */
-  constructor({ store, projectRoot, maxConcurrent, llmOptions, budget, enableCodeIntel, enableVerification, enableAutoVerify, maxGoals, config, pluginManager, tracingManager, sandboxExecutor, sandboxOptions }) {
+  constructor({ store, projectRoot, maxConcurrent, llmOptions, budget, enableCodeIntel, enableVerification, enableAutoVerify, maxGoals, config, pluginManager, tracingManager, sandboxExecutor, sandboxOptions, governedChunkExecutor, maxQueuedGoals }) {
     this.#s.config = config || null;
     this.#s.plugins = pluginManager || null;
     this.#s.tracing = tracingManager || null;
@@ -97,21 +100,6 @@ export class AgentPoolManager {
       enableAutoVerify: enableAutoVerify ?? cfg?.pool?.enableAutoVerify ?? true,
       maxGoals: maxGoals ?? cfg?.pool?.maxGoals ?? 3,
     };
-
-    const configuredSandbox = sandboxOptions ?? cfg?.sandbox ?? {};
-    const container = configuredSandbox.container
-      ? {
-          ...configuredSandbox.container,
-          workspaceRoots: configuredSandbox.container.workspaceRoots ?? [projectRoot],
-        }
-      : undefined;
-    this.#s.sandboxExecutor = sandboxExecutor ?? new SandboxExecutor({
-      ...configuredSandbox,
-      container,
-      level: configuredSandbox.level ?? 'full',
-      allowedPaths: configuredSandbox.allowedPaths ?? [projectRoot],
-      hostExecutionEnabled: false,
-    });
 
     // Initialize core state collections
     this.#s.activeWorkers = new Map();
@@ -130,6 +118,32 @@ export class AgentPoolManager {
 
     this.#s.eventEmitter = new EventEmitter();
     this.#s.eventEmitter.setMaxListeners(100);
+
+    // Explicit server-owned mode uses these same queue/assignment/goal collections.
+    // It never constructs legacy workers, global workspace helpers or healing timers.
+    if (governedChunkExecutor !== undefined) {
+      const concurrent = maxConcurrent ?? 4, goals = maxGoals ?? 3, queued = maxQueuedGoals ?? goals;
+      if (!Number.isSafeInteger(concurrent) || concurrent < 1 || concurrent > 16
+        || !Number.isSafeInteger(goals) || goals < 1 || goals > 64
+        || !Number.isSafeInteger(queued) || queued < 1 || queued > 64) throw governedPoolError('CAPACITY_INVALID');
+      this.#s.governedChunkExecutor = readGovernedChunkExecutor(governedChunkExecutor);
+      this.#s.maxConcurrent = concurrent;
+      this.#s.options = { maxGoals: goals, maxQueuedGoals: queued };
+      this.#s.governedMetrics = { chunksStarted: 0, chunksSettled: 0, notificationErrors: 0 };
+      this.#s.governedPumping = false;
+      this.#s.governedShutdown = null;
+      this.#s.governedProcessQueue = () => this.#processQueue();
+      return;
+    }
+
+    const configuredSandbox = sandboxOptions ?? cfg?.sandbox ?? {};
+    const container = configuredSandbox.container
+      ? { ...configuredSandbox.container, workspaceRoots: configuredSandbox.container.workspaceRoots ?? [projectRoot] }
+      : undefined;
+    this.#s.sandboxExecutor = sandboxExecutor ?? new SandboxExecutor({
+      ...configuredSandbox, container, level: configuredSandbox.level ?? 'full',
+      allowedPaths: configuredSandbox.allowedPaths ?? [projectRoot], hostExecutionEnabled: false,
+    });
 
     // Initialize global budget tracker
     const budgetCfg = budget ?? (cfg?.budget ? {
@@ -329,6 +343,21 @@ export class AgentPoolManager {
     return _submitGoal(this.#s, goalId, userId, opts || {}, () => this.#processQueue());
   }
 
+  /** @returns {Promise<{goalId:string,status:'queued',completion:Promise<import('./constants.js').GovernedChunkOutcome>}>} */
+  async enqueueGovernedGoal(goalId, userId, mode = 'submit') {
+    return _enqueueGovernedGoal(this.#s, goalId, userId, mode, () => this.#processQueue());
+  }
+
+  hasGovernedGoal(goalId) {
+    return Boolean(this.#s.governedChunkExecutor && this.#s.goalTrackers.has(goalId));
+  }
+
+  async start() {
+    if (this.#s.shuttingDown) throw governedPoolError('SHUTTING_DOWN');
+    await this.#processQueue();
+    return this.getStatus();
+  }
+
   async #processQueue() {
     return _processQueue(this.#s, {
       executeWorkerFn: (aid, entry, worker, task) => this.#executeWorker(aid, entry, worker, task),
@@ -376,13 +405,24 @@ export class AgentPoolManager {
   getTracing() { return _getTracing(this.#s); }
   getTracingManager() { return _getTracingManager(this.#s); }
 
-  cancelGoal(goalId) { return _cancelGoal(this.#s, goalId); }
+  /** @param {string} goalId @param {string} [userId] @param {string} [expectedBindingHash] */
+  cancelGoal(goalId, userId = undefined, expectedBindingHash = undefined) {
+    return this.#s.governedChunkExecutor ? _controlGovernedGoal(this.#s, goalId, userId, 'cancel', expectedBindingHash) : _cancelGoal(this.#s, goalId);
+  }
+
+  /** @param {string} goalId @param {string} userId @param {string} [expectedBindingHash] */
+  pauseGoal(goalId, userId, expectedBindingHash = undefined) {
+    if (!this.#s.governedChunkExecutor) throw governedPoolError('PAUSE_UNSUPPORTED');
+    return _controlGovernedGoal(this.#s, goalId, userId, 'pause', expectedBindingHash);
+  }
 
   resumeGoal(goalId, userId = 'system') {
+    if (this.#s.governedChunkExecutor) return this.enqueueGovernedGoal(goalId, userId, 'resume').then(entry => entry.completion);
     return _resumeGoal(this.#s, goalId, userId, (gid, uid) => this.submitGoal(gid, uid));
   }
 
   async recoverInterruptedGoals(userId = 'system') {
+    if (this.#s.governedChunkExecutor) return _recoverGovernedGoals(this.#s, (goalId, owner) => this.enqueueGovernedGoal(goalId, owner, 'resume'));
     return _recoverInterruptedGoals(this.#s, userId, (gid, uid) => this.resumeGoal(gid, uid));
   }
 

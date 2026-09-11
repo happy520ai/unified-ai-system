@@ -2,14 +2,22 @@ import { isAbsolute } from "node:path";
 
 import {
   LOCAL_CLIENT_ONBOARDING_CERTIFICATION_STATUS,
+  LOCAL_CLIENT_ONBOARDING_PROFILE_IDS,
+  getLocalClientOnboardingProfileFormat,
+  type LocalClientOnboardingClient,
   type LocalClientOnboardingRegistryOptions,
+  type LocalClientOnboardingRegistryV1Options,
+  type LocalClientOnboardingRegistryV2Options,
+  type LocalClientOnboardingSelectedProfile,
 } from "./localClientOnboardingRegistry.ts";
+import { parseLocalClientJsoncObject } from "./localClientConfigJsonc.ts";
+import { LOCAL_CLIENT_CONFIG_TOML_MAX_BYTES, LOCAL_CLIENT_CONFIG_YAML_MAX_BYTES, type LocalClientConfigFormat } from "./localClientConfigTransaction.ts";
 
 export const LOCAL_CLIENT_ONBOARDING_CONFIG_VERSION = 1 as const;
 export const LOCAL_CLIENT_ONBOARDING_CONFIG_ENV =
   "AI_GATEWAY_LOCAL_CLIENT_ONBOARDING_CONFIG_JSON" as const;
 
-export interface LocalClientOnboardingConfigurationStatus {
+export interface LocalClientOnboardingConfigurationV1Status {
   readonly enabled: boolean;
   readonly configurationVersion: typeof LOCAL_CLIENT_ONBOARDING_CONFIG_VERSION;
   readonly configuredProfileCount: 0 | 3;
@@ -25,6 +33,18 @@ export interface LocalClientOnboardingConfigurationStatus {
   readonly tenantOwned: true;
   readonly backupProtection: "aes-256-gcm";
 }
+
+export type LocalClientOnboardingConfigurationV2Status = Readonly<
+  Omit<LocalClientOnboardingConfigurationV1Status, "configurationVersion" | "configuredProfileCount" | "clients" | "format"> & {
+    configurationVersion: 2;
+    configuredProfileCount: 1 | 2 | 3 | 4 | 5 | 6;
+    clients: readonly LocalClientOnboardingClient[];
+    formats: readonly LocalClientConfigFormat[];
+  }
+>;
+export type LocalClientOnboardingConfigurationStatus =
+  | LocalClientOnboardingConfigurationV1Status
+  | LocalClientOnboardingConfigurationV2Status;
 
 export type ResolvedLocalClientOnboardingConfiguration =
   | Readonly<{
@@ -103,25 +123,55 @@ export function resolveLocalClientOnboardingConfiguration(
     throw invalidConfig();
   }
   const root = exactRecord(parsed, ["version", "ownerTenantId", "profiles", "serverDefinition"]);
-  if (root.version !== LOCAL_CLIENT_ONBOARDING_CONFIG_VERSION) throw invalidConfig();
+  if (root.version !== LOCAL_CLIENT_ONBOARDING_CONFIG_VERSION && root.version !== 2) throw invalidConfig();
+  if (root.version === 2) {
+    // JSON.parse above still rejects comments and trailing commas. The strict
+    // codec additionally rejects duplicate decoded keys before any path is used.
+    try { parseLocalClientJsoncObject(Buffer.from(raw, "utf8"), MAX_CONFIG_BYTES); }
+    catch { throw invalidConfig(); }
+  }
   const ownerTenantId = normalizeOwnerTenantId(root.ownerTenantId);
-  const profiles = exactRecord(root.profiles, ["claudeCompatible", "cursor", "vscode"]);
   const serverDefinition = normalizeServerDefinition(root.serverDefinition);
-  const registryOptions: LocalClientOnboardingRegistryOptions = Object.freeze({
-    profiles: Object.freeze({
-      claudeCompatible: normalizeProfile(profiles.claudeCompatible),
-      cursor: normalizeProfile(profiles.cursor),
-      vscode: normalizeProfile(profiles.vscode),
-    }),
-    serverDefinition,
-  });
+  let registryOptions: LocalClientOnboardingRegistryOptions;
+  let status: LocalClientOnboardingConfigurationStatus;
+  if (root.version === LOCAL_CLIENT_ONBOARDING_CONFIG_VERSION) {
+    const profiles = exactRecord(root.profiles, ["claudeCompatible", "cursor", "vscode"]);
+    registryOptions = Object.freeze({
+      profiles: Object.freeze({
+        claudeCompatible: normalizeProfile(profiles.claudeCompatible),
+        cursor: normalizeProfile(profiles.cursor),
+        vscode: normalizeProfile(profiles.vscode),
+      }),
+      serverDefinition,
+    }) satisfies LocalClientOnboardingRegistryV1Options;
+    status = createStatus(true);
+  } else {
+    const profiles = normalizeSelectedProfiles(root.profiles);
+    registryOptions = Object.freeze({ version: 2 as const, profiles, serverDefinition }) satisfies LocalClientOnboardingRegistryV2Options;
+    status = createSelectedStatus(profiles);
+  }
 
   return Object.freeze({
     enabled: true as const,
     ownerTenantId,
     registryOptions,
-    status: createStatus(true),
+    status,
   });
+}
+
+function normalizeSelectedProfiles(value: unknown): readonly LocalClientOnboardingSelectedProfile[] {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 6) throw invalidConfig();
+  const seen = new Set<string>();
+  return Object.freeze(value.map((entry) => {
+    const selected = exactRecord(entry, ["profileId", "paths"]);
+    if (typeof selected.profileId !== "string" || !getLocalClientOnboardingProfileFormat(selected.profileId)
+      || seen.has(selected.profileId)) throw invalidConfig();
+    seen.add(selected.profileId);
+    const paths = normalizeProfile(selected.paths);
+    if (selected.profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.codexToml && paths.maxBytes !== undefined && paths.maxBytes > LOCAL_CLIENT_CONFIG_TOML_MAX_BYTES) throw invalidConfig();
+    if (selected.profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.continueYaml && paths.maxBytes !== undefined && paths.maxBytes > LOCAL_CLIENT_CONFIG_YAML_MAX_BYTES) throw invalidConfig();
+    return Object.freeze({ profileId: selected.profileId as LocalClientOnboardingSelectedProfile["profileId"], paths });
+  }));
 }
 
 function normalizeProfile(value: unknown) {
@@ -238,7 +288,7 @@ function readStrictBoolean(value: unknown, name: string): boolean {
   );
 }
 
-function createStatus(enabled: boolean): LocalClientOnboardingConfigurationStatus {
+function createStatus(enabled: boolean): LocalClientOnboardingConfigurationV1Status {
   return Object.freeze({
     enabled,
     configurationVersion: LOCAL_CLIENT_ONBOARDING_CONFIG_VERSION,
@@ -255,6 +305,18 @@ function createStatus(enabled: boolean): LocalClientOnboardingConfigurationStatu
     tenantOwned: true as const,
     backupProtection: "aes-256-gcm" as const,
   });
+}
+
+function createSelectedStatus(profiles: readonly LocalClientOnboardingSelectedProfile[]): LocalClientOnboardingConfigurationV2Status {
+  const { format: _format, clients: _clients, configuredProfileCount: _count, configurationVersion: _version, ...common } = createStatus(true);
+  const clients = profiles.map(({ profileId }): LocalClientOnboardingClient => profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.claudeCompatible
+    ? "claude-compatible" : profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.cursor ? "cursor"
+      : profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.codexToml ? "codex"
+        : profileId === LOCAL_CLIENT_ONBOARDING_PROFILE_IDS.continueYaml ? "continue" : "vscode");
+  const formats = profiles.map(({ profileId }) => getLocalClientOnboardingProfileFormat(profileId)!);
+  return Object.freeze({ ...common, configurationVersion: 2 as const,
+    configuredProfileCount: profiles.length as 1 | 2 | 3 | 4 | 5 | 6,
+    clients: Object.freeze([...new Set(clients)]), formats: Object.freeze([...new Set(formats)]) });
 }
 
 function invalidConfig(): LocalClientOnboardingConfigurationError {

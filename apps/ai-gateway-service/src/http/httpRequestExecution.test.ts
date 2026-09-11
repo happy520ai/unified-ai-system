@@ -4,6 +4,9 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
 import { EXECUTION_ABORT_CODES } from "@unified-ai-system/shared-utils";
 import { bindGatewayExecution, createHttpRequestExecutionScope } from "./httpRequestExecution.ts";
+import { GatewayService, bindFakeProviderExecution, bindExactProviderExecution } from "../core/gatewayService.js";
+import { ProviderRegistry } from "../providers/providerRegistry.js";
+import { createFakeProvider } from "../providers/fakeProvider.js";
 
 function createTransport() {
   const requestEmitter = new EventEmitter();
@@ -15,6 +18,33 @@ function createTransport() {
     responseEmitter,
   };
 }
+
+it("keeps exact provider restrictions through HTTP wrappers without leaking them to another invocation", async () => {
+  const registry = new ProviderRegistry();
+  for (const providerId of ["one-fake", "two-fake"]) registry.register(createFakeProvider({ providerId, modelId: "model", providerType: "fake", capabilities: ["chat"], enabled: true }));
+  const weighted = { apply: vi.fn(() => null), shouldShadow: vi.fn(() => null) };
+  const gateway = new GatewayService({ providerRegistry: registry, weightedTrafficPolicy: weighted,
+    runtimeConfig: { providerMode: "fake", realProviderEnabled: false } });
+  const transport = createTransport(), scope = createHttpRequestExecutionScope({ ...transport, timeoutMs: 10000 });
+  const bound = bindGatewayExecution(gateway, scope.context);
+  const request = { taskType: "chat" as const, messages: [{ role: "user" as const, content: "fixture" }], providerId: "one-fake", model: "model" };
+  try {
+    const exact = {}; bindExactProviderExecution(exact, { providerId: "one-fake", modelId: "model" });
+    expect((await bound.execute(request, exact)).success).toBe(true);
+    expect(weighted.apply).not.toHaveBeenCalled(); expect(weighted.shouldShadow).not.toHaveBeenCalled();
+    const fake = {}; bindFakeProviderExecution(fake, { providerId: "two-fake", modelId: "model" });
+    const mismatch = await bound.execute(request, fake);
+    expect(mismatch.success).toBe(false); expect(mismatch.error?.code).toBe("FAKE_PROVIDER_EXECUTION_REQUIRED");
+    expect((await bound.execute(request)).success).toBe(true);
+    expect(weighted.apply).toHaveBeenCalledTimes(1); expect(weighted.shouldShadow).toHaveBeenCalledTimes(1);
+    expect((await bound.execute(request, JSON.parse(JSON.stringify(exact)))).success).toBe(true);
+    expect(weighted.apply).toHaveBeenCalledTimes(2);
+    bindFakeProviderExecution(scope.context, { providerId: "one-fake", modelId: "model" });
+    const conflict = {}; bindExactProviderExecution(conflict, { providerId: "two-fake", modelId: "model" });
+    expect(() => bound.execute(request, conflict)).toThrow("restrictions conflict");
+    expect(weighted.apply).toHaveBeenCalledTimes(2);
+  } finally { scope.cleanup(); }
+});
 
 describe("HTTP request execution scope", () => {
   it("aborts with a typed deadline and reports it once", () => {
@@ -173,6 +203,64 @@ describe("HTTP request execution scope", () => {
     expect(receivedSignal).not.toBe(scope.context.signal);
     expect(receivedSignal?.aborted).toBe(true);
     scope.cleanup();
+  });
+
+  it("keeps the inner abort signal linked until a bound async generator finishes", async () => {
+    const transport = createTransport();
+    const scope = createHttpRequestExecutionScope({ ...transport, timeoutMs: 10_000 });
+    const inner = new AbortController();
+    const remove = vi.spyOn(inner.signal, "removeEventListener");
+    const service = { async *executeStream(_input: unknown, execution?: { signal?: AbortSignal }) {
+      yield "started";
+      execution?.signal?.throwIfAborted();
+      yield "unwanted";
+    } };
+    try {
+      const iterator = bindGatewayExecution(service, scope.context).executeStream({}, { signal: inner.signal });
+      expect(await iterator.next()).toEqual({ done: false, value: "started" });
+      expect(remove).not.toHaveBeenCalled();
+      const reason = new Error("synthetic route cancellation");
+      inner.abort(reason);
+      await expect(iterator.next()).rejects.toBe(reason);
+      expect(remove).toHaveBeenCalledOnce();
+    } finally { scope.cleanup(); }
+  });
+
+  it("disposes linked signals when a consumer returns before the first generator step", async () => {
+    const transport = createTransport();
+    const scope = createHttpRequestExecutionScope({ ...transport, timeoutMs: 10_000 });
+    const inner = new AbortController();
+    const remove = vi.spyOn(inner.signal, "removeEventListener");
+    const entered = vi.fn();
+    const service = { async *executeStream(_input: unknown, _execution?: { signal?: AbortSignal }) { entered(); yield "unused"; } };
+    try {
+      const iterator = bindGatewayExecution(service, scope.context).executeStream({}, { signal: inner.signal });
+      expect(remove).not.toHaveBeenCalled();
+      await iterator.return(undefined);
+      expect(entered).not.toHaveBeenCalled();
+      expect(remove).toHaveBeenCalledOnce();
+    } finally { scope.cleanup(); }
+  });
+
+  it.each(["return", "throw"] as const)("retains cancellation when %s yields an unfinished cleanup step", async operation => {
+    const transport = createTransport();
+    const scope = createHttpRequestExecutionScope({ ...transport, timeoutMs: 10_000 });
+    const inner = new AbortController();
+    const remove = vi.spyOn(inner.signal, "removeEventListener");
+    const service = { async *executeStream(_input: unknown, execution?: { signal?: AbortSignal }) {
+      try { yield "started"; }
+      finally { yield "cleanup"; execution?.signal?.throwIfAborted(); }
+    } };
+    try {
+      const iterator = bindGatewayExecution(service, scope.context).executeStream({}, { signal: inner.signal });
+      await iterator.next();
+      const step = operation === "return" ? await iterator.return(undefined) : await iterator.throw(new Error("synthetic consumer throw"));
+      expect(step).toEqual({ done: false, value: "cleanup" });
+      expect(remove).not.toHaveBeenCalled();
+      const reason = new Error("synthetic cleanup cancellation"); inner.abort(reason);
+      await expect(iterator.next()).rejects.toBe(reason);
+      expect(remove).toHaveBeenCalledOnce();
+    } finally { scope.cleanup(); }
   });
 
   it("marks malformed idempotency headers without retaining their values", () => {

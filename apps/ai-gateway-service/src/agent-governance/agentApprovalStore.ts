@@ -24,6 +24,16 @@ import type {
 import { stableStringify } from "@unified-ai-system/policy-engine";
 import { containsSensitivePublicationText, redactSecretsInText } from "../security/secretSafety.js";
 import { createGovernanceStateFileBinding } from "./governanceStateAnchor.ts";
+import { readFrozenWorkforceRoleExecutionProfile } from "../workforce/workforceRoleExecutionProfile.ts";
+import { readFrozenWorkforceSelectionReview } from "../workforce/workforceSelectionReview.ts";
+import { readWorkforceCodeDeliveryReview } from "../workforce/workforceCodeDeliveryProfile.ts";
+import { readWorkforceWorkflowHandoffReview } from "../workforce/workforceWorkflowHandoffProfile.ts";
+import { compileConsensusReview, readConsensusReview } from "../workforce/workforceConsensusReview.ts";
+import { readWorkforceExternalRunnerReview } from "../workforce/workforceExternalRunnerProfile.ts";
+import { readGovernedWebTaskReview } from "../forge/governedWebTaskRuntime.ts";
+import { readForgeModelSelection, readForgeOutputTokenLimit } from "../forge/forgeModelSelection.ts";
+import { readTaijiApprovalReview, assertTaijiReviewArguments } from "../real-capabilities/taijiCapabilityReview.ts";
+import { readGovernedAgentTaskApprovalReview, assertGovernedAgentTaskApprovalArguments } from "../agentic/governedAgentTaskApproval.ts";
 
 const APPROVAL_KEY_INFO = "agent-governance-approval-args/v1";
 const DEFAULT_APPROVAL_TTL_SECONDS = 24 * 60 * 60;
@@ -61,6 +71,8 @@ export interface AgentApprovalStore {
     argumentsHash: string;
     policyHash: string;
   }): Promise<{ id: string } | null>;
+  verifyConsumed(input: { approvalId: string; agentId: string; tenantId: string; toolName: string;
+    argumentsHash: string; policyHash: string; executionId: string }): Promise<{ args: unknown; review: AgentToolApprovalReview } | null>;
   consumeApproved(input: {
     approvalId?: string;
     agentId: string;
@@ -217,7 +229,7 @@ export function createAgentApprovalStore(options: {
         const requestedAt = now();
         const argumentsHash = argumentsHashOf(input.arguments);
         const review = normalizeApprovalReview(input.review);
-        verifyReviewMatchesArguments(review, input.arguments);
+        verifyReviewMatchesArguments(review, input.arguments, input.toolName);
         const matchingPending = [...records.values()].find((candidate) => (
           candidate.status === "PENDING" && candidate.expiresAt > requestedAt
           && candidate.agentId === input.agentId && candidate.tenantId === input.tenantId
@@ -377,6 +389,17 @@ export function createAgentApprovalStore(options: {
       }
       return null;
     },
+    async verifyConsumed(input) {
+      await load(); await mutationTail; await state.verify();
+      const record = records.get(input.approvalId);
+      if (!record || record.status !== "CONSUMED" || record.review.reviewable !== true
+        || record.agentId !== input.agentId || record.tenantId !== input.tenantId
+        || record.toolName !== input.toolName || record.review.policyHash !== input.policyHash
+        || record.consumedByExecutionId !== input.executionId
+        || !argumentsHashMatches(record.argumentsHash, input.argumentsHash)) return null;
+      const args = verifyRecoveredArguments(record, key);
+      return { args, review: publicView(record).review };
+    },
     async consumeApproved(input, beforeCommit) {
       await load();
       return exclusive(async () => {
@@ -511,7 +534,7 @@ function parseApprovalsFile(raw: string, key: Buffer): ApprovalsFile {
     if (!argumentsHashMatches(record.argumentsHash, argumentsHashOf(args))) {
       throw corrupt(`Approval ${id} arguments hash does not match its authenticated payload.`);
     }
-    verifyReviewMatchesArguments(record.review, args);
+    verifyReviewMatchesArguments(record.review, args, record.toolName);
     approvals[id] = record;
   }
   return { ...data, approvals };
@@ -559,16 +582,19 @@ function verifyRecoveredArguments(record: StoredApprovalRecord, key: Buffer): un
   if (!argumentsHashMatches(record.argumentsHash, argumentsHashOf(args))) {
     throw corrupt("Approval arguments do not match their authenticated hash.");
   }
-  verifyReviewMatchesArguments(record.review, args);
+  verifyReviewMatchesArguments(record.review, args, record.toolName);
   return args;
 }
 
 const KNOWN_REVIEWABLE_EFFECTS = new Set([
+  "agent:long-task",
   "git:push",
   "github:pull-request-create",
   "mcp:upstream-tool-call",
   "forge:orchestrate",
   "workforce:execute",
+  "workflow:artifact-write",
+  "taiji:capability",
 ]);
 
 function normalizeApprovalReview(input: unknown): AgentToolApprovalReview {
@@ -594,8 +620,11 @@ function normalizeApprovalReview(input: unknown): AgentToolApprovalReview {
     throw corrupt("Approval review attempts to mark an unsupported external effect as reviewable.");
   }
   if (source.effectType === "mcp:upstream-tool-call") return normalizeMcpApprovalReview(source);
+  if (source.effectType === "taiji:capability") return readTaijiApprovalReview(source);
+  if (source.effectType === "agent:long-task") return readGovernedAgentTaskApprovalReview(source);
   if (source.effectType === "forge:orchestrate") return normalizeForgeApprovalReview(source);
   if (source.effectType === "workforce:execute") return normalizeWorkforceApprovalReview(source);
+  if (source.effectType === "workflow:artifact-write") return normalizeWorkflowApprovalReview(source);
   assertGitReviewKeys(source as unknown as Record<string, unknown>, source.effectType, true);
   const repository = normalizeRepository(source.repository);
   const remote = normalizeRemote(source.remote);
@@ -781,11 +810,30 @@ function normalizeForgeOptions(value: AgentToolApprovalReview["forge"] extends i
     throw corrupt("Forge approval options are malformed.");
   }
   const source = value as Record<string, unknown>;
-  const allowedKeys = new Set(["enableCodeIntel", "useRefiner", "maxConcurrent", "budget", "checkpointAfter"]);
+  const allowedKeys = new Set(["enableCodeIntel", "useRefiner", "maxConcurrent", "budget", "checkpointAfter", "webTask", "modelSelection", "maxOutputTokens"]);
   if (Object.keys(source).some((key) => !allowedKeys.has(key)) || source.enableCodeIntel !== false) {
     throw corrupt("Forge approval options contain an unsupported or unsafe field.");
   }
   const options: NonNullable<AgentToolApprovalReview["forge"]>["options"] = { enableCodeIntel: false };
+  if (source.maxOutputTokens !== undefined) {
+    const limit = readForgeOutputTokenLimit(source.maxOutputTokens);
+    if (!limit) throw corrupt("Forge output token limit is malformed.");
+    options.maxOutputTokens = limit;
+  }
+  if (source.modelSelection !== undefined) {
+    const selection = readForgeModelSelection(source.modelSelection);
+    if (!selection) throw corrupt("Forge model selection is malformed.");
+    options.modelSelection = selection;
+  }
+  if (source.webTask !== undefined) {
+    const review = readGovernedWebTaskReview(source.webTask);
+    const profile = review.profile;
+    if (![review.itemId, review.expectedText, profile.id, profile.tenantId, profile.origin, profile.startPath,
+      profile.searchPath, profile.detailPath, ...Object.values(profile.targets)].every(isSafePublishedText)) {
+      throw corrupt("Webpage approval review contains unsafe text.");
+    }
+    options.webTask = review;
+  }
   if (source.useRefiner !== undefined) {
     if (typeof source.useRefiner !== "boolean") throw corrupt("Forge useRefiner approval option is malformed.");
     options.useRefiner = source.useRefiner;
@@ -853,6 +901,10 @@ function normalizeWorkforceApprovalReview(source: AgentToolApprovalReview): Agen
     throw corrupt("Workforce approval review is malformed or unsafe.");
   }
   const options = normalizeWorkforceOptions(workforce.options);
+  if (options.workflowHandoff && options.workflowHandoff.goal !== workforce.goal) throw corrupt("Workflow handoff must keep the complete reviewed Workforce goal.");
+  if (options.consensusReview && options.consensusReview.goal !== workforce.goal) throw corrupt("Consensus review must keep the complete reviewed Workforce goal.");
+  if (options.externalRunner && (options.externalRunner.goal !== workforce.goal
+    || !["dry-run", "controlled-execution"].includes(workforce.autonomyMode))) throw corrupt("External runner must keep the complete reviewed Workforce goal and controlled mode.");
   if (workforce.optionsHash !== digestText(stableStringify(options))) {
     throw corrupt("Workforce approval options do not match their authenticated review hash.");
   }
@@ -880,7 +932,18 @@ function normalizeWorkforceOptions(value: unknown): NonNullable<AgentToolApprova
     throw corrupt("Workforce approval options are malformed.");
   }
   const source = value as Record<string, unknown>;
-  if (Object.keys(source).sort().join("\0") !== ["selectedRoleCount", "templateSelected"].sort().join("\0")
+  const hasRoleExecution = Object.hasOwn(source, "roleExecution");
+  const hasSelectionReview = Object.hasOwn(source, "selectionReview");
+  const hasCodeDelivery = Object.hasOwn(source, "codeDelivery");
+  const hasWorkflowHandoff = Object.hasOwn(source, "workflowHandoff");
+  const hasConsensus = Object.hasOwn(source, "consensusReview");
+  const hasExternalRunner = Object.hasOwn(source, "externalRunner");
+  const expectedKeys = ["selectedRoleCount", "templateSelected", ...(hasRoleExecution ? ["roleExecution"] : []), ...(hasSelectionReview ? ["selectionReview"] : []), ...(hasCodeDelivery ? ["codeDelivery"] : []), ...(hasWorkflowHandoff ? ["workflowHandoff"] : []), ...(hasConsensus ? ["consensusReview"] : []), ...(hasExternalRunner ? ["externalRunner"] : [])];
+  if (hasExternalRunner && (hasRoleExecution || hasSelectionReview || hasCodeDelivery || hasWorkflowHandoff || hasConsensus
+    || !Number.isSafeInteger(source.selectedRoleCount) || Number(source.selectedRoleCount) < 1)) throw corrupt("External runner requires one separate reviewed execution profile.");
+  if (hasSelectionReview && !hasRoleExecution) throw corrupt("Workforce selection requires its complete execution profile.");
+  if (hasCodeDelivery && !hasRoleExecution) throw corrupt("Code delivery requires its complete employee profile.");
+  if (Object.keys(source).sort().join("\0") !== expectedKeys.sort().join("\0")
     || (source.selectedRoleCount !== null
       && (!Number.isSafeInteger(source.selectedRoleCount)
         || Number(source.selectedRoleCount) < 0 || Number(source.selectedRoleCount) > 128))
@@ -890,10 +953,115 @@ function normalizeWorkforceOptions(value: unknown): NonNullable<AgentToolApprova
   return {
     selectedRoleCount: source.selectedRoleCount === null ? null : Number(source.selectedRoleCount),
     templateSelected: source.templateSelected,
+    ...(hasRoleExecution ? { roleExecution: normalizeWorkforceRoleExecution(source.roleExecution) } : {}),
+    ...(hasSelectionReview ? { selectionReview: normalizeWorkforceSelection(source.selectionReview, source.roleExecution) } : {}),
+    ...(hasCodeDelivery ? { codeDelivery: normalizeWorkforceCodeDelivery(source.codeDelivery, source.roleExecution) } : {}),
+    ...(hasWorkflowHandoff ? { workflowHandoff: normalizeWorkforceWorkflowHandoff(source.workflowHandoff) } : {}),
+    ...(hasConsensus ? { consensusReview: normalizeWorkforceConsensus(source.consensusReview, source.roleExecution) } : {}),
+    ...(hasExternalRunner ? { externalRunner: normalizeWorkforceExternalRunner(source.externalRunner) } : {}),
   };
 }
 
-function verifyReviewMatchesArguments(review: AgentToolApprovalReview, value: unknown): void {
+function normalizeWorkforceCodeDelivery(value: unknown, profile: unknown) {
+  try { return readWorkforceCodeDeliveryReview(value, readFrozenWorkforceRoleExecutionProfile(profile)); }
+  catch { throw corrupt("Code delivery does not match its complete reviewed contract."); }
+}
+
+function normalizeWorkforceWorkflowHandoff(value: unknown) {
+  try { return readWorkforceWorkflowHandoffReview(value); }
+  catch { throw corrupt("Workflow handoff does not match its complete reviewed contract."); }
+}
+function normalizeWorkforceExternalRunner(value: unknown) {
+  try { return readWorkforceExternalRunnerReview(value); }
+  catch { throw corrupt("External runner does not match its complete reviewed profile, prompt and source."); }
+}
+function normalizeWorkforceConsensus(value: unknown, profile: unknown) {
+  try {
+    const review = readConsensusReview(value);
+    const compiled = compileConsensusReview({ input: { consensusReview: { proposal: review.proposal, criteria: review.criteria,
+      evidence: review.evidence.map(({ sha256: _hash, ...source }) => source) } }, plan: { goal: review.goal },
+      profile: readFrozenWorkforceRoleExecutionProfile(profile) });
+    if (stableStringify(review) !== stableStringify(compiled)) throw corrupt("Consensus profile changed.");
+    return review;
+  } catch { throw corrupt("Consensus review does not match its complete model profile and source material."); }
+}
+
+function normalizeWorkforceSelection(value: unknown, profile: unknown) {
+  try { return readFrozenWorkforceSelectionReview(value, profile); }
+  catch { throw corrupt("Workforce selection does not match its complete reviewed contract."); }
+}
+
+function normalizeWorkforceRoleExecution(value: unknown) {
+  try { return readFrozenWorkforceRoleExecutionProfile(value); }
+  catch { throw corrupt("Workforce role execution profile does not match its complete reviewed contract."); }
+}
+
+export function isSafeWorkflowArtifactContent(value: unknown): value is string {
+  return typeof value === "string" && value.length <= 16_000
+    && Buffer.byteLength(value, "utf8") <= 65_536
+    && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(value)
+    && isSafePublishedText(value);
+}
+
+export function workflowArtifactApprovalArguments(workflow: NonNullable<AgentToolApprovalReview["workflow"]>) {
+  return {
+    workflow_effect: "workflow:artifact-write/v1",
+    workflow_id: workflow.workflowId,
+    input_sha256: workflow.inputHash.slice(7),
+    subject_sha256: workflow.subjectFingerprint.slice(7),
+    root_sha256: workflow.target.rootFingerprint.slice(7),
+    target_sha256: workflow.target.fingerprint.slice(7),
+    file_path: `.data/workflows/${workflow.target.tenantPartition}/${workflow.target.fileName}`,
+    content_sha256: workflow.contentHash.slice(7),
+    content_bytes: workflow.contentBytes,
+  };
+}
+
+function normalizeWorkflowApprovalReview(source: AgentToolApprovalReview): AgentToolApprovalReview {
+  assertExactKeys(source as unknown as Record<string, unknown>,
+    ["schemaVersion", "reviewable", "effectType", "policyHash", "workflow"], false, "Workflow review contains an unsupported field.");
+  const workflow = asPlainRecord(source.workflow, "Workflow review");
+  assertExactKeys(workflow, ["workflowId", "inputHash", "subjectFingerprint", "target", "content", "contentHash", "contentBytes", "writeMode"],
+    false, "Workflow review is incomplete or contains an unsupported field.");
+  const target = asPlainRecord(workflow.target, "Workflow target");
+  assertExactKeys(target, ["scope", "tenantPartition", "fileName", "rootFingerprint", "fingerprint"], false,
+    "Workflow target review is incomplete or contains an unsupported field.");
+  const sha = (value: unknown) => typeof value === "string" && /^sha256:[a-f0-9]{64}$/u.test(value);
+  if (typeof workflow.workflowId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$/u.test(workflow.workflowId)
+    || !sha(workflow.inputHash) || !sha(workflow.subjectFingerprint) || !sha(target.rootFingerprint) || !sha(target.fingerprint)
+    || target.scope !== "managed-workflow-output"
+    || typeof target.tenantPartition !== "string" || !/^tenant-[a-f0-9]{24}$/u.test(target.tenantPartition)
+    || typeof target.fileName !== "string" || !/^[A-Za-z0-9._-]{1,100}\.md$/iu.test(target.fileName)
+    || !isSafeWorkflowArtifactContent(workflow.content) || workflow.contentHash !== digestText(workflow.content)
+    || workflow.contentBytes !== Buffer.byteLength(workflow.content, "utf8")
+    || workflow.writeMode !== "exclusive-no-overwrite") {
+    throw corrupt("Workflow approval content, identity, or target is malformed or unsafe.");
+  }
+  return { schemaVersion: 1, reviewable: true, effectType: source.effectType, policyHash: source.policyHash,
+    workflow: { workflowId: workflow.workflowId, inputHash: workflow.inputHash as string,
+      subjectFingerprint: workflow.subjectFingerprint as string,
+      target: { scope: "managed-workflow-output", tenantPartition: target.tenantPartition, fileName: target.fileName,
+        rootFingerprint: target.rootFingerprint as string, fingerprint: target.fingerprint as string },
+      content: workflow.content, contentHash: workflow.contentHash as string, contentBytes: workflow.contentBytes as number,
+      writeMode: "exclusive-no-overwrite" } };
+}
+
+function verifyReviewMatchesArguments(review: AgentToolApprovalReview, value: unknown, toolName: string): void {
+  if (review.effectType === "agent:long-task") {
+    assertGovernedAgentTaskApprovalArguments(review, value, toolName);
+    return;
+  }
+  if (review.effectType === "taiji:capability") {
+    assertTaijiReviewArguments(review, value, toolName);
+    return;
+  }
+  if (review.effectType === "workflow:artifact-write") {
+    if (toolName !== "file_write" || !review.workflow
+      || stableStringify(value) !== stableStringify(workflowArtifactApprovalArguments(review.workflow))) {
+      throw corrupt("Workflow approval arguments do not match the complete operator review.");
+    }
+    return;
+  }
   if (review.effectType === "mcp:upstream-tool-call") {
     verifyMcpReviewMatchesArguments(review, value);
     return;
@@ -950,6 +1118,12 @@ function verifyWorkforceReviewMatchesArguments(review: AgentToolApprovalReview, 
     || workforce.optionsHash !== digestText(stableStringify({
       selectedRoleCount: options.selectedRoleCount,
       templateSelected: options.templateSelected,
+      ...(options.roleExecution ? { roleExecution: options.roleExecution } : {}),
+      ...(options.selectionReview ? { selectionReview: options.selectionReview } : {}),
+      ...(options.codeDelivery ? { codeDelivery: options.codeDelivery } : {}),
+      ...(options.workflowHandoff ? { workflowHandoff: options.workflowHandoff } : {}),
+      ...(options.consensusReview ? { consensusReview: options.consensusReview } : {}),
+      ...(options.externalRunner ? { externalRunner: options.externalRunner } : {}),
     }))) {
     throw corrupt("Workforce approval arguments do not match the complete operator review.");
   }
@@ -960,8 +1134,21 @@ function normalizeWorkforceArgumentOptions(value: unknown) {
     throw corrupt("Workforce approval argument options are malformed.");
   }
   const source = value as Record<string, unknown>;
+  const hasRoleExecution = Object.hasOwn(source, "roleExecution");
+  const hasSelectionReview = Object.hasOwn(source, "selectionReview");
+  const hasCodeDelivery = Object.hasOwn(source, "codeDelivery");
+  const hasWorkflowHandoff = Object.hasOwn(source, "workflowHandoff");
+  const hasConsensus = Object.hasOwn(source, "consensusReview");
+  const hasExternalRunner = Object.hasOwn(source, "externalRunner");
+  const expectedKeys = ["autonomyMode", "requiredScopes", "selectedRoleCount", "templateSelected",
+    ...(hasRoleExecution ? ["roleExecution"] : []), ...(hasSelectionReview ? ["selectionReview"] : []), ...(hasCodeDelivery ? ["codeDelivery"] : []), ...(hasWorkflowHandoff ? ["workflowHandoff"] : []), ...(hasConsensus ? ["consensusReview"] : []), ...(hasExternalRunner ? ["externalRunner"] : [])];
+  if (hasExternalRunner && (hasRoleExecution || hasSelectionReview || hasCodeDelivery || hasWorkflowHandoff || hasConsensus
+    || typeof source.autonomyMode !== "string" || !["dry-run", "controlled-execution"].includes(source.autonomyMode)
+    || !Number.isSafeInteger(source.selectedRoleCount) || Number(source.selectedRoleCount) < 1)) throw corrupt("External runner requires one separate controlled execution profile.");
+  if (hasSelectionReview && !hasRoleExecution) throw corrupt("Workforce selection requires its complete execution profile.");
+  if (hasCodeDelivery && !hasRoleExecution) throw corrupt("Code delivery requires its complete employee profile.");
   if (Object.keys(source).sort().join("\0")
-      !== ["autonomyMode", "requiredScopes", "selectedRoleCount", "templateSelected"].sort().join("\0")
+      !== expectedKeys.sort().join("\0")
     || !boundedSafeText(source.autonomyMode, 64)
     || !Array.isArray(source.requiredScopes) || source.requiredScopes.length > 8
     || source.requiredScopes.some((scope) => typeof scope !== "string"
@@ -978,6 +1165,12 @@ function normalizeWorkforceArgumentOptions(value: unknown) {
     requiredScopes: [...source.requiredScopes] as string[],
     selectedRoleCount: source.selectedRoleCount === null ? null : Number(source.selectedRoleCount),
     templateSelected: source.templateSelected,
+    ...(hasRoleExecution ? { roleExecution: normalizeWorkforceRoleExecution(source.roleExecution) } : {}),
+    ...(hasSelectionReview ? { selectionReview: normalizeWorkforceSelection(source.selectionReview, source.roleExecution) } : {}),
+    ...(hasCodeDelivery ? { codeDelivery: normalizeWorkforceCodeDelivery(source.codeDelivery, source.roleExecution) } : {}),
+    ...(hasWorkflowHandoff ? { workflowHandoff: normalizeWorkforceWorkflowHandoff(source.workflowHandoff) } : {}),
+    ...(hasConsensus ? { consensusReview: normalizeWorkforceConsensus(source.consensusReview, source.roleExecution) } : {}),
+    ...(hasExternalRunner ? { externalRunner: normalizeWorkforceExternalRunner(source.externalRunner) } : {}),
   };
 }
 

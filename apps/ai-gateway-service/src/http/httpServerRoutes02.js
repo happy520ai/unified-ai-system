@@ -55,6 +55,7 @@ export async function dispatchHttpRoutes02(context) {
     writeJson(response, 200, createOkEnvelope({
       providerMode: runtimeConfig?.providerMode ?? null,
       realProviderEnabled: runtimeConfig?.realProviderEnabled === true,
+      buildIdentity: healthSnapshot?.buildIdentity,
       health: { status: healthSnapshot?.status ?? null },
       readiness: { status: readinessSnapshot?.status ?? null },
       totalRequests: stats.totalRequests ?? resilienceSnapshot.totalRequests ?? 0,
@@ -556,7 +557,7 @@ export async function dispatchHttpRoutes02(context) {
   if (request.method === "POST" && url.pathname === "/real-capabilities/activate-five") {
     const body = await readCapabilityJson({ request, response, startedAt, code: "real_capabilities_activate_five_invalid_json" });
     if (!body) return;
-    const result = await fiveCapabilityActivationService.activateFive(body);
+    const result = await fiveCapabilityActivationService.activateFive(body, { identity: request.enterpriseIdentity });
     writeServiceLog("five_real_capability_activation_completed", {
       method: request.method,
       path: url.pathname,

@@ -4,6 +4,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  realpath,
   rename,
   rm,
   symlink,
@@ -11,8 +12,8 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { basename, dirname, join } from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   assertRegistryAuthorityMode,
   assertRegistryAuthorityModeSync,
@@ -26,14 +27,41 @@ import {
 const SECRET = "registry-authority-switch-test-secret-0123456789";
 const BINDING = `sqlite-v2:${"a".repeat(64)}`;
 const roots: string[] = [];
+const identityModel = vi.hoisted(() => ({ path: null as string | null, swapped: false,
+  first: 18295873486449854n, second: 18295873486449856n }));
+
+// Model the observed NTFS precision collision while keeping real files,
+// handles, path replacement and marker signatures on every test platform.
+vi.mock("node:fs/promises", async original => {
+  const actual = await original<typeof import("node:fs/promises")>();
+  const withIdentity = (stats: any, identity: bigint) => {
+    Object.defineProperty(stats, "ino", { value: typeof stats.ino === "bigint" ? identity : Number(identity) });
+    return stats;
+  };
+  return { ...actual,
+    lstat: async (path: any, options: any) => {
+      const stats = await actual.lstat(path, options);
+      return path === identityModel.path ? withIdentity(stats, identityModel.swapped ? identityModel.second : identityModel.first) : stats;
+    },
+    open: async (path: any, flags: any, mode: any) => {
+      const handle = await actual.open(path, flags, mode);
+      if (path === identityModel.path) {
+        const stat = handle.stat.bind(handle), identity = identityModel.swapped ? identityModel.second : identityModel.first;
+        handle.stat = (async (options: any) => withIdentity(await stat(options), identity)) as typeof handle.stat;
+      }
+      return handle;
+    },
+  };
+});
 
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map((root) => rm(root, {
-    recursive: true,
-    force: true,
-    maxRetries: 5,
-    retryDelay: 50,
-  })));
+  identityModel.path = null; identityModel.swapped = false;
+  const temporaryRoot = await realpath(tmpdir());
+  for (const root of roots.splice(0)) {
+    const owned = await realpath(root);
+    expect(dirname(owned)).toBe(temporaryRoot); expect(basename(owned).startsWith("registry-authority-switch-")).toBe(true);
+    await rm(owned, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+  }
 });
 
 describe("Registry authority switch marker", () => {
@@ -191,6 +219,7 @@ describe("Registry authority switch marker", () => {
     }
 
     const bytes = await readFile(markerPath);
+    const originalIdentity = await lstat(markerPath, { bigint: true });
     let swapped = false;
     await expect(readRegistryAuthoritySwitchMarker({
       dataDir: root,
@@ -200,9 +229,29 @@ describe("Registry authority switch marker", () => {
         swapped = true;
         await rename(path, backupPath);
         await writeFile(path, bytes);
+        expect((await lstat(path, { bigint: true })).ino).not.toBe(originalIdentity.ino);
       },
     })).rejects.toMatchObject({ code: "AGENT_REGISTRY_AUTHORITY_FILE_UNSAFE" });
   });
+});
+
+it("rejects a real path swap when two distinct full file IDs round to the same Number", async () => {
+  expect(identityModel.first).not.toBe(identityModel.second);
+  expect(Number(identityModel.first)).toBe(Number(identityModel.second));
+  const root = await fixture();
+  await writeRegistryAuthoritySwitchMarker({ dataDir: root, secret: SECRET,
+    sourceAgentsSha256: (await computeSignedJsonRegistryDigest(root))!, targetAuthorityBinding: BINDING,
+    recordCount: 2, sqliteSchemaVersion: 3 });
+  const path = join(root, REGISTRY_AUTHORITY_SWITCH_FILE), bytes = await readFile(path);
+  identityModel.path = path;
+  await expect(readRegistryAuthoritySwitchMarker({ dataDir: root, secret: SECRET,
+    fileReadProbe: async (_stage, target) => {
+      await rename(target, join(root, "precision-original.json"));
+      await writeFile(target, bytes);
+      identityModel.swapped = true;
+    },
+  })).rejects.toMatchObject({ code: "AGENT_REGISTRY_AUTHORITY_FILE_UNSAFE" });
+  expect(identityModel.swapped).toBe(true);
 });
 
 async function fixture(): Promise<string> {

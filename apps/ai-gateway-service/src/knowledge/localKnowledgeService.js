@@ -343,8 +343,10 @@ export function createLocalKnowledgeService(options = {}) {
         }
 
         const [queryEmbedding] = await embedMany(embeddingProvider, [query]);
+        const visibleVectorIds = candidates.map(document => `kv:${vectorOwnerScope(document)}:${toDocumentKey(document)}`);
         const rawResults = vectorStore.query(queryEmbedding, {
           topK: Math.max(topK * 3, topK),
+          documentIds: visibleVectorIds,
           ...(sourceIds ? { sourceIds: [...sourceIds] } : {}),
         });
         // 租户安全：向量结果必须落在当前可见文档白名单内。
@@ -446,7 +448,8 @@ export function createLocalKnowledgeService(options = {}) {
       };
     },
     close() {
-      persistence.close();
+      try { persistence.close(); }
+      finally { if (!options.vectorStore) vectorStore?.close?.(); }
     },
   };
 }

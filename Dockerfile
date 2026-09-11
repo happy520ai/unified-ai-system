@@ -34,6 +34,12 @@ COPY apps/ai-gateway-service apps/ai-gateway-service
 COPY apps/agent-console apps/agent-console
 COPY tools/terminal-demo.mjs tools/terminal-demo.mjs
 COPY tools/mcp-smoke.mjs tools/mcp-smoke.mjs
+COPY tools/build-runtime-identity.mjs tools/build-runtime-identity.mjs
+
+# This value is a build declaration, not proof of the source revision.
+# The manifest separately fingerprints the source bytes shipped in this image.
+ARG UAI_DECLARED_REVISION=""
+RUN node tools/build-runtime-identity.mjs --declared-revision "$UAI_DECLARED_REVISION"
 
 # 运行时状态目录（审计日志、请求日志、企业存储）归 node 所有；
 # 容器内进程以非 root 运行，缺这一步会在只读 /app 上 EACCES。
