@@ -23,6 +23,10 @@ export function isLikelyMaskedApiKey(value) {
   return isLikelyMaskedSecret(value);
 }
 
+/**
+ * @param {{ apiKey?: string, providerHint?: string, baseUrl?: string }} [options]
+ * @returns {Array<{ providerId: string, baseUrl?: string, [key: string]: unknown }>}
+ */
 export function resolveProviderCandidates({ apiKey, providerHint = "auto", baseUrl } = {}) {
   const clean = cleanApiKey(apiKey);
   const hint = String(providerHint ?? "auto").trim().toLowerCase();
@@ -101,6 +105,14 @@ export function resolveProviderCandidates({ apiKey, providerHint = "auto", baseU
   return [];
 }
 
+/**
+ * @param {{
+ *   candidate?: { providerId?: string, baseUrl?: string, [key: string]: unknown },
+ *   apiKey?: string,
+ *   fetchImpl?: (url: string, init?: RequestInit) => Promise<Response>,
+ *   timeoutMs?: number,
+ * }} [options]
+ */
 export async function probeProviderModels({ candidate, apiKey, fetchImpl = safeOutboundFetch, timeoutMs = MODEL_IMPORT_TIMEOUT_MS } = {}) {
   const config = PROVIDER_PROBES[candidate?.providerId];
   const clean = cleanApiKey(apiKey);

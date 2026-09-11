@@ -11,6 +11,14 @@ import {
 
 const DEFAULT_PENDING_TTL_MS = 15 * 60 * 1_000;
 
+/**
+ * @param {{
+ *   providerRegistry?: object,
+ *   runtimeCredentialStore?: object,
+ *   fetchImpl?: (url: string, init?: RequestInit) => Promise<Response>,
+ *   pendingTtlMs?: number,
+ * }} [options]
+ */
 export function createModelImportService({
   providerRegistry,
   runtimeCredentialStore,

@@ -23,12 +23,16 @@ process.once("disconnect", () => {
 });
 
 function sendResult(result: Record<string, unknown>) {
-  if (typeof process.send !== "function" || !process.connected) {
+  const send = process.send?.bind(process);
+  if (typeof send !== "function" || !process.connected) {
     process.exitCode = 1;
     return;
   }
-  process.send(result, (error) => {
+  send(result, (error) => {
     if (error) process.exitCode = 1;
-    if (process.connected) process.disconnect();
+    const disconnect = process.disconnect?.bind(process);
+    if (process.connected && typeof disconnect === "function") {
+      disconnect();
+    }
   });
 }

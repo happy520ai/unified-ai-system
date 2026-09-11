@@ -41,7 +41,7 @@ The project takes a different angle from model-aggregation-first gateways:
 
 Try in 60s, no clone, no key:
 
-  docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.6.0 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
+  docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.7.0 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
 
 Or point your existing OpenAI SDK at it and keep only the baseURL change.
 
@@ -114,7 +114,7 @@ Reddit 规则提醒：三个 sub 分开发、间隔 ≥1 天、正文带 demo �
    must stay green in current CI.
 
 8/ Try it in 60 seconds, no clone, no key:
-   docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.6.0 pnpm gateway demo
+   docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.7.0 pnpm gateway demo
    ⭐ https://github.com/happy520ai/unified-ai-system
 ```
 

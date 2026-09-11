@@ -186,6 +186,18 @@ describe("natural-language prompt enhancer", () => {
   );
 
   it.each([
+    { input: "Keep the sourceCode property unchanged.", signal: "evidence" },
+    { input: "Use customerId as the field name.", signal: "audience" },
+  ])("does not match signal words embedded in identifiers: $input", ({ input, signal }) => {
+    const result = enhanceNaturalLanguagePrompt({ input, profile: "general", language: "en" });
+
+    expect(result.signals[signal]).toBe(false);
+    expect(result.original).toBe(input);
+    expect(result.metadata.providerCalled).toBe(false);
+    expect(result.metadata.deterministic).toBe(true);
+  });
+
+  it.each([
     ["general", "Summarize the key decisions from this request."],
     ["coding", "Implement a small API endpoint with tests."],
     ["analysis", "Compare these options and explain the trade-offs."],

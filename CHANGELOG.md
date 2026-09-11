@@ -9,6 +9,45 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 - Nothing yet.
 
+## [0.7.0] - 2026-09-04
+
+### Added
+
+- Added a terminal-first operations overview API: `GET /api/overview` returns a
+  compact JSON snapshot (provider mode, health, readiness, request stats,
+  circuit state) from the `/metrics` sources behind standard enterprise auth
+  with the `dashboard:read` permission and an `EXACT_ROUTE_PERMISSIONS`
+  registration.
+- Added external verification on-ramps: `docs/security/external-audit-kit.md`
+  (four-chain reviewer scope and reproducible target), an advisory OSV
+  dependency scan plus SPDX SBOM workflow pinned to the verified upstream
+  release, and enabled GitHub private vulnerability reporting.
+- Added a zero-budget human test loop to the launch kit: completed runs,
+  feedback reports, and external Stars are the growth signals, with a
+  copy-ready provider-free invitation.
+
+### Changed
+
+- Pinned the terminal-first boundary: an unregistered `GET /console` and
+  `GET /ui` must stay 404, enforced by a regression test, and the browser
+  console option is recorded in ROADMAP under Not Doing as an owner decision.
+- Pruned the zero-reference `im-connector-*` workspace dependencies from the
+  gateway manifest and corrected README cache wording to lexical-approximate
+  matching.
+- Rewrote ROADMAP around the governed client and agent-gateway narrative with
+  a four-item v0.7.0 scope, a labs package boundary, and explicit non-goals.
+- Added SECURITY.md support for the `0.7.x` line.
+
+### Dependencies
+
+- Bumped `@anthropic-ai/sdk` to 0.120.0 in lockstep with the public-clone
+  verifier's pinned version, `@types/node` to 26.4.1 with the matching
+  `JsonWebKey` and child-process IPC typing fixes, `c8` to 12, and `mammoth`
+  to 1.12.1, plus the pending GitHub Actions dependency updates.
+- Reverted the `better-sqlite3` 13 upgrade after the runtime image build
+  failed (no prebuilt for the container platform and no Python toolchain);
+  the bump needs a container build strategy before it can land.
+
 ## [0.6.0] - 2026-08-29
 
 ### Added
@@ -826,7 +865,8 @@ source of truth; see docs/vision-revival-inventory.md for the revival menu.
 - It is not presented as production-certified, L5 autonomous, or established
   AGI. Those claims require independent evidence beyond local verification.
 
-[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/happy520ai/unified-ai-system/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/happy520ai/unified-ai-system/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.9...v0.5.0
 [0.4.9]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.8...v0.4.9

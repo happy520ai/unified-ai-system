@@ -29,7 +29,7 @@ docker run --rm --publish 127.0.0.1:3100:3100 \
   --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
   --env PME_ENTERPRISE_AUTH_ENABLED=true \
   --env PME_AUTH_TOKEN=<32+-char-token> \
-  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.6.0
+  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.7.0
 ```
 
 Everything in scope below is reachable from that single process. For

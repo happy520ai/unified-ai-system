@@ -200,7 +200,7 @@ export function createHealth(application) {
     knowledgeInfra: application.knowledgeInfra.getReadiness(),
     workflow: application.workflowService.getHealth(),
     workforce: application.workforceService.getHealth(),
-    enterprise: enterpriseHealth,
+    enterprise: toPathSafeEnterpriseHealth(enterpriseHealth),
     agentGovernance,
     usageLedger: {
       ...usageLedger,
@@ -229,6 +229,28 @@ export function hasActiveLocalClientReceiptRecoveryFailure(status) {
     && status?.lastRunSucceeded === false
     && Number.isSafeInteger(status?.consecutiveFailureCount)
     && status.consecutiveFailureCount > 0;
+}
+
+// createHealth feeds the unauthenticated /healthz, /ready, and /health/check
+// surfaces, so host storage paths must stay out of the payload (mirrors
+// getPublicHealth's pathExposed:false contract). Full-detail enterprise health
+// remains available through enterpriseGovernanceService.getHealth() directly.
+function toPathSafeEnterpriseHealth(enterpriseHealth) {
+  const userStore = { ...(enterpriseHealth?.userStore ?? {}) };
+  const apiKeys = { ...(enterpriseHealth?.apiKeys ?? {}) };
+  const audit = { ...(enterpriseHealth?.audit ?? {}) };
+  userStore.pathConfigured = Boolean(userStore.path);
+  apiKeys.storePathConfigured = Boolean(apiKeys.storePath);
+  audit.pathConfigured = Boolean(audit.path);
+  delete userStore.path;
+  delete apiKeys.storePath;
+  delete audit.path;
+  return {
+    ...enterpriseHealth,
+    userStore: { ...userStore, pathExposed: false },
+    apiKeys: { ...apiKeys, pathExposed: false },
+    audit: { ...audit, pathExposed: false },
+  };
 }
 
 export function createSetupReadiness(application) {

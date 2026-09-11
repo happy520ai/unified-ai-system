@@ -2,7 +2,6 @@ import {
   createHash,
   createPrivateKey,
   createPublicKey,
-  type JsonWebKey,
   type KeyObject,
 } from "node:crypto";
 import {
@@ -28,6 +27,19 @@ const SIGNING_ALGORITHM = "EdDSA";
 const SIGNATURE_TYPE = "JOSE";
 
 type RuntimeEnv = Record<string, string | undefined>;
+
+// node:crypto stopped exporting the JsonWebKey type in @types/node 26;
+// this structural shape covers the JWK fields the A2A JWKS path uses.
+export type JsonWebKey = {
+  kty?: string;
+  n?: string;
+  e?: string;
+  crv?: string;
+  x?: string;
+  y?: string;
+  [property: string]: unknown;
+};
+
 type PublicJwk = Readonly<JsonWebKey & {
   alg: typeof SIGNING_ALGORITHM;
   kid: string;
