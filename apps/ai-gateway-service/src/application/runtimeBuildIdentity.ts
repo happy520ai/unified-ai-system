@@ -50,26 +50,26 @@ export function createRuntimeIdentityManifest(
   declaredRevision: string | null = null,
   options: { allowHardlinkedInputs?: boolean } = {},
 ): RuntimeIdentityManifest {
-  if (declaredRevision !== null && !REVISION.test(declaredRevision)) throw inputError();
+  if (declaredRevision !== null && !REVISION.test(declaredRevision)) throw inputError("revision");
   const root = realpathSync(rootPath);
   const files = [...STATIC_SOURCES];
   for (const sourceRoot of SOURCE_ROOTS) collectSources(root, sourceRoot, files);
   const paths = [...new Set(files)].sort();
-  if (paths.length > FILE_COUNT_LIMIT) throw inputError();
+  if (paths.length > FILE_COUNT_LIMIT) throw inputError("file-count");
   let totalBytes = 0;
   let packageVersion: unknown;
   const entries = paths.map((path) => {
     const bytes = readRegularFile(root, path, FILE_LIMIT, options.allowHardlinkedInputs === true);
     totalBytes += bytes.length;
-    if (totalBytes > SOURCE_LIMIT) throw inputError();
+    if (totalBytes > SOURCE_LIMIT) throw inputError("size-limit");
     if (path === "package.json") {
       const value = JSON.parse(bytes.toString("utf8"));
-      if (value?.name !== "unified-ai-system") throw inputError();
+      if (value?.name !== "unified-ai-system") throw inputError("root-package");
       packageVersion = value.version;
     }
     return [path, digest(bytes), bytes.length];
   });
-  if (typeof packageVersion !== "string" || !VERSION.test(packageVersion)) throw inputError();
+  if (typeof packageVersion !== "string" || !VERSION.test(packageVersion)) throw inputError("version");
   return {
     schemaVersion: 1, sourceScope: RUNTIME_SOURCE_SCOPE, packageVersion, declaredRevision,
     sourceDigest: digest(JSON.stringify(entries)),
@@ -95,7 +95,7 @@ export function inspectRuntimeBuildIdentity(
     manifest = value;
   } catch (error) {
     if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return unknown("manifest-missing");
-    return unknown((error as NodeJS.ErrnoException)?.code === "RUNTIME_IDENTITY_INPUT_UNSAFE" ? "manifest-unsafe" : "manifest-invalid");
+    return unknown(String((error as NodeJS.ErrnoException)?.code ?? "").startsWith("RUNTIME_IDENTITY_INPUT_UNSAFE") ? "manifest-unsafe" : "manifest-invalid");
   }
   try {
     const measured = createRuntimeIdentityManifest(root, manifest.declaredRevision, options);
@@ -130,28 +130,28 @@ function validManifest(value: unknown): value is RuntimeIdentityManifest {
 function collectSources(root: string, directory: string, files: string[]): void {
   assertDirectory(root, directory);
   const entries = readdirSync(resolve(root, directory), { withFileTypes: true });
-  if (entries.length > FILE_COUNT_LIMIT * 2) throw inputError();
+  if (entries.length > FILE_COUNT_LIMIT * 2) throw inputError("dir-entries");
   for (const entry of entries) {
     const name = entry.name;
     if (name === ".mcp.json" || name === ".env" || name.startsWith(".env.") || PRUNED_DIRECTORIES.has(name)) continue;
     const path = directory + "/" + name;
-    if (entry.isSymbolicLink()) throw inputError();
+    if (entry.isSymbolicLink()) throw inputError("symlink-entry");
     if (entry.isDirectory()) collectSources(root, path, files);
     else if (entry.isFile() && !/\.(?:test|spec)\.[^.]+$/u.test(name)
       && (SOURCE_EXTENSIONS.has(extname(name)) || /^packages\/[^/]+\/package\.json$/u.test(path))) files.push(path);
-    if (files.length > FILE_COUNT_LIMIT) throw inputError();
+    if (files.length > FILE_COUNT_LIMIT) throw inputError("collect-limit");
   }
 }
 
 function assertDirectory(root: string, path: string): void {
   const target = inside(root, path);
   const stat = lstatSync(target);
-  if (!stat.isDirectory() || stat.isSymbolicLink() || realpathSync(target) !== target) throw inputError();
+  if (!stat.isDirectory() || stat.isSymbolicLink() || realpathSync(target) !== target) throw inputError("dir-shape");
 }
 function inside(root: string, path: string): string {
   const target = resolve(root, path);
   const local = relative(root, target);
-  if (!local || isAbsolute(path) || isAbsolute(local) || local === ".." || local.startsWith("../") || local.startsWith("..\\")) throw inputError();
+  if (!local || isAbsolute(path) || isAbsolute(local) || local === ".." || local.startsWith("../") || local.startsWith("..\\")) throw inputError("inside");
   return target;
 }
 function readRegularFile(root: string, path: string, limit: number, allowHardlink = false): Buffer {
@@ -165,11 +165,11 @@ function readRegularFile(root: string, path: string, limit: number, allowHardlin
   // read in both postures.
   if (!before.isFile() || before.isSymbolicLink() || before.size < 0n
     || before.size > BigInt(limit) || realpathSync(target) !== target
-    || (!allowHardlink && before.nlink !== 1n)) throw inputError();
+    || (!allowHardlink && before.nlink !== 1n)) throw inputError("file-shape");
   const file = openSync(target, "r");
   try {
     const opened = fstatSync(file, { bigint: true });
-    if (opened.dev !== before.dev || opened.ino !== before.ino || opened.size !== before.size || realpathSync(target) !== target) throw inputError();
+    if (opened.dev !== before.dev || opened.ino !== before.ino || opened.size !== before.size || realpathSync(target) !== target) throw inputError("file-race");
     const bytes = Buffer.alloc(Number(before.size) + 1);
     let count = 0;
     while (count < bytes.length) {
@@ -179,11 +179,13 @@ function readRegularFile(root: string, path: string, limit: number, allowHardlin
     }
     const after = lstatSync(target, { bigint: true });
     if (count !== Number(before.size) || after.dev !== before.dev || after.ino !== before.ino
-      || after.size !== before.size || after.mtimeNs !== before.mtimeNs || after.ctimeNs !== before.ctimeNs) throw inputError();
+      || after.size !== before.size || after.mtimeNs !== before.mtimeNs || after.ctimeNs !== before.ctimeNs) throw inputError("file-race-after");
     return bytes.subarray(0, count);
   } finally { closeSync(file); }
 }
 function digest(value: string | Buffer): string { return createHash("sha256").update(value).digest("hex"); }
-function inputError(): Error & { code: string } {
-  return Object.assign(new Error("Runtime identity input is outside the supported source boundary."), { code: "RUNTIME_IDENTITY_INPUT_UNSAFE" });
+function inputError(stage: string): Error & { code: string } {
+  // The stage is a public phase label (no paths, no contents) so CI failures
+  // route without leaking anything about the scanned tree.
+  return Object.assign(new Error("Runtime identity input is outside the supported source boundary."), { code: `RUNTIME_IDENTITY_INPUT_UNSAFE_${stage}` });
 }
