@@ -16,6 +16,10 @@ interface DagExecutorOptions {
   claimTtlMs?: number;
   signal?: AbortSignal;
   abortDrainTimeoutMs?: number;
+  agentExecutionFence?: {
+    fingerprint?: string;
+    assertActive(phase?: "reserve" | "commit"): Promise<unknown>;
+  };
 }
 
 function dagError(code: string, message: string, details: Record<string, unknown> = {}) {
@@ -178,17 +182,32 @@ export async function executeWorkforceDag(options: DagExecutorOptions) {
         const output = await runAbortable(Promise.resolve(options.executeRole(roleId, {
           ...(options.context ?? {}),
           priorOutputs,
+          roleId,
+          governedAgentId: typeof options.context?.governedAgentId === "string"
+            ? options.context.governedAgentId
+            : null,
           signal: options.signal,
           externalEffectFence: Object.freeze({
             fencingToken,
-            async assertActive() {
+            agentRunFingerprint: options.agentExecutionFence?.fingerprint ?? null,
+            async assertActive(phase: "reserve" | "commit" = "commit") {
               if (!fencingToken || typeof options.taskQueue.assertTaskClaimActive !== "function") {
                 throw dagError(
                   "WORKFORCE_EXTERNAL_EFFECT_FENCE_UNAVAILABLE",
                   "The task queue cannot prove an active fence for an external effect.",
                 );
               }
-              return options.taskQueue.assertTaskClaimActive(task.queueTaskId, ownership);
+              const taskClaim = await options.taskQueue.assertTaskClaimActive(task.queueTaskId, ownership);
+              if (options.agentExecutionFence) {
+                if (typeof options.agentExecutionFence.assertActive !== "function") {
+                  throw dagError(
+                    "WORKFORCE_AGENT_RUN_FENCE_UNAVAILABLE",
+                    "The governed Agent run fence is unavailable for an external effect.",
+                  );
+                }
+                await options.agentExecutionFence.assertActive(phase);
+              }
+              return taskClaim;
             },
           }),
         }, task)), options.signal, options.abortDrainTimeoutMs);
@@ -274,5 +293,6 @@ export async function executeWorkforceDag(options: DagExecutorOptions) {
 function isLifecycleStop(error: unknown): boolean {
   const code = (error as Error & { code?: string })?.code;
   return code === "WORKFORCE_EXECUTION_CANCELLED"
-    || code === "WORKFORCE_EXECUTION_PAUSE_UNSUPPORTED";
+    || code === "WORKFORCE_EXECUTION_PAUSE_UNSUPPORTED"
+    || code === "AGENT_EXECUTION_FENCED";
 }

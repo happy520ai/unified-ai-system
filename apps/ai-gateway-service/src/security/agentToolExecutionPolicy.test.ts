@@ -58,6 +58,20 @@ describe("agent tool execution policy", () => {
     }));
   });
 
+  it("registers only the exact configured high-risk tool names", () => {
+    const permissionChecker = { check: vi.fn(() => ({ allowed: false })) };
+    const registry = createAgentToolRegistry({
+      workingDirectory: process.cwd(),
+      highRiskToolAllowlist: ["git_push"],
+      permissionChecker,
+    });
+    expect(registry.getTool("git_push")).not.toBeNull();
+    expect(registry.getTool("git_create_pr")).toBeNull();
+    expect(registry.getTool("shell_exec")).toBeNull();
+    expect(registry.getTool("code_run")).toBeNull();
+    expect(registry.getTool("web_fetch")).toBeNull();
+  });
+
   it("does not copy arbitrary parameters into permission context", () => {
     expect(createToolPermissionContext({
       toolName: "file_write",

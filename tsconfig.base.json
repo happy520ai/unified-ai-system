@@ -21,6 +21,9 @@
       ],
       "@unified-ai-system/shared-utils": [
         "packages/shared-utils/src/index.ts"
+      ],
+      "@unified-ai-system/policy-engine": [
+        "packages/policy-engine/src/index.ts"
       ]
     }
   }

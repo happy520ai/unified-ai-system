@@ -7,6 +7,9 @@ export interface RequestLogEntry {
   usageAttemptId?: string;
   usageEventType?: "attempt-started" | "attempt-completed" | "attempt-failed";
   tenantId?: string;
+  agentId?: string;
+  agentRunId?: string;
+  agentPolicyHash?: string;
   method?: string;
   path?: string;
   statusCode?: number;
@@ -40,6 +43,9 @@ export interface RequestLogRecord {
   usageAttemptId?: string;
   usageEventType?: "attempt-started" | "attempt-completed" | "attempt-failed";
   tenantId: string;
+  agentId?: string;
+  agentRunId?: string;
+  agentPolicyHash?: string;
   method?: string;
   path?: string;
   statusCode?: number;
@@ -69,6 +75,8 @@ export interface RequestLogRecord {
 
 export interface RequestLogQuery {
   tenantId?: string;
+  agentId?: string;
+  agentRunId?: string;
   since?: number;
   until?: number;
   provider?: string;
@@ -93,6 +101,14 @@ export interface RequestLogStats {
   fallbackRate: number;
   byProvider: Record<string, { count: number; tokens: number; cost: number; errors: number }>;
   byModel: Record<string, { count: number; tokens: number; cost: number }>;
+  byAgent?: Record<string, { count: number; tokens: number; cost: number; errors: number }>;
+  /** True when aggregates cover only the bounded reporting window. */
+  partial: boolean;
+  /** True when at least one additional matching record exists beyond recordLimit. */
+  truncated: boolean;
+  recordsConsidered: number;
+  recordLimit: number;
+  scope: "current-day-file-window" | "retained-postgres-window";
 }
 
 export interface RequestLogger {

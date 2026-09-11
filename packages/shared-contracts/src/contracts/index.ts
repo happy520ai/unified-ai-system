@@ -3,6 +3,7 @@ export * from "./gateway.js";
 export * from "./provider.js";
 export * from "./routing.js";
 export * from "./governance.js";
+export * from "./agentGovernance.js";
 export * from "./knowledge.js";
 export * from "./localClient.js";
 export * from "./modelImport.js";

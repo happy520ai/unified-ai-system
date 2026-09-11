@@ -70,6 +70,7 @@ export function createGatewayResponse(request, selection, providerResult, starte
     outputText: providerResult.text,
     warnings,
   });
+  const toolCalls = normalizeProviderToolCalls(providerResult);
 
   return {
     id: request.context.requestId,
@@ -84,7 +85,8 @@ export function createGatewayResponse(request, selection, providerResult, starte
     executionStatus: execution.executionStatus,
     warnings,
     errorSummary: null,
-    finishReason: normalizeProviderFinishReason(providerResult.raw?.finishReason),
+    finishReason: normalizeProviderFinishReason(providerResult.raw?.finishReason ?? providerResult.finishReason),
+    ...(toolCalls.length > 0 ? { toolCalls } : {}),
     usage: providerResult.usage,
     routing: createRoutingDecision(request.context.requestId, request.context.traceId, selection, trace, warnings),
     metadata: {
@@ -96,6 +98,29 @@ export function createGatewayResponse(request, selection, providerResult, starte
       rawProviderMeta: providerResult.raw,
     },
   };
+}
+
+function normalizeProviderToolCalls(providerResult) {
+  if (Array.isArray(providerResult?.toolCalls)) return providerResult.toolCalls;
+  if (Array.isArray(providerResult?.raw?.toolCalls)) return providerResult.raw.toolCalls;
+  const calls = providerResult?.message?.tool_calls;
+  if (!Array.isArray(calls)) return [];
+  return calls.map((call) => ({
+    id: call?.id,
+    name: call?.function?.name ?? call?.name ?? "",
+    arguments: typeof call?.function?.arguments === "string"
+      ? safeJsonObject(call.function.arguments)
+      : call?.function?.arguments ?? call?.arguments ?? {},
+  }));
+}
+
+function safeJsonObject(value) {
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return { _raw: value };
+  }
 }
 
 function normalizeProviderFinishReason(value) {

@@ -1,7 +1,4 @@
 import { createHash } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { createWorkforcePlan } from "./workforcePlanner.js";
 import { EXECUTOR_MAP } from "./roleExecutors.js";
 
@@ -11,8 +8,6 @@ export const WORKFORCE_REAL_LOCAL_RUN_EVIDENCE_PATH =
   "apps/ai-gateway-service/evidence/phase1961a/workforce-real-local-run-result.json";
 export const WORKFORCE_REAL_LOCAL_RUN_MARKDOWN_PATH =
   "apps/ai-gateway-service/evidence/phase1961a/workforce-real-local-run-result.md";
-
-const repoRoot = resolve(fileURLToPath(new URL("../../../../", import.meta.url)));
 
 export async function runWorkforceRealLocal(input = {}, { planStore, now = () => new Date() } = {}) {
   if (!planStore || typeof planStore.save !== "function") {
@@ -57,11 +52,8 @@ export async function runWorkforceRealLocal(input = {}, { planStore, now = () =>
       projectMutationTasks: 0,
     },
     localExecutionBoundary: {
-      evidenceFileWrites: true,
-      allowedEvidencePaths: [
-        WORKFORCE_REAL_LOCAL_RUN_EVIDENCE_PATH,
-        WORKFORCE_REAL_LOCAL_RUN_MARKDOWN_PATH,
-      ],
+      evidenceFileWrites: false,
+      allowedEvidencePaths: [],
       userProjectFileWrites: false,
       shellCommandsExecuted: false,
       codeExecution: false,
@@ -95,8 +87,8 @@ export async function runWorkforceRealLocal(input = {}, { planStore, now = () =>
     productionReadyClaimed: false,
     publicLaunchReadyClaimed: false,
     workspaceCleanClaimed: false,
-    evidencePath: WORKFORCE_REAL_LOCAL_RUN_EVIDENCE_PATH,
-    markdownEvidencePath: WORKFORCE_REAL_LOCAL_RUN_MARKDOWN_PATH,
+    evidencePath: null,
+    markdownEvidencePath: null,
     planStore: {
       planId: saved.planId,
       status: saved.status,
@@ -105,10 +97,9 @@ export async function runWorkforceRealLocal(input = {}, { planStore, now = () =>
       localJsonStore: true,
     },
     userVisibleSummary:
-      "Workforce 已完成一次本地真实编排：生成计划、保存计划、建立任务队列并通过角色执行器执行每个任务；没有调用 Provider、没有读取密钥、没有部署发布、没有提交推送。",
+      "Workforce 已完成一次本地确定性编排：计划只保存到租户作用域的运行时存储，不再向仓库 evidence 固定路径写文件；没有调用 Provider、读取密钥、部署、提交或推送。",
   });
 
-  await writeWorkforceRunEvidence(result);
   return result;
 }
 
@@ -135,11 +126,6 @@ export function createRealLocalSafetySummary() {
     commitCreated: false,
     pushExecuted: false,
   };
-}
-
-export async function writeWorkforceRunEvidence(result) {
-  await writeJson(WORKFORCE_REAL_LOCAL_RUN_EVIDENCE_PATH, result);
-  await writeText(WORKFORCE_REAL_LOCAL_RUN_MARKDOWN_PATH, formatRunMarkdown(result));
 }
 
 function createLocalTaskQueue(plan, runId, timestamp, goal) {
@@ -195,48 +181,6 @@ function createRunId(plan, planId, startedAt) {
     .digest("hex")
     .slice(0, 12);
   return `wfr_${hash}`;
-}
-
-async function writeJson(relativePath, data) {
-  const absolutePath = resolve(repoRoot, relativePath);
-  await mkdir(dirname(absolutePath), { recursive: true });
-  await writeFile(absolutePath, `${JSON.stringify(redactSecrets(data), null, 2)}\n`, "utf8");
-}
-
-async function writeText(relativePath, text) {
-  const absolutePath = resolve(repoRoot, relativePath);
-  await mkdir(dirname(absolutePath), { recursive: true });
-  await writeFile(absolutePath, `${String(text).trimEnd()}\n`, "utf8");
-}
-
-function formatRunMarkdown(result) {
-  return [
-    `# ${WORKFORCE_REAL_LOCAL_RUN_PHASE} Workforce Real Local Run`,
-    "",
-    `- completed: ${result.executionStatus === "completed"}`,
-    `- runId: ${result.runId}`,
-    `- planId: ${result.planId}`,
-    `- mode: ${result.mode}`,
-    `- executionStatus: ${result.executionStatus}`,
-    `- completionVerified: ${result.completionVerified}`,
-    `- localRunExecuted: ${result.localRunExecuted}`,
-    `- taskQueueCreated: ${result.taskQueueCreated}`,
-    `- taskCount: ${result.taskSummary?.total ?? 0}`,
-    `- providerCallsMade: ${result.providerCallsMade}`,
-    `- secretValueExposed: ${result.secretValueExposed}`,
-    `- projectFileWrites: ${result.projectFileWrites}`,
-    `- chatRouteModified: ${result.chatRouteModified}`,
-    `- chatGatewayExecuteModified: ${result.chatGatewayExecuteModified}`,
-    `- deployExecuted: ${result.deployExecuted}`,
-    `- releaseExecuted: ${result.releaseExecuted}`,
-    `- commitCreated: ${result.commitCreated}`,
-    `- pushExecuted: ${result.pushExecuted}`,
-    `- workspaceCleanClaimed: ${result.workspaceCleanClaimed}`,
-    "",
-    "## Boundary",
-    "",
-    "This is a real local Workforce orchestration run. It creates a plan, saves it to the local plan store, creates a local task queue, marks local orchestration records completed, and writes evidence. It does not call Providers, read secrets, execute code, mutate user project files, deploy, release, commit, or push.",
-  ].join("\n");
 }
 
 function redactSecrets(value) {

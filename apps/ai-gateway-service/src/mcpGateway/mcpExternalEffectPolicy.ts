@@ -20,7 +20,13 @@ export async function reserveMcpExternalEffect({
   tenantId: string;
   toolName: string;
   args: Record<string, unknown>;
-  keyContext?: { effectKeyHash?: unknown; effectKeyInvalid?: boolean };
+  keyContext?: {
+    effectKeyHash?: unknown;
+    effectKeyInvalid?: boolean;
+    fenceFingerprint?: unknown;
+    fenceRequired?: boolean;
+    assertFence?: (phase: "reserve" | "commit") => unknown | Promise<unknown>;
+  };
 }) {
   if (!gate || typeof gate.reserve !== "function") {
     throw Object.assign(new Error("This upstream MCP tool requires the durable external-effect gate."), {
@@ -41,12 +47,15 @@ export async function reserveMcpExternalEffect({
       targetFingerprint,
       arguments: args,
     })),
+    fenceFingerprint: keyContext?.fenceFingerprint,
+    fenceRequired: keyContext?.fenceRequired === true,
+    assertFence: keyContext?.assertFence,
   });
   await reservation.commit();
   return reservation.reservationFingerprint;
 }
 
-function fingerprintUpstreamTarget(config: McpEffectConfig) {
+export function fingerprintUpstreamTarget(config: McpEffectConfig) {
   if (config.transport === "http") {
     return digest(stableStringify({ transport: config.transport, url: config.url }));
   }

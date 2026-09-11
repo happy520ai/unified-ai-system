@@ -14,6 +14,17 @@ export interface ProviderModelConfig {
   capabilities: string[];
   fixedLatencyMs?: number;
   endpoint?: string;
+  fixedEndpoint?: boolean;
+  maxRetries?: number;
+  staticModelsRequireExplicitSelection?: boolean;
+  modelSelectionExplicit?: boolean;
+  models?: Array<{
+    id: string;
+    displayName?: string;
+    capabilities: string[];
+    enabled?: boolean;
+    priority?: number;
+  }>;
   apiKey?: string;
   apiKeyPresent?: boolean;
   dryRun?: boolean;
@@ -34,6 +45,7 @@ export interface AiGatewayServiceConfig {
   requestTimeoutMs: number;
   providerMode: ProviderMode;
   realProviderEnabled: boolean;
+  fallbackEnabled?: boolean;
   providerSelection: ProviderSelectionConfig;
   providerModels: ProviderModelConfig[];
 }
@@ -194,6 +206,29 @@ export const DEFAULT_RUNTIME_CONFIG: UnifiedRuntimeConfig = {
         priority: 86,
         capabilities: ["chat", "summary"],
         endpoint: "https://api-inference.modelscope.cn/v1",
+        dryRun: false,
+      },
+      {
+        providerId: "bai",
+        modelId: "qwen3.8-flash",
+        providerType: "openai-compatible",
+        providerDisplayName: "B.AI",
+        modelDisplayName: "Qwen 3.8 Flash",
+        enabled: false,
+        priority: 97,
+        capabilities: ["chat", "summary"],
+        endpoint: "https://api.b.ai/v1",
+        fixedEndpoint: true,
+        maxRetries: 1,
+        staticModelsRequireExplicitSelection: true,
+        models: [
+          { id: "deepseek-v4-flash", displayName: "DeepSeek V4 Flash", capabilities: ["chat", "reasoning", "coding", "summary"], enabled: false },
+          { id: "deepseek-v4-flash-vision-exp", displayName: "DeepSeek V4 Flash Vision Experimental", capabilities: ["chat", "vision", "reasoning", "summary"], enabled: false },
+          { id: "hy3", displayName: "HY3", capabilities: ["chat", "summary"], enabled: false },
+          { id: "mimo-v2.5", displayName: "MiMo V2.5", capabilities: ["chat", "reasoning", "coding", "summary"], enabled: false },
+          { id: "glm-5.3-flash", displayName: "GLM 5.3 Flash", capabilities: ["chat", "reasoning", "coding", "summary"], enabled: false },
+          { id: "qwen3.8-flash", displayName: "Qwen 3.8 Flash", capabilities: ["chat", "reasoning", "coding", "summary"], enabled: false },
+        ],
         dryRun: false,
       },
       {

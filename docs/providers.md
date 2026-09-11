@@ -5,6 +5,11 @@ request. For the full operator procedure — whitelist matrix, credential
 provisioning, verification, cost control, and rollback — see the
 [real provider enablement runbook](real-provider-enablement.md).
 
+For the independent `bai` OpenAI-compatible provider, including its fixed
+upstream endpoint, account-scoped model discovery, runtime credential setup,
+and curl/Python/Node.js gateway examples, see the
+[B.AI provider guide](bai-provider.md).
+
 ## Enable A Provider
 
 1. Copy `.env.example` to a local `.env`.

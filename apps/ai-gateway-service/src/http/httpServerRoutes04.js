@@ -329,6 +329,18 @@ export async function dispatchHttpRoutes04(context) {
   }
 
   if (request.method === "POST" && url.pathname === "/workforce/run-local") {
+    if (application.agentGovernance) {
+      writeJson(response, 409, createErrorEnvelope(
+        "WORKFORCE_RUN_LOCAL_REQUIRES_GOVERNED_EXECUTION",
+        "Agent Governance is enabled; use POST /workforce/execute with a server-issued Agent identity.",
+        {
+          startedAt,
+          category: "governance",
+          details: { replacementRoute: "/workforce/execute" },
+        },
+      ));
+      return;
+    }
     const body = await readCapabilityJson({ request, response, startedAt, code: "workforce_run_local_invalid_json" });
     if (!body) return;
 

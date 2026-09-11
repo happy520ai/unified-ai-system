@@ -23,6 +23,10 @@ export function isLikelyMaskedApiKey(value) {
   return isLikelyMaskedSecret(value);
 }
 
+/**
+ * @param {{ apiKey?: string, providerHint?: string, baseUrl?: string }} [options]
+ * @returns {Array<{ providerId: string, baseUrl?: string, [key: string]: unknown }>}
+ */
 export function resolveProviderCandidates({ apiKey, providerHint = "auto", baseUrl } = {}) {
   const clean = cleanApiKey(apiKey);
   const hint = String(providerHint ?? "auto").trim().toLowerCase();
@@ -37,6 +41,9 @@ export function resolveProviderCandidates({ apiKey, providerHint = "auto", baseU
   }
 
   if (normalizedBaseUrl) {
+    if (normalizedBaseUrl === normalizeBaseUrl(PROVIDER_PROBES.bai?.baseUrl)) {
+      return [createCandidate("bai")];
+    }
     return [createCandidate("openai-compatible", { baseUrl: normalizedBaseUrl })];
   }
 
@@ -89,43 +96,27 @@ export function resolveProviderCandidates({ apiKey, providerHint = "auto", baseU
   }
 
   if (clean.startsWith("sk-")) {
-    const candidates = createOpenAiStyleCandidates();
-    candidates.push(createCandidate("openai-compatible", { baseUrl: normalizedBaseUrl }));
-    return candidates;
+    // A generic sk- prefix is shared by many providers. Probing every known
+    // endpoint would disclose one bearer credential to unrelated vendors.
+    // Require an explicit providerHint or an explicit compatible base URL.
+    return [];
   }
 
   return [];
 }
 
-function createOpenAiStyleCandidates() {
-  return [
-    createCandidate("openai"),
-    createCandidate("dashscope"),
-    createCandidate("deepseek"),
-    createCandidate("together"),
-    createCandidate("mistral"),
-    createCandidate("moonshot"),
-    createCandidate("siliconflow"),
-    createCandidate("tencent-hunyuan"),
-    createCandidate("zhipu"),
-    createCandidate("xunfei-spark"),
-    createCandidate("qianfan"),
-    createCandidate("modelscope"),
-    createCandidate("cohere"),
-    createCandidate("volcengine-doubao"),
-    createCandidate("minimax"),
-    createCandidate("stepfun"),
-    createCandidate("novita"),
-    createCandidate("baichuan"),
-    createCandidate("yi"),
-    createCandidate("infini-ai"),
-  ];
-}
-
+/**
+ * @param {{
+ *   candidate?: { providerId?: string, baseUrl?: string, [key: string]: unknown },
+ *   apiKey?: string,
+ *   fetchImpl?: (url: string, init?: RequestInit) => Promise<Response>,
+ *   timeoutMs?: number,
+ * }} [options]
+ */
 export async function probeProviderModels({ candidate, apiKey, fetchImpl = safeOutboundFetch, timeoutMs = MODEL_IMPORT_TIMEOUT_MS } = {}) {
   const config = PROVIDER_PROBES[candidate?.providerId];
   const clean = cleanApiKey(apiKey);
-  const baseUrl = normalizeBaseUrl(candidate?.baseUrl ?? config?.baseUrl);
+  const baseUrl = resolveProbeBaseUrl(config, candidate?.baseUrl);
 
   if (!config) {
     return createProbeResult({
@@ -250,7 +241,7 @@ function createHintCandidates(hint, baseUrl) {
 
 function createCandidate(providerId, options = {}) {
   const config = PROVIDER_PROBES[providerId] ?? {};
-  const baseUrl = normalizeBaseUrl(options.baseUrl || config.baseUrl);
+  const baseUrl = resolveProbeBaseUrl(config, options.baseUrl);
   return {
     providerId,
     providerDisplayName: config.displayName ?? providerId,
@@ -428,6 +419,13 @@ function createProbeResult(result) {
 
 function normalizeBaseUrl(value) {
   return String(value ?? "").trim().replace(/\/+$/, "");
+}
+
+function resolveProbeBaseUrl(config, requestedBaseUrl) {
+  if (config?.fixedBaseUrl === true) {
+    return normalizeBaseUrl(config.baseUrl);
+  }
+  return normalizeBaseUrl(requestedBaseUrl || config?.baseUrl);
 }
 
 function safeJsonParse(text) {

@@ -17,14 +17,19 @@ export function hasUsablePermissionChecker(value: unknown): value is {
 export function shouldRegisterAgentTool({
   toolName,
   enableHighRiskTools,
+  highRiskToolAllowlist,
   permissionChecker,
 }: {
   toolName: string;
   enableHighRiskTools?: boolean;
+  highRiskToolAllowlist?: readonly string[];
   permissionChecker?: unknown;
 }): boolean {
   if (!HIGH_RISK_AGENT_TOOL_SET.has(toolName)) return true;
-  return enableHighRiskTools === true && hasUsablePermissionChecker(permissionChecker);
+  const explicitlyAllowed = Array.isArray(highRiskToolAllowlist)
+    ? highRiskToolAllowlist.includes(toolName)
+    : enableHighRiskTools === true;
+  return explicitlyAllowed && hasUsablePermissionChecker(permissionChecker);
 }
 
 export function createToolPermissionContext({

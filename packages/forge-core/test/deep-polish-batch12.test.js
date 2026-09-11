@@ -185,9 +185,10 @@ describe("Batch12-6: worker/base path traversal guard for read actions", () => {
 
   it("checks path BEFORE the mutating-action-only restriction", () => {
     const src = readFileSync(join(FORGE_SRC, "worker", "base-action-exec.js"), "utf-8");
-    // Use the method definition as anchor
-    const execIdx = src.indexOf("export async function executeAction(");
-    assert.ok(execIdx > 0, "Should find executeAction function definition");
+    // Governed and legacy actions now share prepareActionPath; validate the
+    // canonical guard ordering at that single pre-execution boundary.
+    const execIdx = src.indexOf("async function prepareActionPath(");
+    assert.ok(execIdx > 0, "Should find shared action preparation boundary");
     const area = src.slice(execIdx, execIdx + 1600);
 
     const traversalIdx = area.indexOf("resolveActionPath(projectRoot");

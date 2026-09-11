@@ -1,3 +1,5 @@
+import { isSafePublicObjectKey } from "./secretSafety.js";
+
 const REDACTED = "[REDACTED]";
 const MAX_DEPTH = 6;
 const MAX_COLLECTION_ITEMS = 100;
@@ -39,14 +41,17 @@ export function summarizeErrorForLog(error: unknown): {
   if (!error || typeof error !== "object") {
     return { name: "Error" };
   }
-  const candidate = error as { name?: unknown; code?: unknown; category?: unknown };
+  const candidate = error as Record<string, unknown>;
+  const name = readOwnDataProperty(candidate, "name");
+  const code = readOwnDataProperty(candidate, "code");
+  const category = readOwnDataProperty(candidate, "category");
   return {
-    name: sanitizeLogText(candidate.name || "Error", 128),
-    ...(typeof candidate.code === "string"
-      ? { code: sanitizeLogText(candidate.code, 128) }
+    name: sanitizeLogText(typeof name === "string" && name ? name : "Error", 128),
+    ...(typeof code === "string"
+      ? { code: sanitizeLogText(code, 128) }
       : {}),
-    ...(typeof candidate.category === "string"
-      ? { category: sanitizeLogText(candidate.category, 128) }
+    ...(typeof category === "string"
+      ? { category: sanitizeLogText(category, 128) }
       : {}),
   };
 }
@@ -65,12 +70,17 @@ function sanitizeValue(value: unknown, depth: number, seen: WeakSet<object>): un
     return "[buffer:" + value.length + " bytes]";
   }
   if (value instanceof Date) {
-    return value.toISOString();
+    try {
+      return Date.prototype.toISOString.call(value);
+    } catch {
+      return "[invalid-date]";
+    }
   }
   if (value instanceof Error) {
+    const message = readOwnDataProperty(value as unknown as Record<string, unknown>, "message");
     return {
       ...summarizeErrorForLog(value),
-      message: sanitizeLogText(value.message),
+      message: sanitizeLogText(typeof message === "string" ? message : ""),
     };
   }
   if (depth >= MAX_DEPTH) {
@@ -94,15 +104,38 @@ function sanitizeValue(value: unknown, depth: number, seen: WeakSet<object>): un
     return items;
   }
 
-  const output: Record<string, unknown> = {};
-  const entries = Object.entries(value).slice(0, MAX_COLLECTION_ITEMS);
-  for (const [key, item] of entries) {
-    output[key] = SENSITIVE_KEY.test(key)
-      ? REDACTED
-      : sanitizeValue(item, depth + 1, seen);
+  const output = Object.create(null) as Record<string, unknown>;
+  const keys = Object.keys(value);
+  let redactedKeyIndex = 0;
+  for (const key of keys.slice(0, MAX_COLLECTION_ITEMS)) {
+    const property = Object.getOwnPropertyDescriptor(value, key);
+    if (!property || !("value" in property) || !isSafePublicObjectKey(key)) {
+      defineSafeProperty(output, `[redacted-key-${redactedKeyIndex}]`, REDACTED);
+      redactedKeyIndex += 1;
+      continue;
+    }
+    defineSafeProperty(
+      output,
+      key,
+      SENSITIVE_KEY.test(key) ? REDACTED : sanitizeValue(property.value, depth + 1, seen),
+    );
   }
-  if (Object.keys(value).length > MAX_COLLECTION_ITEMS) {
-    output.__truncated__ = true;
+  if (keys.length > MAX_COLLECTION_ITEMS) {
+    defineSafeProperty(output, "__truncated__", true);
   }
   return output;
+}
+
+function readOwnDataProperty(value: Record<string, unknown>, key: string): unknown {
+  const property = Object.getOwnPropertyDescriptor(value, key);
+  return property && "value" in property ? property.value : undefined;
+}
+
+function defineSafeProperty(output: Record<string, unknown>, key: string, value: unknown): void {
+  Object.defineProperty(output, key, {
+    value,
+    enumerable: true,
+    configurable: true,
+    writable: true,
+  });
 }

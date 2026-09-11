@@ -64,7 +64,19 @@ test("stdio server exposes safe tools and cleans up its managed gateway", async 
       listed.tools.map((tool) => tool.name).sort(),
       [...MCP_TOOL_NAMES].sort(),
     );
-
+    for (const forbiddenTool of [
+      "agent_governance_generate",
+      "agent_governance_approve",
+      "agent_governance_reject",
+      "agent_governance_policy_create",
+      "agent_governance_policy_activate",
+    ]) {
+      assert.equal(
+        listed.tools.some((tool) => tool.name === forbiddenTool),
+        false,
+        `${forbiddenTool} must not be exposed to a model`,
+      );
+    }
     const health = parseToolResult(
       await client.callTool({ name: "gateway_health", arguments: {} }),
     );
@@ -83,6 +95,41 @@ test("stdio server exposes safe tools and cleans up its managed gateway", async 
     );
     assert.equal(readiness.ok, true);
     assert.equal(readiness.result.data.readiness.chat.ready, true);
+
+    const governanceStatus = parseToolResult(
+      await client.callTool({ name: "agent_governance_status", arguments: {} }),
+    );
+    assert.equal(governanceStatus.ok, true, JSON.stringify(governanceStatus));
+    assert.equal(governanceStatus.result.data.stats.storage.pathExposed, false);
+
+    const initialAgents = parseToolResult(
+      await client.callTool({ name: "agent_governance_list", arguments: {} }),
+    );
+    assert.equal(initialAgents.ok, true, JSON.stringify(initialAgents));
+    assert.ok(initialAgents.result.data.agents.length >= 1);
+    assert.ok(initialAgents.result.data.agents.every((agent) => agent.tenantId === "managed-mcp"));
+
+    const generatedAgentId = initialAgents.result.data.agents[0].agentId;
+    assert.match(generatedAgentId, /^agt_[A-Za-z0-9_-]{1,128}$/u);
+
+    const describedAgent = parseToolResult(
+      await client.callTool({
+        name: "agent_governance_describe",
+        arguments: { agentId: generatedAgentId },
+      }),
+    );
+    assert.equal(describedAgent.ok, true, JSON.stringify(describedAgent));
+    assert.equal(describedAgent.result.data.agent.agentId, generatedAgentId);
+    assert.equal(describedAgent.result.data.agent.tenantId, "managed-mcp");
+
+    const missingAgent = await client.callTool({
+      name: "agent_governance_describe",
+      arguments: { agentId: "agt_not_present" },
+    });
+    assert.equal(missingAgent.isError, true);
+    const missingPayload = parseToolResult(missingAgent);
+    assert.equal(missingPayload.ok, false);
+    assert.equal(missingPayload.error.statusCode, 404);
 
     const enhancement = parseToolResult(
       await client.callTool({
@@ -123,6 +170,19 @@ test("stdio server exposes safe tools and cleans up its managed gateway", async 
       );
       assert.equal(result.ok, true, `${name} should succeed`);
     }
+
+    const workflow = parseToolResult(
+      await client.callTool({
+        name: "workflow_run",
+        arguments: {
+          goal: "Create one managed MCP workflow report",
+          artifactName: "managed-mcp-report.md",
+        },
+      }),
+    );
+    assert.equal(workflow.ok, true, JSON.stringify(workflow));
+    assert.equal(workflow.result.data.artifact.fileName, "managed-mcp-report.md");
+    assert.match(workflow.result.data.artifact.absolutePath, /workflow-artifacts/u);
   } finally {
     await client.close();
   }

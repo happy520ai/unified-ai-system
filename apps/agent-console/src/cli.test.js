@@ -142,6 +142,192 @@ test("parseCliArgs rejects ambiguous or unsafe option combinations", () => {
   );
 });
 
+test("agents parses the human governance surface and requires explicit mutation confirmation", () => {
+  const env = { AGENT_CONSOLE_ADMIN_KEY: "uai-mock-admin-key" };
+  assert.throws(
+    () => parseCliArgs(["agents", "status"], {}),
+    (error) => error instanceof CliUsageError && error.message.includes("scoped Agent Governance key"),
+  );
+  for (const operation of ["status", "list", "approvals"]) {
+    const parsed = parseCliArgs(["agents", operation], env);
+    assert.equal(parsed.command, "agents");
+    assert.equal(parsed.positionals[0], operation);
+  }
+  assert.equal(
+    parseCliArgs(["agents", "show", "--agent-id", "agt_fixture"], env).agentId,
+    "agt_fixture",
+  );
+
+  const mutationCases = [
+    ["generate", "--name", "reader", "--task", "Read a report"],
+    ["run", "--agent-id", "agt_fixture", "--goal", "Read README"],
+    ["revoke", "--agent-id", "agt_fixture"],
+    ["approve", "--approval-id", "appr_fixture"],
+    ["reject", "--approval-id", "appr_fixture"],
+  ];
+  for (const arguments_ of mutationCases) {
+    assert.throws(
+      () => parseCliArgs(["agents", ...arguments_], env),
+      (error) => error instanceof CliUsageError && error.message.includes("--yes"),
+    );
+    assert.equal(
+      parseCliArgs(["agents", ...arguments_, "--yes"], env).confirmed,
+      true,
+    );
+  }
+
+  assert.throws(
+    () => parseCliArgs(["agents", "list", "--yes"], env),
+    (error) => error instanceof CliUsageError && error.message.includes("only valid"),
+  );
+  assert.throws(
+    () => parseCliArgs([
+      "agents", "run", "--agent-id", "agt_fixture", "--goal", "Use paid model",
+      "--provider-id", "paid-provider", "--yes",
+    ], env),
+    (error) => error instanceof CliUsageError && error.message.includes("--allow-real-provider"),
+  );
+  assert.throws(
+    () => parseCliArgs(["status", "--agent-id", "agt_fixture"], env),
+    (error) => error instanceof CliUsageError && error.message.includes("only valid with the agents"),
+  );
+});
+
+test("forge command uses canonical positional parsing", () => {
+  const status = parseCliArgs(["forge", "status"], {});
+  assert.equal(status.command, "forge");
+  assert.deepEqual(status.positionals, ["status"]);
+
+  assert.throws(
+    () => parseCliArgs(["forge", "polish", "make", "this", "clear"], {}),
+    (error) => error instanceof CliUsageError && error.message.includes("remain disabled"),
+  );
+});
+
+test("agents uses canonical v1 routes with scoped authentication", async (context) => {
+  const gateway = await createAgentGovernanceMockGateway();
+  context.after(gateway.close);
+  const common = ["--json", "--url", gateway.url];
+  const processOptions = { env: { AGENT_CONSOLE_ADMIN_KEY: "uai-mock-admin-key" } };
+
+  const commands = [
+    ["agents", "status", ...common],
+    ["agents", "list", ...common],
+    ["agents", "show", "--agent-id", "agt_cli_fixture", ...common],
+    [
+      "agents", "generate", "--name", "report-reader", "--task", "Read the report",
+      "--tool", "file_read", "--ttl-seconds", "7200", "--yes", ...common,
+    ],
+    [
+      "agents", "run", "--agent-id", "agt_cli_fixture", "--goal", "Read README",
+      "--tool", "file_read", "--max-iterations", "2",
+      "--provider-id", "local-fake-provider", "--yes", ...common,
+    ],
+    [
+      "agents", "revoke", "--agent-id", "agt_cli_fixture", "--reason", "operator_requested",
+      "--yes", ...common,
+    ],
+    ["agents", "approvals", "--agent-id", "agt_cli_fixture", ...common],
+    ["agents", "approve", "--approval-id", "appr_cli_fixture", "--yes", ...common],
+    ["agents", "reject", "--approval-id", "appr_cli_fixture", "--yes", ...common],
+  ];
+  const outputs = [];
+  for (const command of commands) {
+    const result = await runCliProcess(command, "", processOptions);
+    assert.equal(result.code, 0, `${command.join(" ")}\n${result.stderr}`);
+    const output = JSON.parse(result.stdout);
+    outputs.push(output);
+    assert.equal(output.ok, true);
+  }
+  assert.doesNotMatch(JSON.stringify(outputs), /token-value|private authorization/iu);
+
+  assert.deepEqual(
+    gateway.requests.map(({ method, path }) => `${method} ${path}`).sort(),
+    [
+      "GET /v1/governance/stats",
+      "GET /v1/agents",
+      "GET /v1/agents/agt_cli_fixture",
+      "GET /v1/agents/agt_cli_fixture/effective-policy",
+      "POST /v1/agents/generate",
+      "POST /v1/agents/agt_cli_fixture/run",
+      "POST /v1/agents/agt_cli_fixture/revoke",
+      "GET /v1/approvals",
+      "POST /v1/approvals/appr_cli_fixture/approve",
+      "POST /v1/approvals/appr_cli_fixture/reject",
+    ].sort(),
+  );
+  assert.ok(gateway.requests.every(({ authorization }) => authorization === "Bearer uai-mock-admin-key"));
+  assert.deepEqual(gateway.last("/v1/agents/generate").body, {
+    name: "report-reader",
+    task: "Read the report",
+    requestedTools: ["file_read"],
+    ttlSeconds: 7200,
+    parentAgentId: null,
+  });
+  assert.deepEqual(gateway.last("/v1/agents/agt_cli_fixture/run").body, {
+    goal: "Read README",
+    timeoutMs: 60_000,
+    maxIterations: 2,
+    toolMode: "readonly",
+    toolAllowlist: ["file_read"],
+    providerId: "local-fake-provider",
+  });
+  assert.deepEqual(gateway.last("/v1/agents/agt_cli_fixture/revoke").body, {
+    reason: "operator_requested",
+    cascade: false,
+  });
+});
+
+test("agents run keeps transport alive beyond a shorter global timeout", async (context) => {
+  const gateway = await createAgentGovernanceMockGateway({ runDelayMs: 350 });
+  context.after(gateway.close);
+  const result = await runCliProcess([
+    "agents", "run",
+    "--agent-id", "agt_cli_fixture",
+    "--goal", "Wait for delayed completion",
+    "--run-timeout-ms", "1000",
+    "--timeout", "100",
+    "--yes",
+    "--json",
+    "--url", gateway.url,
+  ], "", { env: { AGENT_CONSOLE_ADMIN_KEY: "uai-mock-admin-key" } });
+
+  assert.equal(result.code, 0, result.stderr);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.ok, true);
+  assert.equal(output.operation, "run");
+  assert.equal(gateway.last("/v1/agents/agt_cli_fixture/run").body.timeoutMs, 1_000);
+});
+
+test("agents redacts uncertain mutation failures and forbids blind retry", async (context) => {
+  const gateway = await createAgentGovernanceMockGateway({ failPath: "/v1/agents/generate" });
+  context.after(gateway.close);
+  const result = await runCliProcess([
+    "agents", "generate", "--name", "reader", "--task", "Read", "--yes", "--json",
+    "--url", gateway.url,
+  ], "", { env: { AGENT_CONSOLE_ADMIN_KEY: "uai-mock-admin-key" } });
+
+  assert.equal(result.code, 1);
+  const failure = JSON.parse(result.stderr);
+  assert.equal(failure.code, "AGENT_GOVERNANCE_OUTCOME_UNKNOWN");
+  assert.equal(failure.status, "unknown-reconcile-required");
+  assert.equal(failure.retryAllowed, false);
+  assert.doesNotMatch(result.stderr, /private|secret|token-value/iu);
+  assert.equal(gateway.requests.length, 1);
+});
+
+test("forge status is reachable through the repaired command", async (context) => {
+  const gateway = await createAgentGovernanceMockGateway();
+  context.after(gateway.close);
+  const result = await runCliProcess([
+    "forge", "status", "--json", "--url", gateway.url,
+  ], "", { env: { AGENT_CONSOLE_ADMIN_KEY: "uai-mock-admin-key" } });
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).data.status, "ready");
+  assert.equal(gateway.last("/forge/status").authorization, "Bearer uai-mock-admin-key");
+});
+
 test("status reports gateway readiness as JSON", async (context) => {
   const gateway = await createMockGateway();
   context.after(gateway.close);
@@ -1337,6 +1523,179 @@ test("doctor treats an offline gateway as optional", async () => {
   assert.equal(output.nextAction, "pnpm gateway serve");
 });
 
+async function createAgentGovernanceMockGateway(options = {}) {
+  const requests = [];
+  const agent = {
+    agentId: "agt_cli_fixture",
+    name: "report-reader",
+    purpose: "Read a report",
+    tenantId: "tenant-a",
+    ownerUserId: "operator-a",
+    parentAgentId: null,
+    generationDepth: 0,
+    classification: { family: "analysis", domain: "general", subclass: "reader" },
+    traits: ["read_only"],
+    riskLevel: "low",
+    requestedTools: ["file_read"],
+    grantedTools: ["file_read"],
+    policyHash: `sha256:${"a".repeat(64)}`,
+    status: "ACTIVE",
+    createdAt: "2026-08-30T00:00:00.000Z",
+    expiresAt: "2026-08-30T01:00:00.000Z",
+  };
+  const approval = {
+    id: "appr_cli_fixture",
+    agentId: agent.agentId,
+    toolName: "git_push",
+    argumentsHash: "b".repeat(64),
+    status: "PENDING",
+    requestedAt: "2026-08-30T00:10:00.000Z",
+    expiresAt: "2026-08-30T00:20:00.000Z",
+    review: {
+      kind: "generic",
+      summary: "Publish the reviewed change",
+      authorization: "private authorization token-value",
+    },
+  };
+  const server = createServer(async (request, response) => {
+    const url = new URL(request.url ?? "/", "http://127.0.0.1");
+    const body = request.method === "POST" ? await readJsonBody(request) : null;
+    const entry = {
+      method: request.method,
+      path: url.pathname,
+      query: url.search,
+      authorization: request.headers.authorization ?? null,
+      body,
+    };
+    requests.push(entry);
+    if (entry.authorization !== "Bearer uai-mock-admin-key") {
+      return writeJson(response, 401, {
+        status: "error",
+        error: { code: "UNAUTHENTICATED", message: "private auth detail" },
+      });
+    }
+    if (options.failPath === url.pathname) {
+      return writeJson(response, 503, {
+        status: "error",
+        error: {
+          code: "AGENT_GOVERNANCE_STORE_UNAVAILABLE",
+          message: "private secret token-value must not reach the terminal",
+        },
+      });
+    }
+
+    if (request.method === "GET" && url.pathname === "/v1/governance/stats") {
+      return writeJson(response, 200, {
+        status: "ok",
+        data: { stats: { agents: 1, byStatus: { ACTIVE: 1 }, policies: 2 } },
+      });
+    }
+    if (request.method === "GET" && url.pathname === "/v1/agents") {
+      return writeJson(response, 200, { status: "ok", data: { agents: [agent] } });
+    }
+    if (request.method === "GET" && url.pathname === `/v1/agents/${agent.agentId}`) {
+      return writeJson(response, 200, { status: "ok", data: { agent } });
+    }
+    if (request.method === "GET"
+      && url.pathname === `/v1/agents/${agent.agentId}/effective-policy`) {
+      return writeJson(response, 200, {
+        status: "ok",
+        data: {
+          effectivePolicy: {
+            agentId: agent.agentId,
+            grantedTools: ["file_read"],
+            policyHash: agent.policyHash,
+            expiresAt: agent.expiresAt,
+          },
+        },
+      });
+    }
+    if (request.method === "POST" && url.pathname === "/v1/agents/generate") {
+      return writeJson(response, 200, {
+        status: "ok",
+        data: {
+          agentId: agent.agentId,
+          status: "ACTIVE",
+          grantedTools: body.requestedTools,
+          expiresAt: agent.expiresAt,
+          policyHash: agent.policyHash,
+        },
+      });
+    }
+    if (request.method === "POST" && url.pathname === `/v1/agents/${agent.agentId}/run`) {
+      if (Number.isFinite(options.runDelayMs) && options.runDelayMs > 0) {
+        await new Promise((resolvePromise) => setTimeout(resolvePromise, options.runDelayMs));
+      }
+      return writeJson(response, 200, {
+        status: "ok",
+        data: {
+          status: "completed",
+          goal: body.goal,
+          finalAnswer: "fixture answer",
+          iterations: { used: 1, max: body.maxIterations ?? 8 },
+          timing: { durationMs: 1, timeoutMs: 60_000, timedOut: false },
+          tools: { mode: body.toolMode, allowlist: body.toolAllowlist ?? [], usage: {} },
+          usage: {},
+          provider: { id: body.providerId ?? "local-fake-provider", modelId: null },
+          sessionId: null,
+          governance: { enforced: true, agentId: agent.agentId, policyHash: agent.policyHash },
+        },
+      });
+    }
+    if (request.method === "POST" && url.pathname === `/v1/agents/${agent.agentId}/revoke`) {
+      return writeJson(response, 200, {
+        status: "ok",
+        data: { revoked: [agent.agentId] },
+      });
+    }
+    if (request.method === "GET" && url.pathname === "/v1/approvals") {
+      return writeJson(response, 200, {
+        status: "ok",
+        data: { approvals: [approval] },
+      });
+    }
+    const decisionMatch = /^\/v1\/approvals\/([^/]+)\/(approve|reject)$/u.exec(url.pathname);
+    if (request.method === "POST" && decisionMatch) {
+      return writeJson(response, 200, {
+        status: "ok",
+        data: {
+          approval: {
+            ...approval,
+            id: decisionMatch[1],
+            status: decisionMatch[2] === "approve" ? "APPROVED" : "REJECTED",
+          },
+        },
+      });
+    }
+    if (request.method === "GET" && url.pathname === "/forge/status") {
+      return writeJson(response, 200, { status: "ok", data: { status: "ready" } });
+    }
+    return writeJson(response, 404, {
+      status: "error",
+      error: { code: "NOT_FOUND", message: "not found" },
+    });
+  });
+
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const address = server.address();
+  const port = typeof address === "object" && address ? address.port : null;
+  assert.ok(port);
+  return {
+    url: `http://127.0.0.1:${port}`,
+    requests,
+    last(path) {
+      return requests.filter((entry) => entry.path === path).at(-1) ?? null;
+    },
+    close: () => new Promise((resolvePromise, reject) => {
+      server.close((error) => {
+        if (error) reject(error);
+        else resolvePromise();
+      });
+    }),
+  };
+}
+
 async function createMockGateway(options = {}) {
   let chatRequestCount = 0;
   let promptEnhancementRequestCount = 0;
@@ -2187,10 +2546,14 @@ function runCliProcess(args, input = "", options = {}) {
     });
     let stdout = "";
     let stderr = "";
+    // The demo command starts an isolated Gateway and has its own 30-second
+    // readiness deadline. Keep the outer harness beyond that product deadline
+    // so a loaded Windows host reports the real diagnostic instead of a false
+    // test-process timeout.
     const timeout = setTimeout(() => {
       child.kill("SIGKILL");
       reject(new Error(`CLI timed out: ${args.join(" ")}`));
-    }, 20_000);
+    }, 45_000);
 
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");

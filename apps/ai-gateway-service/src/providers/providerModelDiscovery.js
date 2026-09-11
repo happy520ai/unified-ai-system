@@ -163,12 +163,18 @@ export function resolveRuntimeDetectionEndpoint(family, context) {
   return family.endpoint;
 }
 
-export async function discoverModels(family, { apiKey, matchedPrefix, preferredProviderId, endpoint, allowModelListProbe }) {
+export async function discoverModels(family, {
+  apiKey,
+  matchedPrefix,
+  preferredProviderId,
+  endpoint,
+  allowModelListProbe,
+  fetchImpl = fetchJsonWithTimeout,
+}) {
   const discoveryEndpoint = endpoint || family.endpoint;
   const canProbe = Boolean(discoveryEndpoint && family.modelListPath && (
     matchedPrefix?.unique ||
-    preferredProviderId === family.providerId ||
-    (allowModelListProbe && !family.testOnly)
+    preferredProviderId === family.providerId
   ));
 
   if (!family.availableForChat && !canProbe) {
@@ -191,7 +197,7 @@ export async function discoverModels(family, { apiKey, matchedPrefix, preferredP
 
   try {
     const request = createModelListRequest(family, discoveryEndpoint, apiKey);
-    const response = await fetchJsonWithTimeout(request.url, request.options);
+    const response = await fetchImpl(request.url, request.options);
 
     if (!response.ok) {
       const authFailed = response.statusCode === 401 || response.statusCode === 403;
@@ -200,7 +206,9 @@ export async function discoverModels(family, { apiKey, matchedPrefix, preferredP
         networkProbePerformed: true,
         httpStatus: response.statusCode,
         source: "provider-models-api",
-        models: authFailed ? [] : rankDiscoveredModels(family, family.defaultModels ?? []),
+        models: authFailed || family.accountScopedModels
+          ? []
+          : rankDiscoveredModels(family, family.defaultModels ?? []),
         warning: `Model list request returned HTTP ${response.statusCode}.`,
       };
     }
@@ -208,7 +216,9 @@ export async function discoverModels(family, { apiKey, matchedPrefix, preferredP
     const liveModels = rankDiscoveredModels(
       family,
       dedupeModels([
-        ...withModelSource(family.defaultModels ?? [], "provider-catalog-default"),
+        ...(family.accountScopedModels
+          ? []
+          : withModelSource(family.defaultModels ?? [], "provider-catalog-default")),
         ...normalizeDiscoveredModels(response.body),
       ]),
     ).slice(0, MAX_DISCOVERED_MODELS);
@@ -228,7 +238,9 @@ export async function discoverModels(family, { apiKey, matchedPrefix, preferredP
       status: "probe-failed",
       networkProbePerformed: true,
       source: "provider-models-api",
-      models: rankDiscoveredModels(family, family.defaultModels ?? []),
+      models: family.accountScopedModels
+        ? []
+        : rankDiscoveredModels(family, family.defaultModels ?? []),
       warning: error instanceof Error ? error.message : "Model discovery failed.",
     };
   }

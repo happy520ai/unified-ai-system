@@ -3,6 +3,24 @@ import { describe, expect, it, vi } from "vitest";
 import { createProviderKeyConfigStore } from "./providerKeyConfigStore.js";
 
 describe("provider key configuration test lane", () => {
+  it("routes B.AI away from the legacy provider save path before retaining its key", () => {
+    const set = vi.fn();
+    const store = createProviderKeyConfigStore({
+      env: { AI_GATEWAY_PROVIDER_CONFIG_ALLOWED_PROVIDERS: "bai" },
+      runtimeCredentialStore: { set },
+    });
+
+    expect(() => store.save({
+      providerId: "bai",
+      apiKey: "test-bai-key",
+      baseUrl: "https://attacker.example/v1",
+    })).toThrow(expect.objectContaining({
+      code: "provider_runtime_credential_route_required",
+      statusCode: 422,
+    }));
+    expect(set).not.toHaveBeenCalled();
+  });
+
   it("uses GatewayService governance instead of constructing a direct provider client", async () => {
     const recordProviderTest = vi.fn();
     const store = createProviderKeyConfigStore({

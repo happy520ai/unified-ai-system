@@ -75,7 +75,7 @@ export class HttpLLMProviderAdapter {
     const apiKey = this.resolveApiKey();
     const baseUrl = this.resolveBaseUrl();
 
-    return createProviderDescriptor(this.modelConfig, {
+    const descriptor = createProviderDescriptor(this.modelConfig, {
       costTier: "medium",
       latencyTier: "medium",
       healthStatus: this.modelConfig.enabled && apiKey ? "unknown" : "unavailable",
@@ -93,6 +93,10 @@ export class HttpLLMProviderAdapter {
         realProvider: !(this.modelConfig.dryRun ?? false),
       },
     });
+    const configuredModels = normalizeConfiguredModels(this.modelConfig, descriptor.models[0]);
+    return configuredModels.length
+      ? { ...descriptor, models: configuredModels }
+      : descriptor;
   }
 
   async generate(providerRequest) {
@@ -349,7 +353,7 @@ export class HttpLLMProviderAdapter {
 
   resolveRetryConfig() {
     return {
-      maxRetries: this.options.maxRetries ?? DEFAULT_MAX_RETRIES,
+      maxRetries: this.options.maxRetries ?? this.modelConfig.maxRetries ?? DEFAULT_MAX_RETRIES,
       baseDelayMs: this.options.retryBaseDelayMs ?? DEFAULT_RETRY_BASE_DELAY_MS,
       maxDelayMs: this.options.retryMaxDelayMs ?? DEFAULT_RETRY_MAX_DELAY_MS,
     };
@@ -423,6 +427,9 @@ export class HttpLLMProviderAdapter {
   }
 
   resolveBaseUrl() {
+    if (this.modelConfig.fixedEndpoint === true) {
+      return this.baseUrl || "";
+    }
     return this.options.runtimeCredentialStore?.getEndpoint(this.modelConfig.providerId) || this.baseUrl || "";
   }
 
@@ -538,6 +545,60 @@ export class HttpLLMProviderAdapter {
       pricingPerRequest: [],
     };
   }
+}
+
+function normalizeConfiguredModels(modelConfig, fallbackModel) {
+  if (!Array.isArray(modelConfig.models) || modelConfig.models.length === 0) {
+    return [];
+  }
+
+  const seen = new Set();
+  const explicitSelectionRequired = modelConfig.staticModelsRequireExplicitSelection === true;
+  const configured = modelConfig.models.flatMap((model) => {
+    const id = String(model?.id ?? model?.modelId ?? "").trim();
+    if (!id || seen.has(id)) return [];
+    seen.add(id);
+    const capabilities = Array.isArray(model?.capabilities)
+      ? model.capabilities.map((value) => String(value).trim()).filter(Boolean)
+      : modelConfig.capabilities;
+    const configuredDefaultModel = id === String(modelConfig.modelId ?? "").trim();
+    const enabled = explicitSelectionRequired
+      ? configuredDefaultModel
+        && modelConfig.modelSelectionExplicit === true
+        && modelConfig.enabled !== false
+      : model?.enabled !== false && modelConfig.enabled !== false;
+    return [{
+      ...fallbackModel,
+      id,
+      displayName: String(model?.displayName ?? model?.modelDisplayName ?? id),
+      capabilities: capabilities.length ? [...new Set(capabilities)] : ["chat", "summary"],
+      enabled,
+      priority: Number.isFinite(Number(model?.priority))
+        ? Number(model.priority)
+        : modelConfig.priority,
+      metadata: {
+        ...(fallbackModel?.metadata ?? {}),
+        ...(model?.metadata ?? {}),
+        staticProviderModel: true,
+        configuredDefaultModel,
+        observedUnverified: explicitSelectionRequired,
+      },
+    }];
+  });
+  if (fallbackModel?.id && !seen.has(fallbackModel.id)) {
+    configured.unshift({
+      ...fallbackModel,
+      enabled: explicitSelectionRequired
+        ? modelConfig.modelSelectionExplicit === true && fallbackModel.enabled !== false
+        : fallbackModel.enabled,
+      metadata: {
+        ...(fallbackModel.metadata ?? {}),
+        staticProviderModel: false,
+        configuredDefaultModel: true,
+      },
+    });
+  }
+  return configured;
 }
 
 export function createHttpLLMProviderAdapter(modelConfig, options = {}) {

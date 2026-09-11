@@ -26,7 +26,11 @@ import { IncrementalEdit } from '../incremental-edit/index.js';
 import { ForgeLogger, LogLevel } from '../logger/index.js';
 import { MemoryType } from '../memory-engine/index.js';
 import { parseResponse } from './base-json-utils.js';
-import { executeAction } from './base-action-exec.js';
+import {
+  executeAction,
+  isForgeAbortError,
+  throwIfForgeAborted,
+} from './base-action-exec.js';
 import { gatherFiles, buildContextBlock } from './base-context-build.js';
 import {
   buildImportConstraintText,
@@ -99,19 +103,29 @@ export class BaseWorker {
    * @returns {object} { success, output, filesModified, toolCalls }
    */
   async execute(task, projectRoot, context = {}) {
+    throwIfForgeAborted(context.signal);
+    const governedMode = context.governanceRequired === true;
     this.#logger.info(`Executing task ${task.id}: ${task.name}`);
     this.#tokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0, llmCalls: 0 };
 
-    const llmParams = { llmCache: this.#llmCache, logger: this.#logger, tokenUsage: this.#tokenUsage };
-    const engines = {
+    const llmParams = {
+      llmCache: this.#llmCache,
+      logger: this.#logger,
+      tokenUsage: this.#tokenUsage,
+      signal: context.signal,
+    };
+    const engines = governedMode ? {} : {
       contextEngine: this.#contextEngine, memoryEngine: this.#memoryEngine,
       semanticMemory: this.#semanticMemory, crossSessionMemory: this.#crossSessionMemory,
     };
 
     // 1. Gather context: read relevant files
-    const relevantFiles = await gatherFiles(projectRoot, task.allowed_files || task.allowedFiles, task.type, {
-      knowledgeGraph: this.#knowledgeGraph, injectionDefense: this.#injectionDefense,
-    });
+    const relevantFiles = governedMode
+      ? []
+      : await gatherFiles(projectRoot, task.allowed_files || task.allowedFiles, task.type, {
+          knowledgeGraph: this.#knowledgeGraph, injectionDefense: this.#injectionDefense,
+        });
+    throwIfForgeAborted(context.signal);
     const contextBlock = buildContextBlock(relevantFiles, context, engines);
 
     const mutationTypes = new Set(['implement', 'test', 'refactor']);
@@ -119,9 +133,11 @@ export class BaseWorker {
     const llmMaxTokens = isMutation ? 32768 : 8192;
 
     // 2. Build the prompt (with subclass-specific extra context)
-    const extraContext = await this._getExtraContext(projectRoot, task);
+    const extraContext = governedMode ? '' : await this._getExtraContext(projectRoot, task);
     const userPrompt = buildPrompt(task, contextBlock, extraContext, {
-      tools: this.#tools, role: this.#role, errorPatternLearner: this.#errorPatternLearner,
+      tools: this.#tools,
+      role: this.#role,
+      errorPatternLearner: governedMode ? null : this.#errorPatternLearner,
     });
     const languageExt = getLanguageFileExtension(task);
     const importConstraintText = buildImportConstraintText(task);
@@ -134,6 +150,7 @@ export class BaseWorker {
 
     // 3. Call LLM (with retry for network errors)
     let llmResponse = await callLLMWithRetry(this.#systemPrompt, userPrompt, llmMaxTokens, isMutation ? { responseFormat: 'json' } : {}, llmParams);
+    throwIfForgeAborted(context.signal);
 
     // 4. Parse and apply tool calls
     let { actions, summary } = parseResponse(llmResponse, this.#tools, this.#logger);
@@ -165,7 +182,10 @@ export class BaseWorker {
           actions = retryParsed.actions; summary = retryParsed.summary; llmResponse = retryResp;
           this.#logger.info(`Pre-flight retry succeeded: ${actions.length} action(s)`);
         }
-      } catch (err) { this.#logger.info(`Pre-flight retry failed: ${err.message}`); }
+      } catch (err) {
+        if (isForgeAbortError(err, context.signal)) throw err;
+        this.#logger.info(`Pre-flight retry failed: ${err.message}`);
+      }
     }
 
     // 5. Multi-round: if mutation task only got read actions, execute reads then retry
@@ -183,6 +203,8 @@ export class BaseWorker {
             tools: this.#tools,
             sandboxExecutor: this.#sandboxExecutor,
             signal: context.signal,
+            governedExecution: context.governedExecution,
+            governanceRequired: context.governanceRequired === true,
           });
           readResults.push({ path: ra.path, output: result.output });
         } catch { /* skip failed reads */ }
@@ -227,7 +249,10 @@ export class BaseWorker {
             this.#logger.info(`Final retry succeeded: ${actions.length} action(s)`);
           }
         }
-      } catch (err) { this.#logger.info(`Multi-round LLM call failed: ${err.message}`); }
+      } catch (err) {
+        if (isForgeAbortError(err, context.signal)) throw err;
+        this.#logger.info(`Multi-round LLM call failed: ${err.message}`);
+      }
     } else if (isMutation && !hasWriteActions && readActions.length === 0) {
       this.#logger.info(`Mutation task got no write actions. Retrying...`);
       const taskFiles = task.allowedFiles || [`src/*.${defaultTaskExt}`];
@@ -247,7 +272,10 @@ export class BaseWorker {
           actions = retryParsed.actions; summary = retryParsed.summary;
           this.#logger.info(`Retry succeeded: ${actions.length} action(s)`);
         }
-      } catch (err) { this.#logger.info(`Retry LLM call failed: ${err.message}`); }
+      } catch (err) {
+        if (isForgeAbortError(err, context.signal)) throw err;
+        this.#logger.info(`Retry LLM call failed: ${err.message}`);
+      }
     }
 
     // 6. Execute actions (with error feedback retry)
@@ -258,13 +286,17 @@ export class BaseWorker {
       tools: this.#tools,
       sandboxExecutor: this.#sandboxExecutor,
       signal: context.signal,
+      governedExecution: context.governedExecution,
+      governanceRequired: context.governanceRequired === true,
     };
     const executionErrors = [];
     for (const action of actions) {
+      throwIfForgeAborted(context.signal);
       try {
         const result = await executeAction(action, projectRoot, task, execOpts);
         if (result.modified) filesModified.push(result);
       } catch (err) {
+        if (isForgeAbortError(err, context.signal)) throw err;
         this.#logger.error(` Action failed: ${action.type} ${action.path}: ${err.message}`);
         executionErrors.push({ action, error: err.message });
       }
@@ -279,6 +311,7 @@ export class BaseWorker {
         const errorFiles = [...new Set(executionErrors.map(e => e.action.path).filter(Boolean))];
         let currentFileStates = '';
         for (const fp of errorFiles) {
+          if (governedMode) break;
           try { const content = await readFile(resolve(projectRoot, fp), 'utf-8'); currentFileStates += `\n### ${fp} (current content)\n\`\`\`\n${content.slice(0, 3000)}\n\`\`\`\n`; } catch { /* file may not exist yet */ }
         }
         const fixPrompt = `${contextBlock}\n\n## Your Task\n${task.prompt || task.name}\n\n` +
@@ -298,18 +331,26 @@ export class BaseWorker {
           if (retryWrites.length > 0) {
             const newErrors = [];
             for (const ra of retryWrites) {
+              throwIfForgeAborted(context.signal);
               try {
                 const result = await executeAction(ra, projectRoot, task, execOpts);
                 if (result.modified) {
                   const idx = filesModified.findIndex(f => f.path === ra.path);
                   if (idx >= 0) filesModified[idx] = result; else filesModified.push(result);
                 }
-              } catch (err) { newErrors.push({ action: ra, error: err.message }); this.#logger.error(` Retry action failed: ${ra.type} ${ra.path}: ${err.message}`); }
+              } catch (err) {
+                if (isForgeAbortError(err, context.signal)) throw err;
+                newErrors.push({ action: ra, error: err.message });
+                this.#logger.error(` Retry action failed: ${ra.type} ${ra.path}: ${err.message}`);
+              }
             }
             if (newErrors.length === 0) { executionErrors.length = 0; this.#logger.info(`Error feedback retry succeeded: all actions completed`); break; }
             executionErrors.length = 0; executionErrors.push(...newErrors);
           }
-        } catch (err) { this.#logger.info(`Error feedback retry LLM call failed: ${err.message}`); }
+        } catch (err) {
+          if (isForgeAbortError(err, context.signal)) throw err;
+          this.#logger.info(`Error feedback retry LLM call failed: ${err.message}`);
+        }
       }
     }
 
@@ -317,7 +358,7 @@ export class BaseWorker {
     if (executionErrors.length > 0) {
       const errorMsg = executionErrors.map(e => `${e.action.type}(${e.action.path}): ${e.error}`).join('; ');
       if (filesModified.length === 0) {
-        if (this.#memoryEngine) {
+        if (!governedMode && this.#memoryEngine) {
           this.#memoryEngine.remember(`Task "${task.name || task.id}" (${task.type}) FAILED: ${errorMsg}`, { type: MemoryType.ERROR, tags: [task.type || 'task', 'failure'], importance: 85 });
         }
         return { success: false, output: `All actions failed: ${errorMsg}`, filesModified: [], error: errorMsg, summary, tokenUsage: this.#tokenUsage };
@@ -333,13 +374,13 @@ export class BaseWorker {
     }
 
     // Store task results in memory engine
-    if (this.#memoryEngine) {
+    if (!governedMode && this.#memoryEngine) {
       const memContent = `Task "${task.name || task.id}" (${task.type}): succeeded. ${summary || ''} Files: ${filesModified.join(', ') || 'none'}`;
       this.#memoryEngine.remember(memContent, { type: MemoryType.ACTION, tags: [task.type || 'task', ...(filesModified.length > 0 ? ['modified'] : [])], importance: 70 });
     }
 
     // P7: Record prompt metric in registry
-    if (this.#promptRegistry) {
+    if (!governedMode && this.#promptRegistry) {
       const activePrompt = this.#promptRegistry.getActive(this.#role);
       if (activePrompt) {
         this.#promptRegistry.recordMetric(this.#role, activePrompt.version, {
@@ -352,7 +393,7 @@ export class BaseWorker {
     let refinementResult = null;
     let qualityGateResult = null;
     const refinableTypes = new Set(['implement', 'refactor']);
-    if (this.#iterativeRefiner && refinableTypes.has(task.type) && filesModified.length > 0) {
+    if (!governedMode && this.#iterativeRefiner && refinableTypes.has(task.type) && filesModified.length > 0) {
       this.#logger.info(`P11-2: Running iterative refinement on ${filesModified.length} modified file(s)...`);
       try {
         let combinedCode = '';
@@ -375,11 +416,14 @@ export class BaseWorker {
           refinementResult = await this.#iterativeRefiner.refine(refineTask, llmCaller);
           this.#logger.info(`P11-2: Refinement complete ${refinementResult.passes} pass(es), score: ${refinementResult.finalScore}, converged: ${refinementResult.converged}`);
         }
-      } catch (err) { this.#logger.info(`P11-2: Iterative refinement failed: ${err.message}`); }
+      } catch (err) {
+        if (isForgeAbortError(err, context.signal)) throw err;
+        this.#logger.info(`P11-2: Iterative refinement failed: ${err.message}`);
+      }
     }
 
     // P11-2: Quality gate
-    if (this.#qualityGate && filesModified.length > 0) {
+    if (!governedMode && this.#qualityGate && filesModified.length > 0) {
       try {
         for (const fm of filesModified.slice(0, 5)) {
           const fp = fm.path || fm;
@@ -396,13 +440,16 @@ export class BaseWorker {
             } else { this.#logger.info(`P11-2: Quality gate passed for ${fp} (score: ${gateResult.score})`); }
           } catch { /* skip */ }
         }
-      } catch (err) { this.#logger.info(`P11-2: Quality gate evaluation failed: ${err.message}`); }
+      } catch (err) {
+        if (isForgeAbortError(err, context.signal)) throw err;
+        this.#logger.info(`P11-2: Quality gate evaluation failed: ${err.message}`);
+      }
     }
 
     // 7. Self-review: validate modified files
     let selfReviewResult = { valid: true, issues: [], autoFixed: 0 };
     const writeEditActions = actions.filter(a => ['write', 'edit', 'diff'].includes(a.type));
-    if (filesModified.length > 0 && writeEditActions.length > 0) {
+    if (!governedMode && filesModified.length > 0 && writeEditActions.length > 0) {
       selfReviewResult = await selfReview(projectRoot, filesModified, { sandboxExecutor: this.#sandboxExecutor, signal: context.signal });
       if (!selfReviewResult.valid && selfReviewResult.issues.length > 0) {
         this.#logger.info(`Self-review found ${selfReviewResult.issues.length} issue(s), attempting LLM-driven fix...`);
@@ -423,12 +470,19 @@ export class BaseWorker {
           const fixActions = fixParsed.actions.filter(a => ['write', 'edit', 'diff'].includes(a.type));
           if (fixActions.length > 0) {
             for (const fa of fixActions) {
-              try { await executeAction(fa, projectRoot, task, execOpts); } catch (fixErr) { this.#logger.info(`Self-review fix action failed: ${fa.type} ${fa.path}: ${fixErr.message}`); }
+              throwIfForgeAborted(context.signal);
+              try { await executeAction(fa, projectRoot, task, execOpts); } catch (fixErr) {
+                if (isForgeAbortError(fixErr, context.signal)) throw fixErr;
+                this.#logger.info(`Self-review fix action failed: ${fa.type} ${fa.path}: ${fixErr.message}`);
+              }
             }
             selfReviewResult = await selfReview(projectRoot, filesModified, { sandboxExecutor: this.#sandboxExecutor, signal: context.signal });
             this.#logger.info(`Self-review after LLM fix: valid=${selfReviewResult.valid}, issues=${selfReviewResult.issues.length}, autoFixed=${selfReviewResult.autoFixed}`);
           }
-        } catch (fixErr) { this.#logger.info(`Self-review LLM fix call failed: ${fixErr.message}`); }
+        } catch (fixErr) {
+          if (isForgeAbortError(fixErr, context.signal)) throw fixErr;
+          this.#logger.info(`Self-review LLM fix call failed: ${fixErr.message}`);
+        }
       } else { this.#logger.info(`Self-review passed: valid=${selfReviewResult.valid}, autoFixed=${selfReviewResult.autoFixed}`); }
     }
 
@@ -447,20 +501,26 @@ export class BaseWorker {
 
   /** Execute a task with streaming LLM output. */
   async executeWithStream(task, options = {}) {
+    throwIfForgeAborted(options.signal);
+    const governedMode = options.governanceRequired === true;
     const onProgress = options.onProgress || (() => {});
     this.#tokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0, llmCalls: 0 };
     const projectRoot = options.projectRoot || process.cwd();
-    const engines = {
+    const engines = governedMode ? {} : {
       contextEngine: this.#contextEngine, memoryEngine: this.#memoryEngine,
       semanticMemory: this.#semanticMemory, crossSessionMemory: this.#crossSessionMemory,
     };
-    const relevantFiles = await gatherFiles(projectRoot, task.allowed_files || task.allowedFiles, task.type, {
-      knowledgeGraph: this.#knowledgeGraph, injectionDefense: this.#injectionDefense,
-    });
+    const relevantFiles = governedMode
+      ? []
+      : await gatherFiles(projectRoot, task.allowed_files || task.allowedFiles, task.type, {
+          knowledgeGraph: this.#knowledgeGraph, injectionDefense: this.#injectionDefense,
+        });
     const contextBlock = buildContextBlock(relevantFiles, options.context || {}, engines);
-    const extraContext = await this._getExtraContext(projectRoot, task);
+    const extraContext = governedMode ? '' : await this._getExtraContext(projectRoot, task);
     const prompt = buildPrompt(task, contextBlock, extraContext, {
-      tools: this.#tools, role: this.#role, errorPatternLearner: this.#errorPatternLearner,
+      tools: this.#tools,
+      role: this.#role,
+      errorPatternLearner: governedMode ? null : this.#errorPatternLearner,
     });
     this.#logger.info(`[${this.#role}] Streaming task: ${task.id || task.type}`);
     try {
@@ -479,11 +539,15 @@ export class BaseWorker {
         tools: this.#tools,
         sandboxExecutor: this.#sandboxExecutor,
         signal: options.signal,
+        governedExecution: options.governedExecution,
+        governanceRequired: options.governanceRequired === true,
       };
       const executionErrors = [];
       for (const action of actions) {
+        throwIfForgeAborted(options.signal);
         try { const r = await executeAction(action, projectRoot, task, execOpts); if (r.modified) filesModified.push(r); }
         catch (err) {
+          if (isForgeAbortError(err, options.signal)) throw err;
           executionErrors.push(err.message);
           this.#logger.error(`[${this.#role}] Stream action failed: ${err.message}`);
         }

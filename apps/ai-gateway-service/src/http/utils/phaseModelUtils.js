@@ -4,6 +4,10 @@ import { ENDPOINT_TYPES } from "../../model-library/modelCapabilityRules.js";
 import { findModel } from "../../model-library/unifiedModelRegistry.js";
 import { getProviderExecutionDecision } from "../../providers/providerExecutionGate.ts";
 
+const PINNED_RUNTIME_PROVIDER_ENDPOINTS = new Map([
+  ["bai", "https://api.b.ai/v1"],
+]);
+
 export async function testPhase312AModel({ application, body, gatewayService }) {
   const env = application.runtimeEnv ?? process.env;
   const realSmokeEnabled = env.PHASE312A_NVIDIA_REAL_SMOKE === "1";
@@ -210,11 +214,19 @@ export function setRuntimeProviderCredential(application, body) {
     throw error;
   }
 
-  const runtimeModels = normalizeRuntimeCredentialModels(body, providerId);
+  const runtimeModels = normalizeRuntimeCredentialModels(
+    body,
+    providerId,
+    provider.descriptor?.models,
+  );
+  const endpoint = normalizeRuntimeProviderEndpoint(
+    providerId,
+    body?.endpoint ?? body?.baseUrl,
+  );
   const result = application.runtimeCredentialStore.set({
     providerId,
     apiKey: extractRuntimeCredentialSecret(providerId, body?.apiKey),
-    endpoint: body?.endpoint ?? body?.baseUrl ?? extractRuntimeCredentialEndpoint(providerId, body?.apiKey),
+    endpoint: endpoint ?? extractRuntimeCredentialEndpoint(providerId, body?.apiKey),
     source: body?.source ?? "web-chat-model-wizard",
     models: runtimeModels,
   });
@@ -240,25 +252,85 @@ export function setRuntimeProviderCredential(application, body) {
   };
 }
 
-export function normalizeRuntimeCredentialModels(body, providerId) {
+export function normalizeRuntimeProviderEndpoint(providerId, endpoint) {
+  const pinnedEndpoint = PINNED_RUNTIME_PROVIDER_ENDPOINTS.get(
+    String(providerId ?? "").trim().toLowerCase(),
+  );
+  if (!pinnedEndpoint) return endpoint;
+
+  const candidate = String(endpoint ?? "").trim();
+  if (!candidate) return "";
+
+  let parsed;
+  try {
+    parsed = new URL(candidate);
+  } catch {
+    throw createPinnedEndpointError(providerId, pinnedEndpoint);
+  }
+
+  const normalizedPath = parsed.pathname.replace(/\/+$/, "") || "/";
+  const expected = new URL(pinnedEndpoint);
+  if (
+    parsed.protocol !== expected.protocol
+    || parsed.hostname.toLowerCase() !== expected.hostname.toLowerCase()
+    || parsed.port !== expected.port
+    || normalizedPath !== expected.pathname.replace(/\/+$/, "")
+    || parsed.username
+    || parsed.password
+    || parsed.search
+    || parsed.hash
+  ) {
+    throw createPinnedEndpointError(providerId, pinnedEndpoint);
+  }
+
+  return pinnedEndpoint;
+}
+
+function createPinnedEndpointError(providerId, pinnedEndpoint) {
+  const error = new Error(
+    `Provider ${providerId} is pinned to its official HTTPS endpoint.`,
+  );
+  error.code = "provider_runtime_credential_endpoint_not_allowed";
+  error.category = "validation";
+  error.details = {
+    providerId,
+    endpointPolicy: "official-endpoint-only",
+    pinnedEndpoint,
+  };
+  return error;
+}
+
+export function normalizeRuntimeCredentialModels(body, providerId, descriptorModels = []) {
   const selectedModelId = String(body?.modelId ?? body?.model ?? "").trim();
   const models = Array.isArray(body?.models) ? body.models : [];
+  const descriptorById = new Map(
+    (Array.isArray(descriptorModels) ? descriptorModels : [])
+      .map((model) => [String(model?.id ?? "").trim(), model])
+      .filter(([id]) => id),
+  );
   const normalized = models
     .filter((model) => String(model?.providerId ?? providerId).trim() === providerId)
-    .map((model) => ({
-      id: model?.id ?? model?.modelId,
-      displayName: model?.displayName ?? model?.modelDisplayName,
-      capabilities: model?.capabilities,
-      source: model?.source ?? "runtime-credential",
-      metadata: model?.metadata,
-    }))
+    .map((model) => {
+      const id = String(model?.id ?? model?.modelId ?? "").trim();
+      const descriptor = descriptorById.get(id);
+      return {
+        id,
+        displayName: model?.displayName ?? model?.modelDisplayName ?? descriptor?.displayName ?? id,
+        capabilities: Array.isArray(model?.capabilities) && model.capabilities.length
+          ? model.capabilities
+          : descriptor?.capabilities,
+        source: model?.source ?? "runtime-credential",
+        metadata: model?.metadata,
+      };
+    })
     .filter((model) => String(model.id ?? "").trim());
 
   if (selectedModelId && !normalized.some((model) => model.id === selectedModelId)) {
+    const descriptor = descriptorById.get(selectedModelId);
     normalized.push({
       id: selectedModelId,
-      displayName: selectedModelId,
-      capabilities: ["chat", "summary"],
+      displayName: descriptor?.displayName ?? selectedModelId,
+      capabilities: descriptor?.capabilities ?? ["chat", "summary"],
       source: "runtime-credential-selected",
     });
   }

@@ -1,4 +1,5 @@
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
+import { executeGovernedWorkflowRun } from "../workflow/governedWorkflowExecution.ts";
 
 export async function dispatchHttpRoutes05(context) {
   const {
@@ -21,7 +22,7 @@ export async function dispatchHttpRoutes05(context) {
     readEnterpriseJson, writeEnterpriseError, writeCapabilityError, normalizeChatBody,
     normalizeRagChatBody, extractChatPrompt, createRagRetrieveRequest, createRagCitations,
     createRagPrompt, createRagChatData, OWNER_AUTOMATION_CHAT_PROPOSAL_FLAG, application,
-    request, response, url, startedAt,
+    request, requestExecution, requestId, response, url, startedAt,
     approvalStore, fileContextStore, phase319LocalOperation, connectorFeishuDryRun,
     connectorWeComDryRun, capabilityRouterService, codexExecCrsRuntimeCandidate, enterpriseGovernanceService,
     enterpriseOpsService, fiveCapabilityActivationService, gatewayService, knowledgeService,
@@ -157,7 +158,17 @@ export async function dispatchHttpRoutes05(context) {
     try {
       const result = url.pathname === "/workflow/plan"
         ? workflowService.plan(body)
-        : await workflowService.run(body, getRequestContext(request));
+        : application.agentGovernance
+          ? await executeGovernedWorkflowRun({
+              governance: application.agentGovernance,
+              workflowService,
+              identity: request.enterpriseIdentity,
+              body,
+              requestContext: getRequestContext(request),
+              requestId,
+              signal: requestExecution?.signal,
+            })
+          : await workflowService.run(body, getRequestContext(request));
       writeServiceLog(url.pathname === "/workflow/plan" ? "workflow_plan_completed" : "workflow_run_completed", {
         method: request.method,
         path: url.pathname,
@@ -174,7 +185,9 @@ export async function dispatchHttpRoutes05(context) {
       });
       writeJson(
         response,
-        error?.category === "validation" ? 400 : 422,
+        Number.isInteger(error?.statusCode)
+          ? error.statusCode
+          : error?.category === "validation" ? 400 : 422,
         createErrorEnvelope(error?.code ?? "workflow_request_failed", error instanceof Error ? error.message : "Workflow request failed.", {
           startedAt,
           category: error?.category ?? "workflow",

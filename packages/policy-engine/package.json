@@ -1,0 +1,22 @@
+{
+  "name": "@unified-ai-system/policy-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "dependencies": {
+    "@unified-ai-system/shared-contracts": "workspace:*"
+  },
+  "scripts": {
+    "check": "node -e \"import('./src/index.ts').then(() => console.log('policy-engine: module graph loads')).catch((error) => { console.error(error); process.exit(1); })\"",
+    "build": "pnpm run check",
+    "test": "vitest run"
+  }
+}

@@ -22,6 +22,7 @@ Public documentation is grouped by task so the repo stays easy to scan.
 - [Codex MCP Docker web guide (English)](codex-mcp-docker-quickstart.html)
 - [Codex MCP Docker guide (Chinese)](codex-mcp-docker-quickstart.zh-CN.html)
 - [Provider setup](providers.md)
+- [B.AI provider](bai-provider.md)
 - [First-run troubleshooting](first-run-troubleshooting.md)
 - [First-run troubleshooting (Chinese)](first-run-troubleshooting.zh-CN.md)
 - [General troubleshooting](troubleshooting.md)

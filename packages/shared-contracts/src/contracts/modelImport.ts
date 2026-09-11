@@ -2,6 +2,7 @@ export type ModelImportProviderId =
   | "nvidia"
   | "openai"
   | "openai-compatible"
+  | "bai"
   | "dashscope"
   | "gemini";
 

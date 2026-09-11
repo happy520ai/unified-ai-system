@@ -5,6 +5,7 @@
 import { fetchWithAgent } from "../http/connectionPool.js";
 import { resolveSafeOutboundUrl } from "../security/outboundUrlPolicy.ts";
 import type { McpCallResult, McpToolDescriptor } from "./mcpUpstreamClient.ts";
+import { throwIfExecutionAborted } from "@unified-ai-system/shared-utils";
 
 const MAX_SPEC_CHARS = 2_000_000;
 const MAX_RESPONSE_CHARS = 1_000_000;
@@ -106,17 +107,21 @@ export function createOpenApiRestBridge(config: {
     ? parseOpenApiOperations(config.spec).map(operationToMcpTool)
     : null;
 
-  async function loadSpecText(): Promise<string> {
+  async function loadSpecText(signal?: AbortSignal): Promise<string> {
+    throwIfExecutionAborted(signal);
     const destination = await resolveSafeOutboundUrl(config.specUrl!);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(new Error(`OpenAPI spec fetch timed out after ${timeoutMs}ms`)), timeoutMs);
     timer.unref?.();
     try {
+      const effectiveSignal = signal
+        ? AbortSignal.any([controller.signal, signal])
+        : controller.signal;
       const response = fetchImpl
-        ? await fetchImpl(destination.url, { method: "GET", signal: controller.signal })
+        ? await fetchImpl(destination.url, { method: "GET", signal: effectiveSignal })
         : await fetchWithAgent(destination.url, {
             method: "GET",
-            signal: controller.signal,
+            signal: effectiveSignal,
             maxResponseBytes: MAX_SPEC_CHARS + 1,
           });
       const text = await response.text();
@@ -132,9 +137,9 @@ export function createOpenApiRestBridge(config: {
     }
   }
 
-  async function ensureTools() {
+  async function ensureTools(signal?: AbortSignal) {
     if (cachedTools) return cachedTools;
-    const specText = await loadSpecText();
+    const specText = await loadSpecText(signal);
     cachedTools = parseOpenApiOperations(JSON.parse(specText)).map(operationToMcpTool);
     return cachedTools;
   }
@@ -156,8 +161,13 @@ export function createOpenApiRestBridge(config: {
       await ensureTools();
       return cachedTools!;
     },
-    async callTool(name: string, args: Record<string, unknown>): Promise<McpCallResult> {
-      await ensureTools();
+    async callTool(
+      name: string,
+      args: Record<string, unknown>,
+      execution: { signal?: AbortSignal } = {},
+    ): Promise<McpCallResult> {
+      await ensureTools(execution.signal);
+      throwIfExecutionAborted(execution.signal);
       const tool = cachedTools!.find((candidate) => candidate.name === name);
       if (!tool) {
         throw new Error(`Unknown generated tool '${name}'.`);
@@ -185,6 +195,9 @@ export function createOpenApiRestBridge(config: {
       const timer = setTimeout(() => controller.abort(new Error(`REST bridge call timed out after ${timeoutMs}ms`)), timeoutMs);
       timer.unref?.();
       try {
+        const effectiveSignal = execution.signal
+          ? AbortSignal.any([controller.signal, execution.signal])
+          : controller.signal;
         const init = {
           method: tool.__rest.method,
           headers: {
@@ -192,7 +205,7 @@ export function createOpenApiRestBridge(config: {
             ...(body ? { "content-type": "application/json" } : {}),
           },
           ...(body ? { body } : {}),
-          signal: controller.signal,
+          signal: effectiveSignal,
         };
         const response = fetchImpl
           ? await fetchImpl(destination.url, init)

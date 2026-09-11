@@ -4,6 +4,7 @@ import { reserveWebhookExternalEffect } from "../external-effects/externalEffect
 import { readExternalEffectKeyContext } from "../external-effects/externalEffectHttpContext.ts";
 import { takeRawJsonRequestBody } from "./utils/responseUtils.js";
 import { hasActiveLocalClientReceiptRecoveryFailure } from "./utils/healthUtils.js";
+import { executeGovernedMcpCall } from "../mcpGateway/governedMcpExecution.ts";
 
 export async function dispatchHttpRoutes03(context) {
   const {
@@ -26,7 +27,7 @@ export async function dispatchHttpRoutes03(context) {
     readEnterpriseJson, writeEnterpriseError, writeCapabilityError, normalizeChatBody,
     normalizeRagChatBody, extractChatPrompt, createRagRetrieveRequest, createRagCitations,
     createRagPrompt, createRagChatData, OWNER_AUTOMATION_CHAT_PROPOSAL_FLAG, application,
-    request, requestExecution, response, url, startedAt,
+    request, requestExecution, requestId, response, url, startedAt,
     approvalStore, fileContextStore, phase319LocalOperation, connectorFeishuDryRun,
     connectorWeComDryRun, capabilityRouterService, codexExecCrsRuntimeCandidate, enterpriseGovernanceService,
     enterpriseOpsService, fiveCapabilityActivationService, gatewayService, knowledgeService, localClientManagementService,
@@ -186,11 +187,29 @@ export async function dispatchHttpRoutes03(context) {
     if (!body) return;
 
     try {
+      if (application.agentGovernance) {
+        const governed = await executeGovernedMcpCall({
+          governance: application.agentGovernance,
+          mcpGatewayService: application.mcpGatewayService,
+          identity: request.enterpriseIdentity,
+          body,
+          requestId: requestId ?? request.headers?.["x-request-id"],
+          externalEffect: readExternalEffectKeyContext(request),
+          signal: requestExecution?.signal,
+        });
+        writeJson(
+          response,
+          governed.outcome === "approval_required" ? 202 : 200,
+          createOkEnvelope(governed, { startedAt }),
+        );
+        return;
+      }
       const result = await application.mcpGatewayService.callTool(request.enterpriseIdentity, {
         server: body.server,
         tool: body.tool,
         ...(body.arguments && typeof body.arguments === "object" ? { arguments: body.arguments } : {}),
         externalEffect: readExternalEffectKeyContext(request),
+        signal: requestExecution?.signal,
       });
       writeJson(response, 200, createOkEnvelope(result, { startedAt }));
     } catch (error) {

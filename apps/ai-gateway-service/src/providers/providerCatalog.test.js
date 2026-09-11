@@ -37,6 +37,13 @@ const representativeEntries = [
     testOnly: false,
     capabilities: ["chat", "vision", "coding", "reasoning", "tool-use", "summary"],
   },
+  {
+    providerId: "bai",
+    modelId: "deepseek-v4-flash",
+    availableForChat: true,
+    testOnly: false,
+    capabilities: ["chat", "reasoning", "coding", "summary"],
+  },
 ];
 
 describe("provider catalog metadata", () => {
@@ -101,4 +108,12 @@ describe("provider catalog metadata", () => {
       expect(model.capabilities).toEqual(capabilities);
     },
   );
+
+  it("keeps B.AI live discovery account-scoped", () => {
+    expect(catalogByProvider.get("bai")).toMatchObject({
+      endpoint: "https://api.b.ai/v1",
+      modelListPath: "/models",
+      accountScopedModels: true,
+    });
+  });
 });

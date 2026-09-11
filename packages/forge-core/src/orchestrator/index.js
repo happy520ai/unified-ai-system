@@ -23,6 +23,30 @@ import { BudgetTracker } from '../budget-tracker/index.js';
 import { CodeIntelligence } from '../code-intel/index.js';
 import { runWithTrace, getTraceContext } from '../tracing/index.js';
 import { SandboxExecutor } from '../sandbox-executor/index.js';
+import {
+  createForgeExecutionError,
+  isForgeAbortError,
+  throwIfForgeAborted,
+} from '../worker/base-action-exec.js';
+
+function waitForStagger(delayMs, signal) {
+  if (!delayMs) return Promise.resolve();
+  if (!signal) return new Promise((resolve) => setTimeout(resolve, delayMs));
+  throwIfForgeAborted(signal);
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      clearTimeout(timer);
+      signal.removeEventListener('abort', onAbort);
+      try { throwIfForgeAborted(signal); } catch (error) { reject(error); }
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, delayMs);
+    signal.addEventListener('abort', onAbort, { once: true });
+    if (signal.aborted) onAbort();
+  });
+}
 
 const WORKER_MAP = {
   'coder': () => new CoderWorker(),
@@ -38,6 +62,16 @@ const WORKER_MAP = {
   'video-generator': () => new VideoWorker(),
 };
 
+const GOVERNED_WORKER_ROLES = new Set([
+  'coder',
+  'architect',
+  'code-archaeologist',
+  'tester',
+  'verifier',
+  'reviewer',
+  'debugger',
+]);
+
 export class Orchestrator {
   #store;
   #checkpoint;
@@ -49,6 +83,9 @@ export class Orchestrator {
   #plugins;     // PluginManager (optional)
   #tracing;     // TraceManager (optional)
   #sandboxExecutor;
+  #governedExecution;
+  #governanceRequired;
+  #signal;
 
   /**
    * @param {import('../task-store/index.js').TaskStore} store
@@ -61,6 +98,9 @@ export class Orchestrator {
    * @param {boolean} options.enableCodeIntel — whether to run Code Intelligence analysis
    * @param {import('../plugins/index.js').PluginManager} [options.pluginManager] — plugin manager
    * @param {object} [options.tracingManager] — distributed tracing manager
+   * @param {object} [options.governedExecution] — trusted per-action hook
+   * @param {boolean} [options.governanceRequired] — fail closed without hook
+   * @param {AbortSignal} [options.signal] — run cancellation/revocation signal
    */
   constructor(store, projectRoot, options = {}) {
     this.#store = store;
@@ -87,9 +127,14 @@ export class Orchestrator {
       sandboxExecutor: this.#sandboxExecutor,
     });
     this.#budget = new BudgetTracker(options.budget ?? {});
-    this.#codeIntel = options.enableCodeIntel !== false ? new CodeIntelligence() : null;
+    this.#codeIntel = options.enableCodeIntel !== false && options.governanceRequired !== true
+      ? new CodeIntelligence()
+      : null;
     this.#plugins = options.pluginManager || null;
     this.#tracing = options.tracingManager || null;
+    this.#governedExecution = options.governedExecution ?? null;
+    this.#governanceRequired = options.governanceRequired === true;
+    this.#signal = options.signal ?? options.governedExecution?.signal ?? null;
     this.#options = {
       checkpointAfter: options.checkpointAfter ?? [],
       maxConcurrent: options.maxConcurrent ?? 2,
@@ -102,7 +147,15 @@ export class Orchestrator {
    * @param {string} goalId
    * @returns {object} — execution report
    */
-  async execute(goalId) {
+  async execute(goalId, execution = {}) {
+    const signal = execution.signal ?? this.#signal;
+    if (this.#governanceRequired && typeof this.#governedExecution?.beforeAction !== 'function') {
+      throw createForgeExecutionError(
+        'FORGE_ACTION_GOVERNANCE_REQUIRED',
+        'Forge production-governed execution requires a server-owned beforeAction hook.',
+      );
+    }
+    throwIfForgeAborted(signal);
     const goalSpan = this.#tracing?.startSpan({
       traceId: goalId,
       operationName: 'goal_execution',
@@ -113,6 +166,7 @@ export class Orchestrator {
     let _goalStatus = 'ok';
     try {
       return await runWithTrace(goalId, goalSpan?.id || null, async () => {
+    throwIfForgeAborted(signal);
     const goal = this.#store.getGoal(goalId);
     if (!goal) throw new Error(`Goal ${goalId} not found`);
     if (goal.status !== 'compiled' && goal.status !== 'running') {
@@ -131,12 +185,12 @@ export class Orchestrator {
     let failedCount = 0;
 
     // Parse checkpoint config from compiled DAG
-    let checkpointAfter = this.#options.checkpointAfter;
+    let checkpointAfter = this.#governanceRequired ? [] : this.#options.checkpointAfter;
     let goalBudget = {};
     if (goal.compiled_dag) {
       try {
         const dag = JSON.parse(goal.compiled_dag);
-        if (dag.checkpoints) {
+        if (!this.#governanceRequired && dag.checkpoints) {
           checkpointAfter = dag.checkpoints
             .filter(c => c.startsWith('after_'))
             .map(c => c.replace('after_', ''));
@@ -151,19 +205,23 @@ export class Orchestrator {
     let codebaseSummary = '';
     if (this.#codeIntel) {
       try {
+        throwIfForgeAborted(signal);
         console.log('[forge:orchestrator] Analyzing codebase with Code Intelligence...');
         await this.#codeIntel.analyze(this.#projectRoot, {
           patterns: ['src/**/*.js', 'src/**/*.ts', 'test/**/*.js'],
         });
         codebaseSummary = this.#codeIntel.getCodebaseSummary();
+        throwIfForgeAborted(signal);
         console.log(`[forge:orchestrator] Code Intelligence: ${codebaseSummary.split('\n').length} lines of context`);
       } catch (err) {
+        if (isForgeAbortError(err, signal)) throw err;
         console.log(`[forge:orchestrator] Code Intelligence skipped: ${err.message}`);
       }
     }
 
     // Main execution loop
     while (true) {
+      throwIfForgeAborted(signal);
       // Budget check before each batch
       const budgetCheck = this.#budget.checkBudget();
       if (!budgetCheck.withinBudget) {
@@ -214,15 +272,15 @@ export class Orchestrator {
       // Stagger parallel tasks to avoid API rate limiting
       const staggeredResults = await Promise.allSettled(
         batch.map((task, idx) => {
-          if (idx === 0) return this.#executeTask(goalId, task, accumulatedContext, codebaseSummary);
+          if (idx === 0) return this.#executeTask(goalId, task, accumulatedContext, codebaseSummary, signal);
           // Stagger subsequent tasks by 1.5s each
-          return new Promise(resolve => {
-            setTimeout(() => {
-              this.#executeTask(goalId, task, accumulatedContext, codebaseSummary).then(resolve, resolve);
-            }, idx * 1500);
-          });
+          return waitForStagger(idx * 1500, signal)
+            .then(() => this.#executeTask(goalId, task, accumulatedContext, codebaseSummary, signal));
         })
       );
+      // Promise.allSettled is intentional: revocation aborts active workers and
+      // then drains the entire in-flight batch before the run unwinds.
+      throwIfForgeAborted(signal);
       const results = staggeredResults;
 
       for (let i = 0; i < batch.length; i++) {
@@ -277,7 +335,7 @@ export class Orchestrator {
           }
 
           // Checkpoint if configured
-          if (checkpointAfter.includes(task.id)) {
+          if (!this.#governanceRequired && checkpointAfter.includes(task.id)) {
             const budgetStatus = this.#budget.getStatus();
             this.#checkpoint.createCheckpoint(goalId, task.id, {
               summary: accumulatedContext.summary,
@@ -321,6 +379,9 @@ export class Orchestrator {
       failedTasks: failedCount,
       durationMs,
       budget: budgetFinal,
+      governance: this.#governanceRequired
+        ? { enforced: true, mode: 'gateway-governed' }
+        : { enforced: false, mode: 'standalone-development-only' },
     });
 
     const report = {
@@ -331,6 +392,9 @@ export class Orchestrator {
       durationMs,
       durationHuman: formatDuration(durationMs),
       budget: budgetFinal,
+      governance: this.#governanceRequired
+        ? { enforced: true, mode: 'gateway-governed' }
+        : { enforced: false, mode: 'standalone-development-only' },
     };
 
     console.log(`\n[forge:orchestrator] Goal ${finalStatus}: ${completedCount} tasks done, ${failedCount} failed, in ${report.durationHuman}`);
@@ -361,7 +425,8 @@ export class Orchestrator {
     }
   }
 
-  async #executeTask(goalId, task, context, codebaseSummary) {
+  async #executeTask(goalId, task, context, codebaseSummary, signal) {
+    throwIfForgeAborted(signal);
     const taskSpan = this.#tracing?.startSpan({
       traceId: goalId,
       operationName: 'task_execution',
@@ -379,6 +444,12 @@ export class Orchestrator {
     if (!workerFactory) {
       throw new Error(`No worker registered for role: ${task.agent_role || task.agentRole}`);
     }
+    if (this.#governanceRequired && !GOVERNED_WORKER_ROLES.has(task.agent_role || task.agentRole)) {
+      throw createForgeExecutionError(
+        'FORGE_GOVERNED_WORKER_UNSUPPORTED',
+        `Worker role ${task.agent_role || task.agentRole} does not implement the governed action contract.`,
+      );
+    }
 
     this.#store.updateTaskStatus(goalId, task.id, 'running');
     this.#store.logEvent(goalId, task.id, 'task_started', {
@@ -389,6 +460,7 @@ export class Orchestrator {
     const taskCtx = { goalId, task, projectRoot: this.#projectRoot, store: this.#store };
     await this.#plugins?.runHook('beforeTask', taskCtx);
     await this.#plugins?.runHook('onTaskStart', { goalId, taskId: task.id, task });
+    throwIfForgeAborted(signal);
 
     const worker = workerFactory();
     worker.setSandboxExecutor?.(this.#sandboxExecutor);
@@ -418,7 +490,12 @@ export class Orchestrator {
     }
 
     // Enrich context with codebase summary if available
-    const enrichedContext = { ...context };
+    const enrichedContext = {
+      ...context,
+      signal,
+      governedExecution: this.#governedExecution,
+      governanceRequired: this.#governanceRequired,
+    };
     if (codebaseSummary && !enrichedContext.codebaseSummary) {
       enrichedContext.codebaseSummary = codebaseSummary;
     }
@@ -438,10 +515,11 @@ export class Orchestrator {
     const result = this.#plugins
       ? await this.#plugins.runMiddleware(middlewareCtx, executeFn)
       : await executeFn();
+    throwIfForgeAborted(signal);
 
     // If it's a verify task, also run the verification engine
-    if (task.type === 'verify' && result.success) {
-      const verifyResult = await this.#verifier.verify(goalId, task.id, { maxTier: 2 });
+    if (!this.#governanceRequired && task.type === 'verify' && result.success) {
+      const verifyResult = await this.#verifier.verify(goalId, task.id, { maxTier: 2, signal });
       result.verification = verifyResult;
       if (verifyResult.overall === 'FAIL') {
         const allChecks = verifyResult.tiers.flatMap(t =>

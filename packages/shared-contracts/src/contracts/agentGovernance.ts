@@ -1,0 +1,615 @@
+import type { ContractMetadata, ResultEnvelope } from "./common.js";
+import type { RiskLevel } from "./governance.js";
+
+/**
+ * Agent Governance contracts.
+ *
+ * These types define the governed agent control plane: classification,
+ * versioned policy layers, deterministic compilation into an
+ * EffectivePolicy, per-call tool enforcement, approvals, lifecycle and
+ * cascade revocation.
+ *
+ * Core invariant (enforced by the policy engine, never by model output):
+ *   child agent permissions ⊆ parent agent permissions
+ *   ⊆ creator entitlements ⊆ class capability ceiling
+ *   ⊆ root policy allowance.
+ */
+
+// ---------------------------------------------------------------------------
+// Decision algebra
+// ---------------------------------------------------------------------------
+
+/**
+ * Tool decision values, ordered by strictness:
+ * allow (1) < require_approval (2) < deny (3).
+ *
+ * Conflicts always resolve to the stricter decision. Tools that are not
+ * explicitly granted are denied by default.
+ */
+export type AgentToolDecision = "allow" | "require_approval" | "deny";
+
+/** Numeric strictness used for max-merge; defined once in runtime.ts. */
+export {
+  AGENT_TOOL_DECISION_STRICTNESS,
+  AGENT_GOVERNANCE_REDACTED_FIELDS,
+} from "../runtime.js";
+
+// ---------------------------------------------------------------------------
+// Classification
+// ---------------------------------------------------------------------------
+
+/** Initial agent families. */
+export type AgentFamily =
+  | "analysis"
+  | "execution"
+  | "communication"
+  | "monitoring"
+  | "development"
+  | "orchestration"
+  | "governance";
+
+/** Initial risk-bearing traits. */
+export type AgentTrait =
+  | "read_only"
+  | "write_capable"
+  | "external_communication"
+  | "handles_sensitive_data"
+  | "financial_operation"
+  | "code_execution"
+  | "subagent_creator"
+  | "destructive_operation";
+
+/** Multi-dimensional classification proposed for an agent. */
+export interface AgentClassification {
+  family: AgentFamily;
+  domain: string;
+  subclass: string;
+}
+
+// ---------------------------------------------------------------------------
+// Tool registry descriptors
+// ---------------------------------------------------------------------------
+
+/** Tool action type. */
+export type ToolActionType = "read" | "write";
+
+/** How a tool's credentials are handled. Agents never see credentials. */
+export type ToolCredentialMode = "server_side";
+
+/**
+ * Governance descriptor for a registered tool. Tool-declared risk labels
+ * are authoritative: an agent's self-declared classification can never
+ * lower them (the classifier backfills implied traits instead).
+ */
+export interface ToolGovernanceDescriptor {
+  name: string;
+  description?: string;
+  actionType: ToolActionType;
+  riskTraits: AgentTrait[];
+  riskLevel: RiskLevel;
+  defaultDecision: AgentToolDecision;
+  credentialMode: ToolCredentialMode;
+}
+
+// ---------------------------------------------------------------------------
+// Policy layers
+// ---------------------------------------------------------------------------
+
+/** Policy layer types, most-global to most-specific. */
+export type PolicyType =
+  | "emergency"
+  | "root"
+  | "tenant"
+  | "family"
+  | "domain"
+  | "subclass"
+  | "trait"
+  | "instance"
+  | "task";
+
+/** Numeric limits that merge by taking the minimum. */
+export interface PolicyLimits {
+  maxGenerationDepth?: number;
+  maxChildrenPerAgent?: number;
+  /** Maximum number of role workers in one governed Workforce plan. */
+  maxWorkforceRoles?: number;
+  maxRuntimeSeconds?: number;
+  maxSteps?: number;
+  maxToolCalls?: number;
+  maxRecords?: number;
+}
+
+/**
+ * Safety booleans merge with OR: if any layer in the stack requires the
+ * safeguard, the effective policy requires it.
+ */
+export interface PolicySafetyRequirements {
+  auditRequired?: boolean;
+  outputRedactionRequired?: boolean;
+  approvalRequired?: boolean;
+  sandboxRequired?: boolean;
+  detailedLoggingRequired?: boolean;
+}
+
+/**
+ * Permission booleans merge with AND: every layer that expresses a value
+ * must allow it; the default is closed (false).
+ */
+export interface PolicyPermissions {
+  canCreateChildren?: boolean;
+  canWrite?: boolean;
+  canSendExternalMessage?: boolean;
+  canExecuteCode?: boolean;
+}
+
+/** Inclusive resource range scope (for example order_date from/to). */
+export interface PolicyResourceRange {
+  from?: string;
+  to?: string;
+}
+
+/** Resource scope constraints. Unset dimensions are unconstrained. */
+export interface PolicyResourceScope {
+  allowedTenants?: string[];
+  allowedResourceSets?: Record<string, string[]>;
+  resourceRanges?: Record<string, PolicyResourceRange>;
+  deniedResources?: string[];
+  deniedOutputFields?: string[];
+}
+
+/** Mandatory root/emergency assertions. `deny` values are absolute. */
+export interface PolicyMandatoryRules {
+  auditRequired?: boolean;
+  credentialsExposedToAgent?: boolean;
+  crossTenantAccess?: "allow" | "deny";
+  selfPolicyModification?: "allow" | "deny";
+  gatewayBypass?: "allow" | "deny";
+  permissionExpansion?: "allow" | "deny";
+}
+
+/**
+ * Fully materialized mandatory assertions carried by every compiled policy.
+ * Dangerous capabilities default to deny; callers must not infer permissive
+ * behavior from an omitted policy-layer field.
+ */
+export interface EffectivePolicyMandatoryRules {
+  auditRequired: boolean;
+  credentialsExposedToAgent: boolean;
+  crossTenantAccess: "allow" | "deny";
+  selfPolicyModification: "allow" | "deny";
+  gatewayBypass: "allow" | "deny";
+  permissionExpansion: "allow" | "deny";
+}
+
+/** Structured content of one policy layer version. */
+export interface PolicyLayerContent {
+  mandatory?: PolicyMandatoryRules;
+  limits?: PolicyLimits;
+  capabilityCeiling?: string[];
+  toolRules?: Record<string, AgentToolDecision>;
+  dataRules?: PolicyResourceScope;
+  requirements?: PolicySafetyRequirements;
+  permissions?: PolicyPermissions;
+}
+
+/** Lifecycle status of a policy layer version. */
+export type PolicyStatus = "draft" | "active" | "superseded";
+
+/**
+ * One immutable policy layer version. A (policyKey, version) pair can be
+ * created once and never overwritten; activation supersedes the previous
+ * active version of the same key.
+ */
+export interface PolicyRecord {
+  policyKey: string;
+  version: number;
+  policyType: PolicyType;
+  scopeKey: string;
+  content: PolicyLayerContent;
+  contentHash: string;
+  status: PolicyStatus;
+  createdAt: string;
+  activatedAt?: string;
+  supersededAt?: string;
+}
+
+/** Reference to one policy layer version used during compilation. */
+export interface PolicyBinding {
+  policyKey: string;
+  version: number;
+  bindingType: PolicyType;
+}
+
+// ---------------------------------------------------------------------------
+// Drafts (model output never goes further than a draft)
+// ---------------------------------------------------------------------------
+
+/** Draft produced by the Agent Factory before deterministic validation. */
+export interface AgentDraft {
+  name: string;
+  task: string;
+  requestedTools: string[];
+  ttlSeconds: number;
+  parentAgentId: string | null;
+  classification: AgentClassification;
+  proposedTraits: AgentTrait[];
+  proposedRiskLevel: RiskLevel;
+}
+
+// ---------------------------------------------------------------------------
+// Effective policy
+// ---------------------------------------------------------------------------
+
+/**
+ * Deterministically compiled permission snapshot. Produced only by the
+ * policy engine from the ordered layer stack; hash and signature protect
+ * integrity at runtime.
+ */
+export interface EffectiveAgentPolicy {
+  agentId: string;
+  classification: AgentClassification;
+  traits: AgentTrait[];
+  riskLevel: RiskLevel;
+  toolDecisions: Record<string, AgentToolDecision>;
+  grantedTools: string[];
+  mandatory: EffectivePolicyMandatoryRules;
+  limits: PolicyLimits;
+  requirements: PolicySafetyRequirements;
+  permissions: PolicyPermissions;
+  scope: PolicyResourceScope;
+  expiresAt: string;
+  lineage: PolicyBinding[];
+  policyHash: string;
+  compiledAt: string;
+}
+
+/**
+ * Server-derived ceiling for what the authenticated creator may delegate.
+ * This value must come from trusted identity/authorization state, never from
+ * an Agent draft or request body. A null value means no delegable tools.
+ */
+export interface AgentCreatorEntitlements {
+  allowedTools: string[];
+  permissions: PolicyPermissions;
+}
+
+/**
+ * Tamper-evidence manifest stored beside each agent's effective policy.
+ * signature = HMAC-SHA256 over the agent, effective-policy and immutable
+ * policy-delta hashes. Missing legacy delta hashes fail closed because an
+ * unsigned inheritance/instance-rule file cannot be migrated safely without
+ * an independently trusted source.
+ */
+export interface AgentPolicyManifest {
+  agentId: string;
+  agentHash: string;
+  policyHash: string;
+  deltaHash: string;
+  signature: string;
+  compiledAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Registry and lifecycle
+// ---------------------------------------------------------------------------
+
+/** Agent lifecycle states. */
+export type AgentStatus =
+  | "DRAFT"
+  | "VALIDATED"
+  | "ACTIVE"
+  | "COMPLETED"
+  | "EXPIRED"
+  | "REVOKED"
+  | "FAILED"
+  | "ARCHIVED";
+
+/** Central registry record for one governed agent. */
+export interface AgentRegistryRecord {
+  agentId: string;
+  name: string;
+  purpose: string;
+  tenantId: string;
+  ownerUserId: string;
+  createdBy: string;
+  parentAgentId: string | null;
+  generationDepth: number;
+  classification: AgentClassification;
+  traits: AgentTrait[];
+  riskLevel: RiskLevel;
+  requestedTools: string[];
+  grantedTools: string[];
+  policyHash: string;
+  status: AgentStatus;
+  createdAt: string;
+  expiresAt: string;
+  revokedAt?: string;
+}
+
+/** Per-agent usage counters enforced on every tool call. */
+export interface AgentUsageCounters {
+  toolCalls: number;
+  steps: number;
+  records: number;
+}
+
+// ---------------------------------------------------------------------------
+// Approvals
+// ---------------------------------------------------------------------------
+
+/** Approval lifecycle states. */
+export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED" | "EXPIRED" | "CONSUMED";
+
+/**
+ * Server-produced, allowlisted information an operator may safely inspect
+ * before approving an external effect. Raw transport URLs and credentials
+ * remain inside the authenticated encrypted execution envelope. Any external
+ * text that will actually be published must be present here in full.
+ */
+export interface AgentToolApprovalReview {
+  schemaVersion: 1;
+  reviewable: boolean;
+  effectType: string;
+  policyHash: string;
+  unavailableReason?: string;
+  repository?: {
+    displayName: string;
+    fingerprint: string;
+  };
+  remote?: {
+    name: string;
+    target: string;
+    urlFingerprint: string;
+  };
+  source?: {
+    branch: string;
+    commit: string;
+    /** Required for PR reviews: the remote head observed during review. */
+    remoteCommit?: string;
+  };
+  destination?: {
+    branch: string;
+  };
+  options?: {
+    setUpstream: boolean;
+    forceMode: "none";
+  };
+  pullRequest?: {
+    repository: string;
+    headBranch: string;
+    baseBranch: string;
+    title: string;
+    /** Complete bounded Markdown body that will be sent to the remote service. */
+    body: string;
+    bodyHash: string;
+    bodyBytes: number;
+    draft: boolean;
+  };
+  mcp?: {
+    serverId: string;
+    toolName: string;
+    target: string;
+    targetFingerprint: string;
+    argumentsHash: string;
+    argumentsBytes: number;
+    externalEffectRequired: boolean;
+    reviewedArguments: Record<string, string | number | boolean | null>;
+    omittedArgumentKeys: string[];
+  };
+  forge?: {
+    /** Complete bounded operator-visible goal; secret-like text is unreviewable. */
+    goal: string;
+    goalDigest: string;
+    goalBytes: number;
+    optionsHash: string;
+    options: {
+      enableCodeIntel: false;
+      useRefiner?: boolean;
+      maxConcurrent?: number;
+      budget?: {
+        maxTokens?: number;
+        maxCost?: number;
+        maxMinutes?: number;
+      };
+      checkpointAfter?: string[];
+    };
+  };
+  workforce?: {
+    /** Complete bounded operator-visible goal; unsafe or secret-like text is unreviewable. */
+    goal: string;
+    goalDigest: string;
+    goalBytes: number;
+    planId: string;
+    planDigest: string;
+    autonomyMode: string;
+    requiredScopes: string[];
+    optionsHash: string;
+    options: {
+      selectedRoleCount: number | null;
+      templateSelected: boolean;
+    };
+  };
+}
+
+/**
+ * Approval request for a require_approval decision. The arguments hash
+ * locks the exact arguments: after approval only those arguments may
+ * execute; any change requires a new approval.
+ */
+export interface AgentToolApprovalRecord {
+  id: string;
+  agentId: string;
+  toolName: string;
+  argumentsHash: string;
+  status: ApprovalStatus;
+  requestedAt: string;
+  expiresAt: string;
+  review: AgentToolApprovalReview;
+  decidedAt?: string;
+  decidedBy?: string;
+  /** One-shot execution consumption metadata. */
+  consumedAt?: string;
+  consumedByExecutionId?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Audit
+// ---------------------------------------------------------------------------
+
+/** Agent governance audit event types. */
+export type AgentGovernanceEventType =
+  | "AUDIT_CHECKPOINT"
+  | "AGENT_DRAFT_CREATED"
+  | "AGENT_CLASSIFIED"
+  | "POLICY_VALIDATED"
+  | "POLICY_REJECTED"
+  | "AGENT_ACTIVATED"
+  | "AGENT_RUN_STARTED"
+  | "TOOL_REQUESTED"
+  | "TOOL_ALLOWED"
+  | "TOOL_DENIED"
+  | "TOOL_COMPLETED"
+  | "TOOL_FAILED"
+  | "APPROVAL_REQUESTED"
+  | "APPROVAL_APPROVED"
+  | "APPROVAL_CONSUMED"
+  | "APPROVAL_REJECTED"
+  | "AGENT_EXPIRED"
+  | "AGENT_REVOKED"
+  | "POLICY_RECOMPILED"
+  | "POLICY_SIGNATURE_FAILED";
+
+/** Visible continuity and retention status for one signed audit rotation. */
+export interface AgentGovernanceAuditCheckpoint {
+  schemaVersion: 1;
+  segmentId: string;
+  rotationReason: "max_records" | "archive_retention" | "archive_capacity" | "legacy_migration";
+  previousLogDigest: string;
+  previousHeadHash: string;
+  archiveSegmentCount: number;
+  archivedRecordCount: number;
+  archivedBytes: number;
+  /** Detailed events removed by configured retention/capacity limits. */
+  compactedRecordCount: number;
+  /** True when at least one detailed event is no longer locally readable. */
+  truncated: boolean;
+}
+
+/** One append-only audit event (redacted arguments only). */
+export interface AgentGovernanceAuditEvent {
+  /** Server-issued event identity shared by the central and per-Agent mirrors. */
+  id?: string;
+  eventType: AgentGovernanceEventType;
+  requestId?: string;
+  agentId?: string;
+  parentAgentId?: string | null;
+  tenantId?: string;
+  toolName?: string;
+  decision?: AgentToolDecision;
+  /** Tool arguments are deliberately omitted or redacted, never stored raw. */
+  argumentsRedacted?: boolean;
+  resultStatus?: "success" | "error" | "denied" | "pending";
+  reason?: string;
+  policyHash?: string;
+  previousPolicyHash?: string;
+  timestamp: string;
+  checkpoint?: AgentGovernanceAuditCheckpoint;
+  metadata?: ContractMetadata;
+}
+
+// ---------------------------------------------------------------------------
+// Public Gateway API DTOs
+// ---------------------------------------------------------------------------
+
+export interface GenerateGovernedAgentRequest {
+  name: string;
+  task: string;
+  requestedTools: string[];
+  ttlSeconds: number;
+  parentAgentId?: string | null;
+  classification?: AgentClassification;
+  proposedTraits?: AgentTrait[];
+  proposedRiskLevel?: RiskLevel;
+  instanceRules?: PolicyLayerContent;
+  taskPolicyKeys?: string[];
+}
+
+export interface GenerateGovernedAgentResponse {
+  agentId: string;
+  status: AgentStatus;
+  classification: AgentClassification;
+  traits: string[];
+  riskLevel: RiskLevel;
+  addedTraits: string[];
+  riskEscalated: boolean;
+  grantedTools: string[];
+  policyHash: string;
+  expiresAt: string;
+}
+
+export interface RunGovernedAgentRequest {
+  goal: string;
+  maxIterations?: number;
+  timeoutMs?: number;
+  maxTokensPerTurn?: number;
+  toolMode?: "readonly" | "none";
+  toolAllowlist?: string[];
+  providerId?: string;
+  modelId?: string;
+}
+
+export interface GovernedAgentRunResponse {
+  status: string;
+  goal: string;
+  finalAnswer: string;
+  iterations: { used: number; max: number };
+  timing: { durationMs: number; timeoutMs: number; timedOut: boolean };
+  tools: {
+    mode: string;
+    allowlist: string[];
+    usage: Record<string, unknown>;
+  };
+  usage: unknown;
+  compaction: {
+    engine: string;
+    policy: { maxContextTokens: number; recentTurnsToKeep: number };
+  };
+  provider: { id: string; modelId: string | null };
+  sessionId: string | null;
+  governance: { enforced: boolean; agentId?: string; runId?: string; policyHash?: string };
+}
+
+export interface RevokeGovernedAgentRequest {
+  reason?: string;
+  cascade?: boolean;
+}
+
+export interface CreateGovernancePolicyRequest {
+  policyKey: string;
+  version: number;
+  policyType: PolicyType;
+  scopeKey: string;
+  content: PolicyLayerContent;
+}
+
+export type GenerateGovernedAgentResult = ResultEnvelope<GenerateGovernedAgentResponse>;
+export type GovernedAgentListResult = ResultEnvelope<{ agents: AgentRegistryRecord[] }>;
+export type GovernedAgentDescribeResult = ResultEnvelope<{ agent: AgentRegistryRecord }>;
+export type GovernedAgentPolicyResult = ResultEnvelope<{ effectivePolicy: Record<string, unknown> }>;
+export type GovernedAgentAuditResult = ResultEnvelope<{ events: AgentGovernanceAuditEvent[] }>;
+export type GovernedAgentRunResult = ResultEnvelope<GovernedAgentRunResponse>;
+export type RevokeGovernedAgentResult = ResultEnvelope<{ revoked: string[] }>;
+export type GovernedApprovalListResult = ResultEnvelope<{ approvals: AgentToolApprovalRecord[] }>;
+export type GovernedApprovalDecisionResult = ResultEnvelope<{ approval: AgentToolApprovalRecord }>;
+export type GovernancePolicyListResult = ResultEnvelope<{ policies: PolicyRecord[] }>;
+export type CreateGovernancePolicyResult = ResultEnvelope<{ policy: PolicyRecord }>;
+export type ActivateGovernancePolicyResult = ResultEnvelope<{
+  policy: PolicyRecord;
+  affected: Array<{
+    agentId: string;
+    previousPolicyHash: string;
+    policyHash: string;
+    clamped: number;
+  }>;
+}>;
+export type AgentGovernanceStatsResult = ResultEnvelope<{ stats: Record<string, unknown> }>;

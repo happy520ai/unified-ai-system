@@ -49,4 +49,36 @@ describe("log sanitization policy", () => {
       category: "filesystem",
     });
   });
+
+  it("sanitizes log keys without invoking accessors or retaining serialization hooks", () => {
+    let accessorCalls = 0;
+    const input = Object.create(null) as Record<string, unknown>;
+    input.safe = "visible";
+    input[`Authorization: Bearer ${"A".repeat(24)}`] = "KEY_SECRET_CANARY";
+    Object.defineProperty(input, "__proto__", {
+      value: { polluted: "PROTOTYPE_CANARY" },
+      enumerable: true,
+    });
+    Object.defineProperty(input, "accessor", {
+      get() {
+        accessorCalls += 1;
+        return "ACCESSOR_CANARY";
+      },
+      enumerable: true,
+    });
+    Object.defineProperty(input, "toJSON", {
+      value: () => ({ leaked: "TOJSON_LOG_CANARY" }),
+      enumerable: true,
+    });
+
+    const sanitized = sanitizeLogValue(input) as Record<string, unknown>;
+    const serialized = JSON.stringify(sanitized);
+    expect(accessorCalls).toBe(0);
+    expect(Object.getPrototypeOf(sanitized)).toBeNull();
+    expect(Object.hasOwn(sanitized, "__proto__")).toBe(false);
+    expect(Object.hasOwn(sanitized, "toJSON")).toBe(false);
+    expect(serialized).toContain("visible");
+    expect(serialized).not.toMatch(/KEY_SECRET_CANARY|PROTOTYPE_CANARY|ACCESSOR_CANARY|TOJSON_LOG_CANARY/u);
+    expect(serialized).not.toContain("A".repeat(24));
+  });
 });

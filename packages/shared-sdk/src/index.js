@@ -911,6 +911,116 @@ export function createGatewayClient(options = {}) {
         timeoutMs,
       });
     },
+    agentGovernanceStats() {
+      return requestJson({
+        baseUrl,
+        path: "/v1/governance/stats",
+        headers,
+        timeoutMs,
+      });
+    },
+    generateGovernedAgent(request) {
+      return requestJson({
+        baseUrl,
+        path: "/v1/agents/generate",
+        method: "POST",
+        body: request,
+        headers,
+        timeoutMs,
+      });
+    },
+    governedAgents() {
+      return requestJson({ baseUrl, path: "/v1/agents", headers, timeoutMs });
+    },
+    governedAgent(agentId) {
+      return requestJson({
+        baseUrl,
+        path: `/v1/agents/${encodeGovernancePathId(agentId, "Agent")}`,
+        headers,
+        timeoutMs,
+      });
+    },
+    governedAgentPolicy(agentId) {
+      return requestJson({
+        baseUrl,
+        path: `/v1/agents/${encodeGovernancePathId(agentId, "Agent")}/effective-policy`,
+        headers,
+        timeoutMs,
+      });
+    },
+    governedAgentAudit(agentId) {
+      return requestJson({
+        baseUrl,
+        path: `/v1/agents/${encodeGovernancePathId(agentId, "Agent")}/audit`,
+        headers,
+        timeoutMs,
+      });
+    },
+    runGovernedAgent(agentId, request) {
+      return requestJson({
+        baseUrl,
+        path: `/v1/agents/${encodeGovernancePathId(agentId, "Agent")}/run`,
+        method: "POST",
+        body: request,
+        headers,
+        timeoutMs,
+      });
+    },
+    revokeGovernedAgent(agentId, request = {}) {
+      return requestJson({
+        baseUrl,
+        path: `/v1/agents/${encodeGovernancePathId(agentId, "Agent")}/revoke`,
+        method: "POST",
+        body: request,
+        headers,
+        timeoutMs,
+      });
+    },
+    governedApprovals(agentId) {
+      const query = agentId === undefined
+        ? ""
+        : `?agentId=${encodeURIComponent(normalizeGovernanceId(agentId, "Agent"))}`;
+      return requestJson({ baseUrl, path: `/v1/approvals${query}`, headers, timeoutMs });
+    },
+    decideGovernedApproval(approvalId, decision) {
+      if (decision !== "approve" && decision !== "reject") {
+        throw createGatewayProtocolError("Governed approval decision must be approve or reject.");
+      }
+      return requestJson({
+        baseUrl,
+        path: `/v1/approvals/${encodeGovernancePathId(approvalId, "Approval")}/${decision}`,
+        method: "POST",
+        body: {},
+        headers,
+        timeoutMs,
+      });
+    },
+    governancePolicies() {
+      return requestJson({ baseUrl, path: "/v1/policies", headers, timeoutMs });
+    },
+    createGovernancePolicy(request) {
+      return requestJson({
+        baseUrl,
+        path: "/v1/policies",
+        method: "POST",
+        body: request,
+        headers,
+        timeoutMs,
+      });
+    },
+    activateGovernancePolicy(policyKey, version) {
+      if (!Number.isSafeInteger(version) || version < 1) {
+        throw createGatewayProtocolError("Governance policy version must be a positive integer.");
+      }
+      return requestJson({
+        baseUrl,
+        path: `/v1/policies/${encodeGovernancePathId(policyKey, "Policy")}/${version}/activate`,
+        method: "POST",
+        body: {},
+        headers,
+        timeoutMs,
+      });
+    },
     workflowHealth() {
       return requestJson({
         baseUrl,
@@ -1066,6 +1176,18 @@ export function createGatewayClient(options = {}) {
       });
     },
   };
+}
+
+function normalizeGovernanceId(value, label) {
+  const normalized = typeof value === "string" ? value.trim() : "";
+  if (!normalized || normalized.length > 160 || /[\/\\\u0000-\u001f\u007f]/u.test(normalized)) {
+    throw createGatewayProtocolError(`${label} identifier is invalid.`);
+  }
+  return normalized;
+}
+
+function encodeGovernancePathId(value, label) {
+  return encodeURIComponent(normalizeGovernanceId(value, label));
 }
 
 async function inspectLocalClientFromRegistry({

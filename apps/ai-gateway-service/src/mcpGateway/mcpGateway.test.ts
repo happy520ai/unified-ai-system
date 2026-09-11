@@ -8,7 +8,8 @@ import {
   createMcpGatewayService,
   type McpGovernedServerConfig,
 } from "./mcpGatewayService.ts";
-import { createHttpMcpUpstream } from "./mcpUpstreamClient.ts";
+import { parseMcpRegistry } from "./mcpGatewayConfig.ts";
+import { createHttpMcpUpstream, createStdioMcpUpstream } from "./mcpUpstreamClient.ts";
 import { createOpenApiRestBridge, operationToMcpTool, parseOpenApiOperations } from "./openApiRestBridge.ts";
 import { createExternalEffectGate } from "../external-effects/externalEffectGate.ts";
 
@@ -94,6 +95,32 @@ describe("mcp gateway registry", () => {
       toolPolicy: "explicit-allowlist",
       readOnlyPolicy: "explicit-allowlist",
     });
+  });
+
+  it("accepts only exact, non-sensitive approval review field declarations", () => {
+    const valid = parseMcpRegistry(JSON.stringify([{
+      id: "ops",
+      transport: "http",
+      url: "https://mcp.example.test/mcp",
+      allowedTools: ["send_message"],
+      approvalReviewFields: { send_message: ["channel", "recipient"] },
+    }]));
+    expect(valid.error).toBeNull();
+    expect(valid.configs[0].approvalReviewFields).toEqual({
+      send_message: ["channel", "recipient"],
+    });
+
+    for (const field of ["credential", "api_key", "Authorization", "sessionToken", "nested.value", "constructor"]) {
+      const rejected = parseMcpRegistry(JSON.stringify([{
+        id: "ops",
+        transport: "http",
+        url: "https://mcp.example.test/mcp",
+        allowedTools: ["send_message"],
+        approvalReviewFields: { send_message: [field] },
+      }]));
+      expect(rejected.error).toContain("unsafe field name");
+      expect(rejected.configs).toEqual([]);
+    }
   });
 });
 
@@ -305,6 +332,77 @@ describe("mcp gateway governance", () => {
       })).rejects.toMatchObject({ code: "EXTERNAL_EFFECT_KEY_REUSED", statusCode: 409 });
       expect(client.callTool).toHaveBeenCalledOnce();
       expect(JSON.stringify(audit.mock.calls)).not.toContain("critical");
+
+      const uncertainClient = createFakeClient([{ name: "create_alert" }]);
+      uncertainClient.callTool.mockRejectedValueOnce(new Error("connection closed after dispatch"));
+      const uncertainService = createMcpGatewayService({
+        upstreams: [{ config: mutationConfig, client: uncertainClient }],
+        externalEffectGate: gate,
+        recordAudit: audit,
+      });
+      await expect(uncertainService.callTool(TENANT, {
+        server: "weather",
+        tool: "create_alert",
+        arguments: { severity: "medium" },
+        externalEffect: { effectKeyHash: digest("mcp-call-uncertain") },
+      })).rejects.toMatchObject({
+        code: "MCP_EXTERNAL_EFFECT_OUTCOME_UNCERTAIN",
+        outcomeUnknown: true,
+        retryable: false,
+        reservationFingerprint: expect.stringMatching(/^[a-f0-9]{16}$/u),
+        details: expect.objectContaining({ outcomeUnknown: true }),
+      });
+      expect(audit).toHaveBeenLastCalledWith(expect.objectContaining({
+        outcome: "unknown",
+        code: "MCP_EXTERNAL_EFFECT_OUTCOME_UNCERTAIN",
+        details: expect.objectContaining({ outcomeUnknown: true }),
+      }));
+
+      const protocolErrorClient = createFakeClient([{ name: "create_alert" }]);
+      protocolErrorClient.callTool.mockResolvedValueOnce({
+        isError: true,
+        content: [{ type: "text", text: "upstream reported an error" }],
+      } as any);
+      const protocolErrorService = createMcpGatewayService({
+        upstreams: [{ config: mutationConfig, client: protocolErrorClient }],
+        externalEffectGate: gate,
+        recordAudit: audit,
+      });
+      await expect(protocolErrorService.callTool(TENANT, {
+        server: "weather",
+        tool: "create_alert",
+        arguments: { severity: "low" },
+        externalEffect: { effectKeyHash: digest("mcp-call-protocol-error") },
+      })).rejects.toMatchObject({
+        code: "MCP_EXTERNAL_EFFECT_OUTCOME_UNCERTAIN",
+        outcomeUnknown: true,
+        retryable: false,
+      });
+      expect(audit).toHaveBeenLastCalledWith(expect.objectContaining({
+        outcome: "unknown",
+        code: "MCP_EXTERNAL_EFFECT_OUTCOME_UNCERTAIN",
+      }));
+
+      const malformedResultClient = createFakeClient([{ name: "create_alert" }]);
+      malformedResultClient.callTool.mockResolvedValueOnce({
+        isError: "true",
+        content: [{ type: "text", text: "malformed error flag" }],
+      } as any);
+      const malformedResultService = createMcpGatewayService({
+        upstreams: [{ config: mutationConfig, client: malformedResultClient }],
+        externalEffectGate: gate,
+        recordAudit: audit,
+      });
+      await expect(malformedResultService.callTool(TENANT, {
+        server: "weather",
+        tool: "create_alert",
+        arguments: { severity: "malformed" },
+        externalEffect: { effectKeyHash: digest("mcp-call-malformed-result") },
+      })).rejects.toMatchObject({
+        code: "MCP_EXTERNAL_EFFECT_OUTCOME_UNCERTAIN",
+        outcomeUnknown: true,
+        retryable: false,
+      });
     } finally {
       await gate.close();
     }
@@ -349,6 +447,38 @@ describe("http mcp upstream client", () => {
     }));
     const upstream = createHttpMcpUpstream(httpConfig() as never, { fetchImpl: fetchImpl as never });
     await expect(upstream.listTools()).rejects.toMatchObject({ code: "MCP_UPSTREAM_HTTP_503" });
+  });
+
+  it("propagates the caller AbortSignal into Streamable HTTP requests", async () => {
+    const fetchImpl = vi.fn(async (_url: string, init: Record<string, unknown>) => new Promise((_resolve, reject) => {
+      const signal = init.signal as AbortSignal;
+      const onAbort = () => reject(signal.reason);
+      if (signal.aborted) onAbort();
+      else signal.addEventListener("abort", onAbort, { once: true });
+    }));
+    const upstream = createHttpMcpUpstream(httpConfig() as never, { fetchImpl: fetchImpl as never });
+    const controller = new AbortController();
+    const pending = upstream.callTool("get_forecast", { city: "Oslo" }, { signal: controller.signal });
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledOnce());
+    controller.abort(Object.assign(new Error("client disconnected"), { code: "CLIENT_DISCONNECTED" }));
+
+    await expect(pending).rejects.toMatchObject({ code: "CLIENT_DISCONNECTED" });
+  });
+});
+
+describe("stdio mcp upstream client cancellation", () => {
+  it("rejects a pre-aborted call before spawning the configured command", async () => {
+    const upstream = createStdioMcpUpstream({
+      transport: "stdio",
+      id: "never-spawn",
+      command: "this-command-must-never-run",
+    });
+    const controller = new AbortController();
+    controller.abort(Object.assign(new Error("client disconnected"), { code: "CLIENT_DISCONNECTED" }));
+
+    await expect(upstream.callTool("create_ticket", {}, { signal: controller.signal }))
+      .rejects.toMatchObject({ code: "CLIENT_DISCONNECTED" });
+    await upstream.close();
   });
 });
 
@@ -425,6 +555,26 @@ describe("openapi rest bridge", () => {
     }, { fetchImpl: fetchImpl as never });
     await expect(bridge.callTool("getPet", { petId: "42" }))
       .rejects.toMatchObject({ code: "OPENAPI_RESPONSE_TOO_LARGE" });
+  });
+
+  it("propagates the caller AbortSignal into generated REST calls", async () => {
+    const fetchImpl = vi.fn(async (_url: string, init: Record<string, unknown>) => new Promise((_resolve, reject) => {
+      const signal = init.signal as AbortSignal;
+      const onAbort = () => reject(signal.reason);
+      if (signal.aborted) onAbort();
+      else signal.addEventListener("abort", onAbort, { once: true });
+    }));
+    const bridge = createOpenApiRestBridge({
+      id: "pets",
+      baseUrl: "https://api.example.com",
+      spec: openApiSpec,
+    }, { fetchImpl: fetchImpl as never });
+    const controller = new AbortController();
+    const pending = bridge.callTool("createPet", { body: { name: "Rex" } }, { signal: controller.signal });
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledOnce());
+    controller.abort(Object.assign(new Error("gateway deadline"), { code: "GATEWAY_DEADLINE_EXCEEDED" }));
+
+    await expect(pending).rejects.toMatchObject({ code: "GATEWAY_DEADLINE_EXCEEDED" });
   });
 
   it("registers openapi upstreams through the governed registry", async () => {

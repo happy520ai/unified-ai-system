@@ -62,6 +62,16 @@ export function createProviderKeyConfigStore({ env = process.env, runtimeCredent
       };
     }
 
+    if (providerId === "bai") {
+      const error = new Error(
+        "B.AI credentials must use /providers/runtime-credential so the official endpoint pin is enforced.",
+      );
+      error.code = "provider_runtime_credential_route_required";
+      error.category = "validation";
+      error.statusCode = 422;
+      throw error;
+    }
+
     const apiKey = String(body.apiKey ?? "").trim();
     const defaultBaseUrl = providerId === "openrouter" ? "https://openrouter.ai/api/v1" : "https://integrate.api.nvidia.com/v1";
     const baseUrl = String(body.baseUrl ?? body.endpoint ?? env[`${providerId.toUpperCase()}_BASE_URL`] ?? defaultBaseUrl).trim().replace(/\/+$/, "");

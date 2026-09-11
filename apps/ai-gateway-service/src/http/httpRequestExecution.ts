@@ -70,6 +70,16 @@ export function createHttpRequestExecutionScope(
   options.request.once("aborted", onRequestAborted);
   options.response.once("close", onResponseClose);
   options.response.once("finish", onResponseFinish);
+  // The transport may have closed between server dispatch and listener
+  // registration. Reconcile the already-observable terminal state so work is
+  // never started with a falsely live request scope.
+  if (options.request.aborted) {
+    onRequestAborted();
+  }
+  if (!options.response.writableFinished
+    && (options.response.destroyed || options.request.socket?.destroyed)) {
+    onResponseClose();
+  }
 
   const context = Object.freeze({
     signal: controller.signal,
@@ -102,7 +112,7 @@ export function bindGatewayExecution<TService extends object>(
       if (property === "execute" || property === "executeStream" || property === "executeProviderOperation") {
         const operation = Reflect.get(target, property, receiver);
         if (typeof operation !== "function") return operation;
-        return (input: unknown) => {
+        return (input: unknown, invocationExecution?: { signal?: AbortSignal } | null) => {
           const boundExecution = execution.providerDispatchKeyHash
             || execution.providerDispatchKeyInvalid
             ? Object.freeze({
@@ -110,17 +120,57 @@ export function bindGatewayExecution<TService extends object>(
                 providerDispatchInvocation: ++providerDispatchInvocation,
               })
             : execution;
-          return Reflect.apply(
+          const combined = combineExecutionSignals(boundExecution.signal, invocationExecution?.signal);
+          const effectiveExecution = combined.signal === boundExecution.signal
+            ? boundExecution
+            : Object.freeze({ ...boundExecution, signal: combined.signal });
+          let result: unknown;
+          try {
+            result = Reflect.apply(
             operation,
             target,
-            [withServerIdentity(input, identityProvider?.()), boundExecution],
+            [withServerIdentity(input, identityProvider?.()), effectiveExecution],
           );
+          } catch (error) {
+            combined.dispose();
+            throw error;
+          }
+          if (result && typeof (result as PromiseLike<unknown>).then === "function") {
+            return Promise.resolve(result).finally(combined.dispose);
+          }
+          combined.dispose();
+          return result;
         };
       }
       const value = Reflect.get(target, property, receiver);
       return typeof value === "function" ? value.bind(target) : value;
     },
   });
+}
+
+function combineExecutionSignals(outer: AbortSignal, inner?: AbortSignal) {
+  if (!inner || inner === outer) return { signal: outer, dispose() {} };
+  const controller = new AbortController();
+  const listeners: Array<[AbortSignal, () => void]> = [];
+  const abortFrom = (source: AbortSignal) => {
+    if (!controller.signal.aborted) controller.abort(source.reason);
+  };
+  for (const source of [outer, inner]) {
+    if (source.aborted) {
+      abortFrom(source);
+      break;
+    }
+    const listener = () => abortFrom(source);
+    source.addEventListener("abort", listener, { once: true });
+    listeners.push([source, listener]);
+  }
+  return {
+    signal: controller.signal,
+    dispose() {
+      for (const [source, listener] of listeners) source.removeEventListener("abort", listener);
+      listeners.length = 0;
+    },
+  };
 }
 
 function readProviderDispatchContext(request: IncomingMessage) {

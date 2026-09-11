@@ -85,6 +85,12 @@ function createLedger(
       fallbackRate: 0,
       byProvider: {},
       byModel: {},
+      byAgent: {},
+      partial: false,
+      truncated: false,
+      recordsConsidered: 0,
+      recordLimit: 10_000,
+      scope: "retained-postgres-window" as const,
     })),
     getHealth: vi.fn(() => ({
       storeMode: options.storeMode ?? "postgres",

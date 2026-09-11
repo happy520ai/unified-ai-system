@@ -22,6 +22,7 @@ const serviceRoot = resolve(repoRoot, "apps/ai-gateway-service");
 const serviceEntrypoint = resolve(serviceRoot, "src/index.js");
 const mcpSmokeEntrypoint = resolve(repoRoot, "tools/mcp-smoke.mjs");
 const localClientSmokeEntrypoint = resolve(repoRoot, "tools/local-client-control-plane-smoke.mjs");
+const agentGovernanceSmokeEntrypoint = resolve(repoRoot, "tools/agent-governance-control-plane-smoke.mjs");
 const vitestEntrypoint = resolve(repoRoot, "node_modules/vitest/vitest.mjs");
 const circuitRecoveryDrillEntrypoint = resolve(repoRoot, "tools/circuit-recovery-drill.mjs");
 const javascriptExampleEntrypoint = resolve(
@@ -625,6 +626,18 @@ const CHECK_ISSUE_CATALOG = {
     message: "Credential-free local-client control-plane smoke did not remain tenant-scoped, redacted, fake, and preview-only.",
     artifactPath: "tools/local-client-control-plane-smoke.mjs",
   },
+  agentGovernanceControlPlaneReady: {
+    code: "public_clone_agent_governance_control_plane_invalid",
+    severity: "high",
+    message: "Credential-free Agent Governance control-plane smoke did not remain tenant-scoped, one-shot, bounded, and provider-free.",
+    artifactPath: "tools/agent-governance-control-plane-smoke.mjs",
+  },
+  agentGovernanceContractsReady: {
+    code: "public_clone_agent_governance_contracts_invalid",
+    severity: "high",
+    message: "Agent Governance HTTP, health/readiness, backup-export, runtime, policy, lease, approval, MCP, Workforce, Forge-action, and redaction contract tests failed.",
+    artifactPath: "apps/ai-gateway-service/src/http/agentGovernanceRoutes.e2e.test.ts",
+  },
   localClientContractsReady: {
     code: "public_clone_local_client_contracts_invalid",
     severity: "high",
@@ -916,12 +929,40 @@ async function runLocalClientControlPlaneSmoke() {
   };
 }
 
+async function runAgentGovernanceControlPlaneSmoke() {
+  let stdout = "";
+  let stderr = "";
+  const child = spawn(process.execPath, [agentGovernanceSmokeEntrypoint], {
+    cwd: repoRoot,
+    windowsHide: true,
+    env: {
+      ...process.env,
+      AI_GATEWAY_PROVIDER_MODE: "fake",
+      AI_GATEWAY_REAL_PROVIDER_ENABLED: "false",
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  child.stdout.setEncoding("utf8");
+  child.stderr.setEncoding("utf8");
+  child.stdout.on("data", (chunk) => { stdout = `${stdout}${chunk}`.slice(-16_000); });
+  child.stderr.on("data", (chunk) => { stderr = `${stderr}${chunk}`.slice(-8_000); });
+  const exitCode = await waitForChildExitCode(child, 2 * 60_000, "Agent Governance smoke");
+  let body = null;
+  try {
+    body = JSON.parse(stdout);
+  } catch {
+    body = null;
+  }
+  return { exitCode, body, stdout: stdout.trim(), stderr: stderr.trim() };
+}
+
 async function runLocalClientContractTests() {
   let stdout = "";
   let stderr = "";
   const child = spawn(process.execPath, [
     vitestEntrypoint,
     "run",
+    "--no-file-parallelism",
     "apps/ai-gateway-service/src/capabilities/localClientAdapterRegistry.test.ts",
     "apps/ai-gateway-service/src/capabilities/localClientConfigTransaction.test.ts",
     "apps/ai-gateway-service/src/capabilities/localClientExecutionIdempotencyCoordinator.test.ts",
@@ -1034,6 +1075,110 @@ async function runManagedLocalClientSdkTests() {
   return {
     exitCode,
     passed: exitCode === 0,
+    outputTail: `${stdout}\n${stderr}`.trim().slice(-4_000),
+  };
+}
+
+async function runAgentGovernanceContractTests() {
+  let stdout = "";
+  let stderr = "";
+  const child = spawn(process.execPath, [
+    vitestEntrypoint,
+    "run",
+    "--no-file-parallelism",
+    "packages/policy-engine/src/mandatoryTests.test.ts",
+    "packages/policy-engine/src/securityHardening.test.ts",
+    "apps/ai-gateway-service/src/agent-governance/agentGovernanceService.test.ts",
+    "apps/ai-gateway-service/src/agent-governance/agentGovernanceLifecycleConsistency.test.ts",
+    "apps/ai-gateway-service/src/agent-governance/agentAncestorExecutionFence.test.ts",
+    "apps/ai-gateway-service/src/agent-governance/agentRegistryStore.atomic.test.ts",
+    "apps/ai-gateway-service/src/agent-governance/agentApprovalStore.test.ts",
+    "apps/ai-gateway-service/src/agent-governance/governanceSecret.test.ts",
+    "apps/ai-gateway-service/src/agent-governance/governanceDataIsolation.test.ts",
+    "apps/ai-gateway-service/src/agent-governance/governanceOwnerLease.test.ts",
+    "apps/ai-gateway-service/src/agent-governance/governanceStateAnchor.test.ts",
+    "apps/ai-gateway-service/src/agent-governance/governanceAuditLog.test.ts",
+    "apps/ai-gateway-service/src/agent-governance/policyActivationJournal.test.ts",
+    "apps/ai-gateway-service/src/agent-governance/builtInPolicyMigration.test.ts",
+    "apps/ai-gateway-service/src/agent-governance/usageStore.test.ts",
+    "apps/ai-gateway-service/src/agent-governance/policyCatalogStore.test.ts",
+    "apps/ai-gateway-service/src/agent-governance/toolRiskCatalog.test.ts",
+    "apps/ai-gateway-service/src/application/agentGovernanceApplicationConfig.test.ts",
+    "apps/ai-gateway-service/src/agent-governance/rootAgentRouteEnforcement.test.ts",
+    "apps/ai-gateway-service/src/agent-governance/governedGitApproval.test.ts",
+    "apps/ai-gateway-service/src/agent-governance/governedRecordMeter.test.ts",
+    "apps/ai-gateway-service/src/agent-governance/governedRecordIntegration.test.ts",
+    "apps/ai-gateway-service/src/agent-governance/toolProxyFailClosed.test.ts",
+    "apps/ai-gateway-service/src/claude-code-patterns/toolRegistryGovernance.test.ts",
+    "apps/ai-gateway-service/src/http/agentExecRoutes.test.js",
+    "apps/ai-gateway-service/src/http/agentExecHttpLifecycle.e2e.test.ts",
+    "apps/ai-gateway-service/src/http/orchestrationHttpCancellation.e2e.test.ts",
+    "apps/ai-gateway-service/src/http/agentGovernanceRoutes.e2e.test.ts",
+    "apps/ai-gateway-service/src/http/agentGovernanceRoutes.errorMapping.test.ts",
+    "apps/ai-gateway-service/src/http/agentGovernanceHealth.test.ts",
+    "apps/ai-gateway-service/src/http/agentGovernanceHealth.e2e.test.ts",
+    "apps/ai-gateway-service/src/http/utils/healthUtils.agentGovernance.test.ts",
+    "apps/ai-gateway-service/src/enterprise/agentGovernanceBackupExport.test.ts",
+    "apps/ai-gateway-service/src/enterprise/enterpriseOpsService.test.js",
+    "apps/ai-gateway-service/src/agent-governance/agentFileStore.test.ts",
+    "apps/ai-gateway-service/src/agent-governance/agentGenerationRecovery.test.ts",
+    "apps/ai-gateway-service/src/agent-governance/agentAuditMirrorRecovery.test.ts",
+    "apps/ai-gateway-service/src/agent-governance/gatewayModelProposer.test.ts",
+    "apps/ai-gateway-service/src/agent-governance/sqliteAgentRegistryStore.test.ts",
+    "apps/ai-gateway-service/src/agent-governance/postgresAgentRegistryStore.test.ts",
+    "apps/ai-gateway-service/src/http/routeConcurrencyAdmission.test.ts",
+    "apps/ai-gateway-service/src/http/routeConcurrencyAdmission.e2e.test.ts",
+    "apps/ai-gateway-service/src/http/httpServerRoutes03.mcpGovernance.test.ts",
+    "apps/ai-gateway-service/src/mcpGateway/mcpGateway.test.ts",
+    "apps/ai-gateway-service/src/mcpGateway/governedMcpExecution.test.ts",
+    "apps/ai-gateway-service/src/workflow/localWorkflowService.test.js",
+    "apps/ai-gateway-service/src/workflow/governedWorkflowExecution.test.ts",
+    "apps/ai-gateway-service/src/http/workflowGovernanceHttp.e2e.test.ts",
+    "apps/ai-gateway-service/src/workforce/workforceGovernedRoutes.test.ts",
+    "apps/ai-gateway-service/src/workforce/workforceGovernedExecutor.test.ts",
+    "apps/ai-gateway-service/src/workforce/workforceTaskClaims.test.ts",
+    "apps/ai-gateway-service/src/forge/forgeGatewayService.test.js",
+  ], {
+    cwd: repoRoot,
+    windowsHide: true,
+    env: {
+      ...process.env,
+      AI_GATEWAY_PROVIDER_MODE: "fake",
+      AI_GATEWAY_REAL_PROVIDER_ENABLED: "false",
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  child.stdout.setEncoding("utf8");
+  child.stderr.setEncoding("utf8");
+  child.stdout.on("data", (chunk) => { stdout = `${stdout}${chunk}`.slice(-16_000); });
+  child.stderr.on("data", (chunk) => { stderr = `${stderr}${chunk}`.slice(-8_000); });
+  const vitestExitCode = await waitForChildExitCode(child, 8 * 60_000, "Agent Governance contract tests");
+  let forgeExitCode = 0;
+  if (vitestExitCode === 0) {
+    const forgeChild = spawn(process.execPath, [
+      "--test",
+      "packages/forge-core/test/security-tools-and-adapters.test.js",
+      "apps/ai-gateway-service/src/security/secretSafety.test.js",
+    ], {
+      cwd: repoRoot,
+      windowsHide: true,
+      env: {
+        ...process.env,
+        AI_GATEWAY_PROVIDER_MODE: "fake",
+        AI_GATEWAY_REAL_PROVIDER_ENABLED: "false",
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    forgeChild.stdout.setEncoding("utf8");
+    forgeChild.stderr.setEncoding("utf8");
+    forgeChild.stdout.on("data", (chunk) => { stdout = `${stdout}${chunk}`.slice(-16_000); });
+    forgeChild.stderr.on("data", (chunk) => { stderr = `${stderr}${chunk}`.slice(-8_000); });
+    forgeExitCode = await waitForChildExitCode(forgeChild, 2 * 60_000, "Forge governance action tests");
+  }
+  const exitCode = vitestExitCode === 0 ? forgeExitCode : vitestExitCode;
+  return {
+    exitCode,
+    passed: vitestExitCode === 0 && forgeExitCode === 0,
     outputTail: `${stdout}\n${stderr}`.trim().slice(-4_000),
   };
 }
@@ -1314,6 +1459,8 @@ try {
 }
 const mcpSmoke = await runMcpSmoke();
 const localClientControlPlaneSmoke = await runLocalClientControlPlaneSmoke();
+const agentGovernanceControlPlaneSmoke = await runAgentGovernanceControlPlaneSmoke();
+const agentGovernanceContractTests = await runAgentGovernanceContractTests();
 const localClientContractTests = await runLocalClientContractTests();
 const managedLocalClientSdkTests = await runManagedLocalClientSdkTests();
 const circuitRecoveryDrill = await runCircuitRecoveryDrill();
@@ -1642,7 +1789,7 @@ try {
     mcpStdioReady:
       mcpSmoke.exitCode === 0
       && mcpSmoke.body?.ok === true
-      && mcpSmoke.body?.toolCount === 12
+      && mcpSmoke.body?.toolCount === 15
       && mcpSmoke.body?.executionMode === "fake"
       && mcpSmoke.body?.managedGatewayCleanedUp === true,
     localClientControlPlaneReady:
@@ -1652,6 +1799,16 @@ try {
       && localClientControlPlaneSmoke.body?.executionMode === "fake-and-preview-only"
       && localClientControlPlaneSmoke.body?.realProviderCallsMade === false
       && localClientControlPlaneSmoke.body?.localApplicationEffectPerformed === false,
+    agentGovernanceControlPlaneReady:
+      agentGovernanceControlPlaneSmoke.exitCode === 0
+      && agentGovernanceControlPlaneSmoke.body?.ok === true
+      && Object.values(agentGovernanceControlPlaneSmoke.body?.checks ?? {}).every(Boolean)
+      && agentGovernanceControlPlaneSmoke.body?.executionMode === "local-governance-no-provider"
+      && agentGovernanceControlPlaneSmoke.body?.realProviderCallsMade === false
+      && agentGovernanceControlPlaneSmoke.body?.externalEffectPerformed === false,
+    agentGovernanceContractsReady:
+      agentGovernanceContractTests.exitCode === 0
+      && agentGovernanceContractTests.passed === true,
     localClientContractsReady:
       localClientContractTests.exitCode === 0
       && localClientContractTests.passed === true,
@@ -1678,6 +1835,8 @@ try {
     a2aSdkExample,
     mcp: mcpSmoke.body,
     localClientControlPlane: localClientControlPlaneSmoke.body,
+    agentGovernanceControlPlane: agentGovernanceControlPlaneSmoke.body,
+    agentGovernanceContractTests,
     localClientContractTests,
     managedLocalClientSdkTests,
   };

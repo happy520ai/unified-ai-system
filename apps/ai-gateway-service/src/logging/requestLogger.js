@@ -22,6 +22,26 @@ import {
 const BUFFER_FLUSH_SIZE = 50;
 const BUFFER_FLUSH_INTERVAL_MS = 5000;
 const MAX_MEMORY_RECORDS = BUFFER_FLUSH_SIZE * 4;
+const processExitFlushers = new Set();
+let processExitHooksInstalled = false;
+
+function flushAllRequestLoggers() {
+  for (const flush of [...processExitFlushers]) {
+    try { flush(); }
+    catch { /* Each logger already records its own safe failure. */ }
+  }
+}
+
+function registerProcessExitFlusher(flush) {
+  processExitFlushers.add(flush);
+  if (!processExitHooksInstalled) {
+    processExitHooksInstalled = true;
+    process.on("beforeExit", flushAllRequestLoggers);
+    process.on("SIGINT", flushAllRequestLoggers);
+    process.on("SIGTERM", flushAllRequestLoggers);
+  }
+  return () => { processExitFlushers.delete(flush); };
+}
 
 export function createRequestLogger(options = {}) {
   const persistenceEnabled = options.logDir !== "";
@@ -83,6 +103,9 @@ export function createRequestLogger(options = {}) {
       usageAttemptId: optionalText(entry.usageAttemptId, 256),
       usageEventType: optionalText(entry.usageEventType, 64),
       tenantId: sanitizeLogText(entry.tenantId ?? "default", 256),
+      agentId: optionalAgentId(entry.agentId),
+      agentRunId: optionalAgentRunId(entry.agentRunId),
+      agentPolicyHash: optionalDigest(entry.agentPolicyHash),
       method: sanitizeLogText(entry.method, 16),
       path: sanitizeLogText(entry.path, 2048),
       statusCode: finiteNumber(entry.statusCode),
@@ -213,6 +236,8 @@ export function createRequestLogger(options = {}) {
       try {
         const record = JSON.parse(line);
         if (filter.tenantId && record.tenantId !== filter.tenantId) continue;
+        if (filter.agentId && record.agentId !== filter.agentId) continue;
+        if (filter.agentRunId && record.agentRunId !== filter.agentRunId) continue;
         if (filter.since && record.timestamp < filter.since) continue;
         if (filter.until && record.timestamp > filter.until) continue;
         if (filter.provider && record.provider !== filter.provider) continue;
@@ -235,7 +260,16 @@ export function createRequestLogger(options = {}) {
   }
 
   function getStats(filter = {}) {
-    const records = query({ ...filter, limit: 10000 });
+    const recordLimit = 10000;
+    const records = query({ ...filter, limit: recordLimit, offset: 0 });
+    const truncated = query({ ...filter, limit: 1, offset: recordLimit }).length > 0;
+    const completeness = {
+      partial: truncated,
+      truncated,
+      recordsConsidered: records.length,
+      recordLimit,
+      scope: "current-day-file-window",
+    };
     const terminalRecords = records.filter((record) => record.usageEventType !== "attempt-started");
     const terminalAttemptIds = new Set(
       terminalRecords.map((record) => record.usageAttemptId).filter(Boolean),
@@ -253,6 +287,8 @@ export function createRequestLogger(options = {}) {
         totalCostUsd: 0,
         unknownCostRecords: unresolvedBillableAttempts,
         unresolvedBillableAttempts,
+        byAgent: {},
+        ...completeness,
       };
     }
 
@@ -286,6 +322,7 @@ export function createRequestLogger(options = {}) {
 
     const byProvider = {};
     const byModel = {};
+    const byAgent = {};
     for (const record of terminalRecords) {
       const provider = record.provider || "unknown";
       if (!byProvider[provider]) {
@@ -303,6 +340,16 @@ export function createRequestLogger(options = {}) {
       byModel[model].count += 1;
       byModel[model].tokens += record.totalTokens ?? 0;
       byModel[model].cost += record.estimatedCostUsd ?? 0;
+
+      if (record.agentId) {
+        if (!byAgent[record.agentId]) {
+          byAgent[record.agentId] = { count: 0, tokens: 0, cost: 0, errors: 0 };
+        }
+        byAgent[record.agentId].count += 1;
+        byAgent[record.agentId].tokens += record.totalTokens ?? 0;
+        byAgent[record.agentId].cost += record.estimatedCostUsd ?? 0;
+        if (record.statusCode >= 400) byAgent[record.agentId].errors += 1;
+      }
     }
 
     return {
@@ -318,6 +365,8 @@ export function createRequestLogger(options = {}) {
       fallbackRate: fallbacks / totalRequests,
       byProvider,
       byModel,
+      byAgent,
+      ...completeness,
     };
   }
 
@@ -355,9 +404,7 @@ export function createRequestLogger(options = {}) {
       console.error("[requestLogger] final durable flush failed:", summarizeErrorForLog(error));
     }
   };
-  process.on("beforeExit", flushOnExit);
-  process.on("SIGINT", flushOnExit);
-  process.on("SIGTERM", flushOnExit);
+  const unregisterProcessExitFlusher = registerProcessExitFlusher(flushOnExit);
 
   let closed = false;
   function close() {
@@ -365,9 +412,7 @@ export function createRequestLogger(options = {}) {
     closed = true;
     clearInterval(flushTimer);
     flush();
-    process.off("beforeExit", flushOnExit);
-    process.off("SIGINT", flushOnExit);
-    process.off("SIGTERM", flushOnExit);
+    unregisterProcessExitFlusher();
   }
 
   return { log, flush, assertDurable, query, getStats, getHealth, close };
@@ -486,6 +531,21 @@ function finiteNumber(value, fallback) {
 function optionalText(value, maxLength) {
   if (value === undefined || value === null || value === "") return undefined;
   return sanitizeLogText(value, maxLength);
+}
+
+function optionalAgentId(value) {
+  const normalized = String(value ?? "").trim();
+  return /^agt_[A-Za-z0-9_-]{1,128}$/u.test(normalized) ? normalized : undefined;
+}
+
+function optionalAgentRunId(value) {
+  const normalized = String(value ?? "").trim();
+  return /^agr_[A-Za-z0-9_-]{1,128}$/u.test(normalized) ? normalized : undefined;
+}
+
+function optionalDigest(value) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return /^sha256:[a-f0-9]{64}$/u.test(normalized) ? normalized : undefined;
 }
 
 function clampInteger(value, fallback, min, max) {

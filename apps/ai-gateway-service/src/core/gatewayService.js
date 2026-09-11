@@ -34,6 +34,8 @@ const PROVIDER_OPERATION_TYPES = new Set([
 
 /** Internal capability marker; JSON callers cannot construct this symbol. */
 export const MANAGED_LOCAL_CLIENT_PROVIDER_PIN = Symbol("managed-local-client-provider-pin");
+/** Server-owned Agent attribution; JSON callers cannot construct this symbol. */
+export const AGENT_GOVERNANCE_EXECUTION_CONTEXT = Symbol("agent-governance-execution-context");
 
 export class GatewayService {
   constructor({ providerRegistry, runtimeConfig = {}, healthScorer = null, requestLogger = null, enterpriseAudit = null, governance = null, contentGuardrails = null, weightedTrafficPolicy = null, providerDispatchGate = null }) {
@@ -861,6 +863,7 @@ export class GatewayService {
               ? "static-fallback-estimate"
               : "unavailable-after-attempt";
 
+      const agentExecution = readAgentGovernanceExecutionContext(request);
       await this.requestLogger.log({
         usageAttemptId: usageAttemptId ?? undefined,
         usageEventType: error ? "attempt-failed" : "attempt-completed",
@@ -884,6 +887,11 @@ export class GatewayService {
         error: error ? (error instanceof Error ? error.message : String(error)) : undefined,
         traceId: request?.context?.traceId,
         tenantId: request?.enterpriseIdentity?.tenantId ?? request?.context?.tenantId ?? "default",
+        ...(agentExecution ? {
+          agentId: agentExecution.agentId,
+          agentRunId: agentExecution.runId,
+          agentPolicyHash: agentExecution.policyHash,
+        } : {}),
       });
     } catch (err) {
       writeGatewayLog("usage_ledger_write_failed", { message: err?.message ?? "unknown" });
@@ -904,6 +912,7 @@ export class GatewayService {
   }) {
     if (selection?.selected?.providerType === "fake" || !this.requestLogger) return null;
     const usageAttemptId = randomUUID();
+    const agentExecution = readAgentGovernanceExecutionContext(request);
     if (this.runtimeConfig.realProviderEnabled === true) {
       if (!this.enterpriseAudit || typeof this.enterpriseAudit.recordAudit !== "function") {
         throw createProviderAuditFailure("PROVIDER_AUDIT_UNAVAILABLE");
@@ -924,6 +933,11 @@ export class GatewayService {
             operationType,
             promptContentRecorded: false,
             credentialRecorded: false,
+            ...(agentExecution ? {
+              agentId: agentExecution.agentId,
+              agentRunId: agentExecution.runId,
+              agentPolicyHash: agentExecution.policyHash,
+            } : {}),
           },
         });
       } catch (error) {
@@ -953,6 +967,11 @@ export class GatewayService {
         billable: true,
         traceId: request?.context?.traceId,
         tenantId: request?.enterpriseIdentity?.tenantId ?? request?.context?.tenantId ?? "default",
+        ...(agentExecution ? {
+          agentId: agentExecution.agentId,
+          agentRunId: agentExecution.runId,
+          agentPolicyHash: agentExecution.policyHash,
+        } : {}),
       });
       return usageAttemptId;
     } catch (error) {
@@ -1028,6 +1047,17 @@ export class GatewayService {
     });
     return reservation;
   }
+}
+
+function readAgentGovernanceExecutionContext(request) {
+  const context = request?.[AGENT_GOVERNANCE_EXECUTION_CONTEXT];
+  if (!context || typeof context !== "object") return null;
+  const tenantId = String(context.tenantId ?? "");
+  if (tenantId !== String(request?.enterpriseIdentity?.tenantId ?? "")) return null;
+  if (!/^agt_[A-Za-z0-9_-]{1,128}$/u.test(String(context.agentId ?? ""))
+    || !/^agr_[A-Za-z0-9_-]{1,128}$/u.test(String(context.runId ?? ""))
+    || !/^sha256:[a-f0-9]{64}$/u.test(String(context.policyHash ?? ""))) return null;
+  return context;
 }
 
 function assertManagedLocalClientProviderAttempt(request, target) {

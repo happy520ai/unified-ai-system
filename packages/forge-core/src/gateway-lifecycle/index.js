@@ -237,7 +237,7 @@ export class GatewayLifecycle {
    *
    * @param {string} apiKey — API key for the provider
    * @param {string} [providerHint] — optional provider ID hint
-   * @returns {Promise<{ models: object[], providerId?: string, needsSelection?: boolean, error?: string }>}
+   * @returns {Promise<{ models: object[], providerId?: string, apiKeyRef?: string, needsSelection?: boolean, error?: string }>}
    */
   async discoverModels(apiKey, providerHint) {
     try {
@@ -254,9 +254,10 @@ export class GatewayLifecycle {
       const json = await res.json();
       const models = json.data?.models || json.models || [];
       const providerId = json.data?.providerId || json.providerId;
+      const apiKeyRef = json.data?.apiKeyRef || json.apiKeyRef;
       const needsSelection = json.data?.status === 'needs_user_selection' || json.data?.status === 'needs_provider_selection';
 
-      return { models, providerId, needsSelection };
+      return { models, providerId, apiKeyRef, needsSelection };
     } catch (err) {
       return { models: [], error: err.message };
     }
@@ -269,18 +270,16 @@ export class GatewayLifecycle {
    * @param {object} selection
    * @param {string} selection.providerId — provider ID
    * @param {string} selection.modelId — model ID
-   * @param {string} selection.apiKey — API key
-   * @param {string} [selection.baseUrl] — optional base URL override
+   * @param {string} selection.apiKeyRef — opaque reference returned by discoverModels
    * @returns {Promise<{ success: boolean, error?: string }>}
    */
   async selectModel(selection) {
-    const { providerId, modelId, apiKey, baseUrl } = selection;
-    if (!providerId || !modelId || !apiKey) {
-      return { success: false, error: 'providerId, modelId, and apiKey are required' };
+    const { providerId, modelId, apiKeyRef } = selection;
+    if (!providerId || !modelId || !apiKeyRef) {
+      return { success: false, error: 'providerId, modelId, and apiKeyRef are required' };
     }
     try {
-      const body = { providerId, modelId, apiKey };
-      if (baseUrl) body.baseUrl = baseUrl;
+      const body = { providerId, modelId, apiKeyRef };
 
       const res = await fetch(`${this.#gatewayUrl}/models/import/confirm`, {
         method: 'POST',

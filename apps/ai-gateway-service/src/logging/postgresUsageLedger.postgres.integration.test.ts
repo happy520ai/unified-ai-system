@@ -35,6 +35,9 @@ describePostgres("real PostgreSQL central usage ledger", () => {
       usageAttemptId: attemptId,
       usageEventType: "attempt-started" as const,
       tenantId: "tenant-a",
+      agentId: "agt_postgres_usage",
+      agentRunId: "agr_postgres_usage_run",
+      agentPolicyHash: `sha256:${"a".repeat(64)}`,
       method: "POST",
       path: "/v1/chat/completions",
       statusCode: 102,
@@ -52,6 +55,9 @@ describePostgres("real PostgreSQL central usage ledger", () => {
         usageAttemptId: attemptId,
         usageEventType: "attempt-completed",
         tenantId: "tenant-a",
+        agentId: "agt_postgres_usage",
+        agentRunId: "agr_postgres_usage_run",
+        agentPolicyHash: `sha256:${"a".repeat(64)}`,
         method: "POST",
         path: "/v1/chat/completions",
         statusCode: 200,
@@ -69,12 +75,19 @@ describePostgres("real PostgreSQL central usage ledger", () => {
       });
 
       await expect(first.query({ tenantId: "tenant-a" })).resolves.toHaveLength(2);
+      await expect(first.query({ agentId: "agt_postgres_usage" })).resolves.toHaveLength(2);
       await expect(first.query({ tenantId: "tenant-b" })).resolves.toHaveLength(0);
       await expect(first.getStats({ tenantId: "tenant-a" })).resolves.toMatchObject({
         totalRequests: 1,
         totalTokens: 15,
         totalCostUsd: 0.0015,
         unresolvedBillableAttempts: 0,
+        byAgent: {
+          agt_postgres_usage: { count: 1, tokens: 15, cost: 0.0015, errors: 0 },
+        },
+        partial: false,
+        truncated: false,
+        scope: "retained-postgres-window",
       });
       const reconciliation = createProviderStatementReconciliationService({
         requestLogger: first,

@@ -15,10 +15,17 @@ const GLOBAL_MUTATION_PREFIXES = [
   "/provider-config",
   "/models/import",
   "/model-library",
+  "/v1/policies",
 ] as const;
 
 const GLOBAL_MUTATION_PATHS = new Set([
   "/real-capabilities/activate-five",
+]);
+
+const GLOBAL_CONTROL_PLANE_READ_PATHS = new Set([
+  "/v1/policies",
+  "/v1/policies/list",
+  "/v1/governance/stats",
 ]);
 
 function normalize(value: unknown): string {
@@ -41,6 +48,13 @@ export function isPlatformControlPlaneMutation(method: unknown, pathname: unknow
   ));
 }
 
+export function isPlatformControlPlaneAccess(method: unknown, pathname: unknown): boolean {
+  const normalizedMethod = normalize(method).toUpperCase();
+  const normalizedPath = normalize(pathname).replace(/\/+$/u, "") || "/";
+  return isPlatformControlPlaneMutation(normalizedMethod, normalizedPath)
+    || (normalizedMethod === "GET" && GLOBAL_CONTROL_PLANE_READ_PATHS.has(normalizedPath));
+}
+
 export function evaluatePlatformControlPlaneAccess({
   method,
   pathname,
@@ -52,7 +66,7 @@ export function evaluatePlatformControlPlaneAccess({
   identity: EnterpriseIdentity;
   env?: RuntimeEnvironment;
 }): PlatformControlPlaneDecision {
-  if (!isPlatformControlPlaneMutation(method, pathname)) {
+  if (!isPlatformControlPlaneAccess(method, pathname)) {
     return { required: false, allowed: true, code: null };
   }
 

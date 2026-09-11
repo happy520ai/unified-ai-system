@@ -83,6 +83,7 @@ export function createToolUseContext({ registry, permissionChecker, eventBus, ag
  * @param {string} [def.externalEffectType] - Irreversible external effect class
  * @param {boolean} [def.externalEffectRequiresFence] - Require an active execution fence
  * @param {boolean} [def.readOnlyAttested] - Explicit trusted attestation for dynamically registered read-only tools
+ * @param {Object} [def.resultRecordDescriptor] - Server-authored governed result-record contract
  * @returns {Object} 标准化的工具定义
  */
 export function buildTool(def) {
@@ -97,6 +98,8 @@ export function buildTool(def) {
     externalEffectType: def.externalEffectType || null,
     externalEffectRequiresFence: def.externalEffectRequiresFence === true,
     readOnlyAttested: def.readOnlyAttested === true,
+    /** Trusted only when admitted by the server-side registry/catalog; never derive from agent input. */
+    resultRecordDescriptor: def.resultRecordDescriptor || null,
     /** 来源标记，区分内置工具 vs 外部注册工具 */
     source: def.source || "built-in",
     /** 工具版本号 */

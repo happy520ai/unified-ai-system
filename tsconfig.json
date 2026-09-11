@@ -11,6 +11,7 @@
   "include": [
     "apps/ai-gateway-service/src/**/*.ts",
     "packages/shared-contracts/src/**/*.ts",
+    "packages/policy-engine/src/**/*.ts",
     "packages/shared-config/src/**/*.ts",
     "packages/shared-sdk/src/**/*.ts",
     "packages/shared-utils/src/**/*.ts"

@@ -87,5 +87,8 @@ describe("workforceService.runLocal — real local orchestration", () => {
     expect(result.releaseExecuted).toBe(false);
     expect(result.commitCreated).toBe(false);
     expect(result.pushExecuted).toBe(false);
+    expect(result.localExecutionBoundary.evidenceFileWrites).toBe(false);
+    expect(result.localExecutionBoundary.allowedEvidencePaths).toEqual([]);
+    expect(result.evidencePath).toBeNull();
   });
 });

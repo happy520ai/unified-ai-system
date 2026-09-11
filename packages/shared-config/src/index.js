@@ -11,6 +11,8 @@ export function loadRuntimeConfig(env = process.env) {
   const nvidiaApiKeyPresent = Boolean(nvidiaApiKey);
   const mimoApiKey = env.MIMO_API_KEY;
   const mimoApiKeyPresent = Boolean(mimoApiKey);
+  const baiApiKey = env.BAI_API_KEY;
+  const baiApiKeyPresent = Boolean(baiApiKey);
   const realProviderEnabled = readBoolean(
     env.AI_GATEWAY_REAL_PROVIDER_ENABLED,
     DEFAULT_RUNTIME_CONFIG.aiGatewayService.realProviderEnabled,
@@ -18,6 +20,8 @@ export function loadRuntimeConfig(env = process.env) {
   const openAiModel = env.OPENAI_MODEL ?? "gpt-4o-mini";
   const nvidiaModel = env.NVIDIA_MODEL ?? "meta/llama-3.1-8b-instruct";
   const mimoModel = env.MIMO_MODEL ?? "mimo-v2.5-pro";
+  const baiModel = env.BAI_MODEL ?? "qwen3.8-flash";
+  const baiModelPresent = Boolean(env.BAI_MODEL);
   const requestedEnabledProviders = readList(env.AI_GATEWAY_ENABLED_PROVIDERS, []);
   const openAiProviderEnabled = shouldEnableOpenAiProvider({
     providerMode,
@@ -35,6 +39,13 @@ export function loadRuntimeConfig(env = process.env) {
     providerMode,
     realProviderEnabled,
     mimoApiKeyPresent,
+    requestedEnabledProviders,
+  });
+  const baiProviderEnabled = shouldEnableBaiProvider({
+    providerMode,
+    realProviderEnabled,
+    baiApiKeyPresent,
+    baiModelPresent,
     requestedEnabledProviders,
   });
   const providerSelection = createProviderSelectionConfig({
@@ -95,6 +106,21 @@ export function loadRuntimeConfig(env = process.env) {
             endpoint: env.MIMO_BASE_URL ?? provider.endpoint,
             apiKey: mimoApiKey,
             apiKeyPresent: mimoApiKeyPresent,
+          };
+        }
+
+        if (provider.providerId === "bai") {
+          return {
+            ...provider,
+            modelId: baiModel,
+            modelDisplayName: baiModel,
+            enabled: baiProviderEnabled,
+            // B.AI is a dedicated provider. Its destination is deliberately
+            // fixed so an environment variable cannot redirect bearer keys.
+            endpoint: "https://api.b.ai/v1",
+            modelSelectionExplicit: Boolean(env.BAI_MODEL),
+            apiKey: baiApiKey,
+            apiKeyPresent: baiApiKeyPresent,
           };
         }
 
@@ -171,7 +197,14 @@ function readExtraProviderModels(env) {
   if (wanted.length === 0) {
     return [];
   }
-  return DEFAULT_PROVIDER_MODELS.filter((entry) => wanted.includes(String(entry.providerId).toLowerCase()));
+  const defaultProviderIds = new Set(
+    DEFAULT_RUNTIME_CONFIG.aiGatewayService.providerModels
+      .map((entry) => String(entry.providerId).toLowerCase()),
+  );
+  return DEFAULT_PROVIDER_MODELS.filter((entry) => {
+    const providerId = String(entry.providerId).toLowerCase();
+    return wanted.includes(providerId) && !defaultProviderIds.has(providerId);
+  });
 }
 
 function readRouteMode(value, fallback) {
@@ -233,6 +266,18 @@ function shouldEnableMimoProvider({ providerMode, realProviderEnabled, mimoApiKe
 
   if (providerMode === "real" || providerMode === "auto") {
     return requestedEnabledProviders.includes("mimo");
+  }
+
+  return false;
+}
+
+function shouldEnableBaiProvider({ providerMode, realProviderEnabled, baiApiKeyPresent, baiModelPresent, requestedEnabledProviders }) {
+  if (!realProviderEnabled || !baiApiKeyPresent || !baiModelPresent) {
+    return false;
+  }
+
+  if (providerMode === "real" || providerMode === "auto") {
+    return requestedEnabledProviders.includes("bai");
   }
 
   return false;

@@ -47,6 +47,10 @@ const RUNTIME_ROUTE_PERMISSION_OVERRIDES = new Map<string, string>([
   ["POST /local-clients/onboarding/apply", "workflow:approve"],
   ["POST /local-clients/onboarding/rollback", "workflow:approve"],
   ["POST /local-clients/onboarding/recover", "workflow:approve"],
+  ["GET /v1/agents", "dashboard:read"],
+  ["GET /v1/approvals", "dashboard:read"],
+  ["POST /v1/policies", "user:admin"],
+  ["GET /v1/policies", "audit:read"],
 ]);
 
 function normalizePath(pathname: unknown) {
@@ -65,6 +69,34 @@ export function resolveRuntimeRoutePermissionOverride(method: unknown, pathname:
     && /^\/approvals\/[^/]+\/(?:approve|reject)$/.test(normalizedPath)
   ) {
     return "workflow:approve";
+  }
+
+  if (normalizedMethod === "GET" && /^\/v1\/agents\/agt_[A-Za-z0-9_-]{1,128}$/.test(normalizedPath)) {
+    return "dashboard:read";
+  }
+  if (normalizedMethod === "GET"
+    && /^\/v1\/agents\/agt_[A-Za-z0-9_-]{1,128}\/effective-policy$/.test(normalizedPath)) {
+    return "dashboard:read";
+  }
+  if (normalizedMethod === "GET"
+    && /^\/v1\/agents\/agt_[A-Za-z0-9_-]{1,128}\/audit$/.test(normalizedPath)) {
+    return "audit:read";
+  }
+  if (normalizedMethod === "POST"
+    && /^\/v1\/agents\/agt_[A-Za-z0-9_-]{1,128}\/run$/.test(normalizedPath)) {
+    return "workflow:run";
+  }
+  if (normalizedMethod === "POST"
+    && /^\/v1\/agents\/agt_[A-Za-z0-9_-]{1,128}\/revoke$/.test(normalizedPath)) {
+    return "workflow:approve";
+  }
+  if (normalizedMethod === "POST"
+    && /^\/v1\/approvals\/[A-Za-z0-9_-]{1,160}\/(?:approve|reject)$/.test(normalizedPath)) {
+    return "workflow:approve";
+  }
+  if (normalizedMethod === "POST"
+    && /^\/v1\/policies\/[^/]{1,160}\/\d{1,9}\/activate$/.test(normalizedPath)) {
+    return "user:admin";
   }
 
   if (

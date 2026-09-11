@@ -170,6 +170,40 @@ describe('legacy compileGoal language propagation', () => {
       await rm(projectRoot, { recursive: true, force: true });
     }
   });
+
+  it('clears the 120-second LLM deadline after a fast compiler result', async () => {
+    const store = createMockStore();
+    const projectRoot = await makeProjectWithFiles(['README.md']);
+    globalThis.fetch = mockFetchForJson(dagWithAllowedFiles(['docs/**/*.md'], [], 'timer-cleanup'));
+    const originalSetTimeout = globalThis.setTimeout;
+    const originalClearTimeout = globalThis.clearTimeout;
+    let compilerTimeout;
+    let compilerTimeoutCleared = false;
+    globalThis.setTimeout = (callback, delay, ...args) => {
+      const handle = originalSetTimeout(callback, delay, ...args);
+      if (delay === 120_000) compilerTimeout = handle;
+      return handle;
+    };
+    globalThis.clearTimeout = (handle) => {
+      if (handle === compilerTimeout) compilerTimeoutCleared = true;
+      return originalClearTimeout(handle);
+    };
+
+    try {
+      await compileGoal(store, {
+        goalText: 'Document the timer cleanup path',
+        projectRoot,
+        skipCodebaseProbe: true,
+      });
+      assert.ok(compilerTimeout, 'compiler should create its bounded LLM deadline');
+      assert.equal(compilerTimeoutCleared, true, 'compiler must clear the deadline after the LLM settles');
+    } finally {
+      globalThis.setTimeout = originalSetTimeout;
+      globalThis.clearTimeout = originalClearTimeout;
+      restoreFetch();
+      await rm(projectRoot, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('shared language execution policy', () => {

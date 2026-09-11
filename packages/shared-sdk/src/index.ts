@@ -67,6 +67,23 @@ import type {
   WorkflowPlanResult,
   WorkflowRequest,
   WorkflowRunResult,
+  ActivateGovernancePolicyResult,
+  AgentGovernanceStatsResult,
+  CreateGovernancePolicyRequest,
+  CreateGovernancePolicyResult,
+  GenerateGovernedAgentRequest,
+  GenerateGovernedAgentResult,
+  GovernedAgentAuditResult,
+  GovernedAgentDescribeResult,
+  GovernedAgentListResult,
+  GovernedAgentPolicyResult,
+  GovernedAgentRunResult,
+  GovernedApprovalDecisionResult,
+  GovernedApprovalListResult,
+  GovernancePolicyListResult,
+  RevokeGovernedAgentRequest,
+  RevokeGovernedAgentResult,
+  RunGovernedAgentRequest,
   WorkforceAgentsResult,
   WorkforceHealthResult,
   WorkforcePlanDeleteResult,
@@ -97,6 +114,23 @@ export type {
   LocalClientReceiptReconciliationQuery,
   LocalClientReceiptReconciliationResponse,
   LocalClientReceiptReconciliationState,
+  ActivateGovernancePolicyResult,
+  AgentGovernanceStatsResult,
+  CreateGovernancePolicyRequest,
+  CreateGovernancePolicyResult,
+  GenerateGovernedAgentRequest,
+  GenerateGovernedAgentResult,
+  GovernedAgentAuditResult,
+  GovernedAgentDescribeResult,
+  GovernedAgentListResult,
+  GovernedAgentPolicyResult,
+  GovernedAgentRunResult,
+  GovernedApprovalDecisionResult,
+  GovernedApprovalListResult,
+  GovernancePolicyListResult,
+  RevokeGovernedAgentRequest,
+  RevokeGovernedAgentResult,
+  RunGovernedAgentRequest,
 } from "@unified-ai-system/shared-contracts";
 
 export interface GatewayClientOptions {
@@ -367,6 +401,19 @@ export interface GatewayClient {
     options: GovernedLocalClientOnboardingMutationOptions,
   ): Promise<ResultEnvelope<GovernedLocalClientOnboardingMutationOutcome>>;
   previewLocalClientExecution(request: PreviewLocalClientExecutionRequest): Promise<ResultEnvelope<PreviewLocalClientExecutionResult>>;
+  agentGovernanceStats(): Promise<AgentGovernanceStatsResult>;
+  generateGovernedAgent(request: GenerateGovernedAgentRequest): Promise<GenerateGovernedAgentResult>;
+  governedAgents(): Promise<GovernedAgentListResult>;
+  governedAgent(agentId: string): Promise<GovernedAgentDescribeResult>;
+  governedAgentPolicy(agentId: string): Promise<GovernedAgentPolicyResult>;
+  governedAgentAudit(agentId: string): Promise<GovernedAgentAuditResult>;
+  runGovernedAgent(agentId: string, request: RunGovernedAgentRequest): Promise<GovernedAgentRunResult>;
+  revokeGovernedAgent(agentId: string, request?: RevokeGovernedAgentRequest): Promise<RevokeGovernedAgentResult>;
+  governedApprovals(agentId?: string): Promise<GovernedApprovalListResult>;
+  decideGovernedApproval(approvalId: string, decision: "approve" | "reject"): Promise<GovernedApprovalDecisionResult>;
+  governancePolicies(): Promise<GovernancePolicyListResult>;
+  createGovernancePolicy(request: CreateGovernancePolicyRequest): Promise<CreateGovernancePolicyResult>;
+  activateGovernancePolicy(policyKey: string, version: number): Promise<ActivateGovernancePolicyResult>;
   enhancePrompt(request: PromptEnhancementRequest): Promise<ResultEnvelope<PromptEnhancementResult>>;
   enhancePromptLlm(request: GatewayLlmPromptEnhancementRequest): Promise<ResultEnvelope<Record<string, unknown>>>;
   chat(request: GatewayChatRequest & ProviderDispatchRequestOptions): Promise<GatewayChatResult>;

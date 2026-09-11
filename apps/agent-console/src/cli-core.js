@@ -37,18 +37,42 @@ export const DEFAULT_GATEWAY_URL =
   process.env.AI_GATEWAY_SERVICE_URL ?? "http://127.0.0.1:3100";
 
 const COMMANDS = new Set([
+  "agents",
   "chat",
   "clients",
   "clients-onboarding",
   "demo",
   "doctor",
   "enhance",
+  "forge",
   "help",
   "serve",
   "spend",
   "status",
   "version",
 ]);
+const AGENT_GOVERNANCE_SUBCOMMANDS = new Set([
+  "status",
+  "list",
+  "show",
+  "generate",
+  "run",
+  "revoke",
+  "approvals",
+  "approve",
+  "reject",
+]);
+const AGENT_GOVERNANCE_MUTATIONS = new Set([
+  "generate",
+  "run",
+  "revoke",
+  "approve",
+  "reject",
+]);
+const AGENT_ID_PATTERN = /^agt_[A-Za-z0-9_-]{1,128}$/u;
+const AGENT_APPROVAL_ID_PATTERN = /^[A-Za-z0-9_-]{1,160}$/u;
+const AGENT_TOOL_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9_.:-]{0,159}$/u;
+const AGENT_REVIEW_SENSITIVE_KEY = /(?:password|token|secret|authorization|credential|private.?key|sealed|encrypted)/iu;
 const ENHANCEMENT_PROFILES = new Set([
   "auto",
   "general",
@@ -271,6 +295,19 @@ class CliLocalClientFailure extends Error {
   }
 }
 
+class CliAgentGovernanceFailure extends Error {
+  constructor(code, options = {}) {
+    super(code);
+    this.name = "CliAgentGovernanceFailure";
+    this.code = code;
+    this.operation = options.operation ?? null;
+    this.status = options.status ?? "rejected";
+    this.mutation = options.mutation === true;
+    this.retryAllowed = false;
+    this.exitCode = 1;
+  }
+}
+
 export function parseCliArgs(
   argv,
   env = process.env,
@@ -319,6 +356,21 @@ export function parseCliArgs(
     lifecycleManifestSha256: null,
     lifecycleProtocolVersion: null,
     lifecycleReason: null,
+    agentId: null,
+    agentApprovalId: null,
+    agentName: null,
+    agentTask: null,
+    agentGoal: null,
+    agentTools: [],
+    agentTtlSeconds: null,
+    agentParentId: null,
+    agentMaxIterations: null,
+    agentRunTimeoutMs: null,
+    agentToolMode: null,
+    agentProviderId: null,
+    agentModelId: null,
+    agentReason: null,
+    agentCascade: false,
     host: null,
     port: null,
   };
@@ -497,8 +549,83 @@ export function parseCliArgs(
       continue;
     }
     if (flag === "--reason") {
-      options.lifecycleReason = readFlagValue(argv, index, flag, inlineValue);
+      const value = readFlagValue(argv, index, flag, inlineValue);
+      options.lifecycleReason = value;
+      options.agentReason = value;
       if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--agent-id") {
+      options.agentId = readFlagValue(argv, index, flag, inlineValue);
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--approval-id") {
+      options.agentApprovalId = readFlagValue(argv, index, flag, inlineValue);
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--name") {
+      options.agentName = readFlagValue(argv, index, flag, inlineValue);
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--task") {
+      options.agentTask = readFlagValue(argv, index, flag, inlineValue);
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--goal") {
+      options.agentGoal = readFlagValue(argv, index, flag, inlineValue);
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--tool") {
+      options.agentTools.push(readFlagValue(argv, index, flag, inlineValue));
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--ttl-seconds") {
+      const value = readFlagValue(argv, index, flag, inlineValue);
+      options.agentTtlSeconds = parseIntegerOption(value, flag, 1, 2_592_000);
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--parent-agent-id") {
+      options.agentParentId = readFlagValue(argv, index, flag, inlineValue);
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--max-iterations") {
+      const value = readFlagValue(argv, index, flag, inlineValue);
+      options.agentMaxIterations = parseIntegerOption(value, flag, 1, 25);
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--run-timeout-ms") {
+      const value = readFlagValue(argv, index, flag, inlineValue);
+      options.agentRunTimeoutMs = parseIntegerOption(value, flag, 1_000, 120_000);
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--tool-mode") {
+      options.agentToolMode = readFlagValue(argv, index, flag, inlineValue);
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--provider-id") {
+      options.agentProviderId = readFlagValue(argv, index, flag, inlineValue);
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--model-id") {
+      options.agentModelId = readFlagValue(argv, index, flag, inlineValue);
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--cascade") {
+      assertFlagHasNoInlineValue(flag, inlineValue);
+      options.agentCascade = true;
       continue;
     }
     if (flag === "--enhance") {
@@ -598,6 +725,8 @@ export async function runCli(
         return await runDemo(options, runtime);
       case "serve":
         return await runServe(options, runtime, output);
+      case "agents":
+        return await runAgents(options, output);
       case "status":
         return await runStatus(options, output);
       case "doctor":
@@ -780,41 +909,293 @@ async function runServe(options, runtime, output) {
   );
 }
 
-// forge:设想族群的命令行入口(status/polish/quality/memory/taiji/workforce)。
+async function runAgents(options, output) {
+  const operation = options.positionals[0];
+  const mutation = AGENT_GOVERNANCE_MUTATIONS.has(operation);
+  const runTimeoutMs = options.agentRunTimeoutMs ?? 60_000;
+  const client = createGatewayClient({
+    baseUrl: options.url,
+    timeoutMs: operation === "run"
+      ? Math.max(options.timeoutMs, runTimeoutMs + 5_000)
+      : options.timeoutMs,
+    headers: { authorization: `Bearer ${options.adminKey}` },
+  });
+
+  try {
+    let data;
+    if (operation === "status") {
+      data = unwrapEnvelope(await client.agentGovernanceStats()).stats;
+    } else if (operation === "list") {
+      data = unwrapEnvelope(await client.governedAgents()).agents;
+    } else if (operation === "show") {
+      const [agentEnvelope, policyEnvelope] = await Promise.all([
+        client.governedAgent(options.agentId),
+        client.governedAgentPolicy(options.agentId),
+      ]);
+      data = {
+        agent: unwrapEnvelope(agentEnvelope).agent,
+        effectivePolicy: unwrapEnvelope(policyEnvelope).effectivePolicy,
+      };
+    } else if (operation === "generate") {
+      data = unwrapEnvelope(await client.generateGovernedAgent({
+        name: options.agentName,
+        task: options.agentTask,
+        requestedTools: options.agentTools,
+        ttlSeconds: options.agentTtlSeconds ?? 3600,
+        parentAgentId: options.agentParentId,
+      }));
+    } else if (operation === "run") {
+      data = unwrapEnvelope(await client.runGovernedAgent(options.agentId, {
+        goal: options.agentGoal,
+        timeoutMs: runTimeoutMs,
+        ...(options.agentMaxIterations === null ? {} : { maxIterations: options.agentMaxIterations }),
+        toolMode: options.agentToolMode ?? (options.agentTools.length > 0 ? "readonly" : "none"),
+        ...(options.agentTools.length > 0 ? { toolAllowlist: options.agentTools } : {}),
+        ...(options.agentProviderId === null ? {} : { providerId: options.agentProviderId }),
+        ...(options.agentModelId === null ? {} : { modelId: options.agentModelId }),
+      }));
+    } else if (operation === "revoke") {
+      data = unwrapEnvelope(await client.revokeGovernedAgent(options.agentId, {
+        reason: options.agentReason ?? "operator_requested",
+        cascade: options.agentCascade,
+      }));
+    } else if (operation === "approvals") {
+      const approvals = unwrapEnvelope(
+        await client.governedApprovals(options.agentId ?? undefined),
+      ).approvals;
+      data = Array.isArray(approvals) ? approvals.map(projectAgentApproval) : [];
+    } else {
+      data = projectAgentApproval(
+        unwrapEnvelope(await client.decideGovernedApproval(
+          options.agentApprovalId,
+          operation,
+        )).approval,
+      );
+    }
+
+    const operationSucceeded = operation !== "run" || data?.status === "completed";
+    const result = {
+      ok: operationSucceeded,
+      command: "agents",
+      operation,
+      mode: mutation ? "governed-mutation" : "read-only",
+      ...(mutation ? { retryAllowed: false } : { writesPerformed: false }),
+      data,
+    };
+    if (options.json) output.write(`${JSON.stringify(result, null, 2)}\n`);
+    else renderAgentGovernanceCommand(result, output);
+    return operationSucceeded ? 0 : 1;
+  } catch (error) {
+    if (error instanceof CliUsageError) throw error;
+    throw createSafeAgentGovernanceFailure(error, { operation, mutation });
+  }
+}
+
+function renderAgentGovernanceCommand(result, output) {
+  const lines = [
+    "",
+    output.bold("Agent Governance"),
+    `Operation: ${result.operation}`,
+    `Mode: ${result.mode}`,
+  ];
+  const data = result.data;
+  if (result.operation === "status") {
+    lines.push(
+      `Agents: ${safeCount(data?.agents)}`,
+      `Policies: ${safeCount(data?.policies)}`,
+      `By status: ${formatSafeRecord(data?.byStatus)}`,
+    );
+  } else if (result.operation === "list") {
+    const agents = Array.isArray(data) ? data : [];
+    lines.push(`Agents: ${agents.length}`);
+    for (const agent of agents) {
+      lines.push(
+        `  ${safeTerminalText(agent?.agentId, 160)}  ${safeTerminalText(agent?.status, 32)}  `
+        + `${safeTerminalText(agent?.name, 128)}  ${safeTerminalText(agent?.classification?.family, 64)}`,
+      );
+    }
+  } else if (result.operation === "show") {
+    const agent = data?.agent ?? {};
+    const policy = data?.effectivePolicy ?? {};
+    lines.push(
+      `Agent: ${safeTerminalText(agent.agentId, 160)}`,
+      `Name: ${safeTerminalText(agent.name, 128)}`,
+      `Status: ${safeTerminalText(agent.status, 32)}`,
+      `Owner: ${safeTerminalText(agent.ownerUserId, 160)}`,
+      `Family: ${safeTerminalText(agent.classification?.family, 64)}`,
+      `Risk: ${safeTerminalText(agent.riskLevel, 32)}`,
+      `Granted tools: ${formatSafeList(policy.grantedTools ?? agent.grantedTools)}`,
+      `Expires: ${safeTerminalText(agent.expiresAt ?? policy.expiresAt, 64)}`,
+      `Policy hash: ${safeTerminalText(agent.policyHash ?? policy.policyHash, 160)}`,
+    );
+  } else if (result.operation === "generate") {
+    lines.push(
+      `Agent: ${safeTerminalText(data?.agentId, 160)}`,
+      `Status: ${safeTerminalText(data?.status, 32)}`,
+      `Granted tools: ${formatSafeList(data?.grantedTools)}`,
+      `Expires: ${safeTerminalText(data?.expiresAt, 64)}`,
+      output.yellow("Automatic retry: forbidden; inspect the Agent list before another generate request."),
+    );
+  } else if (result.operation === "run") {
+    lines.push(
+      `Status: ${safeTerminalText(data?.status, 64)}`,
+      `Agent: ${safeTerminalText(data?.governance?.agentId, 160)}`,
+      `Provider: ${safeTerminalText(data?.provider?.id, 160)}`,
+      `Iterations: ${safeCount(data?.iterations?.used)}/${safeCount(data?.iterations?.max)}`,
+      "",
+      safeTerminalBlock(data?.finalAnswer, 8_000),
+      "",
+      output.yellow("Automatic retry: forbidden; inspect agents show and approvals before another run."),
+    );
+  } else if (result.operation === "revoke") {
+    lines.push(
+      `Revoked: ${formatSafeList(data?.revoked)}`,
+      output.yellow("Automatic retry: forbidden; reconcile with agents list before another revoke."),
+    );
+  } else if (result.operation === "approvals") {
+    const approvals = Array.isArray(data) ? data : [];
+    lines.push(`Pending approvals: ${approvals.length}`);
+    for (const approval of approvals) {
+      lines.push(
+        `  ${safeTerminalText(approval?.id, 160)}  ${safeTerminalText(approval?.agentId, 160)}  `
+        + `${safeTerminalText(approval?.toolName, 160)}  ${safeTerminalText(approval?.status, 32)}`,
+        `    Review: ${formatSafeReview(approval?.review)}`,
+      );
+    }
+  } else {
+    lines.push(
+      `Approval: ${safeTerminalText(data?.id, 160)}`,
+      `Status: ${safeTerminalText(data?.status, 32)}`,
+      `Agent: ${safeTerminalText(data?.agentId, 160)}`,
+      `Tool: ${safeTerminalText(data?.toolName, 160)}`,
+      output.yellow("Automatic retry: forbidden; reconcile with agents approvals."),
+    );
+  }
+  output.write(`${lines.join("\n")}\n\n`);
+}
+
+function safeTerminalText(value, maxLength) {
+  return String(value ?? "n/a")
+    .replace(/[\u0000-\u001f\u007f\u001b]/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim()
+    .slice(0, maxLength);
+}
+
+function safeTerminalBlock(value, maxLength) {
+  return String(value ?? "n/a")
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u001b]/gu, "")
+    .slice(0, maxLength);
+}
+
+function safeCount(value) {
+  return Number.isSafeInteger(value) && value >= 0 ? value : 0;
+}
+
+function formatSafeList(value) {
+  return Array.isArray(value) && value.length > 0
+    ? value.slice(0, 100).map((item) => safeTerminalText(item, 160)).join(", ")
+    : "none";
+}
+
+function formatSafeRecord(value) {
+  if (!isPlainRecord(value)) return "none";
+  return Object.entries(value)
+    .slice(0, 32)
+    .map(([key, count]) => `${safeTerminalText(key, 64)}=${safeCount(count)}`)
+    .join(", ") || "none";
+}
+
+function formatSafeReview(value) {
+  if (!isPlainRecord(value)) return "unavailable";
+  try {
+    return safeTerminalText(JSON.stringify(value), 4_000);
+  } catch {
+    return "unavailable";
+  }
+}
+
+function projectAgentApproval(value) {
+  if (!isPlainRecord(value)) throw new Error("invalid Agent approval response");
+  const output = {};
+  for (const key of [
+    "id",
+    "agentId",
+    "toolName",
+    "argumentsHash",
+    "status",
+    "requestedAt",
+    "expiresAt",
+    "decidedAt",
+    "decidedBy",
+  ]) {
+    if (typeof value[key] === "string") output[key] = value[key].slice(0, 4_000);
+  }
+  if (value.review !== undefined) output.review = sanitizeAgentReview(value.review);
+  return Object.freeze(output);
+}
+
+function sanitizeAgentReview(value, depth = 0) {
+  if (depth > 8) return "[truncated]";
+  if (value === null || typeof value === "boolean") return value;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") return value.slice(0, 16_000);
+  if (Array.isArray(value)) {
+    return value.slice(0, 100).map((item) => sanitizeAgentReview(item, depth + 1));
+  }
+  if (!isPlainRecord(value)) return "[unsupported]";
+  return Object.fromEntries(
+    Object.entries(value)
+      .slice(0, 100)
+      .map(([key, item]) => [
+        key.slice(0, 160),
+        AGENT_REVIEW_SENSITIVE_KEY.test(key)
+          ? "[redacted]"
+          : sanitizeAgentReview(item, depth + 1),
+      ]),
+  );
+}
+
+function createSafeAgentGovernanceFailure(error, { operation, mutation }) {
+  const rawCode = typeof error?.code === "string" && /^[A-Za-z0-9_:-]{1,128}$/u.test(error.code)
+    ? error.code
+    : null;
+  const transportUncertain = new Set([
+    "GATEWAY_CLIENT_ABORTED",
+    "GATEWAY_CLIENT_TIMEOUT",
+    "GATEWAY_HTTP_ERROR",
+    "GATEWAY_NETWORK_ERROR",
+    "GATEWAY_PROTOCOL_ERROR",
+  ]).has(rawCode);
+  const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : null;
+  const unknown = mutation && (transportUncertain || statusCode === null || statusCode >= 500);
+  return new CliAgentGovernanceFailure(
+    unknown
+      ? "AGENT_GOVERNANCE_OUTCOME_UNKNOWN"
+      : rawCode ?? "AGENT_GOVERNANCE_REQUEST_REJECTED",
+    {
+      operation,
+      mutation,
+      status: unknown ? "unknown-reconcile-required" : "rejected",
+    },
+  );
+}
+
+// Forge remains a read-only status surface until provider/effect commands
+// share the console's explicit confirmation and reconciliation gates.
 function trimUrl(url) {
   return String(url ?? "").replace(/[/]+$/, "");
 }
 async function runForge(options, output) {
-  const client = createGatewayClient({ baseUrl: options.url, timeoutMs: options.timeoutMs });
-  const sub = String(options._.length > 1 ? options._[1] : options.forgeCommand ?? "status");
-  const request = async (path, body) => {
-    const response = await fetch(`${trimUrl(options.url)}${path}`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "provider-dispatch-key": `uai-cli-${randomUUID()}`,
-        ...(process.env.PME_AUTH_TOKEN ? { authorization: `Bearer ${process.env.PME_AUTH_TOKEN}` } : {}),
-      },
-      body: JSON.stringify(body ?? {}),
-    });
-    const payload = await response.json().catch(() => ({}));
-    return { status: response.status, payload };
-  };
   const get = async (path) => {
     const response = await fetch(`${trimUrl(options.url)}${path}`, {
-      headers: process.env.PME_AUTH_TOKEN ? { authorization: `Bearer ${process.env.PME_AUTH_TOKEN}` } : {},
+      headers: options.adminKey ? { authorization: `Bearer ${options.adminKey}` } : {},
+      redirect: "error",
+      signal: AbortSignal.timeout(options.timeoutMs),
     });
     return { status: response.status, payload: await response.json().catch(() => ({})) };
   };
-  let result;
-  if (sub === "status") result = await get("/forge/status");
-  else if (sub === "polish") result = await request("/forge/polish", { content: String(options.text ?? options._.slice(2).join(" ") ?? "") });
-  else if (sub === "quality") result = await request("/forge/quality", { code: String(options.text ?? options._.slice(2).join(" ") ?? "") });
-  else if (sub === "memory") result = await request("/forge/memory", { action: "remember", content: String(options.text ?? options._.slice(2).join(" ") ?? "") });
-  else if (sub === "recall") result = await request("/forge/memory", { action: "recall", query: String(options.text ?? options._.slice(2).join(" ") ?? "") });
-  else if (sub === "taiji") result = await request("/taiji/compile", { request: String(options.text ?? options._.slice(2).join(" ") ?? "") });
-  else if (sub === "workforce") result = await request("/workforce/preview", { task: String(options.text ?? options._.slice(2).join(" ") ?? "") });
-  else throw new CliUsageError("Unknown forge subcommand. Use: status | polish | quality | memory | recall | taiji | workforce");
+  const result = await get("/forge/status");
   output.write(`${JSON.stringify(result.payload, null, 2)}
 `);
   return result.status >= 200 && result.status < 300 ? 0 : 1;
@@ -2484,6 +2865,8 @@ Usage:
   pnpm gateway <command> [options]
 
 Commands:
+  agents <operation> Governed Agent status, lifecycle, execution, and approvals
+                     status, list, show, generate, run, revoke, approvals, approve, reject
   clients [operation]
                    discover, list, inspect, register, verify, disable, revoke, smart-manage
   clients-onboarding <operation>
@@ -2492,6 +2875,7 @@ Commands:
   serve            Start the local gateway
   status           Inspect gateway and chat readiness
   enhance [prompt] Preview a structured prompt without calling a model
+  forge status       Read-only Forge status (provider/mutation commands disabled)
   chat [prompt]    Send one chat request to a running gateway
   spend            Show per-key token spend and budget status
   doctor           Check the local toolchain and gateway connection
@@ -2527,6 +2911,20 @@ Options:
   --manifest-sha256 <sha256>  Exact manifest binding for register or verify
   --protocol-version <value>  Optional bounded register protocol identifier
   --reason <value>            Allowlisted disable or revoke reason
+  --agent-id <agt_...>        Server-issued Agent identifier
+  --approval-id <appr_...>    Server-issued Agent approval identifier
+  --name <name>               Agent name for agents generate
+  --task <text>               Agent task for agents generate
+  --goal <text>               Execution goal for agents run
+  --tool <name>               Repeatable requested/run tool identifier
+  --ttl-seconds <n>           Agent lifetime, 1-2592000 seconds
+  --parent-agent-id <agt_...> Optional parent for agents generate
+  --max-iterations <n>        Agent run iteration bound, 1-25
+  --run-timeout-ms <n>        Agent wall-clock bound, 1000-120000ms (transport adds 5s)
+  --tool-mode <mode>          none or readonly
+  --provider-id <id>          Explicit Agent run provider
+  --model-id <id>             Explicit Agent run model
+  --cascade                   Revoke the Agent and descendants
   --profile-id <id>           Onboarding profile for inspect, verify, or plan
   --action <action>           enable, disable, rollback, or recover (plan only)
   --plan-id <id>              Server-issued onboarding plan for mutations
@@ -2547,6 +2945,13 @@ Examples:
   pnpm gateway serve
   pnpm gateway status
   # First set AGENT_CONSOLE_ADMIN_KEY in the environment; do not put it in argv.
+  pnpm gateway agents status
+  pnpm gateway agents list
+  pnpm gateway agents generate --name report-reader --task "Read the report" --tool file_read --yes
+  pnpm gateway agents run --agent-id agt_<id> --goal "Read README" --tool file_read --yes
+  pnpm gateway agents approvals --agent-id agt_<id>
+  pnpm gateway agents approve --approval-id appr_<id> --yes
+  pnpm gateway agents revoke --agent-id agt_<id> --reason operator_requested --yes
   pnpm gateway clients
   pnpm gateway clients list --include-disabled
   pnpm gateway clients inspect --client-id desktop-browser
@@ -2579,6 +2984,9 @@ Safety:
   onboarding profiles, inspect, verify, and plan never write client config.
   onboarding mutations require a scoped control-plane key, --yes, and an explicit idempotency key.
   mutation requests are sent once; unknown outcomes require reconciliation, not retry.
+  Agent generate, run, revoke, approve, and reject require --yes and are sent once.
+  Agent approval decisions remain human CLI operations; the MCP model surface cannot decide them.
+  Agent runs default to tool-mode none and fake-provider routing unless explicitly configured.
 `;
 }
 
@@ -2604,7 +3012,7 @@ function validateOptions(options) {
   }
 
   if (
-    !["chat", "demo", "enhance", "clients", "clients-onboarding"].includes(options.command)
+    !["chat", "demo", "enhance", "clients", "clients-onboarding", "agents", "forge"].includes(options.command)
     && (options.prompt !== null || options.positionals.length > 0)
   ) {
     throw new CliUsageError(
@@ -2636,8 +3044,15 @@ function validateOptions(options) {
       "Local-client lifecycle options are only valid with the clients command.",
     );
   }
-  if (!new Set(["clients", "clients-onboarding"]).has(options.command) && options.confirmed) {
-    throw new CliUsageError("--yes is only valid with governed client mutations.");
+  const agentOptionsUsed = agentGovernanceOptionsUsed(options);
+  if (options.command !== "agents" && agentOptionsUsed) {
+    throw new CliUsageError("Agent Governance options are only valid with the agents command.");
+  }
+  if (options.agentReason !== null && !new Set(["agents", "clients"]).has(options.command)) {
+    throw new CliUsageError("--reason is only valid with agents or clients.");
+  }
+  if (!new Set(["clients", "clients-onboarding", "agents"]).has(options.command) && options.confirmed) {
+    throw new CliUsageError("--yes is only valid with governed mutations.");
   }
   if (options.command === "clients-onboarding") {
     validateLocalClientOnboardingOptions(options);
@@ -2645,9 +3060,16 @@ function validateOptions(options) {
   if (options.command === "clients") {
     validateLocalClientLifecycleOptions(options);
   }
-  if (options.allowRealProvider && options.command !== "chat") {
+  if (options.command === "agents") {
+    validateAgentGovernanceOptions(options);
+  }
+  if (options.command === "forge") {
+    validateForgeOptions(options);
+  }
+  if (options.allowRealProvider && options.command !== "chat"
+    && !(options.command === "agents" && options.positionals[0] === "run")) {
     throw new CliUsageError(
-      "--allow-real-provider is only valid with the chat command.",
+      "--allow-real-provider is only valid with the chat command or agents run.",
     );
   }
   if (options.enhance && !["chat", "demo"].includes(options.command)) {
@@ -2694,17 +3116,17 @@ function validateOptions(options) {
   }
   if (
     (options.urlProvided || options.timeoutProvided)
-    && !["chat", "clients", "clients-onboarding", "doctor", "enhance", "spend", "status"].includes(options.command)
+    && !["agents", "chat", "clients", "clients-onboarding", "doctor", "enhance", "forge", "spend", "status"].includes(options.command)
   ) {
     throw new CliUsageError(
-      "--url and --timeout are only valid with chat, clients, clients-onboarding, doctor, enhance, spend, or status.",
+      "--url and --timeout are only valid with networked gateway commands.",
     );
   }
   if (options.json && options.command === "serve") {
     throw new CliUsageError("--json is not supported by serve.");
   }
 
-  if (["chat", "clients", "clients-onboarding", "doctor", "enhance", "spend", "status"].includes(options.command)) {
+  if (["agents", "chat", "clients", "clients-onboarding", "doctor", "enhance", "forge", "spend", "status"].includes(options.command)) {
     let parsedUrl;
     try {
       parsedUrl = new URL(options.url);
@@ -2714,6 +3136,142 @@ function validateOptions(options) {
     if (!["http:", "https:"].includes(parsedUrl.protocol)) {
       throw new CliUsageError("Gateway URL must use http or https.");
     }
+  }
+}
+
+function validateAgentGovernanceOptions(options) {
+  if (options.prompt !== null || options.positionals.length !== 1) {
+    throw new CliUsageError(
+      "agents requires exactly one operation: status, list, show, generate, run, revoke, approvals, approve, or reject.",
+    );
+  }
+  const operation = options.positionals[0];
+  if (!AGENT_GOVERNANCE_SUBCOMMANDS.has(operation)) {
+    throw new CliUsageError(`Unsupported agents operation: ${operation}`);
+  }
+  if (!options.adminKey) {
+    throw new CliUsageError(
+      `${operation} requires a scoped Agent Governance key.`,
+      { hint: "Set AGENT_CONSOLE_ADMIN_KEY or pass --admin-key." },
+    );
+  }
+
+  const mutation = AGENT_GOVERNANCE_MUTATIONS.has(operation);
+  if (mutation && !options.confirmed) {
+    throw new CliUsageError(`${operation} requires explicit --yes confirmation.`);
+  }
+  if (!mutation && options.confirmed) {
+    throw new CliUsageError("--yes is only valid with generate, run, revoke, approve, or reject.");
+  }
+
+  const needsAgentId = new Set(["show", "run", "revoke"]).has(operation);
+  const allowsAgentId = needsAgentId || operation === "approvals";
+  if (needsAgentId && !AGENT_ID_PATTERN.test(options.agentId ?? "")) {
+    throw new CliUsageError(`${operation} requires a valid server-issued --agent-id.`);
+  }
+  if (allowsAgentId && options.agentId !== null && !AGENT_ID_PATTERN.test(options.agentId)) {
+    throw new CliUsageError("--agent-id must be a valid server-issued Agent identifier.");
+  }
+  if (!allowsAgentId && options.agentId !== null) {
+    throw new CliUsageError("--agent-id is only valid with show, run, revoke, or approvals.");
+  }
+
+  const needsApprovalId = operation === "approve" || operation === "reject";
+  if (needsApprovalId && !AGENT_APPROVAL_ID_PATTERN.test(options.agentApprovalId ?? "")) {
+    throw new CliUsageError(`${operation} requires a valid server-issued --approval-id.`);
+  }
+  if (!needsApprovalId && options.agentApprovalId !== null) {
+    throw new CliUsageError("--approval-id is only valid with approve or reject.");
+  }
+
+  if (operation === "generate") {
+    options.agentName = normalizeAgentText(options.agentName, "--name", 128);
+    options.agentTask = normalizeAgentText(options.agentTask, "--task", 4_000);
+    if (options.agentParentId !== null && !AGENT_ID_PATTERN.test(options.agentParentId)) {
+      throw new CliUsageError("--parent-agent-id must be a valid server-issued Agent identifier.");
+    }
+  } else if (options.agentName !== null || options.agentTask !== null
+    || options.agentTtlSeconds !== null || options.agentParentId !== null) {
+    throw new CliUsageError("--name, --task, --ttl-seconds, and --parent-agent-id are only valid with generate.");
+  }
+
+  if (operation === "run") {
+    options.agentGoal = normalizeAgentText(options.agentGoal, "--goal", 4_000);
+    if (options.agentToolMode !== null && !new Set(["none", "readonly"]).has(options.agentToolMode)) {
+      throw new CliUsageError("--tool-mode must be none or readonly.");
+    }
+    if (options.agentToolMode === "none" && options.agentTools.length > 0) {
+      throw new CliUsageError("--tool cannot be combined with --tool-mode none.");
+    }
+    for (const [flag, value] of [["--provider-id", options.agentProviderId], ["--model-id", options.agentModelId]]) {
+      if (value !== null && (value.length > 256 || !/^[A-Za-z0-9._:/-]+$/u.test(value))) {
+        throw new CliUsageError(`${flag} must be a bounded provider/model identifier.`);
+      }
+    }
+    if (options.agentProviderId !== null
+      && options.agentProviderId !== "local-fake-provider"
+      && !options.allowRealProvider) {
+      throw new CliUsageError(
+        "An explicitly selected non-fake Agent provider requires --allow-real-provider.",
+      );
+    }
+  } else if (options.agentGoal !== null || options.agentMaxIterations !== null
+    || options.agentRunTimeoutMs !== null
+    || options.agentToolMode !== null || options.agentProviderId !== null
+    || options.agentModelId !== null || options.allowRealProvider) {
+    throw new CliUsageError(
+      "--goal, --max-iterations, --run-timeout-ms, --tool-mode, --provider-id, and --model-id are only valid with agents run.",
+    );
+  }
+
+  if (!new Set(["generate", "run"]).has(operation) && options.agentTools.length > 0) {
+    throw new CliUsageError("--tool is only valid with generate or run.");
+  }
+  const tools = options.agentTools.map((value) => String(value).trim());
+  if (tools.some((value) => !AGENT_TOOL_NAME_PATTERN.test(value))) {
+    throw new CliUsageError("--tool values must be bounded registered-tool identifiers.");
+  }
+  options.agentTools = [...new Set(tools)];
+
+  if (operation === "revoke") {
+    if (options.agentReason !== null) {
+      options.agentReason = normalizeAgentText(options.agentReason, "--reason", 500);
+    }
+  } else if (options.agentReason !== null || options.agentCascade) {
+    throw new CliUsageError("--reason and --cascade are only valid with revoke.");
+  }
+}
+
+function agentGovernanceOptionsUsed(options) {
+  return options.agentId !== null
+    || options.agentApprovalId !== null
+    || options.agentName !== null
+    || options.agentTask !== null
+    || options.agentGoal !== null
+    || options.agentTools.length > 0
+    || options.agentTtlSeconds !== null
+    || options.agentParentId !== null
+    || options.agentMaxIterations !== null
+    || options.agentRunTimeoutMs !== null
+    || options.agentToolMode !== null
+    || options.agentProviderId !== null
+    || options.agentModelId !== null
+    || options.agentCascade;
+}
+
+function normalizeAgentText(value, flag, maxLength) {
+  const normalized = typeof value === "string" ? value.trim() : "";
+  if (!normalized || normalized.length > maxLength || /[\u0000-\u001f\u007f]/u.test(normalized)) {
+    throw new CliUsageError(`${flag} must be non-empty, bounded, and free of control characters.`);
+  }
+  return normalized;
+}
+
+function validateForgeOptions(options) {
+  if (options.prompt !== null || options.positionals.length !== 1 || options.positionals[0] !== "status") {
+    throw new CliUsageError(
+      "Only read-only forge status is available; provider and mutation subcommands remain disabled.",
+    );
   }
 }
 
@@ -2886,7 +3444,7 @@ function localClientLifecycleOptionsUsed(options) {
     || options.lifecycleAdapterVersion !== null
     || options.lifecycleManifestSha256 !== null
     || options.lifecycleProtocolVersion !== null
-    || options.lifecycleReason !== null;
+    || (options.command === "clients" && options.lifecycleReason !== null);
 }
 
 function validateLocalClientOnboardingOptions(options) {
@@ -3068,6 +3626,26 @@ function runChildProcess(
 
 function reportFailure({ error, options, argv, stderr }) {
   const jsonRequested = options?.json ?? argv.includes("--json");
+  if (error instanceof CliAgentGovernanceFailure) {
+    if (jsonRequested) {
+      stderr.write(`${JSON.stringify({
+        ok: false,
+        command: "agents",
+        operation: error.operation,
+        status: error.status,
+        code: error.code,
+        retryAllowed: false,
+      }, null, 2)}\n`);
+    } else {
+      stderr.write(`\n[error] ${error.code}\n`);
+      stderr.write(`[status] ${error.status}\n`);
+      if (error.mutation) {
+        stderr.write("[retry] forbidden; reconcile with agents list/show/approvals before another mutation\n");
+      }
+      stderr.write("\n");
+    }
+    return error.exitCode;
+  }
   if (error instanceof CliLocalClientFailure) {
     if (jsonRequested) {
       stderr.write(`${JSON.stringify({

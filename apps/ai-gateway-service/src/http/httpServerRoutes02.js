@@ -44,6 +44,7 @@ export async function dispatchHttpRoutes02(context) {
   // pins GET /ui and GET /console to 404, and a console page would need an
   // explicit owner revision of that terminal-first invariant.
   if (request.method === "GET" && url.pathname === "/api/overview") {
+    await refreshAgentGovernanceHealth(application);
     const runtimeConfig = application?.gatewayService?.runtimeConfig ?? null;
     const healthSnapshot = createHealth(application);
     const readinessSnapshot = createSetupReadiness(application);
@@ -79,6 +80,7 @@ export async function dispatchHttpRoutes02(context) {
   }
 
   if (request.method === "GET" && (url.pathname === "/health" || url.pathname === "/health/check")) {
+    await refreshAgentGovernanceHealth(application);
     writeJson(response, 200, createOkEnvelope(createHealth(application), { startedAt }));
     return;
   }
@@ -98,6 +100,7 @@ export async function dispatchHttpRoutes02(context) {
   }
 
   if (request.method === "GET" && (url.pathname === "/healthz" || url.pathname === "/ready")) {
+    await refreshAgentGovernanceHealth(application);
     const healthSnapshot = createHealth(application);
     const readinessSnapshot = createSetupReadiness(application);
     const resilienceSnapshot = resilienceMetrics?.snapshot?.() ?? {};
@@ -190,7 +193,21 @@ export async function dispatchHttpRoutes02(context) {
   }
 
   if (request.method === "GET" && url.pathname === "/setup/readiness") {
-    writeJson(response, 200, createOkEnvelope(createSetupReadiness(application), { startedAt }));
+    await refreshAgentGovernanceHealth(application);
+    const readiness = createSetupReadiness(application);
+    if (readiness.status !== "ready") {
+      writeJson(response, 503, createErrorEnvelope(
+        "setup_unready",
+        "First-run setup dependencies are not ready.",
+        {
+          startedAt,
+          category: "health",
+          details: readiness,
+        },
+      ));
+      return;
+    }
+    writeJson(response, 200, createOkEnvelope(readiness, { startedAt }));
     return;
   }
 
@@ -200,10 +217,19 @@ export async function dispatchHttpRoutes02(context) {
       writeJson(response, 200, createOkEnvelope({ enabled: false, reason: "usage_ledger_not_configured" }, { startedAt }));
       return;
     }
+    const agentFilter = readAgentUsageFilter(url);
+    if (agentFilter.error) {
+      writeJson(response, 400, createErrorEnvelope(agentFilter.error, "Agent usage filter is invalid.", {
+        startedAt,
+        category: "validation",
+      }));
+      return;
+    }
     writeJson(response, 200, createOkEnvelope({
       enabled: true,
       stats: await requestLogger.getStats({
         tenantId: request.enterpriseIdentity?.tenantId ?? "default",
+        ...agentFilter.value,
       }),
       health: requestLogger.getHealth(),
     }, { startedAt }));
@@ -217,12 +243,21 @@ export async function dispatchHttpRoutes02(context) {
       return;
     }
     const limit = Math.min(Math.max(Number.parseInt(url.searchParams.get("limit") ?? "50", 10) || 50, 1), 500);
+    const agentFilter = readAgentUsageFilter(url);
+    if (agentFilter.error) {
+      writeJson(response, 400, createErrorEnvelope(agentFilter.error, "Agent usage filter is invalid.", {
+        startedAt,
+        category: "validation",
+      }));
+      return;
+    }
     const filter = {
       limit,
       tenantId: request.enterpriseIdentity?.tenantId ?? "default",
       provider: url.searchParams.get("provider") ?? undefined,
       model: url.searchParams.get("model") ?? undefined,
       statusCode: url.searchParams.get("statusCode") ? Number(url.searchParams.get("statusCode")) : undefined,
+      ...agentFilter.value,
     };
     const records = await requestLogger.query(filter);
     writeJson(response, 200, createOkEnvelope({
@@ -272,6 +307,7 @@ export async function dispatchHttpRoutes02(context) {
   }
 
   if (request.method === "GET" && url.pathname === "/metrics") {
+    await refreshAgentGovernanceHealth(application);
     const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
     const healthSnapshot = createHealth(application);
     const readinessSnapshot = createSetupReadiness(application);
@@ -729,6 +765,20 @@ function collectReadinessFailures(healthSnapshot, readinessSnapshot, context = {
     && healthSnapshot.enterprise.audit.central.status !== "ready") {
     readinessFailures.push("audit-central-store-unavailable");
   }
+  if (healthSnapshot?.agentGovernance?.enabled === true) {
+    if (healthSnapshot.agentGovernance.ownerLease !== "held") {
+      readinessFailures.push("agent-governance-owner-lease-unavailable");
+    }
+    if (healthSnapshot.agentGovernance.startupRecovery !== "ready") {
+      readinessFailures.push("agent-governance-startup-recovery-unavailable");
+    }
+    if (healthSnapshot.agentGovernance.stateIntegrity !== "verified") {
+      readinessFailures.push("agent-governance-state-integrity-unavailable");
+    }
+    if (healthSnapshot.agentGovernance.auditIntegrity !== "verified") {
+      readinessFailures.push("agent-governance-audit-integrity-unavailable");
+    }
+  }
   if (context?.saturated) {
     readinessFailures.push("inflight-saturation");
   }
@@ -767,6 +817,34 @@ function collectReadinessFailures(healthSnapshot, readinessSnapshot, context = {
   }
 
   return Array.from(new Set(readinessFailures));
+}
+
+async function refreshAgentGovernanceHealth(application) {
+  try {
+    await application?.agentGovernanceHealth?.check?.();
+  } catch {
+    // The monitor itself converts probe failures into a non-secret degraded
+    // snapshot. This catch keeps custom test/application seams fail-closed via
+    // createHealth's initializing fallback instead of exposing raw errors.
+  }
+}
+
+function readAgentUsageFilter(url) {
+  const agentId = url?.searchParams?.get?.("agentId") ?? "";
+  const agentRunId = url?.searchParams?.get?.("agentRunId") ?? "";
+  if (agentId && !/^agt_[A-Za-z0-9_-]{1,128}$/u.test(agentId)) {
+    return { error: "USAGE_AGENT_ID_INVALID", value: {} };
+  }
+  if (agentRunId && !/^agr_[A-Za-z0-9_-]{1,128}$/u.test(agentRunId)) {
+    return { error: "USAGE_AGENT_RUN_ID_INVALID", value: {} };
+  }
+  return {
+    error: null,
+    value: {
+      ...(agentId ? { agentId } : {}),
+      ...(agentRunId ? { agentRunId } : {}),
+    },
+  };
 }
 
 async function readWorkforceClaimStoreHealth(workforceExecutor) {

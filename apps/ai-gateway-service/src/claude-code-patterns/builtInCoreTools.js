@@ -38,6 +38,7 @@ export function validateFilePath(filePath, { allowWrite = false, workingDirector
   // Block sensitive file patterns (case-insensitive on Windows)
   const lower = normalized.toLowerCase();
   const sensitivePatterns = [
+    /(^|\/)\.data(\/|$)/,
     /\.env(\.|$|\/)/,
     /\.git(\/|$)/,
     /\/etc\/passwd/,
