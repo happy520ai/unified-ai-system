@@ -37,7 +37,9 @@ async function sites(attack = "", wrongItem = false) {
     "premature-query": `<script>fetch('/search?q=approved-item').catch(()=>{})</script>`,
   };
   const site = createServer((request, response) => {
-    requests.push(request.url!);
+    // Headless Chrome fetches /favicon.ico by itself on some platforms; it is
+    // browser-automatic traffic, not page logic, so keep it out of the record.
+    if (request.url !== "/favicon.ico") requests.push(request.url!);
     if (request.url === "/catalog" && attack === "redirect") { response.writeHead(302, { location: deniedOrigin + "/redirected" }); response.end(); return; }
     if (request.url === "/catalog") {
       response.setHeader("content-type", "text/html");
