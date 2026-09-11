@@ -840,7 +840,7 @@ it.skipIf(process.platform !== "win32")("MODEL native runtime: private branding 
   });
 });
 
-it.each(["hash", "path"] as const)("MODEL native runtime: a changed addon %s is refused before invoking the native loader", async failure => {
+it.skipIf(process.platform !== "win32").each(["hash", "path"] as const)("MODEL native runtime: a changed addon %s is refused before invoking the native loader", async failure => {
   await withNativeRuntimeModel(async model => {
     await model.enroll(); const loads = model.loadCount(), before = model.fingerprint();
     const options = failure === "hash" ? { nativeAddonSha256: "0".repeat(64) } : { nativeAddonPath: join(model.root, "local-client-authority.node") };
