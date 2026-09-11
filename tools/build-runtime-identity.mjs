@@ -19,7 +19,7 @@ try {
     // root filesystem only; every digest and inode check still applies.
     const identity = inspectRuntimeBuildIdentity(root, { allowHardlinkedInputs: containerReadonly });
     if (identity.status !== "verified") {
-      throw Object.assign(new Error("RUNTIME_IDENTITY_NOT_VERIFIED"), { code: `RUNTIME_IDENTITY_${identity.reason.replace(/-/g, "_").toUpperCase()}` });
+      throw Object.assign(new Error("RUNTIME_IDENTITY_NOT_VERIFIED"), { code: `RUNTIME_IDENTITY_${identity.reason.replace(/-/g, "_").toUpperCase()}${identity.detailStage ? "_" + identity.detailStage.replace(/-/g, "_").toUpperCase() : ""}` });
     }
     if (remainder.length === 3 && identity.declaredRevision !== remainder[2]) throw new Error("RUNTIME_IDENTITY_DECLARED_REVISION_MISMATCH");
     process.stdout.write(JSON.stringify({ identity, expectedDeclaredRevision: remainder[2] ?? null, containerReadonly }, null, 2) + "\n");

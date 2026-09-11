@@ -102,7 +102,12 @@ export function inspectRuntimeBuildIdentity(
     if (measured.packageVersion !== manifest.packageVersion || measured.sourceDigest !== manifest.sourceDigest
       || measured.lockfileDigest !== manifest.lockfileDigest || measured.sourceFileCount !== manifest.sourceFileCount) return unknown("source-mismatch");
     return Object.freeze({ ...manifest, status: "verified", verification: "source-and-lockfile-at-module-load", attested: false });
-  } catch { return unknown("source-unavailable"); }
+  } catch (error) {
+    const stage = String((error as NodeJS.ErrnoException)?.code ?? "").replace(/^RUNTIME_IDENTITY_INPUT_UNSAFE_?/, "");
+    return stage && stage !== String((error as NodeJS.ErrnoException)?.code)
+      ? Object.freeze({ ...unknown("source-unavailable"), detailStage: stage })
+      : unknown("source-unavailable");
+  }
 }
 
 /** Capture once while the module is initialized, never from env or live Git. */
