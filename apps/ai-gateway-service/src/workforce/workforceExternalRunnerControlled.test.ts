@@ -43,7 +43,12 @@ async function fixture(outcome: Outcome = "verified", coexistWithRoleSelection =
   await git.run(["-c", "user.name=Native Controller Fixture", "-c", "user.email=native-fixture@example.invalid", "-c", "commit.gpgSign=false", "commit", "-m", "Generated controller fixture baseline"]);
   const baselineRevision = (await git.run(["rev-parse", "HEAD"])).stdout.trim();
   const profile: WorkforceExternalRunnerProfileInput = { version: 1, mode: "codex-app-server-owned-worktree", profileId: "native-fixture", projectId: "fixture-project", roleId: "backend-engineer", baselineRevision,
-    binary: { path: "E:/Synthetic Native/codex.exe", sha256: "a".repeat(64), version: "0.153.4", platform: "win32" }, nativeModel: { modelId: "expected-native-model", providerId: "expected-native-provider" },
+    binary: {
+      path: process.platform === "win32" ? "E:/Synthetic Native/codex.exe" : "/synthetic-native/codex",
+      sha256: "a".repeat(64),
+      version: "0.153.4",
+      platform: process.platform as "win32" | "linux" | "darwin",
+    }, nativeModel: { modelId: "expected-native-model", providerId: "expected-native-provider" },
     disabledMcpServers: [], limits: { timeoutMs: 30000, maxInputBytes: 65536, maxMessageBytes: 8192, maxEvents: 64 },
     artifact: { readPaths: ["src/value.mjs", "test/value.test.mjs"], writePaths: ["src/value.mjs"],
       verification: { verificationId: "fixed-test", command: "node --test test/value.test.mjs", immutableTests: [{ path: "test/value.test.mjs", sha256: sha(immutable) }],

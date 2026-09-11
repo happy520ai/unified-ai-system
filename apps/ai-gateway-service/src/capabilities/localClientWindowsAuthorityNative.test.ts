@@ -369,7 +369,7 @@ it("keeps v1 clients on the original slots and rejects legacy or mixed bootstrap
   expect(f.calls.write).toBe(0); expectClosed(f);
 });
 
-it("MODEL: requires actual challenge HMAC validation before exposing PoP evidence and preserves the old slots", async () => {
+it.skipIf(process.platform !== "win32")("MODEL: requires actual challenge HMAC validation before exposing PoP evidence and preserves the old slots", async () => {
   const root = mkdtempSync(join(realpathSync(tmpdir()), "native-pop-binding-"));
   let binding: Awaited<ReturnType<typeof createLocalClientNativePopReplayBinding>> | undefined;
   try {
@@ -414,7 +414,7 @@ it("MODEL: requires actual challenge HMAC validation before exposing PoP evidenc
   }
 });
 
-it("MODEL: bounds native request and nonce cost for the real SQLite consume plus wrapper attestation chain", async () => {
+it.skipIf(process.platform !== "win32")("MODEL: bounds native request and nonce cost for the real SQLite consume plus wrapper attestation chain", async () => {
   const root = mkdtempSync(join(realpathSync(tmpdir()), "native-pop-nonce-cost-"));
   let binding: Awaited<ReturnType<typeof createLocalClientNativePopReplayBinding>> | undefined;
   let guard: LocalClientSqlitePopReplayGuard | undefined;
@@ -489,7 +489,7 @@ it.each(["success-first", "failure-first"])("MODEL boundary: concurrent verifica
   });
 });
 
-it("MODEL boundary: closing an in-flight verification cannot restore ready status", async () => {
+it.skipIf(process.platform !== "win32")("MODEL boundary: closing an in-flight verification cannot restore ready status", async () => {
   await withPopBinding(async (f, binding, checkpoint) => {
     await binding.authority.enrollBaseline(checkpoint.checkpointDigestSha256);
     const adapter = binding.createEvidenceAdapter(checkpoint.storeBindingSha256);
@@ -504,7 +504,7 @@ it("MODEL boundary: closing an in-flight verification cannot restore ready statu
   });
 });
 
-it("MODEL boundary: attestation binds the captured checkpoint and challenge while caller inputs change", async () => {
+it.skipIf(process.platform !== "win32")("MODEL boundary: attestation binds the captured checkpoint and challenge while caller inputs change", async () => {
   await withPopBinding(async (f, binding, initial) => {
     await binding.authority.enrollBaseline(initial.checkpointDigestSha256);
     const adapter = binding.createEvidenceAdapter(initial.storeBindingSha256);
@@ -522,7 +522,7 @@ it("MODEL boundary: attestation binds the captured checkpoint and challenge whil
   });
 });
 
-it("MODEL lifecycle: the full SQLite consume chain crosses two capacity windows with zero legacy claims", async () => {
+it.skipIf(process.platform !== "win32")("MODEL lifecycle: the full SQLite consume chain crosses two capacity windows with zero legacy claims", async () => {
   const root = mkdtempSync(join(realpathSync(tmpdir()), "native-pop-lifecycle-"));
   let now = Date.now(); const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
   let binding: Awaited<ReturnType<typeof createLocalClientNativePopReplayBinding>> | undefined;
@@ -556,7 +556,7 @@ it("MODEL lifecycle: the full SQLite consume chain crosses two capacity windows 
   }
 }, 120_000);
 
-it("MODEL lifecycle: a service restart rejects a captured unexpired frame and requires fresh bootstrap", async () => {
+it.skipIf(process.platform !== "win32")("MODEL lifecycle: a service restart rejects a captured unexpired frame and requires fresh bootstrap", async () => {
   await withPopBinding(async (f, binding, checkpoint) => {
     await binding.authority.enrollBaseline(checkpoint.checkpointDigestSha256);
     const adapter = binding.createEvidenceAdapter(checkpoint.storeBindingSha256), transport = f.api.request;
@@ -573,7 +573,7 @@ it("MODEL lifecycle: a service restart rejects a captured unexpired frame and re
   });
 });
 
-it("MODEL lifecycle: expiry and clock rollback withdraw cached adapter readiness", async () => {
+it.skipIf(process.platform !== "win32")("MODEL lifecycle: expiry and clock rollback withdraw cached adapter readiness", async () => {
   let now = Date.now(); const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
   try { await withPopBinding(async (_f, binding, checkpoint) => {
     await binding.authority.enrollBaseline(checkpoint.checkpointDigestSha256); const adapter = binding.createEvidenceAdapter(checkpoint.storeBindingSha256);
@@ -665,7 +665,7 @@ it.each(["missing", "empty", "schema3"] as const)("MODEL native runtime: ordinar
   });
 });
 
-it("MODEL native runtime: explicit generation-one enrollment resumes the identical baseline", async () => {
+it.skipIf(process.platform !== "win32")("MODEL native runtime: explicit generation-one enrollment resumes the identical baseline", async () => {
   await withNativeRuntimeModel(async model => {
     const first = await model.enroll(), writes = model.f.calls.write, before = model.fingerprint();
     expect(first.generation).toBe(1); expect(first.state).toBe("ready");
@@ -677,7 +677,7 @@ it("MODEL native runtime: explicit generation-one enrollment resumes the identic
   });
 });
 
-it("MODEL native runtime: explicit enrollment cannot reset an authority already at generation two", async () => {
+it.skipIf(process.platform !== "win32")("MODEL native runtime: explicit enrollment cannot reset an authority already at generation two", async () => {
   await withNativeRuntimeModel(async model => {
     await model.enroll(); const binding = await createLocalClientNativePopReplayBinding(model.f.api);
     try { await binding.authority.prepareNext(1, "f".repeat(64)); await binding.authority.finalize(2, "f".repeat(64)); }
@@ -690,7 +690,7 @@ it("MODEL native runtime: explicit enrollment cannot reset an authority already 
   });
 });
 
-it("MODEL native runtime: reopening with the same key preserves replay and a wrong key fails without rewriting state", async () => {
+it.skipIf(process.platform !== "win32")("MODEL native runtime: reopening with the same key preserves replay and a wrong key fails without rewriting state", async () => {
   await withNativeRuntimeModel(async model => {
     await model.enroll(); const first = model.create(); await expect(first.ready).resolves.toBe(true);
     await expect(first.consumeOnce(runtimeReplay())).resolves.toBe("consumed"); await first.close();
@@ -704,7 +704,7 @@ it("MODEL native runtime: reopening with the same key preserves replay and a wro
   });
 });
 
-it("MODEL native runtime: restoring the entire older SQLite file set is rejected by the retained native checkpoint", async () => {
+it.skipIf(process.platform !== "win32")("MODEL native runtime: restoring the entire older SQLite file set is rejected by the retained native checkpoint", async () => {
   await withNativeRuntimeModel(async model => {
     await model.enroll(); const oldDatabase = model.snapshot();
     const runtime = model.create(); await expect(runtime.ready).resolves.toBe(true);
@@ -716,7 +716,7 @@ it("MODEL native runtime: restoring the entire older SQLite file set is rejected
   });
 });
 
-it("MODEL native runtime: an expired live status can refresh after eight idle seconds", async () => {
+it.skipIf(process.platform !== "win32")("MODEL native runtime: an expired live status can refresh after eight idle seconds", async () => {
   let now = Date.now(); const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
   try { await withNativeRuntimeModel(async model => {
     await model.enroll(); const runtime = model.create(); await expect(runtime.ready).resolves.toBe(true);
@@ -727,7 +727,7 @@ it("MODEL native runtime: an expired live status can refresh after eight idle se
   }); } finally { clock.mockRestore(); }
 });
 
-it("MODEL native runtime: service restart refuses one consume without retry and a later prepare establishes a fresh instance", async () => {
+it.skipIf(process.platform !== "win32")("MODEL native runtime: service restart refuses one consume without retry and a later prepare establishes a fresh instance", async () => {
   await withNativeRuntimeModel(async model => {
     await model.enroll(); const runtime = model.create(); await expect(runtime.ready).resolves.toBe(true);
     const writes = model.f.calls.write, loads = model.loadCount(); model.f.restartPop();
@@ -739,7 +739,7 @@ it("MODEL native runtime: service restart refuses one consume without retry and 
   });
 });
 
-it("MODEL native runtime: concurrent prepare is shared and consumes use the same serialization boundary", async () => {
+it.skipIf(process.platform !== "win32")("MODEL native runtime: concurrent prepare is shared and consumes use the same serialization boundary", async () => {
   let now = Date.now(); const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
   try { await withNativeRuntimeModel(async model => {
     await model.enroll(); const runtime = model.create(); await expect(runtime.ready).resolves.toBe(true); now += 8_001;
@@ -758,7 +758,7 @@ it("MODEL native runtime: concurrent prepare is shared and consumes use the same
   }); } finally { clock.mockRestore(); }
 });
 
-it("MODEL native runtime: closing during initialization cannot publish a late ready state", async () => {
+it.skipIf(process.platform !== "win32")("MODEL native runtime: closing during initialization cannot publish a late ready state", async () => {
   await withNativeRuntimeModel(async model => {
     await model.enroll(); const transport = model.f.api.request, entered = signal(), release = signal(); let first = true;
     model.f.api.request = async payload => { if (first) { first = false; entered.resolve(); await release.promise; } return transport(payload); };
@@ -769,7 +769,7 @@ it("MODEL native runtime: closing during initialization cannot publish a late re
   });
 });
 
-it("MODEL native runtime: closing during a failed consume preserves the final closed state", async () => {
+it.skipIf(process.platform !== "win32")("MODEL native runtime: closing during a failed consume preserves the final closed state", async () => {
   await withNativeRuntimeModel(async model => {
     await model.enroll(); const runtime = model.create(); await expect(runtime.ready).resolves.toBe(true);
     const transport = model.f.api.request, entered = signal(), release = signal(); let first = true;
@@ -784,7 +784,7 @@ it("MODEL native runtime: closing during a failed consume preserves the final cl
   });
 });
 
-it("MODEL native runtime: disappearance of an existing DB during native bootstrap cannot recreate it", async () => {
+it.skipIf(process.platform !== "win32")("MODEL native runtime: disappearance of an existing DB during native bootstrap cannot recreate it", async () => {
   await withNativeRuntimeModel(async model => {
     await model.enroll(); const original = model.snapshot(), writes = model.f.calls.write;
     const transport = model.f.api.request, entered = signal(), release = signal(); let first = true;
@@ -803,7 +803,7 @@ it("MODEL native runtime: disappearance of an existing DB during native bootstra
   });
 });
 
-it("MODEL native runtime: a prepare queued before cleanup failure cannot reconnect or publish ready", async () => {
+it.skipIf(process.platform !== "win32")("MODEL native runtime: a prepare queued before cleanup failure cannot reconnect or publish ready", async () => {
   await withNativeRuntimeModel(async model => {
     await model.enroll(); const runtime = model.create(); await expect(runtime.ready).resolves.toBe(true);
     const original = LocalClientProtectedSqliteCheckpoint.prototype.close, entered = signal(), release = signal();
@@ -824,7 +824,7 @@ it("MODEL native runtime: a prepare queued before cleanup failure cannot reconne
   });
 });
 
-it("MODEL native runtime: private branding survives a non-owning port and does not spread extra status fields", async () => {
+it.skipIf(process.platform !== "win32")("MODEL native runtime: private branding survives a non-owning port and does not spread extra status fields", async () => {
   await withNativeRuntimeModel(async model => {
     await model.enroll(); const runtime = model.create(); await expect(runtime.ready).resolves.toBe(true);
     const nonOwning = createNonOwningNativePopReplayGuardPort(runtime)!;
@@ -893,7 +893,7 @@ async function closeNativeWiringApplication(application?: ReturnType<typeof crea
   }
 }
 
-it("MODEL native wiring: identity authority accepts only private-branded initial unavailability without consuming a proof", async () => {
+it.skipIf(process.platform !== "win32")("MODEL native wiring: identity authority accepts only private-branded initial unavailability without consuming a proof", async () => {
   await withNativeRuntimeModel(async model => {
     const runtime = model.create(), nonOwning = createNonOwningNativePopReplayGuardPort(runtime)!;
     const authority = createManagedLocalClientPopIdentityAuthority({ key: Buffer.alloc(32, 90), keyId: "native-wiring-key", replayGuard: nonOwning,
@@ -914,7 +914,7 @@ it("MODEL native wiring: identity authority accepts only private-branded initial
   });
 });
 
-it("MODEL native wiring: gateway stays unavailable without enrollment and shared configuration restores live readiness after idle", async () => {
+it.skipIf(process.platform !== "win32")("MODEL native wiring: gateway stays unavailable without enrollment and shared configuration restores live readiness after idle", async () => {
   let now = Date.now(); const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
   try { await withNativeRuntimeModel(async model => {
     const env = nativeWiringEnv(model); let application: ReturnType<typeof createGatewayApplication> | undefined;
@@ -939,7 +939,7 @@ it("MODEL native wiring: gateway stays unavailable without enrollment and shared
   }); } finally { clock.mockRestore(); }
 });
 
-it("MODEL native wiring: management CLI enrolls through the same configuration and emits only a safe checkpoint", async () => {
+it.skipIf(process.platform !== "win32")("MODEL native wiring: management CLI enrolls through the same configuration and emits only a safe checkpoint", async () => {
   await withNativeRuntimeModel(async model => {
     const env = nativeWiringEnv(model), output: string[] = []; let application: ReturnType<typeof createGatewayApplication> | undefined;
     try {
