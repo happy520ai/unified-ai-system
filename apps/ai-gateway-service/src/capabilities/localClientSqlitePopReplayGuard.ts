@@ -837,15 +837,45 @@ implements ManagedLocalClientPopReplayGuard {
   }
 
   #assertDatabaseHealthy(): void {
-    const rows = this.#db.prepare("PRAGMA quick_check").all() as Array<Record<string, unknown>>;
-    if (rows.length !== 1 || String(rows[0]?.quick_check ?? "").toLowerCase() !== "ok") {
-      throw integrityError();
+    // Metadata and rows must be read from one fixed snapshot. In WAL mode each
+    // autocommit statement gets its own snapshot, so a concurrent writer
+    // committing between two bare statements makes the pair disagree and the
+    // keyed integrity check fail spuriously (observed cross-process on CI).
+    this.#snapshotTransaction(() => {
+      const rows = this.#db.prepare("PRAGMA quick_check").all() as Array<Record<string, unknown>>;
+      if (rows.length !== 1 || String(rows[0]?.quick_check ?? "").toLowerCase() !== "ok") {
+        throw integrityError();
+      }
+      const metadata = this.#readMetadata();
+      if (!metadata) throw schemaError();
+      this.#assertMetadata(metadata);
+      this.#assertNoTargetTriggers();
+      this.#assertReplaySet(metadata, this.#scanRows());
+    });
+  }
+
+  // SAVEPOINT is used instead of BEGIN so the snapshot block nests safely
+  // inside caller transactions (the protected-checkpoint digest callback runs
+  // inside one); a savepoint outside any transaction still pins one read
+  // snapshot for every statement in the block.
+  #snapshotTransaction<T>(operation: () => T): T {
+    const name = "pop_replay_health_snapshot";
+    let began = false;
+    try {
+      this.#db.exec(`SAVEPOINT ${name}`);
+      began = true;
+      const result = operation();
+      this.#db.exec(`RELEASE SAVEPOINT ${name}`);
+      return result;
+    } catch (error) {
+      if (began) {
+        try {
+          this.#db.exec(`ROLLBACK TO SAVEPOINT ${name}`);
+          this.#db.exec(`RELEASE SAVEPOINT ${name}`);
+        } catch { /* Preserve the original failure. */ }
+      }
+      throw error;
     }
-    const metadata = this.#readMetadata();
-    if (!metadata) throw schemaError();
-    this.#assertMetadata(metadata);
-    this.#assertNoTargetTriggers();
-    this.#assertReplaySet(metadata, this.#scanRows());
   }
 
   #transaction<T>(operation: () => T): T {
