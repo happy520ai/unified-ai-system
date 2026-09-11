@@ -22,7 +22,9 @@ const sha = (value: string | Buffer) => createHash("sha256").update(value).diges
 const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => { for (const cleanup of cleanups.splice(0).reverse()) await cleanup(); });
 async function files() {
-  const base = resolve("apps/ai-gateway-service/evidence/product-final"), root = await mkdtemp(join(base, "t064-permissions-")), workspace = join(root, "workspace");
+  const base = resolve("apps/ai-gateway-service/evidence/product-final");
+  await mkdir(base, { recursive: true });
+  const root = await mkdtemp(join(base, "t064-permissions-")), workspace = join(root, "workspace");
   cleanups.push(async () => { expect(await realpath(root)).toBe(resolve(root)); expect(resolve(root).startsWith(resolve(base) + sep)).toBe(true); await rm(root, { recursive: true, force: true }); });
   await mkdir(join(workspace, "src"), { recursive: true }); await mkdir(join(root, "outside")); await writeFile(join(workspace, "src/value.mjs"), "old\n");
   return { root, workspace, profile: freezeWorkforceExternalRunnerProfile(draft(process.platform as "win32" | "linux" | "darwin")), target: join(workspace, "src/value.mjs") };

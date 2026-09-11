@@ -29,7 +29,9 @@ const originalSource = "export const value = 1;\n", changedSource = "export cons
 type Outcome = "verified" | "unknown" | "missing-final-persist";
 type Task = Parameters<typeof nativeRuntime.runWorkforceExternalRunner>[2];
 async function fixture(outcome: Outcome = "verified", coexistWithRoleSelection = false) {
-  const base = resolve("apps/ai-gateway-service/evidence/product-final"), root = await mkdtemp(join(base, "t064-controlled-"));
+  const base = resolve("apps/ai-gateway-service/evidence/product-final");
+  await mkdir(base, { recursive: true });
+  const root = await mkdtemp(join(base, "t064-controlled-"));
   cleanup.push(async () => { expect(await realpath(root)).toBe(resolve(root)); expect(resolve(root).startsWith(base + sep)).toBe(true); await rm(root, { recursive: true, force: true }); });
   const repo = join(root, "repo"), scratch = join(root, "scratch"), executionDir = join(root, "execution");
   await mkdir(join(repo, "src"), { recursive: true }); await mkdir(join(repo, "test")); await mkdir(scratch);
