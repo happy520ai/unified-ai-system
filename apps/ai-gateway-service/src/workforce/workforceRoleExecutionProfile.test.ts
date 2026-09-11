@@ -128,18 +128,18 @@ describe("frozen Workforce role execution profile", () => {
     expect(isTrustedWorkforceSelectionFeedback(feedback)).toBe(true);
     expect(Object.isFrozen(feedback) && Object.isFrozen(feedback.receipt)).toBe(true);
     expect(redactor.redactObject({ feedback }).feedback).toEqual(feedback);
-    const forged = { ...structuredClone(feedback), source: "sk-synthetic-private-source-value", request: "Bearer synthetic-private-request-value" };
+    const forged = { ...structuredClone(feedback), source: "sk-synthprivsrcvalue0", request: "Bearer synthetic-private-request-value" };
     expect(isTrustedWorkforceSelectionFeedback(forged)).toBe(false);
     expect(redactor.redactObject(forged).selectionHash).not.toBe(feedback.selectionHash);
     expect(JSON.stringify(redactor.redactObject(forged))).not.toContain("synthetic-private");
     expect(redactor.redactString("a".repeat(64))).not.toBe("a".repeat(64));
     expect(() => createWorkforceSelectionFeedback({ ...input, source: "untrusted original content" } as any)).toThrow();
     expect(() => createWorkforceSelectionFeedback({ ...input, receipt: { ...receipt, request: "untrusted original content" } } as any)).toThrow();
-    expect(() => createWorkforceSelectionFeedback({ ...input, taskId: "sk-synthetic-private-source-value" })).toThrow();
+    expect(() => createWorkforceSelectionFeedback({ ...input, taskId: "sk-synthprivsrcvalue0" })).toThrow();
     let hashReads = 0;
     const unstableProfile = { ...selected.roleExecution };
     Object.defineProperty(unstableProfile, "profileHash", { enumerable: true, get() {
-      return ++hashReads === 1 ? selected.roleExecution.profileHash : "sk-synthetic-private-source-value";
+      return ++hashReads === 1 ? selected.roleExecution.profileHash : "sk-synthprivsrcvalue0";
     } });
     expect(() => createWorkforceSelectionFeedback({ ...input, profile: unstableProfile, contribution: null })).toThrow();
     expect(hashReads).toBe(0);

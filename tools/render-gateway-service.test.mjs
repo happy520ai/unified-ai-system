@@ -48,9 +48,9 @@ test("Windows XML keeps one user task and quoted argv without a shell", () => {
 });
 
 test("LaunchAgent uses separate plist argv, escaped paths and top-level restart timing", () => {
-  const plist = renderGatewayService({ ...linux, platform: "macos", "install-root": "/Users/operator/UAI & Co", "log-dir": "/Users/operator/private logs" });
+  const plist = renderGatewayService({ ...linux, platform: "macos", "install-root": "/Users/example/UAI & Co", "log-dir": "/Users/example/private logs" });
   assert.match(plist, /<string>--env-file=\/private\/gateway.env<\/string>/);
-  assert.match(plist, /<string>\/Users\/operator\/UAI &amp; Co\/apps\/ai-gateway-service\/src\/index.js<\/string>/);
+  assert.match(plist, /<string>\/Users\/example\/UAI &amp; Co\/apps\/ai-gateway-service\/src\/index.js<\/string>/);
   assert.match(plist, /<key>KeepAlive<\/key><dict><key>SuccessfulExit<\/key><false\/><\/dict>\n  <key>ThrottleInterval<\/key><integer>5/);
   assert.match(plist, /<key>ExitTimeOut<\/key><integer>15/);
   assert.match(plist, /<key>Label<\/key><string>io.github.happy520ai.unified-ai-system-gateway/);

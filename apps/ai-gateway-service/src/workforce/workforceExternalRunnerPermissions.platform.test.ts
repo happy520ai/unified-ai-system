@@ -23,9 +23,9 @@ describe("ownedRoot platform symmetry", () => {
   it("accepts a POSIX root for a linux profile", () => {
     const parameters = createExternalRunnerParameters(
       freezeWorkforceExternalRunnerProfile(draft("linux")),
-      "/home/runner/work/unified-ai-system/unified-ai-system/apps/ai-gateway-service/evidence/product-final/t064-controlled-abc",
+      "/home/example/work/unified-ai-system/apps/ai-gateway-service/evidence/product-final/t064-controlled-abc",
     );
-    expect(parameters.turnParams.cwd).toBe("/home/runner/work/unified-ai-system/unified-ai-system/apps/ai-gateway-service/evidence/product-final/t064-controlled-abc");
+    expect(parameters.turnParams.cwd).toBe("/home/example/work/unified-ai-system/apps/ai-gateway-service/evidence/product-final/t064-controlled-abc");
   });
 
   it("accepts a Windows root for a win32 profile", () => {
@@ -38,7 +38,7 @@ describe("ownedRoot platform symmetry", () => {
   it("rejects a POSIX root for a win32 profile (the previous CI failure)", () => {
     expect(() => createExternalRunnerParameters(
       freezeWorkforceExternalRunnerProfile(draft("win32")),
-      "/home/runner/work/t064",
+      "/home/example/work/t064",
     )).toThrowError(/cannot be safely accepted/);
   });
 });

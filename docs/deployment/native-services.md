@@ -36,7 +36,7 @@ characters use the destination platform's quoting rules.
 node tools/render-gateway-service.mjs --platform linux --node /usr/bin/node --install-root /opt/uai --private-env-file /private/uai/gateway.env
 
 # macOS LaunchAgent; log-dir must already be a private, writable persistent directory.
-node tools/render-gateway-service.mjs --platform macos --node /opt/homebrew/bin/node --install-root /Users/operator/uai --private-env-file /Users/operator/private/gateway.env --log-dir /Users/operator/Library/Logs/uai-gateway
+node tools/render-gateway-service.mjs --platform macos --node /opt/homebrew/bin/node --install-root /Users/example/uai --private-env-file /Users/example/private/gateway.env --log-dir /Users/example/Library/Logs/uai-gateway
 ```
 
 ```powershell
