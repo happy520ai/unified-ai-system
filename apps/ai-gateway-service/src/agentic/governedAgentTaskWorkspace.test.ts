@@ -13,6 +13,7 @@ import { freezeGovernedAgentTaskProfile, parseGovernedAgentTaskPlan } from "./go
 import { createGovernedAgentTaskWorkspace, isGovernedAgentTaskWorkspace } from "./governedAgentTaskWorkspace.ts";
 
 const roots: string[] = [];
+const CHUNK_TIMEOUT_MS = 30000;
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 // Synthetic backend evidence for orchestration tests; this does not execute a container or its tests.
 function syntheticNodeTestReceipt(options: any, passed: boolean, diagnostic: string) {
@@ -46,7 +47,7 @@ async function fixture() {
   const baselineRevision = (await git.run(["rev-parse", "HEAD"])).stdout.trim();
   const profile = freezeGovernedAgentTaskProfile({ version: 1, mode: "governed-agent-long-task", profileId: "bounded-task", projectId: "fixture", baselineRevision,
     model: { providerId: "fake", modelId: "fake", maxInputTokens: 8192, maxOutputTokens: 4096 },
-    limits: { maxPlanSteps: 3, maxIterations: 6, maxModelCalls: 7, maxTotalTokens: 32768, maxRepairAttempts: 2, chunkTimeoutMs: 30000, maxInputBytes: 4096 },
+    limits: { maxPlanSteps: 3, maxIterations: 6, maxModelCalls: 7, maxTotalTokens: 32768, maxRepairAttempts: 2, chunkTimeoutMs: CHUNK_TIMEOUT_MS, maxInputBytes: 4096 },
     verificationResult: { version: 1, adapter: "node-test", minimumPassed: 1, requiredChecks: [{ file: "test.mjs", name: "value is two" }] },
     artifact: { readPaths: ["source.mjs", "test.mjs"], writePaths: ["source.mjs"],
       verification: { verificationId: "fixed-test", command: "node --test 'test.mjs'", immutableTests: [{ path: "test.mjs", sha256: hash(testText) }],
@@ -78,6 +79,8 @@ async function fixture() {
     setStep: (index: number) => { stepIndex = index; }, setRepair: (value: number) => { repairAttempt = value; } };
 }
 
+// This lifecycle performs real Git setup and multiple serialized file actions;
+// allow the existing 30s approved chunk plus fixture setup and cleanup.
 it("captures complete exact reviewed source, enforces real current Tool Proxy and confines actual writes to owned worktree", async () => {
   const f = await fixture();
   expect(isGovernedAgentTaskWorkspace(f.factory)).toBe(true); expect(isGovernedAgentTaskWorkspace(JSON.parse(JSON.stringify(f.factory)))).toBe(false);
@@ -103,7 +106,7 @@ it("captures complete exact reviewed source, enforces real current Tool Proxy an
   expect(f.service.loadVerifiedPolicy).toHaveBeenCalled(); expect(replaced).not.toHaveBeenCalled();
   expect((await f.git.run(["status", "--porcelain"])).stdout).toBe("");
   await f.chunk.close(); expect(await readdir(f.worktreeRoot)).toHaveLength(1);
-});
+}, CHUNK_TIMEOUT_MS + 10000);
 
 it("rejects every unrelated or model-selected action before touching files and rechecks the current step", async () => {
   const f = await fixture(), calls = f.service.loadVerifiedPolicy.mock.calls.length;

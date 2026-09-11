@@ -25,7 +25,7 @@ async function fixture(configured = true) {
   const root = await mkdtemp(join(await realpath(tmpdir()), "governed-task-routes-")), repoRoot = join(root, "repo");
   cleanup.push(async () => { expect(await realpath(root)).toBe(root); expect(dirname(root)).toBe(await realpath(tmpdir())); await rm(root, { recursive: true, force: false }); });
   await mkdir(repoRoot); await mkdir(join(root, "scratch"));
-  const test = "import {value} from './source.mjs'; if (value !== 2) throw Error('expected two');\n";
+  const test = "import test from 'node:test'; import assert from 'node:assert/strict'; import {value} from './source.mjs'; test('actual value',()=>assert.equal(value,2));\n";
   await writeFile(join(repoRoot, "source.mjs"), "export const value = 1;\n"); await writeFile(join(repoRoot, "test.mjs"), test);
   const git = createWorkforceGit(repoRoot);
   await git.run(["-c", "init.templateDir=", "init", "--initial-branch=main"]); await git.run(["add", "source.mjs", "test.mjs"]);
@@ -34,7 +34,8 @@ async function fixture(configured = true) {
     baselineRevision: (await git.run(["rev-parse", "HEAD"])).stdout.trim(),
     model: { providerId: "local-fake-provider", modelId: "local-fake-model", maxInputTokens: 16384, maxOutputTokens: 2048 },
     limits: { maxPlanSteps: 3, maxIterations: 6, maxModelCalls: 7, maxTotalTokens: 129024, maxRepairAttempts: 1, chunkTimeoutMs: 30000, maxInputBytes: 65536 },
-    artifact: { readPaths: ["source.mjs", "test.mjs"], writePaths: ["source.mjs"], verification: { verificationId: "fixed-test", command: "node test.mjs",
+    verificationResult: { version: 1, adapter: "node-test", minimumPassed: 1, requiredChecks: [{ file: "test.mjs", name: "actual value" }] },
+    artifact: { readPaths: ["source.mjs", "test.mjs"], writePaths: ["source.mjs"], verification: { verificationId: "fixed-test", command: "node --test 'test.mjs'",
       immutableTests: [{ path: "test.mjs", sha256: digest(test) }], image: "node@sha256:" + "d".repeat(64), workspaceMode: "ro", networkAccess: false,
       timeoutMs: 10000, maxMemoryMB: 128, maxOutputBytes: 4096, pidsLimit: 32, cpus: 1 }, artifactLimits: { maxChangedFiles: 1, maxFileBytes: 4096, maxDiffBytes: 8192 } } };
   const configuration = { profile, repoRoot, worktreeRoot: join(root, "worktrees"), scratchRoot: join(root, "scratch"), enginePath: join(root, "fixture-engine") };
@@ -98,6 +99,9 @@ it("initializes once and preserves complete review through plan and existing hum
   const prepared = await f.prepare(); expect(prepared.status, JSON.stringify(prepared.payload)).toBe(200);
   const task = prepared.payload.data, path = `${f.base}/${task.taskId}`;
   expect(task.review.prompt).toBe(prompt); expect(task.sourceFiles).toHaveLength(2); expect(task.phase).toBe("prepared");
+  expect(task.review.profile.verificationResult).toEqual({ version: 1, adapter: "node-test", minimumPassed: 1,
+    requiredChecks: [{ file: "test.mjs", name: "actual value" }] });
+  expect(task.review.profile.artifact.verification.command).toBe("node --test 'test.mjs'");
   const runtimes = await Promise.all([f.app.getAgentLongTaskRuntime(), f.app.getAgentLongTaskRuntime()]); expect(runtimes[0]).toBe(runtimes[1]);
   const planned = await f.send(path + "/plan", { revision: task.revision }); expect(planned.status, JSON.stringify(planned.payload)).toBe(200);
   const plan = planned.payload.data; expect(plan.phase).toBe("awaiting_confirmation"); expect(plan.modelReceipts).toHaveLength(1);
