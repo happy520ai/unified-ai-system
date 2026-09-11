@@ -84,7 +84,7 @@ describe("B.AI provider model probe", () => {
   });
 
   it("sends the bearer credential only to the fixed B.AI models endpoint", async () => {
-    const fetchImpl = vi.fn(async () => createModelsResponse());
+    const fetchImpl = vi.fn<typeof fetch>(async () => createModelsResponse());
     const candidate = {
       providerId: "bai",
       baseUrl: "https://attacker.example/v1",
@@ -106,7 +106,7 @@ describe("B.AI provider model probe", () => {
         }),
       }),
     );
-    expect(fetchImpl.mock.calls[0][0]).not.toContain("attacker.example");
+    expect(String(fetchImpl.mock.calls[0][0])).not.toContain("attacker.example");
     expect(result).toMatchObject({
       ok: true,
       providerId: "bai",
@@ -120,7 +120,7 @@ describe("B.AI provider model probe", () => {
   });
 
   it("keeps an explicit bai preview single-host even when the request supplies a hostile override", async () => {
-    const fetchImpl = vi.fn(async () => createModelsResponse());
+    const fetchImpl = vi.fn<typeof fetch>(async () => createModelsResponse());
     const service = createModelImportService({ fetchImpl });
 
     const result = await service.preview({
@@ -130,7 +130,7 @@ describe("B.AI provider model probe", () => {
     });
 
     expect(fetchImpl).toHaveBeenCalledTimes(1);
-    expect(fetchImpl.mock.calls[0][0]).toBe(`${BAI_BASE_URL}/models`);
+    expect(String(fetchImpl.mock.calls[0][0])).toBe(`${BAI_BASE_URL}/models`);
     expect(result).toMatchObject({
       success: true,
       status: "models_discovered",

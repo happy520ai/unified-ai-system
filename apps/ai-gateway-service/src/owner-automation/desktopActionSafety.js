@@ -1,5 +1,5 @@
 import os from "node:os";
-import { isAbsolute, join, normalize } from "node:path";
+import { isAbsolute, join, normalize, sep } from "node:path";
 
 export function getDesktopDirectory() {
   return join(os.homedir(), "Desktop");
@@ -20,9 +20,16 @@ export function timestampForFileName(date = new Date()) {
 }
 
 export function isPathInside(parent, candidate) {
-  const normalizedParent = normalize(parent).toLowerCase();
-  const normalizedCandidate = normalize(candidate).toLowerCase();
-  return normalizedCandidate === normalizedParent || normalizedCandidate.startsWith(`${normalizedParent}\\`);
+  // Path containment must follow the running platform's separator; the previous
+  // hardcoded "\\" check rejected every POSIX child path, which turned Linux
+  // dry-run previews into 500s.
+  const normalizedParent = normalize(parent);
+  const normalizedCandidate = normalize(candidate);
+  const comparableParent = process.platform === "win32" ? normalizedParent.toLowerCase() : normalizedParent;
+  const comparableCandidate = process.platform === "win32" ? normalizedCandidate.toLowerCase() : normalizedCandidate;
+  if (comparableCandidate === comparableParent) return true;
+  const parentPrefix = comparableParent.endsWith(sep) ? comparableParent : `${comparableParent}${sep}`;
+  return comparableCandidate.startsWith(parentPrefix);
 }
 
 export function assertDesktopPath(path) {
