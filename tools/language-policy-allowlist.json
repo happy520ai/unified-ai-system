@@ -159,6 +159,39 @@
       "migrationPlan": "At the 2026-12-11 compatibility review, retain only the measured Win32 process primitives still unavailable in the TypeScript runtime, with the bounded native process and descendant-cleanup evidence. Remove these exact files and the exception if the optional native Workforce runner is withdrawn; no business protocol moves into C++.",
       "issueId": "T-064",
       "notes": "Exact source/build scope only. The helper is a finite child process, not an installed service; this exception does not grant native account execution, deployment or filesystem-isolation readiness."
+    },
+    {
+      "type": "fileSet",
+      "value": "t-043-native-maintenance-set",
+      "files": [
+        "apps/ai-gateway-service/src/native/localClientWindowsAuthorityMaintenance.h",
+        "apps/ai-gateway-service/src/native/localClientWindowsAuthorityMaintenance.test.cpp"
+      ],
+      "justification": "T-043 native maintenance extends the existing T-002 Windows authority C++ boundary (token/ACL/registry primitives with no TypeScript facility). Only the maintenance primitive and its test fixture use C++; versioned maintenance protocol, PoP challenge binding and recovery stay TypeScript.",
+      "owner": "ai-gateway-service/native-authority",
+      "removalBy": "2026-12-11",
+      "migrationPlan": "At the 2026-12-11 compatibility review, retain only measured Win32 maintenance primitives still unavailable to the TypeScript runtime, with the recorded native validation evidence. Remove these exact files and this exception if the optional Windows authority maintenance is withdrawn; protocol logic must stay TypeScript.",
+      "issueId": "T-043",
+      "notes": "Source/build scope only; no deployment or protection-readiness claim."
+    },
+    {
+      "type": "fileSet",
+      "value": "t-067-product-final-test-set",
+      "files": [
+        "apps/ai-gateway-service/src/model-library/modelLibraryStore.test.js",
+        "packages/employee-brain-adapter/src/runtimeGatewayBrainAdapter.test.js",
+        "packages/forge-core/test/governed-agent-pool.test.js",
+        "packages/forge-core/test/governed-self-control.test.js",
+        "packages/mcp-service/src/installer-systemd.test.js",
+        "packages/position-library/src/officialOnetImporter.test.js",
+        "packages/position-library/src/data/.gitattributes"
+      ],
+      "justification": "T-067 governed-resident-execution line adds node:test suites in the established ESM JavaScript test style already covered by the pr-111 compatibility set, plus one data-directory .gitattributes needed for LFS-style line-ending policy of the packaged position dataset.",
+      "owner": "forge/workforce-delivery",
+      "removalBy": "2026-12-11",
+      "migrationPlan": "Convert these suites to TypeScript during the scheduled apps/packages test migration that retires the pr-111 set; the data .gitattributes moves with the packaged dataset and is exempt as a data asset, not runtime code.",
+      "issueId": "T-067",
+      "notes": "Test and data assets only; no runtime module is added in JavaScript."
     }
   ]
 }

@@ -20,6 +20,7 @@ const DEFAULT_ALLOWED_EXTENSIONS = new Set([
   ".md",
   ".yml",
   ".yaml",
+  ".gitattributes",
   ".toml",
   ".txt",
 ]);
@@ -453,7 +454,9 @@ function main() {
       const matchedException = isAllowedByPolicy(path, allowlistResult.allowlist);
       // Native Windows code needs an explicit reviewed source-file boundary.
       // A broad directory/glob exception cannot admit a new runtime language.
-      if (extension === ".cpp" && (matchedException?.type === "file" || matchedException?.type === "fileSet")) {
+      // .h rides with .cpp: headers are the same reviewed native boundary.
+      if ((extension === ".cpp" || extension === ".h")
+        && (matchedException?.type === "file" || matchedException?.type === "fileSet")) {
         output.allowed.push({
           file: path,
           boundary,
