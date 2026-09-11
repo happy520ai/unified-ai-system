@@ -4,7 +4,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   createRuntimeIdentityManifest,
-  getRuntimeBuildIdentity,
+  inspectRuntimeBuildIdentity,
   RUNTIME_IDENTITY_PATH,
 } from "../apps/ai-gateway-service/src/application/runtimeBuildIdentity.ts";
 
@@ -12,13 +12,17 @@ const root = realpathSync(fileURLToPath(new URL("../", import.meta.url)));
 const args = process.argv.slice(2);
 try {
   if (args[0] === "--verify") {
-    if (args.length !== 1 && !(args.length === 3 && args[1] === "--expect-revision" && /^[a-f0-9]{40}$/u.test(args[2]))) throw new Error("RUNTIME_IDENTITY_ARGUMENT_INVALID");
-    const identity = getRuntimeBuildIdentity();
+    const containerReadonly = args[args.length - 1] === "--container-readonly";
+    const remainder = containerReadonly ? args.slice(0, -1) : args;
+    if (remainder.length !== 1 && !(remainder.length === 3 && remainder[1] === "--expect-revision" && /^[a-f0-9]{40}$/u.test(remainder[2]))) throw new Error("RUNTIME_IDENTITY_ARGUMENT_INVALID");
+    // --container-readonly admits exported-layer hard links on a read-only
+    // root filesystem only; every digest and inode check still applies.
+    const identity = inspectRuntimeBuildIdentity(root, { allowHardlinkedInputs: containerReadonly });
     if (identity.status !== "verified") {
       throw Object.assign(new Error("RUNTIME_IDENTITY_NOT_VERIFIED"), { code: `RUNTIME_IDENTITY_${identity.reason.replace(/-/g, "_").toUpperCase()}` });
     }
-    if (args.length === 3 && identity.declaredRevision !== args[2]) throw new Error("RUNTIME_IDENTITY_DECLARED_REVISION_MISMATCH");
-    process.stdout.write(JSON.stringify({ identity, expectedDeclaredRevision: args[2] ?? null }, null, 2) + "\n");
+    if (remainder.length === 3 && identity.declaredRevision !== remainder[2]) throw new Error("RUNTIME_IDENTITY_DECLARED_REVISION_MISMATCH");
+    process.stdout.write(JSON.stringify({ identity, expectedDeclaredRevision: remainder[2] ?? null, containerReadonly }, null, 2) + "\n");
   } else {
     if (args.length !== 0 && !(args.length === 2 && args[0] === "--declared-revision"
       && (args[1] === "" || /^[a-f0-9]{40}$/u.test(args[1])))) throw new Error("RUNTIME_IDENTITY_ARGUMENT_INVALID");
