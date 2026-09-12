@@ -21,6 +21,7 @@ import { createWorkforceRoleProviderFactory } from "./workforceRoleProvider.ts";
 import { createWorktreeIsolation } from "./worktreeIsolation.js";
 import { createTaskEvidenceCapture } from "./taskEvidenceCapture.js";
 import * as codeRuntime from "./workforceCodeDeliveryRuntime.ts";
+import * as codeArtifacts from "./workforceCodeDeliveryArtifacts.ts";
 
 const enabled = process.env.AI_GATEWAY_CODE_DELIVERY_CONTAINER_TEST === "1";
 const enginePath = process.env.AI_GATEWAY_CODE_DELIVERY_TEST_ENGINE ?? "";
@@ -98,13 +99,27 @@ it.skipIf(!enabled)("runs the current approved-file snapshot in a real pinned co
   expect(await readdir(scratch)).toEqual([]);
 }, 90000);
 
-it.skipIf(!enabled).each(["verified", "verification-failed", "evidence-failed", "preflight-race", "cleanup-failed"])("delivers approved code through actual HTTP with %s outcome", async (scenario) => {
+it.skipIf(!enabled).each(["verified", "verification-failed", "evidence-failed", "preflight-race", "cleanup-failed",
+  "large-file-edit", "existing-fragment-write-denied", "approved-new-file-created"])("delivers approved code through actual HTTP with %s outcome", async (scenario) => {
   vi.stubEnv("TOKEN_GUARD_PER_REQUEST_MAX_OUTPUT_TOKENS", "16384");
   const root = await mkdtemp(join(await realpath(tmpdir()), "code-real-http-")); roots.push(root);
   const repo = join(root, "repo"), scratch = join(root, "scratch"), workspace = join(root, "agent-workspace");
   await mkdir(join(repo, "src"), { recursive: true }); await mkdir(join(repo, "test")); await mkdir(scratch); await mkdir(workspace);
-  const immutableTest = "import test from 'node:test';\nimport assert from 'node:assert/strict';\nimport { existsSync } from 'node:fs';\nimport { value } from '../src/value.mjs';\ntest('approved delivery', () => { assert.equal(value, 2); assert.equal(existsSync('/workspace/unapproved.txt'), false); });\n";
-  await writeFile(join(repo, "src/value.mjs"), "export const value = 1;\n");
+  const large = ["large-file-edit", "existing-fragment-write-denied"].includes(scenario);
+  const adding = scenario === "approved-new-file-created", sourcePath = adding ? "src/added.mjs" : "src/value.mjs";
+  const oldString = "export const value = 1;", newString = "export const value = " + (scenario === "verification-failed" ? 3 : 2) + ";";
+  const lines = Array.from({ length: 240 }, (_, index) => `// approved fixture ${index} ${"x".repeat(90)} 界`);
+  lines[0] = "export const untouchedHeader = 2718;"; lines[129] = oldString; lines[239] = "export const untouchedTail = 314159;";
+  const originalSource = large ? lines.join("\r\n") + "\r\n" : oldString + "\n";
+  const expectedSource = adding ? newString + "\n" : originalSource.replace(oldString, newString);
+  if (large) { expect(Buffer.byteLength(originalSource)).toBeGreaterThanOrEqual(16384); expect(originalSource.indexOf(oldString)).toBeGreaterThan(8192); }
+  const immutableTest = "import test from 'node:test';\nimport assert from 'node:assert/strict';\nimport { existsSync, readFileSync } from 'node:fs';\nimport { createHash } from 'node:crypto';\n"
+    + `import { value${large ? ", untouchedHeader, untouchedTail" : ""} } from '../${sourcePath}';\n`
+    + "test('approved delivery', () => { assert.equal(value, 2); assert.equal(existsSync('/workspace/unapproved.txt'), false);"
+    + (large ? " assert.equal(untouchedHeader, 2718); assert.equal(untouchedTail, 314159);" : "")
+    + (large || adding ? ` assert.equal(createHash('sha256').update(readFileSync('/workspace/${sourcePath}')).digest('hex'), '${hash(expectedSource)}');` : "")
+    + " });\n";
+  await writeFile(join(repo, "src/value.mjs"), originalSource);
   await writeFile(join(repo, "test/value.test.mjs"), immutableTest); await writeFile(join(repo, "unapproved.txt"), "Not approved for model or container.");
   const git = createWorkforceGit(repo);
   await git.run(["-c", "init.templateDir=", "init", "--initial-branch=main"]);
@@ -112,7 +127,7 @@ it.skipIf(!enabled).each(["verified", "verification-failed", "evidence-failed", 
   await git.run(["-c", "user.name=Code HTTP Fixture", "-c", "user.email=code@example.invalid", "-c", "commit.gpgSign=false", "commit", "-m", "Owned code fixture"]);
   const baselineRevision = (await git.run(["rev-parse", "HEAD"])).stdout.trim();
   const codeProfile: any = { version: 1, mode: "forge-owned-worktree-artifact", profileId: "http-code", projectId: "fixture",
-    baselineRevision, roleId: "backend-engineer", readPaths: ["src/value.mjs", "test/value.test.mjs"], writePaths: ["src/value.mjs"],
+    baselineRevision, roleId: "backend-engineer", readPaths: ["src/value.mjs", ...(adding ? [sourcePath] : []), "test/value.test.mjs"], writePaths: [sourcePath],
     verification: { verificationId: "fixed-tests", command: "node --test test/value.test.mjs", immutableTests: [{ path: "test/value.test.mjs", sha256: hash(immutableTest) }],
       image, workspaceMode: "ro", networkAccess: false, timeoutMs: 15000, maxMemoryMB: 128, maxOutputBytes: 65536, pidsLimit: 32, cpus: 1 },
     artifactLimits: { maxChangedFiles: 1, maxFileBytes: 65536, maxDiffBytes: 262144 } };
@@ -141,6 +156,8 @@ it.skipIf(!enabled).each(["verified", "verification-failed", "evidence-failed", 
   const removeOriginal = manager.remove.bind(manager);
   let cleanupFixtureWorktree: string | null = null;
   const create = vi.spyOn(manager, "create"), remove = vi.spyOn(manager, "remove");
+  const snapshots = vi.spyOn(codeArtifacts, "createApprovedCodeSnapshot");
+  let rejectedSource: Buffer | undefined, rejectedImmutableTest: string | undefined, rejectedCode: unknown;
   if (scenario === "cleanup-failed") remove.mockResolvedValueOnce({ success: false, reason: "fixture_cleanup_failed" } as any);
   const evidenceDir = join(root, "execution", "evidence"), capture = createTaskEvidenceCapture({ evidenceDir });
   if (scenario === "evidence-failed") {
@@ -171,6 +188,19 @@ it.skipIf(!enabled).each(["verified", "verification-failed", "evidence-failed", 
       return (results.find(result => result.status === "fulfilled") as PromiseFulfilledResult<any>).value;
     });
   }
+  if (scenario === "existing-fragment-write-denied") {
+    const run = codeRuntime.runWorkforceCodeDelivery;
+    vi.spyOn(codeRuntime, "runWorkforceCodeDelivery").mockImplementation(async (...args) => {
+      try { return await run(...args); }
+      catch (error) {
+        const created = await create.mock.results[0].value;
+        rejectedSource = await readFile(join(created.worktree.path, sourcePath));
+        rejectedImmutableTest = await readFile(join(created.worktree.path, "test/value.test.mjs"), "utf8");
+        rejectedCode = (error as { code?: unknown }).code;
+        throw error;
+      }
+    });
+  }
   const service = app.agentGovernance.service;
   const tools = ["workforce_execute", "file_read", "file_write", "file_edit", "workforce_verify_snapshot"];
   const generatedInput = { name: "code-runtime", task: "执行代码修改任务", requestedTools: tools,
@@ -194,11 +224,14 @@ it.skipIf(!enabled).each(["verified", "verification-failed", "evidence-failed", 
     expect(JSON.stringify(request)).not.toContain("Not approved for model or container.");
     let text = result.text;
     if (providerCalls === 5) text = JSON.stringify({ summary: "Update approved value", tasks: [{ id: "implement-value", name: "Update value",
-      type: "implement", prompt: "Write src/value.mjs with export const value = 2;", allowedFiles: ["src/value.mjs"] }] });
+      type: "implement", prompt: `${adding ? "Create the approved new" : "Precisely edit the existing"} ${sourcePath} so value equals 2; preserve every other byte.`, allowedFiles: [sourcePath] }] });
     if (providerCalls === 6) {
       const created = await create.mock.results[0].value;
       expect(await readdir(created.worktree.path)).not.toContain(".forge");
-      text = JSON.stringify([{ type: "write", path: "src/value.mjs", content: "export const value = " + (scenario === "verification-failed" ? 3 : 2) + ";\n" }]);
+      text = JSON.stringify([adding || scenario === "existing-fragment-write-denied"
+        ? { type: "write", path: sourcePath, content: newString + "\n" }
+        : { type: "edit", path: sourcePath, oldString, newString }]);
+      expect(Buffer.byteLength(text)).toBeLessThan(512);
     }
     return { ...result, text, message: { role: "assistant", content: text } };
   });
@@ -211,7 +244,7 @@ it.skipIf(!enabled).each(["verified", "verification-failed", "evidence-failed", 
     return { status: response.status, payload: await response.json() as any };
   };
   try {
-    const input = { goal: "Implement the approved value change in src/value.mjs", planId: "code-approved-plan",
+    const input = { goal: `Implement the approved value change in ${sourcePath}`, planId: "code-approved-plan",
       autonomyMode: "controlled-execution", agentId: agent.agentId, selectedRoles: roles, codeDelivery: { profileId: "http-code" } };
     const descriptor = await executor.describeExecution({ ...input, userId: identity.userId, tenantId: identity.tenantId });
     expect(descriptor.codeDeliveryReadiness).toMatchObject({ implementation: "available", executionAllowed: false });
@@ -236,6 +269,25 @@ it.skipIf(!enabled).each(["verified", "verification-failed", "evidence-failed", 
     const executed = await send("/workforce/execute", input);
     if (executed.payload.data?.recoveryRequired || executed.payload.data?.worktree?.cleanedUp === false) retained.add(root);
     const delivered = executed.payload.data;
+    if (scenario === "existing-fragment-write-denied") {
+      expect(executed.status, JSON.stringify(executed.payload)).toBe(422);
+      expect(delivered).toMatchObject({ success: false, codeDelivery: null,
+        codeDeliveryFailure: { projectFileWrites: false, projectWriteAttempted: false, verificationStarted: false,
+          outcomeUnknown: true, retrySafe: false } });
+      expect(delivered.executionStatus).not.toBe("completed");
+      // Aborting Forge after the guard rejects the action retains its conservative
+      // unknown outcome. The byte and snapshot assertions below prove no file effect.
+      expect(rejectedCode).toBe("WORKFORCE_CODE_DELIVERY_OUTCOME_UNKNOWN");
+      expect(rejectedSource).toEqual(Buffer.from(originalSource)); expect(rejectedImmutableTest).toBe(immutableTest);
+      expect(snapshots).not.toHaveBeenCalled(); expect(generated).toHaveBeenCalledTimes(6); expect(create).toHaveBeenCalledOnce();
+      expect(await readFile(join(repo, "src/value.mjs"))).toEqual(Buffer.from(originalSource));
+      expect((await git.run(["status", "--porcelain=v1"])).stdout).toBe("");
+      expect((await git.run(["rev-parse", "HEAD"])).stdout.trim()).toBe(baselineRevision);
+      if (delivered.worktree?.cleanedUp === false && delivered.codeDeliveryFailure?.quiescenceUncertain === false) {
+        cleanupFixtureWorktree = (await create.mock.results[0].value).worktree.worktreeId;
+      }
+      return;
+    }
     if (scenario === "cleanup-failed") {
       const created = await create.mock.results[0].value;
       if (delivered?.codeDelivery?.localQuiescenceConfirmed === true && delivered?.codeDelivery?.verification?.cleanupConfirmed === true) {
@@ -263,7 +315,7 @@ it.skipIf(!enabled).each(["verified", "verification-failed", "evidence-failed", 
       expect(await readFile(join(repo, "src/value.mjs"), "utf8")).toBe("export const value = 1;\n");
       return;
     }
-    if (!["verified", "preflight-race"].includes(scenario)) {
+    if (["verification-failed", "evidence-failed"].includes(scenario)) {
       expect(executed.status, JSON.stringify(executed.payload)).toBe(422);
       expect(delivered).toMatchObject({ success: false, recoveryRequired: true, worktree: { created: true, cleanedUp: false },
         safety: { projectFileWrites: true } });
@@ -281,11 +333,26 @@ it.skipIf(!enabled).each(["verified", "verification-failed", "evidence-failed", 
     expect(delivered).toMatchObject({ success: true, codeDelivery: { status: "verified", verification: { status: "passed", exitCode: 0, cleanupConfirmed: true } },
       roleExecution: { requestsDispatched: 6 }, worktree: { created: true, cleanedUp: true }, safety: { projectFileWrites: true, projectWritesIsolated: true } });
     expect(delivered.codeDelivery.artifact.filesChanged[0].patch).toContain("+export const value = 2;");
+    if (large || adding) {
+      expect(snapshots).toHaveBeenCalledOnce();
+      const artifact = delivered.codeDelivery.artifact;
+      expect(artifact.filesChanged).toHaveLength(1);
+      const delta = artifact.filesChanged[0];
+      expect(delta).toMatchObject({ path: sourcePath, change: adding ? "added" : "modified",
+        beforeSha256: adding ? null : hash(originalSource), afterSha256: hash(expectedSource) });
+      const removed = delta.patch.split("\n").filter((line: string) => line.startsWith("-") && !line.startsWith("--- ")).map((line: string) => line.slice(1));
+      const inserted = delta.patch.split("\n").filter((line: string) => line.startsWith("+") && !line.startsWith("+++ ")).map((line: string) => line.slice(1));
+      expect(removed.length ? removed.join("\n") + "\n" : null).toBe(adding ? null : originalSource);
+      expect(inserted.join("\n") + "\n").toBe(expectedSource);
+      expect(artifact.diffSha256).toBe(hash(delta.patch)); expect(artifact.diffBytes).toBe(Buffer.byteLength(delta.patch));
+      expect(await readFile(join(repo, "test/value.test.mjs"), "utf8")).toBe(immutableTest);
+      if (adding) await expect(readFile(join(repo, sourcePath))).rejects.toMatchObject({ code: "ENOENT" });
+    }
     expect(delivered.codeDelivery.verification.stdout).toContain("# pass 1");
     expect(generated).toHaveBeenCalledTimes(6); expect(create).toHaveBeenCalledOnce(); expect(remove).toHaveBeenCalledOnce();
     expect(await readdir(scratch)).toEqual([]); expect(await readdir(join(root, "worktrees"))).toEqual([]);
     expect((await git.run(["status", "--porcelain=v1"])).stdout).toBe("");
-    expect(await readFile(join(repo, "src/value.mjs"), "utf8")).toBe("export const value = 1;\n");
+    expect(await readFile(join(repo, "src/value.mjs"), "utf8")).toBe(originalSource);
     expect((await git.run(["rev-parse", "HEAD"])).stdout.trim()).toBe(baselineRevision);
     const status = await send("/workforce/execute/status", { executionId: delivered.executionId });
     expect(status.status, JSON.stringify(status.payload)).toBe(200);
