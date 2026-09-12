@@ -22,6 +22,9 @@
 
 ## 命令行操作
 
+受治理文字转语音使用同一编排端点，完整配置、审批和本地 WAV 保存流程见
+[受治理语音产物](governed-media-tasks.md)。
+
 CLI 通过共享 SDK 调用现有网关。需要鉴权时，通过 `AGENT_CONSOLE_ADMIN_KEY` 提供具有对应权限的
 网关 Key；不要把凭据放进输入文件。`--json` 返回结构化结果，普通输出提供摘要和下一步。
 `knowledge load`、`forge polish/memory/orchestrate` 默认只显示本地请求预览，确认后用同一命令加
@@ -74,14 +77,16 @@ Forge 的模型操作默认明确选择 `local-fake-provider/local-fake-model`�
 使用网关配置的选择策略。明确指定的模型会在每一次实际调用中保持绑定，并禁止加权分流或影子副本
 改变该选择。JSON 标志本身不能伪造内部执行限制。真实调用仍需服务端配置、权限和预算允许。
 
-CLI 每次模型请求默认上限为 4096 输出 tokens，可用 `--max-output-tokens` 设置 1–16384；服务端的
+以下 token 设置适用于 Forge 的文本模型任务；语音任务使用已批准的文字、音频和时间限额。
+CLI 每次文本模型请求默认上限为 4096 输出 tokens，可用 `--max-output-tokens` 设置 1–16384；服务端的
 成本限制继续生效，较大参数仍可能被拒绝。网页任务还受自身最多 512 输出 tokens 的限制。
 `--passes` 限制精修轮数，后续轮可能包含评审及改进两个模型请求；模型错误或空回复会使操作失败，
 不会被当作成功草稿继续发起模型请求。精修结果显示质量分数和是否达到目标；质量分数是静态评估，
 不代替项目测试。Forge 的模型操作默认客户端等待 245 秒，可用 `--timeout` 覆盖（上限 300 秒）；
 服务端仍可按自己的期限提前停止。
 
-运行受治理的 Forge 任务，把目标、根 Agent 和可选网页参数保存为 `forge-request.json`：
+运行非语音的受治理 Forge 任务，把目标、根 Agent 和可选网页参数保存为 `forge-request.json`。
+语音使用下节带 `--audio-output` 的专门命令；同一请求不能同时包含网页和语音任务。
 
 ```bash
 uai forge orchestrate --input forge-request.json
@@ -91,7 +96,8 @@ uai agents approve --approval-id apr_from_gateway --yes
 uai forge orchestrate --input forge-request.json --yes
 ```
 
-命令不会自动批准服务端请求。审批显示完整目标、模型选择、输出上限、预算和网页 profile；
+命令不会自动批准服务端请求。审批显示完整目标、模型选择、适用限额和网页／语音 profile；
+语音审阅还包含完整原文、UTF-8 字节数及哈希。
 选项与目标摘要不一致时不会把它显示为完整审阅。更改模型、目标或配置需要匹配的新审批。
 退出码：`0` 表示操作或本地预览成功，`3` 表示等待审批，`2` 表示输入错误，`1` 表示失败或结果未知。
 `status` 字段进一步区分 `preview`、`completed`、`approval_required` 和失败，脚本不能只凭退出码把
@@ -101,6 +107,42 @@ uai forge orchestrate --input forge-request.json --yes
 `memory/recall` 操作当前 Forge 会话内存，不承诺重启持久化。
 
 太极的实际候选评估、激活、执行、反馈修复及撤销使用独立的 `uai taiji` 命令族，参见[太极能力运行手册](./taiji-capabilities.md)。
+
+## 受治理语音的命令行入口
+
+管理员先按[受治理语音产物](governed-media-tasks.md)配置 `AI_GATEWAY_FORGE_MEDIA_PROFILES_JSON`，
+并授予匹配的 Agent 工具权限和完整审批。请求的 `options.mediaTask` 只接受 `profileId` 与完整 `text`，
+`options.modelSelection` 必须匹配 profile。`local-fake-provider/local-fake-model` 使用内建合成测试音，
+用于检验交付流程，不是文字朗读；不配置 profile 不会自动创建一个。
+
+语音 CLI 必须指定新的本地 `.wav` 文件，父目录须已存在。以手册中的 `speech.json` 为例：
+
+```bash
+uai forge orchestrate --input speech.json --audio-output speech.wav --json
+uai forge orchestrate --input speech.json --audio-output speech.wav --yes --json
+uai agents approvals --agent-id agt_your_approved_root --json
+uai agents approve --approval-id apr_from_gateway --yes --json
+uai forge orchestrate --input speech.json --audio-output speech.wav --yes --json
+uai forge runs --json
+```
+
+第一条仅预览；第二条正常等待审批时退出码为 3。审阅并批准完整原请求后再提交。
+更改文本、声音 profile 或模型选择需要新的匹配审批。真实 Provider 还需 `--allow-real-provider`
+及服务端授权；语音不接受 `--max-output-tokens`、`maxTokens` 或 `maxCost`。
+
+成功时 `data.audioOutput` 提供 `status: "saved"`、路径、字节数与 SHA-256，终端不打印音频 base64。
+`generated-not-saved` 表示保存未完成，可能留下部分新文件；`saved-result-display-failed` 表示
+文件已保存验证，但终端显示失败，退出码仍为 1。后者的 JSON 错误回执以及普通模式的标准错误输出
+都保留保存路径、字节数、SHA-256 和运行 ID，应保管已保存文件，不重新生成。
+
+外层治理收尾失败时，`forge runs` 可同时出现 `status: "failed"`、`generation.status: "completed"`
+和 `mediaDelivery.status: "unknown"`／`retrySafe: false`：生成完成不能证明交付成功。
+服务器不保留可恢复下载的音频副本，运行列表也只是当前实例的有限摘要；应核对首次错误、审批、
+运行记录和本地保存回执，不能通过自动重发来恢复。
+
+这条新应用边界及公共契约优先使用 TypeScript，现有 Forge／Provider／SDK 的 ESM 加载保持兼容。
+语言比较、必要兼容模块、验证范围和整条媒体接线的回退步骤见手册的
+[Language Selection](governed-media-tasks.md#language-selection)。
 
 ## 性能(更流畅)
 

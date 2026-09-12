@@ -1,13 +1,15 @@
 import { createHash } from "node:crypto";
 import { constants, openSync, closeSync, fstatSync, lstatSync, readSync } from "node:fs";
 import { basename, resolve } from "node:path";
-import { createGatewayClient } from "@unified-ai-system/shared-sdk";
+import { createGatewayClient, decodeForgeMediaAudio } from "@unified-ai-system/shared-sdk";
+import { prepareForgeAudioOutput, saveForgeAudioOutput } from "./forgeMediaOutput.ts";
 
 interface OperatorOptions {
   command: string; positionals: string[]; json: boolean; url: string; timeoutMs: number; timeoutProvided: boolean; adminKey: string | null;
   confirmed: boolean; allowRealProvider: boolean; prompt: string | null; operatorInput: string | null;
   operatorMode: string | null; operatorSources: string[]; operatorPasses: number | null;
   operatorMaxOutputTokens: number | null;
+  operatorAudioOutput?: string | null;
   lifecycleLimit: number | null; lifecycleOffset: number | null; agentId: string | null; agentGoal: string | null;
   agentProviderId: string | null; agentModelId: string | null;
 }
@@ -198,10 +200,20 @@ function buildRequest(options: OperatorOptions): { body: Data | undefined; mutat
       if (options.agentId !== null && body.agentId !== undefined && options.agentId !== body.agentId) invalid("Agent IDs conflict.");
       body.agentId ??= options.agentId;
       if (!boundedText(body.goal) || typeof body.agentId !== "string" || !AGENT.test(body.agentId)) invalid("Forge orchestration requires a goal and server-issued --agent-id.");
-      body.options ??= {}; keys(body.options, [], ["useRefiner", "maxConcurrent", "budget", "checkpointAfter", "enableCodeIntel", "webTask", "modelSelection", "maxOutputTokens"]);
+      body.options ??= {}; keys(body.options, [], ["useRefiner", "maxConcurrent", "budget", "checkpointAfter", "enableCodeIntel", "webTask", "mediaTask", "modelSelection", "maxOutputTokens"]);
       const selected = selection(options, body.options.modelSelection); if (selected) body.options.modelSelection = selected;
-      body.options.maxOutputTokens = options.operatorMaxOutputTokens ?? body.options.maxOutputTokens ?? 4096;
-      if (!Number.isInteger(body.options.maxOutputTokens) || body.options.maxOutputTokens < 1 || body.options.maxOutputTokens > 16384) invalid("Output token limit must be 1–16384.");
+      if (body.options.mediaTask !== undefined) {
+        keys(body.options.mediaTask, ["profileId", "text"]);
+        if (typeof body.options.mediaTask.profileId !== "string" || !/^[A-Za-z0-9_-]{1,80}$/u.test(body.options.mediaTask.profileId)
+          || !boundedText(body.options.mediaTask.text, 16384) || body.options.webTask !== undefined) invalid("Speech requires a profileId and complete bounded text, without a web task.");
+        if (typeof options.operatorAudioOutput !== "string" || !options.operatorAudioOutput.trim()) invalid("Speech requires --audio-output for a new local WAV file.");
+        if (options.operatorMaxOutputTokens != null || body.options.maxOutputTokens !== undefined
+          || body.options.budget?.maxTokens !== undefined || body.options.budget?.maxCost !== undefined) invalid("Speech uses text/audio/time limits; token or currency budgets are not reported by this profile.");
+      } else {
+        if (options.operatorAudioOutput != null) invalid("--audio-output requires a speech mediaTask.");
+        body.options.maxOutputTokens = options.operatorMaxOutputTokens ?? body.options.maxOutputTokens ?? 4096;
+        if (!Number.isInteger(body.options.maxOutputTokens) || body.options.maxOutputTokens < 1 || body.options.maxOutputTokens > 16384) invalid("Output token limit must be 1–16384.");
+      }
       mutation = true;
     } else {
       const field = ({ polish: "content", quality: "code", memory: "content", recall: "query", taiji: "request", workforce: "task" } as Record<string, string>)[operation];
@@ -237,7 +249,7 @@ export function projectForgeApprovalReview(value: unknown): Data {
     || forge.goalBytes !== Buffer.byteLength(forge.goal, "utf8")
     || forge.goalDigest !== "sha256:" + createHash("sha256").update(forge.goal).digest("hex")) invalid("Forge approval goal is incomplete or mismatched.");
   const options = forge.options;
-  keys(options, ["enableCodeIntel"], ["useRefiner", "maxConcurrent", "budget", "checkpointAfter", "webTask", "modelSelection", "maxOutputTokens"]);
+  keys(options, ["enableCodeIntel"], ["useRefiner", "maxConcurrent", "budget", "checkpointAfter", "webTask", "mediaTask", "modelSelection", "maxOutputTokens"]);
   if (options.maxOutputTokens !== undefined && (!Number.isInteger(options.maxOutputTokens) || options.maxOutputTokens < 1 || options.maxOutputTokens > 16384)) invalid("Forge approval output limit is invalid.");
   if (options.enableCodeIntel !== false || forge.optionsHash !== "sha256:" + createHash("sha256").update(canonical(options)).digest("hex")) invalid("Forge approval options are incomplete or mismatched.");
   if (options.budget !== undefined) {
@@ -250,6 +262,21 @@ export function projectForgeApprovalReview(value: unknown): Data {
   if (options.modelSelection !== undefined) {
     keys(options.modelSelection, ["providerId", "modelId"]);
     if (![options.modelSelection.providerId, options.modelSelection.modelId].every(id => typeof id === "string" && IDENTIFIER.test(id))) invalid("Forge approval model selection is invalid.");
+  }
+  if (options.mediaTask !== undefined) {
+    const media = options.mediaTask; keys(media, ["version", "kind", "profile", "profileHash", "text", "textSha256", "textBytes"]);
+    const profile = media.profile; keys(profile, ["id", "tenantId", "providerId", "modelId", "voice", "format", "maxTextBytes", "maxAudioBytes", "maxDurationMs", "timeoutMs"]);
+    if (media.version !== 1 || media.kind !== "tts" || profile.format !== "wav-pcm16" || options.webTask !== undefined
+      || ![profile.id, profile.tenantId, profile.voice, profile.providerId, profile.modelId].every(value => boundedText(value, 256))
+      || !boundedText(media.text, 16384) || media.textBytes !== Buffer.byteLength(media.text, "utf8")
+      || media.textSha256 !== createHash("sha256").update(media.text).digest("hex")
+      || media.profileHash !== createHash("sha256").update(canonical(profile)).digest("hex")
+      || profile.providerId !== options.modelSelection?.providerId || profile.modelId !== options.modelSelection?.modelId
+      || !Number.isInteger(profile.maxTextBytes) || profile.maxTextBytes < media.textBytes || profile.maxTextBytes > 16384
+      || !Number.isInteger(profile.maxAudioBytes) || profile.maxAudioBytes < 46 || profile.maxAudioBytes > 4194304
+      || !Number.isInteger(profile.maxDurationMs) || profile.maxDurationMs < 1 || profile.maxDurationMs > 120000
+      || !Number.isInteger(profile.timeoutMs) || profile.timeoutMs < 1000 || profile.timeoutMs > 60000
+      || options.maxOutputTokens !== undefined || options.budget?.maxTokens !== undefined || options.budget?.maxCost !== undefined) invalid("Speech approval is incomplete or mismatched.");
   }
   return safeData(value, true);
 }
@@ -344,13 +371,17 @@ function validResult(command: string, operation: string, data: Data, body?: Data
 export async function runOperatorCommand(options: OperatorOptions, output: Output): Promise<number> {
   const operation = options.positionals[0]; let dispatched = false, mutation = false, requestDigest: string | undefined;
   let requestBody: Data | undefined;
+  let audioTarget: Awaited<ReturnType<typeof prepareForgeAudioOutput>> | undefined, mediaGenerated = false, mediaRunId: string | undefined;
+  let savedAudio: Awaited<ReturnType<typeof saveForgeAudioOutput>> | undefined;
   try {
     const request = buildRequest(options); mutation = request.mutation; requestBody = request.body;
-    requestDigest = createHash("sha256").update(canonical({ command: options.command, operation, gatewayUrl: options.url, body: request.body ?? null })).digest("hex");
+    if (requestBody?.options?.mediaTask) audioTarget = await prepareForgeAudioOutput(options.operatorAudioOutput!);
+    requestDigest = createHash("sha256").update(canonical({ command: options.command, operation, gatewayUrl: options.url, body: request.body ?? null,
+      ...(audioTarget ? { audioOutput: audioTarget.path } : {}) })).digest("hex");
     if (mutation && !options.confirmed) {
       const review = options.command === "knowledge" ? { sourceId: request.body!.sourceId, documentCount: request.body!.documents.length,
         documentIds: request.body!.documents.map((document: any, index: number) => document.documentId ?? `loaded-document-${index + 1}`) }
-        : request.body;
+        : audioTarget ? { request: request.body, audioOutput: audioTarget.path } : request.body;
       const plan = { ok: true, status: "preview", command: options.command, operation, requestDigest, request: review,
         nextAction: "Review this request, then repeat the same command with --yes. Server approval may still be required." };
       output.write(options.json ? JSON.stringify(plan, null, 2) + "\n" : `Preview: ${options.command} ${operation}\n${JSON.stringify(review, null, 2)}\nRequest digest: ${requestDigest}\n${plan.nextAction}\n`);
@@ -385,7 +416,17 @@ export async function runOperatorCommand(options: OperatorOptions, output: Outpu
       envelope = await handlers[operation]();
     }
     const raw = unwrap(envelope); validResult(options.command, operation, raw, body);
-    const data = safeData(raw), approval = data.outcome === "approval_required" || options.command === "taiji" && data.status === "approval_required";
+    let display = raw;
+    if (audioTarget && raw.ok === true) {
+      const media = raw.result.media, artifact = media.artifacts[0];
+      const bytes = await decodeForgeMediaAudio(artifact);
+      mediaGenerated = true; mediaRunId = raw.runId;
+      const saved = await saveForgeAudioOutput(audioTarget, bytes, artifact.sha256);
+      savedAudio = saved;
+      const { audioBase64: _audio, ...metadata } = artifact;
+      display = { ...raw, result: { ...raw.result, media: { ...media, artifacts: [metadata] } }, audioOutput: saved };
+    }
+    const data = safeData(display), approval = data.outcome === "approval_required" || options.command === "taiji" && data.status === "approval_required";
     if (operation === "sources") { const total = data.sources.length; data.sources = data.sources.slice(options.lifecycleOffset ?? 0, (options.lifecycleOffset ?? 0) + (options.lifecycleLimit ?? 50))
       .map((source: any) => ({ sourceId: source.sourceId, title: source.title, documentCount: source.documentCount })); data.total = total; }
     if (operation === "runs") data.runs = data.runs.slice(-(options.lifecycleLimit ?? 50));
@@ -396,6 +437,9 @@ export async function runOperatorCommand(options: OperatorOptions, output: Outpu
       : options.command === "taiji" ? "Inspect taiji status for current revisions, and taiji run <run-id> for recorded artifacts. Revoked versions require a newly evaluated version and approval."
       : options.command === "routing" ? "Preview only: no model was called. Actual execution checks current provider availability and policy."
         : operation === "load" ? "Use knowledge sources and knowledge retrieve to verify the imported documents."
+          : audioTarget && !approval ? data.result?.media?.synthetic
+            ? "Saved an explicitly synthetic test tone, not spoken text. Keep the local WAV and checksum; no automatic regeneration."
+            : "Keep the saved WAV and checksum. Usage was not reported; the server does not retain an audio recovery copy."
           : operation === "orchestrate" ? "Inspect forge runs and keep the returned run ID; unknown outcomes must not be retried automatically."
             : request.preview ? "This is a local draft/preview; it did not activate a capability or execute a workforce."
               : operation === "quality" ? "Static inspection only; run project tests before treating this as implementation evidence."
@@ -405,6 +449,17 @@ export async function runOperatorCommand(options: OperatorOptions, output: Outpu
     output.write(options.json ? JSON.stringify(result, null, 2) + "\n" : render(result));
     return approval ? 3 : ok ? 0 : 1;
   } catch (error: any) {
+    if (mediaGenerated && audioTarget) {
+      const failure = { ok: false, command: options.command, operation, status: savedAudio ? "saved-result-display-failed" : "generated-not-saved", retryAllowed: false,
+        requestDigest, runId: mediaRunId, audioOutput: savedAudio ? { ...savedAudio, saved: true, outcomeUnknown: false }
+          : { path: audioTarget.path, saved: false, fileCreated: typeof error.fileCreated === "boolean" ? error.fileCreated : null, outcomeUnknown: error.outcomeUnknown === true },
+        message: savedAudio ? "The WAV was saved and verified, but displaying its result failed." : "The audio was generated and verified, but local saving failed.",
+        nextAction: savedAudio ? "Keep the saved file and checksum; do not regenerate audio to repair a display failure."
+          : "Inspect the chosen local file. A partial new file may remain; this command did not regenerate the audio." };
+      const receipt = savedAudio ? `Saved WAV: ${savedAudio.path}\nBytes: ${savedAudio.bytes}\nSHA-256: ${savedAudio.sha256}\nRun: ${mediaRunId}\n` : "";
+      output.writeError(options.json ? JSON.stringify(safeData(failure), null, 2) + "\n" : `${failure.message}\n${receipt}${failure.nextAction}\n`);
+      return 1;
+    }
     if (options.command === "taiji" && error.statusCode === 422 && record(error.responseBody?.data)) {
       try {
         validTaijiResult(operation, error.responseBody.data, requestBody);

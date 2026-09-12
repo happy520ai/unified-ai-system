@@ -10,6 +10,7 @@ import {
   createLocalClientPendingReconciliationResponse,
   createGatewayChatRequest,
   createGatewayClient,
+  decodeForgeMediaAudio,
   createManagedLocalClientPopProofHeader,
   deriveLocalClientReceiptReconciliationProtocolKey,
   GATEWAY_CLIENT_ERROR_CODES,
@@ -20,6 +21,184 @@ import {
   verifyLocalClientDispatchIntent,
   verifyLocalClientDurableExecutionReceipt,
 } from "./index.js";
+
+function forgeMediaFixture(audioBytes = 364) {
+  const request = { goal: "  原始语音目标\n", agentId: "agt_media", options: {
+    modelSelection: { providerId: "fake-media", modelId: "tts-fixed" }, mediaTask: { profileId: "voice-local", text: " 你好🎵\n" } } };
+  const audio = Buffer.alloc(audioBytes), channels = audioBytes > 364 ? 2 : 1, sampleRate = 48000;
+  audio.write("RIFF"); audio.writeUInt32LE(audio.length - 8, 4); audio.write("WAVEfmt ", 8);
+  audio.writeUInt32LE(16, 16); audio.writeUInt16LE(1, 20); audio.writeUInt16LE(channels, 22);
+  audio.writeUInt32LE(sampleRate, 24); audio.writeUInt32LE(sampleRate * channels * 2, 28);
+  audio.writeUInt16LE(channels * 2, 32); audio.writeUInt16LE(16, 34); audio.write("data", 36); audio.writeUInt32LE(audio.length - 44, 40);
+  const hash = value => createHash("sha256").update(value).digest("hex"), text = request.options.mediaTask.text;
+  const frameCount = (audio.length - 44) / (channels * 2);
+  const artifact = { version: 1, format: "wav-pcm16", contentType: "audio/wav", sha256: hash(audio), bytes: audio.length,
+    sampleRate, channels, bitsPerSample: 16, frameCount, durationMs: frameCount * 1000 / sampleRate, audioBase64: audio.toString("base64") };
+  const media = { version: 1, kind: "tts", success: true, outcomeUnknown: false, synthetic: true,
+    request: { taskId: "media-tts", goalId: "goal-media", goalDigest: hash(request.goal), agentId: request.agentId,
+      tenantId: "tenant-fixture", userId: "user-fixture", profileId: request.options.mediaTask.profileId, profileHash: "a".repeat(64),
+      providerId: request.options.modelSelection.providerId, modelId: request.options.modelSelection.modelId, voice: "fixed-voice",
+      textSha256: hash(text), textBytes: Buffer.byteLength(text) },
+    usage: { source: "synthetic", reported: null, inputCharacters: Array.from(text).length, providerCalls: 1 }, artifacts: [artifact] };
+  return { request, audio, artifact, media, envelope: { status: "ok", data: { ok: true, runId: "run-media",
+    result: { goalId: "goal-media", status: "completed", media } } } };
+}
+
+function assertUnretryableMedia(error) {
+  assert.ok(error instanceof GatewayClientError); assert.equal(error.retryable, false); assert.equal(error.retrySafe, false);
+  assert.equal(error.responseBody, undefined); assert.equal(error.cause, undefined); return true;
+}
+
+test("Forge media validates raw UTF-8 request bindings and decodes verified WAV without changing the envelope", async t => {
+  const fixture = forgeMediaFixture(); let calls = 0;
+  t.mock.method(globalThis, "fetch", async (_url, options) => {
+    calls++; assert.equal(options.redirect, "error"); assert.deepEqual(JSON.parse(options.body), fixture.request);
+    return new Response(JSON.stringify(fixture.envelope));
+  });
+  const response = await createGatewayClient({ baseUrl: "http://localhost:3000" }).forgeOrchestrate(fixture.request);
+  assert.deepEqual(response, fixture.envelope); assert.deepEqual(Buffer.from(await decodeForgeMediaAudio(fixture.artifact)), fixture.audio);
+  assert.equal(calls, 1);
+});
+
+test("Forge media snapshots the request before a dispatch-key factory can change caller data", async t => {
+  const fixture = forgeMediaFixture(), original = structuredClone(fixture.request);
+  t.mock.method(globalThis, "fetch", async (_url, options) => {
+    assert.deepEqual(JSON.parse(options.body), original); return new Response(JSON.stringify(fixture.envelope));
+  });
+  const client = createGatewayClient({ baseUrl: "http://localhost:3000", providerDispatchKeyFactory() {
+    fixture.request.goal = "changed"; fixture.request.options.mediaTask.text = "changed";
+    fixture.request.options.modelSelection.modelId = "changed"; return "media-fixture-key";
+  } });
+  await client.forgeOrchestrate(fixture.request);
+});
+
+test("Forge media rejects accessors before classification or dispatch", async t => {
+  let calls = 0, getterCalls = 0;
+  t.mock.method(globalThis, "fetch", async () => { calls++; throw new Error("unexpected dispatch"); });
+  const fixture = forgeMediaFixture(), request = { ...fixture.request };
+  Object.defineProperty(request, "options", { enumerable: true, get() { getterCalls++; return fixture.request.options; } });
+  await assert.rejects(createGatewayClient({ baseUrl: "http://localhost:3000" }).forgeOrchestrate(request), assertUnretryableMedia);
+  assert.equal(calls, 0); assert.equal(getterCalls, 0);
+});
+
+test("Forge media rejects options whose JSON serialization would drop the selected media task", async t => {
+  let calls = 0;
+  const fixture = forgeMediaFixture();
+  t.mock.method(globalThis, "fetch", async () => { calls++; return new Response(JSON.stringify(fixture.envelope)); });
+  const client = createGatewayClient({ baseUrl: "http://localhost:3000" });
+  for (const options of [Object.assign([], fixture.request.options), { ...fixture.request.options, mediaTask: undefined }]) {
+    await assert.rejects(client.forgeOrchestrate({ ...fixture.request, options }), assertUnretryableMedia);
+  }
+  assert.equal(calls, 0);
+});
+
+test("Forge media refuses incomplete or mismatched success, usage and request fields", async t => {
+  let fixture, calls = 0;
+  t.mock.method(globalThis, "fetch", async () => { calls++; return new Response(JSON.stringify(fixture.envelope)); });
+  const client = createGatewayClient({ baseUrl: "http://localhost:3000" });
+  const mutations = [
+    f => { delete f.media.success; }, f => { f.media.outcomeUnknown = true; }, f => { f.media.extra = true; },
+    f => { f.envelope.data.result.goalId = "different"; }, f => { f.envelope.data.ok = false; },
+    ...["agentId", "profileId", "providerId", "modelId", "goalDigest", "textSha256", "profileHash", "taskId"].map(key => f => { f.media.request[key] = "wrong"; }),
+    f => { f.media.request.textBytes++; }, f => { delete f.media.request.tenantId; }, f => { f.media.request.userId = ""; },
+    f => { delete f.media.request.voice; }, f => { f.media.usage.inputCharacters++; }, f => { f.media.usage.providerCalls = 2; },
+    f => { f.media.usage.reported = {}; }, f => { f.media.usage.source = "not-reported"; }, f => { f.media.artifacts.push(f.artifact); },
+    f => { delete f.artifact.sha256; }, f => { f.artifact.path = "server-output.wav"; }, f => { f.artifact.frameCount++; },
+    f => { f.artifact.sampleRate++; }, f => { f.artifact.channels = 2; }, f => { f.artifact.durationMs = NaN; },
+    f => { f.artifact.sha256 = "0".repeat(64); }, f => { f.artifact.audioBase64 += "\n"; },
+    f => { const value = Buffer.from(f.artifact.audioBase64, "base64"); value.writeUInt32LE(0, 40);
+      f.artifact.audioBase64 = value.toString("base64"); f.artifact.sha256 = createHash("sha256").update(value).digest("hex"); },
+  ];
+  for (const mutate of mutations) { fixture = forgeMediaFixture(); mutate(fixture); await assert.rejects(client.forgeOrchestrate(fixture.request), assertUnretryableMedia); }
+  assert.equal(calls, mutations.length);
+});
+
+test("Forge media accepts approval_required without inventing an audio artifact", async t => {
+  const fixture = forgeMediaFixture(), envelope = { status: "ok", data: { outcome: "approval_required", approvalId: "apr_media",
+    agentId: fixture.request.agentId, toolName: "forge_orchestrate", code: "AGENT_APPROVAL_REQUIRED" } };
+  t.mock.method(globalThis, "fetch", async () => new Response(JSON.stringify(envelope)));
+  assert.deepEqual(await createGatewayClient({ baseUrl: "http://localhost:3000" }).forgeOrchestrate(fixture.request), envelope);
+});
+
+test("Forge media enforces actual streaming bytes on success and HTTP errors, irrespective of Content-Length", async t => {
+  let calls = 0, cancelled = 0, errorResponse = false;
+  t.mock.method(globalThis, "fetch", async () => {
+    calls++; let count = 0;
+    return { ok: !errorResponse, status: errorResponse ? 503 : 200, headers: new Headers({ "content-length": "1" }),
+      body: { getReader() { return { read: async () => ({ done: false, value: new Uint8Array(++count <= 6 ? 1024 * 1024 : 1) }),
+        cancel: async () => { cancelled++; }, releaseLock() {} }; } },
+      text() { assert.fail("unbounded text must not be read"); }, arrayBuffer() { assert.fail("unbounded buffer must not be read"); } };
+  });
+  const client = createGatewayClient({ baseUrl: "http://localhost:3000" });
+  await assert.rejects(client.forgeOrchestrate(forgeMediaFixture().request), assertUnretryableMedia);
+  errorResponse = true; await assert.rejects(client.forgeOrchestrate(forgeMediaFixture().request), assertUnretryableMedia);
+  assert.equal(calls, 2); assert.equal(cancelled, 2);
+});
+
+test("Forge media rejects missing readers, interrupted bodies, corrupt JSON and redirects without retries or audio in errors", async t => {
+  const fixture = forgeMediaFixture(); let mode = "missing", calls = 0;
+  t.mock.method(globalThis, "fetch", async (_url, options) => {
+    calls++; assert.equal(options.redirect, "error");
+    if (mode === "redirect") throw new TypeError("redirect refused");
+    if (mode === "corrupt") return new Response("{" + fixture.artifact.audioBase64);
+    if (mode === "http") return new Response(JSON.stringify({ error: { code: "MEDIA_FAILED", retryable: true }, artifact: fixture.artifact }), { status: 503 });
+    return { ok: true, status: 200, body: mode === "missing" ? null : { getReader: () => ({
+      read: async () => { throw new Error(fixture.artifact.audioBase64); }, cancel: async () => {}, releaseLock() {} }) },
+      text() { assert.fail("must require a bounded reader"); }, arrayBuffer() { assert.fail("must require a bounded reader"); } };
+  });
+  const client = createGatewayClient({ baseUrl: "http://localhost:3000" });
+  for (mode of ["missing", "interrupted", "corrupt", "http", "redirect"]) {
+    await assert.rejects(client.forgeOrchestrate(fixture.request), error => {
+      assertUnretryableMedia(error); assert.ok(!JSON.stringify(error).includes(fixture.artifact.audioBase64)); return true;
+    });
+  }
+  assert.equal(calls, 5);
+});
+
+test("Forge media bounds deadline and caller-abort cleanup even when a reader never settles", { timeout: 1500 }, async t => {
+  let calls = 0, cancelled = 0;
+  t.mock.method(globalThis, "fetch", async () => {
+    calls++; return { ok: true, status: 200, body: { getReader: () => ({
+      read: () => new Promise(() => {}), cancel: () => { cancelled++; return new Promise(() => {}); }, releaseLock() {} }) } };
+  });
+  const fixture = forgeMediaFixture();
+  await assert.rejects(createGatewayClient({ baseUrl: "http://localhost:3000", timeoutMs: 20 }).forgeOrchestrate(fixture.request), error => {
+    assertUnretryableMedia(error); assert.equal(error.kind, "timeout"); return true;
+  });
+  const controller = new AbortController();
+  const pending = createGatewayClient({ baseUrl: "http://localhost:3000", signal: controller.signal }).forgeOrchestrate(fixture.request);
+  controller.abort();
+  await assert.rejects(pending, error => { assertUnretryableMedia(error); assert.equal(error.kind, "cancelled"); return true; });
+  assert.equal(calls, 2); assert.equal(cancelled, 2);
+});
+
+test("Forge media accepts the 4 MiB audio boundary and refuses oversized or noncanonical base64 artifacts", async t => {
+  const fixture = forgeMediaFixture(4 * 1024 * 1024);
+  t.mock.method(globalThis, "fetch", async () => new Response(JSON.stringify(fixture.envelope)));
+  await createGatewayClient({ baseUrl: "http://localhost:3000" }).forgeOrchestrate(fixture.request);
+  await assert.rejects(decodeForgeMediaAudio({ ...fixture.artifact, bytes: 4 * 1024 * 1024 + 1 }), assertUnretryableMedia);
+  const small = forgeMediaFixture(48).artifact;
+  const padded = forgeMediaFixture(46).artifact;
+  await decodeForgeMediaAudio(small);
+  await assert.rejects(decodeForgeMediaAudio({ ...padded, audioBase64: padded.audioBase64.slice(0, -3) + "B==" }), assertUnretryableMedia);
+});
+
+test("Forge media accepts PCM fmt18, JUNK and LIST INFO and rejects invalid or excessive chunks", async () => {
+  const fixture = forgeMediaFixture(), wav = Buffer.concat([fixture.audio.subarray(0, 36), Buffer.alloc(2), fixture.audio.subarray(36)]);
+  wav.writeUInt32LE(18, 16); wav.writeUInt32LE(wav.length - 8, 4);
+  const seal = bytes => ({ ...fixture.artifact, bytes: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex"), audioBase64: bytes.toString("base64") });
+  assert.deepEqual(Buffer.from(await decodeForgeMediaAudio(seal(wav))), wav);
+  const info = Buffer.alloc(12); info.write("LIST"); info.writeUInt32LE(4, 4); info.write("INFO", 8);
+  const junk = Buffer.alloc(10); junk.write("JUNK"); junk.writeUInt32LE(1, 4);
+  const additional = Buffer.concat([wav, info, junk]); additional.writeUInt32LE(additional.length - 8, 4);
+  await decodeForgeMediaAudio(seal(additional));
+  const invalidFormat = Buffer.from(wav); invalidFormat.writeUInt16LE(1, 36);
+  await assert.rejects(decodeForgeMediaAudio(seal(invalidFormat)), assertUnretryableMedia);
+  const unknown = Buffer.from(additional); unknown.write("fact", wav.length);
+  await assert.rejects(decodeForgeMediaAudio(seal(unknown)), assertUnretryableMedia);
+  const excess = Buffer.concat([wav, ...Array.from({ length: 63 }, () => junk)]); excess.writeUInt32LE(excess.length - 8, 4);
+  await assert.rejects(decodeForgeMediaAudio(seal(excess)), assertUnretryableMedia);
+});
 
 const POP_CANONICAL_VERSION = "managed-local-client-pop-canonical-v1";
 const POP_PROOF_VERSION = "managed-local-client-pop-proof-v1";

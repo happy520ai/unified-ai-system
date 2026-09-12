@@ -171,6 +171,22 @@ export class Orchestrator {
     throwIfForgeAborted(signal);
     const goal = this.#store.getGoal(goalId);
     if (!goal) throw new Error(`Goal ${goalId} not found`);
+    const mediaTask = this.#governedExecution?.mediaTask;
+    const initialTasks = this.#store.getTasksForGoal(goalId);
+    const hasMediaTask = !!mediaTask || initialTasks.some(task => task.id === 'media-tts' || task.agent_role === 'media');
+    if (hasMediaTask) {
+      const task = initialTasks[0];
+      if (!this.#governanceRequired || this.#governedExecution?.webTask || mediaTask?.taskId !== 'media-tts'
+        || typeof mediaTask.execute !== 'function' || typeof mediaTask.getResult !== 'function'
+        || typeof mediaTask.summary !== 'string' || !mediaTask.summary.trim() || mediaTask.summary.length > 500
+        || initialTasks.length !== 1 || task.id !== 'media-tts' || task.agent_role !== 'media'
+        || task.type !== 'explore' || !Array.isArray(task.allowed_files) || task.allowed_files.length !== 0) {
+        throw createForgeExecutionError('FORGE_MEDIA_CAPABILITY_INVALID', 'Media requires one fixed approved task and its private port.');
+      }
+      if (goal.status !== 'compiled' || task.status !== 'pending' || task.retry_count !== 0 || task.started_at) {
+        throw createForgeExecutionError('FORGE_MEDIA_RESUME_UNSUPPORTED', 'Media outcomes cannot be replayed through Forge execution.');
+      }
+    }
     if (goal.status !== 'compiled' && goal.status !== 'running') {
       throw new Error(`Goal ${goalId} is in status "${goal.status}", expected "compiled" or "running"`);
     }
@@ -357,7 +373,7 @@ export class Orchestrator {
           this.#store.incrementRetry(goalId, task.id);
           const taskData = this.#store.getTask(goalId, task.id);
 
-          if ((task.agent_role || task.agentRole) !== 'web' && taskData.retry_count < taskData.max_retries) {
+          if (!['web', 'media'].includes(task.agent_role || task.agentRole) && taskData.retry_count < taskData.max_retries) {
             console.log(`[forge:orchestrator] Task ${task.id} failed (retry ${taskData.retry_count}/${taskData.max_retries}): ${error}`);
             this.#store.updateTaskStatus(goalId, task.id, 'pending', { errorMessage: error });
           } else {
@@ -371,8 +387,17 @@ export class Orchestrator {
 
     // Final status
     const durationMs = Date.now() - startTime;
-    const finalStatus = failedCount > 0 ? 'failed' : 'completed';
-    const budgetFinal = this.#budget.getStatus();
+    let mediaResult = null;
+    if (hasMediaTask) {
+      try { mediaResult = mediaTask.getResult(); } catch { /* Missing result cannot certify a completed media operation. */ }
+    }
+    throwIfForgeAborted(signal);
+    const mediaComplete = !hasMediaTask || (completedCount === 1 && failedCount === 0
+      && mediaResult?.success === true && mediaResult?.outcomeUnknown === false
+      && this.#store.getTask(goalId, 'media-tts')?.status === 'completed');
+    const finalStatus = failedCount > 0 || !mediaComplete ? 'failed' : 'completed';
+    const budgetFinal = { ...this.#budget.getStatus(), ...(hasMediaTask
+      ? { tokensUsed: null, costIncurred: null, costStatus: 'not_reported' } : {}) };
 
     this.#store.updateGoalStatus(goalId, finalStatus);
     this.#store.logEvent(goalId, null, 'execution_finished', {
@@ -394,13 +419,14 @@ export class Orchestrator {
       durationMs,
       durationHuman: formatDuration(durationMs),
       budget: budgetFinal,
+      ...(hasMediaTask ? { media: mediaResult } : {}),
       governance: this.#governanceRequired
         ? { enforced: true, mode: 'gateway-governed' }
         : { enforced: false, mode: 'standalone-development-only' },
     };
 
     console.log(`\n[forge:orchestrator] Goal ${finalStatus}: ${completedCount} tasks done, ${failedCount} failed, in ${report.durationHuman}`);
-    console.log(`[forge:orchestrator] Budget: ${budgetFinal.tokensUsed} tokens, $${(budgetFinal.costIncurred || 0).toFixed(4)}, ${formatDuration(durationMs)}`);
+    console.log(`[forge:orchestrator] Budget: ${budgetFinal.tokensUsed ?? 'unknown'} tokens, cost ${Number.isFinite(budgetFinal.costIncurred) ? '$' + budgetFinal.costIncurred.toFixed(4) : 'unknown'}, ${formatDuration(durationMs)}`);
 
     // Plugin hooks: afterGoal + onGoalComplete/onGoalFail
     await this.#plugins?.runHook('afterGoal', {
@@ -442,6 +468,33 @@ export class Orchestrator {
     });
 
     try {
+    if ((task.agent_role || task.agentRole) === 'media') {
+      const mediaTask = this.#governedExecution?.mediaTask;
+      if (!this.#governanceRequired || this.#governedExecution?.webTask || task.id !== 'media-tts'
+        || task.type !== 'explore' || !Array.isArray(task.allowed_files) || task.allowed_files.length !== 0
+        || mediaTask?.taskId !== 'media-tts' || typeof mediaTask.execute !== 'function') {
+        throw createForgeExecutionError('FORGE_MEDIA_CAPABILITY_INVALID', 'Media execution requires the approved private port.');
+      }
+      this.#store.updateTaskStatus(goalId, task.id, 'running');
+      this.#store.logEvent(goalId, task.id, 'task_started', { name: mediaTask.summary, type: 'explore', agentRole: 'media' });
+      let result;
+      try {
+        result = await mediaTask.execute({ ...task, allowedFiles: [] }, { signal });
+      } catch (error) {
+        if (isForgeAbortError(error, signal)) throw error;
+        throw createForgeExecutionError('FORGE_MEDIA_EXECUTION_FAILED', 'The media operation did not complete; automatic replay is disabled.');
+      }
+      throwIfForgeAborted(signal);
+      if (result?.success !== true || result?.outcomeUnknown !== false || result.tokenUsage !== null
+        || !Array.isArray(result.filesModified) || result.filesModified.length !== 0) {
+        throw createForgeExecutionError('FORGE_MEDIA_RESULT_INVALID', 'The media operation did not return a complete safe result.');
+      }
+      // Never persist provider payloads, including WAV base64, in the TaskStore.
+      const safeResult = { success: true, outcomeUnknown: false, tokenUsage: null, filesModified: [], output: mediaTask.summary };
+      this.#store.logEvent(goalId, task.id, 'task_finished', { success: true, filesModified: 0 });
+      if (taskSpan) this.#tracing?.endSpan(taskSpan.id, 'ok', { 'forge.task.id': task.id });
+      return safeResult;
+    }
     const workerFactory = WORKER_MAP[task.agent_role || task.agentRole];
     if (!workerFactory) {
       throw new Error(`No worker registered for role: ${task.agent_role || task.agentRole}`);

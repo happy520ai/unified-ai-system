@@ -3,7 +3,7 @@ import test from "node:test";
 import { createHash } from "node:crypto";
 import { once } from "node:events";
 import { createServer } from "node:http";
-import { mkdtemp, realpath, rm, writeFile, link } from "node:fs/promises";
+import { mkdtemp, realpath, readdir, rm, writeFile, link } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { runCli, parseCliArgs, CliUsageError } from "./cli-core.js";
@@ -157,6 +157,87 @@ test("Forge approval projection preserves verified budgets and rejects changed t
   assert.equal(projectForgeApprovalReview(review).forge.options.budget.maxTokens, 20000);
   assert.throws(() => projectForgeApprovalReview({ ...review, forge: { ...review.forge, goal: "changed task" } }));
   assert.throws(() => projectForgeApprovalReview({ ...review, forge: { ...review.forge, options: { ...options, maxOutputTokens: 4096 } } }));
+});
+
+async function runForgeMediaInputOnly(args: string[]) {
+  let out = "", err = "";
+  const code = await runCli([...args, "--yes", "--url", "http://127.0.0.1:1", "--json"], {
+    env: { AGENT_CONSOLE_ADMIN_KEY: "operator-fixture-key" },
+    stdout: { isTTY: false, write: (value: string) => { out += value; } },
+    stderr: { write: (value: string) => { err += value; } },
+  });
+  return { code, out, err };
+}
+
+test("Forge speech rejects repeated and out-of-scope audio-output flags without a request", async t => {
+  let requests = 0;
+  t.mock.method(globalThis, "fetch", async () => { requests++; throw new Error("unexpected HTTP request"); });
+  const orchestrate = ["forge", "orchestrate", "--goal", "Bounded speech", "--agent-id", "agt_media_cli"];
+  const cases: { args: string[]; message: RegExp }[] = [
+    ...["voice.wav", "other.wav"].map(second => ({ args: [...orchestrate, "--audio-output", "voice.wav", "--audio-output", second], message: /--audio-output must not be repeated/u })),
+    ...[["forge", "status"], ["forge", "polish", "draft"], ["knowledge", "health"]].map(args => ({ args: [...args, "--audio-output", "voice.wav"], message: /--audio-output is only valid with forge orchestrate speech tasks/u })),
+  ];
+  for (const sample of cases) {
+    const result = await runForgeMediaInputOnly(sample.args);
+    assert.equal(result.code, 2, result.err); assert.equal(result.out, ""); assert.match(result.err, sample.message);
+    assert.equal(requests, 0);
+  }
+});
+
+test("Forge speech rejects missing output and unsupported explicit token or currency limits before dispatch", async t => {
+  let requests = 0;
+  t.mock.method(globalThis, "fetch", async () => { requests++; throw new Error("unexpected HTTP request"); });
+  const temporaryRoot = await realpath(tmpdir()), root = await mkdtemp(join(temporaryRoot, "uai-operator-media-input-"));
+  const mediaTask = { profileId: "media_fixture", text: "Bounded speech fixture" }, output = join(root, "语音.wav");
+  const cases: { options: any; flags: string[]; message: RegExp }[] = [
+    { options: { mediaTask }, flags: [], message: /Speech requires --audio-output/u },
+    { options: {}, flags: ["--audio-output", output], message: /--audio-output requires a speech mediaTask/u },
+    { options: { mediaTask }, flags: ["--audio-output", output, "--max-output-tokens", "1"], message: /token or currency budgets are not reported/u },
+    ...[{ maxOutputTokens: 1 }, { budget: { maxTokens: 1 } }, { budget: { maxCost: 0 } }].map(limits => ({
+      options: { mediaTask, ...limits }, flags: ["--audio-output", output], message: /token or currency budgets are not reported/u,
+    })),
+  ];
+  try {
+    for (const [index, sample] of cases.entries()) {
+      const input = join(root, `case-${index}.json`);
+      await writeFile(input, JSON.stringify({ goal: "Bounded speech", agentId: "agt_media_cli", options: sample.options }));
+      const result = await runForgeMediaInputOnly(["forge", "orchestrate", "--input", input, ...sample.flags]);
+      assert.equal(result.code, 2, result.err); assert.equal(result.out, "");
+      const failure = JSON.parse(result.err);
+      assert.equal(failure.code, "OPERATOR_INPUT_INVALID"); assert.equal(failure.status, "rejected");
+      assert.equal(failure.retryAllowed, false); assert.equal(failure.httpStatus, null); assert.match(failure.message, sample.message);
+      assert.equal(requests, 0); assert.equal((await readdir(root)).some(name => /\.wav$/iu.test(name)), false);
+    }
+  } finally {
+    const owned = await realpath(root); assert.equal(dirname(owned), temporaryRoot); assert.ok(basename(owned).startsWith("uai-operator-media-input-"));
+    await rm(owned, { recursive: true, force: true });
+  }
+});
+
+test("Forge speech requires explicit real-provider opt-in for both input JSON and model flags before dispatch", async t => {
+  let requests = 0;
+  t.mock.method(globalThis, "fetch", async () => { requests++; throw new Error("unexpected HTTP request"); });
+  const temporaryRoot = await realpath(tmpdir()), root = await mkdtemp(join(temporaryRoot, "uai-operator-media-input-"));
+  const modelSelection = { providerId: "fixture-real-provider", modelId: "fixture-tts-model" };
+  try {
+    for (const source of ["input", "flags"]) {
+      const input = join(root, `${source}.json`), output = join(root, `${source}.wav`);
+      await writeFile(input, JSON.stringify({ goal: "Bounded speech", agentId: "agt_media_cli", options: {
+        mediaTask: { profileId: "media_fixture", text: "Bounded speech fixture" }, ...(source === "input" ? { modelSelection } : {}),
+      } }));
+      const result = await runForgeMediaInputOnly(["forge", "orchestrate", "--input", input, "--audio-output", output,
+        ...(source === "flags" ? ["--provider-id", modelSelection.providerId, "--model-id", modelSelection.modelId] : [])]);
+      assert.equal(result.code, 2, result.err); assert.equal(result.out, "");
+      const failure = JSON.parse(result.err);
+      assert.equal(failure.code, "OPERATOR_INPUT_INVALID"); assert.equal(failure.status, "rejected");
+      assert.match(failure.message, /A non-fake provider requires --allow-real-provider/u);
+      assert.equal(failure.retryAllowed, false); assert.equal(failure.httpStatus, null); assert.equal(requests, 0);
+      assert.equal((await readdir(root)).some(name => /\.wav$/iu.test(name)), false);
+    }
+  } finally {
+    const owned = await realpath(root); assert.equal(dirname(owned), temporaryRoot); assert.ok(basename(owned).startsWith("uai-operator-media-input-"));
+    await rm(owned, { recursive: true, force: true });
+  }
 });
 
 test("Forge previews, fake selection, explicit real opt-in, approvals and unknown outcomes are not conflated", async () => {

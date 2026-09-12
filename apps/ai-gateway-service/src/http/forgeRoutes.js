@@ -22,6 +22,8 @@ import { classifyImmuneRisk, generateManifestDraft } from "@unified-ai-system/ta
 import { runRealTaskWorkforceDryRun } from "../workforce-preview/workforcePreviewService.js";
 import { redactSecretsInText } from "../security/secretSafety.js";
 import { resolveGovernedWebTaskRequest, createGovernedWebTaskExecution } from "../forge/governedWebTaskRuntime.ts";
+import { resolveGovernedMediaTaskRequest, assertMediaOptions, mediaTaskError } from "../forge/governedMediaTaskProfile.ts";
+import { createGovernedMediaTaskExecution, assertGovernedMediaResultUnchanged } from "../forge/governedMediaTaskRuntime.ts";
 import { readForgeModelSelection, readForgeOutputTokenLimit } from "../forge/forgeModelSelection.ts";
 import { dispatchTaijiCapabilityRoutes } from "./taijiCapabilityRoutes.ts";
 
@@ -106,12 +108,12 @@ function sanitizeGovernedForgeOptions(value) {
   return Object.freeze(safe);
 }
 
-function buildForgeOrchestrateParams(goal, options, webTask = null) {
+function buildForgeOrchestrateParams(goal, options, webTask = null, mediaTask = null) {
   const goalDigest = createHash("sha256").update(goal, "utf8").digest("hex");
   return Object.freeze({
     goalDigest,
     goalBytes: Buffer.byteLength(goal, "utf8"),
-    options: Object.freeze({ ...sanitizeGovernedForgeOptions(options), ...(webTask ? { webTask } : {}) }),
+    options: Object.freeze({ ...sanitizeGovernedForgeOptions(options), ...(webTask ? { webTask } : {}), ...(mediaTask ? { mediaTask } : {}) }),
   });
 }
 
@@ -157,6 +159,9 @@ function readApprovedForgeOptions(verdict, requestedParams) {
   if (requestedParams.options.webTask && stableStringify(approved.options?.webTask) !== stableStringify(requestedParams.options.webTask)) {
     throw Object.assign(new Error("Approved webpage profile or goal parameters changed."), { code: "FORGE_APPROVED_PARAMS_INVALID" });
   }
+  if (requestedParams.options.mediaTask && stableStringify(approved.options?.mediaTask) !== stableStringify(requestedParams.options.mediaTask)) {
+    throw Object.assign(new Error("Approved speech text or profile changed."), { code: "FORGE_APPROVED_PARAMS_INVALID" });
+  }
   if (stableStringify(approved.options?.modelSelection ?? null) !== stableStringify(requestedParams.options.modelSelection ?? null)) {
     throw Object.assign(new Error("Approved Forge model selection changed."), { code: "FORGE_APPROVED_PARAMS_INVALID" });
   }
@@ -164,7 +169,8 @@ function readApprovedForgeOptions(verdict, requestedParams) {
     throw Object.assign(new Error("Approved Forge output token limit changed."), { code: "FORGE_APPROVED_PARAMS_INVALID" });
   }
   return Object.freeze({ ...sanitizeGovernedForgeOptions(approved.options),
-    ...(requestedParams.options.webTask ? { webTask: requestedParams.options.webTask } : {}) });
+    ...(requestedParams.options.webTask ? { webTask: requestedParams.options.webTask } : {}),
+    ...(requestedParams.options.mediaTask ? { mediaTask: requestedParams.options.mediaTask } : {}) });
 }
 
 async function executeForgeOrchestration({
@@ -181,6 +187,7 @@ async function executeForgeOrchestration({
 }) {
   const governance = application?.agentGovernance;
   if (!governance) {
+    if (options?.mediaTask !== undefined) return { error: { status: 503, code: "FORGE_MEDIA_GOVERNANCE_REQUIRED", message: "Speech tasks require Agent Governance." } };
     if (options?.webTask !== undefined) return { error: { status: 503, code: "FORGE_WEB_GOVERNANCE_REQUIRED", message: "Web tasks require Agent Governance." } };
     return {
       result: await forge.orchestrate({
@@ -230,11 +237,20 @@ async function executeForgeOrchestration({
   let topActionLease = null;
   let completedResult = null;
   let reconciliation = null;
+  const mediaRequested = options?.mediaTask !== undefined;
+  let mediaExecution = null;
+  let mediaRouteSignal = null;
+  let orchestrationStarted = false;
+  let observedOrchestrationResult = null;
+  let pendingApprovalId = null;
+  const cleanupCodes = [];
+  const execute = async () => {
   try {
     if (requestExecutionSignal?.aborted) throw requestExecutionSignal.reason;
     const authorization = await service.authorizeAgentExecution(identity.agentId, identity);
     runLease = authorization?.executionLease ?? null;
     const routeSignal = combineForgeRouteSignals(requestExecutionSignal, runLease?.signal);
+    if (mediaRequested) mediaRouteSignal = routeSignal;
     if (routeSignal?.aborted) throw routeSignal.reason;
     const rootRecord = authorization?.record;
     if (!rootRecord || rootRecord.parentAgentId !== null || rootRecord.generationDepth !== 0) {
@@ -257,7 +273,13 @@ async function executeForgeOrchestration({
     }
 
     const webTask = resolveGovernedWebTaskRequest(application.runtimeEnv ?? {}, options?.webTask, identity.tenantId);
-    const requestedParams = buildForgeOrchestrateParams(goal, options, webTask);
+    const mediaTask = resolveGovernedMediaTaskRequest(application.runtimeEnv ?? {}, options?.mediaTask, identity.tenantId);
+    if (mediaTask) {
+      if (webTask) throw mediaTaskError("FORGE_MEDIA_OPTIONS_UNSUPPORTED", 400);
+      assertMediaOptions(mediaTask, options);
+      if (!identity.permissions.includes("*") && !identity.permissions.includes("chat:use")) throw mediaTaskError("FORGE_MEDIA_CHAT_PERMISSION_REQUIRED", 403);
+    }
+    const requestedParams = buildForgeOrchestrateParams(goal, options, webTask, mediaTask);
     reconciliation = Object.freeze({
       required: true,
       agentId: identity.agentId,
@@ -277,12 +299,16 @@ async function executeForgeOrchestration({
         approvalReview: buildForgeApprovalReview(goal, requestedParams),
       },
     });
+    if (mediaRequested) {
+      topActionLease = topVerdict?.executionLease ?? null;
+      pendingApprovalId = safeForgeReconciliationId(topVerdict?.approvalId);
+    }
     if (routeSignal?.aborted) {
-      topVerdict?.executionLease?.release?.();
+      if (!mediaRequested) topVerdict?.executionLease?.release?.();
       throw routeSignal.reason;
     }
     if ((topVerdict?.outcome ?? topVerdict?.verdict) !== "allow") {
-      topVerdict?.executionLease?.release?.();
+      if (!mediaRequested) topVerdict?.executionLease?.release?.();
       if (topVerdict?.outcome === "approval_required" && topVerdict.approvalId) {
         return {
           approval: {
@@ -303,7 +329,7 @@ async function executeForgeOrchestration({
       };
     }
     if (!topVerdict?.policy || typeof topVerdict?.executionLease?.release !== "function") {
-      topVerdict?.executionLease?.release?.();
+      if (!mediaRequested) topVerdict?.executionLease?.release?.();
       return {
         error: {
           status: 503,
@@ -313,6 +339,11 @@ async function executeForgeOrchestration({
       };
     }
     topActionLease = topVerdict.executionLease ?? null;
+    if (mediaTask && (!topVerdict.approvalId || !topVerdict.approvalReview?.forge?.options?.mediaTask)) {
+      throw Object.assign(mediaTaskError("FORGE_MEDIA_APPROVAL_REQUIRED", 403), {
+        message: "Speech requires a complete one-shot Forge approval; set the Forge tool decision to require approval.",
+      });
+    }
     const approvedOptions = readApprovedForgeOptions(topVerdict, requestedParams);
     const baseExecution = createForgeGovernedExecution({
       context: identity,
@@ -325,7 +356,15 @@ async function executeForgeOrchestration({
       policyHash: topVerdict.policy.policyHash, gatewayService, maxTokens: approvedOptions.budget?.maxTokens,
       modelSelection: approvedOptions.modelSelection,
       maxOutputTokens: approvedOptions.maxOutputTokens,
+    }) }) : mediaTask ? Object.freeze({ ...baseExecution, mediaTask: createGovernedMediaTaskExecution({
+      request: mediaTask, goal, approvalId: topVerdict.approvalId, context: identity, toolProxy, executionLease: runLease,
+      signal: routeSignal, policyHash: topVerdict.policy.policyHash, modelSelection: approvedOptions.modelSelection,
+      gatewayService, rawAdapter: mediaTask.profile.providerId === "local-fake-provider" ? undefined : application.multimodalAdapter,
+      runtimeCredentialStore: application.runtimeCredentialStore,
+      env: application.runtimeEnv ?? {},
     }) }) : baseExecution;
+    mediaExecution = governedExecution.mediaTask ?? null;
+    orchestrationStarted = true;
     const orchestrationResult = await forge.orchestrate({
       goal,
       options: approvedOptions,
@@ -335,7 +374,8 @@ async function executeForgeOrchestration({
       governanceRequired: true,
       signal: routeSignal,
     });
-    if (webTask && orchestrationResult.code === "FORGE_ACTION_OUTCOME_UNCERTAIN") {
+    observedOrchestrationResult = orchestrationResult;
+    if ((webTask || mediaTask) && orchestrationResult.code === "FORGE_ACTION_OUTCOME_UNCERTAIN") {
       return forgeOutcomeUncertain(orchestrationResult, reconciliation, orchestrationResult);
     }
     if (routeSignal?.aborted) throw routeSignal.reason;
@@ -343,6 +383,7 @@ async function executeForgeOrchestration({
     if (isForgePostExecutionGovernanceFailure(completedResult)) {
       return forgeOutcomeUncertain(completedResult, reconciliation, completedResult);
     }
+    const expectedMediaResult = mediaTask && orchestrationResult.ok === true ? structuredClone(orchestrationResult.result?.media) : null;
     let result = completedResult;
     if (typeof toolProxy.enforceResult === "function" && topVerdict.policy) {
       const resultVerdict = await toolProxy.enforceResult({
@@ -350,7 +391,11 @@ async function executeForgeOrchestration({
         toolName: "forge_orchestrate",
         policy: topVerdict.policy,
         result,
-        descriptor: webTask && Array.isArray(result?.result?.web?.records)
+        descriptor: mediaTask && Array.isArray(result?.result?.media?.artifacts)
+          ? { kind: "record-array", selector: ["result", "media", "artifacts"], itemKind: "object", onLimitExceeded: "replace" }
+          : mediaTask && Array.isArray(result?.media?.artifacts)
+            ? { kind: "record-array", selector: ["media", "artifacts"], itemKind: "object", onLimitExceeded: "replace" }
+          : webTask && Array.isArray(result?.result?.web?.records)
           ? { kind: "record-array", selector: ["result", "web", "records"], itemKind: "object", onLimitExceeded: "replace" }
           : webTask && Array.isArray(result?.web?.records)
             ? { kind: "record-array", selector: ["web", "records"], itemKind: "object", onLimitExceeded: "replace" }
@@ -373,6 +418,9 @@ async function executeForgeOrchestration({
       }
       if (resultVerdict && Object.hasOwn(resultVerdict, "result")) result = resultVerdict.result;
     }
+    if (mediaTask && orchestrationResult.ok === true) {
+      assertGovernedMediaResultUnchanged(expectedMediaResult, result?.result?.media);
+    }
     if (routeSignal?.aborted) throw routeSignal.reason;
     return { result };
   } catch (error) {
@@ -386,14 +434,47 @@ async function executeForgeOrchestration({
         message: error?.message ?? "Agent Governance failed closed for Forge orchestration.",
       },
     };
-  } finally {
-    try { await topActionLease?.release?.(); } catch { /* A completed result is already classified above. */ }
-    try { await runLease?.release?.(); } catch { /* Lease cleanup never makes a safe retry claim. */ }
   }
+  };
+  let outcome;
+  try { outcome = await execute(); }
+  finally {
+    try { await topActionLease?.release?.(); } catch { cleanupCodes.push("FORGE_TOP_ACTION_LEASE_RELEASE_FAILED"); }
+    try { await runLease?.release?.(); } catch { cleanupCodes.push("FORGE_RUN_LEASE_RELEASE_FAILED"); }
+  }
+  if (mediaRequested && mediaRouteSignal?.aborted) cleanupCodes.push("FORGE_MEDIA_DELIVERY_ABORTED");
+  if (mediaRequested && cleanupCodes.length > 0) {
+    let terminal = completedResult?.media ?? completedResult?.result?.media;
+    try { terminal ??= mediaExecution?.getResult?.(); } catch { /* No trustworthy provider-call count is available. */ }
+    const calls = terminal?.usage?.providerCalls;
+    const priorAttempted = outcome?.error?.details?.providerCallAttempted;
+    const providerCallAttempted = typeof priorAttempted === "boolean" ? priorAttempted
+      : Number.isSafeInteger(calls) && calls >= 0 ? calls > 0 : orchestrationStarted ? null : false;
+    const firstFailure = outcome?.error?.details?.causeCode ?? outcome?.error?.code
+      ?? (completedResult?.ok === false ? completedResult.causeCode ?? terminal?.code ?? completedResult.code : cleanupCodes[0]);
+    const failed = forgeOutcomeUncertain(completedResult ?? (terminal ? { media: terminal } : null), reconciliation, { code: firstFailure });
+    const priorCleanupCodes = Array.isArray(outcome?.error?.details?.cleanupCodes) ? outcome.error.details.cleanupCodes : [];
+    const allCleanupCodes = [...new Set([...priorCleanupCodes, ...cleanupCodes])]
+      .filter(code => typeof code === "string" && /^[A-Za-z0-9_]{1,100}$/u.test(code)).slice(0, 8);
+    Object.assign(failed.error.details, { causeCode: safeForgeCauseCode(firstFailure), providerCallAttempted, cleanupCodes: allCleanupCodes,
+      ...(pendingApprovalId ? { approvalId: pendingApprovalId } : {}) });
+    failed.error.message = providerCallAttempted === false
+      ? "Speech did not reach a provider, but request cleanup failed; inspect the retained approval before resubmitting."
+      : "Speech generation or delivery could not be confirmed after cleanup failed; do not automatically resubmit.";
+    outcome = failed;
+  }
+  const failedMediaRunId = safeForgeReconciliationId(observedOrchestrationResult?.runId);
+  if (mediaRequested && outcome?.error && failedMediaRunId) {
+    forge.recordMediaDeliveryFailure?.({ runId: failedMediaRunId, tenantIdentity,
+      code: outcome.error.code, causeCode: outcome.error.details?.causeCode,
+      cleanupCodes: outcome.error.details?.cleanupCodes ?? [] });
+  }
+  return outcome;
 }
 
 function forgeOutcomeUncertain(completedResult, reconciliation, cause) {
   const web = completedResult?.web ?? completedResult?.result?.web;
+  const media = completedResult?.media ?? completedResult?.result?.media;
   const runId = safeForgeReconciliationId(
     completedResult?.runId ?? completedResult?.result?.runId,
   );
@@ -401,7 +482,8 @@ function forgeOutcomeUncertain(completedResult, reconciliation, cause) {
     error: {
       status: 503,
       code: "FORGE_EXTERNAL_EFFECT_OUTCOME_UNCERTAIN",
-      message: "Forge completed, but terminal governance did not; reconcile before retrying.",
+      message: media ? "Speech generation or delivery could not be confirmed; do not automatically resubmit."
+        : "Forge completed, but terminal governance did not; reconcile before retrying.",
       details: {
         outcomeUnknown: true,
         retrySafe: false,
@@ -409,7 +491,13 @@ function forgeOutcomeUncertain(completedResult, reconciliation, cause) {
           ...(reconciliation ?? { required: true, effectType: "forge:orchestrate" }),
           ...(runId ? { runId } : {}),
         },
-        causeCode: safeForgeCauseCode(web?.error ?? cause?.code),
+        causeCode: safeForgeCauseCode(completedResult?.causeCode ?? media?.code ?? web?.error ?? cause?.code),
+        ...(Object.hasOwn(completedResult ?? {}, "providerCallAttempted") ? { providerCallAttempted: completedResult.providerCallAttempted } : {}),
+        ...(Array.isArray(completedResult?.cleanupCodes) ? { cleanupCodes: completedResult.cleanupCodes } : {}),
+        ...(media ? { media: { profileId: safeForgeReconciliationId(media.request?.profileId),
+          taskId: safeForgeReconciliationId(media.request?.taskId),
+          providerCalls: Number.isSafeInteger(media.usage?.providerCalls) ? media.usage.providerCalls : null,
+          serverAudioRecoveryAvailable: false } } : {}),
         ...(web ? { web: { profileId: safeForgeReconciliationId(web.profileId),
           taskId: safeForgeReconciliationId(web.taskId), browserClosed: web.browserClosed === true,
           actionsCompleted: Number.isSafeInteger(web.actionsCompleted) ? web.actionsCompleted : null,
