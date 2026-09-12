@@ -38,6 +38,10 @@ COPY tools/build-runtime-identity.mjs tools/build-runtime-identity.mjs
 
 # This value is a build declaration, not proof of the source revision.
 # The manifest separately fingerprints the source bytes shipped in this image.
+# pnpm install artifacts can carry root-only permission bits; the shipped
+# source tree must stay readable by the non-root runtime user so in-container
+# verification can re-hash it. Read/execute bits only - file bytes unchanged.
+RUN chmod -R a+rX apps packages tools package.json pnpm-lock.yaml pnpm-workspace.yaml
 ARG UAI_DECLARED_REVISION=""
 RUN node tools/build-runtime-identity.mjs --declared-revision "$UAI_DECLARED_REVISION"
 
