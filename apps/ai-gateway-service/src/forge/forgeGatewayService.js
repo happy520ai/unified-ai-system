@@ -830,7 +830,8 @@ export function createForgeGatewayService({
       const safeCode = value => typeof value === "string" && /^[A-Za-z0-9_]{1,100}$/u.test(value);
       if (!run?.mediaRun || run.tenantKey !== getTenantKey(tenantIdentity)
         || !["completed", "failed"].includes(run.status) || !safeCode(code)
-        || (causeCode !== undefined && !safeCode(causeCode)) || !Array.isArray(cleanupCodes)
+        || (causeCode !== undefined && !(typeof causeCode === "string" && /^[A-Za-z0-9_.:-]{1,128}$/u.test(causeCode)))
+        || !Array.isArray(cleanupCodes)
         || cleanupCodes.length > 8 || cleanupCodes.some(value => !safeCode(value))) return false;
       const firstError = run.error ?? { code, ...(causeCode ? { causeCode } : {}) };
       const allCleanupCodes = [...new Set([...(firstError.cleanupCodes ?? []),

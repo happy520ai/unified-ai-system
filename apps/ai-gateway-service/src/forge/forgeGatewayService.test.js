@@ -345,6 +345,26 @@ describe("forgeGatewayService — 桥与惰性", () => {
     expect(JSON.stringify(history)).not.toContain("PRIVATE-MEDIA-BYTES");
   });
 
+  it.each(["TERMINAL_FAILURE", "terminal-failure", "terminal.failure", "terminal:failure", "A".repeat(101), "A".repeat(128)])(
+    "records every safe route causeCode without retaining a completed media run: %s", async (causeCode) => {
+      const media = { success: true, outcomeUnknown: false, usage: { providerCalls: 1 }, artifacts: [] };
+      const service = createForgeGatewayService({ gatewayService: createFakeGatewayService(), env: {},
+        temporaryDirectoryFactory: () => join(tmpdir(), "media-cause-virtual-fixture"), temporaryDirectoryRemover() {},
+        forgeFactory: () => ({ close() {}, run: async () => ({ status: "completed", completedTasks: 1, failedTasks: 0, media }) }) });
+      const tenantIdentity = { tenantId: "tenant-a" };
+      const generated = await service.orchestrate({ goal: "media cause fixture", tenantIdentity, governanceRequired: true,
+        governedExecution: { beforeAction() {}, afterAction() {}, mediaTask: { getResult: () => media } } });
+      const failure = { runId: generated.runId, tenantIdentity, code: "FORGE_EXTERNAL_EFFECT_OUTCOME_UNCERTAIN", causeCode };
+      const before = service.listRuns({ tenantIdentity });
+      for (const unsafe of ["A".repeat(129), "unsafe\ncode", "unsafe code"]) {
+        expect(service.recordMediaDeliveryFailure({ ...failure, causeCode: unsafe })).toBe(false);
+        expect(service.listRuns({ tenantIdentity })).toEqual(before);
+      }
+      expect(service.recordMediaDeliveryFailure(failure)).toBe(true);
+      expect(service.listRuns({ tenantIdentity }).runs[0]).toMatchObject({ status: "failed", error: { causeCode },
+        generation: { status: "completed" }, mediaDelivery: { status: "unknown", retrySafe: false } });
+    });
+
   it("binds orchestrate LLM calls to the governed in-process gateway lane", async () => {
     const gatewayService = createFakeGatewayService();
     const close = vi.fn();
