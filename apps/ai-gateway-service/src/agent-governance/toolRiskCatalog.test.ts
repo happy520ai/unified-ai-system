@@ -1,3 +1,4 @@
+// @test-isolation process
 import { describe, expect, it } from "vitest";
 import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
