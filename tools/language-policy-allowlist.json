@@ -184,7 +184,9 @@
         "packages/forge-core/test/governed-self-control.test.js",
         "packages/mcp-service/src/installer-systemd.test.js",
         "packages/position-library/src/officialOnetImporter.test.js",
-        "packages/position-library/src/data/.gitattributes"
+        "packages/position-library/src/data/.gitattributes",
+        "packages/forge-core/test/governed-readable-edits.test.js",
+        "packages/forge-core/test/governed-worker-large-file.test.js"
       ],
       "justification": "T-067 governed-resident-execution line adds node:test suites in the established ESM JavaScript test style already covered by the pr-111 compatibility set, plus one data-directory .gitattributes needed for LFS-style line-ending policy of the packaged position dataset.",
       "owner": "forge/workforce-delivery",
