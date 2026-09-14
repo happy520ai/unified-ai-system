@@ -1,3 +1,4 @@
+// @test-isolation process
 import { createHash, createHmac } from "node:crypto";
 import { mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

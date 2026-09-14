@@ -1,3 +1,4 @@
+// @test-isolation process
 import { execFile } from "node:child_process";
 import { access, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
