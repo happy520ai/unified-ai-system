@@ -263,6 +263,33 @@ describe("retained Agent runtime using actual Gateway, approvals, file tools and
     await expect(f.runtime.run(f.task.taskId, f.request("run"), { revision: stopped.revision })).rejects.toThrow();
     expect(f.generate).toHaveBeenCalledTimes(3); expect(f.verify).not.toHaveBeenCalled(); expect(f.counts().leases).toBe(0);
   });
+  // Same one-chunk fixture plus a bounded reconcile pass; no model or verification call may occur.
+  it("settles an unknown pendingOperation through explicit reconcile without replaying it", async () => {
+    const f = await fixture(), confirmed = await f.confirm();
+    const checkpoint = f.queue.checkpointRetainedTask.bind(f.queue);
+    vi.spyOn(f.queue, "checkpointRetainedTask").mockImplementation(async (...args: any[]) => {
+      const next = args[4], inner = next.state?.loopCheckpoint;
+      if (inner?.phase === "settled" && inner.state.allToolResults.some((result: any) => result._meta?.toolName === "file_write")) {
+        throw Object.assign(Error("fixture checkpoint persistence failure"), { code: "FIXTURE_CHECKPOINT_FAILED", persistenceOutcomeUnknown: true });
+      }
+      return checkpoint(...args);
+    });
+    await expect(f.runtime.run(f.task.taskId, f.request("run"), { revision: confirmed.revision, maxIterations: 10 })).rejects.toThrow();
+    const stuck = await f.runtime.read(f.task.taskId, f.request("status"));
+    expect(stuck.phase).toBe("unknown"); expect(stuck.pendingOperation).not.toBeNull();
+    await expect(f.runtime.reconcile(f.task.taskId, f.request("reconcile"), confirmed.revision))
+      .rejects.toMatchObject({ code: "AGENT_LONG_TASK_RECONCILE_REVISION_CHANGED" });
+    const settled = await f.runtime.reconcile(f.task.taskId, f.request("reconcile"), stuck.revision);
+    expect(settled.phase).toBe("failed"); expect(settled.pendingOperation).toBeNull();
+    expect(settled.errorCode).toBe("RECONCILED_UNKNOWN_OUTCOME");
+    expect(settled.revision).toBe(stuck.revision + 1);
+    expect(settled.reconciliation).toMatchObject({ inputHash: stuck.pendingOperation!.inputHash, revision: stuck.revision });
+    expect(typeof settled.reconciliation!.operationId).toBe("string"); expect(settled.reconciliation!.operationId.length).toBeGreaterThan(0);
+    const again = await f.runtime.reconcile(f.task.taskId, f.request("reconcile"), settled.revision);
+    expect(again.phase).toBe("failed"); expect(again.reconciliation).toEqual(settled.reconciliation);
+    await expect(f.runtime.run(f.task.taskId, f.request("run"), { revision: again.revision })).rejects.toThrow();
+    expect(f.generate).toHaveBeenCalledTimes(3); expect(f.verify).not.toHaveBeenCalled(); expect(f.counts().leases).toBe(0);
+  }, 2 * CHUNK_TIMEOUT_MS + 10000);
   // This verification also owns one unchanged product chunk and the same fixture lifecycle.
   it("keeps uncertain verification terminal without a self-referencing cleanup error", async () => {
     const f = await fixture(), confirmed = await f.confirm();

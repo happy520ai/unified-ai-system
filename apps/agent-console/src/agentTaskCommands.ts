@@ -14,7 +14,7 @@ type Options = { command: string; positionals: string[]; json: boolean; url: str
 type Output = { write(value: string): unknown; writeError(value: string): unknown };
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u;
 const AGENT = /^agt_[A-Za-z0-9_-]{1,128}$/u, HASH = /^sha256:[a-f0-9]{64}$/u, HEX = /^[a-f0-9]{64}$/u;
-const operations = new Set(["prepare", "plan", "confirm", "run", "schedule", "status", "pause", "cancel"]);
+const operations = new Set(["prepare", "plan", "confirm", "run", "schedule", "status", "pause", "cancel", "reconcile"]);
 function invalid(): never { throw Object.assign(new Error("Agent task data is incomplete, unsafe or does not match the original review."), { code: "AGENT_TASK_INPUT_INVALID" }); }
 function record(value: unknown): asserts value is Data {
   if (!value || typeof value !== "object" || Array.isArray(value) || ![Object.prototype, null].includes(Object.getPrototypeOf(value))) invalid();
@@ -147,7 +147,7 @@ export function projectGovernedAgentTaskApproval(value: unknown): Data {
 export function projectGovernedAgentTaskSnapshot(value: unknown, agentId: string, taskId?: string): Data {
   const data = printable(value);
   keys(data, ["version", "taskId", "agentId", "agentRunId", "revision", "phase", "counters", "pendingOperation", "review", "sourceFiles", "plan",
-    "approvalId", "confirmedApprovalId", "stepIndex", "stepReceipts", "modelReceipts", "verificationAttempts", "workspaceReceipt", "sourceFilesHash", "finalAnswer", "errorCode", "controlRequested", "resumable", "recovery"], ["resident", "recoveryAttempts", "loopDecisions"]);
+    "approvalId", "confirmedApprovalId", "stepIndex", "stepReceipts", "modelReceipts", "verificationAttempts", "workspaceReceipt", "sourceFilesHash", "finalAnswer", "errorCode", "controlRequested", "resumable", "recovery"], ["resident", "recoveryAttempts", "loopDecisions", "reconciliation"]);
   if (data.version !== 1 || data.agentId !== agentId || !UUID.test(data.taskId) || taskId !== undefined && data.taskId !== taskId
     || !/^agr_[A-Za-z0-9_-]{1,128}$/u.test(data.agentRunId) || !integer(data.revision) || !integer(data.stepIndex)
     || !["prepared", "planning", "awaiting_confirmation", "running", "paused", "verifying", "completed", "failed", "cancelled", "unknown"].includes(data.phase)
@@ -173,6 +173,12 @@ export function projectGovernedAgentTaskSnapshot(value: unknown, agentId: string
     keys(decision, ["attemptId", "action", "reason", "repairAttempts"]);
     if (!/^verify_[1-9][0-9]*$/u.test(decision.attemptId) || !["ACCEPT", "ADJUST_RETRY", "EXHAUSTED", "ESCALATE"].includes(decision.action)
       || typeof decision.reason !== "string" || !integer(decision.repairAttempts)) invalid();
+  }
+  if (data.reconciliation != null) {
+    keys(data.reconciliation, ["operationId", "kind", "inputHash", "revision"]);
+    if (typeof data.reconciliation.operationId !== "string" || !/^[A-Za-z0-9_-]{1,160}$/u.test(data.reconciliation.operationId)
+      || typeof data.reconciliation.kind !== "string" || !/^[a-z]{1,32}$/u.test(data.reconciliation.kind)
+      || !HASH.test(data.reconciliation.inputHash) || !integer(data.reconciliation.revision) || data.reconciliation.revision < 1) invalid();
   }
   reviewed(data.review); if (data.plan !== null) planned(data.plan, data.review);
   for (const field of ["sourceFiles", "stepReceipts", "modelReceipts", "verificationAttempts"]) if (!Array.isArray(data[field])) invalid();
@@ -236,6 +242,7 @@ function nextAction(data: Data): string {
   if (data.phase === "paused" && data.recovery.workspaceReconciliationRequired === true) return "Explicitly run this original task ID at its current revision to request verified restoration of the original worktree. The server first checks the current signed task, claim, Agent, consumed approval, checkpoint, budgets and original files. It creates no new worktree, replans nothing and resets no counters. Nothing runs automatically on startup.";
   if (data.resumable) return "Run one explicit chunk using this original task ID and its current revision. No automatic continuation occurs.";
   if (data.phase === "completed") return "Inspect the retained diff and independent verification receipts. Deployment and publication are separate operations.";
+  if (data.phase === "failed" && data.reconciliation) return "The unknown pending operation was settled without replay: its identity is retained in reconciliation. Inspect the retained evidence and original files; any further work requires a fresh reviewed task with new approval. Do not retry the reconciled operation.";
   return "Inspect this original task status and recovery fields before any further request. Do not create a replacement task to retry unknown effects.";
 }
 export async function runAgentTaskCommand(options: Options, output: Output): Promise<number> {
@@ -260,6 +267,7 @@ export async function runAgentTaskCommand(options: Options, output: Output): Pro
             : operation === "schedule" ? await client.scheduleGovernedAgentTask(agentId, taskId, body as any)
             : operation === "pause" ? await client.pauseGovernedAgentTask(agentId, taskId, body as any)
               : operation === "cancel" ? await client.cancelGovernedAgentTask(agentId, taskId, body as any)
+                : operation === "reconcile" ? await client.reconcileGovernedAgentTask(agentId, taskId, body as any)
                 : await client.governedAgentTask(agentId, taskId);
     const data = projectGovernedAgentTaskSnapshot(unwrap(result), agentId, taskId);
     const accepted = !["failed", "unknown"].includes(data.phase), rendered = { ok: accepted, command: "agents task", operation,

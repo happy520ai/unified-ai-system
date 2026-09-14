@@ -35,6 +35,7 @@ type State = {
   stepIndex: number; stepReceipts: GovernedAgentTaskStepReceipt[]; modelReceipts: ProviderReceipt[];
   verificationAttempts: Verification[]; finalAnswer: string; errorCode: string | null;
   resident?: GovernedAgentTaskResidentState | null;
+  reconciliation?: { operationId: string; kind: string; inputHash: string; revision: number } | null;
   recoveryAttempts?: Array<{ attempt: number; status: "pending" | "recovered" | "failed" | "unknown";
     sourceFilesHash: string; code: "WORKSPACE_NOT_ATTACHED"; errorCode: string | null }>;
   loopDecisions?: Array<{ attemptId: string; action: string; reason: string; repairAttempts: number }>;
@@ -71,7 +72,12 @@ function recordState(value: unknown): State {
     || !Array.isArray(state.verificationAttempts) || typeof state.finalAnswer !== "string") throw fail("STATE_INVALID");
   state.review = readGovernedAgentTaskReview(state.review);
   state.resident = readResidentState(state.resident);
-  state.recoveryAttempts ??= []; state.loopDecisions ??= [];
+  state.recoveryAttempts ??= []; state.loopDecisions ??= []; state.reconciliation ??= null;
+  if (state.reconciliation !== null && (Object.keys(state.reconciliation).sort().join("|") !== "inputHash|kind|operationId|revision"
+    || typeof state.reconciliation.operationId !== "string" || !/^[A-Za-z0-9_-]{1,160}$/u.test(state.reconciliation.operationId)
+    || typeof state.reconciliation.kind !== "string" || !/^[a-z]{1,32}$/u.test(state.reconciliation.kind)
+    || typeof state.reconciliation.inputHash !== "string" || !/^sha256:[a-f0-9]{64}$/u.test(state.reconciliation.inputHash)
+    || !Number.isSafeInteger(state.reconciliation.revision) || state.reconciliation.revision < 1)) throw fail("STATE_INVALID");
   if (!Array.isArray(state.recoveryAttempts) || state.recoveryAttempts.length > state.review.profile.limits.maxIterations
     || !Array.isArray(state.loopDecisions) || state.loopDecisions.length > state.review.profile.limits.maxRepairAttempts + 1) throw fail("STATE_INVALID");
   if (state.recoveryAttempts.some((attempt, index) => !attempt || Object.keys(attempt).sort().join("|") !== "attempt|code|errorCode|sourceFilesHash|status"
@@ -138,7 +144,7 @@ export function createGovernedAgentTaskRuntime(options: {
       pendingOperation: continuation.pendingOperation, review: state.review, sourceFiles: state.sourceFiles, plan: state.plan,
       approvalId: state.approvalId, confirmedApprovalId: state.confirmedApprovalId, stepIndex: state.stepIndex,
       stepReceipts: state.stepReceipts, modelReceipts: state.modelReceipts, verificationAttempts: state.verificationAttempts,
-      recoveryAttempts: state.recoveryAttempts, loopDecisions: state.loopDecisions,
+      recoveryAttempts: state.recoveryAttempts, loopDecisions: state.loopDecisions, reconciliation: state.reconciliation,
       workspaceReceipt: state.workspaceReceipt, sourceFilesHash: state.sourceFilesHash, finalAnswer: state.finalAnswer,
       errorCode: state.errorCode ?? checkpointError, controlRequested: live.get(taskId)?.control === "drain" ? "shutdown" : live.get(taskId)?.control ?? null,
       resident: state.resident ? { enabled: state.resident.enabled, chunks: state.resident.chunks,
@@ -316,7 +322,7 @@ export function createGovernedAgentTaskRuntime(options: {
         const state: State = { version: 1, review: prepared.review, sourceFiles: prepared.sourceFiles, plan: null,
           policyHash: admission.policy.policyHash, agentRunId: "agr_" + randomUUID(), approvalId: null, confirmedApprovalId: null,
           workspaceReceipt: null, sourceFilesHash: prepared.review.sourceFilesHash, loopCheckpoint: null, stepIndex: 0,
-          stepReceipts: [], modelReceipts: [], verificationAttempts: [], finalAnswer: "", errorCode: null };
+          stepReceipts: [], modelReceipts: [], verificationAttempts: [], finalAnswer: "", errorCode: null, reconciliation: null };
         const continuation = createTaskContinuation({ version: 1, revision: 0, bindingHash: binding(identity, state),
           inputHash: state.review.reviewHash, phase: "prepared", pendingOperation: null,
           counters: { iterations: 0, modelCalls: 0, reservedTokens: 0, repairAttempts: 0 }, state });
@@ -577,6 +583,25 @@ export function createGovernedAgentTaskRuntime(options: {
           state: { ...before.state, ...(before.state.resident ? { resident: { ...before.state.resident, enabled: false, stopReason: action } } : {}) } }, true);
         return view(taskId, identity);
       });
+    },
+    /** Closes the books on an unknown pendingOperation without replaying it: the task settles to a
+     * terminal failed state, the original operation identity is retained for audit, and only a fresh
+     * approval on a fresh task may perform further work. Idempotent when nothing is pending. */
+    async reconcile(taskId: string, identity: Identity, revision: number) {
+      await queue.retainedStateBinding.verify();
+      const current = read(taskId, identity);
+      if (TERMINAL.has(current.continuation.phase) && current.continuation.phase !== "unknown") return view(taskId, identity);
+      if (current.continuation.revision !== revision) throw fail("RECONCILE_REVISION_CHANGED");
+      if (live.has(taskId)) throw fail("RECONCILE_LIVE_TASK");
+      if (!current.continuation.pendingOperation) return view(taskId, identity);
+      const pending = current.continuation.pendingOperation;
+      const { hash: _priorHash, ...body } = current.continuation;
+      const next = createTaskContinuation({ ...body, revision: current.continuation.revision + 1, phase: "failed",
+        pendingOperation: null, state: { ...current.state, errorCode: "RECONCILED_UNKNOWN_OUTCOME",
+          reconciliation: { operationId: pending.id, kind: pending.kind, inputHash: pending.inputHash, revision },
+          ...(current.state.resident ? { resident: { ...current.state.resident, enabled: false, stopReason: "reconcile" } } : {}) } });
+      await queue.reconcileRetainedTask(taskId, identity, revision, next);
+      return view(taskId, identity);
     },
   };
   return Object.freeze(api);

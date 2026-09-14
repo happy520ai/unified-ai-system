@@ -98,7 +98,7 @@ export function createRouteRateLimiter(options = {}) {
   function getRouteLimiter(pathname, method = "GET") {
     pathname = String(pathname ?? "/").replace(/\/+$/u, "") || "/";
     method = String(method ?? "GET").toUpperCase();
-    const taskRoute = /^\/v1\/agents\/agt_[A-Za-z0-9_-]{1,128}\/tasks(?:\/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}(?:\/(plan|confirm|run|pause|cancel))?)?$/u.exec(pathname);
+    const taskRoute = /^\/v1\/agents\/agt_[A-Za-z0-9_-]{1,128}\/tasks(?:\/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}(?:\/(plan|confirm|run|pause|cancel|reconcile))?)?$/u.exec(pathname);
     if (taskRoute) pathname = `/agent-long-tasks/${method === "GET" ? "read" : !taskRoute[1] ? "prepare"
       : ["plan", "run"].includes(taskRoute[1]) ? "execute" : "control"}`;
     if (/^\/v1\/agents\/agt_[A-Za-z0-9_-]{1,128}\/run$/u.test(pathname)) {

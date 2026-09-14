@@ -701,6 +701,30 @@ export class TaskQueueManager {
     return result;
   }
 
+  /** Explicit operator reconciliation of a settled-but-unknown retained record. This is the only
+   * transition that may mutate a terminal continuation: phase "unknown" with a retained
+   * pendingOperation settles once into terminal "failed" clearing that operation, preserving the
+   * original binding, input, counters and evidence. It grants no claim and no execution authority. */
+  async reconcileRetainedTask(taskId, identity, expectedRevision, continuationInput) {
+    return this._retainedMutation(async snapshot => {
+      const current = this._ownedRetainedTask(snapshot, taskId, identity);
+      if (current.continuation.revision !== expectedRevision) throw continuationError("CONFLICT");
+      const before = readTaskContinuation(current.continuation), after = readTaskContinuation(continuationInput);
+      if (before.phase !== "unknown" || before.pendingOperation === null) throw continuationError("NOT_RECONCILABLE");
+      if (after.phase !== "failed" || after.pendingOperation !== null
+        || after.revision !== before.revision + 1 || after.bindingHash !== before.bindingHash || after.inputHash !== before.inputHash
+        || Object.keys(before.counters).some(key => after.counters[key] < before.counters[key])) throw continuationError("CONFLICT");
+      const task = { ...current, continuation: after, updatedAt: new Date().toISOString() };
+      const completedIndex = snapshot.completedTasks.indexOf(current), queueIndex = snapshot.queue.indexOf(current);
+      if (completedIndex < 0 && queueIndex < 0 && !snapshot.activeTasks.has(taskId)) throw continuationError("NOT_ACTIVE");
+      if (completedIndex >= 0) snapshot.completedTasks.splice(completedIndex, 1);
+      if (queueIndex >= 0) snapshot.queue.splice(queueIndex, 1);
+      if (snapshot.activeTasks.has(taskId)) snapshot.activeTasks.delete(taskId);
+      snapshot.completedTasks.push(task);
+      return continuationJsonCopy(task);
+    });
+  }
+
   async _claimAtIndex(taskIndex, agentId, options, shouldPersist) {
     const task = this.queue[taskIndex];
     if (!task) return null;

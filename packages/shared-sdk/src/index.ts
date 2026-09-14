@@ -232,6 +232,7 @@ export interface GovernedAgentTaskSnapshot {
   recoveryAttempts?: ReadonlyArray<{ attempt: number; status: "pending" | "recovered" | "failed" | "unknown"; sourceFilesHash: string;
     code: "WORKSPACE_NOT_ATTACHED"; errorCode: string | null }>;
   loopDecisions?: ReadonlyArray<{ attemptId: string; action: string; reason: string; repairAttempts: number }>;
+  reconciliation?: { operationId: string; kind: string; inputHash: string; revision: number } | null;
 }
 
 export interface ManagedLocalClientPopProofOptions {
@@ -502,6 +503,7 @@ export interface GatewayClient {
   runGovernedAgentTask(agentId: string, taskId: string, request: RunGovernedAgentTaskRequest): Promise<ResultEnvelope<GovernedAgentTaskSnapshot>>;
   scheduleGovernedAgentTask(agentId: string, taskId: string, request: GovernedAgentTaskRevisionRequest): Promise<ResultEnvelope<GovernedAgentTaskSnapshot>>;
   pauseGovernedAgentTask(agentId: string, taskId: string, request: GovernedAgentTaskRevisionRequest): Promise<ResultEnvelope<GovernedAgentTaskSnapshot>>;
+  reconcileGovernedAgentTask(agentId: string, taskId: string, request: GovernedAgentTaskRevisionRequest): Promise<ResultEnvelope<GovernedAgentTaskSnapshot>>;
   cancelGovernedAgentTask(agentId: string, taskId: string, request: GovernedAgentTaskRevisionRequest): Promise<ResultEnvelope<GovernedAgentTaskSnapshot>>;
   revokeGovernedAgent(agentId: string, request?: RevokeGovernedAgentRequest): Promise<RevokeGovernedAgentResult>;
   governedApprovals(agentId?: string): Promise<GovernedApprovalListResult>;

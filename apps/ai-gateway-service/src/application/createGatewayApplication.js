@@ -599,7 +599,7 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
             governance: agentGovernance.service, toolProxy: agentGovernance.toolProxy, gatewayService, providerRegistry });
           rawRuntimes.set(runtime.profile.profileHash, runtime);
           const wrapped = { profile: runtime.profile };
-          for (const name of ["prepare", "read", "plan", "confirm", "run", "control", "scheduleInPool"]) {
+          for (const name of ["prepare", "read", "plan", "confirm", "run", "control", "reconcile", "scheduleInPool"]) {
           wrapped[name] = (...args) => {
             if (agentLongTaskClosing) return Promise.reject(agentLongTaskConfigurationError("SHUTDOWN"));
             const identityIndex = name === "prepare" ? 0 : 1, identity = args[identityIndex];

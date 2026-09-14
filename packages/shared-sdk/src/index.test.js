@@ -1293,12 +1293,14 @@ test("Agent task SDK preserves complete requests and the original UUID across ex
     await client.pauseGovernedAgentTask("agt_sdk", taskId, { revision: 12 });
     await client.scheduleGovernedAgentTask("agt_sdk", taskId, { revision: 13 });
     await client.cancelGovernedAgentTask("agt_sdk", taskId, { revision: 13 });
-    assert.deepEqual(observed.map(call => call.path), ["/v1/agents/agt_sdk/tasks", ...["plan", "confirm", "run", "", "pause", "schedule", "cancel"].map(operation => `/v1/agents/agt_sdk/tasks/${taskId}${operation ? "/" + operation : ""}`)]);
+    await client.reconcileGovernedAgentTask("agt_sdk", taskId, { revision: 14 });
+    assert.deepEqual(observed.map(call => call.path), ["/v1/agents/agt_sdk/tasks", ...["plan", "confirm", "run", "", "pause", "schedule", "cancel", "reconcile"].map(operation => `/v1/agents/agt_sdk/tasks/${taskId}${operation ? "/" + operation : ""}`)]);
     assert.deepEqual(observed[0].body, original);
     assert.deepEqual(observed[1].body, { revision: 0 }); assert.equal(observed[1].dispatch, "fixed-planning-request");
     assert.deepEqual(observed[3].body, { revision: 5, maxIterations: 2 }); assert.equal(typeof observed[3].dispatch, "string");
-    assert.equal(observed[4].method, "GET"); assert.equal(observed.length, 8);
+    assert.equal(observed[4].method, "GET"); assert.equal(observed.length, 9);
     assert.deepEqual(observed[6].body, { revision: 13 }); assert.equal(observed[6].dispatch, undefined);
+    assert.deepEqual(observed[8].body, { revision: 14 }); assert.equal(observed[8].dispatch, undefined);
     assert.ok(observed.every(call => !call.path.includes("/approvals")));
   } finally { await closeServer(server); }
 });

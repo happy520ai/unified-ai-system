@@ -66,10 +66,10 @@ export function resolveRuntimeRoutePermissionOverride(method: unknown, pathname:
   const exactPermission = RUNTIME_ROUTE_PERMISSION_OVERRIDES.get(`${normalizedMethod} ${normalizedPath}`);
   if (exactPermission) return exactPermission;
 
-  const taskRoute = /^\/v1\/agents\/agt_[A-Za-z0-9_-]{1,128}\/tasks(?:\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})(?:\/(plan|confirm|run|schedule|pause|cancel))?)?$/u.exec(normalizedPath);
+  const taskRoute = /^\/v1\/agents\/agt_[A-Za-z0-9_-]{1,128}\/tasks(?:\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})(?:\/(plan|confirm|run|schedule|pause|cancel|reconcile))?)?$/u.exec(normalizedPath);
   if (taskRoute) {
     if (normalizedMethod === "GET" && taskRoute[1] && !taskRoute[2]) return "dashboard:read";
-    if (normalizedMethod === "POST" && (!taskRoute[1] || taskRoute[2])) return taskRoute[2] === "confirm" ? "workflow:approve" : "workflow:run";
+    if (normalizedMethod === "POST" && (!taskRoute[1] || taskRoute[2])) return ["confirm", "reconcile"].includes(taskRoute[2]) ? "workflow:approve" : "workflow:run";
   }
 
   if ((normalizedMethod === "GET" && /^\/workflow\/runs\/[^/]+$/.test(normalizedPath))
