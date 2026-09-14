@@ -1128,6 +1128,10 @@ export function createGatewayClient(options = {}) {
       return requestJson({ baseUrl, path: governedTaskPath(agentId, taskId) + "/pause", method: "POST",
         body: governedTaskBody(request, "pause"), headers, timeoutMs, redirect: "error" });
     },
+    reconcileGovernedAgentTask(agentId, taskId, request) {
+      return requestJson({ baseUrl, path: governedTaskPath(agentId, taskId) + "/reconcile", method: "POST",
+        body: governedTaskBody(request, "reconcile"), headers, timeoutMs, redirect: "error" });
+    },
     scheduleGovernedAgentTask(agentId, taskId, request) {
       return requestJson({ baseUrl, path: governedTaskPath(agentId, taskId) + "/schedule", method: "POST",
         body: governedTaskBody(request, "schedule"), headers, timeoutMs, redirect: "error" });

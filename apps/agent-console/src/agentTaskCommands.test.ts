@@ -247,4 +247,10 @@ test("task CLI requires the reviewed executed-check verdict and preserves a skip
   assert.throws(() => projectGovernedAgentTaskSnapshot({ ...completed, verificationAttempts: failed.verificationAttempts }, agentId, taskId));
   const { verificationResult: _contract, ...legacyProfile } = state.review.profile;
   assert.throws(() => projectGovernedAgentTaskSnapshot({ ...state, review: { ...state.review, profile: legacyProfile } }, agentId, taskId));
+  const reconciliation = { operationId: "workspace_fixture", kind: "iteration", inputHash: "sha256:" + "a".repeat(64), revision: 4 };
+  const reconciled = projectGovernedAgentTaskSnapshot({ ...failed, errorCode: "RECONCILED_UNKNOWN_OUTCOME", reconciliation }, agentId, taskId);
+  assert.deepEqual(reconciled.reconciliation, reconciliation);
+  assert.equal(reconciled.phase, "failed");
+  assert.throws(() => projectGovernedAgentTaskSnapshot({ ...failed, reconciliation: { ...reconciliation, revision: 0 } }, agentId, taskId));
+  assert.throws(() => projectGovernedAgentTaskSnapshot({ ...failed, reconciliation: { ...reconciliation, kind: "Iteration" } }, agentId, taskId));
 });

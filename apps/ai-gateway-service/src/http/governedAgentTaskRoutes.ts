@@ -17,7 +17,7 @@ type Context = {
   application?: { getAgentLongTaskRuntime?(selector?: { taskId?: string; projectId?: string; identity?: Identity }): Promise<Runtime> };
   writeServiceLog?(event: string, data: Record<string, unknown>): void;
 };
-const PATH = /^\/v1\/agents\/(agt_[A-Za-z0-9_-]{1,128})\/tasks(?:\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})(?:\/(plan|confirm|run|schedule|pause|cancel))?)?$/u;
+const PATH = /^\/v1\/agents\/(agt_[A-Za-z0-9_-]{1,128})\/tasks(?:\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})(?:\/(plan|confirm|run|schedule|pause|cancel|reconcile))?)?$/u;
 function invalid(code = "REQUEST_INVALID", statusCode = 400) {
   return Object.assign(new Error("The governed Agent task request cannot be accepted."), { code: `AGENT_LONG_TASK_${code}`, statusCode });
 }
@@ -85,6 +85,7 @@ export async function dispatchGovernedAgentTaskRoutes(context: Context) {
               ? await runtime.scheduleInPool(taskId, identity, revision(body), request) : (() => { throw invalid("POOL_NOT_CONFIGURED", 503); })()
             : action === "run" ? await runtime.run(taskId, identity, { revision: revision(body),
               ...(Object.hasOwn(body, "maxIterations") ? { maxIterations: Number(body.maxIterations) } : {}) })
+              : action === "reconcile" ? await runtime.reconcile(taskId, identity, revision(body))
               : await runtime.control(taskId, identity, revision(body), action as "pause" | "cancel");
     context.writeServiceLog?.("agent_long_task_request_completed", { action: action ?? (taskId ? "read" : "prepare"), agentId, taskId: taskId ?? null });
     if (!response.writableEnded && !response.destroyed) writeJson(response, 200, createOkEnvelope(result, { startedAt }));

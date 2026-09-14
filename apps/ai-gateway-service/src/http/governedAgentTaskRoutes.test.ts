@@ -181,6 +181,7 @@ it("aborts and drains the active model call before releasing the signed queue on
 it("shares bounded execution admission across task IDs while control and read retain independent capacity", async () => {
   const task = `/v1/agents/agt_example/tasks/${randomUUID()}`;
   expect(resolveRuntimeRoutePermissionOverride("POST", task + "/confirm")).toBe("workflow:approve");
+  expect(resolveRuntimeRoutePermissionOverride("POST", task + "/reconcile")).toBe("workflow:approve");
   expect(resolveRuntimeRoutePermissionOverride("POST", task + "/run")).toBe("workflow:run");
   expect(resolveRuntimeRoutePermissionOverride("GET", task)).toBe("dashboard:read");
   const admission = createRouteConcurrencyAdmission({ rawConfig: { "/agent-long-tasks/execute": 1 } }), first = admission.tryAcquire(task + "/plan", "tenant");
@@ -189,7 +190,10 @@ it("shares bounded execution admission across task IDs while control and read re
   const limiter = createRouteRateLimiter({ whitelist: [] });
   const response: any = { setHeader: vi.fn(), writeHead: vi.fn(), end: vi.fn() };
   limiter.apply({ url: task + "/run", method: "POST", headers: { host: "fixture" }, socket: { remoteAddress: "192.0.2.1" } } as any, response);
-  expect(response.setHeader).toHaveBeenCalledWith("X-RateLimit-Route", "/agent-long-tasks/execute"); await limiter.close();
+  expect(response.setHeader).toHaveBeenCalledWith("X-RateLimit-Route", "/agent-long-tasks/execute");
+  const controlResponse: any = { setHeader: vi.fn(), writeHead: vi.fn(), end: vi.fn() };
+  limiter.apply({ url: task + "/reconcile", method: "POST", headers: { host: "fixture" }, socket: { remoteAddress: "192.0.2.2" } } as any, controlResponse);
+  expect(controlResponse.setHeader).toHaveBeenCalledWith("X-RateLimit-Route", "/agent-long-tasks/control"); await limiter.close();
 });
 it("projects trusted actor, virtual-key capability and exact execution context without accepting JSON authority", async () => {
   const path = `/v1/agents/agt_original/tasks/${randomUUID()}/run`, controller = new AbortController();
