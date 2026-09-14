@@ -36,6 +36,60 @@ For immediate triage, the minimum evidence set is:
 
 If any required file is missing after a failed run, treat evidence completeness as a blocker and rerun with artifacts enabled.
 
+### Command timeouts and incomplete JSON
+
+When the scorecard is unavailable, inspect `quality.timedOut`, `quality.errorCode`,
+and `quality.timeoutMs` in the CI verification summary before interpreting later
+missing-check or parity errors. A command timeout is not a measured score of zero.
+The scorecard, drill, and verifier write an explicit unavailable artifact when
+execution fails to return a JSON object on stdout. This artifact has `ok: false`,
+`pass: false`, `score: null`, and an execution diagnostic. A complete report printed
+before a timeout is retained only as `observedReport`; it cannot certify completion.
+Normally exited, explicitly failed check reports retain their original verdicts
+and scores. Success-looking JSON followed by a nonzero exit or interruption is
+retained only as an observed report and cannot certify success.
+
+`tools/quality-command-budgets.mjs` is the source of the command budgets:
+
+| Layer | Maximum command time |
+| --- | ---: |
+| Public repository / public clone checks | 180 / 300 seconds |
+| Supply-chain configuration / vision checks | 120 / 120 seconds |
+| Live recovery drill / artifact verifier | 60 / 30 seconds |
+| Complete scorecard | 810 seconds: its five sequential checks plus 30 seconds for reporting |
+| CI quality pipeline called by trend smoke | 930 seconds: scorecard, drill, verifier, and 30 seconds for reporting |
+
+The workflow retains its 30-minute total limit. The score threshold, underlying
+checks, retries, and hard-block policy are unchanged. An unavailable artifact still
+fails verification; local command tests do not prove a subsequent hosted run passed.
+
+Validate the command lifecycle without running the public clone or a provider:
+
+```bash
+node --test tools/quality-scorecard-runtime.test.mjs tools/quality-ci-runtime.test.mjs
+```
+
+### Language Selection: quality command lifecycle
+
+- **Workload:** compose existing Node quality commands and preserve their terminal
+  status and JSON evidence across timeouts and malformed output.
+- **Choice:** retain Node.js ESM JavaScript in `tools/*.mjs`, per the
+  [Language Selection Playbook](language-selection-playbook.md). TypeScript would
+  add a loading/build boundary to these existing CLI scripts; shell scripts would
+  complicate portable process errors and structured JSON handling.
+- **Comparison:** on domain fit, maintenance, operability, safety, migration debt,
+  and ecosystem fit (1–5), ESM scores `5/5/5/4/5/5 = 29`, TypeScript
+  `5/4/4/5/3/5 = 26`, and shell `3/3/4/2/2/3 = 17`.
+- **Compatibility and rollback:** no new dependency, runtime language, gateway
+  behavior, or database state. The existing CLI commands remain available; their
+  JSON output must be on stdout. Revert the command-budget and artifact-handling
+  changes together if needed, preserving all first-failure artifacts. Older
+  verifiers continue to reject the explicit unavailable scorecard.
+- **Validation:** actual child-process success, failure, timeout and malformed
+  output cases; retained failed reports and replacement of stale success evidence;
+  command-budget containment; repository verification-tool tests and applicable
+  source checks. Hosted revalidation remains a separate execution result.
+
 ## 0.1) Quick severity map
 
 - `status: stable`
@@ -181,5 +235,3 @@ pnpm quality:trend-health-smoke -- --require-score 165
 
 To skip trend history append for dry local checks: add `--no-trend-log`.
 To include structured output for CI-like automation: add `--json`.
-
-

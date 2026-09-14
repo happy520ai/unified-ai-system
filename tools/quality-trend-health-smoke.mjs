@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { QUALITY_CI_TIMEOUT_MS } from "./quality-command-budgets.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
@@ -1115,7 +1116,7 @@ function runQualityGate(options, requireTrendHealth, label) {
   const ciResult = runCommand(
     ciCommand,
     ["--json", "--require-score", String(options.qualityThreshold)],
-    240000,
+    QUALITY_CI_TIMEOUT_MS,
   );
   const ciStep = {
     label: `${label}-ci`,

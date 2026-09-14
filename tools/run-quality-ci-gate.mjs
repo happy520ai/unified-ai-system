@@ -2,6 +2,7 @@ import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { QUALITY_SCORECARD_TIMEOUT_MS, QUALITY_STAGE_TIMEOUT_MS, QUALITY_ARTIFACT_VERIFY_TIMEOUT_MS } from "./quality-command-budgets.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -48,7 +49,7 @@ function parseJson(raw) {
   }
 }
 
-function runNodeScript(script, args, timeoutMs = 120000) {
+export function runNodeScript(script, args, timeoutMs = 120000) {
   const result = spawnSync(
     process.execPath,
     [script, ...args],
@@ -63,14 +64,52 @@ function runNodeScript(script, args, timeoutMs = 120000) {
   );
   const stdout = (result.stdout ?? "").toString();
   const stderr = (result.stderr ?? "").toString();
+  const parsed = parseJson(stdout);
+  const parsedOutput = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
   return {
-    ok: result.status === 0,
+    ok: result.status === 0 && !result.error && !result.signal && parsedOutput !== null,
     status: result.status ?? null,
     output: `${stdout}${stderr}`.trim(),
-    parsedOutput: parseJson(stdout) || parseJson(stderr),
+    parsedOutput,
     rawStdout: stdout,
     timedOut: result.error?.code === "ETIMEDOUT",
+    signal: result.signal ?? null,
+    errorCode: result.error?.code ?? null,
+    timeoutMs,
   };
+}
+
+/** Failed execution is evidence of failure, never an empty or stale scorecard. */
+export function commandArtifact(result, source) {
+  const parsed = parseJson(result.rawStdout);
+  const observedReport = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+  const normalExit = Number.isInteger(result.status) && !result.signal && !result.timedOut && !result.errorCode;
+  const reportsFailure = observedReport?.pass === false || observedReport?.ok === false
+    || ["failed", "blocked", "unrecovered"].includes(observedReport?.status);
+  if (observedReport && normalExit && (result.status === 0 || reportsFailure)) return observedReport;
+  const code = result.timedOut ? "quality_command_timeout"
+    : result.errorCode ? "quality_command_execution_error"
+    : !normalExit ? "quality_command_interrupted"
+    : result.status !== 0 ? "quality_command_failed" : "quality_command_output_invalid";
+  return {
+    schemaVersion: 1,
+    source,
+    ok: false,
+    pass: false,
+    score: null,
+    status: "unavailable",
+    execution: { exitCode: result.status ?? null, signal: result.signal ?? null,
+      timedOut: result.timedOut === true, errorCode: result.errorCode ?? null, timeoutMs: result.timeoutMs ?? null },
+    issueCodes: [{ code, severity: "high", source,
+      message: "The command did not produce a complete, verifiable JSON result." }],
+    observedReport,
+  };
+}
+
+export function writeCommandArtifact(path, result, source) {
+  const artifact = commandArtifact(result, source);
+  writeIfPossible(path, artifact);
+  return artifact;
 }
 
 function writeIfPossible(path, payload) {
@@ -91,6 +130,9 @@ function summarizeQuality(result) {
     percent: result.parsedOutput?.percent ?? null,
     parsed: !!result.parsedOutput,
     timedOut: result.timedOut,
+    errorCode: result.errorCode,
+    signal: result.signal,
+    timeoutMs: result.timeoutMs,
     output: result.output,
   };
 }
@@ -103,6 +145,9 @@ function summarizeDrill(result) {
     recommendation: result.parsedOutput?.recommendation ?? null,
     parsed: !!result.parsedOutput,
     timedOut: result.timedOut,
+    errorCode: result.errorCode,
+    signal: result.signal,
+    timeoutMs: result.timeoutMs,
     output: result.output,
   };
 }
@@ -388,16 +433,16 @@ function main() {
   const qualityResult = runNodeScript(
     "./tools/quality-scorecard.mjs",
     ["--json", "--require-score", String(args.qualityThreshold)],
-    180000,
+    QUALITY_SCORECARD_TIMEOUT_MS,
   );
-  writeIfPossible(qualityPath, qualityResult.rawStdout);
+  writeCommandArtifact(qualityPath, qualityResult, "quality-scorecard");
 
   const drillResult = runNodeScript(
     "./tools/circuit-recovery-drill.mjs",
     ["--managed-gateway", "--json"],
-    60000,
+    QUALITY_STAGE_TIMEOUT_MS.recoveryDrill,
   );
-  writeIfPossible(drillPath, drillResult.rawStdout);
+  writeCommandArtifact(drillPath, drillResult, "circuit-recovery-drill");
 
   const qualityParsedOutput = qualityResult.parsedOutput;
   const trendHealth = qualityParsedOutput?.trendHealth;
@@ -427,9 +472,9 @@ function main() {
       String(args.qualityThreshold),
       ...(args.requireTrendHealth ? ["--require-trend-health"] : []),
     ],
-    30000,
+    QUALITY_ARTIFACT_VERIFY_TIMEOUT_MS,
   );
-  writeIfPossible(verificationPath, verifyResult.rawStdout);
+  writeCommandArtifact(verificationPath, verifyResult, "quality-artifact-verification");
   const incidentBundleSummary = summarizeIncidentBundleFromVerification(qualityResult, verifyResult);
   const verificationParsedOutput = verifyResult?.parsedOutput || null;
   const verificationIssueCodes = Array.isArray(verificationParsedOutput?.issueCodes)
@@ -492,4 +537,4 @@ function main() {
   process.exitCode = summary.ok ? 0 : 1;
 }
 
-main();
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();

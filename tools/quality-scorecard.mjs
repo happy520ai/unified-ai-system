@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { QUALITY_STAGE_TIMEOUT_MS } from "./quality-command-budgets.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const QUALITY_SCORECARD_ISSUE_SOURCE = "quality-scorecard";
@@ -317,9 +318,9 @@ function parseArgs() {
   return { outputJson, requireScore };
 }
 
-function runCommand(name, command, args, options = {}) {
+export function runCommand(name, command, args, options = {}) {
   const startTime = Date.now();
-  const { timeoutMs = 120000 } = options;
+  const { timeoutMs = QUALITY_STAGE_TIMEOUT_MS.supplyChain } = options;
   const resolvedCommand = command === "node" ? process.execPath : command;
   try {
     const result = spawnSync(resolvedCommand, args, {
@@ -333,27 +334,33 @@ function runCommand(name, command, args, options = {}) {
     const durationMs = Date.now() - startTime;
     const stdout = (result.stdout ?? "").trim();
     const stderr = (result.stderr ?? "").trim();
-    const output = stdout || stderr;
+    const output = stdout || stderr || result.error?.message || "";
     return {
       name,
       command: `${command} ${args.join(" ")}`,
-      ok: result.status === 0,
+      ok: result.status === 0 && !result.error,
       status: result.status ?? null,
+      signal: result.signal ?? null,
+      errorCode: result.error?.code ?? null,
+      timeoutMs,
       durationMs,
       output: output.slice(0, 4000),
       parseableOutput: safeParseJson(stdout) || safeParseJson(stderr),
-      timedOut: false,
+      timedOut: result.error?.code === "ETIMEDOUT",
     };
   } catch (error) {
     return {
       name,
       command: `${command} ${args.join(" ")}`,
       ok: false,
-      status: null,
+      status: error.status ?? null,
+      signal: error.signal ?? null,
+      errorCode: error.code ?? null,
+      timeoutMs,
       durationMs: Date.now() - startTime,
       output: String(error.message).slice(0, 4000),
       parseableOutput: null,
-      timedOut: /timed out/i.test(String(error.message)),
+      timedOut: error.code === "ETIMEDOUT",
     };
   }
 }
@@ -1945,23 +1952,25 @@ async function main() {
   const gates = [];
 
   const repoCheck = runCommand("public_repo_check", "node", ["tools/public-repo-check.mjs"], {
-    timeoutMs: 180000,
+    timeoutMs: QUALITY_STAGE_TIMEOUT_MS.publicRepo,
   });
   const publicClone = runCommand(
     "verify_public_clone",
     "node",
     ["tools/verify-public-clone.mjs"],
-    { timeoutMs: 300000 },
+    { timeoutMs: QUALITY_STAGE_TIMEOUT_MS.publicClone },
   );
   const supplyChainConfig = runCommand(
     "supply_chain_config",
     "node",
     ["tools/check-supply-chain-config.mjs", "--json"],
+    { timeoutMs: QUALITY_STAGE_TIMEOUT_MS.supplyChain },
   );
   const visionInvariants = runCommand(
     "vision_invariants",
     "node",
     ["tools/check-vision-invariants.mjs", "--json"],
+    { timeoutMs: QUALITY_STAGE_TIMEOUT_MS.vision },
   );
 
   const repoFileCheck = checkRepositoryFilesPresence([
@@ -1977,7 +1986,7 @@ async function main() {
     "circuit_drill_live",
     "node",
     ["tools/circuit-recovery-drill.mjs", "--managed-gateway", "--json"],
-    { timeoutMs: 60000 },
+    { timeoutMs: QUALITY_STAGE_TIMEOUT_MS.recoveryDrill },
   );
   const runtimeHardeningCheck = checkRuntimeHardening();
   const requestBodyGuardrailsCheck = checkRequestBodyGuardrails();
@@ -2412,4 +2421,6 @@ async function main() {
   }
 }
 
-main();
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  await main();
+}
