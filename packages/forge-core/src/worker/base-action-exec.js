@@ -102,6 +102,75 @@ export function normalizeForgeWriteContent(value) {
   return String(value || '');
 }
 
+const GOVERNED_READ_WINDOW_BYTES = 8 * 1024;
+const GOVERNED_READ_FILE_BYTES = 10 * 1024 * 1024;
+
+function readActionRange(value, code = 'FORGE_READ_RANGE_INVALID') {
+  const range = {};
+  for (const key of ['offset', 'limit']) {
+    if (value[key] === undefined) continue;
+    if (!Number.isSafeInteger(value[key]) || value[key] < 1) {
+      throw createForgeExecutionError(code, `Read ${key} must be a positive safe integer.`);
+    }
+    range[key] = value[key];
+  }
+  return range;
+}
+
+async function readBoundedGovernedFile(path, signal) {
+  throwIfForgeAborted(signal);
+  const handle = await open(path, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0));
+  try {
+    const before = await handle.stat();
+    if (!before.isFile()) throw createForgeExecutionError('FORGE_READ_FILE_INVALID', 'Governed reads require a regular text file.');
+    if (before.size > GOVERNED_READ_FILE_BYTES) throw createForgeExecutionError('FORGE_READ_FILE_TOO_LARGE', 'Governed reads are limited to 10 MiB files.');
+    const buffer = Buffer.alloc(before.size + 1);
+    let size = 0;
+    while (size < buffer.length) {
+      throwIfForgeAborted(signal);
+      const { bytesRead } = await handle.read(buffer, size, buffer.length - size, size);
+      if (!bytesRead) break;
+      size += bytesRead;
+    }
+    throwIfForgeAborted(signal);
+    const after = await handle.stat(), named = await lstat(path);
+    if (size > GOVERNED_READ_FILE_BYTES || after.size > GOVERNED_READ_FILE_BYTES) {
+      throw createForgeExecutionError('FORGE_READ_FILE_TOO_LARGE', 'Governed reads are limited to 10 MiB files.');
+    }
+    if (size !== before.size || after.size !== before.size || after.mtimeMs !== before.mtimeMs
+      || named.isSymbolicLink() || named.dev !== after.dev || named.ino !== after.ino) {
+      throw createForgeExecutionError('FORGE_READ_FILE_CHANGED', 'The governed file changed while it was being read.');
+    }
+    const bytes = buffer.subarray(0, size), content = bytes.toString('utf8');
+    if (!Buffer.from(content, 'utf8').equals(bytes) || content.includes('\0')) {
+      throw createForgeExecutionError('FORGE_READ_FILE_INVALID', 'Governed reads require valid UTF-8 text.');
+    }
+    return { bytes, content };
+  } finally {
+    await handle.close();
+  }
+}
+
+function governedReadWindow(content, action) {
+  const { offset = 1, limit } = readActionRange(action);
+  const lines = content.split('\n'), start = offset - 1;
+  if (start >= lines.length) throw createForgeExecutionError('FORGE_READ_RANGE_OUT_OF_BOUNDS', 'Read offset exceeds the file line count.');
+  const end = start + Math.min(limit ?? lines.length, lines.length - start);
+  let output = '', returned = 0, bytes = 0, truncated = false;
+  for (let index = start; index < end; index++) {
+    const raw = lines[index];
+    const line = index < lines.length - 1 && raw.endsWith('\r') ? raw.slice(0, -1) : raw;
+    const lineBytes = Buffer.byteLength(line, 'utf8');
+    if (lineBytes > GOVERNED_READ_WINDOW_BYTES) throw createForgeExecutionError('FORGE_READ_LINE_TOO_LARGE', 'A requested line exceeds the 8 KiB read window.');
+    const separator = returned === 0 ? '' : lines[index - 1].endsWith('\r') ? '\r\n' : '\n';
+    const addition = Buffer.byteLength(separator) + lineBytes;
+    if (bytes + addition > GOVERNED_READ_WINDOW_BYTES) { truncated = true; break; }
+    output += separator + line; bytes += addition; returned++;
+  }
+  return { modified: false, output, totalLines: lines.length, range: { offset, limit: returned },
+    nextOffset: start + returned < lines.length ? offset + returned : null, truncated };
+}
+
 /** Convert an LLM action into the canonical gateway Tool Proxy shape. */
 export function createForgeActionGovernanceRequest({
   action,
@@ -123,7 +192,7 @@ export function createForgeActionGovernanceRequest({
   let params;
   switch (action.type) {
     case 'read':
-      params = { file_path: filePath };
+      params = { file_path: filePath, ...readActionRange(action) };
       break;
     case 'write':
       params = {
@@ -197,7 +266,8 @@ export function applyApprovedForgeActionParams(actionType, approvedParams, proje
   const record = requireRecord(approvedParams);
   switch (actionType) {
     case 'read':
-      return { type: 'read', path: requireString(record, 'file_path') };
+      return { type: 'read', path: requireString(record, 'file_path'),
+        ...readActionRange(record, 'FORGE_APPROVED_PARAMS_INVALID') };
     case 'write': {
       const mode = record.mode ?? 'overwrite';
       if (mode !== 'overwrite') {
@@ -516,6 +586,7 @@ async function executeActionBody(action, projectRoot, task, opts) {
     signal,
     governanceRequired = false,
   } = opts;
+  const governed = governanceRequired || typeof opts.governedExecution?.beforeAction === 'function';
   throwIfForgeAborted(signal);
   let fullPath = await resolveActionPath(projectRoot, action.path || '');
   let relPath = action.path || '';
@@ -603,6 +674,29 @@ async function executeActionBody(action, projectRoot, task, opts) {
     }
 
     case 'edit': {
+      if (governed) {
+        if (typeof action.oldString !== 'string' || !action.oldString.length || typeof action.newString !== 'string') {
+          throw createForgeExecutionError('FORGE_EDIT_PARAMS_INVALID', 'Exact edits require non-empty oldString and a string newString.');
+        }
+        fullPath = await resolveActionPath(projectRoot, relPath);
+        const { content: current } = await readBoundedGovernedFile(fullPath, signal);
+        const index = current.indexOf(action.oldString);
+        if (index < 0) throw createForgeExecutionError('FORGE_EDIT_SOURCE_NOT_FOUND', 'Exact edit source text was not found.');
+        if (current.indexOf(action.oldString, index + 1) !== -1) {
+          throw createForgeExecutionError('FORGE_EDIT_SOURCE_AMBIGUOUS', 'Exact edit source text must match once, including overlapping matches.');
+        }
+        const updated = current.slice(0, index) + action.newString + current.slice(index + action.oldString.length);
+        const expected = Buffer.from(updated, 'utf8');
+        if (expected.byteLength > GOVERNED_READ_FILE_BYTES) {
+          throw createForgeExecutionError('FORGE_EDIT_FILE_TOO_LARGE', 'The edited file exceeds the 10 MiB verification limit.');
+        }
+        fullPath = await resolveActionPath(projectRoot, relPath);
+        throwIfForgeAborted(signal);
+        await writeFileNoFollow(fullPath, updated);
+        const actual = await readBoundedGovernedFile(await resolveActionPath(projectRoot, relPath), signal);
+        if (!actual.bytes.equals(expected)) throw createForgeExecutionError('FORGE_EDIT_VERIFY_FAILED', 'The written edit did not match the complete expected bytes.');
+        return { modified: true, path: relPath, action: 'modified' };
+      }
       const oldStr = typeof action.oldString === 'string' ? action.oldString : String(action.oldString || '');
       const newStr = typeof action.newString === 'string' ? action.newString : String(action.newString || '');
       fullPath = await resolveActionPath(projectRoot, relPath);
@@ -736,9 +830,15 @@ async function executeActionBody(action, projectRoot, task, opts) {
     }
 
     case 'read': {
+      const windowed = governed || action.offset !== undefined || action.limit !== undefined;
       try {
         fullPath = await resolveActionPath(projectRoot, relPath);
         throwIfForgeAborted(signal);
+        if (windowed) {
+          readActionRange(action);
+          const { content } = await readBoundedGovernedFile(fullPath, signal);
+          return governedReadWindow(content, action);
+        }
         const fileStat = await stat(fullPath);
         if (fileStat.isDirectory()) {
           throwIfForgeAborted(signal);
@@ -749,7 +849,7 @@ async function executeActionBody(action, projectRoot, task, opts) {
         const content = await readFile(fullPath, 'utf-8');
         return { modified: false, output: content.slice(0, 8000) };
       } catch (err) {
-        if (err.code === 'ENOENT') {
+        if (err.code === 'ENOENT' && !windowed) {
           return { modified: false, output: `File not found: ${relPath}. Use "write" action to create it.` };
         }
         throw err;

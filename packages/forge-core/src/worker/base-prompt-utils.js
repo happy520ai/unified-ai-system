@@ -41,7 +41,7 @@ export function buildPrompt(task, contextBlock, extraContext, opts) {
   const hasTool = (t) => tools.includes(t);
   let actionList = '';
   let actionIdx = 1;
-  if (hasTool('read')) actionList += `${actionIdx++}. Read file: {"type": "read", "path": "relative/path.${ext}"}\n`;
+  if (hasTool('read')) actionList += `${actionIdx++}. Read file: {"type": "read", "path": "relative/path.${ext}", "offset": 1, "limit": 80} (1-based line range; inspect nextOffset before assuming the file is complete)\n`;
   if (hasTool('write')) actionList += `${actionIdx++}. Write file: {"type": "write", "path": "relative/path.${ext}", "content": "full file content"}\n`;
   if (hasTool('edit')) actionList += `${actionIdx++}. Edit file: {"type": "edit", "path": "relative/path.${ext}", "oldString": "exact old text to find", "newString": "replacement text"}\n`;
   if (hasTool('diff')) actionList += `${actionIdx++}. Diff edit: {"type": "diff", "path": "relative/path.${ext}", "edits": [{"startLine": 5, "endLine": 8, "newContent": "replacement"}]}\n`;
@@ -53,8 +53,8 @@ export function buildPrompt(task, contextBlock, extraContext, opts) {
   const mutationActionStr = mutationActions.length > 0 ? mutationActions.join(' or ') : '"write"';
   let prompt = `${contextBlock}\n\n## Your Task\n${task.prompt || task.name}\n\n` +
     `## Instructions\nIMPORTANT: When editing files, your oldString must match the EXACT text in the file including all whitespace and indentation.\n` +
-    `If you are unsure of the exact content, use a "read" action first to read the file, then use "edit" or "write".\n` +
-    `Prefer "write" (full file content) over "edit" when making substantial changes.\n\n### Actions:\n${actionList}`;
+    `If you are unsure of the exact content, use a bounded "read" action first, then an exact "edit". Read another range if the needed code is not visible.\n` +
+    `Preserve existing files with small, exact edits. Never use a partial read window as the content of a full-file write. Use "write" for approved new files.\n\n### Actions:\n${actionList}`;
   if (Array.isArray(task.constraints) && task.constraints.length > 0) {
     prompt += `\n## Constraints\n${task.constraints.map((constraint) => `- ${constraint}`).join('\n')}\n`;
   }
