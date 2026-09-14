@@ -315,6 +315,7 @@ export async function runWorkforceCodeDelivery(factory: WorkforceCodeDeliveryFac
   let poisoned: Error | null = null, outcomeUnknown = false, mutationAttempted = false, writesObserved = false, verificationStarted = false;
   let snapshotRetained = false, snapshotCleanupAllowed = true;
   const pending = new Set<Promise<unknown>>(), modelReceipts: unknown[] = [];
+  const existingFiles = new Set<string>();
   const poison = (error: Error) => { poisoned ??= error; task.abort(error); };
   const check = async (phase: "reserve" | "commit" = "commit") => {
     if (poisoned) throw poisoned;
@@ -338,6 +339,9 @@ export async function runWorkforceCodeDelivery(factory: WorkforceCodeDeliveryFac
       const action = request.resourceContext?.resourceKeys?.forgeAction;
       const path = request.params?.file_path;
       const allowed = action === "read" ? profile.readPaths : profile.writePaths;
+      if (action === "write" && existingFiles.has(path)) {
+        const error = fail("EXISTING_FILE_EDIT_REQUIRED", 403); poison(error); throw error;
+      }
       if (!["read", "write", "edit"].includes(action) || typeof path !== "string" || !allowed.includes(path)
         || comparePath(request.resourceContext?.resourceKeys?.projectRoot ?? "") !== comparePath(owned.path)
         || comparePath(request.resourceContext?.resourceKeys?.canonicalPath ?? "") !== comparePath(resolve(owned.path, path))
@@ -362,7 +366,10 @@ export async function runWorkforceCodeDelivery(factory: WorkforceCodeDeliveryFac
   const governed = createForgeGovernedExecution({ context, toolProxy: scopedProxy,
     executionLease: { signal, assertActive: check }, signal } as any);
   const governedExecution = Object.freeze({ ...governed, async afterAction(event: any) {
-    if (["write", "edit"].includes(event.actionType) && event.result?.modified === true) writesObserved = true;
+    if (["write", "edit"].includes(event.actionType) && event.result?.modified === true) {
+      writesObserved = true;
+      if (typeof event.params?.file_path === "string") existingFiles.add(event.params.file_path);
+    }
     if (event.error) {
       outcomeUnknown ||= event.actionType !== "read";
       const error = fail(outcomeUnknown ? "OUTCOME_UNKNOWN" : "ACTION_DENIED", outcomeUnknown ? 503 : 403);
@@ -395,6 +402,7 @@ export async function runWorkforceCodeDelivery(factory: WorkforceCodeDeliveryFac
     await check();
     const before = await captureApprovedCodeFiles(owned.path, profile, signal);
     if (before.filesHash !== prepared.baselineFilesHash) throw fail("BASELINE_CHANGED");
+    for (const file of before.files) if (file.sha256 !== null) existingFiles.add(file.path);
     // The existing JS service's null defaults infer narrower types than its documented server-bound API.
     const forge = createForgeGatewayService({ gatewayService: facade, governanceRequired: true,
       env: { FORGE_LANE_ENABLED: "true", FORGE_ACTION_GOVERNANCE_REQUIRED: "true", AI_GATEWAY_FORGE_WORKING_DIRECTORY: owned.path } } as any) as unknown as ForgeGatewayPort;
