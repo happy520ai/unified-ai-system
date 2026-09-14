@@ -31,6 +31,7 @@ import { readWorkforceWorkflowHandoffReview } from "../workforce/workforceWorkfl
 import { compileConsensusReview, readConsensusReview } from "../workforce/workforceConsensusReview.ts";
 import { readWorkforceExternalRunnerReview } from "../workforce/workforceExternalRunnerProfile.ts";
 import { readGovernedWebTaskReview } from "../forge/governedWebTaskRuntime.ts";
+import { readGovernedMediaTaskReview, assertMediaOptions } from "../forge/governedMediaTaskProfile.ts";
 import { readForgeModelSelection, readForgeOutputTokenLimit } from "../forge/forgeModelSelection.ts";
 import { readTaijiApprovalReview, assertTaijiReviewArguments } from "../real-capabilities/taijiCapabilityReview.ts";
 import { readGovernedAgentTaskApprovalReview, assertGovernedAgentTaskApprovalArguments } from "../agentic/governedAgentTaskApproval.ts";
@@ -810,7 +811,7 @@ function normalizeForgeOptions(value: AgentToolApprovalReview["forge"] extends i
     throw corrupt("Forge approval options are malformed.");
   }
   const source = value as Record<string, unknown>;
-  const allowedKeys = new Set(["enableCodeIntel", "useRefiner", "maxConcurrent", "budget", "checkpointAfter", "webTask", "modelSelection", "maxOutputTokens"]);
+  const allowedKeys = new Set(["enableCodeIntel", "useRefiner", "maxConcurrent", "budget", "checkpointAfter", "webTask", "mediaTask", "modelSelection", "maxOutputTokens"]);
   if (Object.keys(source).some((key) => !allowedKeys.has(key)) || source.enableCodeIntel !== false) {
     throw corrupt("Forge approval options contain an unsupported or unsafe field.");
   }
@@ -833,6 +834,12 @@ function normalizeForgeOptions(value: AgentToolApprovalReview["forge"] extends i
       throw corrupt("Webpage approval review contains unsafe text.");
     }
     options.webTask = review;
+  }
+  if (source.mediaTask !== undefined) {
+    if (source.webTask !== undefined) throw corrupt("Forge web and media tasks are mutually exclusive.");
+    const review = readGovernedMediaTaskReview(source.mediaTask);
+    assertMediaOptions(review, source);
+    options.mediaTask = review;
   }
   if (source.useRefiner !== undefined) {
     if (typeof source.useRefiner !== "boolean") throw corrupt("Forge useRefiner approval option is malformed.");

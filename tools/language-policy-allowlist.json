@@ -192,6 +192,18 @@
       "migrationPlan": "Convert these suites to TypeScript during the scheduled apps/packages test migration that retires the pr-111 set; the data .gitattributes moves with the packaged dataset and is exempt as a data asset, not runtime code.",
       "issueId": "T-067",
       "notes": "Test and data assets only; no runtime module is added in JavaScript."
+    },
+    {
+      "type": "fileSet",
+      "value": "forge-media-sdk-validator-set",
+      "files": [
+        "packages/shared-sdk/src/forgeMediaResponse.js"
+      ],
+      "justification": "The shared-sdk runtime is a no-build ESM JavaScript module (index.js) with a separate TypeScript declaration surface. The Forge media response validator is an internal helper of that runtime: a lone .ts conversion would break the direct-source import chain before the package has a build step.",
+      "owner": "shared-sdk",
+      "removalBy": "2027-03-31",
+      "migrationPlan": "Convert together with the shared-sdk wholesale TypeScript migration (runtime + declaration in one unit). Remove this exception and the file when index.js itself becomes TypeScript with a build boundary.",
+      "issueId": "T-068"
     }
   ]
 }

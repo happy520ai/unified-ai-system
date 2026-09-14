@@ -152,6 +152,9 @@ export class Forge {
     const governedExecution = options.governedExecution ?? this.#governedExecution;
     const governanceRequired = this.#governanceRequired || options.governanceRequired === true;
     const signal = options.signal ?? this.#signal ?? governedExecution?.signal ?? null;
+    if (governedExecution?.mediaTask && (!governanceRequired || governedExecution.webTask)) {
+      throw createForgeExecutionError('FORGE_MEDIA_CAPABILITY_INVALID', 'Media requires one approved governed capability.');
+    }
     if (governanceRequired && typeof governedExecution?.beforeAction !== 'function') {
       throw createForgeExecutionError(
         'FORGE_ACTION_GOVERNANCE_REQUIRED',
@@ -175,7 +178,9 @@ export class Forge {
       goalText,
       projectRoot: this.#projectRoot,
       skipCodebaseProbe: governanceRequired,
+      governanceRequired,
       webTask: governedExecution?.webTask,
+      mediaTask: governedExecution?.mediaTask,
       signal,
     });
     throwIfForgeAborted(signal);
@@ -235,7 +240,8 @@ export class Forge {
    * @returns {Promise<{ goalId: string, status: string, completedTasks: number, failedTasks: number, totalTasks: number }>}
    */
   async submitGoal(goalText, options = {}) {
-    if (this.#governanceRequired || options.governanceRequired === true) {
+    if (this.#governanceRequired || options.governanceRequired === true
+      || this.#governedExecution?.mediaTask || options.governedExecution?.mediaTask) {
       throw createForgeExecutionError(
         'FORGE_POOL_GOVERNANCE_UNSUPPORTED',
         'Governed Forge execution currently requires the single-goal Orchestrator so every action shares the run fence.',
@@ -273,6 +279,10 @@ export class Forge {
    */
   async resume(goalId, options = {}) {
     const governedExecution = options.governedExecution ?? this.#governedExecution;
+    if (governedExecution?.mediaTask || this.#store.getTasksForGoal(goalId).some(task =>
+      task.id === 'media-tts' || task.agent_role === 'media')) {
+      throw createForgeExecutionError('FORGE_MEDIA_RESUME_UNSUPPORTED', 'Media outcomes cannot be replayed through Forge resume.');
+    }
     const governanceRequired = this.#governanceRequired || options.governanceRequired === true;
     const signal = options.signal ?? this.#signal ?? governedExecution?.signal ?? null;
     if (governanceRequired && typeof governedExecution?.beforeAction !== 'function') {
@@ -315,7 +325,7 @@ export class Forge {
    * @returns {Promise<string[]>} — list of recovered goal IDs
    */
   async recoverGoals() {
-    if (this.#governanceRequired) {
+    if (this.#governanceRequired || this.#governedExecution?.mediaTask) {
       throw createForgeExecutionError(
         'FORGE_POOL_GOVERNANCE_UNSUPPORTED',
         'Governed Forge recovery requires a server-issued run fence and cannot use the legacy pool path.',

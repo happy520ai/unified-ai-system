@@ -168,11 +168,28 @@ export async function compileGoal(store, {
   goalText,
   projectRoot,
   skipCodebaseProbe = false,
+  governanceRequired = false,
   webTask = null,
+  mediaTask = null,
   signal,
 }) {
+  if (mediaTask && (!governanceRequired || !skipCodebaseProbe || webTask
+    || mediaTask.taskId !== 'media-tts' || typeof mediaTask.execute !== 'function'
+    || typeof mediaTask.getResult !== 'function' || typeof mediaTask.summary !== 'string'
+    || !mediaTask.summary.trim() || mediaTask.summary.length > 500)) {
+    throw new Error('FORGE_MEDIA_CAPABILITY_INVALID');
+  }
   const goalId = store.createGoal({ text: goalText, projectRoot, budget: { maxMinutes: 120 } });
   store.logEvent(goalId, null, 'goal_created', { text: goalText });
+
+  if (mediaTask) {
+    signal?.throwIfAborted();
+    store.insertTaskDAG(goalId, [{ id: 'media-tts', name: mediaTask.summary, type: 'explore', agentRole: 'media',
+      prompt: mediaTask.summary, constraints: ['approved-media-profile-only'], allowedFiles: [], estimatedMin: 1 }], []);
+    store.updateGoalStatus(goalId, 'compiled', JSON.stringify({ kind: 'approved-media-profile', taskId: 'media-tts' }));
+    store.logEvent(goalId, null, 'goal_compiled', { taskCount: 1, summary: mediaTask.summary });
+    return { goalId, taskCount: 1, summary: mediaTask.summary };
+  }
 
   // This finite DAG comes from the approved server capability. A webpage or
   // model cannot turn its task into a coder, shell, media or pool operation.

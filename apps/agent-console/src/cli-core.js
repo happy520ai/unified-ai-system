@@ -446,6 +446,7 @@ export function parseCliArgs(
     operatorSources: [],
     operatorPasses: null,
     operatorMaxOutputTokens: null,
+    operatorAudioOutput: null,
     host: null,
     port: null,
   };
@@ -471,11 +472,15 @@ export function parseCliArgs(
     }
 
     const [flag, inlineValue] = splitFlag(token);
-    if (flag === "--input" || flag === "--mode" || flag === "--source-id" || flag === "--passes" || flag === "--max-output-tokens") {
+    if (flag === "--input" || flag === "--mode" || flag === "--source-id" || flag === "--passes" || flag === "--max-output-tokens" || flag === "--audio-output") {
       const value = readFlagValue(argv, index, flag, inlineValue);
       if (flag === "--source-id") options.operatorSources.push(value);
       else if (flag === "--passes") options.operatorPasses = parseIntegerOption(value, flag, 1, 10);
       else if (flag === "--max-output-tokens") options.operatorMaxOutputTokens = parseIntegerOption(value, flag, 1, 16384);
+      else if (flag === "--audio-output") {
+        if (options.operatorAudioOutput !== null) throw new CliUsageError("--audio-output must not be repeated.");
+        options.operatorAudioOutput = value;
+      }
       else {
         const key = flag === "--input" ? "operatorInput" : "operatorMode";
         if (options[key] !== null) throw new CliUsageError(`${flag} must not be repeated.`);
@@ -4033,6 +4038,7 @@ Options:
   --source-id <id>            Knowledge retrieval source filter (repeatable)
   --passes <1..10>            Forge polish pass limit
   --max-output-tokens <n>     Forge per-model-call output cap, default 4096 (1–16384)
+  --audio-output <file.wav>   Save an approved Forge speech task to a new local file
   --client-id <id>            Bounded lifecycle client identifier
   --display-name <name>       Safe display name for register
   --capability <id>           Repeatable list filter or register capability
@@ -4225,6 +4231,9 @@ function validateOptions(options) {
   }
   const operatorCommand = ["knowledge", "routing", "taiji", "forge", "codec", "workforce"].includes(options.command);
   const agentTaskCommand = options.command === "agents" && options.positionals[0] === "task";
+  if (options.operatorAudioOutput !== null && (options.command !== "forge" || options.positionals[0] !== "orchestrate")) {
+    throw new CliUsageError("--audio-output is only valid with forge orchestrate speech tasks.");
+  }
   if (!operatorCommand && !agentTaskCommand && (options.operatorInput !== null || options.operatorMode !== null || options.operatorSources.length || options.operatorPasses !== null || options.operatorMaxOutputTokens !== null)) {
     throw new CliUsageError("--input, --mode, --source-id and --passes are only valid with knowledge, routing, Forge or Taiji operations.");
   }

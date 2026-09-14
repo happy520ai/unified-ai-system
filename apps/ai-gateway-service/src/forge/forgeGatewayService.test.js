@@ -267,6 +267,104 @@ describe("forgeGatewayService — 桥与惰性", () => {
     });
   });
 
+  it("media cleanup failures cannot return completed or expose audio and retain the first run failure", async () => {
+    for (const mode of ["close", "temp", "both-after-failure", "both-after-success"]) {
+      const firstCode = "MEDIA_FIXTURE_FIRST_FAILURE";
+      const media = { success: mode !== "both-after-failure", outcomeUnknown: false,
+        usage: { providerCalls: 1 }, artifacts: [{ audioBase64: "PRIVATE-MEDIA-BYTES" }],
+        ...(mode === "both-after-failure" ? { code: firstCode } : {}) };
+      const close = vi.fn(async () => { if (mode !== "temp") throw Error("fixture close"); });
+      const remove = vi.fn(async () => { if (mode !== "close") throw Error("fixture cleanup"); });
+      const forge = createForgeGatewayService({ gatewayService: createFakeGatewayService(), env: {},
+        temporaryDirectoryFactory: () => join(tmpdir(), "media-cleanup-virtual-fixture"),
+        temporaryDirectoryRemover: remove,
+        forgeFactory: () => ({ close, run: async () => {
+          if (mode.startsWith("both-after")) throw Object.assign(Error("first run failure"), { code: firstCode });
+          return { status: "completed", completedTasks: 1, failedTasks: 0, media };
+        } }),
+      });
+      const result = await forge.orchestrate({ goal: "media cleanup fixture", governanceRequired: true,
+        governedExecution: { beforeAction() {}, afterAction() {}, mediaTask: { getResult: () => structuredClone(media) } } });
+      const cleanupCodes = mode === "close" ? ["FORGE_TASK_STORE_CLOSE_FAILED"] : mode === "temp"
+        ? ["FORGE_TEMP_CLEANUP_FAILED"] : ["FORGE_TASK_STORE_CLOSE_FAILED", "FORGE_TEMP_CLEANUP_FAILED"];
+      expect(result).toMatchObject({ ok: false, code: "FORGE_ACTION_OUTCOME_UNCERTAIN", providerCallAttempted: true,
+        causeCode: mode.startsWith("both-after") ? firstCode : cleanupCodes[0], cleanupCodes });
+      expect(JSON.stringify(result)).not.toContain("PRIVATE-MEDIA-BYTES");
+      expect(result).not.toHaveProperty("result");
+      expect(forge.listRuns().runs.at(-1)).toMatchObject({ status: "failed", cleanup: { ok: false },
+        error: { code: "FORGE_ACTION_OUTCOME_UNCERTAIN" } });
+      expect(close).toHaveBeenCalledOnce(); expect(remove).toHaveBeenCalledOnce();
+    }
+  });
+
+  it("media completion waits for asynchronous close and preserves cancellation during cleanup", async () => {
+    for (const abortDuringCleanup of [false, true]) {
+    const controller = new AbortController();
+    let finishClose;
+    const closed = new Promise(resolve => { finishClose = resolve; });
+    const close = vi.fn(() => closed), media = { success: true, outcomeUnknown: false, usage: { providerCalls: 1 }, artifacts: [] };
+    const forge = createForgeGatewayService({ gatewayService: createFakeGatewayService(), env: {},
+      temporaryDirectoryFactory: () => join(tmpdir(), "media-close-virtual-fixture"), temporaryDirectoryRemover: vi.fn(),
+      forgeFactory: () => ({ close, run: async () => ({ status: "completed", completedTasks: 1, failedTasks: 0, media }) }) });
+    let settled = false;
+    const pending = forge.orchestrate({ goal: "media close fixture", governanceRequired: true, signal: controller.signal,
+      governedExecution: { beforeAction() {}, afterAction() {}, mediaTask: { getResult: () => media } } }).then(result => { settled = true; return result; });
+    await vi.waitFor(() => expect(close).toHaveBeenCalledOnce()); expect(settled).toBe(false);
+    expect(forge.listRuns().runs.at(-1).status).toBe("running");
+    if (abortDuringCleanup) controller.abort();
+    finishClose(); await expect(pending).resolves.toMatchObject(abortDuringCleanup
+      ? { ok: false, code: "FORGE_ACTION_OUTCOME_UNCERTAIN", cleanupCodes: ["FORGE_MEDIA_COMPLETION_ABORTED"] } : { ok: true });
+    }
+  });
+
+  it("server-only media delivery failure is tenant-bound, media-only and preserves generation and the first failure", async () => {
+    const media = { success: true, outcomeUnknown: false, usage: { providerCalls: 1 }, artifacts: [{ audioBase64: "PRIVATE-MEDIA-BYTES" }] };
+    const service = createForgeGatewayService({ gatewayService: createFakeGatewayService(), env: {},
+      temporaryDirectoryFactory: () => join(tmpdir(), "media-delivery-virtual-fixture"), temporaryDirectoryRemover() {},
+      forgeFactory: () => ({ close() {}, run: async () => ({ status: "completed", completedTasks: 1, failedTasks: 0, media }) }) });
+    const tenantIdentity = { tenantId: "tenant-a" };
+    const generated = await service.orchestrate({ goal: "media delivery fixture", tenantIdentity, governanceRequired: true,
+      governedExecution: { beforeAction() {}, afterAction() {}, mediaTask: { getResult: () => media } } });
+    const legacy = await service.orchestrate({ goal: "legacy fixture", tenantIdentity });
+    const failure = { runId: generated.runId, tenantIdentity, code: "FORGE_EXTERNAL_EFFECT_OUTCOME_UNCERTAIN",
+      causeCode: "FIRST_TERMINAL_FAILURE", cleanupCodes: ["FORGE_TOP_ACTION_LEASE_RELEASE_FAILED"] };
+    const before = service.listRuns({ tenantIdentity });
+    expect(service.recordMediaDeliveryFailure({ ...failure, tenantIdentity: { tenantId: "tenant-b" } })).toBe(false);
+    expect(service.recordMediaDeliveryFailure({ ...failure, runId: legacy.runId })).toBe(false);
+    expect(service.recordMediaDeliveryFailure({ ...failure, runId: "not-owned-by-service" })).toBe(false);
+    expect(service.listRuns({ tenantIdentity })).toEqual(before);
+    expect(service.recordMediaDeliveryFailure(failure)).toBe(true);
+    expect(service.recordMediaDeliveryFailure({ ...failure, code: "LATER_FAILURE", causeCode: "LATER_CAUSE",
+      cleanupCodes: ["FORGE_RUN_LEASE_RELEASE_FAILED"] })).toBe(true);
+    const history = service.listRuns({ tenantIdentity }), run = history.runs.find(value => value.runId === generated.runId);
+    expect(run).toMatchObject({ status: "failed", generation: { status: "completed", completedTasks: 1, failedTasks: 0 },
+      mediaDelivery: { status: "unknown", retrySafe: false }, error: { code: failure.code, causeCode: "FIRST_TERMINAL_FAILURE",
+        cleanupCodes: ["FORGE_TOP_ACTION_LEASE_RELEASE_FAILED", "FORGE_RUN_LEASE_RELEASE_FAILED"] } });
+    expect(run).not.toHaveProperty("mediaRun"); expect(run.result).toBeUndefined();
+    expect(history.runs.find(value => value.runId === legacy.runId).status).toBe("completed");
+    expect(JSON.stringify(history)).not.toContain("PRIVATE-MEDIA-BYTES");
+  });
+
+  it.each(["TERMINAL_FAILURE", "terminal-failure", "terminal.failure", "terminal:failure", "A".repeat(101), "A".repeat(128)])(
+    "records every safe route causeCode without retaining a completed media run: %s", async (causeCode) => {
+      const media = { success: true, outcomeUnknown: false, usage: { providerCalls: 1 }, artifacts: [] };
+      const service = createForgeGatewayService({ gatewayService: createFakeGatewayService(), env: {},
+        temporaryDirectoryFactory: () => join(tmpdir(), "media-cause-virtual-fixture"), temporaryDirectoryRemover() {},
+        forgeFactory: () => ({ close() {}, run: async () => ({ status: "completed", completedTasks: 1, failedTasks: 0, media }) }) });
+      const tenantIdentity = { tenantId: "tenant-a" };
+      const generated = await service.orchestrate({ goal: "media cause fixture", tenantIdentity, governanceRequired: true,
+        governedExecution: { beforeAction() {}, afterAction() {}, mediaTask: { getResult: () => media } } });
+      const failure = { runId: generated.runId, tenantIdentity, code: "FORGE_EXTERNAL_EFFECT_OUTCOME_UNCERTAIN", causeCode };
+      const before = service.listRuns({ tenantIdentity });
+      for (const unsafe of ["A".repeat(129), "unsafe\ncode", "unsafe code"]) {
+        expect(service.recordMediaDeliveryFailure({ ...failure, causeCode: unsafe })).toBe(false);
+        expect(service.listRuns({ tenantIdentity })).toEqual(before);
+      }
+      expect(service.recordMediaDeliveryFailure(failure)).toBe(true);
+      expect(service.listRuns({ tenantIdentity }).runs[0]).toMatchObject({ status: "failed", error: { causeCode },
+        generation: { status: "completed" }, mediaDelivery: { status: "unknown", retrySafe: false } });
+    });
+
   it("binds orchestrate LLM calls to the governed in-process gateway lane", async () => {
     const gatewayService = createFakeGatewayService();
     const close = vi.fn();
@@ -972,6 +1070,72 @@ describe("forgeRoutes dispatcher", () => {
     expect(requestedParams.options).toEqual({ maxConcurrent: 7, enableCodeIntel: false });
     expect(enforceResult).toHaveBeenCalledWith(expect.objectContaining({ toolName: "forge_orchestrate" }));
     expect(events).toEqual(["orchestrate", "top-release", "run-release"]);
+  });
+
+  it("media route cleanup failures retain original failures and pending approvals without claiming unattempted providers", async () => {
+    for (const mode of ["top", "run", "both", "approval", "denied", "terminal-failure", "prior-cleanup", "cancel-cleanup"]) {
+      const controller = new AbortController();
+      const topRelease = vi.fn(async () => { if (["top", "both"].includes(mode)) throw Error("top cleanup"); });
+      const runRelease = vi.fn(async () => {
+        if (mode === "cancel-cleanup") controller.abort();
+        else if (mode !== "top") throw Error("run cleanup");
+      });
+      const profile = { id: "speech", tenantId: "tenant-a", providerId: "local-fake-provider", modelId: "local-fake-model",
+        voice: "alloy", format: "wav-pcm16", maxTextBytes: 1000, maxAudioBytes: 10000, maxDurationMs: 1000, timeoutMs: 1000 };
+      const media = { success: true, outcomeUnknown: false, request: { profileId: "speech", taskId: "media-tts" },
+        usage: { providerCalls: 1 }, artifacts: [{ audioBase64: "PRIVATE-MEDIA-BYTES" }] };
+      const orchestrate = vi.fn(async () => mode === "prior-cleanup"
+        ? { ok: false, runId: "forge-media-fixture", code: "FORGE_ACTION_OUTCOME_UNCERTAIN", providerCallAttempted: true,
+          causeCode: "FORGE_TASK_STORE_CLOSE_FAILED", cleanupCodes: ["FORGE_TASK_STORE_CLOSE_FAILED"],
+          media: { ...media, success: false, outcomeUnknown: true, artifacts: [], code: "FORGE_TASK_STORE_CLOSE_FAILED" } }
+        : { ok: true, runId: "forge-media-fixture", result: {
+        status: "completed", completedTasks: 1, failedTasks: 0, media } });
+      const enforce = vi.fn(async input => mode === "approval" ? { outcome: "approval_required", approvalId: "approval-fixture" }
+        : mode === "denied" ? { outcome: "deny", code: "MEDIA_DENIED_FIRST" } : {
+          outcome: "allow", approvalId: "approval-fixture", approvalReview: input.resourceContext.approvalReview,
+          approvedParams: input.params, policy: { policyHash: "policy-a" }, executionLease: { release: topRelease },
+        });
+      const application = {
+        runtimeEnv: { AI_GATEWAY_FORGE_MEDIA_PROFILES_JSON: JSON.stringify([profile]) },
+        gatewayService: { ...createFakeGatewayService(), executeProviderOperation: vi.fn() },
+        agentGovernance: {
+          service: { authorizeAgentExecution: async () => ({
+            record: { agentId: "agt_route", parentAgentId: null, generationDepth: 0, status: "ACTIVE" },
+            policy: { policyHash: "policy-a" }, executionLease: { signal: controller.signal, assertActive: async () => true, release: runRelease },
+          }) },
+          toolProxy: { enforce, enforceResult: vi.fn(async ({ result }) => {
+            if (mode === "terminal-failure") throw Object.assign(Error("first terminal failure"), { code: "MEDIA_TERMINAL_FIRST" });
+            return { verdict: "allow", result };
+          }) },
+        },
+        __forgeGatewayService: { orchestrate, recordMediaDeliveryFailure: vi.fn(() => true) },
+      };
+      const c = createContext({ path: "/forge/orchestrate", application,
+        body: { goal: "media route fixture", agentId: "agt_route", options: {
+          modelSelection: { providerId: profile.providerId, modelId: profile.modelId }, mediaTask: { profileId: "speech", text: "hello" },
+        } } });
+      c.request.enterpriseIdentity = { tenantId: "tenant-a", userId: "user-a", permissions: ["chat:use"] };
+      await dispatchForgeRoutes(c);
+      const cleanupCodes = ["top", "both"].includes(mode) ? ["FORGE_TOP_ACTION_LEASE_RELEASE_FAILED"] : [];
+      if (mode === "prior-cleanup") cleanupCodes.push("FORGE_TASK_STORE_CLOSE_FAILED");
+      if (mode === "cancel-cleanup") cleanupCodes.push("FORGE_MEDIA_DELIVERY_ABORTED");
+      else if (mode !== "top") cleanupCodes.push("FORGE_RUN_LEASE_RELEASE_FAILED");
+      const attempted = !["approval", "denied"].includes(mode);
+      expect(c.response.statusCode).toBe(503);
+      expect(c.response.body.error).toMatchObject({ code: "FORGE_EXTERNAL_EFFECT_OUTCOME_UNCERTAIN", details: {
+        providerCallAttempted: attempted, retrySafe: false, cleanupCodes,
+        causeCode: mode === "terminal-failure" ? "MEDIA_TERMINAL_FIRST" : mode === "denied" ? "MEDIA_DENIED_FIRST" : cleanupCodes[0],
+      } });
+      if (mode === "approval") expect(c.response.body.error.details.approvalId).toBe("approval-fixture");
+      expect(orchestrate).toHaveBeenCalledTimes(attempted ? 1 : 0);
+      expect(application.__forgeGatewayService.recordMediaDeliveryFailure).toHaveBeenCalledTimes(attempted ? 1 : 0);
+      if (attempted) expect(application.__forgeGatewayService.recordMediaDeliveryFailure).toHaveBeenCalledWith(expect.objectContaining({
+        runId: "forge-media-fixture", tenantIdentity: { tenantId: "tenant-a", userId: "user-a", permissions: ["chat:use"] },
+        code: "FORGE_EXTERNAL_EFFECT_OUTCOME_UNCERTAIN", cleanupCodes,
+      }));
+      expect(JSON.stringify(c.response.body)).not.toContain("PRIVATE-MEDIA-BYTES");
+      expect(topRelease).toHaveBeenCalledTimes(attempted ? 1 : 0); expect(runRelease).toHaveBeenCalledOnce();
+    }
   });
 
   it("marks completed Forge orchestration uncertain when terminal governance fails", async () => {

@@ -6,6 +6,8 @@ import {
   LOCAL_CLIENT_RECEIPT_RECONCILIATION_HMAC_DOMAIN,
   LOCAL_CLIENT_RECEIPT_RECONCILIATION_KEY_DERIVATION_DOMAIN,
 } from "@unified-ai-system/shared-contracts";
+import { decodeForgeMediaArtifact, readForgeMediaResponse, snapshotForgeOrchestrateRequest,
+  validateForgeMediaResponse } from "./forgeMediaResponse.js";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 const PROVIDER_KEY_HEADERS = new Set(["idempotency-key", "provider-dispatch-key"]);
@@ -131,6 +133,23 @@ export class GatewayClientTimeoutError extends GatewayClientError {
     this.name = "GatewayClientTimeoutError";
     this.timeoutMs = options.timeoutMs;
   }
+}
+
+function forgeMediaClientError(error) {
+  const failure = new GatewayClientError("Forge media request or artifact could not be verified; do not automatically retry", {
+    code: error instanceof GatewayClientError ? error.code : GATEWAY_CLIENT_ERROR_CODES.PROTOCOL,
+    kind: error instanceof GatewayClientError ? error.kind : "protocol",
+    statusCode: error instanceof GatewayClientError ? error.statusCode : undefined,
+    retryable: false,
+  });
+  failure.retrySafe = false;
+  return failure;
+}
+
+/** Decodes only a complete, bounded, SHA-256-verified PCM16 WAV artifact. */
+export async function decodeForgeMediaAudio(artifact) {
+  try { return await decodeForgeMediaArtifact(artifact); }
+  catch (error) { throw forgeMediaClientError(error); }
 }
 
 /**
@@ -973,7 +992,16 @@ export function createGatewayClient(options = {}) {
     forgeQuality(request) { return operatorPost("/forge/quality", request); },
     forgeRemember(request) { return operatorPost("/forge/memory", { ...request, action: "remember" }); },
     forgeRecall(request) { return requestJson({ path: "/forge/memory", method: "POST", body: { ...request, action: "recall" }, redirect: "error" }); },
-    forgeOrchestrate(request) { return operatorPost("/forge/orchestrate", request, true); },
+    async forgeOrchestrate(request) {
+      try {
+        const snapshot = snapshotForgeOrchestrateRequest(request);
+        if (!Object.hasOwn(snapshot.options ?? {}, "mediaTask")) return operatorPost("/forge/orchestrate", snapshot, true);
+        const prepared = prepareProviderRequest(snapshot, headers, providerDispatchKeyFactory);
+        const response = await requestJson({ path: "/forge/orchestrate", method: "POST", body: prepared.body,
+          headers: prepared.headers, redirect: "error", mediaResponse: true });
+        return await validateForgeMediaResponse(response, snapshot);
+      } catch (error) { throw forgeMediaClientError(error); }
+    },
     taijiCompile(request) { return operatorPost("/taiji/compile", request); },
     taijiCapabilities(agentId, options = {}) {
       if (typeof agentId !== "string" || !/^agt_[A-Za-z0-9_-]{1,128}$/.test(agentId)) throw createProviderKeyConfigurationError("A root Agent ID is required.");
@@ -2459,6 +2487,7 @@ async function requestJsonImpl({
   headers,
   signal,
   timeoutMs,
+  mediaResponse = false,
   redirect = /** @type {"follow" | "error" | "manual"} */ ("follow"),
 }) {
   const requestController = createRequestController({ signal, timeoutMs });
@@ -2474,9 +2503,16 @@ async function requestJsonImpl({
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: requestController.signal,
     });
-    const responseBody = await readResponseBody(response);
+    const responseBody = mediaResponse ? await readForgeMediaResponse(response, requestController.signal) : await readResponseBody(response);
 
     if (!response.ok) {
+      if (mediaResponse) {
+        const code = readServerError(responseBody).code;
+        throw new GatewayClientError(`Gateway media request failed with ${response.status}`, {
+          code: typeof code === "string" && /^[A-Z][A-Z0-9_]{0,127}$/u.test(code) ? code : GATEWAY_CLIENT_ERROR_CODES.HTTP,
+          kind: "http", statusCode: response.status, retryable: false,
+        });
+      }
       throw createHttpClientError(`Gateway request failed with ${response.status}`, response, responseBody);
     }
 

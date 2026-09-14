@@ -23,9 +23,22 @@ import {
 import { callJson, callBinary, callMultipart } from "./multimodalHttpHelpers.js";
 import { safeOutboundFetch } from "../security/safeOutboundFetch.ts";
 
+/**
+ * @typedef {{getApiKey?: (provider: string) => string | null | undefined,
+ *   getEndpoint?: (provider: string) => string | null | undefined}} MultimodalCredentialStore
+ * @typedef {{runtimeCredentialStore?: MultimodalCredentialStore,
+ *   env?: Record<string, string | undefined>, fetchImpl?: typeof safeOutboundFetch}} MultimodalAdapterOptions
+ * @typedef {{provider?: string, model?: string, input?: unknown, voice?: string,
+ *   responseFormat?: string, speed?: number, signal?: AbortSignal,
+ *   maxResponseBytes?: number, maxRetries?: number}} MultimodalSpeechOptions
+ * @typedef {{success: true, binary: true, audioBuffer: Buffer, contentType: string,
+ *   data: {model: string, provider: string, voice: string, format: string, bytes: number}}} MultimodalSpeechResult
+ */
+
 // All multimodal provider traffic must resolve through the governed outbound
 // policy (SSRF screening, DNS pinning, redirect refusal). Injecting a custom
 // fetchImpl stays available for tests.
+/** @param {MultimodalAdapterOptions} [options] @returns {MultimodalProviderAdapter} */
 export function createMultimodalProviderAdapter({ runtimeCredentialStore, env = process.env, fetchImpl = safeOutboundFetch } = {}) {
   return new MultimodalProviderAdapter({ runtimeCredentialStore, env, fetchImpl });
 }
@@ -35,6 +48,8 @@ class MultimodalProviderAdapter {
   #env;
   #fetch;
 
+  /** @param {{runtimeCredentialStore?: MultimodalCredentialStore,
+   *   env: Record<string, string | undefined>, fetchImpl: typeof safeOutboundFetch}} options */
   constructor({ runtimeCredentialStore, env, fetchImpl }) {
     this.#runtimeCredentialStore = runtimeCredentialStore;
     this.#env = env;
@@ -100,30 +115,32 @@ class MultimodalProviderAdapter {
 
   // --- TTS (text-to-speech) ---
 
-  async synthesizeSpeech({ provider, model, input, voice = "alloy", responseFormat = "mp3", speed = 1.0 } = {}) {
+  /** @param {MultimodalSpeechOptions} [options] @returns {Promise<MultimodalSpeechResult>} */
+  async synthesizeSpeech({ provider, model, input, voice = "alloy", responseFormat = "mp3", speed = 1.0, signal, maxResponseBytes, maxRetries } = {}) {
     const resolvedProvider = resolveProvider(provider, model);
     const apiKey = this.#resolveApiKey(resolvedProvider);
     if (!apiKey) {
       throw createAdapterError("multimodal_api_key_missing", `API key is not configured for provider: ${resolvedProvider}`, false);
     }
 
-    const text = String(input ?? "").trim();
-    if (!text) {
+    const text = String(input ?? "");
+    if (!text.trim()) {
       throw createAdapterError("multimodal_validation_error", "TTS input text must not be empty.", false);
     }
 
     // Clamp speed to the valid range [0.25, 4.0]
     const clampedSpeed = Math.max(0.25, Math.min(4.0, Number(speed) || 1.0));
+    const transport = { signal, maxResponseBytes, maxRetries };
 
     switch (resolvedProvider) {
       case "openai":
-        return this.#openaiTts({ apiKey, model, input: text, voice, responseFormat, speed: clampedSpeed });
+        return this.#openaiTts({ apiKey, model, input: text, voice, responseFormat, speed: clampedSpeed, ...transport });
       case "dashscope":
-        return this.#openaiTts({ apiKey, model, input: text, voice, responseFormat, speed: clampedSpeed, baseUrl: PROVIDER_DEFAULTS.dashscope.baseUrl, endpoint: PROVIDER_DEFAULTS.dashscope.ttsEndpoint, provider: "dashscope" });
+        return this.#openaiTts({ apiKey, model, input: text, voice, responseFormat, speed: clampedSpeed, baseUrl: PROVIDER_DEFAULTS.dashscope.baseUrl, endpoint: PROVIDER_DEFAULTS.dashscope.ttsEndpoint, provider: "dashscope", ...transport });
       case "siliconflow":
-        return this.#openaiTts({ apiKey, model, input: text, voice, responseFormat, speed: clampedSpeed, baseUrl: PROVIDER_DEFAULTS.siliconflow.baseUrl, endpoint: PROVIDER_DEFAULTS.siliconflow.ttsEndpoint, provider: "siliconflow" });
+        return this.#openaiTts({ apiKey, model, input: text, voice, responseFormat, speed: clampedSpeed, baseUrl: PROVIDER_DEFAULTS.siliconflow.baseUrl, endpoint: PROVIDER_DEFAULTS.siliconflow.ttsEndpoint, provider: "siliconflow", ...transport });
       default:
-        return this.#openaiTts({ apiKey, model, input: text, voice, responseFormat, speed: clampedSpeed, baseUrl: this.#resolveBaseUrl(resolvedProvider), endpoint: "/audio/speech", provider: resolvedProvider });
+        return this.#openaiTts({ apiKey, model, input: text, voice, responseFormat, speed: clampedSpeed, baseUrl: this.#resolveBaseUrl(resolvedProvider), endpoint: "/audio/speech", provider: resolvedProvider, ...transport });
     }
   }
 
@@ -395,7 +412,9 @@ class MultimodalProviderAdapter {
 
   // --- Private: OpenAI-compatible TTS ---
 
-  async #openaiTts({ apiKey, model, input, voice, responseFormat, speed, baseUrl, endpoint, provider }) {
+  /** @param {MultimodalSpeechOptions & {apiKey: string, input: string, baseUrl?: string, endpoint?: string}} options
+   * @returns {Promise<MultimodalSpeechResult>} */
+  async #openaiTts({ apiKey, model, input, voice, responseFormat, speed, baseUrl, endpoint, provider, signal, maxResponseBytes, maxRetries }) {
     const resolvedBaseUrl = baseUrl || PROVIDER_DEFAULTS.openai.baseUrl;
     const resolvedEndpoint = endpoint || PROVIDER_DEFAULTS.openai.ttsEndpoint;
     const resolvedProvider = provider || "openai";
@@ -413,6 +432,9 @@ class MultimodalProviderAdapter {
       payload,
       timeoutMs: DEFAULT_TIMEOUTS.ttsMs,
       provider: resolvedProvider,
+      signal,
+      maxResponseBytes,
+      maxRetries,
     });
 
     const contentType = formatToContentType(responseFormat || "mp3");

@@ -366,6 +366,8 @@ export declare class GatewayClientError extends Error {
   readonly code: string;
   readonly kind: GatewayClientErrorKind;
   readonly retryable: boolean;
+  /** Explicitly false for Forge media failures, including unverifiable results. */
+  readonly retrySafe?: false;
   readonly statusCode?: number;
   readonly responseBody?: unknown;
   readonly cause?: unknown;
@@ -655,3 +657,6 @@ export declare function createLocalClientNotFoundReconciliationResponse(
 ): Promise<LocalClientReceiptReconciliationResponse>;
 
 export declare function createGatewayClient(options: GatewayClientOptions): GatewayClient;
+
+/** Revalidates exact artifact fields, PCM16 WAV metadata and SHA-256 before returning caller-owned bytes. */
+export declare function decodeForgeMediaAudio(artifact: unknown): Promise<Uint8Array>;

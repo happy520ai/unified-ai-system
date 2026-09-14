@@ -55,6 +55,8 @@ const BUILT_IN_TOOL_DESCRIPTORS: ToolGovernanceDescriptor[] = [
   descriptor({ name: "browser_interact", actionType: "write", riskTraits: ["external_communication", "write_capable"], riskLevel: "high", defaultDecision: "allow", description: "Perform an exact approved profile interaction; this descriptor alone grants no browser executor." }),
   descriptor({ name: "image_analyze", actionType: "read", riskTraits: [], riskLevel: "low", defaultDecision: "allow" }),
   descriptor({ name: "image_read", actionType: "read", riskTraits: [], riskLevel: "low", defaultDecision: "allow" }),
+  descriptor({ name: "media_synthesize_speech", actionType: "write", riskTraits: ["external_communication"], riskLevel: "high", defaultDecision: "allow",
+    description: "Use an exact configured speech model through the governed gateway inside an approved one-shot Forge media task; this descriptor grants no raw adapter." }),
   descriptor({ name: "semantic_search", actionType: "read", riskTraits: [], riskLevel: "low", defaultDecision: "allow" }),
   descriptor({ name: "ast_edit", actionType: "write", riskTraits: ["write_capable"], riskLevel: "medium", defaultDecision: "allow" }),
   descriptor({ name: "code_format", actionType: "write", riskTraits: ["write_capable"], riskLevel: "medium", defaultDecision: "allow" }),

@@ -366,6 +366,59 @@ export interface ForgeWebTaskReview {
   readonly expectedText: string;
 }
 
+export interface ForgeMediaTaskProfile {
+  readonly id: string;
+  readonly tenantId: string;
+  readonly providerId: string;
+  readonly modelId: string;
+  readonly voice: string;
+  readonly format: "wav-pcm16";
+  readonly maxTextBytes: number;
+  readonly maxAudioBytes: number;
+  readonly maxDurationMs: number;
+  readonly timeoutMs: number;
+}
+
+export interface ForgeMediaTaskReview {
+  readonly version: 1;
+  readonly kind: "tts";
+  readonly profile: ForgeMediaTaskProfile;
+  readonly profileHash: string;
+  readonly text: string;
+  readonly textSha256: string;
+  readonly textBytes: number;
+}
+
+export interface ForgeMediaArtifact {
+  readonly version: 1;
+  readonly format: "wav-pcm16";
+  readonly contentType: "audio/wav";
+  readonly sha256: string;
+  readonly bytes: number;
+  readonly sampleRate: number;
+  readonly channels: 1 | 2;
+  readonly bitsPerSample: 16;
+  readonly frameCount: number;
+  readonly durationMs: number;
+  readonly audioBase64: string;
+}
+
+/** The successful response only. Interrupted/failed execution uses the error envelope. */
+export interface ForgeMediaTaskResult {
+  readonly version: 1;
+  readonly kind: "tts";
+  readonly success: true;
+  readonly outcomeUnknown: false;
+  readonly synthetic: boolean;
+  readonly request: Readonly<{
+    taskId: "media-tts"; goalId: string; goalDigest: string; agentId: string; tenantId: string; userId: string;
+    profileId: string; profileHash: string; providerId: string; modelId: string; voice: string;
+    textSha256: string; textBytes: number;
+  }>;
+  readonly usage: Readonly<{ source: "synthetic" | "not-reported"; reported: null; inputCharacters: number; providerCalls: 1 }>;
+  readonly artifacts: readonly [ForgeMediaArtifact];
+}
+
 export interface AgentToolApprovalReview {
   schemaVersion: 1;
   reviewable: boolean;
@@ -447,6 +500,8 @@ export interface AgentToolApprovalReview {
       checkpointAfter?: string[];
       /** Complete server-resolved profile and exact expected result, sealed with the goal. */
       webTask?: ForgeWebTaskReview;
+      /** Complete speech text and the configured model, voice and output limits. */
+      mediaTask?: ForgeMediaTaskReview;
       /** Optional exact model selection, sealed with the same operator approval. */
       modelSelection?: Readonly<ProviderTarget>;
       maxOutputTokens?: number;

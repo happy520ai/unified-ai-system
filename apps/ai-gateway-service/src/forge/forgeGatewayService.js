@@ -669,6 +669,7 @@ export function createForgeGatewayService({
         : { enforced: false, mode: "standalone-development-only" };
       forgeRuns.set(runId, {
         tenantKey,
+        mediaRun: Boolean(governedExecution?.mediaTask),
         goalDigest: createHash("sha256").update(goal, "utf8").digest("hex"),
         goalPreview: goal.slice(0, 200),
         status: "running",
@@ -677,6 +678,7 @@ export function createForgeGatewayService({
         governance,
       });
       let forge = null;
+      let mediaOutcome = null;
       try {
         const rawOptions = options && typeof options === "object" && !Array.isArray(options)
           ? options
@@ -709,40 +711,56 @@ export function createForgeGatewayService({
         if (governedExecution?.webTask && result.status !== "completed") {
           throw createForgeGatewayError("FORGE_WEB_GOAL_NOT_VERIFIED", "The approved webpage goal did not complete.");
         }
+        if (governedExecution?.mediaTask && (result.status !== "completed" || result.media?.success !== true || result.media?.outcomeUnknown !== false)) {
+          throw createForgeGatewayError("FORGE_MEDIA_GOAL_NOT_VERIFIED", "The approved speech artifact did not complete.");
+        }
         throwIfForgeGatewayAborted(combinedSignal.signal);
         forgeRuns.set(runId, {
           tenantKey,
+          mediaRun: Boolean(governedExecution?.mediaTask),
           goalDigest: createHash("sha256").update(goal, "utf8").digest("hex"),
           goalPreview: goal.slice(0, 200),
-          status: "completed",
+          status: governedExecution?.mediaTask ? "running" : "completed",
           startedAt: forgeRuns.get(runId).startedAt,
           startedAtMs: forgeRuns.get(runId).startedAtMs,
           finishedAtMs: clock(),
-          result: summarizeForgeRunResult(result),
+          result: governedExecution?.mediaTask ? undefined : summarizeForgeRunResult(result),
           governance,
         });
-        return { ok: true, runId, result, governance, workspace: { configured: !temporaryWorkspace } };
+        const outcome = { ok: true, runId, result, governance, workspace: { configured: !temporaryWorkspace } };
+        if (!governedExecution?.mediaTask) return outcome;
+        mediaOutcome = outcome;
       } catch (error) {
         const webResult = governedExecution?.webTask?.getResult?.();
+        const rawMediaResult = governedExecution?.mediaTask?.getResult?.();
+        const mediaResult = rawMediaResult ? { ...rawMediaResult, success: false,
+          outcomeUnknown: rawMediaResult.outcomeUnknown === true || rawMediaResult.success === true, artifacts: [] } : null;
         const aborted = combinedSignal.signal?.aborted
           || error?.name === "AbortError"
           || error?.code === "FORGE_RUN_ABORTED";
-        const code = webResult?.outcomeUnknown ? "FORGE_ACTION_OUTCOME_UNCERTAIN"
+        const code = (webResult?.outcomeUnknown || mediaResult?.outcomeUnknown) ? "FORGE_ACTION_OUTCOME_UNCERTAIN"
           : (aborted ? "FORGE_RUN_ABORTED" : (error?.code ?? "FORGE_RUN_FAILED"));
+        const firstMediaCode = mediaResult?.code ?? error?.code ?? code;
+        const causeCode = typeof firstMediaCode === "string" && /^[A-Za-z0-9_]{1,100}$/u.test(firstMediaCode)
+          ? firstMediaCode : "FORGE_MEDIA_FAILED";
         const safeMessage = safeForgeErrorMessage(error?.message);
         forgeRuns.set(runId, {
           tenantKey,
+          mediaRun: Boolean(governedExecution?.mediaTask),
           goalDigest: createHash("sha256").update(goal, "utf8").digest("hex"),
           goalPreview: goal.slice(0, 200),
           status: "failed",
           startedAt: forgeRuns.get(runId)?.startedAt,
           startedAtMs: forgeRuns.get(runId)?.startedAtMs,
           finishedAtMs: clock(),
-          error: { message: safeMessage, code },
+          error: { message: safeMessage, code, ...(governedExecution?.mediaTask ? { causeCode } : {}) },
           governance,
         });
-        return { ok: false, runId, code, reason: safeMessage, governance,
-          ...(webResult ? { web: webResult } : {}) };
+        const outcome = { ok: false, runId, code, reason: safeMessage, governance,
+          ...(governedExecution?.mediaTask ? { causeCode } : {}),
+          ...(webResult ? { web: webResult } : {}), ...(mediaResult ? { media: mediaResult } : {}) };
+        if (!governedExecution?.mediaTask) return outcome;
+        mediaOutcome = outcome;
       } finally {
         const cleanupErrors = [];
         try {
@@ -750,14 +768,24 @@ export function createForgeGatewayService({
         } catch (error) {
           cleanupErrors.push({ code: "FORGE_TASK_STORE_CLOSE_FAILED", message: safeForgeErrorMessage(error?.message) });
         }
-        combinedSignal.dispose();
-        if (configuredWorkspace) configuredWorkspaceBusy = false;
+        if (!governedExecution?.mediaTask) {
+          combinedSignal.dispose();
+          if (configuredWorkspace) configuredWorkspaceBusy = false;
+        }
         if (runtimeRoot) {
           try {
-            temporaryDirectoryRemover(runtimeRoot);
+            if (governedExecution?.mediaTask) await temporaryDirectoryRemover(runtimeRoot);
+            else temporaryDirectoryRemover(runtimeRoot);
           } catch (error) {
             cleanupErrors.push({ code: "FORGE_TEMP_CLEANUP_FAILED", message: safeForgeErrorMessage(error?.message) });
           }
+        }
+        if (mediaOutcome?.ok === true && combinedSignal.signal?.aborted) {
+          cleanupErrors.push({ code: "FORGE_MEDIA_COMPLETION_ABORTED", message: "Media completion was cancelled during cleanup." });
+        }
+        if (governedExecution?.mediaTask) {
+          combinedSignal.dispose();
+          if (configuredWorkspace) configuredWorkspaceBusy = false;
         }
         const finishedRun = forgeRuns.get(runId);
         if (cleanupErrors.length > 0) {
@@ -772,10 +800,48 @@ export function createForgeGatewayService({
               cleanup: { ok: false, errors: cleanupErrors.slice(0, 2) },
             });
           }
+          if (governedExecution?.mediaTask) {
+            const media = mediaOutcome?.result?.media ?? mediaOutcome?.media;
+            const calls = media?.usage?.providerCalls;
+            const providerCallAttempted = Number.isSafeInteger(calls) && calls >= 0 ? calls > 0 : null;
+            const firstFailure = mediaOutcome?.ok === false ? mediaOutcome.causeCode ?? media?.code ?? mediaOutcome.code : cleanupErrors[0].code;
+            const causeCode = typeof firstFailure === "string" && /^[A-Za-z0-9_]{1,100}$/u.test(firstFailure)
+              ? firstFailure : "FORGE_MEDIA_FAILED";
+            const cleanupCodes = cleanupErrors.map(item => item.code);
+            mediaOutcome = { ok: false, runId, code: "FORGE_ACTION_OUTCOME_UNCERTAIN", causeCode, cleanupCodes,
+              providerCallAttempted, reason: "The media run did not complete its required cleanup; do not automatically resubmit.", governance,
+              ...(media ? { media: { ...media, success: false, outcomeUnknown: providerCallAttempted !== false,
+                artifacts: [], code: causeCode, cleanupCodes } } : {}) };
+            if (finishedRun) forgeRuns.set(runId, { ...forgeRuns.get(runId), status: "failed", result: undefined,
+              error: { code: mediaOutcome.code, causeCode, cleanupCodes, providerCallAttempted } });
+          }
         } else if (finishedRun) {
-          forgeRuns.set(runId, { ...finishedRun, cleanup: { ok: true } });
+          forgeRuns.set(runId, { ...finishedRun, cleanup: { ok: true },
+            ...(mediaOutcome?.ok === true ? { status: "completed", finishedAtMs: clock(), result: summarizeForgeRunResult(mediaOutcome.result) } : {}) });
         }
       }
+      return mediaOutcome;
+    },
+
+    // Server-only notification after the route's terminal governance/lease cleanup.
+    // No request body or public endpoint can select a run to reopen or complete.
+    recordMediaDeliveryFailure({ runId, tenantIdentity = null, code, causeCode, cleanupCodes = [] } = {}) {
+      const run = forgeRuns.get(runId);
+      const safeCode = value => typeof value === "string" && /^[A-Za-z0-9_]{1,100}$/u.test(value);
+      if (!run?.mediaRun || run.tenantKey !== getTenantKey(tenantIdentity)
+        || !["completed", "failed"].includes(run.status) || !safeCode(code)
+        || (causeCode !== undefined && !(typeof causeCode === "string" && /^[A-Za-z0-9_.:-]{1,128}$/u.test(causeCode)))
+        || !Array.isArray(cleanupCodes)
+        || cleanupCodes.length > 8 || cleanupCodes.some(value => !safeCode(value))) return false;
+      const firstError = run.error ?? { code, ...(causeCode ? { causeCode } : {}) };
+      const allCleanupCodes = [...new Set([...(firstError.cleanupCodes ?? []),
+        ...(run.cleanup?.errors?.map(error => error.code) ?? []), ...cleanupCodes])].slice(0, 8);
+      const generation = run.generation ?? run.result;
+      forgeRuns.set(runId, { ...run, status: "failed", result: undefined,
+        ...(generation ? { generation } : {}),
+        error: { ...firstError, ...(allCleanupCodes.length ? { cleanupCodes: allCleanupCodes } : {}) },
+        mediaDelivery: { status: "unknown", retrySafe: false }, finishedAtMs: run.finishedAtMs ?? clock() });
+      return true;
     },
 
     listRuns({ tenantIdentity = null, limit = 50 } = {}) {
@@ -784,7 +850,7 @@ export function createForgeGatewayService({
       const runs = [...forgeRuns.entries()]
         .filter(([, run]) => run.tenantKey === tenantKey)
         .slice(-Math.min(100, Math.max(1, Math.floor(Number(limit) || 50))))
-        .map(([runId, { tenantKey: _tenantKey, startedAtMs: _startedAtMs,
+        .map(([runId, { tenantKey: _tenantKey, mediaRun: _mediaRun, startedAtMs: _startedAtMs,
           finishedAtMs: _finishedAtMs, ...run }]) => ({ runId, ...run }));
       return { ok: true, runs, total: [...forgeRuns.values()].filter((run) => run.tenantKey === tenantKey).length };
     },
