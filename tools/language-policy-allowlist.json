@@ -206,6 +206,39 @@
       "removalBy": "2027-03-31",
       "migrationPlan": "Convert together with the shared-sdk wholesale TypeScript migration (runtime + declaration in one unit). Remove this exception and the file when index.js itself becomes TypeScript with a build boundary.",
       "issueId": "T-068"
+    },
+    {
+      "type": "fileSet",
+      "value": "t-073-agent-console-cli-split-set",
+      "files": [
+        "apps/agent-console/src/cli-arg-parser.js",
+        "apps/agent-console/src/cli-constants.js",
+        "apps/agent-console/src/cli-errors.js",
+        "apps/agent-console/src/cli-parser-helpers.js",
+        "apps/agent-console/src/cli-validation.js",
+        "apps/agent-console/src/cli-validation.test.js"
+      ],
+      "justification": "T-073 split of the agent-console CLI god-module (cli-core.js, 4356 -> 4101 lines) yields sibling modules that stay inside the same plain-Node ESM runtime chain as the grandfathered cli-core.js/cli.js entrypoints. Adding a single TypeScript sibling would not introduce TypeScript anywhere in this graph, and converting only the extracted file is not behaviour-safe while its importer remains JavaScript; the extraction was instead guarded by 15 characterization tests driving the public parseCliArgs surface, which pass identically before and after the move.",
+      "owner": "agent-console/operator-interaction",
+      "removalBy": "2026-12-20",
+      "migrationPlan": "Convert the whole agent-console CLI chain (cli.js, cli-core.js and these siblings) to TypeScript in one step under T-073, gated by the same characterization tests plus `pnpm check`; when cli-core.js becomes TypeScript, delete this exception set. Ties to the scheduled apps/packages migration that retires the pr-111 set.",
+      "issueId": "T-073",
+      "notes": "Runtime modules are confined to the existing JavaScript CLI chain; no new language is introduced and no provider/deployment path is touched."
+    },
+    {
+      "type": "fileSet",
+      "value": "t-074-quality-matrix-tooling-set",
+      "files": [
+        "apps/ai-gateway-service/src/entrypoints/runVitestGroup.js",
+        "packages/shared-contracts/vitest.config.js",
+        "packages/workforce-contracts/src/workforceContractsSmoke.test.js"
+      ],
+      "justification": "T-074 quality-matrix wiring: one vitest group runner entrypoint and two test/config assets. They follow the established ESM JavaScript tooling style already used by the sibling entrypoints under apps/ai-gateway-service/src/entrypoints/ and by the pr-111 / t-067 test sets; they add no product runtime behavior.",
+      "owner": "gateway-platform/quality-gates",
+      "removalBy": "2026-12-20",
+      "migrationPlan": "Retire together with the pr-111 node-esm compatibility set during the scheduled apps/packages test migration; convert the entrypoint alongside its sibling entrypoints, not in isolation.",
+      "issueId": "T-074",
+      "notes": "Test and tooling assets only; no product runtime module is added in JavaScript."
     }
   ]
 }
