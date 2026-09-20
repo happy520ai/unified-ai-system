@@ -13,7 +13,8 @@
     "test:coverage": "c8 --reporter=text --reporter=html --reporter=json-summary node --test --test-concurrency=4 test/*.test.js",
     "test:coverage:check": "c8 --check-coverage --lines 60 --branches 40 --functions 50 node --test --test-concurrency=4 test/*.test.js",
     "rebuild:native": "node ./scripts/rebuild-native.mjs --force",
-    "postinstall": "node ./scripts/rebuild-native.mjs"
+    "postinstall": "node ./scripts/rebuild-native.mjs",
+    "build": "node --check ./src/index.js"
   },
   "dependencies": {
     "@unified-ai-system/shared-utils": "workspace:*",

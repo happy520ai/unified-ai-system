@@ -94,3 +94,11 @@ docs/star-growth-latest.md
 docs/star-growth-feedback.md
 docs/star-growth-summary.md
 docs/star-growth-publish-output.md
+
+# Local machine state: pm-mcp governance ledger + generated dashboard + agent/tool caches.
+# None of these are public product source; they also carry absolute local paths.
+/.pm/
+/PROJECT.md
+/.zcodeignore
+/.workbuddy-ai/
+/Microsoft/Windows/PowerShell/ModuleAnalysisCache

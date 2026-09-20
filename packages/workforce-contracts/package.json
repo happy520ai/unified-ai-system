@@ -9,6 +9,7 @@
   },
   "scripts": {
     "check": "node --no-warnings --experimental-vm-modules ../../tools/check-package-source-syntax.mjs src",
-    "build": "pnpm run check"
+    "build": "pnpm run check",
+    "test": "node --test ./src/workforceContractsSmoke.test.js"
   }
 }

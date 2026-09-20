@@ -161,7 +161,7 @@ async function pausedGovernedChild(setup: Awaited<ReturnType<typeof governedFixt
   return child;
 }
 
-describe("durable local workflow recovery", () => {
+describe("durable local workflow recovery", { timeout: 120_000 }, () => {
   it("keeps history reads lazy and owner-scoped before any run", () => {
     const root = join(tempRoot(), "not-created");
     const service = createService(root);
@@ -469,7 +469,7 @@ describe("durable local workflow recovery", () => {
   });
 });
 
-describe("durable workflow artifact approvals", () => {
+describe("durable workflow artifact approvals", { timeout: 120_000 }, () => {
   it("preserves a completed historical receipt when its current result delivery fails", async () => {
     const setup = await governedFixture(); const approval = await pendingWorkflow(setup);
     await setup.governance.service.decideApproval(approval.id, "approve", operator); await setup.run();

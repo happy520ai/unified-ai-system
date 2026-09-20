@@ -110,27 +110,88 @@ function hasChildExited(child) {
   return child.exitCode != null || child.signalCode != null;
 }
 
+// T-003 record-only startup diagnostics. Classify readiness failures without
+// recording headers, tokens, URLs or response bodies. The retry cadence, the
+// success path and STARTUP_TIMEOUT_MS remain unchanged.
+const READINESS_OUTCOMES = Object.freeze([
+  "ready",
+  "connect-refused",
+  "health-not-ready",
+  "auth-failed",
+  "provider-guard-refused",
+  "probe-error",
+]);
+
+function classifyProbeFailure(error) {
+  if (error?.stage && READINESS_OUTCOMES.includes(error.stage)) return error.stage;
+  const code = error?.cause?.code ?? error?.code;
+  if (code === "ECONNREFUSED" || code === "ECONNRESET" || code === "EHOSTUNREACH") {
+    return "connect-refused";
+  }
+  return "probe-error";
+}
+
+async function probeReadiness(baseUrl, requestHeaders) {
+  const health = await fetchHealth(baseUrl);
+  if ((health?.data ?? health)?.status !== "ready") {
+    const notReady = new Error("Gateway health check reported a non-ready status.");
+    notReady.stage = "health-not-ready";
+    throw notReady;
+  }
+  try {
+    assertFakeProviderRuntime(health);
+  } catch (error) {
+    error.stage = "provider-guard-refused";
+    throw error;
+  }
+  try {
+    await verifyAuthenticatedSession(baseUrl, requestHeaders);
+  } catch (error) {
+    error.stage = "auth-failed";
+    throw error;
+  }
+  return health;
+}
+
+function summarizeReadinessAttempts(attempts) {
+  const counts = new Map();
+  for (const attempt of attempts) {
+    counts.set(attempt.outcome, (counts.get(attempt.outcome) ?? 0) + 1);
+  }
+  const breakdown = [...counts.entries()].map(([outcome, count]) => `${outcome}=${count}`);
+  return `attempts=${attempts.length}${breakdown.length ? `, ${breakdown.join(", ")}` : ""}`;
+}
+
 async function waitForReady(baseUrl, child, requestHeaders) {
   const deadline = Date.now() + STARTUP_TIMEOUT_MS;
+  const attempts = [];
   while (Date.now() < deadline) {
     if (hasChildExited(child)) {
       throw new Error(
         `Gateway exited before MCP startup with ${child.signalCode ? `signal ${child.signalCode}` : `code ${child.exitCode}`}.`,
       );
     }
+    const attemptStartedAt = Date.now();
     try {
-      const health = await fetchHealth(baseUrl);
-      if ((health?.data ?? health)?.status === "ready") {
-        assertFakeProviderRuntime(health);
-        await verifyAuthenticatedSession(baseUrl, requestHeaders);
-        return health;
-      }
-    } catch {
-      // The managed gateway may briefly refuse connections during startup.
+      const health = await probeReadiness(baseUrl, requestHeaders);
+      attempts.push({ attempt: attempts.length + 1, elapsedMs: Date.now() - attemptStartedAt, outcome: "ready" });
+      return { health, attempts };
+    } catch (error) {
+      // The managed gateway may briefly refuse connections during startup; the
+      // retry cadence is unchanged, only the reason is now recorded.
+      attempts.push({
+        attempt: attempts.length + 1,
+        elapsedMs: Date.now() - attemptStartedAt,
+        outcome: classifyProbeFailure(error),
+      });
     }
     await delay(250);
   }
-  throw new Error("Gateway did not become ready for MCP within 30 seconds.");
+  const timeout = new Error(
+    `Gateway did not become ready for MCP within 30 seconds (${summarizeReadinessAttempts(attempts)}).`,
+  );
+  timeout.readinessAttempts = attempts;
+  throw timeout;
 }
 
 async function stopChild(child) {
@@ -307,12 +368,13 @@ export async function createGatewayRuntime(options = {}) {
   });
 
   try {
-    const health = await waitForReady(baseUrl, child, requestHeaders);
+    const { health, attempts: readinessAttempts } = await waitForReady(baseUrl, child, requestHeaders);
     const managedWorkflowAgentId = await createManagedWorkflowAgent(baseUrl, requestHeaders);
     return createAuthenticatedRuntime({
       baseUrl,
       managed: true,
       health,
+      readinessAttempts,
       managedWorkflowAgentId,
       child,
       stop: async () => {
@@ -342,6 +404,9 @@ export async function createGatewayRuntime(options = {}) {
 export const mcpRuntimeInternals = {
   assertFakeProviderRuntime,
   assertSafeGatewayAuthTarget,
+  classifyProbeFailure,
   normalizeBaseUrl,
+  probeReadiness,
   readGatewayAuthToken,
+  summarizeReadinessAttempts,
 };

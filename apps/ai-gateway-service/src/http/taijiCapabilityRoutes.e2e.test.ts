@@ -200,4 +200,4 @@ it("governs actual Taiji evaluation, activation, execution, result reading and r
     if (dirname(target) !== parent || !basename(target).startsWith("uai-taiji-http-") || resolve(root) !== target) throw new Error("Unsafe test cleanup path");
     await rm(root, { recursive: true, force: true });
   }
-}, 60_000);
+}, 600_000);

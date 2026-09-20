@@ -185,7 +185,7 @@ async function runVitestTests(tests, { processIsolated = false } = {}) {
   // Optional workstation cap for the parallel phase: heavily loaded machines
   // (background trading apps, antivirus) time out heavy suites at full
   // parallelism. CI leaves this unset and keeps default workers.
-  const parallelWorkers = Number(process.env.UAI_SUITE_PARALLEL_WORKERS);
+  const parallelWorkers = Number(process.env.UAI_SUITE_PARALLEL_WORKERS ?? "1");
   if (!processIsolated && Number.isInteger(parallelWorkers) && parallelWorkers >= 1 && parallelWorkers <= 8) {
     isolationArgs.push(`--maxWorkers=${parallelWorkers}`);
   }
@@ -195,6 +195,21 @@ async function runVitestTests(tests, { processIsolated = false } = {}) {
     repoRoot,
     phaseEnv,
   );
+}
+
+async function runVitestGroups() {
+  const groups = ["agentic", "agent-governance", "capabilities", "workflow", "http", "forge-workforce", "remaining"];
+  process.stdout.write(`\nRunning ${groups.length} bounded Vitest groups\n`);
+  for (const group of groups) {
+    const exit = await runProcess(
+      process.execPath,
+      [join(serviceRoot, "src/entrypoints/runVitestGroup.js"), group],
+      serviceRoot,
+      phaseEnv,
+    );
+    if (exit !== 0) return exit;
+  }
+  return 0;
 }
 
 async function main() {
@@ -221,18 +236,9 @@ async function main() {
   if (selected.length === 0) throw new Error(`No tests selected for scope=${scope} framework=${framework}`);
 
   const nodeExit = await runNodeTests(selected.filter((test) => test.framework === "node"));
-  const vitestTests = selected.filter((test) => test.framework === "vitest");
-  // Resource-heavy parser tests must enter their dedicated process before the
-  // large Vitest pool. On constrained Windows runners, starting this fork only
-  // after ~1,400 tests can make the OS terminate it even though the file passes
-  // independently; process isolation should not inherit prior pool pressure.
-  const isolatedVitestExit = await runVitestTests(
-    vitestTests.filter((test) => test.processIsolated),
-    { processIsolated: true },
-  );
-  const vitestExit = await runVitestTests(vitestTests.filter((test) => !test.processIsolated));
-  if (nodeExit !== 0 || vitestExit !== 0 || isolatedVitestExit !== 0) {
-    throw new Error(`Test suite failed: node=${nodeExit} vitest=${vitestExit} isolatedVitest=${isolatedVitestExit}`);
+  const vitestExit = await runVitestGroups();
+  if (nodeExit !== 0 || vitestExit !== 0) {
+    throw new Error(`Test suite failed: node=${nodeExit} vitest=${vitestExit}`);
   }
 }
 
