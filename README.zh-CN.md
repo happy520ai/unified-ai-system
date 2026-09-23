@@ -402,7 +402,7 @@ Get-Content .\request.txt -Raw |
 ## 项目链接
 
 - [官方 MCP Registry 条目](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.7.0)
-- [Release v0.5.0](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.7.0)
+- [Release v0.7.0](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.7.0)
 - [Codex MCP Server README](packages/mcp-server/README.md)
 - [Roadmap](ROADMAP.md)
 - [Vision](VISION.md)
