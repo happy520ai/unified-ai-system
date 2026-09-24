@@ -224,13 +224,14 @@ importers:
         version: 2.0.0
 
   packages/mcp-service:
+    dependencies:
+      '@unified-ai-system/mcp-server':
+        specifier: workspace:*
+        version: link:../mcp-server
     devDependencies:
       '@modelcontextprotocol/client':
         specifier: 2.0.0
         version: 2.0.0
-      '@unified-ai-system/mcp-server':
-        specifier: workspace:*
-        version: link:../mcp-server
 
   packages/policy-engine:
     dependencies:

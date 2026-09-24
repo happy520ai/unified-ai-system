@@ -10,6 +10,7 @@ import {
   createManagedGatewayEnvironment,
   redactManagedGatewayOutput,
 } from "./runtime-environment.js";
+import { sweepGovernanceOrphans } from "./governance-orphan-sweep.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const serviceEntrypoint = resolve(
@@ -131,6 +132,13 @@ function classifyProbeFailure(error) {
   return "probe-error";
 }
 
+const ERRNO_LABELS = new Set(["ECONNREFUSED", "ECONNRESET", "EHOSTUNREACH"]);
+
+function probeErrnoLabel(error) {
+  const code = error?.cause?.code ?? error?.code;
+  return typeof code === "string" && ERRNO_LABELS.has(code) ? code : "other";
+}
+
 async function probeReadiness(baseUrl, requestHeaders) {
   const health = await fetchHealth(baseUrl);
   if ((health?.data ?? health)?.status !== "ready") {
@@ -153,18 +161,28 @@ async function probeReadiness(baseUrl, requestHeaders) {
   return health;
 }
 
-function summarizeReadinessAttempts(attempts) {
+function summarizeReadinessAttempts(attempts, errnoLabels = []) {
   const counts = new Map();
   for (const attempt of attempts) {
     counts.set(attempt.outcome, (counts.get(attempt.outcome) ?? 0) + 1);
   }
   const breakdown = [...counts.entries()].map(([outcome, count]) => `${outcome}=${count}`);
-  return `attempts=${attempts.length}${breakdown.length ? `, ${breakdown.join(", ")}` : ""}`;
+  // B-9 (owner-approved, pure observability): surface each failed probe's raw errno class so
+  // "no listener" (ECONNREFUSED) vs "accepted then reset" (ECONNRESET) becomes decidable
+  // from the readiness line alone. Additive only: attempts without an errno label render
+  // exactly as before.
+  const errnoCounts = new Map();
+  for (const code of errnoLabels) {
+    errnoCounts.set(code, (errnoCounts.get(code) ?? 0) + 1);
+  }
+  const errnoPart = [...errnoCounts.entries()].map(([code, count]) => `${code}:${count}`).join("+");
+  return `attempts=${attempts.length}${breakdown.length ? `, ${breakdown.join(", ")}` : ""}${errnoPart ? `, errno=${errnoPart}` : ""}`;
 }
 
 async function waitForReady(baseUrl, child, requestHeaders) {
   const deadline = Date.now() + STARTUP_TIMEOUT_MS;
   const attempts = [];
+  const errnoLabels = []; // B-9: raw errno class per failed probe, kept off the pinned row shape
   while (Date.now() < deadline) {
     if (hasChildExited(child)) {
       throw new Error(
@@ -184,11 +202,12 @@ async function waitForReady(baseUrl, child, requestHeaders) {
         elapsedMs: Date.now() - attemptStartedAt,
         outcome: classifyProbeFailure(error),
       });
+      errnoLabels.push(probeErrnoLabel(error));
     }
     await delay(250);
   }
   const timeout = new Error(
-    `Gateway did not become ready for MCP within 30 seconds (${summarizeReadinessAttempts(attempts)}).`,
+    `Gateway did not become ready for MCP within 30 seconds (${summarizeReadinessAttempts(attempts, errnoLabels)}).`,
   );
   timeout.readinessAttempts = attempts;
   throw timeout;
@@ -285,6 +304,7 @@ export async function createGatewayRuntime(options = {}) {
   // the window elapsed and all authenticated tools became unusable.
   const authExpiresAt = null;
   const requestHeaders = Object.freeze({ Authorization: `Bearer ${authToken}` });
+  sweepGovernanceOrphans({ baseDir: tmpdir() });
   const governanceDataDir = mkdtempSync(join(tmpdir(), "unified-ai-mcp-governance-"));
   const governanceHmacKey = randomBytes(32).toString("base64url");
   let governanceStateCleaned = false;

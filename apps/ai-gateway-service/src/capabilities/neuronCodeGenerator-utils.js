@@ -18,7 +18,7 @@
  */
 export function toFactoryFunctionName(capabilityId) {
   const pascal = capabilityId
-    .split("-")
+    .split(/[^A-Za-z0-9_$]+/)
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join("");

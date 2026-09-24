@@ -192,7 +192,7 @@ export function generateVerifierScript(capabilityId, spec) {
 
 import { readFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -261,7 +261,7 @@ async function main() {
   // ── Step 2: 加载 neuron.js ──
   let neuronModule;
   try {
-    neuronModule = await import(NEURON_PATH);
+    neuronModule = await import(pathToFileURL(NEURON_PATH).href);
     console.log(formatResult("加载 neuron.js", true));
     passedTests++;
   } catch (err) {

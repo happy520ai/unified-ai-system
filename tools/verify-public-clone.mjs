@@ -169,6 +169,9 @@ function credentialFreeCloneEnv(isolatedHome, isolatedTemp, extra = {}) {
     USERPROFILE: isolatedHome,
     APPDATA: join(isolatedHome, "appdata"),
     LOCALAPPDATA: join(isolatedHome, "localappdata"),
+    // B-14 (owner-approved): pnpm resolves its home from PNPM_HOME; without it the
+    // isolated clone falls back to a machine-dependent location.
+    PNPM_HOME: join(isolatedHome, "pnpm"),
     TEMP: isolatedTemp,
     TMP: isolatedTemp,
     TMPDIR: isolatedTemp,
