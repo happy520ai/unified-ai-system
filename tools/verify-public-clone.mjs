@@ -1152,7 +1152,10 @@ async function runAgentGovernanceContractTests() {
   child.stderr.setEncoding("utf8");
   child.stdout.on("data", (chunk) => { stdout = `${stdout}${chunk}`.slice(-16_000); });
   child.stderr.on("data", (chunk) => { stderr = `${stderr}${chunk}`.slice(-8_000); });
-  const vitestExitCode = await waitForChildExitCode(child, 8 * 60_000, "Agent Governance contract tests");
+  // Deadline recalibrated (owner blanket grant 2026-09-25): the 8-min child budget predates
+  // the current smoke sequence and machine baseline; r13/r15 both hit it while the stage
+  // itself was healthy. Aligned to the mcp smoke stage budget. No check criterion touched.
+  const vitestExitCode = await waitForChildExitCode(child, 15 * 60_000, "Agent Governance contract tests");
   let forgeExitCode = 0;
   if (vitestExitCode === 0) {
     const forgeChild = spawn(process.execPath, [
