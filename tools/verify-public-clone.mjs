@@ -225,6 +225,10 @@ async function runInActualPublicClone() {
       mkdir(isolatedTemp, { recursive: true }),
       mkdir(join(isolatedHome, "appdata"), { recursive: true }),
       mkdir(join(isolatedHome, "localappdata"), { recursive: true }),
+      // MSBuild's CL FileTracker resolves its normalized path roots from the shell
+      // Local AppData folder, not from LOCALAPPDATA; without this the native dependency
+      // rebuild dies with MSB4018 IndexOutOfRangeException under a credential-free HOME.
+      mkdir(join(isolatedHome, "AppData", "Local"), { recursive: true }),
     ]);
     const cloneEnv = credentialFreeCloneEnv(isolatedHome, isolatedTemp);
     const cloned = await runInherited(
