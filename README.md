@@ -32,7 +32,7 @@
 <p align="center">
   <img
     src="docs/assets/readme-hero.png"
-    alt="Unified AI System — self-hosted AI gateway with 12 bounded MCP tools, four release gates, 23 defended attack cases, and zero credentials to start"
+    alt="Unified AI System — self-hosted AI gateway whose published image ships 12 bounded MCP tools, four release gates, 23 defended attack cases, and zero credentials to start"
     width="100%"
   />
 </p>
@@ -120,7 +120,7 @@ Useful in a real workflow? [Star the repository](https://github.com/happy520ai/u
     width="100%"
   />
   <br />
-  <sub>Clients keep their native protocols; the gateway adds keys, budgets, cache, and audit. Twelve bounded MCP tools are inspectable; controlled writes additionally require Agent Governance when enabled.</sub>
+  <sub>Clients keep their native protocols; the gateway adds keys, budgets, cache, and audit. The published image exposes twelve bounded MCP tools and the current source build fifteen; both are inspectable after connecting. Controlled writes additionally require Agent Governance when enabled.</sub>
 </p>
 
 ## Choose Your First Path
