@@ -337,7 +337,96 @@ function renderPrRowsTable(rows) {
   return lines;
 }
 
-function generateCheckReport(repoStats, rows, date, previousStats = null) {
+// Standing check for the defect class fixed on 2026-09-25: public copy telling a reader to
+// verify a tool count the published surface no longer has. Version numbers are deliberately
+// NOT swept - "pinned by digest to the reviewed v0.4.9 image" is true, and a gate that cries
+// wolf on honest history gets muted rather than fixed.
+const STALE_CLAIM_PATTERNS = [
+  { re: /\btwelve tools?\b/gi, label: "twelve tools" },
+  { re: /\b12 tools\b/g, label: "12 tools" },
+  { re: /\b12-tool\b/g, label: "12-tool" },
+  { re: /12 个工具/g, label: "12 个工具" },
+  { re: /\b12 MCP tools\b/gi, label: "12 MCP tools" },
+];
+
+// Records, not instructions. Each exclusion is reported by count so it cannot widen in
+// silence, and every entry names the reason it is allowed to keep the old number.
+const STALE_CLAIM_ALLOWED = [
+  { path: /^docs\/mcp-client-compatibility(\.zh-CN)?\.md$/, reason: "as-of client certification rows record twelve-tool runs" },
+  { path: /^docs\/protocol-client-compatibility\.md$/, reason: "acceptance criterion applied to recorded twelve-tool runs" },
+  { path: /^docs\/protocol-client-compatibility\.zh-CN\.md$/, reason: "same recorded-protocol tables, translated" },
+  { path: /^docs\/history\//, reason: "archived report" },
+  { path: /^docs\/comprehensive-audit-/, reason: "dated audit snapshot" },
+  { path: /^docs\/task-handoff-loop\.md$/, reason: "past-tense observation" },
+  { path: /^docs\/assets\/(readme-hero|social-preview-source)\.html$/, reason: "number is baked into a PNG" },
+  { path: /^docs\/security\/mcp-image-review-0\.4\.9\.md$/, reason: "versioned image review" },
+  { path: /^CHANGELOG\.md$/, reason: "release history" },
+];
+
+function scanPublicClaims() {
+  let tracked;
+  try {
+    tracked = execSync("git ls-files", { encoding: "utf8" })
+      .split("\n")
+      .filter((p) => /^(README([^/]*\.md)?|docs\/.*\.(md|html|txt))$/.test(p));
+  } catch {
+    return { error: "git ls-files failed; sweep inconclusive", scanned: 0, offenders: [], allowed: [] };
+  }
+  const offenders = [];
+  const allowed = [];
+  let readable = 0;
+  for (const path of tracked) {
+    let text;
+    try {
+      text = readFileSync(path, "utf8");
+    } catch {
+      continue;
+    }
+    readable += 1;
+    const rule = STALE_CLAIM_ALLOWED.find((entry) => entry.path.test(path));
+    const labels = new Set();
+    for (const pattern of STALE_CLAIM_PATTERNS) {
+      pattern.re.lastIndex = 0;
+      if (pattern.re.test(text)) labels.add(pattern.label);
+    }
+    if (labels.size === 0) continue;
+    if (rule) {
+      allowed.push(`${path} (${[...labels].join(", ")}) - ${rule.reason}`);
+    } else {
+      offenders.push(`${path} still says: ${[...labels].join(", ")}`);
+    }
+  }
+  return { scanned: readable, offenders, allowed, unreadable: tracked.length - readable };
+}
+
+async function scanRemotePublicClaims() {
+  const offenders = [];
+  let scanned = 0;
+  let error = null;
+  for (const endpoint of [`repos/${repo}/issues?state=open&per_page=50`, `repos/${repo}/pulls?state=open&per_page=50`]) {
+    let items;
+    try {
+      items = runJson(`gh api "${endpoint}"`);
+    } catch {
+      error = "gh api failed; remote sweep inconclusive";
+      continue;
+    }
+    if (!Array.isArray(items)) continue;
+    for (const item of items) {
+      scanned += 1;
+      const haystack = `${item.title ?? ""}\n${item.body ?? ""}`;
+      const labels = new Set();
+      for (const pattern of STALE_CLAIM_PATTERNS) {
+        pattern.re.lastIndex = 0;
+        if (pattern.re.test(haystack)) labels.add(pattern.label);
+      }
+      if (labels.size > 0) offenders.push(`#${item.number} says: ${[...labels].join(", ")}`);
+    }
+  }
+  return { scanned, offenders, error };
+}
+
+function generateCheckReport(repoStats, rows, date, previousStats = null, claimSweep = null, remoteSweep = null) {
   const lines = [];
   lines.push(`# Star Growth Check (${date})`);
   lines.push("");
@@ -345,6 +434,33 @@ function generateCheckReport(repoStats, rows, date, previousStats = null) {
   lines.push(...renderRepoSection(repoStats, date, "-", previousStats));
   lines.push("## External PR Funnel");
   lines.push(...renderPrRowsTable(rows));
+  lines.push("");
+  lines.push("## Public Claim Sweep");
+  lines.push("");
+  lines.push("| Instrument | Value |");
+  lines.push("| --- | --- |");
+  lines.push(`| Repository files scanned | ${claimSweep ? claimSweep.scanned : "not run"} |`);
+  lines.push(`| Files allowed to keep a historical number | ${claimSweep ? claimSweep.allowed.length : "not run"} |`);
+  lines.push(`| Files with a stale instruction | ${claimSweep ? claimSweep.offenders.length : "not run"} |`);
+  lines.push(`| Open issue and PR bodies scanned | ${remoteSweep ? remoteSweep.scanned : "not run"} |`);
+  lines.push(`| Issues or PRs with a stale instruction | ${remoteSweep ? remoteSweep.offenders.length : "not run"} |`);
+  lines.push("");
+  if (claimSweep?.error) lines.push(`- Inconclusive file sweep: ${claimSweep.error}`);
+  if (remoteSweep?.error) lines.push(`- Inconclusive remote sweep: ${remoteSweep.error}`);
+  for (const offender of claimSweep?.offenders ?? []) lines.push(`- STALE: ${offender}`);
+  for (const offender of remoteSweep?.offenders ?? []) lines.push(`- STALE: ${offender}`);
+  if (!claimSweep?.error && !remoteSweep?.error
+    && (claimSweep?.offenders.length ?? 0) === 0 && (remoteSweep?.offenders.length ?? 0) === 0) {
+    lines.push("No public copy asks a reader to verify a tool count the published surface no longer has.");
+  }
+  if (claimSweep && claimSweep.allowed.length > 0) {
+    lines.push("");
+    lines.push("Excluded as records rather than instructions:");
+    for (const entry of claimSweep.allowed) lines.push(`- ${entry}`);
+  }
+  if (claimSweep?.unreadable) {
+    lines.push(`- ${claimSweep.unreadable} tracked path(s) could not be read this run.`);
+  }
   return `${lines.join("\n")}\n`;
 }
 
@@ -508,7 +624,9 @@ async function run() {
   const previous = readSnapshotMetrics(defaultLatestSnapshotFile);
 
   if (action === "check") {
-    const report = generateCheckReport(repoStats, rows, date, previous);
+    const claimSweep = scanPublicClaims();
+    const remoteSweep = await scanRemotePublicClaims();
+    const report = generateCheckReport(repoStats, rows, date, previous, claimSweep, remoteSweep);
     if (options.output) writeReport(options.output, report);
     console.log(report);
     return;
