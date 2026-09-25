@@ -1,0 +1,33 @@
+{
+  "$comment": "Single source of truth for the docs/assets marketing images. packages/web-agent/test/render-marketing-asset.mjs renders these canvases; tools/public-repo-check.mjs asserts the committed PNGs still match them.",
+  "assets": {
+    "social-preview": {
+      "source": "docs/assets/social-preview-source.html",
+      "output": "docs/assets/social-preview.png",
+      "width": 1280,
+      "height": 640,
+      "scale": 1
+    },
+    "readme-hero": {
+      "source": "docs/assets/readme-hero.html",
+      "output": "docs/assets/readme-hero.png",
+      "width": 1280,
+      "height": 430,
+      "scale": 2
+    },
+    "readme-architecture": {
+      "source": "docs/assets/readme-architecture.html",
+      "output": "docs/assets/readme-architecture.png",
+      "width": 1280,
+      "height": 948,
+      "scale": 2
+    },
+    "readme-terminal": {
+      "source": "docs/assets/readme-terminal.html",
+      "output": "docs/assets/readme-terminal.png",
+      "width": 1280,
+      "height": 676,
+      "scale": 2
+    }
+  }
+}

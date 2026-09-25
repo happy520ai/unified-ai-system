@@ -539,26 +539,77 @@ if (readme.includes("BEGIN UNIFIED_AI_SYSTEM_CURRENT_STATE")) {
   addError("generated_ledger_in_public_readme", "README.md");
 }
 
+// Derive the published MCP tool roster from source. The homepage copy used to
+// carry a hardcoded count whose guard asserted the literal string, so the site
+// could keep passing while the code exposed a different number. Parsing (rather
+// than importing) keeps this check free of runtime side effects. Declared before
+// the marketing assets because their rendered copy states the same count.
+const rosterSourcePath = "packages/mcp-server/src/server.js";
+const rosterSource = readFileSync(resolve(repoRoot, rosterSourcePath), "utf8");
+const rosterMarker = "MCP_TOOL_NAMES = Object.freeze([";
+const rosterStart = rosterSource.indexOf(rosterMarker);
+if (rosterStart < 0) {
+  addError("mcp_tool_roster_unlocatable", rosterSourcePath, rosterMarker);
+}
+const rosterOpen = rosterSource.indexOf("[", rosterStart);
+let rosterDepth = 0;
+let rosterEnd = -1;
+for (let i = rosterOpen; i >= 0 && i < rosterSource.length; i += 1) {
+  if (rosterSource[i] === "[") rosterDepth += 1;
+  else if (rosterSource[i] === "]") {
+    rosterDepth -= 1;
+    if (rosterDepth === 0) { rosterEnd = i; break; }
+  }
+}
+const mcpToolNames = [
+  ...rosterSource
+    .slice(rosterOpen + 1, rosterEnd < 0 ? rosterSource.length : rosterEnd)
+    .matchAll(/"([a-z0-9_]+)"/g),
+].map((m) => m[1]);
+const publishedToolCount = mcpToolNames.length;
+if (publishedToolCount < 1) {
+  addError("mcp_tool_roster_empty", rosterSourcePath, String(publishedToolCount));
+}
+
 const marketingAssetContracts = [
   [
     "docs/assets/readme-hero.html",
-    ["first path needs <strong>zero credentials</strong>", "<b>12</b> governed MCP tools", "<b>23</b> attack cases defended"],
+    [
+      "first path needs <strong>zero credentials</strong>",
+      `<b>${publishedToolCount}</b> governed MCP tools`,
+      "<b>23</b> attack cases defended",
+    ],
   ],
   [
     "docs/assets/readme-capabilities.html",
     ["One governed AI gateway stack", "23-attack live drill", "evidence, not certification"],
   ],
   [
+    "docs/assets/readme-architecture.html",
+    [`${publishedToolCount} governed MCP tools — inspectable from any MCP client`],
+  ],
+  [
     "docs/assets/social-preview-source.html",
-    ["Hardened Public Preview", "<strong>12</strong> governed tools", "12 ready"],
+    [
+      "Hardened Public Preview",
+      `<strong>${publishedToolCount}</strong> governed tools`,
+      `${publishedToolCount} ready`,
+    ],
   ],
 ];
 const forbiddenMarketingClaims = [
   "LiteLLM/Portkey-class",
   "every feature works with",
   "Everything a commercial gateway ships",
-  ">9 ready<",
-  "<strong>9</strong> governed tools",
+];
+// The counts the rendered images advertise are checked against the derived roster
+// instead of against pinned digits, so any wrong number trips this arm rather
+// than only the one number someone happened to write down.
+const marketingToolCountClaims = [
+  ["<b>N</b> governed MCP tools", /<b>(\d+)<\/b> governed MCP tools/g],
+  ["<strong>N</strong> governed tools", /<strong>(\d+)<\/strong> governed tools/g],
+  [">N governed MCP tools", />(\d+) governed MCP tools/g],
+  [">N ready<", />(\d+) ready</g],
 ];
 for (const [path, markers] of marketingAssetContracts) {
   const content = readFileSync(resolve(repoRoot, path), "utf8");
@@ -571,6 +622,42 @@ for (const [path, markers] of marketingAssetContracts) {
     if (content.includes(claim)) {
       addError("marketing_asset_overclaim", path, claim);
     }
+  }
+  for (const [label, pattern] of marketingToolCountClaims) {
+    for (const match of content.matchAll(pattern)) {
+      if (Number(match[1]) !== publishedToolCount) {
+        addError("marketing_asset_tool_count_stale", path, `${label} reported ${match[1]}`);
+      }
+    }
+  }
+}
+
+// The PNGs are committed render artifacts, so editing an HTML source silently
+// leaves the published image behind: a stale picture still opens, still has a
+// valid signature, and says the wrong thing. Pixel size is the one property that
+// can be re-derived from the manifest the renderer itself reads.
+const marketingManifestPath = "docs/assets/marketing-assets.json";
+const marketingAssets = JSON.parse(readFileSync(resolve(repoRoot, marketingManifestPath), "utf8"))?.assets ?? {};
+if (Object.keys(marketingAssets).length === 0) {
+  addError("marketing_manifest_empty", marketingManifestPath);
+}
+for (const [name, asset] of Object.entries(marketingAssets)) {
+  const declared = [asset?.width, asset?.height, asset?.scale].every(
+    (value) => Number.isInteger(value) && value > 0,
+  );
+  if (!declared) {
+    addError("marketing_manifest_entry_invalid", marketingManifestPath, name);
+    continue;
+  }
+  if (!existsSync(resolve(repoRoot, asset.output))) {
+    addError("marketing_asset_png_missing", asset.output, name);
+    continue;
+  }
+  const header = readFileSync(resolve(repoRoot, asset.output)).subarray(0, 24);
+  const rendered = `${header.readUInt32BE(16)}x${header.readUInt32BE(20)}`;
+  const expected = `${asset.width * asset.scale}x${asset.height * asset.scale}`;
+  if (rendered !== expected) {
+    addError("marketing_asset_png_stale", asset.output, `${rendered} != ${expected} declared by ${asset.source}`);
   }
 }
 
@@ -812,36 +899,7 @@ for (const [path, code, markers] of promptEnhancementPages) {
 for (const [marker, code] of requiredPromptLabMarkers) {
   if (!projectSite.includes(marker)) addError(code, "docs/index.html");
 }
-// Derive the published MCP tool roster from source. The homepage copy used to
-// carry a hardcoded count whose guard asserted the literal string, so the site
-// could keep passing while the code exposed a different number. Parsing (rather
-// than importing) keeps this check free of runtime side effects.
-const rosterSourcePath = "packages/mcp-server/src/server.js";
-const rosterSource = readFileSync(resolve(repoRoot, rosterSourcePath), "utf8");
-const rosterMarker = "MCP_TOOL_NAMES = Object.freeze([";
-const rosterStart = rosterSource.indexOf(rosterMarker);
-if (rosterStart < 0) {
-  addError("mcp_tool_roster_unlocatable", rosterSourcePath, rosterMarker);
-}
-const rosterOpen = rosterSource.indexOf("[", rosterStart);
-let rosterDepth = 0;
-let rosterEnd = -1;
-for (let i = rosterOpen; i >= 0 && i < rosterSource.length; i += 1) {
-  if (rosterSource[i] === "[") rosterDepth += 1;
-  else if (rosterSource[i] === "]") {
-    rosterDepth -= 1;
-    if (rosterDepth === 0) { rosterEnd = i; break; }
-  }
-}
-const mcpToolNames = [
-  ...rosterSource
-    .slice(rosterOpen + 1, rosterEnd < 0 ? rosterSource.length : rosterEnd)
-    .matchAll(/"([a-z0-9_]+)"/g),
-].map((m) => m[1]);
-const publishedToolCount = mcpToolNames.length;
-if (publishedToolCount < 1) {
-  addError("mcp_tool_roster_empty", rosterSourcePath, String(publishedToolCount));
-}
+// The roster is derived once, above the marketing asset contracts.
 
 for (const [marker, code] of [
   ["Hardened Public Preview", "public_home_maturity_boundary_missing"],
