@@ -33,10 +33,13 @@ terminal-only flag.
 
 1. Save the configuration in the location required by your MCP host.
 2. Restart the host so it reloads its MCP configuration.
-3. Open the host's MCP or tool inspector and confirm the 12 tools are listed:
-   `gateway_health`, `gateway_readiness`, `gateway_prompt_enhance`,
-   `gateway_chat`, `knowledge_readiness`, `workflow_health`,
-   `workflow_actions`, `workforce_health`, and `workforce_agents`.
+3. Open the host's MCP or tool inspector and confirm the 15 tools are listed:
+   `gateway_health`, `gateway_readiness`, `agent_governance_status`,
+   `agent_governance_list`, `agent_governance_describe`,
+   `gateway_prompt_enhance`, `gateway_prompt_enhance_llm`, `gateway_chat`,
+   `knowledge_readiness`, `knowledge_retrieve`, `workflow_health`,
+   `workflow_actions`, `workflow_run`, `workforce_health`,
+   and `workforce_agents`.
 4. Run `gateway_health` before `gateway_chat`.
 
 The server starts a temporary local gateway for the MCP session. The default

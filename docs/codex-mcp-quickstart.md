@@ -35,10 +35,13 @@ Restart Codex after adding the server. In the Codex terminal UI, run:
 /mcp verbose
 ```
 
-The server should be connected and expose these twelve tools:
+The server should be connected and expose these fifteen tools:
 
 - `gateway_health`
 - `gateway_readiness`
+- `agent_governance_status`
+- `agent_governance_list`
+- `agent_governance_describe`
 - `gateway_prompt_enhance`
 - `gateway_prompt_enhance_llm`
 - `gateway_chat`
