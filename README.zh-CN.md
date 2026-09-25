@@ -89,7 +89,7 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.8.0 \
 <p align="center">
   <img
     src="docs/assets/readme-hero.png"
-    alt="Unified AI System：自托管 AI 网关——发布镜像含 12 个受治理 MCP 工具、四项发布门、23 项攻击回归均被防御、首次体验零凭证"
+    alt="Unified AI System：自托管 AI 网关——发布镜像含 15 个受治理 MCP 工具、四项发布门、23 项攻击回归均被防御、首次体验零凭证"
     width="100%"
   />
 </p>
