@@ -651,6 +651,45 @@ if (numericDrift.length > 0) {
   addError("marketing_asset_count_stale", "docs/assets", numericDrift.join(" | "));
 }
 
+// The Codex plugin manifest and its skill are the first thing an installer or an
+// agent reads, and both advertise the same count in prose. Nothing checked them,
+// so the published plugin shipped saying "twelve" beside a version of 0.8.0.
+const countWords = [
+  "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+  "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty",
+];
+const publishedToolCountWord = countWords[publishedToolCount] ?? String(publishedToolCount);
+const pluginSurfaceClaims = [
+  [".codex-plugin/plugin.json", [`${publishedToolCountWord} governed MCP tools`]],
+  [
+    "skills/unified-ai-gateway/SKILL.md",
+    [
+      `through ${publishedToolCountWord} governed MCP tools`,
+      `If the ${publishedToolCount} tools are already visible`,
+      `${publishedToolCount} tools are available`,
+    ],
+  ],
+];
+const pluginSurfaceDrift = [];
+for (const [path, markers] of pluginSurfaceClaims) {
+  const content = readFileSync(resolve(repoRoot, path), "utf8");
+  for (const marker of markers) {
+    if (!content.includes(marker)) {
+      pluginSurfaceDrift.push(`${path} is missing "${marker}"`);
+    }
+  }
+  for (const match of content.matchAll(/(\d+|zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\s+(?:governed MCP tools|tools are)/g)) {
+    const token = match[1];
+    const numeric = /^\d+$/.test(token) ? Number(token) : countWords.indexOf(token);
+    if (numeric !== publishedToolCount) {
+      pluginSurfaceDrift.push(`${path}: says "${token}" where the roster has ${publishedToolCount}`);
+    }
+  }
+}
+if (pluginSurfaceDrift.length > 0) {
+  addError("plugin_surface_count_stale", ".codex-plugin/plugin.json", pluginSurfaceDrift.join(" | "));
+}
+
 // The two READMEs open with the same count, and a reader who only skims the front
 // page is the majority.
 const readmeDrift = [];
