@@ -152,7 +152,7 @@ it("wrong item, absent tool authority, changed policy, record ceilings and token
       expect(fixture.port.getResult().records).toEqual([]);
     }
   } finally { await site.close(); }
-}, 30000);
+}, 60000); // T-109: budget raised so max-observed/budget <= 0.7
 
 it.each(["replace", "hide", "duplicate", "change-type"])("%s DOM targets are rejected after the model wait and before interaction", async mutation => {
   const site = await sites();
