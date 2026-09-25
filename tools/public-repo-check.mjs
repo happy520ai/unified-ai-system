@@ -810,9 +810,40 @@ for (const [path, code, markers] of promptEnhancementPages) {
 for (const [marker, code] of requiredPromptLabMarkers) {
   if (!projectSite.includes(marker)) addError(code, "docs/index.html");
 }
+// Derive the published MCP tool roster from source. The homepage copy used to
+// carry a hardcoded count whose guard asserted the literal string, so the site
+// could keep passing while the code exposed a different number. Parsing (rather
+// than importing) keeps this check free of runtime side effects.
+const rosterSourcePath = "packages/mcp-server/src/server.js";
+const rosterSource = readFileSync(resolve(repoRoot, rosterSourcePath), "utf8");
+const rosterMarker = "MCP_TOOL_NAMES = Object.freeze([";
+const rosterStart = rosterSource.indexOf(rosterMarker);
+if (rosterStart < 0) {
+  addError("mcp_tool_roster_unlocatable", rosterSourcePath, rosterMarker);
+}
+const rosterOpen = rosterSource.indexOf("[", rosterStart);
+let rosterDepth = 0;
+let rosterEnd = -1;
+for (let i = rosterOpen; i >= 0 && i < rosterSource.length; i += 1) {
+  if (rosterSource[i] === "[") rosterDepth += 1;
+  else if (rosterSource[i] === "]") {
+    rosterDepth -= 1;
+    if (rosterDepth === 0) { rosterEnd = i; break; }
+  }
+}
+const mcpToolNames = [
+  ...rosterSource
+    .slice(rosterOpen + 1, rosterEnd < 0 ? rosterSource.length : rosterEnd)
+    .matchAll(/"([a-z0-9_]+)"/g),
+].map((m) => m[1]);
+const publishedToolCount = mcpToolNames.length;
+if (publishedToolCount < 1) {
+  addError("mcp_tool_roster_empty", rosterSourcePath, String(publishedToolCount));
+}
+
 for (const [marker, code] of [
   ["Hardened Public Preview", "public_home_maturity_boundary_missing"],
-  ["<strong>15</strong><span>governed MCP tools</span>", "public_home_tool_count_stale"],
+  [`<strong>${publishedToolCount}</strong><span>governed MCP tools</span>`, "public_home_tool_count_stale"],
 ]) {
   if (!projectSite.includes(marker)) addError(code, "docs/index.html");
 }
@@ -851,7 +882,7 @@ const requiredChineseSiteMarkers = [
   ['"inLanguage": "zh-CN"', "chinese_home_structured_language_missing"],
   ["docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:", "chinese_home_demo_missing"],
   ["加固后的 Public Preview", "chinese_home_maturity_boundary_missing"],
-  ["<strong>15</strong><span>可治理的 MCP 工具</span>", "chinese_home_tool_count_stale"],
+  [`<strong>${publishedToolCount}</strong><span>可治理的 MCP 工具</span>`, "chinese_home_tool_count_stale"],
   ["生产就绪、L5 自主和 AGI", "chinese_home_evidence_boundary_missing"],
 ];
 
