@@ -9,6 +9,221 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 - Nothing yet.
 
+## [0.8.0] - 2026-09-25
+
+### Added
+
+- Added the Agent Governance control plane: a dependency-free
+  `packages/policy-engine` plus a gateway service that gives every governed
+  Agent a deterministic permission lifecycle — classification, policy
+  compilation, per-call Tool Proxy enforcement, approvals, expiry and cascade
+  revocation, with SQLite and PostgreSQL agent registries, an authority switch,
+  and a JSON-to-SQLite migration tool. It stays off until
+  `AI_GATEWAY_AGENT_GOVERNANCE_ENABLED=true`, and the source MCP tool surface
+  grew from twelve to fifteen with the read-only `agent_governance_status`,
+  `agent_governance_list`, and `agent_governance_describe` tools. See
+  `docs/agent-governance.md`.
+- Added governed Workforce code delivery: up to sixteen server-side profiles in
+  `AI_GATEWAY_WORKFORCE_CODE_DELIVERY_PROFILES_JSON` bind exact relative
+  read/write files, immutable test hashes, a baseline revision, one fixed
+  command, and a digest-pinned image. Execution happens in a Workforce-owned
+  worktree, verification runs in a read-only network-disabled container
+  snapshot, and a successful task returns one complete patch artifact plus
+  durable evidence readable back after restart. Requires
+  `WORKFORCE_EXECUTION_ENABLED=true`, is single-host only, and never commits,
+  merges, deploys, or publishes. See `docs/workforce-code-delivery.md` and
+  `docs/agent-console-code-approval.md`.
+- Added an opt-in native Codex backend for a Workforce role: an operator
+  selects a hash-pinned `externalRunner` profile and the gateway drives the
+  installed Codex CLI `0.153.4` inside the task's own worktree, accepting
+  changes only item by item and marking a task `verified` only after
+  permission-checked file changes, a reviewed full diff, and fixed tests
+  passing in an isolated container. Windows x64 only; unsupported platforms are
+  rejected before startup. See `docs/workforce-native-runner.md`.
+- Added governed long-task operation for a retained Agent task: one original
+  task UUID now covers prepare, plan, approval, bounded run fragments, status,
+  pause, cancel, original-session recovery, and an explicit `reconcile` that
+  settles an unknown pending operation to terminal failure without replaying
+  any effect. Added resident multi-goal advancement: an operator can `schedule`
+  a task into a shared server-side AgentPool (up to 16 projects, 1-64 admitted
+  goals, 1-8 concurrent fragments) that re-verifies identity, approval,
+  workspace, and full checkpoint after a restart inside the original grant.
+  Off by default; see `docs/governed-agent-long-tasks.md`.
+- Added approved speech delivery to Forge: `options.mediaTask` on
+  `POST /forge/orchestrate` sends one fixed text-to-speech request through the
+  existing gateway Provider channel, the server validates the returned PCM WAV
+  (RIFF length, chunk bounds, `fmt`/`data` uniqueness, frames, duration,
+  SHA-256), and the CLI saves it only to a new operator-named `.wav` file and
+  reports path, bytes, and digest. Profiles come from
+  `AI_GATEWAY_FORGE_MEDIA_PROFILES_JSON` (at most 8); the `local-fake-provider`
+  profile uses a built-in synthetic tone and makes no real Provider call. See
+  `docs/governed-media-tasks.md`.
+- Added finite governed Forge browser tasks: `options.webTask` runs a registered
+  local catalog profile (fill an item ID, search, open a detail page, extract
+  results) and only reports success after the program re-reads the real DOM;
+  the model returning `done` merely requests verification. Profiles are bound to
+  a literal `http://127.0.0.1` origin and four administrator-registered element
+  IDs, never attach to the user's browser, and carry no cookies, logins,
+  uploads, messaging, or payment. Web tasks require Agent Governance and return
+  `503 FORGE_WEB_GOVERNANCE_REQUIRED` without it.
+- Added the taiji governed capability surface: `/taiji/capabilities` and the
+  `taiji` operator CLI command expose inspect, evaluate, activate, execute,
+  revoke, repair, reweight, and prune for three actually-executing local
+  profiles (`context-jsonl-v1`, `risk-classification-v1`, `evidence-summary-v1`)
+  that run in a bounded worker thread and produce verified receipts plus
+  durable feedback. Activation, execution, and feedback changes each bind their
+  own single approval, the runtime stays behind
+  `TAIJI_BEIDOU_AUTO_RUNTIME_ENABLED` (default off), and multi-instance or
+  PostgreSQL governance profiles are refused. See `docs/taiji-capabilities.md`.
+- Added Feishu enterprise-application API delivery alongside webhook mode:
+  `FEISHU_CONNECTOR_MODE=api` with `FEISHU_APP_ID`, an existing secret
+  reference, and `FEISHU_API_TARGETS_JSON` sends text, markdown, or simple
+  cards only to the authenticated tenant's configured recipients, caches the
+  enterprise token in memory until lifetime minus a 30-second margin, and
+  performs no automatic retry after any unknown outcome. Both connector routes
+  now share one application-owned IM runtime, the SDK gains `connectors()` and
+  `sendConnectorMessage()`, and `GET /connectors` reports modes and allowed
+  target counts without recipient IDs or secret references.
+- Added the local AI control center as the first personal-developer surface:
+  `pnpm gateway control-center` (alias `center`, `--json`) is a strictly
+  read-only snapshot of Provider mode and identifiers, health and chat
+  readiness, the OpenAI-compatible model catalog, tenant-level aggregate
+  virtual-key and budget usage, the redacted local-client registry, and the
+  governed onboarding profiles with their install state. A credential-free
+  desired-state manifest can now plan, approve, and apply two to six clients
+  across JSON, JSONC, TOML, and YAML in one sequential batch with per-profile
+  receipts and per-client governed rollback. See
+  `docs/local-ai-control-center.md`.
+- Added lossless governed onboarding for native client configuration formats:
+  VS Code `settings` JSONC (comments and unknown keys preserved), Codex
+  `config.toml` (bounded lossless TOML codec), and Continue `config.yaml`,
+  each written through the existing config transaction with a receipt and
+  byte-exact rollback.
+- Added verified context re-encoding and model comparison: an optional
+  `contextCodec` on native `/chat` and `/chat/stream` rewrites explicitly
+  selected JSON blocks as YAML, JSONL, or a column/row table, and the gateway
+  decodes and compares keys, types, values, and array order before the request
+  proceeds, restoring the original input on any mismatch. Enabled only with
+  `AI_GATEWAY_CONTEXT_CODEC_ENABLED=true`; the `codec preview` and
+  `codec compare --yes` CLI operations make at most two exact-model requests.
+  See `docs/context-codec.md`.
+- Added durable, owner-scoped workflow run history with fenced recovery:
+  `GET /workflow/runs`, `GET /workflow/runs/{workflowId}`, and
+  `POST /workflow/runs/{workflowId}/recover`, plus exact approved artifact
+  publication, and the matching `workflow run|list|status|recover` CLI. Added
+  governed runtime Provider credential clearing through
+  `DELETE /providers/runtime-credential`, the SDK, and
+  `pnpm gateway providers clear-credential`. See `docs/workflow-recovery.md`.
+- Added governed Workforce role execution: approvals bind to explicit role
+  execution profiles, qualified employee selections compile into governed
+  profiles, role budgets and final Provider-dispatch fences are enforced, and
+  approved employee contributions execute through the gateway's own Provider
+  channel. Added three-perspective consensus review (`ceo`/Critic, `pm`/Planner,
+  `architect`/Architect) executed through `/workforce/execute`, opt-in bounded
+  lifecycle hooks (`beforePlan`/`afterPlan`/`beforeExport`/`beforeWorkflowRun`,
+  default off), and role-level Workforce-to-local-workflow handoff. See
+  `docs/workforce-consensus.md`, `docs/workforce-lifecycle-hooks.md`, and
+  `docs/workforce-workflow-handoff.md`.
+- Added a protected native PoP replay profile for Windows: an opt-in
+  `AI_GATEWAY_LOCAL_CLIENT_POP_REPLAY_PROTECTION_MODE=windows-native`
+  configuration binds the gateway's SQLite PoP replay guard to the protected
+  native authority service with durable mutation intent, a schema-4 checkpoint,
+  persistent request lifetimes, and a fresh native challenge around each
+  consume, plus versioned authority maintenance that preserves state across
+  upgrades. Single-host only and never satisfies distributed replay
+  requirements. See `docs/local-client-native-pop-replay.md` and
+  `docs/local-client-windows-authority-maintenance.md`.
+- Added deployment profiles and artifact identity: a digest-pinned
+  single-instance Compose release profile with `tools/verify-compose-release.mjs`,
+  a single-writer Kubernetes gateway profile, native gateway service
+  definitions rendered with explicit state paths, and an artifact-bound
+  `buildIdentity` (`sourceDigest`, `lockfileDigest`, `packageVersion`,
+  `sourceFileCount`) exposed on health and `api/overview`. See
+  `docs/deployment/README.md`, `docs/deployment/kubernetes.md`,
+  `docs/deployment/native-services.md`, and `docs/runtime-build-identity.md`.
+- Added B.AI as the independent gateway Provider `bai`, pinned to
+  `https://api.b.ai/v1` and served through the existing OpenAI-compatible Chat
+  Completions adapter, with model discovery, probing, and a credential-free
+  smoke path. It is disabled by default and changes no existing Provider
+  routing. See `docs/bai-provider.md`.
+- Added private virtual-key request accounting and native budget enforcement:
+  each actual gateway execution settles once against its key, and native
+  `/chat` now performs budget admission and usage settlement instead of
+  bypassing the shared manager. Added the bounded `verification` CLI operation
+  for local Windows validation history, and an offline import of all 1,016
+  pinned O*NET 31.0 occupations as inactive employee candidates that no import
+  path reads automatically. See `docs/virtual-keys.md`,
+  `docs/windows-validation.md`, and `docs/official-occupation-import.md`.
+
+### Changed
+
+- Unified Provider usage accounting across every execution entry: native chat,
+  OpenAI chat and Responses, Anthropic Messages, Gemini, WebSocket chat, A2A
+  task execution, and trusted Workforce/Forge/Agent projections now settle
+  through one gateway boundary, an explicitly reported zero is distinguished
+  from a legacy synthesized zero, and each settlement records `reported`,
+  `estimated`, `partial`, or `unknown` instead of writing a fictitious
+  zero-token record. Cache hits consume a fresh admission and charge from the
+  stored internal snapshot.
+- Aligned the first-run setup payload with what the instance actually routes:
+  it now reports Provider mode, the real-provider switch, and the fixed or
+  policy-selected default Provider as separate facts, and each step names the
+  `status`/`doctor`/`chat` command that proves it rather than implying the
+  check already ran. `doctor` now matches the supported toolchain requirements.
+- `/v1/responses` now accepts and ignores known Codex built-in tool
+  declarations (for example `web_search`) with a server-generated
+  `unified_ai.compatibility` notice listing `ignored_tool_types`,
+  `ignored_include`, `ignored_parameters`, and `ignored_reasoning_input_items`
+  consistently across normal replies, SSE events, and stored retrieval, instead
+  of failing the request. Unknown tool types and mandatory built-in
+  `tool_choice` still return an explicit error.
+- Clarified the shipped tool count in the README: the published image exposes
+  twelve bounded MCP tools while the current source build exposes fifteen, and
+  readers are pointed to the first runnable proof instead of a claim.
+
+### Fixed
+
+- Fixed guardrail coverage: input redaction now applies through final protocol
+  normalization rather than only the inbound shape, Anthropic `system` text and
+  normalized tool-result text are inspected by input guardrails, A2A text is
+  validated before task creation, and streamed or stored responses can no
+  longer replay another session's content; response sessions are now bound to
+  their owning tenant and caller.
+- Fixed Provider accounting regressions: Gemini requests are now counted and
+  SSE cache charges preserved, Provider-reported usage and complete token
+  totals survive normalization, virtual-key usage persists across restart with
+  separate per-minute rate windows, internal Provider calls keep their actual
+  evidence, and invalid HTTP Provider attempt counts are rejected before
+  dispatch.
+- Fixed the reverse-MCP REST bridge to honor declared OpenAPI input bindings:
+  path-item inheritance, `query_`/`header_`/`cookie_`/`body` mapping, `simple`
+  and `form` styles with `explode`, bounded JSON-Pointer expansion, and
+  pre-dispatch refusal of missing required values, header/cookie collisions,
+  and unsupported shapes instead of publishing a partial tool catalog.
+- Fixed state loss and platform startup issues: the model library now survives
+  storage failures, the Compose model library persists in the writable data
+  volume, local vector storage works in the production Node runtime, exact
+  registry file identities are retained beyond numeric precision, SQLite
+  defensive mode is optional on Node 22, and the PoP replay guard health check
+  reads one consistent snapshot.
+- Fixed delivered code work: Workforce edits now apply bounded exact edits that
+  preserve untouched file content instead of rewriting whole files, completion
+  requires actually executed immutable verification checks, and every safe
+  route cause code now retains its delivery failure for inspection.
+- Fixed the published container image: the shipped source tree is readable by
+  the non-root runtime user, so in-container build identity can re-hash it
+  instead of reporting `source-unavailable`.
+
+### Dependencies
+
+- Added a pre-publication dependency vulnerability gate
+  (`pnpm check:dependency-vulnerabilities`) with a recorded baseline, and
+  updated the affected packages through `@xmldom/xmldom` 0.8.15 and `hono`
+  4.13.5 workspace overrides plus a pinned `vitest` 4.1.11.
+- Added pinned runtime dependencies for the new surfaces: `yaml` 2.9.0,
+  `jsonc-parser` 3.3.1, and `toml-eslint-parser` 1.0.3 in the gateway, and the
+  gateway now depends on the existing `web-agent` workspace package.
+
 ## [0.7.0] - 2026-09-04
 
 ### Added
@@ -865,7 +1080,8 @@ source of truth; see docs/vision-revival-inventory.md for the revival menu.
 - It is not presented as production-certified, L5 autonomous, or established
   AGI. Those claims require independent evidence beyond local verification.
 
-[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/happy520ai/unified-ai-system/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/happy520ai/unified-ai-system/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/happy520ai/unified-ai-system/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.9...v0.5.0
