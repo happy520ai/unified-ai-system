@@ -24,7 +24,7 @@ do not inflate usage, Stars, or production readiness.
 
 ## 3) Why this repository qualifies? (<=500 chars)
 
-Unified AI System is an Apache-2.0, self-hosted OpenAI-compatible AI gateway and MCP server for Codex, Cursor, and Cline. v0.4.9 is reproducibly verified with the official OpenAI JS SDK 7.4.0, public CI, anonymous multi-architecture containers, and the official MCP Registry. It has 3 stars and 1 fork today; its ecosystem value is lowering the barrier to inspectable, credential-free AI tooling.
+Unified AI System is an Apache-2.0, self-hosted OpenAI-compatible AI gateway and MCP server for Codex, Cursor, and Cline. v0.8.0 ships anonymous multi-architecture containers for both the gateway and the MCP server, passes public CI including a clean-clone runtime check, and is published in the official MCP Registry; the repository pins the official OpenAI JS SDK at 7.4.0. Its ecosystem value is lowering the barrier to inspectable, credential-free AI tooling.
 
 ## 4) I'm interested in (select all options shown by the form)
 
@@ -57,7 +57,7 @@ I am an independent primary maintainer building this project in public. The repo
 ## 9) Verified evidence snapshot (2026-08-10)
 
 - Public repository: `https://github.com/happy520ai/unified-ai-system`
-- Release: `https://github.com/happy520ai/unified-ai-system/releases/tag/v0.4.9`
-- Official MCP Registry: `https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.9`
-- Current visible metrics: 3 Stars, 1 fork
+- Release: `https://github.com/happy520ai/unified-ai-system/releases/tag/v0.8.0`
+- Official MCP Registry: `https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.8.0`
+- Public metrics as of 2026-09-25: 7 stars and 2 forks. Read the live figure from the repository rather than this line; it is a snapshot and will age.
 - Do not report a monthly download count until a public package metric is available.
