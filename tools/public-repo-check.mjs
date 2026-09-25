@@ -979,6 +979,18 @@ const requiredIndexNowWorkflowMarkers = [
 for (const [marker, code] of requiredIndexNowWorkflowMarkers) {
   if (!indexNowWorkflow.includes(marker)) addError(code, indexNowWorkflowPath);
 }
+// The submit list and the sitemap must describe the same pages: a page added to the
+// sitemap alone is never pinged to Bing/Yandex, which is how a new landing page can sit
+// unpublished to search engines while every existing marker stays green.
+const sitemapLocSet = new Set(
+  [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1]),
+);
+for (const url of sitemapLocSet) {
+  if (!indexNowConfig.urlList.includes(url)) {
+    addError("sitemap_url_missing_from_indexnow", indexNowConfigPath, url);
+  }
+}
+
 if (indexNowWorkflow.includes("workflow_run:")) {
   addError("indexnow_privileged_workflow_chain", indexNowWorkflowPath);
 }
