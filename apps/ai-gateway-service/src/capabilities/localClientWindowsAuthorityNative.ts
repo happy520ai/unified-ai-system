@@ -293,9 +293,10 @@ export async function createLocalClientNativeAuthorityClient(native: LocalClient
 }
 
 /** The native API is a trusted OS transport, not caller JSON. This creates no baseline or service. */
-export async function createLocalClientNativePopReplayBinding(native: LocalClientNativeAuthorityApi) {
+export async function createLocalClientNativePopReplayBinding(native: LocalClientNativeAuthorityApi, nativeAddonSha256: string) {
   const authority = await createLocalClientNativeAuthorityClient(native, "pop-replay");
   const binding = nativeClientBindings.get(authority)!;
+  if (!/^[a-f0-9]{64}$/u.test(nativeAddonSha256)) { await authority.close(); throw new Error("LOCAL_CLIENT_NATIVE_POP_ADDON_HASH_INVALID"); }
   if (!hasPopLifecycle(binding.bootstrap.version) || !binding.bootstrap.packageManifestSha256 || !binding.serviceInstanceId) {
     await authority.close(); throw new Error("LOCAL_CLIENT_NATIVE_POP_V2_REQUIRED");
   }
@@ -311,9 +312,12 @@ export async function createLocalClientNativePopReplayBinding(native: LocalClien
     createEvidenceAdapter(storeBindingSha256: string) {
       if (closed || adapterCreated || !/^[a-f0-9]{64}$/u.test(storeBindingSha256)) fail();
       adapterCreated = true;
+      // T-043/B-3: the native addon bytes are part of the binding identity — a swapped or
+      // rebuilt local-client-authority.node invalidates previously admitted PoP challenges.
       const combinedBinding = createHash("sha256").update(JSON.stringify([
-        storeBindingSha256, anchorBindingSha256, deploymentEvidenceSha256,
+        storeBindingSha256, anchorBindingSha256, deploymentEvidenceSha256, nativeAddonSha256,
       ])).digest("hex");
+      const combinedBindingForRequest = combinedBinding;
       const verifyCurrent: LocalClientPopExternalMonotonicAnchorPort["verifyCurrent"] = async ({ checkpoint, challenge }) => {
         const sequence = ++verificationSequence;
         verified = false;
@@ -353,7 +357,7 @@ export async function createLocalClientNativePopReplayBinding(native: LocalClien
           mode: "windows-native-pop-replay-v2", anchorBindingSha256, deploymentEvidenceSha256,
           nativeDeploymentVerified: ready, monotonic: ready, externalToReplayStoreSnapshot: ready,
           protectedFromReplayStoreWriter: ready, challengeAttestation: ready }); },
-        verifyCurrent, close,
+        verifyCurrent, close, combinedBinding,
         async preflight(checkpoint: LocalClientPopReplayCheckpoint) {
           const challenge = randomBytes(32);
           try { return await verifyCurrent({ checkpoint, challenge }); } finally { challenge.fill(0); }

@@ -183,7 +183,7 @@ async function connect(options: Omit<LocalClientNativePopReplayRuntimeOptions, '
   try {
     const addon = verifyNativeAddon(options.nativeAddonPath, options.nativeAddonSha256);
     const existing = requireExistingProtectedStore(options.sqlitePath, enroll);
-    binding = await createLocalClientNativePopReplayBinding(loadLocalClientNativeAuthority(addon));
+    binding = await createLocalClientNativePopReplayBinding(loadLocalClientNativeAuthority(addon), options.nativeAddonSha256);
     if (existing) {
       const current = requireExistingProtectedStore(options.sqlitePath, false);
       if (!current || current.dev !== existing.dev || current.ino !== existing.ino

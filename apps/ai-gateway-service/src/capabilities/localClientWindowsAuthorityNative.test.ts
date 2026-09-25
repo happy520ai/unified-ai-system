@@ -13,6 +13,10 @@ import {
   handleLocalClientNativeAuthorityRequest, parseLocalClientNativeAuthorityBootstrap,
   type LocalClientNativeAuthorityApi,
 } from "./localClientWindowsAuthorityNative.ts";
+// T-043/B-3: every binding in this suite pins the same fake addon digest; the negative test
+// below proves the digest actually participates in combinedBinding.
+const TEST_NATIVE_ADDON_SHA256 = "c".repeat(64);
+
 import { createLocalClientNativeAuthorityZeroCheckpoints, handleLocalClientAuthorityWorkerEnvelope,
   createLocalClientNativeAuthorityMaintenanceCheckpoints, verifyLocalClientNativeAuthorityMaintenanceCheckpoints } from "./localClientWindowsAuthorityBrokerEntry.ts";
 import * as authorityCrypto from "./localClientWindowsProtectedAuthorityAnchor.ts";
@@ -250,7 +254,7 @@ async function withPopBinding(run: (f: ReturnType<typeof fixture>,
   let binding: Awaited<ReturnType<typeof createLocalClientNativePopReplayBinding>> | undefined;
   try {
     const f = fixture(join(root, "ProgramData"));
-    binding = await createLocalClientNativePopReplayBinding(f.api);
+    binding = await createLocalClientNativePopReplayBinding(f.api, TEST_NATIVE_ADDON_SHA256);
     await run(f, binding, { checkpointVersion: LOCAL_CLIENT_POP_REPLAY_CHECKPOINT_VERSION, state: "ready",
       storeBindingSha256: "1".repeat(64), anchorBindingSha256: binding.anchorBindingSha256,
       generation: 1, checkpointDigestSha256: "b".repeat(64) });
@@ -366,7 +370,7 @@ it("keeps v1 clients on the original slots and rejects legacy or mixed bootstrap
   f.api.readBootstrap = () => ({ ...original(), configJson: JSON.stringify(legacy) });
   const client = await createLocalClientNativeAuthorityClient(f.api, "gateway-vscode");
   await client.close();
-  await expect(createLocalClientNativePopReplayBinding(f.api)).rejects.toThrow();
+  await expect(createLocalClientNativePopReplayBinding(f.api, TEST_NATIVE_ADDON_SHA256)).rejects.toThrow();
   expect(f.calls.write).toBe(0); expectClosed(f);
 });
 
@@ -379,7 +383,7 @@ it.skipIf(process.platform !== "win32")("MODEL: requires actual challenge HMAC v
     const legacyState = () => JSON.stringify(LOCAL_CLIENT_NATIVE_AUTHORITY_LEGACY_SLOTS.map(anchorId =>
       f.files.get(createLocalClientWindowsAuthorityProvisioningPlan(base, [], { anchorId }).storage.anchorPath)));
     const before = legacyState();
-    binding = await createLocalClientNativePopReplayBinding(f.api);
+    binding = await createLocalClientNativePopReplayBinding(f.api, TEST_NATIVE_ADDON_SHA256);
     const adapter = binding.createEvidenceAdapter("1".repeat(64));
     const checkpoint = { checkpointVersion: LOCAL_CLIENT_POP_REPLAY_CHECKPOINT_VERSION, state: "ready" as const,
       storeBindingSha256: "1".repeat(64), anchorBindingSha256: binding.anchorBindingSha256,
@@ -422,7 +426,7 @@ it.skipIf(process.platform !== "win32")("MODEL: bounds native request and nonce 
   let wrapped: Awaited<ReturnType<typeof createLocalClientPopSnapshotRollbackProtectedReplayGuard>> | undefined;
   try {
     const f = fixture(join(root, "ProgramData"));
-    binding = await createLocalClientNativePopReplayBinding(f.api);
+    binding = await createLocalClientNativePopReplayBinding(f.api, TEST_NATIVE_ADDON_SHA256);
     expect({ frames: f.calls.transport, legacy: f.nonceCount, pop: f.popClaimCount }).toEqual({ frames: 1, legacy: 0, pop: 2 });
     guard = new LocalClientSqlitePopReplayGuard({ sqlitePath: join(root, "pop.sqlite"), hostId: f.configuration.hostId,
       integrityKey: Buffer.alloc(32, 88), protectedAuthority: binding.authority, anchorBindingSha256: binding.anchorBindingSha256 });
@@ -531,7 +535,7 @@ it.skipIf(process.platform !== "win32")("MODEL lifecycle: the full SQLite consum
   let wrapped: Awaited<ReturnType<typeof createLocalClientPopSnapshotRollbackProtectedReplayGuard>> | undefined;
   try {
     const f = fixture(join(root, "ProgramData"));
-    binding = await createLocalClientNativePopReplayBinding(f.api);
+    binding = await createLocalClientNativePopReplayBinding(f.api, TEST_NATIVE_ADDON_SHA256);
     guard = new LocalClientSqlitePopReplayGuard({ sqlitePath: join(root, "pop.sqlite"), hostId: f.configuration.hostId,
       integrityKey: Buffer.alloc(32, 88), protectedAuthority: binding.authority, anchorBindingSha256: binding.anchorBindingSha256 });
     const baseline = await guard.enrollProtectedBaseline(); const adapter = binding.createEvidenceAdapter(baseline.storeBindingSha256);
@@ -567,7 +571,7 @@ it.skipIf(process.platform !== "win32")("MODEL lifecycle: a service restart reje
     const writes = f.calls.write; f.restartPop();
     await expect(transport(captured)).rejects.toThrow();
     await expect(adapter.preflight(checkpoint)).rejects.toThrow(); expect(adapter.status.available).toBe(false);
-    const next = await createLocalClientNativePopReplayBinding(f.api);
+    const next = await createLocalClientNativePopReplayBinding(f.api, TEST_NATIVE_ADDON_SHA256);
     try { await expect(next.createEvidenceAdapter(checkpoint.storeBindingSha256).preflight(checkpoint)).resolves.toMatchObject({ attestationVerified: true }); }
     finally { await next.close(); }
     expect(f.calls.write).toBe(writes); expect(f.nonceCount).toBe(0);
@@ -680,7 +684,7 @@ it.skipIf(process.platform !== "win32")("MODEL native runtime: explicit generati
 
 it.skipIf(process.platform !== "win32")("MODEL native runtime: explicit enrollment cannot reset an authority already at generation two", async () => {
   await withNativeRuntimeModel(async model => {
-    await model.enroll(); const binding = await createLocalClientNativePopReplayBinding(model.f.api);
+    await model.enroll(); const binding = await createLocalClientNativePopReplayBinding(model.f.api, TEST_NATIVE_ADDON_SHA256);
     try { await binding.authority.prepareNext(1, "f".repeat(64)); await binding.authority.finalize(2, "f".repeat(64)); }
     finally { await binding.close(); }
     const before = model.fingerprint(), writes = model.f.calls.write;
@@ -961,4 +965,46 @@ it.skipIf(process.platform !== "win32")("MODEL native wiring: management CLI enr
       expect(model.f.nonceCount).toBe(0);
     } finally { await closeNativeWiringApplication(application); }
   });
+});
+
+it.skipIf(process.platform !== 'win32')('T-043 negative 1: nativeAddonSha256 participates in combinedBinding and a foreign digest cannot blend in', async () => {
+  const root = mkdtempSync(join(realpathSync(tmpdir()), 'native-pop-addon-neg-'));
+  const bindings: Awaited<ReturnType<typeof createLocalClientNativePopReplayBinding>>[] = [];
+  try {
+    const f1 = fixture(join(root, 'ProgramData-a', 'ProgramData'));
+    const f2 = fixture(join(root, 'ProgramData-b', 'ProgramData'));
+    const a = await createLocalClientNativePopReplayBinding(f1.api, TEST_NATIVE_ADDON_SHA256);
+    const aAgain = await createLocalClientNativePopReplayBinding(f1.api, TEST_NATIVE_ADDON_SHA256);
+    const b = await createLocalClientNativePopReplayBinding(f2.api, 'd'.repeat(64));
+    bindings.push(a, aAgain, b);
+    // combinedBinding is per evidence adapter (it folds the per-store storeBindingSha256).
+    const aAdapter = a.createEvidenceAdapter('1'.repeat(64));
+    const aAgainAdapter = aAgain.createEvidenceAdapter('1'.repeat(64));
+    const bAdapter = b.createEvidenceAdapter('1'.repeat(64));
+    expect(aAdapter.combinedBinding).toMatch(/^[a-f0-9]{64}$/u);
+    expect(aAgainAdapter.combinedBinding).toBe(aAdapter.combinedBinding); // deterministic formula for identical inputs
+    expect(bAdapter.combinedBinding).not.toBe(aAdapter.combinedBinding); // the addon digest genuinely participates
+    await expect(createLocalClientNativePopReplayBinding(f1.api, 'not-a-digest')).rejects.toThrow('LOCAL_CLIENT_NATIVE_POP_ADDON_HASH_INVALID');
+    await expect(createLocalClientNativePopReplayBinding(f1.api, 'zz')).rejects.toThrow();
+  } finally {
+    for (const binding of bindings) await binding.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+it.skipIf(process.platform !== 'win32')('T-043 negative 2: the PoP binding path never triggers the startPopServiceInstance control frame', async () => {
+  const root = mkdtempSync(join(realpathSync(tmpdir()), 'native-pop-ctrlframe-neg-'));
+  let binding: Awaited<ReturnType<typeof createLocalClientNativePopReplayBinding>> | undefined;
+  try {
+    const f = fixture(join(root, 'ProgramData'));
+    let controlFrameCalls = 0;
+    const api = Object.assign(f.api, { startPopServiceInstance() { controlFrameCalls++; throw new Error('MODEL_WORKER_CANNOT_START_INSTANCE'); } });
+    binding = await createLocalClientNativePopReplayBinding(api, TEST_NATIVE_ADDON_SHA256);
+    const adapter = binding.createEvidenceAdapter('1'.repeat(64));
+    expect(adapter.status.nativeDeploymentVerified).toBe(false); // un-enrolled baseline, as designed
+    expect(controlFrameCalls).toBe(0); // the control frame is broker-entry territory, never the binding path
+  } finally {
+    await binding?.close();
+    rmSync(root, { recursive: true, force: true });
+  }
 });
