@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpenAPI to MCP: turn a REST API into governed MCP tools | Unified AI System</title>
+    <meta
+      name="description"
+      content="Convert any OpenAPI 3.0 or 3.1 spec into MCP tools behind an explicit allowlist: deny-by-default policy, read-only attestation, SSRF-checked outbound calls, and an audit boundary."
+    />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="theme-color" content="#081011" />
+    <link
+      rel="canonical"
+      href="https://happy520ai.github.io/unified-ai-system/openapi-to-mcp.html"
+    />
+    <link rel="sitemap" type="application/xml" href="sitemap.xml" />
+    <link rel="alternate" type="text/plain" href="llms.txt" title="LLM-readable project summary" />
+    <link rel="icon" type="image/png" href="assets/mcp-icon.png" />
+
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Unified AI System" />
+    <meta property="og:locale" content="en_US" />
+    <meta
+      property="og:title"
+      content="OpenAPI to MCP: turn a REST API into governed MCP tools"
+    />
+    <meta
+      property="og:description"
+      content="Generate one MCP tool per OpenAPI operation, then decide which ones an agent may call. Missing allowlists deny everything, and outbound calls are checked before any request leaves the gateway."
+    />
+    <meta
+      property="og:url"
+      content="https://happy520ai.github.io/unified-ai-system/openapi-to-mcp.html"
+    />
+    <meta
+      property="og:image"
+      content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png"
+    />
+    <meta
+      property="og:image:secure_url"
+      content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png"
+    />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="640" />
+    <meta property="og:image:alt" content="Unified AI System MCP gateway and prompt enhancement preview" />
+    <meta property="article:published_time" content="2026-09-25T00:00:00+00:00" />
+    <meta property="article:modified_time" content="2026-09-25T00:00:00+00:00" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="OpenAPI to MCP: turn a REST API into governed MCP tools" />
+    <meta
+      name="twitter:description"
+      content="One MCP tool per OpenAPI operation, then an explicit allowlist decides which ones an agent may see. Omit the allowlist and nothing is exposed."
+    />
+    <meta
+      name="twitter:image"
+      content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png"
+    />
+    <meta name="twitter:image:alt" content="Unified AI System MCP gateway and prompt enhancement preview" />
+
+    <link rel="stylesheet" href="site.css" />
+    <script type="application/ld+json">
+      {
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "OpenAPI to MCP: turn a REST API into governed MCP tools",
+  "description": "Convert an OpenAPI 3 spec into MCP tools behind an explicit allowlist with read-only attestation and outbound request validation.",
+  "datePublished": "2026-09-25",
+  "dateModified": "2026-09-25",
+  "author": {
+    "@type": "Organization",
+    "name": "Unified AI System contributors",
+    "url": "https://github.com/happy520ai/unified-ai-system"
+  },
+  "mainEntityOfPage": "https://happy520ai.github.io/unified-ai-system/openapi-to-mcp.html",
+  "image": "https://happy520ai.github.io/unified-ai-system/assets/social-preview.png",
+  "keywords": "OpenAPI, MCP, Model Context Protocol, REST to MCP, governed tools, allowlist, self-hosted"
+}
+    </script>
+    <script src="site.js" defer></script>
+  </head>
+  <body class="article-page">
+    <a class="skip-link" href="#article">Skip to article</a>
+
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="Unified AI System home">
+        <img src="assets/mcp-icon.png" alt="" width="32" height="32" />
+        <span>Unified AI System</span>
+      </a>
+      <nav aria-label="Primary navigation">
+        <a href="./">Project</a>
+        <a href="#generation">Generation</a>
+        <a href="#policy">Allowlist</a>
+        <a
+          class="nav-command"
+          href="https://github.com/happy520ai/unified-ai-system"
+          aria-label="Star Unified AI System on GitHub"
+        >
+          Star on GitHub
+        </a>
+      </nav>
+    </header>
+
+    <main id="article">
+      <header class="article-hero">
+        <div class="article-hero-shade" aria-hidden="true"></div>
+        <div class="article-hero-inner">
+          <p class="eyebrow">CAPABILITY GUIDE / SEPTEMBER 2026</p>
+          <h1>Turn a REST API into governed MCP tools</h1>
+          <p class="article-hero-copy">
+            Point the gateway at an OpenAPI 3.0 or 3.1 document and it generates one
+            MCP tool per operation. The part most integrations skip comes next: an
+            explicit allowlist decides which of those tools an agent may even see,
+            and every outbound call is validated before it leaves the process.
+          </p>
+          <div class="article-meta" aria-label="Guide details">
+            <span>OpenAPI 3.0 and 3.1</span>
+            <span>Deny-by-default allowlist</span>
+            <span>No API key required</span>
+          </div>
+        </div>
+      </header>
+
+      <div class="article-layout">
+        <aside class="article-toc" aria-label="Article contents">
+          <p class="eyebrow dark">Contents</p>
+          <a href="#generation">1. What generation produces</a>
+          <a href="#configure">2. Configure an upstream</a>
+          <a href="#policy">3. The allowlist decides</a>
+          <a href="#refused">4. What gets refused</a>
+          <a href="#surface">5. Where the tools appear</a>
+          <a href="#verified">6. How this page was checked</a>
+        </aside>
+
+        <div class="article-body">
+          <section id="generation">
+            <p class="eyebrow dark">STEP 01 / GENERATION</p>
+            <h2>What generation produces</h2>
+            <p>
+              Each operation becomes a tool named after its
+              <code>operationId</code>, described by its <code>summary</code>. Arguments
+              are namespaced by where they travel, so a single flat object can never
+              silently collide with another binding:
+            </p>
+            <div class="article-boundary-list">
+              <div><strong>Path</strong><span><code>{id}</code> is passed as bare <code>id</code>, then percent-encoded into the path template</span></div>
+              <div><strong>Query</strong><span>prefixed: a <code>limit</code> query parameter arrives as <code>query_limit</code></span></div>
+              <div><strong>Header and cookie</strong><span>prefixed the same way, and rejected if the configuration already sets that header</span></div>
+              <div><strong>Request body</strong><span>arrives as one <code>body</code> object carrying the schema's own properties and <code>required</code> list</span></div>
+            </div>
+            <p class="article-note">
+              A spec whose input semantics are ambiguous or unresolvable is rejected
+              outright rather than approximated, because a half-understood bridge is
+              exactly how an agent ends up calling something its operator never meant
+              to expose.
+            </p>
+          </section>
+
+          <section id="configure">
+            <p class="eyebrow dark">STEP 02 / CONFIGURE</p>
+            <h2>Configure an upstream</h2>
+            <p>
+              Upstreams are declared by the operator, never by request input. The
+              registry is a JSON array capped at sixteen entries:
+            </p>
+            <div class="article-code">
+              <span aria-hidden="true">$</span>
+              <code id="config-command">export MCP_UPSTREAM_SERVERS_JSON='[{"id":"orders","transport":"openapi","baseUrl":"https://orders.example.test","specUrl":"https://orders.example.test/openapi.json","allowedTools":["listOrders","get*"],"readOnlyTools":["listOrders"]}]'</code>
+            </div>
+            <p>
+              Replace <code>specUrl</code> with an inline <code>spec</code> object to run
+              fully offline. Any non-empty registry automatically enables the external
+              effect gate.
+            </p>
+          </section>
+
+          <section id="policy">
+            <p class="eyebrow dark">STEP 03 / POLICY</p>
+            <h2>The allowlist decides what an agent can see</h2>
+            <p>
+              Matching is exact, a leading <code>prefix*</code>, or the single
+              <code>*</code> wildcard. The default is not permissive:
+            </p>
+            <div class="article-boundary-list">
+              <div><strong>Omitted or empty</strong><span>denies every tool; the upstream is reachable but contributes nothing to the model surface</span></div>
+              <div><strong>Exact name</strong><span>admits only that operation</span></div>
+              <div><strong>Prefix star</strong><span><code>get*</code> admits <code>getOrder</code> and leaves <code>createOrder</code> fenced</span></div>
+              <div><strong>Read-only attestation</strong><span>only names in <code>readOnlyTools</code> are marked side-effect free; everything else requires the external-effect path</span></div>
+            </div>
+          </section>
+
+          <section id="refused">
+            <p class="eyebrow dark">STEP 04 / BOUNDARIES</p>
+            <h2>What gets refused, in the gateway's own words</h2>
+            <p>These are the literal outcomes, not paraphrases:</p>
+            <div class="article-boundary-list">
+              <div><strong>Non-HTTPS upstream</strong><span><code>MCP upstream 'x' requires an https url.</code></span></div>
+              <div><strong>Sixteenth extra entry</strong><span><code>MCP upstream registry exceeds the maximum of 16 servers.</code></span></div>
+              <div><strong>Malformed registry</strong><span><code>MCP_UPSTREAM_SERVERS_JSON is not valid JSON.</code></span></div>
+              <div><strong>Unresolvable inputs</strong><span><code>OpenAPI operation has unsupported, ambiguous, or unresolvable input semantics.</code></span></div>
+              <div><strong>Blocked destination</strong><span><code>Outbound request blocked by the gateway network policy.</code></span></div>
+              <div><strong>Oversized response</strong><span><code>OpenAPI bridge response exceeds the size limit.</code></span></div>
+            </div>
+            <p class="article-note">
+              The destination check runs before any transport is consulted, so a
+              generated tool cannot be aimed at an internal address even when the caller
+              controls nothing but argument values.
+            </p>
+          </section>
+
+          <section id="surface">
+            <p class="eyebrow dark">STEP 05 / SURFACE</p>
+            <h2>Where the tools appear</h2>
+            <div class="article-boundary-list">
+              <div><strong>GET /mcp/health</strong><span>readiness, or <code>{"status":"disabled","upstreamCount":0}</code> when no registry is configured</span></div>
+              <div><strong>GET /mcp/tools</strong><span><code>toolCount</code>, <code>tools</code>, and <code>servers</code>, scoped to the authenticated identity</span></div>
+              <div><strong>POST /mcp/call</strong><span>execution routed through agent governance when it is enabled</span></div>
+            </div>
+            <p>
+              Launch it the way the getting-started guide describes and add the
+              environment variable above:
+              <a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/getting-started.md">Getting started</a> covers the
+              <code>--publish 127.0.0.1:3100:3100</code> run against the published
+              <code>ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.8.0</code>
+              image.
+            </p>
+          </section>
+
+          <section id="verified">
+            <p class="eyebrow dark">EVIDENCE BOUNDARY</p>
+            <h2>How this page was checked</h2>
+            <p>
+              The generated tool names, the argument namespacing, the deny-by-default
+              behaviour, the matching rules and each quoted error string were produced by
+              executing the shipped modules at the
+              <code>v0.8.0</code> tag -
+              <code>apps/ai-gateway-service/src/mcpGateway/openApiRestBridge.ts</code> and
+              <code>mcpGatewayConfig.ts</code> - against a three-operation example spec
+              with an injected transport. No network call was made, and no provider
+              credential was used. The container run in the previous section is the
+              documented one; it was not executed on the machine that wrote this page.
+            </p>
+            <p class="article-note">
+              This is a Public Preview of self-hosted software. Nothing here claims
+              production readiness, L5 autonomy, or AGI, and real providers are disabled
+              by default.
+            </p>
+            <div class="article-code">
+              <span aria-hidden="true">$</span>
+              <code id="reference-doc-command">See docs/reverse-mcp-governance.md for the full upstream contract</code>
+            </div>
+          </section>
+        </div>
+      </div>
+</main>
+
+    <footer>
+      <span>Unified AI System</span>
+      <span>OpenAPI to MCP capability guide</span>
+      <a href="codex-mcp-docker-quickstart.html">Codex Docker quickstart</a>
+      <span>Apache-2.0</span>
+    </footer>
+  </body>
+</html>
