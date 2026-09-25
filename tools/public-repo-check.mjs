@@ -587,6 +587,8 @@ const versionedPublicEntryPoints = [
   ".github/ISSUE_TEMPLATE/usage-verification-report.yml",
   "docs/prompt-enhancement.html",
   "docs/prompt-enhancement.zh-CN.html",
+  "docs/openapi-to-mcp.html",
+  "docs/openapi-to-mcp.zh-CN.html",
 ];
 
 for (const path of versionedPublicEntryPoints) {

@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpenAPI 转 MCP：把 REST API 变成受治理的 MCP 工具 | Unified AI System</title>
+    <meta
+      name="description"
+      content="把任意 OpenAPI 3.0 或 3.1 文档生成为 MCP 工具，并置于显式允许清单之后：缺省即全部拒绝、只读声明、出站请求校验，以及审计边界。"
+    />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="theme-color" content="#081011" />
+    <link
+      rel="canonical"
+      href="https://happy520ai.github.io/unified-ai-system/openapi-to-mcp.zh-CN.html"
+    />
+    <link rel="alternate" hreflang="en" href="https://happy520ai.github.io/unified-ai-system/openapi-to-mcp.html" />
+    <link rel="alternate" hreflang="zh-CN" href="https://happy520ai.github.io/unified-ai-system/openapi-to-mcp.zh-CN.html" />
+    <link rel="alternate" hreflang="x-default" href="https://happy520ai.github.io/unified-ai-system/openapi-to-mcp.html" />
+    <link rel="sitemap" type="application/xml" href="sitemap.xml" />
+    <link rel="alternate" type="text/plain" href="llms.txt" title="面向 LLM 的项目摘要" />
+    <link rel="icon" type="image/png" href="assets/mcp-icon.png" />
+
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Unified AI System" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta
+      property="og:title"
+      content="OpenAPI 转 MCP：把 REST API 变成受治理的 MCP 工具"
+    />
+    <meta
+      property="og:description"
+      content="每个 OpenAPI operation 生成一个 MCP 工具，再由允许清单决定模型能看见哪几个。清单缺失即全部拒绝，出站请求在离开进程前先行校验。"
+    />
+    <meta
+      property="og:url"
+      content="https://happy520ai.github.io/unified-ai-system/openapi-to-mcp.zh-CN.html"
+    />
+    <meta
+      property="og:image"
+      content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png"
+    />
+    <meta
+      property="og:image:secure_url"
+      content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png"
+    />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="640" />
+    <meta property="og:image:alt" content="Unified AI System MCP gateway and prompt enhancement preview" />
+    <meta property="article:published_time" content="2026-09-25T00:00:00+00:00" />
+    <meta property="article:modified_time" content="2026-09-25T00:00:00+00:00" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="OpenAPI 转 MCP：把 REST API 变成受治理的 MCP 工具" />
+    <meta
+      name="twitter:description"
+      content="每个 operation 一个 MCP 工具；没有允许清单就一个都不暴露。"
+    />
+    <meta
+      name="twitter:image"
+      content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png"
+    />
+    <meta name="twitter:image:alt" content="Unified AI System MCP gateway and prompt enhancement preview" />
+
+    <link rel="stylesheet" href="site.css" />
+    <script type="application/ld+json">
+      {
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "inLanguage": "zh-CN",
+  "headline": "OpenAPI 转 MCP：把 REST API 变成受治理的 MCP 工具",
+  "description": "把 OpenAPI 3 文档生成为 MCP 工具，并用显式允许清单、只读声明与出站校验构成治理边界。",
+  "datePublished": "2026-09-25",
+  "dateModified": "2026-09-25",
+  "author": {
+    "@type": "Organization",
+    "name": "Unified AI System contributors",
+    "url": "https://github.com/happy520ai/unified-ai-system"
+  },
+  "workTranslationOf": "https://happy520ai.github.io/unified-ai-system/openapi-to-mcp.html",
+  "mainEntityOfPage": "https://happy520ai.github.io/unified-ai-system/openapi-to-mcp.zh-CN.html",
+  "image": "https://happy520ai.github.io/unified-ai-system/assets/social-preview.png",
+  "keywords": "OpenAPI, MCP, Model Context Protocol, REST 转 MCP, 受治理工具, 允许清单, 自托管"
+}
+    </script>
+    <script src="site.js" defer></script>
+  </head>
+  <body class="article-page">
+    <a class="skip-link" href="#article">Skip to article</a>
+
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="Unified AI System home">
+        <img src="assets/mcp-icon.png" alt="" width="32" height="32" />
+        <span>Unified AI System</span>
+      </a>
+      <nav aria-label="Primary navigation">
+        <a href="./index.zh-CN.html">项目主页</a>
+        <a href="#generation">生成规则</a>
+        <a href="#policy">允许清单</a>
+        <a
+          class="nav-command"
+          href="https://github.com/happy520ai/unified-ai-system"
+          aria-label="在 GitHub 上为 Unified AI System 加星"
+        >
+          在 GitHub 上 Star
+        </a>
+      </nav>
+    </header>
+
+    <main id="article">
+      <header class="article-hero">
+        <div class="article-hero-shade" aria-hidden="true"></div>
+        <div class="article-hero-inner">
+          <p class="eyebrow">能力指南 / 2026 年 9 月</p>
+          <h1>把 REST API 变成受治理的 MCP 工具</h1>
+          <p class="article-hero-copy">
+            把网关指向一份 OpenAPI 3.0 或 3.1 文档，它会为每个 operation 生成一个 MCP
+            工具。多数集成会跳过的关键一步在这里：由显式允许清单决定模型甚至能
+            「看见」哪几个工具，而每一次出站请求都会在离开进程前完成校验。
+          </p>
+          <div class="article-meta" aria-label="指南信息">
+            <span>OpenAPI 3.0 与 3.1</span>
+            <span>缺省即全部拒绝</span>
+            <span>无需 API Key</span>
+          </div>
+        </div>
+      </header>
+
+      <div class="article-layout">
+        <aside class="article-toc" aria-label="文章目录">
+          <p class="eyebrow dark">目录</p>
+          <a href="#generation">1. 生成规则</a>
+          <a href="#configure">2. 配置上游</a>
+          <a href="#policy">3. 允许清单决定一切</a>
+          <a href="#refused">4. 会被拒绝什么</a>
+          <a href="#surface">5. 工具出现在哪里</a>
+          <a href="#verified">6. 本页如何核对</a>
+        </aside>
+
+        <div class="article-body">
+          <section id="generation">
+            <p class="eyebrow dark">第 01 步 / 生成</p>
+            <h2>生成规则</h2>
+            <p>
+              每个 operation 成为一个工具，名字取自 <code>operationId</code>，描述取自
+              <code>summary</code>。参数按「它要去哪里」加命名空间前缀，因此一个扁平对象
+              不可能悄悄和另一种绑定冲突：
+            </p>
+            <div class="article-boundary-list">
+              <div><strong>Path</strong><span>以裸名传入（例如 <code>id</code>），随后按百分号编码填入路径模板</span></div>
+              <div><strong>Query</strong><span>带前缀：名为 <code>limit</code> 的查询参数写作 <code>query_limit</code></span></div>
+              <div><strong>Header 与 Cookie</strong><span>同样带前缀；若配置里已经设置了该 header，则直接拒绝</span></div>
+              <div><strong>Request body</strong><span>收进一个 <code>body</code> 对象，保留 schema 自身的属性与 <code>required</code> 列表</span></div>
+            </div>
+            <p class="article-note">
+              输入语义含糊或无法解析的 spec 会被整体拒绝，而不是「尽力猜一猜」。一个
+              半懂不懂的桥，正是模型调到运维根本没打算暴露的东西的方式。
+            </p>
+          </section>
+
+          <section id="configure">
+            <p class="eyebrow dark">第 02 步 / 配置</p>
+            <h2>配置上游</h2>
+            <p>
+              上游由运维方声明，绝不接受来自请求输入的声明。注册表是一个 JSON
+              数组，最多 16 条：
+            </p>
+            <div class="article-code">
+              <span aria-hidden="true">$</span>
+              <code id="config-command-zh">export MCP_UPSTREAM_SERVERS_JSON='[{"id":"orders","transport":"openapi","baseUrl":"https://orders.example.test","specUrl":"https://orders.example.test/openapi.json","allowedTools":["listOrders","get*"],"readOnlyTools":["listOrders"]}]'</code>
+            </div>
+            <p>
+              把 <code>specUrl</code> 换成内联的 <code>spec</code> 对象即可完全离线运行。
+              任何非空注册表都会自动启用外部副作用闸门。
+            </p>
+          </section>
+
+          <section id="policy">
+            <p class="eyebrow dark">第 03 步 / 策略</p>
+            <h2>允许清单决定模型能看见什么</h2>
+            <p>匹配规则是精确名、前缀 <code>prefix*</code>，或单个 <code>*</code>。默认并不宽松：</p>
+            <div class="article-boundary-list">
+              <div><strong>缺省或为空</strong><span>拒绝所有工具；上游依然可达，但对模型工具面零贡献</span></div>
+              <div><strong>精确名</strong><span>只放行该 operation</span></div>
+              <div><strong>前缀星号</strong><span><code>get*</code> 放行 <code>getOrder</code>，而 <code>createOrder</code> 仍被围栏</span></div>
+              <div><strong>只读声明</strong><span>只有出现在 <code>readOnlyTools</code> 里的名字才被标注无副作用；其余一律走外部副作用路径</span></div>
+            </div>
+          </section>
+
+          <section id="refused">
+            <p class="eyebrow dark">第 04 步 / 边界</p>
+            <h2>会被拒绝什么（下面是网关的原话，不是转述）</h2>
+            <div class="article-boundary-list">
+              <div><strong>非 HTTPS 上游</strong><span><code>MCP upstream 'x' requires an https url.</code></span></div>
+              <div><strong>第 17 条注册表</strong><span><code>MCP upstream registry exceeds the maximum of 16 servers.</code></span></div>
+              <div><strong>JSON 不合法</strong><span><code>MCP_UPSTREAM_SERVERS_JSON is not valid JSON.</code></span></div>
+              <div><strong>输入无法解析</strong><span><code>OpenAPI operation has unsupported, ambiguous, or unresolvable input semantics.</code></span></div>
+              <div><strong>目标被拦</strong><span><code>Outbound request blocked by the gateway network policy.</code></span></div>
+              <div><strong>响应过大</strong><span><code>OpenAPI bridge response exceeds the size limit.</code></span></div>
+            </div>
+            <p class="article-note">
+              目标校验发生在任何传输层之前，因此即使调用方只能控制参数取值，也无法把
+              生成的工具指向内网地址。
+            </p>
+          </section>
+
+          <section id="surface">
+            <p class="eyebrow dark">第 05 步 / 接口面</p>
+            <h2>工具出现在哪里</h2>
+            <div class="article-boundary-list">
+              <div><strong>GET /mcp/health</strong><span>就绪状态；未配置注册表时返回 <code>{"status":"disabled","upstreamCount":0}</code></span></div>
+              <div><strong>GET /mcp/tools</strong><span>返回 <code>toolCount</code>、<code>tools</code> 与 <code>servers</code>，按已认证身份收窄</span></div>
+              <div><strong>POST /mcp/call</strong><span>启用 Agent 治理时，执行经由治理路径</span></div>
+            </div>
+            <p>
+              启动方式沿用快速上手文档给出的命令，再加上面这个环境变量：
+              <a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/getting-started.md">快速上手</a>
+              里写的是把已发布镜像
+              <code>ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.8.0</code>
+              以 <code>--publish 127.0.0.1:3100:3100</code> 方式运行。
+            </p>
+          </section>
+
+          <section id="verified">
+            <p class="eyebrow dark">证据边界</p>
+            <h2>本页如何核对</h2>
+            <p>
+              上面的工具名、参数命名空间、缺省全拒行为、匹配规则以及每一条被引用的错误
+              字符串，都是在 <code>v0.8.0</code> 标签上直接执行已发布模块得到的：
+              <code>apps/ai-gateway-service/src/mcpGateway/openApiRestBridge.ts</code>
+              与 <code>mcpGatewayConfig.ts</code>，对一个三 operation 的示例 spec 运行，
+              并注入传输层。全程没有网络出站，也没有使用任何真实 Provider 凭据。上一节
+              那条容器命令是文档既有写法，本页编写时未在本机执行。
+            </p>
+            <p class="article-note">
+              这是自托管软件的 Public Preview。以上不构成生产就绪、L5 自主或 AGI 声明，
+              真实 Provider 默认关闭。
+            </p>
+          </section>
+        </div>
+      </div>
+</main>
+
+    <footer>
+      <span>Unified AI System</span>
+      <span>OpenAPI 转 MCP 能力指南</span>
+      <a href="codex-mcp-docker-quickstart.html">Codex Docker quickstart</a>
+      <span>Apache-2.0</span>
+    </footer>
+  </body>
+</html>
