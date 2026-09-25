@@ -32,7 +32,7 @@
 <p align="center">
   <img
     src="docs/assets/readme-hero.png"
-    alt="Unified AI System — self-hosted AI gateway whose published image ships 15 bounded MCP tools, four release gates, 23 defended attack cases, and zero credentials to start"
+    alt="Unified AI System — self-hosted AI gateway: one governed boundary for models, agents, tools, budgets and evidence, with four release gates and zero credentials to start"
     width="100%"
   />
 </p>
