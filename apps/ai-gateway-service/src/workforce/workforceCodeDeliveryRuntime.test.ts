@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ContainerSandboxBackend } from "@unified-ai-system/forge-core";
-import { createAgentGovernanceToolProxy, readWorkforceCodeDeliveryToolProxy } from "../agent-governance/toolProxy.ts";
+import { readWorkforceCodeDeliveryToolProxy } from "../agent-governance/governedProxyOperations.ts";
+import { createAgentGovernanceToolProxy } from "../agent-governance/toolProxy.ts";
 import { createWorkforceCodeDeliveryFactory, isWorkforceCodeDeliveryFactory,
   preflightWorkforceCodeDelivery, runWorkforceCodeDelivery, consumeWorkforceSnapshotCapability, verifyWorkforceCodeSnapshot } from "./workforceCodeDeliveryRuntime.ts";
 import { captureApprovedCodeFiles } from "./workforceCodeDeliveryArtifacts.ts";

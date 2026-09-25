@@ -11,7 +11,7 @@ import { redactSecretsInText } from "../security/secretSafety.js";
 import { rejectUnimplementedCodeDelivery } from "../workforce/workforceCodeDeliveryProfile.ts";
 import { assertWorkforceCodeDeliveryPreflight } from "../workforce/workforceCodeDeliveryRuntime.ts";
 import { assertWorkforceExternalRunnerPreflight } from "../workforce/workforceExternalRunnerRuntime.ts";
-import { effectiveGovernedToolDecision } from "../agent-governance/toolProxy.ts";
+import { effectiveGovernedToolDecision } from "../agent-governance/governedProxyOperations.ts";
 
 const GOVERNED_WORKFORCE_TOOL_NAME = "workforce_execute";
 const GOVERNED_AGENT_ID_PATTERN = /^agt_[A-Za-z0-9_-]{1,128}$/u;

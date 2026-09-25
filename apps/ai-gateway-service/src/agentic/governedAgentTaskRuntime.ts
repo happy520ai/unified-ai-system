@@ -3,7 +3,7 @@ import { SelfHealingEngine, SelfLoopEngineWithErrorLoop } from "@unified-ai-syst
 import type { EffectiveAgentPolicy } from "@unified-ai-system/shared-contracts";
 import { stableStringify } from "@unified-ai-system/policy-engine";
 import type { AgentGovernanceService, GovernanceContext } from "../agent-governance/agentGovernanceService.ts";
-import { effectiveGovernedToolDecision, evaluateGovernedToolScope } from "../agent-governance/toolProxy.ts";
+import { effectiveGovernedToolDecision, evaluateGovernedToolScope } from "../agent-governance/governedProxyOperations.ts";
 import type { GatewayExecutionContext } from "../http/httpRequestExecution.ts";
 import { TaskQueueManager } from "../workforce/taskQueueManager.js";
 import { continuationJsonCopy, createTaskContinuation, readTaskContinuation } from "../workforce/taskQueueContinuation.ts";

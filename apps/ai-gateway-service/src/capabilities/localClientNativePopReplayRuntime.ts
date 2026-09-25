@@ -6,7 +6,7 @@ import { createLocalClientSqlitePopReplayGuard, LOCAL_CLIENT_SQLITE_POP_REPLAY_P
 import { createLocalClientNativePopReplayBinding, loadLocalClientNativeAuthority } from './localClientWindowsAuthorityNative.ts';
 import { LocalClientPopSnapshotRollbackProtectedReplayGuard, type LocalClientPopReplayCheckpoint } from './localClientPopSnapshotRollbackProtection.ts';
 import type { ManagedLocalClientPopReplayGuard, ManagedLocalClientPopReplayGuardStatus,
-  ManagedLocalClientPopReplayConsumeInput } from './localClientPopIdentityAuthority.ts';
+  ManagedLocalClientPopReplayConsumeInput } from './localClientPopIdentityAuthority.types.ts';
 
 type NativeConfiguration = Readonly<{ nativeAddonPath: string; nativeAddonSha256: string }>;
 export type LocalClientNativePopReplayRuntimeOptions = Omit<LocalClientSqlitePopReplayGuardOptions, 'protectedAuthority' | 'anchorBindingSha256' | 'existingOnly'> & NativeConfiguration;

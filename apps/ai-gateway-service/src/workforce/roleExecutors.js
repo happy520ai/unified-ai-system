@@ -11,25 +11,13 @@ import {
   getOutputTemplate,
   validateOutput,
 } from "./roleExecutorHelpers.js";
-import { executeCEOAnalysis, executePMAnalysis } from "./roleExecutorsCeoPm.js";
-import { executeArchitectAnalysis, executeFrontendAnalysis } from "./roleExecutorsArchFront.js";
-import { executeBackendAnalysis, executeQAAnalysis } from "./roleExecutorsBackendQa.js";
-import { executeReviewerAnalysis } from "./roleExecutorsReviewer.js";
+import { EXECUTOR_MAP } from "./roleExecutorMap.js";
 
 // ---------------------------------------------------------------------------
 // Executor Registry
 // ---------------------------------------------------------------------------
 
-/** @type {Object<string, function(string, object): object>} */
-export const EXECUTOR_MAP = {
-  "ceo": executeCEOAnalysis,
-  "pm": executePMAnalysis,
-  "architect": executeArchitectAnalysis,
-  "frontend-engineer": executeFrontendAnalysis,
-  "backend-engineer": executeBackendAnalysis,
-  "qa": executeQAAnalysis,
-  "reviewer": executeReviewerAnalysis,
-};
+export { EXECUTOR_MAP } from "./roleExecutorMap.js";
 
 // ---------------------------------------------------------------------------
 // Factory Function (Public API)

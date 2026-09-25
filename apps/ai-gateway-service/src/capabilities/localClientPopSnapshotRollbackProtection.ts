@@ -4,7 +4,7 @@ import type {
   ManagedLocalClientPopReplayConsumeInput,
   ManagedLocalClientPopReplayGuard,
   ManagedLocalClientPopReplayGuardStatus,
-} from "./localClientPopIdentityAuthority.ts";
+} from "./localClientPopIdentityAuthority.types.ts";
 
 export const LOCAL_CLIENT_POP_REPLAY_CHECKPOINT_VERSION =
   "managed-local-client-pop-replay-checkpoint-v1" as const;

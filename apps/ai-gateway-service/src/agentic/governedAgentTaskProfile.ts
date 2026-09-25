@@ -1,3 +1,5 @@
+export * from "./governedAgentTaskProfile.types.ts";
+
 import { createScanner, parseTree, ScanError, SyntaxKind } from "jsonc-parser";
 import type { Node as JsonNode, ParseError } from "jsonc-parser";
 import type { WorkforceCodeDeliveryProfile } from "@unified-ai-system/shared-contracts";
@@ -6,10 +8,6 @@ import { freezeWorkforceCodeDeliveryProfile } from "../workforce/workforceCodeDe
 import { externalRunnerHash as hash } from "../workforce/workforceExternalRunnerProfile.ts";
 import { nodeTestMinimumOutputBytes } from "../workforce/workforceNodeTestVerification.ts";
 
-export type GovernedAgentTaskVerificationResult = Readonly<{
-  version: 1; adapter: "node-test"; minimumPassed: number;
-  requiredChecks: readonly Readonly<{ file: string; name: string }>[];
-}>;
 export type GovernedAgentTaskProfileInput = Readonly<{
   version: 1; mode: "governed-agent-long-task"; profileId: string; projectId: string; baselineRevision: string;
   model: Readonly<{ providerId: string; modelId: string; maxInputTokens: number; maxOutputTokens: number }>;

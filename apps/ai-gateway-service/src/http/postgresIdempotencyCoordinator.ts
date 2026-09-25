@@ -7,7 +7,7 @@ import type {
   IdempotencyExecution,
   IdempotencyOutcome,
   IdempotencyRejectedOutcome,
-} from "./idempotencyCoordinator.ts";
+} from "./idempotencyCoordinator.types.ts";
 
 export type PostgresQueryResult<Row = Record<string, unknown>> = {
   rows: Row[];

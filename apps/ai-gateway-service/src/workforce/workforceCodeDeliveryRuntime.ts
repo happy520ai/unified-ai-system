@@ -6,7 +6,7 @@ import { ContainerSandboxBackend } from "@unified-ai-system/forge-core";
 import { stableStringify } from "@unified-ai-system/policy-engine";
 import type { EffectiveAgentPolicy, WorkforceCodeDeliveryProfile, WorkforceCodeDeliveryReview, WorkforceRoleExecutionProfile } from "@unified-ai-system/shared-contracts";
 import { createForgeGatewayService, createForgeGovernedExecution } from "../forge/forgeGatewayService.js";
-import { effectiveGovernedToolDecision, evaluateGovernedToolScope, readWorkforceCodeDeliveryToolProxy } from "../agent-governance/toolProxy.ts";
+import { effectiveGovernedToolDecision, evaluateGovernedToolScope, readWorkforceCodeDeliveryToolProxy } from "../agent-governance/governedProxyOperations.ts";
 import type { GovernedRecordDescriptor } from "../agent-governance/governedRecordMeter.ts";
 import { assertOwnedWorkforceWorktree } from "./worktreeIsolation.js";
 import { createWorkforceGit } from "./workforceGit.ts";

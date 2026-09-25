@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { stableStringify } from "@unified-ai-system/policy-engine";
 import { createWebAgent, createBrowserExecutor, launchBrowser } from "@unified-ai-system/web-agent";
-import type { AgentGovernanceCallContext, AgentGovernanceToolProxy } from "../agent-governance/toolProxy.ts";
+import type { AgentGovernanceCallContext, AgentGovernanceToolProxy } from "../agent-governance/toolProxy.types.ts";
 import type { GovernedRecordDescriptor } from "../agent-governance/governedRecordMeter.ts";
 import type { ForgeWebTaskReview } from "@unified-ai-system/shared-contracts";
 import { readForgeModelSelection, readForgeOutputTokenLimit } from "./forgeModelSelection.ts";

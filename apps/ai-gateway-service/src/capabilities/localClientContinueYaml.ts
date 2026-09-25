@@ -1,6 +1,6 @@
 import { CST, Parser, isMap, isScalar, isSeq, parseDocument } from "yaml";
 import type { Node, YAMLMap, YAMLSeq } from "yaml";
-import type { LocalClientConfigJsonValue, LocalClientConfigOperation } from "./localClientConfigTransaction.ts";
+import type { LocalClientConfigJsonValue, LocalClientConfigOperation } from "./localClientConfigTransaction.types.ts";
 
 export const LOCAL_CLIENT_CONTINUE_YAML_CODEC_VERSION = "local-client-continue-yaml-1.2-v1" as const;
 export const LOCAL_CLIENT_CONTINUE_YAML_MAX_BYTES = 65_536;

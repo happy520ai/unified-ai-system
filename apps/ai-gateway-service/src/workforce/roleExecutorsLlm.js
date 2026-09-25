@@ -3,7 +3,7 @@
  * @description LLM-driven execution path for role executors (Phase 6 Enhancement).
  */
 
-import { EXECUTOR_MAP } from "./roleExecutors.js";
+import { EXECUTOR_MAP } from "./roleExecutorMap.js";
 import { getOutputTemplate as getOutputTemplateHelper } from "./roleExecutorHelpers.js";
 import { getRoleById, getRoleCapabilities, WORKFORCE_ROLES } from "./workforceRoles.js";
 

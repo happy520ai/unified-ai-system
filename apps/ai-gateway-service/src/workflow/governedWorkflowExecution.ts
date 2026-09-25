@@ -3,7 +3,8 @@ import { throwIfExecutionAborted } from "@unified-ai-system/shared-utils";
 import type { AgentToolApprovalReview, EffectiveAgentPolicy } from "@unified-ai-system/shared-contracts";
 import { stableStringify } from "@unified-ai-system/policy-engine";
 import { isSafeWorkflowArtifactContent, workflowArtifactApprovalArguments } from "../agent-governance/agentApprovalStore.ts";
-import { computeArgumentsHash, effectiveGovernedToolDecision, evaluateGovernedToolScope } from "../agent-governance/toolProxy.ts";
+import { computeArgumentsHash } from "../agent-governance/toolProxy.ts";
+import { effectiveGovernedToolDecision, evaluateGovernedToolScope } from "../agent-governance/governedProxyOperations.ts";
 import type { WorkflowExecutionCallbacks, WorkflowPublicationMaterial } from "./durableWorkflowRunStore.ts";
 
 import type { AgentGovernanceService } from "../agent-governance/agentGovernanceService.ts";

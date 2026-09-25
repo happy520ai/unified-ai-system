@@ -1,3 +1,5 @@
+export * from "./idempotencyCoordinator.types.ts";
+
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import type { IncomingHttpHeaders, ServerResponse } from "node:http";
 import {
@@ -8,41 +10,16 @@ import { createSqliteIdempotencyCoordinator } from "./sqliteIdempotencyCoordinat
 import { createRequestIdentityResolver, parseTrustedProxyCidrs } from "./requestIdentity.ts";
 import { isMultiInstanceEnabled, loadOrCreateSharedSecret } from "./multiInstanceConfig.js";
 
-type IdempotencyRequest = {
-  headers?: IncomingHttpHeaders;
-  socket?: { remoteAddress?: string | null };
-};
+
 
 type IdempotencyResponse = Pick<ServerResponse, "getHeader" | "setHeader">;
 
-export type IdempotencyAcceptedOutcome<T> = {
-  accepted: true;
-  status: "bypassed" | "created" | "created-unconfirmed" | "replayed";
-  replayed: boolean;
-  replayable: boolean;
-  value: T;
-};
 
-export type IdempotencyRejectedOutcome = {
-  accepted: false;
-  status: "rejected";
-  replayed: false;
-  statusCode: number;
-  code: string;
-  message: string;
-  retryable: boolean;
-  replayable: false;
-  retryAfterSeconds?: number;
-};
 
-export type IdempotencyOutcome<T> = IdempotencyAcceptedOutcome<T> | IdempotencyRejectedOutcome;
 
-export type IdempotencyExecution<T> = {
-  request?: IdempotencyRequest;
-  route: string;
-  payload: unknown;
-  operation: () => T | Promise<T>;
-};
+
+
+
 
 export type IdempotencyCoordinatorOptions = {
   env?: NodeJS.ProcessEnv;
@@ -78,24 +55,6 @@ type Entry = {
   promise: Promise<unknown> | null;
 };
 
-export type IdempotencyCoordinator = {
-  execute<T>(execution: IdempotencyExecution<T>): Promise<IdempotencyOutcome<T>>;
-  getStats(): {
-    entries: number;
-    inFlight: number;
-    replayable: number;
-    tombstones: number;
-    ttlMs: number;
-    maxEntries: number;
-    maxResultBytes: number;
-    storeMode: "memory" | "sqlite" | "postgres";
-    available?: boolean;
-    distributed?: boolean;
-    statsUpdatedAt?: number | null;
-  };
-  checkHealth?(): Promise<ReturnType<IdempotencyCoordinator["getStats"]>>;
-  close(): void | Promise<void>;
-};
 
 export const IDEMPOTENCY_RESPONSE_HEADERS = Object.freeze({
   status: "Idempotency-Status",

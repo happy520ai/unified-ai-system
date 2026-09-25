@@ -1,3 +1,5 @@
+export * from "./toolProxy.types.ts";
+
 /**
  * Agent governance Tool Proxy.
  *
@@ -23,7 +25,7 @@ import {
   evaluateResourceScope,
   getEffectiveToolDecision,
 } from "@unified-ai-system/policy-engine";
-import type { AgentGovernanceService } from "./agentGovernanceService.ts";
+import type { AgentGovernanceService } from "./agentGovernanceService.types.ts";
 import {
   meterGovernedToolResult,
   type GovernedRecordDescriptor,
@@ -31,82 +33,12 @@ import {
 } from "./governedRecordMeter.ts";
 import { isSafePublicObjectKey, redactSecretsInText } from "../security/secretSafety.js";
 import { createToolRiskCatalog } from "./toolRiskCatalog.ts";
+import { effectiveGovernedToolDecision, evaluateGovernedToolScope, workforceProxyOperations } from "./governedProxyOperations.ts";
 import { readFrozenWorkforceRoleExecutionProfile } from "../workforce/workforceRoleExecutionProfile.ts";
 import { readWorkforceConsensusReport } from "../workforce/workforceConsensusReport.ts";
 import { consumeWorkforceSnapshotCapability, WORKFORCE_VERIFY_SNAPSHOT_TOOL } from "../workforce/workforceCodeDeliveryRuntime.ts";
 
-export interface AgentGovernanceCallContext {
-  agentId: string;
-  tenantId: string;
-  userId?: string;
-  requestId?: string;
-}
-
-/** Non-serializable, one-shot capability minted by one Tool Proxy instance. */
-export interface AgentGovernanceSandboxAttestation {
-  readonly kind: "agent-governance-sandbox-attestation";
-}
-
-export interface ToolProxyVerdict {
-  outcome: "allow" | "approval_required" | "deny";
-  code?: string;
-  reason?: string;
-  approvalId?: string;
-  policy?: EffectiveAgentPolicy;
-  executionLease?: { signal?: AbortSignal; release(): void };
-  /** Authenticated decrypted parameters from the one-shot approval store. */
-  approvedParams?: unknown;
-  approvalReview?: AgentToolApprovalReview;
-}
-
-export interface AgentGovernanceToolProxy {
-  enforce(input: {
-    context: AgentGovernanceCallContext;
-    toolName: string;
-    params: unknown;
-    resourceContext?: {
-      resourceKeys?: Record<string, string>;
-      rangeValues?: Record<string, string>;
-      resources?: string[];
-      outputFields?: string[];
-      approvalReview?: Omit<AgentToolApprovalReview, "policyHash">;
-      /** Server-produced proof that this invocation is already confined by
-       * the Gateway's sandbox boundary. Agent parameters cannot populate it. */
-      sandboxAttestation?: AgentGovernanceSandboxAttestation;
-      /** Private one-shot exact-file verification capability; JSON is never sufficient. */
-      workforceSnapshotCapability?: unknown;
-    };
-  }): Promise<ToolProxyVerdict>;
-  enforceResult(input: {
-    context: AgentGovernanceCallContext;
-    toolName: string;
-    policy: EffectiveAgentPolicy;
-    result: unknown;
-    descriptor?: GovernedRecordDescriptor | null;
-  }): Promise<GovernedRecordMeterVerdict>;
-  recordOutcome(input: {
-    context: AgentGovernanceCallContext;
-    toolName: string;
-    resultStatus: "success" | "error" | "denied";
-    reason?: string;
-  }): Promise<void>;
-  mintSandboxAttestation(input: {
-    context: AgentGovernanceCallContext;
-    toolName: string;
-    isolation: "read-only" | "full";
-    ttlMs?: number;
-  }): AgentGovernanceSandboxAttestation;
-}
-
 export type ToolProxyMode = "enforce" | "observe";
-type WorkforceProxyOperations = Readonly<Pick<AgentGovernanceToolProxy, "enforce" | "enforceResult">>;
-const workforceProxyOperations = new WeakMap<object, WorkforceProxyOperations>();
-
-/** Fixed operations from an actual enforcing proxy; its presence alone grants no code authority. */
-export function readWorkforceCodeDeliveryToolProxy(value: unknown): WorkforceProxyOperations | null {
-  return value && typeof value === "object" ? workforceProxyOperations.get(value) ?? null : null;
-}
-
 const SANDBOX_RISK_CATALOG = createToolRiskCatalog();
 
 /** Unknown/custom tools conservatively require full isolation. */
@@ -673,86 +605,3 @@ function defineSanitizedProperty(output: Record<string, unknown>, key: string, v
 
 export { computeArgumentsHash };
 
-/** Shared by effect admission and workflow receipt checks. Callers must first
- * obtain this policy through the Governance service's verified run admission. */
-export function effectiveGovernedToolDecision(policy: EffectiveAgentPolicy, toolName: string) {
-  const configured = getEffectiveToolDecision(policy, toolName);
-  return configured === "allow" && policy.requirements.approvalRequired === true
-    ? "require_approval" : configured;
-}
-
-export function evaluateGovernedToolScope(
-  policy: EffectiveAgentPolicy, tenantId: string, params: unknown,
-  resourceContext?: Parameters<AgentGovernanceToolProxy["enforce"]>[0]["resourceContext"],
-) {
-  return evaluateResourceScope(policy.scope, buildScopeCheckRequest(tenantId, params, policy.scope, resourceContext));
-}
-
-function buildScopeCheckRequest(
-  tenantId: string,
-  params: unknown,
-  scope: EffectiveAgentPolicy["scope"],
-  trusted?: {
-    resourceKeys?: Record<string, string>;
-    rangeValues?: Record<string, string>;
-    resources?: string[];
-    outputFields?: string[];
-    approvalReview?: Omit<AgentToolApprovalReview, "policyHash">;
-    sandboxAttestation?: AgentGovernanceSandboxAttestation;
-  },
-) {
-  const record = params && typeof params === "object" && !Array.isArray(params)
-    ? params as Record<string, unknown>
-    : {};
-  const declaredResourceKeys = asStringRecord(record.resourceKeys);
-  const declaredRangeValues = asStringRecord(record.rangeValues);
-  const resourceKeys: Record<string, string> = { ...declaredResourceKeys, ...(trusted?.resourceKeys ?? {}) };
-  const rangeValues: Record<string, string> = { ...declaredRangeValues, ...(trusted?.rangeValues ?? {}) };
-  for (const dimension of Object.keys(scope?.allowedResourceSets ?? {})) {
-    const value = readDimension(record, dimension);
-    if (value !== null) resourceKeys[dimension] = value;
-  }
-  for (const dimension of Object.keys(scope?.resourceRanges ?? {})) {
-    const value = readDimension(record, dimension);
-    if (value !== null) rangeValues[dimension] = value;
-  }
-  const resources = new Set<string>();
-  for (const key of ["resource", "resourceId", "path", "file_path", "uri", "url", "database", "table"]) {
-    const value = record[key];
-    if (typeof value === "string" && value !== "") resources.add(value);
-  }
-  for (const value of Array.isArray(record.resources) ? record.resources : []) {
-    if (typeof value === "string" && value !== "") resources.add(value);
-  }
-  for (const value of trusted?.resources ?? []) {
-    if (typeof value === "string" && value !== "") resources.add(value);
-  }
-  const requestedFields = [record.outputFields, record.fields, record.select]
-    .flatMap((value) => Array.isArray(value) ? value : [])
-    .filter((value): value is string => typeof value === "string" && value !== "");
-  requestedFields.push(...(trusted?.outputFields ?? []).filter((value) => typeof value === "string" && value !== ""));
-  return {
-    tenantId,
-    resourceKeys,
-    rangeValues,
-    resources: [...resources],
-    outputFields: requestedFields,
-  };
-}
-
-function asStringRecord(value: unknown): Record<string, string> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-  return Object.fromEntries(Object.entries(value as Record<string, unknown>)
-    .filter((entry): entry is [string, string] => typeof entry[1] === "string" && entry[1] !== ""));
-}
-
-function readDimension(record: Record<string, unknown>, dimension: string): string | null {
-  const direct = record[dimension];
-  if (typeof direct === "string" && direct !== "") return direct;
-  const nested = record.resource;
-  if (nested && typeof nested === "object" && !Array.isArray(nested)) {
-    const value = (nested as Record<string, unknown>)[dimension];
-    if (typeof value === "string" && value !== "") return value;
-  }
-  return null;
-}

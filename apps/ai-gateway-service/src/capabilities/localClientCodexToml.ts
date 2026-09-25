@@ -1,6 +1,6 @@
 import { getStaticTOMLValue, parseTOML } from "toml-eslint-parser";
 import type { AST } from "toml-eslint-parser";
-import type { LocalClientConfigJsonValue, LocalClientConfigOperation } from "./localClientConfigTransaction.ts";
+import type { LocalClientConfigJsonValue, LocalClientConfigOperation } from "./localClientConfigTransaction.types.ts";
 
 export const LOCAL_CLIENT_CODEX_TOML_CODEC_VERSION = "local-client-codex-toml-1.0-v1" as const;
 const MAX_BYTES = 65_536;

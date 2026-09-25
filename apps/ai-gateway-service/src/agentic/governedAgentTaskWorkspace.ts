@@ -3,7 +3,7 @@ import { lstat, realpath } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 import { stableStringify } from "@unified-ai-system/policy-engine";
 import { createAgentToolRegistry } from "../claude-code-patterns/agentToolRegistry.js";
-import { readWorkforceCodeDeliveryToolProxy } from "../agent-governance/toolProxy.ts";
+import { readWorkforceCodeDeliveryToolProxy } from "../agent-governance/governedProxyOperations.ts";
 import { containsSensitivePublicationText } from "../security/secretSafety.js";
 import { performSearchReplace } from "../tools/fileEditTool.js";
 import { captureApprovedCodeFiles, createCodeDeliveryArtifact } from "../workforce/workforceCodeDeliveryArtifacts.ts";

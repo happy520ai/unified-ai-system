@@ -12,7 +12,7 @@ import type {
   ManagedLocalClientPopReplayConsumeInput,
   ManagedLocalClientPopReplayGuard,
   ManagedLocalClientPopReplayGuardStatus,
-} from "./localClientPopIdentityAuthority.ts";
+} from "./localClientPopIdentityAuthority.types.ts";
 
 export const LOCAL_CLIENT_SQLITE_POP_REPLAY_SCHEMA_VERSION = 3 as const;
 export const LOCAL_CLIENT_SQLITE_POP_REPLAY_PROTECTED_SCHEMA_VERSION = 4 as const;

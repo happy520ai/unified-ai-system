@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { ContainerSandboxBackend } from "@unified-ai-system/forge-core";
 import { stableStringify } from "@unified-ai-system/policy-engine";
 import type { EffectiveAgentPolicy, WorkforceExternalRunnerProfile, WorkforceExternalRunnerReview } from "@unified-ai-system/shared-contracts";
-import { effectiveGovernedToolDecision, evaluateGovernedToolScope, readWorkforceCodeDeliveryToolProxy } from "../agent-governance/toolProxy.ts";
+import { effectiveGovernedToolDecision, evaluateGovernedToolScope, readWorkforceCodeDeliveryToolProxy } from "../agent-governance/governedProxyOperations.ts";
 import { assertWorkforceCodeTaskFence } from "./workforceDagExecutor.ts";
 import { assertOwnedWorkforceWorktree } from "./worktreeIsolation.js";
 import { createWorkforceGit } from "./workforceGit.ts";

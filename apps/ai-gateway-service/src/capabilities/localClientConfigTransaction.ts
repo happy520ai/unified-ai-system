@@ -1,3 +1,5 @@
+export * from "./localClientConfigTransaction.types.ts";
+
 import {
   createCipheriv,
   createDecipheriv,
@@ -73,21 +75,7 @@ const SAFE_STATUS = new Set<JournalEntryStatus>([
   "expired",
 ]);
 
-type JsonPrimitive = null | boolean | number | string;
-export type LocalClientConfigJsonValue = JsonPrimitive | LocalClientConfigJsonValue[] | {
-  readonly [key: string]: LocalClientConfigJsonValue;
-};
 
-export type LocalClientConfigOperation =
-  | Readonly<{
-    op: "set";
-    path: readonly string[];
-    value: LocalClientConfigJsonValue;
-  }>
-  | Readonly<{
-    op: "delete";
-    path: readonly string[];
-  }>;
 
 export interface LocalClientConfigTransactionOptions {
   readonly format?: LocalClientConfigFormat;

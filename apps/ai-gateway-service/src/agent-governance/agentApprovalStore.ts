@@ -1,3 +1,5 @@
+export * from "./agentApprovalStore.types.ts";
+
 /**
  * Durable, one-shot Agent tool approvals with argument locking.
  *
@@ -40,55 +42,6 @@ const APPROVAL_KEY_INFO = "agent-governance-approval-args/v1";
 const DEFAULT_APPROVAL_TTL_SECONDS = 24 * 60 * 60;
 const APPROVAL_STATUSES = new Set<ApprovalStatus>(["PENDING", "APPROVED", "REJECTED", "EXPIRED", "CONSUMED"]);
 const GOVERNED_GIT_ENVELOPE_KEY = "__governanceApprovalEnvelope";
-
-export interface CreateApprovalInput {
-  agentId: string;
-  toolName: string;
-  arguments: unknown;
-  tenantId: string;
-  ttlSeconds?: number;
-  reason?: string;
-  review: AgentToolApprovalReview;
-}
-
-export interface AgentApprovalStore {
-  create(
-    input: CreateApprovalInput,
-    beforeCommit?: (record: AgentToolApprovalRecord) => Promise<void>,
-  ): Promise<AgentToolApprovalRecord>;
-  decide(
-    id: string,
-    decision: "approve" | "reject",
-    decidedBy: string,
-    beforeCommit?: (record: AgentToolApprovalRecord) => Promise<void>,
-  ): Promise<AgentToolApprovalRecord>;
-  get(id: string): Promise<AgentToolApprovalRecord | null>;
-  listPending(agentId?: string): Promise<AgentToolApprovalRecord[]>;
-  recoverArguments(id: string): Promise<{ argumentsHash: string; args: unknown } | null>;
-  findApproved(input: {
-    agentId: string;
-    tenantId: string;
-    toolName: string;
-    argumentsHash: string;
-    policyHash: string;
-  }): Promise<{ id: string } | null>;
-  verifyConsumed(input: { approvalId: string; agentId: string; tenantId: string; toolName: string;
-    argumentsHash: string; policyHash: string; executionId: string }): Promise<{ args: unknown; review: AgentToolApprovalReview } | null>;
-  consumeApproved(input: {
-    approvalId?: string;
-    agentId: string;
-    tenantId: string;
-    toolName: string;
-    argumentsHash: string;
-    policyHash: string;
-    executionId: string;
-  }, beforeCommit?: (record: AgentToolApprovalRecord, args: unknown) => Promise<void>): Promise<{
-    id: string;
-    args: unknown;
-    review: AgentToolApprovalReview;
-  } | null>;
-  expireStale(now: string): Promise<number>;
-}
 
 interface SealedArguments {
   aadVersion: 1;

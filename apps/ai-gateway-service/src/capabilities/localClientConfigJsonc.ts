@@ -1,6 +1,6 @@
 import { createScanner, parseTree, ScanError, SyntaxKind } from "jsonc-parser";
 import type { Node, ParseError } from "jsonc-parser";
-import type { LocalClientConfigJsonValue, LocalClientConfigOperation } from "./localClientConfigTransaction.js";
+import type { LocalClientConfigJsonValue, LocalClientConfigOperation } from "./localClientConfigTransaction.types.ts";
 
 export const LOCAL_CLIENT_JSONC_CODEC_VERSION = "local-client-jsonc-lossless-v1" as const;
 const MAX_DEPTH = 64;

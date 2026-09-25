@@ -1,6 +1,6 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { stableStringify } from "@unified-ai-system/policy-engine";
-import type { GovernedAgentTaskVerificationResult } from "../agentic/governedAgentTaskProfile.ts";
+import type { GovernedAgentTaskVerificationResult } from "../agentic/governedAgentTaskProfile.types.ts";
 
 type Counts = Readonly<Record<"tests" | "passed" | "failed" | "cancelled" | "skipped" | "todo" | "suites" | "topLevel", number>>;
 type CheckStatus = "passed" | "failed" | "skipped" | "todo" | "missing" | "ambiguous";

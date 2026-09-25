@@ -9,7 +9,7 @@ import type {
   IdempotencyExecution,
   IdempotencyOutcome,
   IdempotencyRejectedOutcome,
-} from "./idempotencyCoordinator.ts";
+} from "./idempotencyCoordinator.types.ts";
 
 type SqliteCoordinatorOptions = {
   sqlitePath: string;
