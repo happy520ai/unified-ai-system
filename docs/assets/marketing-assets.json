@@ -1,5 +1,5 @@
 {
-  "$comment": "Single source of truth for the docs/assets marketing images. packages/web-agent/test/render-marketing-asset.mjs renders these canvases; tools/public-repo-check.mjs asserts the committed PNGs still match them.",
+  "$comment": "Single source of truth for the docs/assets marketing images. packages/web-agent/test/render-marketing-asset.ts renders these canvases; tools/public-repo-check.mjs asserts the committed PNGs still match them.",
   "assets": {
     "social-preview": {
       "source": "docs/assets/social-preview-source.html",

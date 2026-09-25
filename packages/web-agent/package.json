@@ -15,8 +15,8 @@
   },
   "scripts": {
     "check": "node --check src/index.js",
-    "render:social-preview": "node test/render-marketing-asset.mjs social-preview",
-    "render:readme-assets": "node test/render-marketing-asset.mjs readme-hero readme-architecture",
+    "render:social-preview": "node test/render-marketing-asset.ts social-preview",
+    "render:readme-assets": "node test/render-marketing-asset.ts readme-hero readme-architecture readme-terminal",
     "test": "node --test test/web-agent-boundary.test.ts && node test/prompt-lab-smoke.test.js",
     "build": "pnpm run check"
   },
