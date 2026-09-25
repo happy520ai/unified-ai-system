@@ -112,6 +112,26 @@ function safeGetJson(cmd) {
   }
 }
 
+// Some of the biggest lists carry multi-megabyte READMEs: the Contents API answers
+// them with metadata and no `content`, and execSync's 1 MB default buffer would
+// swallow the raw media type. Both are read through here.
+function runText(cmd) {
+  return execSync(cmd, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    maxBuffer: 32 * 1024 * 1024,
+  });
+}
+
+function safeGetText(cmd) {
+  try {
+    const text = runText(cmd);
+    return { ok: true, data: typeof text === "string" ? text : "" };
+  } catch (err) {
+    return { ok: false, error: String(err?.message ?? err) };
+  }
+}
+
 function parseDate(iso) {
   return new Date(iso).toISOString().slice(0, 10);
 }
@@ -235,6 +255,40 @@ async function getRepoStats() {
   };
 }
 
+// PR state alone under-counts success: a maintainer can accept an entry by hand and
+// close the branch, which reads as a lost door. The upstream README is the second
+// instrument. Three-valued on purpose - "could not read" must never be reported as
+// "not listed".
+const LISTING_PATTERN = /unified-ai-system|Unified AI System/i;
+
+export function isListedInReadme(content) {
+  if (typeof content !== "string" || content.trim().length === 0) return "unreadable";
+  return LISTING_PATTERN.test(content) ? "listed" : "absent";
+}
+
+// One classification per repository per run. Several lists appear twice in the door
+// table (two PRs into the same list), and two independent probes of the same README
+// can disagree, which produced a report where one row of a repo said "data file"
+// and its sibling said "not found".
+const listingProbeCache = new Map();
+
+function probeListing(repoName) {
+  if (listingProbeCache.has(repoName)) return listingProbeCache.get(repoName);
+
+  const readmeResult = safeGetText(
+    `gh api -H "Accept: application/vnd.github.raw+json" repos/${repoName}/readme`
+  );
+  const readmeState = readmeResult.ok
+    ? isListedInReadme(readmeResult.data)
+    : "unreadable";
+  const result = {
+    inReadme: readmeState,
+    listing: readmeState === "listed" ? "readme" : readmeState,
+  };
+  listingProbeCache.set(repoName, result);
+  return result;
+}
+
 async function getExternalPrRows() {
   const rows = [];
   for (const [repoName, prNumber] of externalPrs) {
@@ -249,10 +303,13 @@ async function getExternalPrRows() {
         mergeState: "FETCH_FAILED",
         updated: "N/A",
         comments: "N/A",
+        inReadme: "unreadable",
+        listing: "unreadable",
       });
       continue;
     }
 
+    const listing = probeListing(repoName);
     rows.push({
       repo: repoName,
       pr: prNumber,
@@ -264,6 +321,8 @@ async function getExternalPrRows() {
           : mergeStateMap[pullResult.data.mergeable_state] ?? "UNKNOWN",
       updated: parseDate(pullResult.data.updated_at),
       comments: pullResult.data.comments ?? 0,
+      inReadme: listing.inReadme,
+      listing: listing.listing,
     });
   }
   return rows;
@@ -345,16 +404,36 @@ export function needsRecarry(rows) {
 
 function renderPrRowsTable(rows) {
   const lines = [];
-  lines.push("| Repository | PR | Listing | State | Merge State | Updated | Comments |");
-  lines.push("| --- | --- | --- | --- | --- | --- | --- |");
+  lines.push("| Repository | PR | Listing | State | Merge State | Listed in | Updated | Comments |");
+  lines.push("| --- | --- | --- | --- | --- | --- | --- | --- |");
   for (const row of rows) {
     const url = `https://github.com/${row.repo}/pull/${row.pr}`;
     const title = String(row.title ?? "Unavailable").replaceAll("|", "\\|");
     lines.push(
-      `| [${row.repo}](${url}) | [#${row.pr}](${url}) | ${title} | ${row.state} | ${row.mergeState} | ${row.updated} | ${row.comments} |`
+      `| [${row.repo}](${url}) | [#${row.pr}](${url}) | ${title} | ${row.state} | ${row.mergeState} | ${row.listing ?? "unreadable"} | ${row.updated} | ${row.comments} |`
     );
   }
   return lines;
+}
+
+export function countListingKinds(rows) {
+  const tally = { readme: 0, absent: 0, unreadable: 0 };
+  for (const row of rows ?? []) {
+    if (row?.listing === "readme") tally.readme += 1;
+    else if (row?.listing === "absent") tally.absent += 1;
+    else tally.unreadable += 1;
+  }
+  return tally;
+}
+
+// The reading that actually matters: a closed door whose list still shows us is a
+// win, not a loss, and only the two facts together say so.
+export function countHandAccepted(rows) {
+  let count = 0;
+  for (const row of rows ?? []) {
+    if (row?.state === "closed" && row?.listing === "readme") count += 1;
+  }
+  return count;
 }
 
 // Standing check for the defect class fixed on 2026-09-25: public copy telling a reader to
@@ -454,6 +533,19 @@ function generateCheckReport(repoStats, rows, date, previousStats = null, claimS
   lines.push(...renderRepoSection(repoStats, date, "-", previousStats));
   lines.push("## External PR Funnel");
   lines.push(...renderPrRowsTable(rows));
+  const kinds = countListingKinds(rows);
+  lines.push("");
+  lines.push(
+    `### Listings carried by an upstream README: ${kinds.readme} listed / ${kinds.absent} not found / ${kinds.unreadable} unreadable`
+  );
+  lines.push(
+    `Doors the list closed but still carries our entry (accepted by hand): ${countHandAccepted(rows)}. `
+    + "PR state alone under-counts these, which is why the README is read as well as the pull request."
+  );
+  lines.push(
+    "`not found` is a reading of the README only: several lists keep entries in data files, so it is not proof of absence. "
+    + "Repository code search was tried as a second carrier on 2026-09-25 and rejected - its index is partial and the same repo flipped between `found` and `not found` across consecutive runs."
+  );
   const carry = needsRecarry(rows);
   lines.push("");
   lines.push("### Doors needing action");
