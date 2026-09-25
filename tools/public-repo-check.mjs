@@ -812,7 +812,7 @@ for (const [marker, code] of requiredPromptLabMarkers) {
 }
 for (const [marker, code] of [
   ["Hardened Public Preview", "public_home_maturity_boundary_missing"],
-  ["<strong>12</strong><span>governed MCP tools</span>", "public_home_tool_count_stale"],
+  ["<strong>15</strong><span>governed MCP tools</span>", "public_home_tool_count_stale"],
 ]) {
   if (!projectSite.includes(marker)) addError(code, "docs/index.html");
 }
@@ -851,7 +851,7 @@ const requiredChineseSiteMarkers = [
   ['"inLanguage": "zh-CN"', "chinese_home_structured_language_missing"],
   ["docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:", "chinese_home_demo_missing"],
   ["加固后的 Public Preview", "chinese_home_maturity_boundary_missing"],
-  ["<strong>12</strong><span>可治理的 MCP 工具</span>", "chinese_home_tool_count_stale"],
+  ["<strong>15</strong><span>可治理的 MCP 工具</span>", "chinese_home_tool_count_stale"],
   ["生产就绪、L5 自主和 AGI", "chinese_home_evidence_boundary_missing"],
 ];
 
