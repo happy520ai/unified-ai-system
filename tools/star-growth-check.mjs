@@ -40,6 +40,17 @@ const externalPrs = [
   ["agentskillexchange/skills", 34],
   ["toolsdk-ai/toolsdk-mcp-registry", 434],
   ["cuihuan/awesome-ai-gateway", 48],
+  // Currently open doors, added 2026-09-25. The entries above are kept on purpose:
+  // the report labels each by state, so merged/closed rows stay as funnel history.
+  ["punkpeye/awesome-mcp-servers", 12218],
+  ["e2b-dev/awesome-ai-agents", 1401],
+  ["Hannibal046/Awesome-LLM", 786],
+  ["mikeroyal/Self-Hosting-Guide", 385],
+  ["up-for-grabs/up-for-grabs.net", 6176],
+  ["toolsdk-ai/toolsdk-mcp-registry", 552],
+  ["slavakurilyak/awesome-ai-agents", 583],
+  ["caramaschiHG/awesome-ai-agents-2026", 612],
+  ["ottosulin/awesome-ai-security", 482],
 ];
 
 const mergeStateMap = {
