@@ -1,6 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { countHandAccepted, countListingKinds, isListedInReadme, needsRecarry } from './star-growth-check.mjs';
+import {
+  countHandAccepted,
+  countListingKinds,
+  isListedInReadme,
+  needsRecarry,
+  publishedToolCount,
+  staleToolCounts,
+} from './star-growth-check.mjs';
 
 // An open door on a fast-moving list can silently become unmergeable, which is why
 // needsRecarry exists. These cases pin both directions: it must name the doors a
@@ -94,4 +101,35 @@ test('a closed door whose list still shows us counts as accepted by hand', () =>
   );
   assert.equal(countHandAccepted([]), 0);
   assert.equal(countHandAccepted(undefined), 0);
+});
+
+// The roster is the only authority for these counts, so the parser has to be pinned
+// on both directions: a real shape it must read, and a missing marker it must refuse
+// rather than report as zero.
+test('publishedToolCount counts the roster and refuses to guess', () => {
+  const source = `export const MCP_TOOL_NAMES = Object.freeze([
+  "gateway_health",
+  "workflow_run",
+]);`;
+  assert.equal(publishedToolCount(source), 2);
+  assert.equal(publishedToolCount('export const SOMETHING_ELSE = [];'), null);
+});
+
+// Two live listings still advertised "nine governed MCP tools" on 2026-09-25 while the
+// roster had fifteen. This fixture is one of those rows verbatim, so the matcher is
+// proven against the real shape rather than a convenient one.
+test('staleToolCounts reads the row shape that actually shipped', () => {
+  const row = '- [Unified AI System](https://github.com/happy520ai/unified-ai-system) - Apache-2.0 local-first Node.js gateway and MCP server for Codex/Cursor/Cline: explicit provider/model selection, streaming chat, nine governed MCP tools and prompt enhancement.';
+  const found = staleToolCounts(row, 15);
+  assert.equal(found.length, 1);
+  assert.deepEqual(found[0], { reported: 9, expected: 15, phrase: 'nine governed MCP tools' });
+  assert.equal(staleToolCounts('ships 12 tools today', 15)[0].reported, 12);
+});
+
+test('staleToolCounts stays silent on correct counts and on rows that make no claim', () => {
+  assert.deepEqual(staleToolCounts('fifteen governed MCP tools and a credential-free path', 15), []);
+  assert.deepEqual(staleToolCounts('15 tools, 4 release gates', 15), []);
+  assert.deepEqual(staleToolCounts('Apache-2.0 local-first Node.js gateway and MCP server', 15), []);
+  assert.deepEqual(staleToolCounts('anything at all', 0), []);
+  assert.deepEqual(staleToolCounts(null, 15), []);
 });

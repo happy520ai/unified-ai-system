@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { execSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
-import { pathToFileURL } from "node:url";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { gatewayImage } from "./release-metadata.mjs";
 
 const repo = "happy520ai/unified-ai-system";
@@ -266,6 +266,59 @@ export function isListedInReadme(content) {
   return LISTING_PATTERN.test(content) ? "listed" : "absent";
 }
 
+// The roster count is what an upstream row should agree with. Derived here rather
+// than written down, because a number someone typed is exactly how "nine governed
+// MCP tools" survived two listing rounds.
+const ROSTER_SOURCE = "packages/mcp-server/src/server.js";
+const ROSTER_MARKER = "MCP_TOOL_NAMES = Object.freeze([";
+
+export function publishedToolCount(source) {
+  const start = source.indexOf(ROSTER_MARKER);
+  if (start < 0) return null;
+  const open = source.indexOf("[", start);
+  let depth = 0;
+  for (let i = open; i >= 0 && i < source.length; i += 1) {
+    if (source[i] === "[") depth += 1;
+    else if (source[i] === "]") {
+      depth -= 1;
+      if (depth === 0) {
+        return [...source.slice(open + 1, i).matchAll(/"([a-z0-9_]+)"/g)].length;
+      }
+    }
+  }
+  return null;
+}
+
+const COUNT_WORDS = {
+  zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+  eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17,
+  eighteen: 18, nineteen: 19, twenty: 20,
+};
+
+// Finds every "N tools" / "N governed MCP tools" claim in a row and returns the ones
+// that disagree with the roster. A row with no count claim returns [] - most do not.
+export function staleToolCounts(text, current) {
+  if (typeof text !== "string" || typeof current !== "number" || current < 1) return [];
+  const found = [];
+  for (const match of text.matchAll(/\b(\d{1,3}|[a-z]+)\s+(?:governed\s+)?(?:MCP\s+)?tools?\b/gi)) {
+    const token = match[1];
+    const value = /^\d+$/.test(token) ? Number(token) : COUNT_WORDS[token.toLowerCase()];
+    if (typeof value === "number" && value !== current) {
+      found.push({ reported: value, expected: current, phrase: match[0] });
+    }
+  }
+  return found;
+}
+
+function readRosterCount() {
+  try {
+    const sourcePath = resolve(dirname(fileURLToPath(import.meta.url)), "..", ROSTER_SOURCE);
+    return publishedToolCount(readFileSync(sourcePath, "utf8"));
+  } catch (_error) {
+    return null;
+  }
+}
+
 // One classification per repository per run. Several lists appear twice in the door
 // table (two PRs into the same list), and two independent probes of the same README
 // can disagree, which produced a report where one row of a repo said "data file"
@@ -281,9 +334,16 @@ function probeListing(repoName) {
   const readmeState = readmeResult.ok
     ? isListedInReadme(readmeResult.data)
     : "unreadable";
+  const rows = readmeResult.ok
+    ? String(readmeResult.data)
+      .split(/\r?\n/)
+      .filter((line) => /unified-ai-system|Unified AI System/i.test(line))
+      .join(" | ")
+    : "";
   const result = {
     inReadme: readmeState,
     listing: readmeState === "listed" ? "readme" : readmeState,
+    rowText: rows,
   };
   listingProbeCache.set(repoName, result);
   return result;
@@ -323,6 +383,7 @@ async function getExternalPrRows() {
       comments: pullResult.data.comments ?? 0,
       inReadme: listing.inReadme,
       listing: listing.listing,
+      rowText: listing.rowText,
     });
   }
   return rows;
@@ -546,6 +607,25 @@ function generateCheckReport(repoStats, rows, date, previousStats = null, claimS
     "`not found` is a reading of the README only: several lists keep entries in data files, so it is not proof of absence. "
     + "Repository code search was tried as a second carrier on 2026-09-25 and rejected - its index is partial and the same repo flipped between `found` and `not found` across consecutive runs."
   );
+  const rosterCount = readRosterCount();
+  const staleRows = [];
+  for (const row of rows ?? []) {
+    if (row?.listing !== "readme") continue;
+    for (const claim of staleToolCounts(row.rowText ?? "", rosterCount ?? 0)) {
+      staleRows.push(`${row.repo}#${row.pr} says "${claim.phrase}" while the roster has ${claim.expected}`);
+    }
+  }
+  lines.push("");
+  lines.push("### Upstream rows that state a tool count");
+  if (rosterCount === null) {
+    lines.push(`Not evaluated: the roster could not be read from ${ROSTER_SOURCE}.`);
+  } else if (staleRows.length === 0) {
+    lines.push(`None: every row that lists us either makes no count claim or agrees with the roster (${rosterCount}).`);
+  } else {
+    for (const item of staleRows) {
+      lines.push(`- STALE ${item}`);
+    }
+  }
   const carry = needsRecarry(rows);
   lines.push("");
   lines.push("### Doors needing action");
