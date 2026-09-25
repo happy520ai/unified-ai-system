@@ -34,6 +34,7 @@ const externalPrs = [
   ["yzfly/Awesome-MCP-ZH", 442],
   ["punkpeye/awesome-mcp-servers", 11745],
   ["hashgraph-online/awesome-codex-plugins", 446],
+  ["TensorBlock/awesome-mcp-servers", 2707],
   ["mahseema/awesome-ai-tools", 1941],
   ["docker/mcp-registry", 4584],
   ["up-for-grabs/up-for-grabs.net", 5995],
