@@ -239,6 +239,20 @@
       "migrationPlan": "Retire together with the pr-111 node-esm compatibility set during the scheduled apps/packages test migration; convert the entrypoint alongside its sibling entrypoints, not in isolation.",
       "issueId": "T-074",
       "notes": "Test and tooling assets only; no product runtime module is added in JavaScript."
+    },
+    {
+      "type": "fileSet",
+      "value": "t094-role-executor-map-js",
+      "files": [
+        "apps/ai-gateway-service/src/workforce/roleExecutorMap.js"
+      ],
+      "rationale": "roleExecutorMap.js extracts EXECUTOR_MAP from roleExecutors.js (T-094/g6 runtime cut); colocated with its JS sibling modules roleExecutors.js and roleExecutorsLlm.js per the module policy tools/*.mjs-style exemption for JS aggregrators, tracked in the T-094 PR language section.",
+      "justification": "T-094/g6 extracts EXECUTOR_MAP from roleExecutors.js into a colocated registry module so roleExecutorsLlm.js can resolve role executors without importing the orchestrator back, cutting the last file cycle. roleExecutors.js, roleExecutorsLlm.js and the four executor modules are JS; the registry follows its siblings.",
+      "owner": "happy520ai",
+      "removalBy": "2026-11-25",
+      "migrationPlan": "Before the v0.8.0 milestone, happy520ai will convert roleExecutorMap.js together with roleExecutors.js and roleExecutorsLlm.js to TypeScript in dependency order, as part of the workforce module TS migration.",
+      "pr": "T-094 (M2 maintenance-shrink; single commit, local-only)",
+      "notes": "Registry holds role-id to local-executor bindings only; no LLM logic."
     }
   ]
 }
