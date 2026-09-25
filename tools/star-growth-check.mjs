@@ -33,7 +33,7 @@ const externalPrs = [
   ["WagnerAgent/awesome-mcp-servers-devops", 65],
   ["yzfly/Awesome-MCP-ZH", 442],
   ["punkpeye/awesome-mcp-servers", 11745],
-  ["hashgraph-online/awesome-codex-plugins", 355],
+  ["hashgraph-online/awesome-codex-plugins", 446],
   ["mahseema/awesome-ai-tools", 1941],
   ["docker/mcp-registry", 4584],
   ["up-for-grabs/up-for-grabs.net", 5995],
