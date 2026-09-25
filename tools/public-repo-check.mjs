@@ -571,18 +571,28 @@ if (publishedToolCount < 1) {
   addError("mcp_tool_roster_empty", rosterSourcePath, String(publishedToolCount));
 }
 
+// The security drill's case count belongs to the regression script, not to the
+// copy that advertises it. Deriving it here is what keeps "N attack cases
+// defended" from outliving the N cases that exist.
+const attackRegressionPath = "tools/security-attack-regression.mjs";
+const attackRegression = readFileSync(resolve(repoRoot, attackRegressionPath), "utf8");
+const attackCaseCount = [...attackRegression.matchAll(/^\s*attack\(/gm)].length;
+if (attackCaseCount < 1) {
+  addError("attack_case_roster_unlocatable", attackRegressionPath, String(attackCaseCount));
+}
+
 const marketingAssetContracts = [
   [
     "docs/assets/readme-hero.html",
     [
       "first path needs <strong>zero credentials</strong>",
       `<b>${publishedToolCount}</b> governed MCP tools`,
-      "<b>23</b> attack cases defended",
+      `<b>${attackCaseCount}</b> attack cases defended`,
     ],
   ],
   [
     "docs/assets/readme-capabilities.html",
-    ["One governed AI gateway stack", "23-attack live drill", "evidence, not certification"],
+    ["One governed AI gateway stack", `${attackCaseCount}-attack live drill`, "evidence, not certification"],
   ],
   [
     "docs/assets/readme-architecture.html",
@@ -605,12 +615,15 @@ const forbiddenMarketingClaims = [
 // The counts the rendered images advertise are checked against the derived roster
 // instead of against pinned digits, so any wrong number trips this arm rather
 // than only the one number someone happened to write down.
-const marketingToolCountClaims = [
-  ["<b>N</b> governed MCP tools", /<b>(\d+)<\/b> governed MCP tools/g],
-  ["<strong>N</strong> governed tools", /<strong>(\d+)<\/strong> governed tools/g],
-  [">N governed MCP tools", />(\d+) governed MCP tools/g],
-  [">N ready<", />(\d+) ready</g],
+const marketingNumericClaims = [
+  ["<b>N</b> governed MCP tools", /<b>(\d+)<\/b> governed MCP tools/g, () => publishedToolCount],
+  ["<strong>N</strong> governed tools", /<strong>(\d+)<\/strong> governed tools/g, () => publishedToolCount],
+  [">N governed MCP tools", />(\d+) governed MCP tools/g, () => publishedToolCount],
+  [">N ready<", />(\d+) ready</g, () => publishedToolCount],
+  ["<b>N</b> attack cases defended", /<b>(\d+)<\/b> attack cases defended/g, () => attackCaseCount],
+  ["N-attack live drill", /(\d+)-attack live drill/g, () => attackCaseCount],
 ];
+const numericDrift = [];
 for (const [path, markers] of marketingAssetContracts) {
   const content = readFileSync(resolve(repoRoot, path), "utf8");
   for (const marker of markers) {
@@ -623,13 +636,37 @@ for (const [path, markers] of marketingAssetContracts) {
       addError("marketing_asset_overclaim", path, claim);
     }
   }
-  for (const [label, pattern] of marketingToolCountClaims) {
+  for (const [label, pattern, expected] of marketingNumericClaims) {
     for (const match of content.matchAll(pattern)) {
-      if (Number(match[1]) !== publishedToolCount) {
-        addError("marketing_asset_tool_count_stale", path, `${label} reported ${match[1]}`);
+      if (Number(match[1]) !== expected()) {
+        numericDrift.push(`${path}: ${label} says ${match[1]}, code says ${expected()}`);
       }
     }
   }
+}
+// Reported as one issue on purpose: the gate dedupes by code+severity, so a
+// per-file error would name only the first stale surface and leave the rest to be
+// discovered one run at a time.
+if (numericDrift.length > 0) {
+  addError("marketing_asset_count_stale", "docs/assets", numericDrift.join(" | "));
+}
+
+// The two READMEs open with the same count, and a reader who only skims the front
+// page is the majority.
+const readmeDrift = [];
+for (const [path, markers] of [
+  ["README.md", [`${attackCaseCount}-attack live security regression`]],
+  ["README.zh-CN.md", [`${attackCaseCount} 项攻击回归`]],
+]) {
+  const content = readFileSync(resolve(repoRoot, path), "utf8");
+  for (const marker of markers) {
+    if (!content.includes(marker)) {
+      readmeDrift.push(`${path} is missing "${marker}"`);
+    }
+  }
+}
+if (readmeDrift.length > 0) {
+  addError("readme_attack_case_count_stale", "README.md", readmeDrift.join(" | "));
 }
 
 // The PNGs are committed render artifacts, so editing an HTML source silently
