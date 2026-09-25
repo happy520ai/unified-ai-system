@@ -2,6 +2,7 @@
 import { execSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { pathToFileURL } from "node:url";
 import { gatewayImage } from "./release-metadata.mjs";
 
 const repo = "happy520ai/unified-ai-system";
@@ -323,6 +324,25 @@ function renderRepoSection(repoStats, date, prefix, previousStats = null) {
   return lines;
 }
 
+// A door whose branch fell behind a fast-moving list stops being mergeable, and a
+// maintainer skips it rather than resolving the conflict. Only OPEN doors need action:
+// a closed DIRTY row is a dead door, and BLOCKED/UNSTABLE mean "a human is still needed",
+// which is not something a re-carry fixes.
+export function needsRecarry(rows) {
+  const actionable = new Set(["DIRTY", "BEHIND"]);
+  const unreadable = new Set(["FETCH_FAILED"]);
+  const out = [];
+  for (const row of rows ?? []) {
+    if (row?.state !== "open") continue;
+    if (actionable.has(row.mergeState)) {
+      out.push({ kind: "RE-CARRY", repo: row.repo, pr: row.pr, mergeState: row.mergeState });
+    } else if (unreadable.has(row.mergeState)) {
+      out.push({ kind: "UNREADABLE", repo: row.repo, pr: row.pr, mergeState: row.mergeState });
+    }
+  }
+  return out;
+}
+
 function renderPrRowsTable(rows) {
   const lines = [];
   lines.push("| Repository | PR | Listing | State | Merge State | Updated | Comments |");
@@ -434,6 +454,19 @@ function generateCheckReport(repoStats, rows, date, previousStats = null, claimS
   lines.push(...renderRepoSection(repoStats, date, "-", previousStats));
   lines.push("## External PR Funnel");
   lines.push(...renderPrRowsTable(rows));
+  const carry = needsRecarry(rows);
+  lines.push("");
+  lines.push("### Doors needing action");
+  if (carry.length === 0) {
+    lines.push("None: every open door is mergeable or waiting on a human review, which a re-carry does not change.");
+  } else {
+    for (const item of carry) {
+      const guidance = item.kind === "RE-CARRY"
+        ? "reset the branch onto upstream main, replay the single entry commit, push with --force-with-lease, then confirm the PR reports 0 removed lines."
+        : "the door could not be read; re-run before concluding anything about it.";
+      lines.push(`- ${item.kind} ${item.repo}#${item.pr} (${item.mergeState}) - ${guidance}`);
+    }
+  }
   lines.push("");
   lines.push("## Public Claim Sweep");
   lines.push("");
@@ -674,7 +707,10 @@ async function run() {
   console.log(generateDailyReport(repoStats, rows, date, previous));
 }
 
-run().catch((error) => {
-  console.error(error.message || String(error));
-  process.exit(1);
-});
+// Only run as a CLI; importing needsRecarry for calibration must not fire the report.
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+  run().catch((error) => {
+    console.error(error.message || String(error));
+    process.exit(1);
+  });
+}
