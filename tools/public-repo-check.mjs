@@ -996,7 +996,7 @@ const requiredCodexGuideMarkers = [
   ['property="og:type" content="article"', "codex_docker_open_graph_type_missing"],
   ['"@type": "HowTo"', "codex_docker_structured_data_missing"],
   ["codex mcp add unified-ai-system -- docker run --rm -i", "codex_docker_add_command_missing"],
-  ["12 tools", "codex_docker_tool_count_stale"],
+  [`${publishedToolCount} tools`, "codex_docker_tool_count_stale"],
   ["codex mcp remove unified-ai-system", "codex_docker_remove_command_missing"],
   ["Not claimed", "codex_docker_evidence_boundary_missing"],
 ];
@@ -1024,7 +1024,7 @@ const requiredChineseCodexGuideMarkers = [
   ['"@type": "HowTo"', "chinese_codex_docker_structured_data_missing"],
   ['"inLanguage": "zh-CN"', "chinese_codex_docker_structured_language_missing"],
   ["codex mcp add unified-ai-system -- docker run --rm -i", "chinese_codex_docker_add_command_missing"],
-  ["12 个工具", "chinese_codex_docker_tool_count_stale"],
+  [`${publishedToolCount} 个工具`, "chinese_codex_docker_tool_count_stale"],
   ["codex mcp remove unified-ai-system", "chinese_codex_docker_remove_command_missing"],
   ["生产就绪、L5 自主或 AGI", "chinese_codex_docker_evidence_boundary_missing"],
 ];

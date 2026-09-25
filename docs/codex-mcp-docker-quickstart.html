@@ -6,7 +6,7 @@
     <title>Run an MCP server in Codex with Docker | 60-second guide</title>
     <meta
       name="description"
-      content="Connect Codex to a self-hosted MCP server with one Docker command, verify twelve tools, enhance a prompt locally, and make a credential-free test call."
+      content="Connect Codex to a self-hosted MCP server with one Docker command, verify fifteen tools, enhance a prompt locally, and make a credential-free test call."
     />
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <meta name="theme-color" content="#081011" />
@@ -39,7 +39,7 @@
     <meta property="og:title" content="Run an MCP server in Codex with Docker" />
     <meta
       property="og:description"
-      content="a credential-free, 60-second path from Codex to a pinned 12-tool MCP server."
+      content="a credential-free, 60-second path from Codex to a pinned 15-tool MCP server."
     />
     <meta
       property="og:url"
@@ -58,7 +58,7 @@
     <meta property="og:image:height" content="640" />
     <meta property="og:image:alt" content="Unified AI System MCP gateway and prompt enhancement preview" />
     <meta property="article:published_time" content="2026-08-02T00:00:00+00:00" />
-    <meta property="article:modified_time" content="2026-08-10T00:00:00+00:00" />
+    <meta property="article:modified_time" content="2026-09-25T00:00:00+00:00" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Run an MCP server in Codex with Docker" />
     <meta
@@ -77,10 +77,10 @@
         "@context": "https://schema.org",
         "@type": "HowTo",
         "name": "Run an MCP server in Codex with Docker",
-        "description": "Connect Codex to a pinned, credential-free MCP server and verify its 12 tools.",
+        "description": "Connect Codex to a pinned, credential-free MCP server and verify its 15 tools.",
         "totalTime": "PT1M",
         "datePublished": "2026-08-02",
-        "dateModified": "2026-08-10",
+        "dateModified": "2026-09-25",
         "image": "https://happy520ai.github.io/unified-ai-system/assets/social-preview.png",
         "tool": [
           {
@@ -147,13 +147,13 @@
           <p class="eyebrow">60-SECOND GUIDE / AUGUST 2026</p>
           <h1>Run an MCP server in Codex with Docker</h1>
           <p class="article-hero-copy">
-            Register one pinned container, inspect 12 tools, and make a
+            Register one pinned container, inspect 15 tools, and make a
             credential-free test call without cloning a repository or adding
             a provider API key.
           </p>
           <div class="article-meta" aria-label="Guide details">
             <span>1 minute setup</span>
-            <span>12 MCP tools</span>
+            <span>15 MCP tools</span>
             <span>Fake provider by default</span>
           </div>
         </div>
@@ -173,7 +173,7 @@
           <span>Contents</span>
           <a href="#prerequisites">Prerequisites</a>
           <a href="#add">1. Add the server</a>
-          <a href="#verify">2. Verify 12 tools</a>
+          <a href="#verify">2. Verify 15 tools</a>
           <a href="#first-call">3. Make a safe call</a>
           <a href="#boundary">What this proves</a>
           <a href="#troubleshooting">Troubleshoot and remove</a>
@@ -223,12 +223,13 @@
             <p>
               Open a fresh Codex session after registering the server, then run
               <code>/mcp verbose</code> in the terminal UI. The connection should
-              report these 12 tools:
+              report these 15 tools:
             </p>
             <div class="article-boundary-list">
-              <div><strong>Gateway</strong><span><code>gateway_health</code>, <code>gateway_readiness</code>, <code>gateway_prompt_enhance</code>, <code>gateway_chat</code></span></div>
-              <div><strong>Knowledge</strong><span><code>knowledge_readiness</code></span></div>
-              <div><strong>Workflows</strong><span><code>workflow_health</code>, <code>workflow_actions</code></span></div>
+              <div><strong>Gateway</strong><span><code>gateway_health</code>, <code>gateway_readiness</code>, <code>gateway_prompt_enhance</code>, <code>gateway_prompt_enhance_llm</code>, <code>gateway_chat</code></span></div>
+              <div><strong>Agent governance</strong><span><code>agent_governance_status</code>, <code>agent_governance_list</code>, <code>agent_governance_describe</code></span></div>
+              <div><strong>Knowledge</strong><span><code>knowledge_readiness</code>, <code>knowledge_retrieve</code></span></div>
+              <div><strong>Workflows</strong><span><code>workflow_health</code>, <code>workflow_actions</code>, <code>workflow_run</code></span></div>
               <div><strong>Workforce</strong><span><code>workforce_health</code>, <code>workforce_agents</code></span></div>
             </div>
             <p class="article-note">
@@ -275,11 +276,11 @@
               A successful run proves that Codex loaded the stdio server, the
               managed gateway passed its health boundary, and the published
               fake-provider path returned a response. It also exposes read-only
-              provider-free prompt enhancement plus knowledge, workflow, and
+              provider-free prompt enhancement plus agent governance, knowledge,
               workforce inspection surfaces.
             </p>
             <div class="article-boundary-list">
-              <div><strong>Proved</strong><span>Published image, MCP connection, 12 tools, local prompt enhancement, fake-provider request</span></div>
+              <div><strong>Proved</strong><span>Published image, MCP connection, 15 tools, local prompt enhancement, fake-provider request</span></div>
               <div><strong>Not authorized</strong><span>Paid providers, workflow execution, agent dispatch, data mutation</span></div>
               <div><strong>Not claimed</strong><span>Production readiness, L5 autonomy, or AGI</span></div>
             </div>
