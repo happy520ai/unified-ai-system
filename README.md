@@ -43,6 +43,40 @@ Unified AI System turns a rough request into a structured, reviewable prompt bef
 > reproducible and CI-gated; production deployment still requires your own
 > provider staging, HA/DR drills, security review, and operating evidence.
 
+## Try It in 60 Seconds
+
+<p align="center">
+  <img
+    src="docs/assets/readme-terminal.png"
+    alt="Terminal proof: one docker run command prints the enhanced prompt with providerCalled=false evidence and exits clean"
+    width="100%"
+  />
+</p>
+
+Verify the project without signing in:
+
+```bash
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.7.0 pnpm gateway demo
+```
+
+Expected behavior:
+
+- local fake-provider execution
+- visible `execution: fake`
+- deterministic output
+- no API key or account needed
+- container exits automatically
+
+One-command natural-language enhancement preview:
+
+```bash
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.7.0 \
+  pnpm gateway demo "Build a small API for my team" --enhance --profile coding --evidence
+```
+
+This starts an isolated fake-provider gateway, enhances the request locally,
+prints the structured prompt, and cleans up without an API key.
+
 ## Try Before Installing
 
 <p align="center">
@@ -100,10 +134,8 @@ Useful in a real workflow? [Star the repository](https://github.com/happy520ai/u
 | Integrate with an application | [Prompt enhancement guide](https://happy520ai.github.io/unified-ai-system/prompt-enhancement.html) | CLI, HTTP, SDK, curl, Python, and JavaScript paths. |
 | Keep an existing OpenAI client | [OpenAI-compatible API](docs/openai-compatible-api.md) | Point `baseURL` at `/v1` for Chat Completions, function tools, Responses, streaming, and model discovery. |
 | Connect another agent | [A2A v1.0 gateway](docs/a2a-protocol.md) | Verify an optionally signed Agent Card/JWKS and run tenant-scoped tasks with bounded memory, same-host SQLite, or cross-host PostgreSQL state plus fenced execution leases. |
-| Check client runtime certification | [Client runtime certification](docs/client-runtime-certification.md) | Current evidence-backed catalog state: 52 verified, 2,084 pending manual evidence, and 0 failed across 2,136 unique entries. |
-| Run mainstream certification one-by-one | [Client runtime certification](docs/client-runtime-certification.md) | Run `node tools/verify-client-runtimes-serial.mjs --client tag:mainstream` for sequential reports and explicit manual evidence states. |
-| Run global protocol coverage | [Client runtime certification](docs/client-runtime-certification.md) | Run `node tools/run-global-client-discovery.mjs --source-manifest docs/client-runtime-catalog-sources-worldwide.json --execute --serial --max 0`. |
-| Run strict global certification | [Client runtime certification](docs/client-runtime-certification.md) | Add `--require-manual-evidence --manual-evidence docs/client-runtime-evidence.example.json` to fail on missing manual proof. |
+| Check client runtime certification | [Client runtime certification](docs/client-runtime-certification.md) | Evidence-backed catalog state: 52 verified, 2,084 pending manual evidence, and 0 failed across 2,136 unique entries. |
+| Run the certification suites yourself | [Client runtime certification](docs/client-runtime-certification.md) | `node tools/verify-client-runtimes-serial.mjs --client tag:mainstream` for sequential reports, `node tools/run-global-client-discovery.mjs --source-manifest docs/client-runtime-catalog-sources-worldwide.json --execute --serial --max 0` for global coverage, and add `--require-manual-evidence --manual-evidence docs/client-runtime-evidence.example.json` to fail on missing manual proof. |
 | Inspect the enhancement contract | [Credential-free evaluation](docs/prompt-enhancement.md#prompt-enhancement-evaluation) | Eight representative cases for profiles, languages, signals, determinism, and zero provider calls. |
 | Diagnose a first-run problem | [Troubleshooting matrix](docs/first-run-troubleshooting.md) | Shell-specific checks without exposing credentials. |
 | Verify an MCP client | [MCP client report](https://github.com/happy520ai/unified-ai-system/issues/new?template=mcp-client-report.yml) | Record one Codex, Cursor, Cline, or generic stdio run with a small evidence set. |
@@ -130,16 +162,16 @@ fake-provider-first, so you can try every feature with zero credentials:
 | Operations overview API (terminal-first) | `GET /api/overview` returns a compact JSON snapshot (provider mode, health, readiness, request stats, circuit state) behind `dashboard:read` — a lightweight companion to `/metrics` for CLI and dashboard tooling. The gateway serves no browser page; the public-clone gate keeps it terminal-first. | [Observability](docs/observability-export.md) |
 | Guardrails — deterministic & local | Input/output scans: pasted secrets block, PII redacts, injection phrasings warn, banned terms and size limits enforce — no cloud tier, no extra credentials, <0.2 ms measured overhead, runtime-configurable per rule. | [Guardrails](docs/guardrails.md) |
 | Reverse MCP governance | Aggregate upstream MCP servers (Streamable HTTP and stdio) behind one authenticated, audited, allow-listed surface — plus **REST→MCP**: any OpenAPI 3 spec becomes governed MCP tools. | [Reverse MCP governance](docs/reverse-mcp-governance.md) |
-| Agent governance control plane | Explicit opt-in for server-bound `/agent-exec`, reverse-MCP, controlled `/workforce/execute`, and per-action `/forge/orchestrate`, with deterministic policies, signed state, reviewable top-level approvals, dual fences, rollback detection and cascade revocation. Forge action decisions are currently allow/deny-only; Workforce `run-local`/A2A and standalone Forge remain explicit boundaries. | [Agent governance](docs/agent-governance.md) |
+| Agent governance control plane | Explicit opt-in for server-bound `/agent-exec`, reverse-MCP, controlled `/workforce/execute`, and per-action `/forge/orchestrate`, with deterministic policies, signed state, reviewable top-level approvals, dual fences, rollback detection and cascade revocation. Per-action Forge approvals are not yet implemented and fail closed before any effect; Workforce `run-local`/A2A and standalone Forge remain explicit boundaries. | [Agent governance](docs/agent-governance.md) |
 | Observability | Chat-specific Prometheus metrics on `/metrics` — tokens per model, cache hit rates, TTFT histograms, virtual-key rejections, guardrail findings — plus an opt-in Langfuse export and a per-key spend report API/CLI. | [Observability](docs/observability-export.md) |
 | Vector retrieval | A credential-free deterministic embedding provider and the SQLite vector store activate `mode: "vector"` RAG with strict tenant isolation. | [Providers & knowledge](docs/providers.md) |
 | Provider governance | A three-gate whitelist matrix for real providers; memory-only runtime credentials by default, with opt-in AES-256-GCM encrypted file/SQLite persistence and a separately protected master key; hashed virtual keys and user tokens; request cost guards, circuit breakers, and fallback chains. | [Provider enablement](docs/real-provider-enablement.md) |
-| Local-client intelligence gateway | Tenant-scoped inventory; server-bound per-client PoP with optional durable single-host replay protection; policy-pinned fake-provider dispatch for OpenAI, Anthropic, Gemini, and native chat; dry-run autonomous management; governed execution with durable dispatch/receipt reconciliation, a receipt-feedback outbox, and exactly-once aggregate learning; irreversible revocation; and transactional MCP onboarding for Claude-compatible, Cursor, and VS Code JSON profiles. Credential-free fixture flows are proven; real-client atomic-receipt certification, real-provider certification, distributed state, external rollback anchors, and a deployed protected Windows authority remain release gates. | [Design and evidence boundary](docs/local-client-intelligence-gateway.md) |
+| Local-client intelligence gateway | Tenant-scoped inventory, server-bound per-client PoP, policy-pinned fake-provider dispatch, dry-run autonomous management, governed execution with receipt reconciliation and exactly-once aggregate learning, irreversible revocation, and transactional MCP onboarding. Credential-free fixture flows are proven; the open release gates are enumerated in the design doc. | [Design and evidence boundary](docs/local-client-intelligence-gateway.md) |
 | Enterprise governance + security drills | JWT auth, RBAC, tenant isolation with audit hash chains — verified by a repeatable 23-attack live security regression. | [Security drill](tools/security-attack-regression.mjs) |
 | Enterprise identity & provisioning | **OIDC SSO** (authorization code + PKCE + JWKS signature verification, issues an API token on login) and **SCIM 2.0** user provisioning (bearer-auth create/get/list/patch/deactivate). | [Security drill](tools/security-attack-regression.mjs) · [Enterprise SSO & SCIM](docs/enterprise-sso.md) |
 | Operator traffic control | Configurable **weighted routing splits** and **shadow traffic** (`AI_GATEWAY_WEIGHTED_ROUTES_JSON`): shadow calls are separately accounted; real-provider shadowing also requires `AI_GATEWAY_SHADOW_REAL_PROVIDER_ENABLED=true`. | [Multi-process deployment](docs/multi-process-deployment.md) |
-| Hot-path RAG + billing evidence | Opt-in `unified_ai.rag` knowledge injection on `/v1/chat/completions`; central usage evidence and an admin-only exact-attempt USD statement comparison. Local statement previews remain explicitly non-legal and no payment gateway is connected. | [Spend reporting](docs/spend-reporting.md) |
-| Multi-instance controls | `AI_GATEWAY_MULTI_INSTANCE=true` keeps same-host SQLite defaults. Explicit PostgreSQL modes cover cross-host quotas, response idempotency, dispatch tombstones, WebSocket/A2A/Workforce leases and terminal fences, approvals, billable usage, and a shared HMAC audit chain. Current source also gates governed irreversible built-ins, webhooks, MCP/OpenAPI mutations, and custom tools with durable effect tombstones. A destructive CI drill restores PostgreSQL 17, builds a real asynchronous streaming standby, proves WAL replay, then uses a bounded three-failure-plus-confirmation controller to promote the one known standby and switch a stable endpoint. Before destruction, a real Docker-bridge partition separates the probe/standby from a still-writable primary; an independent fence must block promotion, then bridge healing must restore health and replay the partition marker. After failover, the fenced old-primary volume is `pg_rewind -R` synchronized and first starts only as a standby; it must keep streaming after the promoted primary restarts. A separate manifested physical base backup and continuous WAL archive are also restored archive-only to an exact LSN where an included marker exists and a later marker does not. The same eight clients recover after switch/restart. This is bounded LSN-PITR, single-bridge fencing, old-primary safe rejoin, single-standby automatic-failover, and at-most-once admission evidence, not provider-side exactly-once, multi-candidate election/quorum, external HA control, long-duration/off-host archive custody, time-based PITR, arbitrary multi-host partition/rejoin control, complete split-brain safety, or production RTO/RPO; resumable call-stack recovery, complete HA/DR, external WORM, and authenticated provider statements remain deployment work. | [Multi-process deployment](docs/multi-process-deployment.md) · [PostgreSQL recovery drill](docs/postgresql-recovery-drill.md) · [External-effect fencing](docs/external-effect-fencing.md) |
+| Hot-path RAG + billing evidence | Opt-in `unified_ai.rag` knowledge injection on `/v1/chat/completions`; central usage evidence and an admin-only exact-attempt USD statement comparison. Local statement previews remain explicitly non-legal and no payment gateway is connected. | [Spend reporting](docs/spend-reporting.md) · [RAG injection](docs/openai-compatible-api.md) |
+| Multi-instance controls | `AI_GATEWAY_MULTI_INSTANCE=true` keeps same-host SQLite defaults; explicit PostgreSQL modes cover cross-host quotas, response idempotency, dispatch tombstones, WebSocket/A2A/Workforce leases and terminal fences, approvals, billable usage, and a shared HMAC audit chain. A destructive CI drill proves bounded LSN-PITR, single-bridge fencing, old-primary safe rejoin, single-standby automatic failover, and at-most-once admission, and that drill carries its own not-proven list naming what stays deployment work. | [Multi-process deployment](docs/multi-process-deployment.md) · [PostgreSQL recovery drill](docs/postgresql-recovery-drill.md) · [External-effect fencing](docs/external-effect-fencing.md) |
 
 Published infrastructure benchmark (fake provider, single node): chat JSON p50 **15.6 ms**, SSE TTFT p50 **2.8 ms**, **402 req/s** at concurrency 8, cache hits **5.6× faster** than misses — see the [gateway benchmark](docs/benchmarks/2026-08-gateway-benchmark.md).
 
@@ -154,39 +186,7 @@ Published infrastructure benchmark (fake provider, single node): chat JSON p50 *
   Claude-compatible, Cursor, and VS Code profiles. Other MCP, A2A, or HTTP clients
   require an explicit adapter/principal binding and reproducible certification report.
 
-## Try It in 60 Seconds
-
-<p align="center">
-  <img
-    src="docs/assets/readme-terminal.png"
-    alt="Terminal proof: one docker run command prints the enhanced prompt with providerCalled=false evidence and exits clean"
-    width="100%"
-  />
-</p>
-
-Verify the project without signing in:
-
-```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.7.0 pnpm gateway demo
-```
-
-Expected behavior:
-
-- local fake-provider execution
-- visible `execution: fake`
-- deterministic output
-- no API key or account needed
-- container exits automatically
-
-One-command natural-language enhancement preview:
-
-```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.7.0 \
-  pnpm gateway demo "Build a small API for my team" --enhance --profile coding --evidence
-```
-
-This starts an isolated fake-provider gateway, enhances the request locally,
-prints the structured prompt, and cleans up without an API key.
+## More Credential-Free Paths
 
 You can also pipe a request directly into the published image without cloning
 the repository:

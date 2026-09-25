@@ -50,6 +50,40 @@ Unified AI System 会在执行前，把一句自然语言需求整理成结构�
   <sub>原始需求保持可见；本地增强器会补充执行要求、输出要求和完成标准。</sub>
 </p>
 
+## 60 秒体验
+
+<p align="center">
+  <img
+    src="docs/assets/readme-terminal.png"
+    alt="终端证明：一条 docker run 命令打印增强提示词与 providerCalled=false 证据，结束自动清理"
+    width="100%"
+  />
+</p>
+
+无需登录，直接验证发布镜像：
+
+```bash
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.7.0 pnpm gateway demo
+```
+
+你将看到：
+
+- 本地 fake provider 执行
+- 明确的 `execution: fake`
+- 可重复的输出
+- 不需要 API Key 或账号
+- 容器自动退出并清理
+
+用一条命令体验自然语言增强：
+
+```bash
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.7.0 \
+  pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile coding --evidence
+```
+
+网关会在本地增强请求、输出结构化提示词，然后自动清理隔离进程，全程不调用真实 provider。
+如果需要指定输出语言，可以使用 `--language zh-CN` 或 `--language en`；省略时默认自动检测。
+
 ## 无需安装，直接体验
 
 <p align="center">
@@ -148,39 +182,26 @@ Cursor、Cline、Continue 和通用 stdio 客户端都可以通过同一个网�
 - 默认使用本地 fake provider，真实 provider 必须显式启用。
 - 不声称 AGI、L5 或生产就绪，只展示可以复现的行为。
 
-## 60 秒体验
+## 管道式自然语言输入
 
-<p align="center">
-  <img
-    src="docs/assets/readme-terminal.png"
-    alt="终端证明：一条 docker run 命令打印增强提示词与 providerCalled=false 证据，结束自动清理"
-    width="100%"
-  />
-</p>
-
-无需登录，直接验证发布镜像：
+当没有提供位置参数或 `--prompt` 时，`demo`、`enhance` 和 `chat` 会从
+stdin 读取请求，适合接入 Shell 管道、文本文件和编辑器脚本：
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.7.0 pnpm gateway demo
+printf '%s' "帮我规划一个小型 API 的发布" |
+  pnpm gateway enhance --profile planning --language zh-CN
+cat request.txt | pnpm gateway enhance --profile auto --json
 ```
 
-你将看到：
+PowerShell 可以这样使用：
 
-- 本地 fake provider 执行
-- 明确的 `execution: fake`
-- 可重复的输出
-- 不需要 API Key 或账号
-- 容器自动退出并清理
-
-用一条命令体验自然语言增强：
-
-```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.7.0 \
-  pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile coding --evidence
+```powershell
+Get-Content .\request.txt -Raw |
+  pnpm gateway enhance --profile auto --json
 ```
 
-网关会在本地增强请求、输出结构化提示词，然后自动清理隔离进程，全程不调用真实 provider。
-如果需要指定输出语言，可以使用 `--language zh-CN` 或 `--language en`；省略时默认自动检测。
+输入会在发送到网关前去除首尾空白。`chat` 仍会执行正常的 provider
+安全检查；从 stdin 读取请求不会授权真实 provider。
 
 ## 常用工作流
 
@@ -375,27 +396,6 @@ pnpm check:public
 pnpm verify:public-clone
 pnpm verify:mcp
 ```
-
-## 管道式自然语言输入
-
-当没有提供位置参数或 `--prompt` 时，`demo`、`enhance` 和 `chat` 会从
-stdin 读取请求，适合接入 Shell 管道、文本文件和编辑器脚本：
-
-```bash
-printf '%s' "帮我规划一个小型 API 的发布" |
-  pnpm gateway enhance --profile planning --language zh-CN
-cat request.txt | pnpm gateway enhance --profile auto --json
-```
-
-PowerShell 可以这样使用：
-
-```powershell
-Get-Content .\request.txt -Raw |
-  pnpm gateway enhance --profile auto --json
-```
-
-输入会在发送到网关前去除首尾空白。`chat` 仍会执行正常的 provider
-安全检查；从 stdin 读取请求不会授权真实 provider。
 
 `master` 上的 CI 会执行 Linux 检查、容器启动 smoke test、MCP 发现和进程清理验证。
 
