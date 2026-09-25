@@ -30,7 +30,9 @@ const OPENAI_AZURE_RESPONSES = /^\/openai\/deployments\/([^/]+)\/responses\/?$/;
 const RESPONSES_PATH_ALIAS = "/responses";
 
 const REASONING_EFFORTS = new Set(["minimal", "low", "medium", "high", "xhigh"]);
-const REASONING_SUMMARY_MODES = new Set(["auto", "concise", "detailed"]);
+// "none" is sent by OpenAI's own Codex CLI (0.154+) alongside auto/concise/detailed;
+// rejecting it breaks the Responses wire API for the flagship terminal client (T-064).
+const REASONING_SUMMARY_MODES = new Set(["auto", "concise", "detailed", "none"]);
 
 // Declarative/built-in tool shapes that cannot be served on the
 // chat-completions wire (namespace grouping, web_search, code_interpreter …).
