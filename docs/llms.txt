@@ -13,6 +13,7 @@ Unified AI System provides one governed boundary for models, agents, knowledge, 
 - [Why an AI gateway should be terminal-first](https://happy520ai.github.io/unified-ai-system/terminal-first-ai-gateway.html)
 - [Turn a REST API into governed MCP tools](https://happy520ai.github.io/unified-ai-system/openapi-to-mcp.html)
 - [How a credential-free run proves no provider was called](https://happy520ai.github.io/unified-ai-system/credential-free-evidence.html)
+- [What a published MCP image actually exposes (9, 12, then 15 tools)](https://happy520ai.github.io/unified-ai-system/verify-mcp-docker-image.html)
 - [Turn a REST API into governed MCP tools (Chinese)](https://happy520ai.github.io/unified-ai-system/openapi-to-mcp.zh-CN.html)
 - [Source repository](https://github.com/happy520ai/unified-ai-system)
 - [Installable Agent Skill](https://skills.sh/happy520ai/unified-ai-system/unified-ai-gateway)

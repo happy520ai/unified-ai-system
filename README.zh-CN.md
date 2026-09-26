@@ -91,7 +91,9 @@ node tools/verify-image-roster.mjs 0.8.0
 
 它通过普通 HTTPS 读取容器层里的 `MCP_TOOL_NAMES`，并逐个用 manifest 声明的摘要校验每个
 blob——不需要 Docker 守护进程，也不需要 registry 登录。预期会看到一行 `tools   15`；
-同一条命令跑 `0.4.0` 会报 nine。也就是说，这个数字跟着制品走，而不是跟着描述走。
+同一条命令跑 `0.4.0` 会报 9 个。也就是说，这个数字跟着制品走，而不是跟着描述走。
+八个 tag 的完整测量记录（包括 `latest` 与 `0.8.0` 为何接口相同、字节不同）见
+[镜像工具清单说明](https://happy520ai.github.io/unified-ai-system/verify-mcp-docker-image.html)。
 如果需要指定输出语言，可以使用 `--language zh-CN` 或 `--language en`；省略时默认自动检测。
 
 ## 无需安装，直接体验

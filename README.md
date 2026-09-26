@@ -86,7 +86,10 @@ node tools/verify-image-roster.mjs 0.8.0
 It reads `MCP_TOOL_NAMES` out of the container layer over plain HTTPS and verifies every
 blob against the digest its manifest names — no Docker daemon, no registry login. Expected:
 a line reading `tools   15`. The same command against `0.4.0` reports nine, so the number
-tracks the artifact rather than the prose written about it.
+tracks the artifact rather than the prose written about it. The eight-tag history behind
+those counts — including why `latest` and `0.8.0` ship the same interface as different
+bytes — is in the
+[image roster note](https://happy520ai.github.io/unified-ai-system/verify-mcp-docker-image.html).
 
 ## Try Before Installing
 
