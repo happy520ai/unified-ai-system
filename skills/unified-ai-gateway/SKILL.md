@@ -48,7 +48,7 @@ required first, and the pinned identity is only as good as the review that backs
 ## Prerequisites And Setup
 
 1. Confirm that Codex CLI and Docker are installed and Docker is running.
-2. If the 15 tools are already visible, skip setup and do not register a
+2. If the nine tools are already visible, skip setup and do not register a
    duplicate server.
 3. Explain the first stage: it downloads one reviewed platform from the
    immutable `0.4.9` multi-platform index into Docker's cache, inspects its
@@ -139,7 +139,8 @@ codex mcp get unified-ai-system --json
 ```
 
 8. Restart Codex or open a new task, then use `/mcp verbose` to confirm that all
-   15 tools are available. Remove the registration when it is no longer
+   nine tools are available - the pinned `0.4.9` image ships nine of the fifteen
+   names the current release declares. Remove the registration when it is no longer
    wanted:
 
 ```bash
