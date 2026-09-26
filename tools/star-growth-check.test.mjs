@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  OUR_COPY_STALE_ALLOWED,
   countHandAccepted,
   countHumanContributors,
   countListingKinds,
@@ -9,6 +10,7 @@ import {
   isListedInReadme,
   needsRecarry,
   publishedToolCount,
+  staleOwnClaimLines,
   staleToolCounts,
 } from './star-growth-check.mjs';
 
@@ -172,13 +174,33 @@ test('deferredDoorStatus reports the remaining distance, not a boolean alone', (
 test('findUntrackedDoors names doors the report cannot see', () => {
   const tracked = [{ repo: 'a/l', pr: 1 }, { repo: 'b/l', pr: 2 }];
   const open = [
-    { repository_url: 'https://api.github.com/repos/a/l', number: 1, title: 'tracked' },
+    { repository_url: 'https://api.github.com/repos/a/l', number: 1, title: 'tracked', pull_request: {} },
     { repository_url: 'https://api.github.com/repos/c/l', number: 3, title: 'the one that slips' },
     { repository_url: 'https://api.github.com/repos/happy520ai/unified-ai-system', number: 9, title: 'our own repo is not a door' },
   ];
   const result = findUntrackedDoors(tracked, open, 'happy520ai/unified-ai-system');
   assert.equal(result.length, 1);
-  assert.deepEqual(result[0], { repo: 'c/l', pr: 3, title: 'the one that slips' });
+  assert.deepEqual(result[0], { repo: 'c/l', pr: 3, kind: 'issue', title: 'the one that slips' });
+});
+
+// The defect this arm was widened for: a submission that arrives as an issue, not a pull
+// request, was invisible to a `type:pr` denominator, so "every door is tracked" was a
+// narrower claim than it sounded.
+test('findUntrackedDoors counts a submission issue as a door of its own kind', () => {
+  const openIssue = {
+    repository_url: 'https://api.github.com/repos/chatmcp/mcpso',
+    number: 3394,
+    title: '[Submit] Unified AI System: AI gateway with 9 governed MCP tools',
+  };
+  const untracked = findUntrackedDoors([], [openIssue], 'happy520ai/unified-ai-system');
+  assert.equal(untracked.length, 1);
+  assert.equal(untracked[0].kind, 'issue');
+  const trackedAsIssue = findUntrackedDoors(
+    [{ repo: 'chatmcp/mcpso', pr: 3394, kind: 'issue' }],
+    [openIssue],
+    'happy520ai/unified-ai-system'
+  );
+  assert.deepEqual(trackedAsIssue, []);
 });
 
 test('findUntrackedDoors is sensitive to a changed number, not just the repo', () => {
@@ -200,4 +222,55 @@ test('findUntrackedDoors ignores private-vulnerability forks', () => {
     { repository_url: 'https://api.github.com/repos/happy520ai/unified-ai-system-ghsa-rg4w-29r7-h4rh', number: 1, title: 'PRIVATE SECURITY REVIEW' },
   ], 'happy520ai/unified-ai-system');
   assert.deepEqual(result, []);
+});
+
+// The chatmcp/mcpso#3394 case, verbatim: an open submission whose TITLE stated a tool
+// count the published surface no longer has. A row with no claim must stay silent, a row
+// with the right count must stay silent, and an unreadable roster must not read as clean.
+test('staleOwnClaimLines reads our own submission title and body', () => {
+  const rows = [
+    {
+      repo: 'chatmcp/mcpso',
+      pr: 3394,
+      kind: 'issue',
+      claimText: '[Submit] Unified AI System: AI gateway with 9 governed MCP tools\n',
+    },
+    { repo: 'a/l', pr: 1, kind: 'pr', claimText: 'Add Unified AI System to the gateway list' },
+    { repo: 'b/l', pr: 2, kind: 'pr', claimText: 'Unified AI System: gateway with 15 governed MCP tools' },
+  ];
+  const found = staleOwnClaimLines(rows, 15);
+  assert.equal(found.length, 1);
+  assert.match(found[0], /^chatmcp\/mcpso#3394 \(issue\) says "9 governed MCP tools"/);
+  assert.equal(staleOwnClaimLines(rows, null), null);
+  assert.deepEqual(staleOwnClaimLines([], 15), []);
+});
+
+// Declared boundary of the matcher, not an accident: it only reads a count that sits
+// directly against "tools", optionally through "governed"/"MCP". Loosening it to any
+// intervening word would make prose like "one more tool" a stale-count alarm, and a gate
+// that cries wolf gets ignored. A one-time loose sweep of every live door body was run on
+// 2026-09-26 to catch the phrases this arm cannot see.
+test('staleToolCounts leaves adjective-separated count prose alone', () => {
+  assert.deepEqual(staleToolCounts('All nine documented tools are exposed.', 15), []);
+  assert.deepEqual(staleToolCounts('one more tool', 15), []);
+  assert.deepEqual(staleToolCounts('nine governed MCP tools', 15), [
+    { reported: 9, expected: 15, phrase: 'nine governed MCP tools' },
+  ]);
+});
+
+// The allowlist must mute one door's honest history, not the phrase itself. If these two
+// arms ever agree, the exclusion list has become a global mute and the arm is worthless.
+test('the our-copy allowlist is scoped to one door, not to the phrase', () => {
+  const quoted = {
+    repo: 'TensorBlock/awesome-mcp-servers',
+    pr: 2707,
+    kind: 'pr',
+    claimText: 'fix(ai--llm-integration): our own entry said nine tools and pinned a 0.4.1 image',
+  };
+  assert.deepEqual(staleOwnClaimLines([quoted], 15), []);
+  const samePhraseElsewhere = { ...quoted, repo: 'someone-else/list', pr: 1 };
+  const found = staleOwnClaimLines([samePhraseElsewhere], 15);
+  assert.equal(found.length, 1);
+  assert.match(found[0], /says "nine tools"/);
+  assert.ok(OUR_COPY_STALE_ALLOWED.length >= 2, 'both recorded-history doors must be named');
 });

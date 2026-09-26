@@ -57,6 +57,19 @@ const externalPrs = [
   ["ottosulin/awesome-ai-security", 482],
 ];
 
+// Submission doors that are ISSUES, not pull requests: directory sites that take a
+// "submit your server" ticket and merge on your behalf. A pull-request-only denominator
+// cannot see these, and one of them (chatmcp/mcpso#3394) carried a stale tool count in
+// its own title for weeks because no arm read an issue body.
+const externalIssues = [
+  ["chatmcp/mcpso", 3394],
+  ["521xueweihan/HelloGitHub", 3506],
+  ["cline/mcp-marketplace", 2165],
+  ["InftyAI/Awesome-LLMOps", 507],
+  ["LuciferForge/mcp-directory", 38],
+  ["cuihuan/awesome-ai-gateway", 102],
+];
+
 const mergeStateMap = {
   clean: "CLEAN",
   dirty: "DIRTY",
@@ -322,6 +335,33 @@ function readRosterCount() {
   }
 }
 
+// Records, not instructions: these doors state an old tool count on purpose, and each
+// entry says why. The report prints how many exclusions are in force so the list cannot
+// quietly become the place stale numbers hide.
+export const OUR_COPY_STALE_ALLOWED = [
+  { door: "TensorBlock/awesome-mcp-servers#2707", phrase: "nine tools", reason: "PR title records the defect this branch fixed, past tense" },
+  { door: "cuihuan/awesome-ai-gateway#102", phrase: "nine governed MCP tools", reason: "correction request quoting the maintainer's stale row verbatim" },
+];
+
+// A directory site republishes the title and body we hand it, so a stale number in our
+// own submission copy becomes someone else's catalogue entry. chatmcp/mcpso#3394 carried
+// "9 governed MCP tools" in its title for weeks and no arm looked at an issue body,
+// because every door was assumed to be a pull request.
+// Returns null when the roster is unreadable: a blind comparison must not print as clean.
+export function staleOwnClaimLines(rows, rosterCount, allowed = OUR_COPY_STALE_ALLOWED) {
+  if (rosterCount === null) return null;
+  const out = [];
+  for (const row of rows ?? []) {
+    if (!row?.claimText) continue;
+    const door = `${row.repo}#${row.pr}`;
+    for (const claim of staleToolCounts(row.claimText, rosterCount)) {
+      if ((allowed ?? []).some((item) => item.door === door && claim.phrase.includes(item.phrase))) continue;
+      out.push(`${door} (${row.kind ?? "pr"}) says "${claim.phrase}" while the roster has ${claim.expected}`);
+    }
+  }
+  return out;
+}
+
 // Lists that refuse us for a reason that changes: a stated numeric bar we have not
 // reached yet. Recording the bar here means the report says "you may file now" when
 // it flips, instead of relying on someone remembering the rule exists.
@@ -390,6 +430,7 @@ async function getExternalPrRows() {
       rows.push({
         repo: repoName,
         pr: prNumber,
+        kind: "pr",
         state: "unknown",
         mergeState: "FETCH_FAILED",
         updated: "N/A",
@@ -404,6 +445,7 @@ async function getExternalPrRows() {
     rows.push({
       repo: repoName,
       pr: prNumber,
+      kind: "pr",
       title: pullResult.data.title ?? "Untitled pull request",
       state: pullResult.data.merged_at ? "merged" : pullResult.data.state,
       mergeState:
@@ -415,6 +457,52 @@ async function getExternalPrRows() {
       inReadme: listing.inReadme,
       listing: listing.listing,
       rowText: listing.rowText,
+      claimText: String(pullResult.data.title ?? ""),
+    });
+  }
+  return rows;
+}
+
+// Issue doors are read through the issues endpoint: the pulls endpoint 404s on them, and
+// a 404 would have been reported as "FETCH_FAILED" rather than as what it is - a door of
+// a kind this instrument did not model.
+async function getExternalIssueRows() {
+  const rows = [];
+  for (const [repoName, issueNumber] of externalIssues) {
+    const issueResult = safeGetJson(
+      `gh api repos/${repoName}/issues/${issueNumber}`
+    );
+    if (!issueResult.ok) {
+      rows.push({
+        repo: repoName,
+        pr: issueNumber,
+        kind: "issue",
+        state: "unknown",
+        mergeState: "FETCH_FAILED",
+        updated: "N/A",
+        comments: "N/A",
+        inReadme: "n/a",
+        listing: "n/a",
+        claimText: "",
+      });
+      continue;
+    }
+    const data = issueResult.data;
+    rows.push({
+      repo: repoName,
+      pr: issueNumber,
+      kind: "issue",
+      title: data.title ?? "Untitled submission",
+      state: data.state,
+      // An issue has no merge state; the listing is decided by whoever runs the site.
+      mergeState: data.state === "open" ? "AWAITING-HAND" : "CLOSED",
+      updated: parseDate(data.updated_at),
+      comments: data.comments ?? 0,
+      inReadme: "n/a",
+      listing: "n/a",
+      // Our own submission copy: title plus body, because that is the text a directory
+      // site republishes verbatim.
+      claimText: `${String(data.title ?? "")}\n${String(data.body ?? "")}`,
     });
   }
   return rows;
@@ -481,9 +569,11 @@ function renderRepoSection(repoStats, date, prefix, previousStats = null) {
 // which is not something a re-carry fixes.
 // "None of your doors needs a re-carry" is only worth reading if the door list is
 // every door. Compare it against what GitHub actually has open, and name the gap.
-export function findUntrackedDoors(tracked, openPulls, selfRepo) {
+// The denominator is every open thing we authored - pull requests AND submission
+// issues - because directory sites that merge on our behalf open tickets, not PRs.
+export function findUntrackedDoors(tracked, openItems, selfRepo) {
   const keys = new Set((tracked ?? []).map((row) => `${row?.repo}#${row?.pr}`));
-  return (openPulls ?? [])
+  return (openItems ?? [])
     .filter((item) => {
       const repo = String(item?.repository_url ?? "").replace("https://api.github.com/repos/", "");
       // A private-vulnerability fork (owner/repo-ghsa-xxxx) is a security workflow
@@ -494,6 +584,7 @@ export function findUntrackedDoors(tracked, openPulls, selfRepo) {
     .map((item) => ({
       repo: String(item.repository_url).replace("https://api.github.com/repos/", ""),
       pr: item.number,
+      kind: item.pull_request ? "pr" : "issue",
       title: String(item.title ?? "").slice(0, 60),
     }))
     .filter((door) => !keys.has(`${door.repo}#${door.pr}`));
@@ -519,7 +610,7 @@ function renderPrRowsTable(rows) {
   lines.push("| Repository | PR | Listing | State | Merge State | Listed in | Updated | Comments |");
   lines.push("| --- | --- | --- | --- | --- | --- | --- | --- |");
   for (const row of rows) {
-    const url = `https://github.com/${row.repo}/pull/${row.pr}`;
+    const url = `https://github.com/${row.repo}/${row.kind === "issue" ? "issues" : "pull"}/${row.pr}`;
     const title = String(row.title ?? "Unavailable").replaceAll("|", "\\|");
     lines.push(
       `| [${row.repo}](${url}) | [#${row.pr}](${url}) | ${title} | ${row.state} | ${row.mergeState} | ${row.listing ?? "unreadable"} | ${row.updated} | ${row.comments} |`
@@ -637,7 +728,7 @@ async function scanRemotePublicClaims() {
   return { scanned, offenders, error };
 }
 
-function generateCheckReport(repoStats, rows, date, previousStats = null, claimSweep = null, remoteSweep = null, deferred = null, untracked = null) {
+function generateCheckReport(repoStats, rows, date, previousStats = null, claimSweep = null, remoteSweep = null, deferred = null, untracked = null, denominatorTruncated = false) {
   const lines = [];
   lines.push(`# Star Growth Check (${date})`);
   lines.push("");
@@ -666,6 +757,7 @@ function generateCheckReport(repoStats, rows, date, previousStats = null, claimS
       staleRows.push(`${row.repo}#${row.pr} says "${claim.phrase}" while the roster has ${claim.expected}`);
     }
   }
+  const staleOwnClaims = staleOwnClaimLines(rows, rosterCount);
   lines.push("");
   lines.push("### Upstream rows that state a tool count");
   if (rosterCount === null) {
@@ -677,6 +769,22 @@ function generateCheckReport(repoStats, rows, date, previousStats = null, claimS
       lines.push(`- STALE ${item}`);
     }
   }
+
+  lines.push("");
+  lines.push("### Our own live submission copy that states a tool count");
+  if (rosterCount === null) {
+    lines.push(`Not evaluated: the roster could not be read from ${ROSTER_SOURCE}.`);
+  } else if (staleOwnClaims.length === 0) {
+    lines.push(`None: every open door we authored states no count, or states ${rosterCount}.`);
+  } else {
+    for (const item of staleOwnClaims) {
+      lines.push(`- OURS-STALE ${item}`);
+    }
+  }
+  lines.push(
+    `Exclusions in force: ${OUR_COPY_STALE_ALLOWED.length} door/phrase pairs that state an older count on purpose `
+    + "(recorded history or a verbatim quote of someone else's row). Each is named in OUR_COPY_STALE_ALLOWED with its reason."
+  );
   lines.push("");
   lines.push("### Deferred doors (stated numeric bar not yet met)");
   if ((deferred ?? []).length === 0) {
@@ -696,12 +804,23 @@ function generateCheckReport(repoStats, rows, date, previousStats = null, claimS
   lines.push("");
   lines.push("### Door-list completeness");
   if (untracked === null) {
-    lines.push("UNKNOWN: the open-pull search failed, so this report cannot claim to cover every door.");
-  } else if (untracked.length === 0) {
-    lines.push(`Complete: every open pull request authored by us is a row in this report (${rows.length} rows tracked).`);
+    lines.push("UNKNOWN: the open-item search failed, so this report cannot claim to cover every door.");
   } else {
-    for (const door of untracked) {
-      lines.push(`- UNTRACKED ${door.repo}#${door.pr} - "${door.title}" is open but not in externalPrs, so no arm above can see it.`);
+    if (denominatorTruncated) {
+      lines.push("- DENOMINATOR TRUNCATED: the search returned a full page, so doors beyond page 1 are invisible to this check. Raise the page size before trusting the lines below.");
+    }
+    const prTracked = (rows ?? []).filter((row) => row?.kind !== "issue").length;
+    const issueTracked = (rows ?? []).filter((row) => row?.kind === "issue").length;
+    if (untracked.length === 0) {
+      lines.push(
+        `Complete: every open pull request and submission issue authored by us is a row in this report `
+        + `(${prTracked} pull-request doors, ${issueTracked} issue doors).`
+      );
+    } else {
+      for (const door of untracked) {
+        const list = door.kind === "issue" ? "externalIssues" : "externalPrs";
+        lines.push(`- UNTRACKED ${door.kind} ${door.repo}#${door.pr} - "${door.title}" is open but not in ${list}, so no arm above can see it.`);
+      }
     }
   }
 
@@ -903,7 +1022,9 @@ async function run() {
 
   ensureGhAvailable();
   const repoStats = await getRepoStats();
-  const rows = await getExternalPrRows();
+  const prRows = await getExternalPrRows();
+  const issueRows = await getExternalIssueRows();
+  const rows = [...prRows, ...issueRows];
   const contributorsResult = safeGetJson(`gh api repos/${repo}/contributors?per_page=100`);
   const humanContributors = contributorsResult.ok
     ? countHumanContributors(contributorsResult.data)
@@ -912,17 +1033,22 @@ async function run() {
     ? deferredDoors.map((door) => ({ repo: door.repo, ready: false, starsNeeded: null, contributorsNeeded: null, note: door.note, unreadable: true }))
     : deferredDoorStatus(deferredDoors, repoStats.stars, humanContributors);
 
-  const openPulls = safeGetJson(`gh api "search/issues?q=author%3Ahappy520ai+type%3Apr+is%3Aopen&per_page=100" --jq .items`);
-  const untracked = openPulls.ok
-    ? findUntrackedDoors(rows, openPulls.data, repo)
-    : null;
+  // No type:pr filter - a door opened as an issue is still a door. total_count is read
+  // alongside the page so a truncated denominator cannot masquerade as "nothing missing".
+  const openItems = safeGetJson(`gh api "search/issues?q=author%3Ahappy520ai+is%3Aopen&per_page=100"`);
+  const denominatorItems = openItems.ok ? (openItems.data?.items ?? []) : null;
+  const denominatorTruncated = openItems.ok
+    && Number(openItems.data?.total_count ?? 0) > denominatorItems.length;
+  const untracked = denominatorItems === null
+    ? null
+    : findUntrackedDoors(rows, denominatorItems, repo);
 
   const previous = readSnapshotMetrics(defaultLatestSnapshotFile);
 
   if (action === "check") {
     const claimSweep = scanPublicClaims();
     const remoteSweep = await scanRemotePublicClaims();
-    const report = generateCheckReport(repoStats, rows, date, previous, claimSweep, remoteSweep, deferred, untracked);
+    const report = generateCheckReport(repoStats, rows, date, previous, claimSweep, remoteSweep, deferred, untracked, denominatorTruncated);
     if (options.output) writeReport(options.output, report);
     console.log(report);
     return;
