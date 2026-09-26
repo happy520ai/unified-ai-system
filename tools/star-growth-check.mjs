@@ -1411,8 +1411,10 @@ export function searchCoverageLines(sitemapUrls, indexed, { error = null } = {})
   const label = (u) => (u === `https://${SITE_HOST}/` ? "/ (site home)" : u.replace(`https://${SITE_HOST}/`, ""));
   lines.push(`- Published URLs in docs/sitemap.xml: ${sitemapUrls.length}; found in the index: ${sitemapUrls.filter((u) => seen.has(u)).length}; not visible: ${missing.length}.`);
   if (missing.length > 0) lines.push(`- Not visible to this probe (may simply be un-crawled yet): ${missing.map(label).join(", ")}`);
-  lines.push(`- Probe: lite.duckduckgo.com for \`site:${SITE_HOST}\`. The instrument matters: `
-    + "a curl of Bing's site: query returns 200 with only our own search string in the body, which reads as zero results to anything not built for it.");
+  lines.push(`- Probe: lite.duckduckgo.com for \`site:${SITE_HOST}\`. Two instruments read falsely here: `
+    + "a scripted Bing site: query returns 200 containing only our own search string, and a plain bing.com "
+    + "site: query in a Chinese locale ignores the operator and shows other sites. The reading that works is a "
+    + "browser on bing.com/search with mkt=en-US, which is a parameter and not a preference.");
   return lines;
 }
 
