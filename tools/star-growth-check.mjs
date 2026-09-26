@@ -132,6 +132,10 @@ const externalIssues = [
   // sources from GitHub), so this concerns only the indexed directory page. Filed as a
   // plain issue because their agent-request template covers adding coding-agent support.
   ["vercel-labs/skills", 2309],
+  // Their intake is an issue, not a pull request: README "Submit App" links to issues/new, and
+  // ccbikai/awesome-homelab is this same repository under its old name, so there is no second
+  // place to file it. A self-hosted-AI audience is the closest fit we found outside MCP lists.
+  ["AwesomeHomelab/awesome-homelab", 141],
 ];
 
 const mergeStateMap = {
