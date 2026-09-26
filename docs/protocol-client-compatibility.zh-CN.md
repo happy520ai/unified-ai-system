@@ -14,6 +14,10 @@
 | A2A v1.0 JSON-RPC | 官方 `@a2a-js/sdk` `1.0.1` | 可验证 Agent Card/JWKS、`SendMessage`、`GetTask`、`ListTasks`、`CancelTask`、任务产物、有界 memory/SQLite/PostgreSQL 状态与 PostgreSQL execution fencing | 当前源码、仅 fake provider、没有流式；下游副作用尚未原子消费 fence。 |
 | 原生 HTTP 与共享 SDK | Node `fetch`、curl 示例、仓库 SDK 测试 | 健康检查、聊天、流式、提示词增强、运维读取 | 属于 Unified AI System 契约，不是第三方协议。 |
 
+> **如何读这张表里的工具数。** 右侧各列记录的是各宿主实际运行时所针对的那个构建：那轮认证跑在公开接口还是 12 个工具的年代。
+> 当前发布版暴露 15 个工具：运行 `node tools/verify-image-roster.mjs 0.8.0` 可直接打印名单，或在 `docs/verify-mcp-docker-image.html` 查每个版本新增了哪些。
+> 写着 12 的行是有意保留的历史观测，不是在描述今天——针对 `0.8.0` 重跑这批宿主是一项待办工作，不能靠改数字把它当成已经解决。重跑这批宿主已登记在 [#169](https://github.com/happy520ai/unified-ai-system/issues/169)。
+
 ## 已验证具名 MCP 宿主
 
 以下是产品级真实运行结果，不是从协议兼容性推断出来的结论。所有条目均来自隔离的

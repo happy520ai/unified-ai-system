@@ -25,6 +25,16 @@ the documented request/route boundaries and provides reproducible evidence.
 | A2A v1.0 JSON-RPC | Official `@a2a-js/sdk` `1.0.1` | Verifiable Agent Card/JWKS, `SendMessage`, `GetTask`, `ListTasks`, `CancelTask`, task artifacts, bounded memory/SQLite/PostgreSQL state, and PostgreSQL execution fencing | Source build, fake-provider-only, no streaming; downstream side effects are not yet atomically fence-aware. |
 | Native HTTP and shared SDK | Node `fetch`, curl examples, repository SDK tests | Health, chat, streaming, prompt enhancement, operational reads | Unified AI System contract, not a third-party protocol. |
 
+> **How to read the tool counts here.** The right-hand columns record the build a host was
+> actually run against, and that certification sweep happened while the published
+> surface had twelve tools. The current release exposes fifteen: run
+> `node tools/verify-image-roster.mjs 0.8.0` to print the set, or read the
+> roster note at `docs/verify-mcp-docker-image.html` for what arrived in which
+> version. A twelve-tool row is a past observation kept on purpose, not a statement
+> about today - re-certifying these hosts against `0.8.0` is open work, not a
+> discrepancy to fix by editing numbers. The re-run is tracked in [#169](https://github.com/happy520ai/unified-ai-system/issues/169).
+
+
 ## Verified Named MCP Hosts
 
 These are product-level runtime results, not inferences from protocol support.
