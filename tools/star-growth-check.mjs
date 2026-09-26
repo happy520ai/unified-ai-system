@@ -60,6 +60,11 @@ const externalPrs = [
   ["Jenqyang/Awesome-AI-Agents", 521],
   ["BehiSecc/awesome-claude-skills", 777],
   ["ai-for-developers/awesome-ai-coding-tools", 775],
+  // Not authored by us, so the completeness arm does not require it - but their agent
+  // opened this pull request out of our submission issue #507 and re-syncs it whenever
+  // that body changes. It is the surface that actually merges, so a later session must
+  // not open a second one.
+  ["InftyAI/Awesome-LLMOps", 508],
 ];
 
 // Submission doors that are ISSUES, not pull requests: directory sites that take a
