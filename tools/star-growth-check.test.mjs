@@ -712,3 +712,28 @@ test('version pins are still reported on their own line', () => {
   const found = sc.carrierFindings(pinned, 15, "0.8.0");
   assert.ok(found.some((f) => /0\.4\.8/.test(f)), JSON.stringify(found));
 });
+
+// Traffic readings are gated behind push access, so a blank answer and a blind probe are
+// different facts and must never print the same way.
+test('referral readings keep blind, empty and populated apart', () => {
+  const populated = sc.formatReferralReadings([
+    { label: 'referrer', data: [{ referrer: 'Google', count: 3, uniques: 3 }] },
+    { label: 'page', data: [{ path: '/x/discussions', count: 7, uniques: 4 }] },
+  ]);
+  assert.equal(populated.rows.length, 2);
+  assert.match(populated.rows[0], /referrer: Google -> 3 views, 3 unique/);
+  assert.deepEqual(populated.notes, []);
+
+  const blind = sc.formatReferralReadings([{ label: 'referrer', error: 'gh: 404 Not Found' }]);
+  assert.equal(blind.rows.length, 0);
+  assert.equal(blind.notes.length, 1);
+  assert.match(blind.notes[0], /^INCONCLUSIVE: referrer - gh: 404/);
+
+  const empty = sc.formatReferralReadings([{ label: 'referrer', data: [] }]);
+  assert.equal(empty.rows.length, 0);
+  assert.match(empty.notes[0], /read zero rows/);
+  assert.doesNotMatch(empty.notes.join(' '), /INCONCLUSIVE/);
+
+  const malformed = sc.formatReferralReadings([{ label: 'page', data: { not: 'a list' } }]);
+  assert.match(malformed.notes[0], /INCONCLUSIVE: page - response was not a list/);
+});

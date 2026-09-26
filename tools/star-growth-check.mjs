@@ -1138,6 +1138,47 @@ const SEARCH_POOL_SEAL = [
   { label: "virtual key in:description", sealed: "2026-09-26", reason: "\"virtual-key budgets\" is in the description" },
 ];
 
+// Traffic endpoints are gated: they answer for a caller with push access and 404 for one
+// without, so "unreadable" must stay a different answer from "referred nobody".
+export function formatReferralReadings(readings) {
+  const rows = [];
+  const notes = [];
+  for (const { label, data, error } of readings ?? []) {
+    if (error) {
+      notes.push(`INCONCLUSIVE: ${label} - ${error}`);
+      continue;
+    }
+    if (!Array.isArray(data)) {
+      notes.push(`INCONCLUSIVE: ${label} - response was not a list`);
+      continue;
+    }
+    if (data.length === 0) {
+      notes.push(`${label}: read zero rows (endpoint answered, so this is "nobody", not "blind")`);
+      continue;
+    }
+    for (const item of data) {
+      const name = item?.referrer ?? item?.path ?? "(unnamed)";
+      rows.push(`${label}: ${name} -> ${item?.count ?? "?"} views, ${item?.uniques ?? "?"} unique`);
+    }
+  }
+  return { rows, notes };
+}
+
+function scanTrafficReferrals() {
+  const readings = [];
+  for (const [label, endpoint] of [
+    ["referrer", "traffic/popular/referrers"],
+    ["page", "traffic/popular/paths"],
+  ]) {
+    try {
+      readings.push({ label, data: runJson(`gh api "repos/${repo}/${endpoint}"`) });
+    } catch (error) {
+      readings.push({ label, error: String(error?.message ?? error).replace(/\s+/g, " ").slice(0, 70) });
+    }
+  }
+  return formatReferralReadings(readings);
+}
+
 function scanSearchPools(ownFullName = repo) {
   const out = [];
   for (const { label, q } of SEARCH_POOL_QUERIES) {
@@ -1519,6 +1560,11 @@ function generateCheckReport(repoStats, rows, date, previousStats = null, claimS
   );
   lines.push(`| Discovery pools measured on repository search | ${remoteSweep?.poolCount ?? "not run"} (sealed membership claims: ${remoteSweep?.poolSealed ?? "?"}) |`);
   for (const row of remoteSweep?.poolRows ?? []) lines.push(`- ${row}`);
+  lines.push("");
+  lines.push("### Who referred the repository, and to which page");
+  const referrals = scanTrafficReferrals();
+  for (const note of referrals.notes) lines.push(`- ${note}`);
+  for (const row of referrals.rows) lines.push(`- ${row}`);
   lines.push("");
   if (claimSweep?.error) lines.push(`- Inconclusive file sweep: ${claimSweep.error}`);
   if (remoteSweep?.error) lines.push(`- Inconclusive remote sweep: ${remoteSweep.error}`);
