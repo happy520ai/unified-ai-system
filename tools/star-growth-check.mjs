@@ -719,6 +719,94 @@ function scanPublicClaims() {
   return { scanned: readable, offenders, allowed, unreadable: tracked.length - readable };
 }
 
+// Merged doors that put OUR numbers into a file that is not a README. The README arm above
+// cannot see these, and on the next release they start mis-stating the project in a tree we
+// do not control. Each entry is a carrier someone accepted, not an instruction to re-ping:
+// the report names the file and the stale reading, and a correction is a fresh, factual PR.
+const upstreamCarriers = [
+  { repo: "hashgraph-online/awesome-codex-plugins", path: "plugins/happy520ai/unified-ai-system/.codex-plugin/plugin.json", checksVersion: true },
+  { repo: "hashgraph-online/awesome-codex-plugins", path: "plugins/happy520ai/unified-ai-system/skills/unified-ai-gateway/SKILL.md", checksVersion: false },
+  { repo: "hashgraph-online/awesome-codex-plugins", path: "plugins.json", checksVersion: false, anchor: "happy520ai/unified-ai-system" },
+];
+
+// Pure: given carrier text, what does it assert that is no longer true?
+export function carrierFindings(text, rosterCount, version) {
+  const findings = [];
+  for (const claim of staleToolCounts(text, rosterCount)) {
+    findings.push(`states "${claim.phrase}" while the roster has ${claim.expected}`);
+  }
+  if (version) {
+    for (const match of text.matchAll(/"?version"?\s*[:=]\s*"?(\d+\.\d+\.\d+)"?/g)) {
+      if (match[1] !== version) findings.push(`pins version ${match[1]}, published release is ${version}`);
+    }
+  }
+  return findings;
+}
+
+function readPublishedVersion() {
+  try {
+    const sourcePath = resolve(dirname(fileURLToPath(import.meta.url)), "..", ROSTER_SOURCE);
+    const match = readFileSync(sourcePath, "utf8").match(/MCP_SERVER_VERSION\s*=\s*"(\d+\.\d+\.\d+)"/);
+    return match ? match[1] : null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+// Read-only fetch of a third-party file. null means "could not look", which is never
+// reported as "carries nothing stale".
+function fetchCarrierFile(repoName, filePath) {
+  const result = safeGetText(
+    `gh api -H "Accept: application/vnd.github.raw+json" "repos/${repoName}/contents/${filePath}"`
+  );
+  return result.ok ? String(result.data) : null;
+}
+
+// Aggregate catalogue files describe many products, so a count found anywhere in them is not
+// a claim about us - the first live run of this arm reported other plugins' "16 MCP tools" and
+// "23 MCP tools" as our staleness. Carriers that live in an index therefore name an anchor,
+// and only the object enclosing that anchor is read.
+export function carrierRegion(text, anchor) {
+  if (!anchor) return text;
+  const at = text.indexOf(anchor);
+  if (at < 0) return null;
+  const open = text.lastIndexOf("{", at);
+  if (open < 0) return null;
+  let depth = 0;
+  for (let i = open; i < text.length; i += 1) {
+    if (text[i] === "{") depth += 1;
+    else if (text[i] === "}") {
+      depth -= 1;
+      if (depth === 0) return text.slice(open, i + 1);
+    }
+  }
+  return null;
+}
+
+function collectCarrierFindings() {
+  const rosterCount = readRosterCount();
+  const version = readPublishedVersion();
+  const rows = [];
+  for (const carrier of upstreamCarriers) {
+    const text = fetchCarrierFile(carrier.repo, carrier.path);
+    const region = text === null ? null : carrierRegion(text, carrier.anchor);
+    if (text === null) {
+      rows.push({ carrier, status: "unreadable", findings: [] });
+    } else if (region === null) {
+      rows.push({ carrier, status: "unscoped", findings: [] });
+    } else if (rosterCount === null) {
+      rows.push({ carrier, status: "roster-unknown", findings: [] });
+    } else {
+      rows.push({
+        carrier,
+        status: "read",
+        findings: carrierFindings(region, rosterCount, carrier.checksVersion ? version : null),
+      });
+    }
+  }
+  return { rosterCount, version, rows };
+}
+
 async function scanRemotePublicClaims() {
   const offenders = [];
   let scanned = 0;
@@ -746,7 +834,7 @@ async function scanRemotePublicClaims() {
   return { scanned, offenders, error };
 }
 
-function generateCheckReport(repoStats, rows, date, previousStats = null, claimSweep = null, remoteSweep = null, deferred = null, untracked = null, denominatorTruncated = false) {
+function generateCheckReport(repoStats, rows, date, previousStats = null, claimSweep = null, remoteSweep = null, deferred = null, untracked = null, denominatorTruncated = false, carriers = null) {
   const lines = [];
   lines.push(`# Star Growth Check (${date})`);
   lines.push("");
@@ -848,6 +936,33 @@ function generateCheckReport(repoStats, rows, date, previousStats = null, claimS
   }
 
   const carry = needsRecarry(rows);
+  lines.push("");
+  lines.push("### Merged upstream carriers that hold our numbers");
+  if (carriers === null) {
+    lines.push("Not evaluated in this mode: run the check action to read the third-party files that carry our tool count and version.");
+  } else {
+    lines.push(
+      `Reference: roster ${carriers.rosterCount ?? "unreadable"}, published version ${carriers.version ?? "unreadable"}. `
+      + "These are files in repositories we do not maintain, accepted by their owners; a stale line here is a fresh, factual correction PR, not a ping."
+    );
+    for (const row of carriers.rows) {
+      const name = `${row.carrier.repo}/${row.carrier.path}`;
+      if (row.status === "unreadable") {
+        lines.push(`- UNREADABLE ${name}: the file could not be fetched, which is not a claim that it is clean.`);
+      } else if (row.status === "unscoped") {
+        lines.push(`- UNSCOPED ${name}: the anchor was not found, so no part of this index is attributed to us.`);
+      } else if (row.status === "roster-unknown") {
+        lines.push(`- NOT CHECKED ${name}: the local roster could not be read.`);
+      } else if (row.findings.length === 0) {
+        lines.push(`- ok ${name}`);
+      } else {
+        for (const finding of row.findings) {
+          lines.push(`- STALE ${name} ${finding}`);
+        }
+      }
+    }
+  }
+
   lines.push("");
   lines.push("### Doors needing action");
   if (carry.length === 0) {
@@ -1071,7 +1186,8 @@ async function run() {
   if (action === "check") {
     const claimSweep = scanPublicClaims();
     const remoteSweep = await scanRemotePublicClaims();
-    const report = generateCheckReport(repoStats, rows, date, previous, claimSweep, remoteSweep, deferred, untracked, denominatorTruncated);
+    const carriers = collectCarrierFindings();
+    const report = generateCheckReport(repoStats, rows, date, previous, claimSweep, remoteSweep, deferred, untracked, denominatorTruncated, carriers);
     if (options.output) writeReport(options.output, report);
     console.log(report);
     return;

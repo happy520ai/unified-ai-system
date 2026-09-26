@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   OUR_COPY_STALE_ALLOWED,
+  carrierFindings,
+  carrierRegion,
   countHandAccepted,
   countHumanContributors,
   countListingKinds,
@@ -298,4 +300,50 @@ test('the our-copy allowlist is scoped to one door, not to the phrase', () => {
   assert.equal(found.length, 1);
   assert.match(found[0], /says "nine tools"/);
   assert.ok(OUR_COPY_STALE_ALLOWED.length >= 2, 'both recorded-history doors must be named');
+});
+
+// A merged door in someone else's repository keeps our numbers in files this report cannot
+// see from a README. These arms cover the reader AND the tamper direction: the live text
+// (fetched 2026-09-26, kept verbatim) must read clean, and a one-word edit must be named.
+test('carrierFindings reads a clean upstream plugin manifest as clean', () => {
+  const live = '{"version":"0.8.0","description":"Connect Codex to a self-hosted AI gateway with provider-free prompt enhancement and fifteen governed MCP tools.","shortDescription":"Fifteen governed MCP tools, local-first."}';
+  assert.deepEqual(carrierFindings(live, 15, '0.8.0'), []);
+});
+
+test('carrierFindings names a stale count and a stale version pin', () => {
+  const stale = '{"version":"0.7.0","description":"... twelve governed MCP tools ..."}';
+  const findings = carrierFindings(stale, 15, '0.8.0');
+  assert.equal(findings.length, 2);
+  assert.match(findings[0], /states "twelve governed MCP tools" while the roster has 15/);
+  assert.match(findings[1], /pins version 0\.7\.0, published release is 0\.8\.0/);
+});
+
+test('carrierFindings ignores a version assertion when the carrier is not versioned', () => {
+  const md = 'Setup steps:\n1. If the 15 tools are already visible, continue.\n';
+  assert.deepEqual(carrierFindings(md, 15, null), []);
+  // boundary arm: the same text read against a different roster must complain
+  assert.equal(carrierFindings(md, 12, null).length, 1);
+});
+
+test('carrierFindings on prose with no numbers reports nothing', () => {
+  assert.deepEqual(carrierFindings('a gateway for agents, with governance and audit', 15, '0.8.0'), []);
+});
+
+// The false positive the first live run produced: an aggregate catalogue describes hundreds
+// of plugins, so another plugin's "23 MCP tools" is not a claim about us. Scope is the fix,
+// and the arm must prove both halves of it.
+test('carrierRegion reads only the object that holds our anchor', () => {
+  const index = '{"plugins":[{"name":"other","description":"a gateway exposing 23 MCP tools"},'
+    + '{"name":"ours","repo":"happy520ai/unified-ai-system","description":"fifteen governed MCP tools"}]}';
+  const region = carrierRegion(index, 'happy520ai/unified-ai-system');
+  assert.match(region, /"name":"ours"/);
+  assert.ok(!region.includes('23 MCP tools'), 'a neighbouring plugin leaked into our region');
+  assert.deepEqual(carrierFindings(region, 15, null), []);
+  // and the neighbour really does complain when scope is ignored, so the arm is not vacuous
+  assert.equal(carrierFindings(index, 15, null).length, 1);
+});
+
+test('carrierRegion reports no-match as null rather than as clean', () => {
+  assert.equal(carrierRegion('{"plugins":[{"name":"other"}]}', 'happy520ai/unified-ai-system'), null);
+  assert.equal(carrierRegion('{"nested":{"deep":true}}', 'missing-anchor'), null);
 });
