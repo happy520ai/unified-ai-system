@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>What a published MCP Docker image actually exposes: 9, 12, then 15 tools | Unified AI System</title>
+    <meta
+      name="description"
+      content="We read the shipped source out of eight published Docker tags of our MCP server, verified every layer blob against its digest, and printed the tool roster each image really contains. No Docker daemon, no API key."
+    />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="theme-color" content="#081011" />
+    <link
+      rel="canonical"
+      href="https://happy520ai.github.io/unified-ai-system/verify-mcp-docker-image.html"
+    />
+
+    <link rel="sitemap" type="application/xml" href="sitemap.xml" />
+    <link rel="alternate" type="text/plain" href="llms.txt" title="LLM-readable project summary" />
+    <link rel="icon" type="image/png" href="assets/mcp-icon.png" />
+
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Unified AI System" />
+    <meta property="og:locale" content="en_US" />
+    <meta
+      property="og:title"
+      content="What a published MCP Docker image actually exposes"
+    />
+    <meta
+      property="og:description"
+      content="Nine, then twelve, then fifteen: the measured tool roster of eight published image tags, read from the image itself."
+    />
+    <meta
+      property="og:url"
+      content="https://happy520ai.github.io/unified-ai-system/verify-mcp-docker-image.html"
+    />
+    <meta
+      property="og:image"
+      content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png"
+    />
+    <meta
+      property="og:image:secure_url"
+      content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png"
+    />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="640" />
+    <meta property="og:image:alt" content="Unified AI System MCP gateway and prompt enhancement preview" />
+    <meta property="article:published_time" content="2026-09-26T00:00:00+00:00" />
+    <meta property="article:modified_time" content="2026-09-26T00:00:00+00:00" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="What a published MCP Docker image actually exposes" />
+    <meta
+      name="twitter:description"
+      content="Nine, then twelve, then fifteen - measured from the image layers, not from a README."
+    />
+    <meta
+      name="twitter:image"
+      content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png"
+    />
+    <meta name="twitter:image:alt" content="Unified AI System MCP gateway and prompt enhancement preview" />
+
+    <link rel="stylesheet" href="site.css" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "TechArticle",
+        "headline": "What a published MCP Docker image actually exposes",
+        "description": "A reproducible method for reading the MCP tool roster out of a published container image without a Docker daemon, with measurements across eight tags of one server.",
+        "datePublished": "2026-09-26",
+        "dateModified": "2026-09-26",
+        "author": {
+          "@type": "Organization",
+          "name": "Unified AI System contributors",
+          "url": "https://github.com/happy520ai/unified-ai-system"
+        },
+        "mainEntityOfPage": "https://happy520ai.github.io/unified-ai-system/verify-mcp-docker-image.html",
+        "image": "https://happy520ai.github.io/unified-ai-system/assets/social-preview.png",
+        "keywords": "MCP server, container image, OCI manifest, layer digest, supply chain, tool roster, self-hosted, ghcr"
+      }
+    </script>
+    <script src="site.js" defer></script>
+  </head>
+  <body class="article-page">
+    <a class="skip-link" href="#article">Skip to article</a>
+
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="Unified AI System home">
+        <img src="assets/mcp-icon.png" alt="" width="32" height="32" />
+        <span>Unified AI System</span>
+      </a>
+      <nav aria-label="Primary navigation">
+        <a href="./">Project</a>
+        <a href="#measurements">Measurements</a>
+        <a href="#method">Method</a>
+        <a
+          class="nav-command"
+          href="https://github.com/happy520ai/unified-ai-system"
+          aria-label="Star Unified AI System on GitHub"
+        >
+          Star on GitHub
+        </a>
+      </nav>
+    </header>
+
+    <main id="article">
+      <header class="article-hero">
+        <div class="article-hero-shade" aria-hidden="true"></div>
+        <div class="article-hero-inner">
+          <p class="eyebrow">SUPPLY-CHAIN NOTE / SEPTEMBER 2026</p>
+          <h1>What a published MCP image actually exposes</h1>
+          <p class="article-hero-copy">
+            Every catalogue entry, README and release note states a tool count, and every
+            one of those numbers is a claim about a document. The artifact people install
+            is a container image. So we read the roster out of the image itself - eight
+            published tags, layer by layer - and the result is a step function: nine
+            tools, then twelve, then fifteen. The method needs no Docker daemon and no
+            API key, and it is the same method that caught us shipping a README that
+            contradicted our own image.
+          </p>
+          <div class="article-meta" aria-label="Article details">
+            <span>8 tags measured</span>
+            <span>Zero dependencies</span>
+            <span>Every blob checked against its digest</span>
+          </div>
+        </div>
+      </header>
+
+      <div class="article-layout">
+        <aside class="article-toc" aria-label="Article contents">
+          <p class="eyebrow dark">Contents</p>
+          <a href="#why">1. Why the README number is the wrong number</a>
+          <a href="#measurements">2. The measurements</a>
+          <a href="#changed">3. What was added between them</a>
+          <a href="#method">4. How the read works</a>
+          <a href="#parser">5. The parser bug we hit first</a>
+          <a href="#digest">6. Tags move; digests do not</a>
+          <a href="#limits">7. What this does not prove</a>
+          <a href="#run">8. Run it yourself</a>
+        </aside>
+
+        <div class="article-body">
+          <section id="why">
+            <p class="eyebrow dark">SECTION 01</p>
+            <h2>The number in the description is not the number in the image</h2>
+            <p>
+              An MCP client discovers tools by asking the server, so nobody outside the
+              running process ever sees a description field. Catalogues do: they copy a
+              sentence from a README, a registry inherits a one-line description from
+              <code>server.json</code>, and both keep repeating it long after the code
+              moved. We had three of those sentences pointing at an old count at the same
+              time - ours, a directory's, and a plugin manifest - and none of them was a
+              lie when written.
+            </p>
+            <p>
+              The fix is not to stop writing numbers. It is to make the number checkable
+              by someone who has neither our source nor our credentials, which means
+              reading the published artifact. That is a container image, and a container
+              image is a tarball with a manifest in front of it.
+            </p>
+          </section>
+
+          <section id="measurements">
+            <p class="eyebrow dark">SECTION 02 / THE DATA</p>
+            <h2>Eight tags, measured on 2026-09-26</h2>
+            <p>
+              Each row below is a run of
+              <code>node tools/verify-image-roster.mjs &lt;tag&gt;</code> against
+              <code>ghcr.io/happy520ai/unified-ai-system/mcp-server</code>. The roster is
+              the <code>MCP_TOOL_NAMES</code> array in
+              <code>app/packages/mcp-server/src/server.js</code> as it exists inside that
+              image - the same path in all eight rows.
+            </p>
+            <table class="roster-table">
+              <caption>
+                Tool count per published tag, read from the image layer that ships it.
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Tag</th>
+                  <th scope="col">Tools</th>
+                  <th scope="col">Layer digest</th>
+                  <th scope="col">Layer (compressed)</th>
+                  <th scope="col">Layers scanned</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><th scope="row">0.4.0</th><td>9</td><td>sha256:477265fa7ee1</td><td>908,385 B</td><td>16</td></tr>
+                <tr><th scope="row">0.4.6</th><td>9</td><td>sha256:9cad1b4ac2e5</td><td>933,702 B</td><td>16</td></tr>
+                <tr><th scope="row">0.4.9</th><td>9</td><td>sha256:f70fae95935f</td><td>935,604 B</td><td>16</td></tr>
+                <tr><th scope="row">0.5.0</th><td>12</td><td>sha256:d7c770d8f0b5</td><td>966,351 B</td><td>17</td></tr>
+                <tr><th scope="row">0.6.0</th><td>12</td><td>sha256:c8491d23fd3d</td><td>1,033,868 B</td><td>18</td></tr>
+                <tr><th scope="row">0.7.0</th><td>12</td><td>sha256:027b1ebf6f7a</td><td>1,033,863 B</td><td>18</td></tr>
+                <tr><th scope="row">0.8.0</th><td>15</td><td>sha256:c585f08ef7de</td><td>1,282,144 B</td><td>21</td></tr>
+                <tr><th scope="row">latest</th><td>15</td><td>sha256:e2640984dc60</td><td>1,283,066 B</td><td>21</td></tr>
+              </tbody>
+            </table>
+            <p>
+              Two of those rows deserve to be adjacent: <code>0.7.0</code> and
+              <code>0.6.0</code> differ by five bytes in the layer that carries the
+              roster and by nothing observable in the interface. A description that said
+              "twelve tools" was right for both and wrong for neither. The step happens at
+              <code>0.5.0</code> and again at <code>0.8.0</code>.
+            </p>
+          </section>
+
+          <section id="changed">
+            <p class="eyebrow dark">SECTION 03 / THE DIFF</p>
+            <h2>What each step added</h2>
+            <p>The three names that appear at 0.5.0 and stay:</p>
+            <ul>
+              <li><code>gateway_prompt_enhance_llm</code> - the model-backed enhancement path, next to the deterministic one.</li>
+              <li><code>knowledge_retrieve</code> - retrieval against the indexed corpus, separated from readiness.</li>
+              <li><code>workflow_run</code> - executing a workflow rather than only describing its actions.</li>
+            </ul>
+            <p>The three that arrive at 0.8.0, all of them the governance surface:</p>
+            <ul>
+              <li><code>agent_governance_describe</code></li>
+              <li><code>agent_governance_list</code></li>
+              <li><code>agent_governance_status</code></li>
+            </ul>
+            <p>
+              That ordering is the honest history of the project: routing and enhancement
+              shipped first, execution second, and the part that makes an agent's
+              authority inspectable last. Nothing was dropped on the way - the nine names
+              present in <code>0.4.0</code> are all still in <code>0.8.0</code>, which is
+              the one property of this table a client upgrade depends on. It is also why
+              "the gateway has N tools" was a sentence that kept needing repair: N was the
+              interesting variable.
+            </p>
+          </section>
+
+          <section id="method">
+            <p class="eyebrow dark">SECTION 04 / THE METHOD</p>
+            <h2>Six steps, no Docker</h2>
+            <ol class="method-list">
+              <li>
+                Ask <code>ghcr.io/token</code> for a pull-scoped token for the repository:
+                <code>?scope=repository:happy520ai/unified-ai-system/mcp-server:pull</code>.
+              </li>
+              <li>
+                <code>GET /v2/&lt;repo&gt;/manifests/&lt;tag&gt;</code> with an
+                <code>Accept</code> header that lists both the OCI index and the Docker
+                manifest-list media types. Omit them and a perfectly published image
+                answers 404 - a false negative that looks like an absent release.
+              </li>
+              <li>
+                From the index, pick the <code>linux/amd64</code> child by its platform
+                object rather than by position, and fetch that child manifest.
+              </li>
+              <li>
+                For each layer blob, <code>GET /v2/&lt;repo&gt;/blobs/&lt;digest&gt;</code>
+                and hash what arrived. If <code>sha256(bytes)</code> is not the digest the
+                manifest named, stop - that is the whole point of reading through the
+                registry.
+              </li>
+              <li>
+                Gunzip the layer and walk it as ustar by hand (<code>name</code> at
+                offset 0, <code>size</code> an octal field at 124, prefix at 345). Look
+                for a member whose path ends in <code>mcp-server/src/server.js</code>.
+              </li>
+              <li>
+                Decode with <code>TextDecoder</code> - not
+                <code>Uint8Array.prototype.toString</code>, which does not decode - and
+                parse the roster.
+              </li>
+            </ol>
+            <p>
+              The last step is the only one with a judgement in it, and it is where we
+              were wrong first.
+            </p>
+          </section>
+
+          <section id="parser">
+            <p class="eyebrow dark">SECTION 05 / THE BUG</p>
+            <h2>The first version counted everything after the array</h2>
+            <p>
+              The first probe was a regular expression that started at
+              <code>MCP_TOOL_NAMES</code> and ran to the end of the file, collecting
+              quoted strings. That sweeps up tool descriptions, config keys and error
+              literals sitting after the array, so it returns a number larger than the
+              image's real roster - on our file, larger by every string that happens to
+              look like a snake_case identifier. The same class of mistake appeared
+              separately when a count was searched for by substring across an aggregate
+              plugin index: it attributed tool counts to servers that were not ours,
+              because the match had no enclosing object.
+            </p>
+            <p>
+              The rule that came out of it: a parser must be bounded by the syntax it
+              claims to read, and a count must be scoped to the record it belongs to.
+              <code>rosterFromSource()</code> takes the array literal and nothing else -
+              it stops at the closing <code>])</code> - and returns <code>null</code>
+              when the marker is absent rather than an empty list, so "this file has no
+              roster" and "this roster is empty" stay different answers. Both are pinned
+              by tests, and one of them builds a source file that the bounded parser reads
+              as fifteen names while a greedy regex over the same bytes reads more - the
+              assertion is that the two disagree, so the test cannot pass by accident.
+            </p>
+            <div class="article-code">
+              <span aria-hidden="true">$</span>
+              <code id="roster-command">node tools/verify-image-roster.mjs 0.8.0</code>
+              <button type="button" data-copy-target="roster-command">Copy</button>
+            </div>
+            <p>
+              Expected: a line reading <code>tools   15</code>. Run it against
+              <code>0.4.0</code> and it reads <code>tools   9</code> with no other
+              judgement - the tool reports what the artifact contains, not what is
+              current.
+            </p>
+          </section>
+
+          <section id="digest">
+            <p class="eyebrow dark">SECTION 06 / THE PART THAT MATTERS MORE</p>
+            <h2><code>latest</code> and <code>0.8.0</code> are not the same bytes</h2>
+            <p>
+              Both expose the same fifteen names. Their roster layers are different:
+            </p>
+            <ul>
+              <li><code>0.8.0</code> - <code>sha256:c585f08ef7de5b8682599839204bc87d0b1b89f23f774cdee4a981c3d88ba408</code>, 1,282,144 bytes compressed</li>
+              <li><code>latest</code> - <code>sha256:e2640984dc601d3c91414dc9830b182d2554b4d9238cc1d436942d65017c2d74</code>, 1,283,066 bytes compressed</li>
+            </ul>
+            <p>
+              Same interface, same source file, different artifact. Any instruction that
+              says "pull <code>latest</code>" therefore describes a moving target, and any
+              security review that names a tag has reviewed nothing yet. This is why the
+              install skill pins what it recommends
+              (<code>mcp-server@sha256:751a0d32…</code>) instead of a floating tag, why the
+              image review notes record the OCI-index and per-platform digests side by
+              side, and why every command on this site names a version rather than
+              <code>latest</code>. A reader should be able to say which bytes they ran.
+            </p>
+          </section>
+
+          <section id="limits">
+            <p class="eyebrow dark">SECTION 07 / BOUNDARY</p>
+            <h2>What this does not establish</h2>
+            <p>
+              It reads source that the image ships. That is stronger than a README and
+              weaker than a handshake:
+            </p>
+            <ul>
+              <li>It does not prove the server answers <code>tools/list</code> with those names. That needs the handshake, and the repository has one: <code>tools/mcp-smoke.mjs</code> starts the stdio entry point, sends <code>server/discover</code>, then requests <code>tools/list</code> and compares the returned names, sorted, against the roster it expects - so it checks the set a running server exposes, not a declaration in a file.</li>
+              <li>It does not attest the build. The digests are checked against the manifest, and the manifest is what the registry served - a registry-side substitution would need a signature to notice.</li>
+              <li>It says nothing about the other architecture. Each row reads one child manifest for <code>linux/amd64</code>; the index also carries <code>linux/arm64</code>.</li>
+            </ul>
+            <p>
+              And it is not a general "is this image safe" claim. It answers exactly one
+              question - which tools does the shipped server declare - because that was
+              the question a stale catalogue entry was getting wrong.
+            </p>
+          </section>
+
+          <section id="run">
+            <p class="eyebrow dark">SECTION 08 / TRY IT</p>
+            <h2>Reproduce a row</h2>
+            <p>
+              The script is dependency-free ESM, so it runs from a clone with any Node
+              that supports <code>fetch</code>. It makes anonymous read requests to
+              <code>ghcr.io</code> and writes nothing:
+            </p>
+            <div class="article-code">
+              <span aria-hidden="true">$</span>
+              <code id="clone-command">git clone --depth 1 https://github.com/happy520ai/unified-ai-system.git &amp;&amp; cd unified-ai-system &amp;&amp; node tools/verify-image-roster.mjs 0.8.0</code>
+              <button type="button" data-copy-target="clone-command">Copy</button>
+            </div>
+            <p>
+              Point it at any public image with <code>--repository owner/name/repo</code>.
+              The tests around it -
+              <code>node --test tools/verify-image-roster.test.mjs</code> - include the
+              greedy-parser case and a hand-built ustar layer, so the reader can check the
+              instrument without pulling anything.
+            </p>
+            <p class="article-note">
+              A Public Preview of self-hosted software. Real providers are disabled by
+              default, and no part of this page claims production readiness, L5 autonomy
+              or AGI.
+            </p>
+          </section>
+        </div>
+      </div>
+</main>
+
+    <footer>
+      <span>Unified AI System</span>
+      <span>Image roster note</span>
+      <a href="credential-free-evidence.html">Credential-free evidence guide</a>
+      <span>Apache-2.0</span>
+    </footer>
+  </body>
+</html>

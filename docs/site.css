@@ -1791,3 +1791,57 @@ footer a:hover {
     scroll-behavior: auto;
   }
 }
+
+.roster-table {
+  width: 100%;
+  margin-top: 26px;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.roster-table caption {
+  padding-bottom: 12px;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: left;
+}
+
+.roster-table th,
+.roster-table td {
+  padding: 9px 14px 9px 0;
+  border-bottom: 1px solid var(--paper-muted);
+  color: var(--text-dark);
+  font-size: 14px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.roster-table thead th {
+  border-bottom-color: var(--text-dark);
+  color: var(--text-muted);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.roster-table tbody th {
+  font-weight: 750;
+}
+
+.roster-table code {
+  font-size: 12.5px;
+}
+
+.method-list {
+  margin-top: 22px;
+  padding-left: 22px;
+  display: grid;
+  gap: 14px;
+}
+
+@media (max-width: 640px) {
+  .roster-table th,
+  .roster-table td {
+    white-space: normal;
+  }
+}

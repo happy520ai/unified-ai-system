@@ -2,11 +2,11 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://happy520ai.github.io/unified-ai-system/</loc>
-    <lastmod>2026-09-25</lastmod>
+    <lastmod>2026-09-26</lastmod>
   </url>
   <url>
     <loc>https://happy520ai.github.io/unified-ai-system/index.zh-CN.html</loc>
-    <lastmod>2026-09-25</lastmod>
+    <lastmod>2026-09-26</lastmod>
   </url>
   <url>
     <loc>https://happy520ai.github.io/unified-ai-system/terminal-first-ai-gateway.html</loc>
@@ -38,6 +38,10 @@
   </url>
   <url>
     <loc>https://happy520ai.github.io/unified-ai-system/credential-free-evidence.html</loc>
-    <lastmod>2026-09-25</lastmod>
+    <lastmod>2026-09-26</lastmod>
+  </url>
+  <url>
+    <loc>https://happy520ai.github.io/unified-ai-system/verify-mcp-docker-image.html</loc>
+    <lastmod>2026-09-26</lastmod>
   </url>
 </urlset>
