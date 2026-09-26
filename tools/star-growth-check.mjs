@@ -79,6 +79,11 @@ const externalPrs = [
   // Their queue merges 30 of 30 recent closures, and their README is the source the JSON
   // artifacts regenerate from, so the correction is one line in one file.
   ["hashgraph-online/awesome-ai-plugins", 479],
+  // A copy of our own skill file, vendored by a 46.9k-star list with the nine-tool
+  // era's setup instructions still in it. Found by widening the carrier matcher, not by
+  // looking for doors: a reader who registered successfully and saw fifteen tools was told by
+  // this file that something was wrong.
+  ["sickn33/agentic-awesome-skills", 1616],
 ];
 
 // Submission doors that are ISSUES, not pull requests: directory sites that take a
