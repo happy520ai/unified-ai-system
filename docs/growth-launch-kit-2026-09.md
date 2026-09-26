@@ -430,6 +430,21 @@ claims parity is a claim someone will hold us to.
 
 ### 0g. Republish the registry description (the one fix that multiplies)
 
+**Decided later the same day - nobody needs to do this.** The route below is kept
+because it is the fallback if a device-flow publish is ever required, but tonight the
+question was closed with a machine answer. `.github/workflows/publish-mcp-registry.yml`
+(now in the repository, `workflow_dispatch` only) authenticated from this repo's own
+OIDC identity - `./mcp-publisher login github-oidc` printed `✓ Successfully logged
+in` - and `validate` printed `✅ server.json is valid`. The publish itself was
+refused: `status 400: invalid version: cannot publish duplicate version`
+(run `36238695230`, whose log quotes both descriptions side by side). So the registry
+is append-only per version and the 0.8.0 sentence cannot be corrected in place. It is
+superseded the moment any new version is published, and the tag-triggered path in
+`docker-build-push.yml` already does that as part of a release - which means the fix
+needs no owner action and no extra release cut for its own sake. One thing I did not
+verify: whether the human-facing page shows the newest version's description or the
+one it first stored; the next release will say.
+
 Readings taken 2026-09-26, all replayable:
 
 - The Official MCP Registry serves this description for **0.8.0** - the exact endpoint
@@ -570,7 +585,7 @@ the 0.8.0 tag and a reader's first action is to run it.
 | 有没有人在等我们回答 | **31 扇开放门全读（每扇最近 100 条评论，0 扇读不到）＝没有任何一条人类评论在等我们回话**。这条现在是仪器的一节（`check` 报告里的 "Whether a human has asked us something"），不再靠手抄门清单——手抄那份今天漏掉了当天新开的 6 扇。⚠ 顺带抓到 `shiftbot` 的账号类型是 `User`（它自己写 "I am a robot"），所以机器人只能按登录名形状判，不能信 `user.type` | `node tools/star-growth-check.mjs check` |
 | Topic 版面位（20 个已满，只能换不能加） | 现读排名（`search/repositories?q=topic:X&sort=stars`，名次＝页内 index+1）：**`prompt-enhancement` 20 个仓里第 7**、**`token-budget` 110 个里第 11**、`agent-governance` 832 个里第 97；`mcp-security`／`llm-observability`／`codex-cli` 不在前 100。而被换掉的 5 个（`llm` 139,369 个仓、`openai` 46,145、`ai-agents` 98,911、`anthropic`、`gemini`）实测**全部进不了前 100**＝零曝光。⇒ 这轮交换的净收益是"从五个看不见的位置换来一个看得见的位置"（另三个是语义正确但暂时不上首页的描述词），不是流量保证。回滚＝一次 `PUT /topics`，把这 5 个新词（`codex-cli`／`mcp-security`／`agent-governance`／`llm-observability`／`token-budget`）换回被删的 5 个（`gemini`／`anthropic`／`openai`／`llm`／`ai-agents`），两边都记在本行里，不依赖任何未跟踪文件。⚠ 别用浏览器读 topic 页来判"在不在"：未登录时 `github.com/topics/*` 返回登录外壳，`article` 选择器取到 0 条＝**仪器瞎**，名次必须用 API 判 | `gh api …/topics` + 排序检索 |
 | 使用回报表 | `usage-verification-report.yml` 存在且 URL 可解析，但**被用过的次数 0** | `.github/ISSUE_TEMPLATE/` + label 查询 |
-| 浏览器登录态 | 现读 **未登录 GitHub 网页**：访问 `/settings/admin` 被 302 到 `/login?return_to=…`，页面有登录表单，`meta[name=user-login]` 为空串 ⇒ 「分享卡上传、Changelog News 注册、selfh.st 会员消息、Turnstile 勾选」这四件确实只能你本人；`gh` 的 token 只覆盖 API 面（清单/目录 PR、Release、Registry 流水线我都做得动），不带你的人机登录态 | 浏览器同源探测，含正对照靶：若已登录该 meta 应是 `happy520ai` |
+| 浏览器登录态 | 现读 **未登录 GitHub 网页**：访问 `/settings/admin` 被 302 到 `/login?return_to=…`，页面有登录表单，`meta[name=user-login]` 为空串 ⇒ 「分享卡上传、Changelog News 注册、selfh.st 会员消息、Turnstile 勾选」这四件确实只能你本人；`gh` 的 token 只覆盖 API 面（清单/目录 PR、Release、Registry 流水线我都做得动），不带你的人机登录态。当晚用同一方法再测 news.ycombinator.com：页面上没有 `user:` 行，且 `/x` 端点只返回 24 字节（有会话时它返回带 `fnid` 的表单）⇒ HN 同样没有会话，§1 那条 Show HN 确实只能你本人发 | 浏览器同源探测，含正对照靶：若已登录该 meta 应是 `happy520ai` |
 | 贡献台 | `good first issue` 开 2 个、`help wanted` 开 3 个（新加 #166 站点安全页、#167 soak 分母修复，都带验收清单） | label 查询 |
 | 别人替我们保管的副本（**这才是今天真正的问题面**） | 逐个读"我们合并过的 PR 改了哪些文件"，发现四处仍在外发旧数字/旧指令，纠正全部已提交且都是极小 diff：`hashgraph-online/awesome-ai-plugins#479`（README 一行，删数字不换成 15；其 `validate-plugins.yml` step 名就是 "Sync marketplace artifacts with README" ⇒ JSON 会自己重生成，不碰）、`toolsdk-ai#552`（其机器可读条目把安装镜像钉在 **`mcp-server:0.4.8`**＝五个月前 9 工具镜像）、`up-for-grabs#6176`（`_data/projects/unified-ai-system.yml` 仍写 nine）、**`sickn33/agentic-awesome-skills#1616`（46.9k★，vendored 我们的 SKILL.md，里面写 "If the nine tools are already visible, skip setup"／"nine tools are available" ⇒ 读者按 15 配好后被这份文件告知自己配错了，是会误导操作的缺陷不是文案问题。同一张分支还改了它自己手写的 README 行（去掉数字；他们 CONTRIBUTING 的生成物清单只有 `CATALOG.md`/`skills_index.json`/`data/*.json`，README 不在其中 ⇒ 我最初把 README 当成生成物排除掉是判断错，已在这条 PR 正文里公开更正））**，以及 `agentskillexchange/skills#82`（自动摘要写 "nine bounded tools"，一行）。四扇守卫读数会随合并自己变绿，不需要任何人去问 | 判据＝我方 roster 现读 15 与 `verify-image-roster.mjs 0.8.0`；⚠ 一次"按含我们名字的行筛"的快速普查把 up-for-grabs 误判成 ok（数字与项目名常常不在同一行）⇒ **只有整文件载体算证据，临时脚本不算** |
 | 技能目录/Skill registry 族（2026-09-26 普查，**一族全部不收，理由要留下**） | 这一族当天全部在 1 小时内被 push，非常活：`VoltAgent/awesome-openclaw-skills` 52.8k★（**前置**：只收已发布到 ClawHub 的技能，条目必须带 `clawhub.ai/<owner>/<slug>` 链接）、`tech-leads-club/agent-skills` 6.8k★（24/30 合并；要求新技能必须走他们仓内的 `skill-architect` 流程 + 固定描述结构 + Snyk Agent Scan）、`davepoon/buildwithclaude` 3.5k★（22/30 合并，今天；只收 **Claude 插件**下的 `plugins/all-skills/skills/<name>/SKILL.md`）、`majiayu000/claude-skill-registry` 650★（CONTRIBUTING 原文 **"Do not submit normal source PRs here"**＝生成镜像）、`heilcheng/awesome-agent-skills` 6.2k★（30 条近期关闭 PR 合并 **0** 条 ⇒ 死队列）。**共同的不匹配**：我们官方技能 front matter 写 `tools: codex`、正文第 1 步是"确认已安装 Codex CLI 且 Docker 在跑"，全文零次提 Claude ⇒ 投进 Claude/OpenClaw 专用索引就是替我们声称一个没实现也没文档的主机支持。**能改变这件事的只有一步，而且是你的**：`clawhub login`（GitHub OAuth，非 git 通道）后发布我们的技能到 ClawHub，得到 `clawhub.ai/happy520ai/unified-ai-gateway`，之后 VoltAgent 那张 52.8k★ 的表才允许一条带该链接的 PR ⇒ 值得的只有这条，其余四条要改技能本体或换主机声明，那是产品决定不是推广动作。 | 逐个读 README/CONTRIBUTING 原文（`gh api …/contents/CONTRIBUTING.md`）＋队列活度实测；⚠ 我第一次用管道串了一个未闭合字符类（`grep -vE "^[?"`）⇒ 那一轮两个仓都返回空，那是无效读数不是"没有规则"；`gh search repos --json` 的星数键名是 `stargazersCount`（试 `stars`/`stargazerCount` 都会报错并回显被截断的可用字段列表），默认表格输出反而可用 |
