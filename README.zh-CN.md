@@ -82,6 +82,16 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.8.0 \
 ```
 
 网关会在本地增强请求、输出结构化提示词，然后自动清理隔离进程，全程不调用真实 provider。
+
+不安装镜像也能核对发布件的工具清单（在克隆出来的仓库里执行）：
+
+```bash
+node tools/verify-image-roster.mjs 0.8.0
+```
+
+它通过普通 HTTPS 读取容器层里的 `MCP_TOOL_NAMES`，并逐个用 manifest 声明的摘要校验每个
+blob——不需要 Docker 守护进程，也不需要 registry 登录。预期会看到一行 `tools   15`；
+同一条命令跑 `0.4.0` 会报 nine。也就是说，这个数字跟着制品走，而不是跟着描述走。
 如果需要指定输出语言，可以使用 `--language zh-CN` 或 `--language en`；省略时默认自动检测。
 
 ## 无需安装，直接体验

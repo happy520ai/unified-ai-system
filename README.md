@@ -77,6 +77,17 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.8.0 \
 This starts an isolated fake-provider gateway, enhances the request locally,
 prints the structured prompt, and cleans up without an API key.
 
+Check the tool roster of a published image without installing it (from a clone):
+
+```bash
+node tools/verify-image-roster.mjs 0.8.0
+```
+
+It reads `MCP_TOOL_NAMES` out of the container layer over plain HTTPS and verifies every
+blob against the digest its manifest names — no Docker daemon, no registry login. Expected:
+a line reading `tools   15`. The same command against `0.4.0` reports nine, so the number
+tracks the artifact rather than the prose written about it.
+
 ## Try Before Installing
 
 <p align="center">
