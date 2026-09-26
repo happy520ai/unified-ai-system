@@ -727,6 +727,9 @@ const upstreamCarriers = [
   { repo: "hashgraph-online/awesome-codex-plugins", path: "plugins/happy520ai/unified-ai-system/.codex-plugin/plugin.json", checksVersion: true },
   { repo: "hashgraph-online/awesome-codex-plugins", path: "plugins/happy520ai/unified-ai-system/skills/unified-ai-gateway/SKILL.md", checksVersion: false },
   { repo: "hashgraph-online/awesome-codex-plugins", path: "plugins.json", checksVersion: false, anchor: "happy520ai/unified-ai-system" },
+  // Checked by hand when #446 merged; guarded from here on so the next release cannot rot it
+  // quietly. Same aggregate-index shape as plugins.json, hence the same anchor.
+  { repo: "hashgraph-online/awesome-codex-plugins", path: ".agents/plugins/marketplace.json", checksVersion: false, anchor: "happy520ai/unified-ai-system" },
 ];
 
 // Pure: given carrier text, what does it assert that is no longer true?
