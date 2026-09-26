@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>23-attack security regression, run and logged: what a self-hosted AI gateway defends | Unified AI System</title>
+    <meta
+      name="description"
+      content="All 23 attacks defended by the repository's own regression against a live local gateway: cross-tenant cache and audit isolation, header forgery, role checks, budget and rate enforcement, instant revocation, secret redaction, and metrics authorization. No credentials, one run."
+    />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="theme-color" content="#081011" />
+    <link rel="canonical" href="https://happy520ai.github.io/unified-ai-system/security-drill-evidence.html" />
+    <link rel="sitemap" type="application/xml" href="sitemap.xml" />
+    <link rel="alternate" type="text/plain" href="llms.txt" title="LLM-readable project summary" />
+    <link rel="icon" type="image/png" href="assets/mcp-icon.png" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Unified AI System" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:title" content="23-attack security regression, run and logged" />
+    <meta property="og:description" content="Every row below is a line the tool printed, not a capability claimed in prose." />
+    <meta property="og:url" content="https://happy520ai.github.io/unified-ai-system/security-drill-evidence.html" />
+    <meta property="og:image" content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png" />
+    <meta property="og:image:secure_url" content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="640" />
+    <meta property="og:image:alt" content="Unified AI System MCP gateway and prompt enhancement preview" />
+    <meta property="article:published_time" content="2026-09-26T08:45:18.247Z" />
+    <meta property="article:modified_time" content="2026-09-26T08:45:22.510Z" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="23-attack security regression, run and logged" />
+    <meta name="twitter:description" content="Cross-tenant isolation, header forgery, role checks, revocation, redaction: 23 probes, all defended." />
+    <meta name="twitter:image" content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png" />
+    <meta name="twitter:image:alt" content="Unified AI System MCP gateway and prompt enhancement preview" />
+    <link rel="stylesheet" href="site.css" />
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "23-attack security regression, run and logged",
+  "description": "The repository's security regression executed against a live local gateway instance, with each attack's printed verdict.",
+  "datePublished": "2026-09-26",
+  "dateModified": "2026-09-26",
+  "author": { "@type": "Organization", "name": "Unified AI System contributors", "url": "https://github.com/happy520ai/unified-ai-system" },
+  "mainEntityOfPage": "https://happy520ai.github.io/unified-ai-system/security-drill-evidence.html"
+}
+    </script>
+  </head>
+  <body class="article-page">
+    <header class="site-header">
+      <a class="brand" href="index.html">
+        <img src="assets/mcp-icon.png" alt="" width="32" height="32" />
+        <span>Unified AI System</span>
+      </a>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="credential-free-evidence.html">Credential-free proof</a>
+        <a href="verify-mcp-docker-image.html">Image roster</a>
+        <a class="active" href="security-drill-evidence.html" aria-current="page">Security drill</a>
+        <a href="https://github.com/happy520ai/unified-ai-system">GitHub</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <p class="eyebrow">SELF-HOSTED AI GATEWAY / SECURITY EVIDENCE</p>
+        <h1>Twenty-three attacks, one run, no credentials</h1>
+        <p>
+          The repository ships a regression that boots the real gateway HTTP server and
+          then attacks it. This page is the output of that run, reformatted - every row
+          below is a line the tool printed. The content was generated from the run rather
+          than typed, so a row cannot quietly disagree with the tool that produced it.
+        </p>
+        <p class="hero-meta">
+          23 probes · all defended · exit 0 ·
+          commit <code>c8351472</code> · v25.8.1 · win32 Microsoft Windows [�汾 10.0.19045.6466 ·
+          2026-09-26T08:45:18Z
+        </p>
+      </section>
+
+      <section id="method">
+        <p class="eyebrow dark">SECTION 01 / WHAT RAN</p>
+        <h2>Not a unit test</h2>
+        <ul class="method-list">
+          <li>It imports the actual application and HTTP server modules and calls <code>listen(0, "127.0.0.1")</code>, so requests travel over a real socket against a real router rather than through a mocked transport.</li>
+          <li>State is created in a temporary directory; nothing is read from a developer checkout's configuration and nothing persists after the process exits.</li>
+          <li>The gateway runs with the local fake provider. No provider credential exists in the process, so the run costs nothing and sends nothing anywhere.</li>
+          <li>Each check asserts the defense, and the tool prints <code>BREACH!!</code> plus a non-zero exit if any check fails - so "all defended" is a conclusion the script reaches on its own.</li>
+        </ul>
+      </section>
+
+      <section id="results">
+        <p class="eyebrow dark">SECTION 02 / THE 23 RESULTS</p>
+        <h2>What was attempted, and what came back</h2>
+        <table class="roster-table">
+          <thead>
+            <tr><th scope="col">Attack</th><th scope="col">Observed response</th><th scope="col">Verdict</th></tr>
+          </thead>
+          <tbody>
+              <tr><th scope="row">A0 public enterprise health hides storage paths</th><td>status=200</td><td><span class="pill">defended</span></td></tr>
+              <tr><th scope="row">A1 seed</th><td>—</td><td><span class="pill">defended</span></td></tr>
+              <tr><th scope="row">A1 cross-tenant exact-cache isolation</th><td>tenant B served by a fresh provider call, never tenant A's cache lane</td><td><span class="pill">defended</span></td></tr>
+              <tr><th scope="row">A2 tenant header forgery</th><td>status=403</td><td><span class="pill">defended</span></td></tr>
+              <tr><th scope="row">A2b admin tenant header forgery</th><td>status=403</td><td><span class="pill">defended</span></td></tr>
+              <tr><th scope="row">A2c admin cross-tenant virtual-key creation</th><td>status=403</td><td><span class="pill">defended</span></td></tr>
+              <tr><th scope="row">A2d cross-tenant audit filter</th><td>status=403</td><td><span class="pill">defended</span></td></tr>
+              <tr><th scope="row">A2e cross-tenant global provider mutation</th><td>status=403</td><td><span class="pill">defended</span></td></tr>
+              <tr><th scope="row">A2f statement body cannot select another tenant</th><td>status=400</td><td><span class="pill">defended</span></td></tr>
+              <tr><th scope="row">A3 viewer-role key on chat</th><td>status=403</td><td><span class="pill">defended</span></td></tr>
+              <tr><th scope="row">A4 viewer-role key on admin surface</th><td>status=403</td><td><span class="pill">defended</span></td></tr>
+              <tr><th scope="row">A4b viewer-role key on statement reconciliation</th><td>status=403</td><td><span class="pill">defended</span></td></tr>
+              <tr><th scope="row">A5 budget exhaustion enforced (429)</th><td>—</td><td><span class="pill">defended</span></td></tr>
+              <tr><th scope="row">A5b rate limit enforced (429)</th><td>—</td><td><span class="pill">defended</span></td></tr>
+              <tr><th scope="row">A6 cross-tenant key revoke</th><td>status=403</td><td><span class="pill">defended</span></td></tr>
+              <tr><th scope="row">A7 secret-like text never cached</th><td>no cache marker on second call</td><td><span class="pill">defended</span></td></tr>
+              <tr><th scope="row">A8 anonymous /mcp/tools</th><td>status=401</td><td><span class="pill">defended</span></td></tr>
+              <tr><th scope="row">A8b viewer on /mcp/tools</th><td>status=403</td><td><span class="pill">defended</span></td></tr>
+              <tr><th scope="row">A8c unknown upstream rejected</th><td>status=400</td><td><span class="pill">defended</span></td></tr>
+              <tr><th scope="row">A9 oversized mcp arguments rejected</th><td>code=MCP_UPSTREAM_UNKNOWN</td><td><span class="pill">defended</span></td></tr>
+              <tr><th scope="row">A10 revoked key instant invalidation</th><td>revoke=200 chat=401</td><td><span class="pill">defended</span></td></tr>
+              <tr><th scope="row">A11 /metrics requires auth</th><td>status=401</td><td><span class="pill">defended</span></td></tr>
+              <tr><th scope="row">A11b /metrics has no secret material</th><td>status=200</td><td><span class="pill">defended</span></td></tr>
+          </tbody>
+        </table>
+        <p>
+          The tool's own final line for this run was <code>SECURITY AUDIT: ALL DEFENDED</code>.
+        </p>
+        <p>
+          Read the list as a shape rather than a scoreboard: the recurring theme is tenant
+          and role boundaries (a header carrying someone else's tenant, a viewer-role key on
+          an admin surface, a cross-tenant cache or audit filter, a revoked key replaying),
+          plus two things small gateways usually get wrong - what lands in the response
+          cache when a prompt contains something secret-looking, and whether the metrics
+          endpoint leaks material it authenticated everything else to protect.
+        </p>
+      </section>
+
+      <section id="reproduce">
+        <p class="eyebrow dark">SECTION 03 / RUN IT</p>
+        <h2>Reproduce on any machine with Node</h2>
+        <pre><code>git clone --depth 1 https://github.com/happy520ai/unified-ai-system.git
+cd unified-ai-system
+pnpm install --frozen-lockfile
+node tools/security-attack-regression.mjs</code></pre>
+        <p>
+          Expect one printed line per attack and the audit line at the end. No API key, no
+          Docker, no account.
+        </p>
+      </section>
+
+      <section id="limits">
+        <p class="eyebrow dark">SECTION 04 / BOUNDARY</p>
+        <h2>What this does not establish</h2>
+        <ul>
+          <li>It is not a penetration test by an independent party, and not an audit. It is the project's own checklist, executed.</li>
+          <li>It exercises the <strong>source build</strong> on one machine. It does not certify the published container, a deployment, or a cluster, and it says nothing about an installation that has enabled real providers.</li>
+          <li>The list is exactly twenty-three checks long because that is what the file contains today. It is not exhaustive: an unlisted weakness is not excluded by a green run here.</li>
+          <li>The numbers age. The commit and timestamp above are the version of this claim that was true when it ran; re-run it rather than trusting this page.</li>
+        </ul>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>
+        <a href="index.html">Unified AI System</a> - self-hosted AI gateway and agent
+        control plane, Apache-2.0.
+        Source of this page's data:
+        <a href="https://github.com/happy520ai/unified-ai-system/blob/c83514729d384a997fb7f4bfc982e5dd9f609293/tools/security-attack-regression.mjs">tools/security-attack-regression.mjs</a>.
+      </p>
+    </footer>
+    <script src="site.js?v=prompt-lab-9"></script>
+  </body>
+</html>
