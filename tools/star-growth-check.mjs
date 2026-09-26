@@ -27,6 +27,7 @@ function writeReport(filePath, content) {
 const externalPrs = [
   ["sickn33/agentic-awesome-skills", 1125],
   ["composio-community/awesome-codex-skills", 206],
+  ["neon-solutions/add-mcp", 92],
   ["toolleeo/awesome-cli-apps-in-a-csv", 347],
   ["tensorchord/Awesome-LLMOps", 710],
   ["punkpeye/awesome-mcp-devtools", 257],
@@ -478,6 +479,26 @@ function renderRepoSection(repoStats, date, prefix, previousStats = null) {
 // maintainer skips it rather than resolving the conflict. Only OPEN doors need action:
 // a closed DIRTY row is a dead door, and BLOCKED/UNSTABLE mean "a human is still needed",
 // which is not something a re-carry fixes.
+// "None of your doors needs a re-carry" is only worth reading if the door list is
+// every door. Compare it against what GitHub actually has open, and name the gap.
+export function findUntrackedDoors(tracked, openPulls, selfRepo) {
+  const keys = new Set((tracked ?? []).map((row) => `${row?.repo}#${row?.pr}`));
+  return (openPulls ?? [])
+    .filter((item) => {
+      const repo = String(item?.repository_url ?? "").replace("https://api.github.com/repos/", "");
+      // A private-vulnerability fork (owner/repo-ghsa-xxxx) is a security workflow
+      // artifact, not a promotion door; listing one would put advisory traffic in a
+      // growth report.
+      return repo && repo !== selfRepo && !/-ghsa-/i.test(repo);
+    })
+    .map((item) => ({
+      repo: String(item.repository_url).replace("https://api.github.com/repos/", ""),
+      pr: item.number,
+      title: String(item.title ?? "").slice(0, 60),
+    }))
+    .filter((door) => !keys.has(`${door.repo}#${door.pr}`));
+}
+
 export function needsRecarry(rows) {
   const actionable = new Set(["DIRTY", "BEHIND"]);
   const unreadable = new Set(["FETCH_FAILED"]);
@@ -616,7 +637,7 @@ async function scanRemotePublicClaims() {
   return { scanned, offenders, error };
 }
 
-function generateCheckReport(repoStats, rows, date, previousStats = null, claimSweep = null, remoteSweep = null, deferred = null) {
+function generateCheckReport(repoStats, rows, date, previousStats = null, claimSweep = null, remoteSweep = null, deferred = null, untracked = null) {
   const lines = [];
   lines.push(`# Star Growth Check (${date})`);
   lines.push("");
@@ -669,6 +690,18 @@ function generateCheckReport(repoStats, rows, date, previousStats = null, claimS
       } else {
         lines.push(`- waiting ${door.repo}: needs ${door.starsNeeded} more stars, ${door.contributorsNeeded} more human contributors. ${door.note}`);
       }
+    }
+  }
+
+  lines.push("");
+  lines.push("### Door-list completeness");
+  if (untracked === null) {
+    lines.push("UNKNOWN: the open-pull search failed, so this report cannot claim to cover every door.");
+  } else if (untracked.length === 0) {
+    lines.push(`Complete: every open pull request authored by us is a row in this report (${rows.length} rows tracked).`);
+  } else {
+    for (const door of untracked) {
+      lines.push(`- UNTRACKED ${door.repo}#${door.pr} - "${door.title}" is open but not in externalPrs, so no arm above can see it.`);
     }
   }
 
@@ -879,12 +912,17 @@ async function run() {
     ? deferredDoors.map((door) => ({ repo: door.repo, ready: false, starsNeeded: null, contributorsNeeded: null, note: door.note, unreadable: true }))
     : deferredDoorStatus(deferredDoors, repoStats.stars, humanContributors);
 
+  const openPulls = safeGetJson(`gh api "search/issues?q=author%3Ahappy520ai+type%3Apr+is%3Aopen&per_page=100" --jq .items`);
+  const untracked = openPulls.ok
+    ? findUntrackedDoors(rows, openPulls.data, repo)
+    : null;
+
   const previous = readSnapshotMetrics(defaultLatestSnapshotFile);
 
   if (action === "check") {
     const claimSweep = scanPublicClaims();
     const remoteSweep = await scanRemotePublicClaims();
-    const report = generateCheckReport(repoStats, rows, date, previous, claimSweep, remoteSweep, deferred);
+    const report = generateCheckReport(repoStats, rows, date, previous, claimSweep, remoteSweep, deferred, untracked);
     if (options.output) writeReport(options.output, report);
     console.log(report);
     return;

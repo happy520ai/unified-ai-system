@@ -5,6 +5,7 @@ import {
   countHumanContributors,
   countListingKinds,
   deferredDoorStatus,
+  findUntrackedDoors,
   isListedInReadme,
   needsRecarry,
   publishedToolCount,
@@ -164,4 +165,39 @@ test('deferredDoorStatus reports the remaining distance, not a boolean alone', (
   assert.equal(past.starsNeeded, 0);
   assert.equal(past.contributorsNeeded, 0);
   assert.deepEqual(deferredDoorStatus(undefined, 7, 1), []);
+});
+
+// The re-carry arm can only be trusted if the door list is every door; this is the
+// guard that stops "nothing needs action" from meaning "nothing I wrote down".
+test('findUntrackedDoors names doors the report cannot see', () => {
+  const tracked = [{ repo: 'a/l', pr: 1 }, { repo: 'b/l', pr: 2 }];
+  const open = [
+    { repository_url: 'https://api.github.com/repos/a/l', number: 1, title: 'tracked' },
+    { repository_url: 'https://api.github.com/repos/c/l', number: 3, title: 'the one that slips' },
+    { repository_url: 'https://api.github.com/repos/happy520ai/unified-ai-system', number: 9, title: 'our own repo is not a door' },
+  ];
+  const result = findUntrackedDoors(tracked, open, 'happy520ai/unified-ai-system');
+  assert.equal(result.length, 1);
+  assert.deepEqual(result[0], { repo: 'c/l', pr: 3, title: 'the one that slips' });
+});
+
+test('findUntrackedDoors is sensitive to a changed number, not just the repo', () => {
+  const result = findUntrackedDoors([{ repo: 'a/l', pr: 1 }], [
+    { repository_url: 'https://api.github.com/repos/a/l', number: 42, title: 'same list, new PR' },
+  ], 'happy520ai/unified-ai-system');
+  assert.equal(result.length, 1);
+  assert.equal(result[0].pr, 42);
+});
+
+test('findUntrackedDoors degrades to empty rather than throwing', () => {
+  assert.deepEqual(findUntrackedDoors([], [], 'x/y'), []);
+  assert.deepEqual(findUntrackedDoors(undefined, undefined, 'x/y'), []);
+});
+
+// A security-advisory fork must never surface as a promotion door.
+test('findUntrackedDoors ignores private-vulnerability forks', () => {
+  const result = findUntrackedDoors([], [
+    { repository_url: 'https://api.github.com/repos/happy520ai/unified-ai-system-ghsa-rg4w-29r7-h4rh', number: 1, title: 'PRIVATE SECURITY REVIEW' },
+  ], 'happy520ai/unified-ai-system');
+  assert.deepEqual(result, []);
 });
