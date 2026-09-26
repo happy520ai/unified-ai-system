@@ -878,6 +878,10 @@ const upstreamCarriers = [
   // instructions for us, so a stale count in it is a user-facing defect, not a branding nit.
   { repo: "agentskillexchange/skills", path: "skills/unified-ai-gateway/SKILL.md", checksVersion: true },
   { repo: "yzfly/Awesome-MCP-ZH", path: "README.md", checksVersion: false, anchor: "happy520ai/unified-ai-system", scope: "line" },
+  // The 46.9k-star vendor. Both of these are wrong right now and both are fixed by #1616,
+  // so the line going from STALE to ok is the confirmation that it merged - nobody has to ask.
+  { repo: "sickn33/agentic-awesome-skills", path: "skills/unified-ai-gateway/SKILL.md", checksVersion: true },
+  { repo: "sickn33/agentic-awesome-skills", path: "README.md", checksVersion: false, anchor: "happy520ai/unified-ai-system", scope: "line" },
 ];
 
 // A markdown list needs the opposite scoping from a JSON index: our entry is one line, and
