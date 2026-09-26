@@ -591,3 +591,58 @@ test('named automation accounts are not requests either', () => {
   // The direction that must still fire: a person whose login merely contains a bot-ish word.
   assert.equal(replyRequestFrom([c('robbitten', '2026-09-26T10:00:00Z', 'rebase please')], 'happy520ai').author, 'robbitten');
 });
+
+// T-129: the carrier sweep must tell a record from an instruction, and the excuse has
+// to stay narrower than the claim it protects.
+const { classifyStaleLines } = await import("./star-growth-check.mjs");
+const { isRecordLine } = await import("./launch-preflight.mjs");
+
+test('a body whose only old number sits in a recorded sentence is not an offender', () => {
+  const body = [
+    '### Why this exists',
+    'Every one of those rows was produced when the published surface had twelve tools;',
+    'Each row currently reads "discovered twelve tools" (or 12 个工具).',
+  ].join('\n');
+  const { labels, recordLines } = classifyStaleLines(body);
+  assert.deepEqual(labels, []);
+  assert.equal(recordLines, 2);
+});
+
+test('an instruction to a reader still goes red, with the same matcher', () => {
+  const { labels, recordLines } = classifyStaleLines('Install it and you should expect twelve tools.');
+  assert.deepEqual(labels, ['twelve tools']);
+  assert.equal(recordLines, 0);
+});
+
+test('one body carrying both kinds reports the instruction, not the pair', () => {
+  const mixed = 'The v0.7.0 image exposed 12 tools.\nThe current release exposes twelve tools.';
+  const { labels, recordLines } = classifyStaleLines(mixed);
+  assert.deepEqual(labels, ['twelve tools']);
+  assert.equal(recordLines, 1);
+});
+
+test('the record marker does not excuse a present-tense claim', () => {
+  assert.equal(isRecordLine('The published container and the current source both expose 12 MCP tools.'), false);
+  assert.equal(isRecordLine('the v0.7.0 image exposed 12 tools'), true);
+  // The two markers that exist only for reproduced wording: an arrow introducing a
+  // quotation, and a quoted phrase. Both were in the predicate the launch copy depends
+  // on, and a narrower shared version made a quoted "eight dedicated tools" read as ours.
+  assert.equal(isRecordLine('> the listing points at eight dedicated tools → "eight dedicated tools"'), true);
+});
+
+test('comment findings keep a self-marked record and reject an instruction', () => {
+  const roster = 15;
+  const sweep = commentClaimFindings(
+    [
+      { id: 1, html_url: 'https://x/issues/9#issuecomment-1', body: 'As of 2026-08-24 the audit record states: twelve tools were live then.' },
+      { id: 2, html_url: 'https://x/issues/9#issuecomment-2', body: 'Verify the integration exposes twelve tools.' },
+    ],
+    roster,
+    [],
+  );
+  assert.equal(sweep.scanned, 2);
+  assert.equal(sweep.kept.length, 1);
+  assert.match(sweep.kept[0], /marks itself as a record/);
+  assert.equal(sweep.offenders.length, 1);
+  assert.match(sweep.offenders[0], /comment 2 .*twelve tools/);
+});

@@ -44,7 +44,15 @@ const COUNT_IN_TEXT =
 // A line that announces it is reproducing somebody else's words is not a claim of
 // ours. "Their README says eight dedicated tools" and "the v0.7.0 image exposed 12"
 // are records, and flagging them would teach the reader to ignore the real flags.
-const QUOTING = /says|stated|statement|quoted|verbatim|reproduc|was true|exposed|→|"[^"]*tools/i;
+// A line that marks itself as reproducing, quoting or dating somebody else's words - or
+// an older state of our own - is a record, not a claim of ours to defend. "Their README
+// says eight dedicated tools", "the v0.7.0 image exposed 12", "every row was produced
+// when the surface had twelve tools" all stay true whatever the roster becomes, and
+// flagging them trains the reader to ignore the flags that matter. Shared with the
+// carrier sweep so the two instruments cannot disagree about where the line sits.
+export const RECORD_MARKER =
+  /says|stated|statement|quoted|verbatim|reproduc|was true|was produced|currently reads|exposed|→|"[^"]*tools|history|as-of|dated|record\b|records\b|recorded/i;
+export const isRecordLine = (line) => RECORD_MARKER.test(String(line ?? ""));
 // A version is a claim about the present only next to today/latest/current.
 const NEAR_PRESENT = 30;
 const PRESENT_WORD = /\b(today|latest|current)\b/i;
@@ -71,7 +79,7 @@ export function readCopyClaims(kitText) {
     for (const m of line.matchAll(COUNT_IN_TEXT)) {
       const value = num(m[1]);
       if (value === null) continue;
-      (QUOTING.test(line) ? quotedCounts : claimedCounts).push(value);
+      (isRecordLine(line) ? quotedCounts : claimedCounts).push(value);
     }
   }
   return {

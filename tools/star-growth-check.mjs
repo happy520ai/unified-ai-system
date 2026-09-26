@@ -1027,6 +1027,10 @@ function collectCarrierFindings() {
 // a comment containing `docker run ...:0.7.0` is advice a visitor copies, not history.
 // Records are still records, so they are excluded by comment id with the reason stated, and
 // the count is printed rather than hidden.
+// One shared predicate decides what counts as recording an old number, so this sweep and
+// the launch-copy checker cannot drift apart on the boundary.
+import { isRecordLine } from "./launch-preflight.mjs";
+
 const COMMENT_CLAIM_ALLOWED = [
   { id: 5407452399, reason: "2026-08-25 audit record of which surfaces were aligned to v0.5.0 / twelve tools at that date" },
   { id: 5235971711, reason: "as-of log of a client verification run that listed the then-nine tools" },
@@ -1044,8 +1048,21 @@ export function commentClaimFindings(comments, rosterCount, allowed = COMMENT_CL
     const body = String(comment?.body ?? "");
     if (body.length === 0) continue;
     scanned += 1;
-    const claims = staleToolCounts(body, rosterCount);
-    if (claims.length === 0) continue;
+    // Line by line, because a comment can carry both kinds: one sentence recording what
+    // the roster was in August, and one sentence instructing a reader what to expect now.
+    const claims = [];
+    const recorded = [];
+    for (const line of body.split("\n")) {
+      const onLine = staleToolCounts(line, rosterCount);
+      if (onLine.length === 0) continue;
+      (isRecordLine(line) ? recorded : claims).push(...onLine);
+    }
+    if (claims.length === 0) {
+      if (recorded.length > 0) {
+        kept.push(`comment ${comment.id} marks itself as a record (${recorded.map((x) => x.phrase).join(", ")})`);
+      }
+      continue;
+    }
     // Comment URLs come in two shapes: /issues/20#issuecomment-N and /pull/115#issuecomment-N.
     const ref = String(comment.html_url ?? "").match(/\/(?:issues|pull)\/(\d+)/)?.[1] ?? "?";
     const label = `comment ${comment.id} on #${ref}`;
@@ -1059,9 +1076,29 @@ export function commentClaimFindings(comments, rosterCount, allowed = COMMENT_CL
   return { scanned, offenders, kept };
 }
 
+// Split per line rather than over the whole body, because one issue can carry both
+// kinds at once: a sentence recording what the roster used to be, and a sentence
+// telling a reader what to expect now. Only the second one is ours to defend.
+export function classifyStaleLines(text, patterns = STALE_CLAIM_PATTERNS) {
+  const labels = new Set();
+  let recordLines = 0;
+  for (const line of String(text ?? "").split("\n")) {
+    const matched = [];
+    for (const pattern of patterns) {
+      pattern.re.lastIndex = 0;
+      if (pattern.re.test(line)) matched.push(pattern.label);
+    }
+    if (matched.length === 0) continue;
+    if (isRecordLine(line)) recordLines += 1;
+    else for (const label of matched) labels.add(label);
+  }
+  return { labels: [...labels], recordLines };
+}
+
 async function scanRemotePublicClaims() {
   const offenders = [];
   let scanned = 0;
+  let recordOnlyRows = 0;
   let error = null;
   for (const endpoint of [`repos/${repo}/issues?state=open&per_page=50`, `repos/${repo}/pulls?state=open&per_page=50`]) {
     let items;
@@ -1075,12 +1112,9 @@ async function scanRemotePublicClaims() {
     for (const item of items) {
       scanned += 1;
       const haystack = `${item.title ?? ""}\n${item.body ?? ""}`;
-      const labels = new Set();
-      for (const pattern of STALE_CLAIM_PATTERNS) {
-        pattern.re.lastIndex = 0;
-        if (pattern.re.test(haystack)) labels.add(pattern.label);
-      }
-      if (labels.size > 0) offenders.push(`#${item.number} says: ${[...labels].join(", ")}`);
+      const { labels, recordLines } = classifyStaleLines(haystack);
+      if (labels.length > 0) offenders.push(`#${item.number} says: ${labels.join(", ")}`);
+      else if (recordLines > 0) recordOnlyRows += 1;
     }
   }
   // Comment bodies use the roster-derived matcher rather than the literal pattern list,
@@ -1094,13 +1128,14 @@ async function scanRemotePublicClaims() {
   }
   const commentSweep = commentClaimFindings(comments, readRosterCount());
   if (commentSweep === null) {
-    return { scanned, offenders, error, commentScanned: 0, commentKept: 0, commentNote: "roster unreadable, so no comment was judged" };
+    return { scanned, offenders, error, recordOnlyRows, commentScanned: 0, commentKept: 0, commentNote: "roster unreadable, so no comment was judged" };
   }
   offenders.push(...commentSweep.offenders);
   return {
     scanned,
     offenders,
     error,
+    recordOnlyRows,
     commentScanned: commentSweep.scanned,
     commentKept: commentSweep.kept.length,
     commentNote: comments === null
@@ -1359,6 +1394,9 @@ function generateCheckReport(repoStats, rows, date, previousStats = null, claimS
   lines.push(`| Files with a stale instruction | ${claimSweep ? claimSweep.offenders.length : "not run"} |`);
   lines.push(`| Open issue and PR bodies scanned | ${remoteSweep ? remoteSweep.scanned : "not run"} |`);
   lines.push(`| Issues or PRs with a stale instruction | ${remoteSweep ? remoteSweep.offenders.length : "not run"} |`);
+  lines.push(
+    `| Issues or PRs whose only old number sits in a self-marked record | ${remoteSweep ? remoteSweep.recordOnlyRows : "not run"} |`,
+  );
   lines.push(
     `| Comment bodies scanned | ${remoteSweep?.commentScanned !== undefined
       ? `${remoteSweep.commentScanned} (records kept by rule: ${remoteSweep.commentKept})`
