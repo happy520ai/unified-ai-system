@@ -65,6 +65,11 @@ const externalPrs = [
   // that body changes. It is the surface that actually merges, so a later session must
   // not open a second one.
   ["InftyAI/Awesome-LLMOps", 508],
+  // Found with a different search shape (topic:awesome-list) on 2026-09-26. Their
+  // CONTRIBUTING states there is no star minimum, the queue merged 29 of the 30 most
+  // recently closed pull requests, and their own validator was run on the edit before
+  // filing: 0 errors.
+  ["alvinreal/awesome-opensource-ai", 779],
 ];
 
 // Submission doors that are ISSUES, not pull requests: directory sites that take a
