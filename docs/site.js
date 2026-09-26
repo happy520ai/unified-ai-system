@@ -277,17 +277,33 @@ async function initializePromptLab(lab) {
     window.location.assign(url.toString());
   });
 
-  const sharedState = readPromptLabShareState();
-  if (sharedState?.prompt) input.value = sharedState.prompt;
-  if (sharedState?.profile && [...profile.options].some((option) => option.value === sharedState.profile)) {
-    profile.value = sharedState.profile;
-  }
-  if (sharedState?.language && [...language.options].some((option) => option.value === sharedState.language)) {
-    language.value = sharedState.language;
-  }
-  if (sharedState) lab.scrollIntoView({ block: "start" });
+  // One path, whether the lab is opened cold or re-targeted by a clicked link: the
+  // validation below is deliberately not duplicated for the second case.
+  const applySharedState = ({ scroll = false } = {}) => {
+    const sharedState = readPromptLabShareState();
+    if (!sharedState) return;
+    if (sharedState.prompt) input.value = sharedState.prompt;
+    if (sharedState.profile && [...profile.options].some((option) => option.value === sharedState.profile)) {
+      profile.value = sharedState.profile;
+    }
+    if (sharedState.language && [...language.options].some((option) => option.value === sharedState.language)) {
+      language.value = sharedState.language;
+    }
+    if (scroll) lab.scrollIntoView({ block: "start" });
+  };
 
+  applySharedState({ scroll: true });
   render();
+
+  // A deep link clicked while the site is already open in the tab changes only the hash,
+  // so nothing re-read it and the lab kept showing the previous prompt. The link format is
+  // published in the README and in launch copy, so the second click has to behave like the
+  // first one, including a link that only changes the profile or the language.
+  window.addEventListener("hashchange", () => {
+    if (!window.location.hash.startsWith("#enhance?")) return;
+    applySharedState({ scroll: true });
+    render();
+  });
 }
 
 function readPromptLabShareState() {
