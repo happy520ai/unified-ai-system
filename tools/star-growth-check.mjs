@@ -59,6 +59,7 @@ const externalPrs = [
   ["scadastrangelove/awesome-ai-security-tools", 131],
   ["Jenqyang/Awesome-AI-Agents", 521],
   ["BehiSecc/awesome-claude-skills", 777],
+  ["ai-for-developers/awesome-ai-coding-tools", 775],
 ];
 
 // Submission doors that are ISSUES, not pull requests: directory sites that take a
