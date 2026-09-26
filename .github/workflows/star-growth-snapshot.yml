@@ -2,7 +2,12 @@ name: Star Growth Snapshot
 
 on:
   schedule:
-    - cron: "0 2 * * 1"
+    # Weekly was too coarse to attribute anything: a listing merged on a Tuesday and a
+    # launch posted on a Friday both landed inside the same sample, so the funnel could
+    # not say which event moved the needle. Day-level while the campaign is active.
+    # This job only reads the API and uploads artifacts - the workflow that writes to a
+    # public thread keeps its own, slower cadence.
+    - cron: "0 2 * * *"
   workflow_dispatch:
 
 permissions:
