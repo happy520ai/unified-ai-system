@@ -88,6 +88,7 @@ const usage = `Usage:
   node tools/star-growth-check.mjs daily [--output FILE]
   node tools/star-growth-check.mjs evidence [--output FILE]
   node tools/star-growth-check.mjs summary [--output FILE]
+  node tools/star-growth-check.mjs queues
   node tools/star-growth-check.mjs campaign --output FILE [--daily-output FILE] [--check-output FILE]`;
 
 function parseArgs() {
@@ -609,6 +610,79 @@ export function needsRecarry(rows) {
   return out;
 }
 
+// A candidate list looks alive when its newest PR is from yesterday. That signal is wrong:
+// travisvn/awesome-claude-skills had PRs opened 2026-09-24/25, a default branch untouched
+// since 2026-04-28, 794 open PRs and no merge in its last 20 closed ones. Filing there adds
+// to a queue with no consumer. Only merges prove someone reads the queue.
+export function queueHealth(closedPulls, { today, windowDays = 60, minSample = 5 } = {}) {
+  if (!Array.isArray(closedPulls)) return { verdict: "UNKNOWN", reason: "the closed-PR read failed" };
+  const closed = closedPulls.filter((pr) => pr?.state === "closed");
+  if (closed.length < minSample) {
+    return {
+      verdict: "UNKNOWN",
+      reason: `only ${closed.length} closed pull request(s) in the sample, fewer than ${minSample}`,
+      closed: closed.length,
+      merged: 0,
+    };
+  }
+  const mergedDates = closed
+    .map((pr) => pr?.merged_at)
+    .filter((value) => typeof value === "string" && value.length > 0)
+    .map((value) => Date.parse(value))
+    .filter((value) => Number.isFinite(value))
+    .sort((a, b) => b - a);
+  const base = Date.parse(today ?? new Date().toISOString());
+  if (!Number.isFinite(base)) return { verdict: "UNKNOWN", reason: "no reference date", closed: closed.length, merged: mergedDates.length };
+  const summary = { closed: closed.length, merged: mergedDates.length };
+  if (mergedDates.length === 0) {
+    return {
+      verdict: "DEAD_QUEUE",
+      reason: `0 of ${closed.length} most recently updated closed pull requests were merged`,
+      lastMergedAt: null,
+      ...summary,
+    };
+  }
+  const ageDays = Math.round((base - mergedDates[0]) / 86_400_000);
+  return {
+    verdict: ageDays <= windowDays ? "ALIVE" : "STALE",
+    reason: `last merge ${ageDays} day(s) ago (window ${windowDays}), ${mergedDates.length}/${closed.length} recent closed merged`,
+    lastMergedAt: new Date(mergedDates[0]).toISOString().slice(0, 10),
+    ...summary,
+  };
+}
+
+// One closed-sample read per repository. Shared by the standalone `queues` action and the
+// daily check, so a door's chance of ever merging is computed the same way in both.
+async function assessQueues(repoNames) {
+  const out = [];
+  for (const repoName of [...new Set(repoNames)]) {
+    const result = safeGetJson(
+      `gh api "repos/${repoName}/pulls?state=closed&sort=updated&direction=desc&per_page=30"`
+    );
+    out.push({ repo: repoName, ...queueHealth(result.ok ? result.data : null, { today: new Date().toISOString() }) });
+  }
+  return out;
+}
+
+function renderQueueLines(assessments, { heading }) {
+  const lines = [heading, ""];
+  const counts = {};
+  for (const item of assessments) {
+    counts[item.verdict] = (counts[item.verdict] ?? 0) + 1;
+    lines.push(`- ${item.verdict.padEnd(12)} ${item.repo} - ${item.reason}`);
+  }
+  lines.push("");
+  lines.push(`Tallied: ${Object.entries(counts).map(([key, value]) => `${key}=${value}`).join(", ")} across ${assessments.length} repositories.`);
+  lines.push("`ALIVE` means a merge landed within 60 days. `DEAD_QUEUE` means the most recently updated closed sample (>=5 pull requests) contains no merge at all; a submission there is invisible, not pending. `UNKNOWN` means the sample was too small to say - it is not a claim of health or of death.");
+  return lines;
+}
+
+async function reportQueues() {
+  return renderQueueLines(await assessQueues(externalPrs.map(([repoName]) => repoName)), {
+    heading: "### Whether each door's queue can actually merge",
+  });
+}
+
 function renderPrRowsTable(rows) {
   const lines = [];
   lines.push("| Repository | PR | Listing | State | Merge State | Listed in | Updated | Comments |");
@@ -838,7 +912,7 @@ async function scanRemotePublicClaims() {
   return { scanned, offenders, error };
 }
 
-function generateCheckReport(repoStats, rows, date, previousStats = null, claimSweep = null, remoteSweep = null, deferred = null, untracked = null, denominatorTruncated = false, carriers = null) {
+function generateCheckReport(repoStats, rows, date, previousStats = null, claimSweep = null, remoteSweep = null, deferred = null, untracked = null, denominatorTruncated = false, carriers = null, queues = null) {
   const lines = [];
   lines.push(`# Star Growth Check (${date})`);
   lines.push("");
@@ -979,6 +1053,33 @@ function generateCheckReport(repoStats, rows, date, previousStats = null, claimS
       lines.push(`- ${item.kind} ${item.repo}#${item.pr} (${item.mergeState}) - ${guidance}`);
     }
   }
+  lines.push("");
+  lines.push("### Can each open pull-request door still merge?");
+  if (queues === null) {
+    lines.push("Not evaluated in this mode. Run `node tools/star-growth-check.mjs queues` for every tracked repository.");
+  } else {
+    const blocked = queues.filter((item) => item.verdict !== "ALIVE");
+    const counts = queues.reduce((acc, item) => {
+      acc[item.verdict] = (acc[item.verdict] ?? 0) + 1;
+      return acc;
+    }, {});
+    lines.push(
+      `Assessed ${queues.length} repositories with an open pull request of ours: `
+      + `${Object.entries(counts).map(([key, value]) => `${key}=${value}`).join(", ")}. `
+      + "A door in a queue with no recent merges is invisible, not pending - count it as zero expected listings and do not spend another submission on that repository."
+    );
+    for (const item of blocked) {
+      const doors = (rows ?? [])
+        .filter((row) => row.repo === item.repo && row.state === "open" && row.kind !== "issue")
+        .map((row) => `#${row.pr}`)
+        .join(" ");
+      lines.push(`- ${item.verdict.padEnd(12)} ${item.repo} ${doors} - ${item.reason}`);
+    }
+    if (blocked.length === 0) {
+      lines.push("None: every open pull-request door sits in a repository that merged something within 60 days.");
+    }
+  }
+
   lines.push("");
   lines.push("## Public Claim Sweep");
   lines.push("");
@@ -1156,13 +1257,21 @@ async function run() {
     options.action === "status" ? "check" : options.action;
   const date = formatReportDate();
 
-  if (!["check", "daily", "evidence", "summary", "campaign"].includes(action)) {
+  if (!["check", "daily", "evidence", "summary", "campaign", "queues"].includes(action)) {
     console.error(`Unsupported growth action: ${action}`);
     console.error(usage);
     process.exit(1);
   }
 
   ensureGhAvailable();
+  if (action === "queues") {
+    const lines = await reportQueues();
+    const nl = String.fromCharCode(10);
+    const report = lines.join(nl);
+    if (options.output) writeReport(options.output, report + nl);
+    console.log(report);
+    return;
+  }
   const repoStats = await getRepoStats();
   const prRows = await getExternalPrRows();
   const issueRows = await getExternalIssueRows();
@@ -1191,7 +1300,9 @@ async function run() {
     const claimSweep = scanPublicClaims();
     const remoteSweep = await scanRemotePublicClaims();
     const carriers = collectCarrierFindings();
-    const report = generateCheckReport(repoStats, rows, date, previous, claimSweep, remoteSweep, deferred, untracked, denominatorTruncated, carriers);
+    const openPrDoorRepos = rows.filter((row) => row.state === "open" && row.kind !== "issue").map((row) => row.repo);
+    const queues = await assessQueues(openPrDoorRepos);
+    const report = generateCheckReport(repoStats, rows, date, previous, claimSweep, remoteSweep, deferred, untracked, denominatorTruncated, carriers, queues);
     if (options.output) writeReport(options.output, report);
     console.log(report);
     return;

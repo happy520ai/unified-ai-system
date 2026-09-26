@@ -12,6 +12,7 @@ import {
   isListedInReadme,
   needsRecarry,
   publishedToolCount,
+  queueHealth,
   staleOwnClaimLines,
   staleToolCounts,
   unreadableCarriers,
@@ -346,4 +347,40 @@ test('carrierRegion reads only the object that holds our anchor', () => {
 test('carrierRegion reports no-match as null rather than as clean', () => {
   assert.equal(carrierRegion('{"plugins":[{"name":"other"}]}', 'happy520ai/unified-ai-system'), null);
   assert.equal(carrierRegion('{"nested":{"deep":true}}', 'missing-anchor'), null);
+});
+
+// Two errors this arm exists to prevent. (1) Recency of submissions is not evidence anyone
+// reads them: travisvn/awesome-claude-skills had PRs opened yesterday, a default branch
+// eight months cold, 794 open pull requests and no merge in its recent closed set.
+// (2) A mixed open/closed sample calls a healthy list dead, because a busy repo's 20
+// most-recently-updated pull requests can be almost all open.
+test('queueHealth reads merges out of the closed sample only', () => {
+  const today = '2026-09-26T00:00:00Z';
+  const closed = (n, mergedAt) =>
+    Array.from({ length: n }, (_, i) => ({ state: 'closed', merged_at: i === 0 ? mergedAt : null }));
+  const recent = '2026-09-20T00:00:00Z';
+  const old = '2025-12-01T00:00:00Z';
+
+  assert.equal(queueHealth(closed(20, recent), { today }).verdict, 'ALIVE');
+  const dead = queueHealth(closed(20, null), { today });
+  assert.equal(dead.verdict, 'DEAD_QUEUE');
+  assert.match(dead.reason, /^0 of 20 /);
+  assert.equal(dead.merged, 0);
+  assert.equal(dead.closed, 20);
+  assert.equal(queueHealth(closed(6, old), { today }).verdict, 'STALE');
+
+  const stale = queueHealth(closed(6, old), { today });
+  assert.equal(stale.verdict, 'STALE');
+  assert.equal(stale.lastMergedAt, '2025-12-01');
+
+  // open pull requests must not shrink or pollute the closed denominator
+  const busy = [
+    ...Array.from({ length: 18 }, () => ({ state: 'open' })),
+    ...closed(6, recent),
+  ];
+  assert.equal(queueHealth(busy, { today }).verdict, 'ALIVE');
+
+  assert.equal(queueHealth([{ state: 'closed' }, { state: 'closed' }], { today }).verdict, 'UNKNOWN');
+  assert.equal(queueHealth(null, { today }).verdict, 'UNKNOWN');
+  assert.equal(queueHealth([], { today }).verdict, 'UNKNOWN');
 });
