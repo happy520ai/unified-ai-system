@@ -62,7 +62,7 @@ source and a reproducible test support them.
 | Execution | Configuration and MITM operations | Default-off adapters, immutable route plan, exact one-time approval, idempotency, external-effect fence, cancellation, lifecycle state, and receipt hash |
 | Observability | Local usage, quota, cost, TTFT, and total latency | OpenTelemetry traces/metrics/logs, Prometheus output, client-to-route-to-provider correlation, pre-storage redaction, and retention controls |
 | Resilience | Single-node state and in-process cooldown | Persistent circuit state, deadlines, cancellation, clean shutdown, no leaked processes, and optional shared fenced stores for multi-instance execution |
-| Supply chain | Docker publication without verified release-wide test gate, SBOM, or provenance in the reviewed workflow | All repository gates, hosted CI, SBOM, provenance, signature, digest pinning, and credential-free public-clone verification |
+| Supply chain | Docker publication without verified release-wide test gate, SBOM, or provenance in the reviewed workflow | All repository gates, hosted CI, an SPDX inventory job plus build-time SBOM and provenance attestation on the publishing build, digest pinning, and credential-free public-clone verification. Not claimed: the images are not signed, and the buildx attestations are not yet independently resolvable from the registry. |
 | Claim integrity | Public documentation has observable drift from source | Capability tables generated from code/tests; SLO, adapter, provider, HA, and savings claims link to reproducible evidence |
 
 Unified AI System is "better than 9Router" only when every relevant row has
