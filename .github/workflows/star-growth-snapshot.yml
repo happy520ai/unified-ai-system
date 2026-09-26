@@ -43,20 +43,6 @@ jobs:
           echo "### Feedback Snapshot" >> "$GITHUB_STEP_SUMMARY"
           cat .tmp/growth/star-growth-feedback.md >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Notify search engines about published pages
-        run: |
-          # The daily report reads our own index coverage and found 8 of 14 published pages missing.
-          # Notifying is the cheap half of that; this step is the difference between a fix that ran
-          # once and a defence that keeps running. A third-party endpoint being down must not redden
-          # the snapshot, but it must not vanish either, so the exit code is echoed into the summary
-          # where it can be compared against the coverage row the next morning.
-          node tools/notify-indexnow.mjs | tee .tmp/growth/indexnow.log
-          status=${PIPESTATUS[0]}
-          echo "indexnow exit=$status" | tee -a "$GITHUB_STEP_SUMMARY"
-          if [ "$status" -ne 0 ]; then
-            echo "::warning::IndexNow notification incomplete (exit 1 rejected / exit 3 inconclusive) - see the index-coverage row tomorrow"
-          fi
-
       - name: Upload growth snapshot artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
