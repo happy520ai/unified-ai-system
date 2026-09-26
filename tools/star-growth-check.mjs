@@ -91,8 +91,10 @@ const externalPrs = [
   // one-word patch to both language READMEs instead of a second request.
   ["cuihuan/awesome-ai-gateway", 104],
   // Found by a repository-wide code search for our slug rather than by looking for doors: a
-  // third-party skill bundle shipped our SKILL.md copy with the nine-tool setup
-  // instructions, which tell a correctly configured reader to unregister a working server.
+  // third-party skill bundle ships our SKILL.md copy, whose listing description still says
+  // nine tools and whose version note still claims v0.4.9 is the current release. The copy's
+  // nine inside the digest-pinned inspection procedure is correct and was left alone - the
+  // defect is only where a sentence is about the project rather than about the pinned image.
   ["FrancoStino/opencode-skills-collection", 127],
   // 75.6k stars, found by scanning curated lists for ones whose README does not mention
   // us rather than by searching for "awesome mcp". Their CONTRIBUTING asks for exactly
