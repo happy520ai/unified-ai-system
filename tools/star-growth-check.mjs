@@ -55,6 +55,7 @@ const externalPrs = [
   ["slavakurilyak/awesome-ai-agents", 583],
   ["caramaschiHG/awesome-ai-agents-2026", 612],
   ["ottosulin/awesome-ai-security", 482],
+  ["rafska/awesome-local-llm", 235],
 ];
 
 // Submission doors that are ISSUES, not pull requests: directory sites that take a
