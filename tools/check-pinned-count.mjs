@@ -116,9 +116,11 @@ export function run({ paths = null } = {}) {
   const report = [];
   let mismatches = 0;
   let inconclusive = 0;
+  let scanned = 0;
   for (const p of files) {
     let text = "";
     try { text = readFileSync(p, "utf8"); } catch { continue; }
+    scanned += 1;
     const { findings, inconclusive: inc } = pinnedCountMismatches(text, roster);
     const correct = pinnedCorrectReadings(text, roster);
     mismatches += findings.length;
@@ -131,12 +133,19 @@ export function run({ paths = null } = {}) {
       report.push(`ok(pinned-identity) ${p}:${c.line} states ${c.stated} tools, matching the pinned ${c.pinnedVersion} - correct, do not "update" it`);
     }
   }
-  return { status: mismatches > 0 ? "mismatch" : inconclusive > 0 ? "inconclusive" : "clean", mismatches, inconclusive, roster, files: files.length, report };
+  // Zero scanned files is not a pass. An empty set looks exactly like a clean one, and a guard
+  // that reports "clean" because it read nothing is worse than no guard - it teaches trust in a
+  // reading that has no content. This bit me twice today with other instruments.
+  const status = scanned === 0 ? "inconclusive"
+    : mismatches > 0 ? "mismatch"
+    : inconclusive > 0 ? "inconclusive"
+    : "clean";
+  return { status, mismatches, inconclusive, roster, files: files.length, scanned, report };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const out = run({});
-  console.log(`=== pinned-vs-current tool count check (roster ${out.roster} for ${CURRENT_RELEASE}, ${out.files ?? 0} files) ===`);
+  console.log(`=== pinned-vs-current tool count check (roster ${out.roster} for ${CURRENT_RELEASE}, ${out.scanned ?? 0}/${out.files ?? 0} files read) ===`);
   for (const line of out.report) console.log(`  ${line}`);
   console.log(`status=${out.status} mismatches=${out.mismatches} inconclusive=${out.inconclusive}`);
   if (out.status === "mismatch") process.exit(1);

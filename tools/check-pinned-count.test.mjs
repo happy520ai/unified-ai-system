@@ -66,6 +66,7 @@ test("an unmeasured pinned version is inconclusive, never a silent pass", () => 
 
 test("our own tracked markdown is clean under this rule right now", () => {
   const out = run({ paths: ["skills/unified-ai-gateway/SKILL.md"] });
+  assert.ok(out.scanned >= 1, `read ${out.scanned} of ${out.files} files - an empty set must not read as clean`);
   assert.equal(out.status, "clean", JSON.stringify(out.report));
   assert.equal(out.mismatches, 0);
 });
