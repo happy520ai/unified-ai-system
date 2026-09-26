@@ -425,6 +425,66 @@ claims parity is a claim someone will hold us to.
 
 ---
 
+### 0g. Republish the registry description (the one fix that multiplies)
+
+Readings taken 2026-09-26, all replayable:
+
+- The Official MCP Registry serves this description for **0.8.0** - the exact endpoint
+  returns 200:
+  `Self-hosted MCP gateway for Codex, Cursor, and Cline with provider-free prompt enhancement.`
+- That text is from the **0.4.4** era. Every version since repeats it verbatim, and
+  directories that pull from the registry copy it, so the weakest sentence we have ever
+  written about this project is the one with the widest distribution.
+- The repository's own `server.json` already says something better
+  (`Self-hosted AI gateway + MCP server: virtual keys, budgets, audit, OpenAPI-to-MCP,
+  zero API keys.`), committed in `989f3e07` - **after** the `v0.8.0` tag, so it is in no
+  release and never reached the registry. Nothing in the repo needs changing; only the
+  publish call is missing.
+
+**Do not `npm install mcp-publisher`.** That name on npm belongs to an unrelated
+browser-automation/auto-publishing package (`latest 0.4.2`, description in Russian about
+publishing content to platforms). The real tool is published by
+`modelcontextprotocol/registry` (7,284 stars, Go) as release archives.
+
+Windows path, verified to exist in release `v1.8.1`:
+
+```powershell
+# 1. fetch and verify before running anything
+curl.exe -LO https://github.com/modelcontextprotocol/registry/releases/download/v1.8.1/mcp-publisher_windows_amd64.tar.gz
+Get-FileHash .\mcp-publisher_windows_amd64.tar.gz -Algorithm SHA256
+# expected: 399AD0D6E00A50812B563A71D8BFBFF5160C085E6B13AAC6EC083D98D5FF7C45
+# (from registry_1.8.1_checksums.txt in the same release; re-read it rather than trusting this line)
+
+# 2. unpack, then sign in through the GitHub device flow
+tar -xzf .\mcp-publisher_windows_amd64.tar.gz
+.\mcp-publisher.exe login github
+
+# 3. from the repository root, where server.json lives
+.\mcp-publisher.exe publish
+```
+
+Verify with a fresh read rather than the tool's own success message:
+
+```bash
+curl -s "https://registry.modelcontextprotocol.io/v0/servers/io.github.happy520ai%2Funified-ai-system/versions/0.8.0" \
+  | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).server.description))'
+```
+
+Two things I could not establish and you will find out by doing it:
+
+- **Whether republishing an existing version overwrites or is rejected as a duplicate.**
+  The registry docs do not say. If it is rejected, nothing is lost and nothing breaks: the
+  improved text ships automatically with the next release, since publishing is per version.
+- **Rollback requires the old string**, because a successful overwrite may not be
+  undoable otherwise. It is quoted in full above - that is the exact value to restore if
+  you decide the registry copy should stay conservative.
+
+Whatever happens, the check worth keeping is this one: the registry description is the only
+surface found today that other sites copy *without* being asked, so a stale number there
+reappears elsewhere on its own.
+
+---
+
 ## Verify before posting (re-run, do not trust this file)
 
 ```bash
