@@ -86,6 +86,17 @@ const externalPrs = [
   // this file that something was wrong.
   ["sickn33/agentic-awesome-skills", 1616],
   ["agentskillexchange/skills", 82],
+  // 75.6k stars, found by scanning curated lists for ones whose README does not mention
+  // us rather than by searching for "awesome mcp". Their CONTRIBUTING asks for exactly
+  // this shape of entry and does not bar agents.
+  //
+  // Trap recorded the hard way: our fork of THIS list is `happy520ai/awesome-claude-skills-1`,
+  // because `happy520ai/awesome-claude-skills` is the fork of BehiSecc's list that carries
+  // door #777 above. Same repo name, same branch name, two different upstreams - a submit
+  // script that builds fork paths from "<owner>/<upstream-name>" writes into the other
+  // door's head branch. That is why the filing script now fetches the branch's README and
+  // refuses unless it is byte-identical to the upstream head it was cut from.
+  ["ComposioHQ/awesome-claude-skills", 2001],
 ];
 
 // Submission doors that are ISSUES, not pull requests: directory sites that take a
