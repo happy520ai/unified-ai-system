@@ -97,6 +97,12 @@ const externalPrs = [
   // door's head branch. That is why the filing script now fetches the branch's README and
   // refuses unless it is byte-identical to the upstream head it was cut from.
   ["ComposioHQ/awesome-claude-skills", 2001],
+  // Not a new listing either: this 46.9k-star list vendors our SKILL.md verbatim, and the
+  // copy still carried the two defects we fixed at source minutes earlier - it told readers
+  // v0.4.9 was the current release and mapped nine tools where the release declares fifteen.
+  // Filed only after proving their copy was byte-identical to our pre-fix file, so the sync
+  // overwrites nothing of theirs.
+  ["hashgraph-online/awesome-codex-plugins", 449],
 ];
 
 // Submission doors that are ISSUES, not pull requests: directory sites that take a
