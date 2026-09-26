@@ -321,6 +321,34 @@ function readRosterCount() {
   }
 }
 
+// Lists that refuse us for a reason that changes: a stated numeric bar we have not
+// reached yet. Recording the bar here means the report says "you may file now" when
+// it flips, instead of relying on someone remembering the rule exists.
+const deferredDoors = [
+  {
+    repo: "e2b-dev/awesome-mcp-gateways",
+    requiresStars: 200,
+    requiresHumanContributors: 2,
+    note: "Open-source section requires 200 stars and 2 contributors; entries are one-line gateway descriptions.",
+  },
+];
+
+export function deferredDoorStatus(deferred, stars, humanContributors) {
+  return (deferred ?? []).map((door) => ({
+    repo: door.repo,
+    ready: stars >= door.requiresStars && humanContributors >= door.requiresHumanContributors,
+    starsNeeded: Math.max(0, door.requiresStars - stars),
+    contributorsNeeded: Math.max(0, door.requiresHumanContributors - humanContributors),
+    note: door.note,
+  }));
+}
+
+// Dependabot and other bots are listed as contributors by the API but are not the
+// "2 contributors" a curator means, so they are excluded rather than counted.
+export function countHumanContributors(contributors) {
+  return (contributors ?? []).filter((entry) => entry?.type !== "Bot" && !String(entry?.login ?? "").endsWith("[bot]")).length;
+}
+
 // One classification per repository per run. Several lists appear twice in the door
 // table (two PRs into the same list), and two independent probes of the same README
 // can disagree, which produced a report where one row of a repo said "data file"
@@ -588,7 +616,7 @@ async function scanRemotePublicClaims() {
   return { scanned, offenders, error };
 }
 
-function generateCheckReport(repoStats, rows, date, previousStats = null, claimSweep = null, remoteSweep = null) {
+function generateCheckReport(repoStats, rows, date, previousStats = null, claimSweep = null, remoteSweep = null, deferred = null) {
   const lines = [];
   lines.push(`# Star Growth Check (${date})`);
   lines.push("");
@@ -628,6 +656,22 @@ function generateCheckReport(repoStats, rows, date, previousStats = null, claimS
       lines.push(`- STALE ${item}`);
     }
   }
+  lines.push("");
+  lines.push("### Deferred doors (stated numeric bar not yet met)");
+  if ((deferred ?? []).length === 0) {
+    lines.push("None recorded.");
+  } else {
+    for (const door of deferred) {
+      if (door.unreadable) {
+        lines.push(`- UNKNOWN ${door.repo}: contributor list could not be read; do not conclude eligibility either way. ${door.note}`);
+      } else if (door.ready) {
+        lines.push(`- READY ${door.repo}: the stated bar is met now - file it. ${door.note}`);
+      } else {
+        lines.push(`- waiting ${door.repo}: needs ${door.starsNeeded} more stars, ${door.contributorsNeeded} more human contributors. ${door.note}`);
+      }
+    }
+  }
+
   const carry = needsRecarry(rows);
   lines.push("");
   lines.push("### Doors needing action");
@@ -827,13 +871,20 @@ async function run() {
   ensureGhAvailable();
   const repoStats = await getRepoStats();
   const rows = await getExternalPrRows();
+  const contributorsResult = safeGetJson(`gh api repos/${repo}/contributors?per_page=100`);
+  const humanContributors = contributorsResult.ok
+    ? countHumanContributors(contributorsResult.data)
+    : null;
+  const deferred = humanContributors === null
+    ? deferredDoors.map((door) => ({ repo: door.repo, ready: false, starsNeeded: null, contributorsNeeded: null, note: door.note, unreadable: true }))
+    : deferredDoorStatus(deferredDoors, repoStats.stars, humanContributors);
 
   const previous = readSnapshotMetrics(defaultLatestSnapshotFile);
 
   if (action === "check") {
     const claimSweep = scanPublicClaims();
     const remoteSweep = await scanRemotePublicClaims();
-    const report = generateCheckReport(repoStats, rows, date, previous, claimSweep, remoteSweep);
+    const report = generateCheckReport(repoStats, rows, date, previous, claimSweep, remoteSweep, deferred);
     if (options.output) writeReport(options.output, report);
     console.log(report);
     return;

@@ -2,7 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   countHandAccepted,
+  countHumanContributors,
   countListingKinds,
+  deferredDoorStatus,
   isListedInReadme,
   needsRecarry,
   publishedToolCount,
@@ -132,4 +134,34 @@ test('staleToolCounts stays silent on correct counts and on rows that make no cl
   assert.deepEqual(staleToolCounts('Apache-2.0 local-first Node.js gateway and MCP server', 15), []);
   assert.deepEqual(staleToolCounts('anything at all', 0), []);
   assert.deepEqual(staleToolCounts(null, 15), []);
+});
+
+// A deferred door is a promise about the future; it is only useful if the arithmetic
+// and the bot exclusion are right, and if "could not read" never becomes "eligible".
+test('countHumanContributors refuses to count bots as contributors', () => {
+  assert.equal(countHumanContributors([
+    { login: 'happy520ai', type: 'User' },
+    { login: 'dependabot[bot]', type: 'Bot' },
+  ]), 1);
+  assert.equal(countHumanContributors([{ login: 'a', type: 'User' }, { login: 'b', type: 'User' }]), 2);
+  assert.equal(countHumanContributors([]), 0);
+  assert.equal(countHumanContributors(undefined), 0);
+});
+
+test('deferredDoorStatus reports the remaining distance, not a boolean alone', () => {
+  const doors = [{ repo: 'x/list', requiresStars: 200, requiresHumanContributors: 2, note: 'n' }];
+  const waiting = deferredDoorStatus(doors, 7, 1)[0];
+  assert.equal(waiting.ready, false);
+  assert.equal(waiting.starsNeeded, 193);
+  assert.equal(waiting.contributorsNeeded, 1);
+
+  const ready = deferredDoorStatus(doors, 200, 2)[0];
+  assert.equal(ready.ready, true);
+  assert.equal(ready.starsNeeded, 0);
+
+  // Over-shooting must not produce negative debt.
+  const past = deferredDoorStatus(doors, 900, 5)[0];
+  assert.equal(past.starsNeeded, 0);
+  assert.equal(past.contributorsNeeded, 0);
+  assert.deepEqual(deferredDoorStatus(undefined, 7, 1), []);
 });
