@@ -27,12 +27,23 @@ installations require the manual setup below.
 
 ## Version Note
 
-The current public project release and latest reviewed immutable MCP image are
-both `v0.4.9`. The inspection procedure below pins its recorded digests; those
-values must not be silently replaced with a mutable tag. For a normal
-provider-free demo, use the current `v0.4.9` command in the
-[project README](https://github.com/happy520ai/unified-ai-system#try-it-in-60-seconds).
-A new content review is required before changing this pinned procedure.
+These are two different things and they are not equal today:
+
+- **Current release: `v0.8.0`.** It declares and ships fifteen tool names, and the
+  [60-second demo command](https://github.com/happy520ai/unified-ai-system#try-it-in-60-seconds)
+  in the README names that version. Read it live with
+  `node tools/verify-image-roster.mjs 0.8.0`, which reports the roster from the
+  image bytes rather than from this file.
+- **Reviewed and pinned below: `0.4.9`.** The inspection procedure in this file
+  pins that image's recorded digests because `0.4.9` is the newest version with a
+  completed [content review](https://github.com/happy520ai/unified-ai-system/blob/master/docs/security/mcp-image-review-0.4.9.md).
+  It carries 9 of the fifteen names: the model-backed enhancement, knowledge
+  retrieval and workflow execution tools arrived at 0.5.0, and the three
+  governance tools at 0.8.0.
+
+Do not substitute a mutable tag for a pinned digest, and do not move the pin to a
+newer version just because this file looks out of date: a new content review is
+required first, and the pinned identity is only as good as the review that backs it.
 
 ## Prerequisites And Setup
 
