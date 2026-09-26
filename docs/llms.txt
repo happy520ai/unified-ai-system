@@ -14,6 +14,9 @@ Unified AI System provides one governed boundary for models, agents, knowledge, 
 - [Turn a REST API into governed MCP tools](https://happy520ai.github.io/unified-ai-system/openapi-to-mcp.html)
 - [How a credential-free run proves no provider was called](https://happy520ai.github.io/unified-ai-system/credential-free-evidence.html)
 - [What a published MCP image actually exposes (9, 12, then 15 tools)](https://happy520ai.github.io/unified-ai-system/verify-mcp-docker-image.html)
+- [Self-hosted AI gateways compared, in each project's own words](https://happy520ai.github.io/unified-ai-system/self-hosted-ai-gateways-compared.html) - verbatim README quotes and licenses for LiteLLM, Portkey, Agent Router, and this gateway; no paraphrased claims about any of them.
+- [自托管 AI 网关选型对照（中文）](https://happy520ai.github.io/unified-ai-system/self-hosted-ai-gateways-compared.zh-CN.html) - 同上，各家描述一律逐字引用其 README。
+- [23-attack security regression, run and logged](https://happy520ai.github.io/unified-ai-system/security-drill-evidence.html) - one row per printed verdict from a live run against a locally booted gateway: tenant and role boundaries, cache and audit filters, revocation replay, secret redaction, metrics authorization.
 - [Turn a REST API into governed MCP tools (Chinese)](https://happy520ai.github.io/unified-ai-system/openapi-to-mcp.zh-CN.html)
 - [Source repository](https://github.com/happy520ai/unified-ai-system)
 - [Installable Agent Skill](https://skills.sh/happy520ai/unified-ai-system/unified-ai-gateway)
