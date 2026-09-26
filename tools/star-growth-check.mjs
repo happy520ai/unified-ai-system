@@ -90,6 +90,10 @@ const externalPrs = [
   // issue asking for it (#102) had sat unapplied, so the correction went in as a
   // one-word patch to both language READMEs instead of a second request.
   ["cuihuan/awesome-ai-gateway", 104],
+  // Found by a repository-wide code search for our slug rather than by looking for doors: a
+  // third-party skill bundle shipped our SKILL.md copy with the nine-tool setup
+  // instructions, which tell a correctly configured reader to unregister a working server.
+  ["FrancoStino/opencode-skills-collection", 127],
   // 75.6k stars, found by scanning curated lists for ones whose README does not mention
   // us rather than by searching for "awesome mcp". Their CONTRIBUTING asks for exactly
   // this shape of entry and does not bar agents.
