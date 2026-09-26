@@ -26,7 +26,22 @@
       "identifier": "ghcr.io/happy520ai/unified-ai-system/mcp-server:0.8.0",
       "transport": {
         "type": "stdio"
-      }
+      },
+      "environmentVariables": [
+        {
+          "name": "AI_GATEWAY_MCP_URL",
+          "description": "Base URL of a gateway that is already running. Leave it unset and the server starts its own loopback gateway with a freshly generated token, which is the credential-free default. When set, the target must be https, or plain http only on 127.0.0.1 / ::1, and the server refuses it unless its health report shows the fake-provider runtime.",
+          "default": "",
+          "isRequired": false
+        },
+        {
+          "name": "AI_GATEWAY_MCP_AUTH_TOKEN",
+          "description": "Bearer token presented to the gateway named by AI_GATEWAY_MCP_URL; must be at least 32 characters. Read only when that variable is set - the locally started gateway mints its own token, so the zero-key default needs neither variable.",
+          "default": "",
+          "isRequired": false,
+          "isSecret": true
+        }
+      ]
     }
   ]
 }
