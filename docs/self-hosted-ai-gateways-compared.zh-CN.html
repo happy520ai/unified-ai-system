@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>自托管 AI 网关对照：LiteLLM、Portkey、Agent Router 与 Unified AI System | Unified AI System</title>
+    <meta
+      name="description"
+      content="四个可自托管的 AI 网关，只用各项目自己 README 里的原文来描述：附链接、标注阅读日期，不替别人说它缺什么。"
+    />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="theme-color" content="#081011" />
+    <link
+      rel="canonical"
+      href="https://happy520ai.github.io/unified-ai-system/self-hosted-ai-gateways-compared.zh-CN.html"
+    />
+    <link rel="alternate" hreflang="en" href="https://happy520ai.github.io/unified-ai-system/self-hosted-ai-gateways-compared.html" />
+    <link rel="alternate" hreflang="zh-CN" href="https://happy520ai.github.io/unified-ai-system/self-hosted-ai-gateways-compared.zh-CN.html" />
+    <link rel="alternate" hreflang="x-default" href="https://happy520ai.github.io/unified-ai-system/self-hosted-ai-gateways-compared.html" />
+    <link rel="sitemap" type="application/xml" href="sitemap.xml" />
+    <link rel="alternate" type="text/plain" href="llms.txt" title="面向 LLM 的项目摘要" />
+    <link rel="icon" type="image/png" href="assets/mcp-icon.png" />
+
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Unified AI System" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:title" content="自托管 AI 网关对照：只用各项目的自述" />
+    <meta
+      property="og:description"
+      content="LiteLLM、Portkey Gateway、Agent Router 与 Unified AI System：引用各项目 README 原文、标注日期与出处，附选型前该问的三个问题。"
+    />
+    <meta
+      property="og:url"
+      content="https://happy520ai.github.io/unified-ai-system/self-hosted-ai-gateways-compared.zh-CN.html"
+    />
+    <meta
+      property="og:image"
+      content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png"
+    />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="640" />
+    <meta property="og:image:alt" content="Unified AI System MCP 网关与提示词增强预览" />
+    <meta property="article:published_time" content="2026-09-26T00:00:00+00:00" />
+    <meta property="article:modified_time" content="2026-09-26T00:00:00+00:00" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="自托管 AI 网关对照：只用各项目的自述" />
+    <meta
+      name="twitter:description"
+      content="四个网关，逐条引用它们自己的 README，标注日期；再加选型前该问的三个问题。"
+    />
+    <meta
+      name="twitter:image"
+      content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png"
+    />
+
+    <link rel="stylesheet" href="site.css" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "TechArticle",
+        "headline": "自托管 AI 网关对照：只用各项目的自述",
+        "description": "四个可自托管 AI 网关的 README 原文引用，附出处与阅读日期，以及选型前应问的三个问题。",
+        "inLanguage": "zh-CN",
+        "datePublished": "2026-09-26",
+        "dateModified": "2026-09-26",
+        "author": {
+          "@type": "Organization",
+          "name": "Unified AI System contributors",
+          "url": "https://github.com/happy520ai/unified-ai-system"
+        },
+        "mainEntityOfPage": "https://happy520ai.github.io/unified-ai-system/self-hosted-ai-gateways-compared.zh-CN.html",
+        "image": "https://happy520ai.github.io/unified-ai-system/assets/social-preview.png",
+        "keywords": "自托管 AI 网关, LiteLLM, Portkey gateway, Envoy AI Gateway, Agent Router, MCP 网关, 开源对照"
+      }
+    </script>
+    <script src="site.js" defer></script>
+  </head>
+  <body class="article-page">
+    <a class="skip-link" href="#article">跳到正文</a>
+
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="Unified AI System 首页">
+        <img src="assets/mcp-icon.png" alt="" width="32" height="32" />
+        <span>Unified AI System</span>
+      </a>
+      <nav aria-label="主导航">
+        <a href="./index.zh-CN.html">项目</a>
+        <a href="#the-four">四家自述</a>
+        <a href="#questions">该问什么</a>
+        <a
+          class="nav-command"
+          href="https://github.com/happy520ai/unified-ai-system"
+          aria-label="在 GitHub 上关注 Unified AI System"
+        >
+          Star on GitHub
+        </a>
+      </nav>
+    </header>
+
+    <main id="article">
+      <header class="article-hero">
+        <div class="article-hero-shade" aria-hidden="true"></div>
+        <div class="article-hero-inner">
+          <p class="eyebrow">选型笔记 / 2026 年 9 月</p>
+          <h1>四个自托管 AI 网关，只用它们自己的话</h1>
+          <p class="article-hero-copy">
+            对照页坏掉的方式很具体：有人替竞品改写了一句描述，那个项目随后改了措辞，而
+            那句转述活得比事实长。所以这一页里没有转述。下面关于 LiteLLM、Portkey Gateway
+            与 Agent Router 的每一句，都是从它们自己的 README 里整段抄来的，附文件链接和
+            阅读日期；我们没读到依据的地方写「没读到」，不用它暗示对方缺什么。英文原文保留
+            不译，因为译文就是我们代笔。我们自己是第四家，所以第 4 节把对我们的说法拆成一
+            条条可核验的项目。
+          </p>
+          <div class="article-meta" aria-label="本页信息">
+            <span>只引用，不改写</span>
+            <span>阅读日期 2026-09-26</span>
+            <span>每条都附出处</span>
+          </div>
+        </div>
+      </header>
+
+      <div class="article-layout">
+        <aside class="article-toc" aria-label="目录">
+          <p class="eyebrow dark">目录</p>
+          <a href="#the-four">1. 各家怎么说自己</a>
+          <a href="#licences">2. 各家 LICENSE 文件的写法</a>
+          <a href="#questions">3. 交出流量前该问的三个问题</a>
+          <a href="#ours">4. 我们的说法与怎么核验</a>
+          <a href="#decay">5. 这一页会怎样过期</a>
+        </aside>
+
+        <div class="article-body">
+          <section id="the-four">
+            <p class="eyebrow dark">第 1 节 / 引用</p>
+            <h2>各家怎么说自己</h2>
+            <p>下面每段都出自其后链接的文件；省略号表示我们截短了，其他一字未改。</p>
+
+            <h3>LiteLLM</h3>
+            <blockquote class="quote">
+              <p>Open Source AI Gateway for 100+ LLMs. Self-hosted. Enterprise-ready. Call any LLM in OpenAI format.</p>
+              <p>Production-ready gateway - virtual keys, spend tracking, guardrails, load balancing, and an admin dashboard out of the box</p>
+            </blockquote>
+            <p class="quote-source">
+              <a href="https://github.com/BerriAI/litellm/blob/main/README.md">BerriAI/litellm · README.md</a>
+              （2026-09-26 阅读）
+            </p>
+
+            <h3>Portkey Gateway</h3>
+            <blockquote class="quote">
+              <p>Smart caching: Cache responses from LLMs to reduce costs and improve latency.</p>
+              <p>Manage MCP servers with enterprise auth &amp; observability using MCP Gateway</p>
+            </blockquote>
+            <p class="quote-source">
+              <a href="https://github.com/Portkey-AI/gateway/blob/main/README.md">Portkey-AI/gateway · README.md</a>
+              （2026-09-26 阅读；两行都指向 Portkey 自己的文档）
+            </p>
+
+            <h3>Agent Router（原名 Envoy AI Gateway）</h3>
+            <blockquote class="quote">
+              <p>
+                Agent Router gives application teams one consistent, OpenAI-compatible API
+                for every model and tool, from hosted providers to self-hosted inference and
+                MCP servers. Platform teams keep credentials, routing, quotas, failover, and
+                usage attribution in one place, enforced by Envoy and Envoy Gateway.
+              </p>
+              <p>
+                Envoy AI Gateway is now Agent Router, an Agentic AI Foundation project. Same
+                code, same maintainers, same release cadence and Apache 2.0 license. Nothing
+                you deploy is renamed:
+              </p>
+            </blockquote>
+            <p class="quote-source">
+              <a href="https://github.com/envoyproxy/ai-gateway/blob/main/README.md">envoyproxy/ai-gateway · README.md</a>
+              （2026-09-26 阅读）。如果你搜的是「Envoy AI Gateway」，两个名字都在结果里出现就是这个改名造成的。
+            </p>
+
+            <h3>Unified AI System（我们）</h3>
+            <blockquote class="quote">
+              <p>
+                Public Preview: self-hosted, protocol-first AI gateway and agent control
+                plane for OpenAI, Anthropic, Gemini, MCP and A2A - governed tools,
+                virtual-key budgets, cache and audit; zero-key first run.
+              </p>
+            </blockquote>
+            <p class="quote-source">
+              这是我们自己仓库的描述字段，所以第 4 节把它拆成可核验的条目，而不留在口号层面。
+            </p>
+          </section>
+
+          <section id="licences">
+            <p class="eyebrow dark">第 2 节</p>
+            <h2>各家 LICENSE 文件的写法</h2>
+            <ul>
+              <li><strong>Unified AI System</strong>：Apache-2.0，整仓一个许可证。</li>
+              <li><strong>Agent Router</strong>：它的 README 在改名那段里写明「Apache 2.0 license」，见上方引文。</li>
+              <li><strong>Portkey Gateway</strong>：它的 <code>LICENSE</code> 文件以 MIT 条款开头。</li>
+              <li><strong>LiteLLM</strong>：它的 <code>LICENSE</code> 是分段授权的，第一行就是 "Portions of this software are licensed as follows"，也就是同一棵树里不同部分适用不同条款。把别人项目接进自己基础设施之前，这条值得自己打开文件看一眼——这也是本条存在的理由。</li>
+            </ul>
+            <p>许可证不是功能，也不说明网关能做什么；它说明你 fork 之后同意的是什么。看文件，别看徽章。</p>
+          </section>
+
+          <section id="questions">
+            <p class="eyebrow dark">第 3 节 / 有用的部分</p>
+            <h2>交出 agent 流量之前，该问任何一家的三个问题</h2>
+            <ol class="method-list">
+              <li>
+                <strong>事后我能不能拿出「谁花了多少」的记录，而且这份记录能交给审计？</strong>
+                问清楚记录存在哪里、保留多久、能不能防篡改。一个仪表盘不是一份记录。
+              </li>
+              <li>
+                <strong>不给任何 provider 凭据时它会怎样？</strong>
+                要么直接拒绝（这完全可以，只要明说），要么有一个能在笔记本上演示的本地模式。
+                要命令，先跑一遍，再听介绍。
+              </li>
+              <li>
+                <strong>不用相信任何文档，我怎么验证发布出来的制品到底暴露了什么？</strong>
+                对一个暴露工具的网关来说，这是第 1 问的供应链版本：目录里的描述是文字，镜像才是产品。
+              </li>
+            </ol>
+            <p>
+              这三个问题不是修辞。你可以把它们逐条丢给 LiteLLM、Portkey、Agent Router 或者我们，
+              而任何一个像样的回答都是一条命令或一页文档的链接，不是一句话。
+            </p>
+          </section>
+
+          <section id="ours">
+            <p class="eyebrow dark">第 4 节 / 我们的答案</p>
+            <h2>我们的说法，以及每条怎么核验</h2>
+            <ul>
+              <li>
+                <strong>防篡改记录。</strong>网关写的是只追加的审计链，而不是可编辑的日志；
+                覆盖什么、不覆盖什么见
+                <a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/security/README.md">安全文档索引</a>。
+              </li>
+              <li>
+                <strong>零凭据可跑。</strong>缺省 provider 是本机 fake，一条文档命令就能起服务并打印增强后的提示词；
+                运行结果会自报 <code>mode=fake</code>、<code>providerCalled=false</code>、
+                <code>credentialRequired=false</code>，逐字段解释在
+                <a href="credential-free-evidence.html">免凭据证据指南</a>里，包括这三个字段不能证明什么。
+              </li>
+              <li>
+                <strong>制品可核验。</strong>
+                <code>node tools/verify-image-roster.mjs 0.8.0</code> 通过普通 HTTPS 读取发布镜像，
+                把每个层 blob 与 manifest 声明的摘要比对，然后打印该镜像真正包含的工具清单。
+                <a href="verify-mcp-docker-image.html">这一页</a>存着八个 tag 的实测读数。
+              </li>
+              <li>
+                <strong>MCP 的两个方向。</strong>我们既对外提供 MCP，也把上游 MCP server 与 OpenAPI 3 操作收进一个受治理的入口：
+                具体做法见 <a href="openapi-to-mcp.html">OpenAPI 转 MCP</a>，
+                为什么操作界面是命令行而不是控制台见 <a href="terminal-first-ai-gateway.html">终端优先</a>。
+              </li>
+              <li>
+                <strong>我们弱的地方。</strong>我们不宣传 100+ 或 200+ provider；上面那段自述里点到的聊天接口与 MCP、A2A 路径就是我们的范围，
+                provider 数量本来也不是质量指标。老实说：这是一个 Public Preview，星数个位数，不是大型系统的首选默认答案。
+              </li>
+            </ul>
+          </section>
+
+          <section id="decay">
+            <p class="eyebrow dark">第 5 节 / 保质期</p>
+            <h2>这一页会怎样过期</h2>
+            <p>
+              三种方式，而且都可以核验：某个项目改名（Envoy AI Gateway 已经这样做了）；README 里的句子被挪走
+              （照上面的链接去看那份文件的提交历史，别信这一页）；或者我们自己的界面变了，让第 4 节不再描述今天真能跑的东西
+              —— 所以那一条一条都挂在命令或仓库内文档上，而不是挂在一个数字上。
+            </p>
+            <p>
+              如果你发现某段引文与链接里的文件已经不一致，那是这一页的缺陷：
+              <a href="https://github.com/happy520ai/unified-ai-system/issues/new">开一个 issue</a>
+              并附上那一行，我们会改日期和文本，不会反过来改引文。
+            </p>
+            <p class="article-note">
+              自托管软件的 Public Preview。真实 provider 缺省关闭；本页不声称生产可用、L5 自主或 AGI。
+              列出另外三个项目是为了让读者更容易找到它们；本页不代表它们，也没有获得它们的背书。
+            </p>
+          </section>
+        </div>
+      </div>
+</main>
+
+    <footer>
+      <span>Unified AI System</span>
+      <span>网关选型对照</span>
+      <a href="verify-mcp-docker-image.html">镜像里到底暴露了什么</a>
+      <span>Apache-2.0</span>
+    </footer>
+  </body>
+</html>
