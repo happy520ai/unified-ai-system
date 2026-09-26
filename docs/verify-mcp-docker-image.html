@@ -335,11 +335,36 @@
             <p class="eyebrow dark">SECTION 07 / BOUNDARY</p>
             <h2>What this does not establish</h2>
             <p>
-              It reads source that the image ships. That is stronger than a README and
-              weaker than a handshake:
+              It reads source that the image ships. That is stronger than a README, and the
+              server from what this page still cannot tell you:
             </p>
             <ul>
-              <li>It does not prove the server answers <code>tools/list</code> with those names. That needs the handshake, and the repository has one: <code>tools/mcp-smoke.mjs</code> starts the stdio entry point, sends <code>server/discover</code>, then requests <code>tools/list</code> and compares the returned names, sorted, against the roster it expects - so it checks the set a running server exposes, not a declaration in a file.</li>
+              <li>It does not prove the server answers <code>tools/list</code> with those
+              names - <em>this page now has that reading separately</em>. The repository's
+              own handshake, <code>node tools/mcp-smoke.mjs</code>, starts the stdio entry
+              point, sends <code>server/discover</code>, requests <code>tools/list</code>,
+              and compares the returned names, sorted, against the roster it expects. Run
+              on 2026-09-26 at commit <code>fd33ac3f</code> on Node v25.8.1 (Windows), it
+              reported <code>toolCount: 15</code> - the same fifteen names as the
+              <code>0.8.0</code> image layer above, none missing and none extra - with
+              <code>provider: "local-fake-provider"</code>,
+              <code>executionMode: "fake"</code>,
+              <code>promptEnhancementProviderCalled: false</code>,
+              <code>realProviderCallsMade: false</code>,
+              <code>managedGatewayCleanedUp: true</code> and exit code 0.</li>
+              <li>What the handshake still does not close: it runs the <em>source</em> in
+              a working tree, not the bytes inside the published image, so the two readings
+              agree about the same fifteen names without one being executed inside the
+              other. Only a handshake against the container connects them, and that was not
+              run here because no Docker daemon was available on the machine doing this
+              work.</li>
+              <li>One number a client will feel: on this machine the stdio server answered
+              <code>initialize</code> after <strong>7.5-8.5 seconds</strong> across four
+              consecutive runs, cold and warm alike, because the entry point starts a
+              managed gateway and polls its health (250 ms ticks, 30 s budget) before it
+              serves anything. It is a stable cost, not startup jitter, and a client with a
+              short MCP startup timeout may show the server as failing to start while it is
+              still booting.</li>
               <li>It does not attest the build. The digests are checked against the manifest, and the manifest is what the registry served - a registry-side substitution would need a signature to notice.</li>
               <li>It says nothing about the other architecture. Each row reads one child manifest for <code>linux/amd64</code>; the index also carries <code>linux/arm64</code>.</li>
             </ul>
