@@ -24,6 +24,7 @@
 
 | 客户端路径 | 安装或配置 | 首次检查 | 证据边界 |
 | --- | --- | --- | --- |
+| MCP Inspector `2.8.0`（协议官方参考客户端） | `npx -y @modelcontextprotocol/inspector --cli node packages/mcp-server/src/index.js --method tools/list` | 让 inspector 自行以 stdio 拉起服务并要求它交出工具清单。 | 2026-09-26 在 master `508579ec` 上执行（npm 11.11.0、Node v25.8.1、Windows）：**发现 15 个工具**，作为集合与已发布 `0.8.0` 镜像的名单完全一致——不多不少——其中 13 个标注 `readOnlyHint: true`。客户端从服务 stderr 读到的横幅写着“real providers disabled”。参考客户端证明协议互操作，不证明某个具名应用的配置入口可用。 |
 | Node MCP SDK 测试宿主 | 运行 `pnpm verify:mcp`。 | `@modelcontextprotocol/client` 测试宿主会验证 stdio 和 Streamable HTTP、列出 15 个工具、调用受治理工具、检查 HTTP 访问控制并关闭托管网关。 | 这是真实协议集成证据，覆盖于源码测试——`@modelcontextprotocol/client` `2.0.0`，`pnpm verify:mcp` 于 2026-09-26 在 `9ee4604c` 16/16 通过；不代表已经认证第三方客户端界面。 |
 | Codex | `codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.8.0` | 运行 `codex mcp get unified-ai-system --json`，重启 Codex，再使用 `/mcp verbose`。 | 自动化源码档案已验证官方 Codex App Server `0.147.0`、全部 12 个工具、一次无需 Provider 的增强调用和无模型回合清理。 |
 | WorkBuddy | 在 `.mcp.json` 中声明 `mcpServers.unified-ai-system`。机器绝对解释器路径只作为本地未提交覆盖保留，参见[本地客户端收敛](#本地客户端收敛)。 | 重启宿主，确认 15 个工具，再调用 `gateway_health`。 | 配置等价宿主使用 `.mcp.json` 中记录的 `command`/`args`/`cwd` 原样启动，协商 MCP `2025-06-18`，发现 12 个工具并返回 fake-provider 输出。这是启动参数与协议证据，不代表已认证 WorkBuddy 界面。 |
