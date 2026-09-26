@@ -330,6 +330,38 @@ that command has moved, say the current one.
 
 ---
 
+### 0f. OpenAlternative — one checkbox only you can click
+
+`openalternative.co` is a curated directory of open-source alternatives to proprietary
+software, and the GitHub list people read (`piotrkulpinski/open-source-alternatives`,
+6,747★) is **generated from it** — their `CONTRIBUTING.md` says to add a project you go to
+`openalternative.co/submit`, and once approved it appears in the list automatically. So one
+submission covers both surfaces.
+
+Why this is on your list and not mine: the submit page sits behind a Cloudflare Turnstile.
+Read twice in a real browser, six seconds apart, it never left the "正在进行安全验证"
+interstitial, and `curl` gets a 403 — so the checkbox is a machine-refusal by design. I am
+not going to solve one, for the same reason I left `awesome-selfhosted` alone.
+
+What the form will want, with the honest values:
+
+- **Name**: Unified AI System
+- **Tagline**: Self-hosted AI gateway and MCP server you can audit without a key
+- **URL**: https://github.com/happy520ai/unified-ai-system
+- **License**: Apache-2.0 (this is what makes us eligible at all)
+- **Description**: route, budget and audit model traffic from your own machine.
+  Deterministic prompt enhancement that makes no provider call, virtual keys with per-key
+  token budgets, exact and semantic response cache, append-only audit chain, and reverse
+  MCP governance that turns upstream MCP servers and OpenAPI 3 operations into
+  allow-listed tools. The published image's tool roster is verifiable without installing
+  it.
+
+Fill the "alternative to" field with the hosted gateway SaaS it actually replaces in a
+stack. Do not name a specific vendor we have not compared against — a directory entry that
+claims parity is a claim someone will hold us to.
+
+---
+
 ## Verify before posting (re-run, do not trust this file)
 
 ```bash
@@ -393,6 +425,7 @@ the 0.8.0 tag and a reader's first action is to run it.
 | 贡献台 | `good first issue` 开 2 个、`help wanted` 开 3 个（新加 #166 站点安全页、#167 soak 分母修复，都带验收清单） | label 查询 |
 | 站点被索引 | Pages 已索引 **6** 个 URL（`/`、`index.zh-CN`、quickstart 中英、`prompt-enhancement`、`terminal-first-ai-gateway`）；`openapi-to-mcp`×2 与 `credential-free-evidence` 尚未出现 | `lite.duckduckgo.com/lite/?q=site:happy520ai.github.io`；Bing 侧 `site:` 查询被反爬页挡住，属探针瞎不是结论 |
 | 新探到的面 | **Changelog News 可自荐**（见 §0d，需你注册）；`thechangelog/ping` 已死（README 首行"no longer in use"，最后一条 issue 2019-11-05）；`modelcontextprotocol/modelcontextprotocol` 有 Discussions 但**没有 showcase 类目**（Announcements/General/Ideas/Meeting Notes）⇒ 发进去是噪音；Higress 系 `openapi-to-mcp` 相关 issue 全是别人产品的 bug ⇒ 不是我们的场子 | 逐个现读，非推测 |
+| 两家新目录的门槛 | **Best of JS**：他们的 `add-a-project` 模板自带勾选项「project has more than 100 stars on GitHub」，维护者对 9 月的一个自荐也是这么回的 ⇒ 现读 7 星**不够格**，已进 `deferredDoors`（报告现打印「needs 94 more stars」），到点前**不要提**；队列是真活的（截至 09-23 两周内 7 次合并）。**OpenAlternative**：`/submit` 与 `open-source-alternatives` 仓的 README 都指向同一张表，而表单页在 Cloudflare Turnstile 后面（真浏览器实测两次、等 6 s 仍在验证页，curl 直接 403）⇒ 机器不该过这道勾，**只能你点**（见 §0f） | `gh api .../ISSUE_TEMPLATE/…` + 维护者回复原文；browser-use 现读 |
 
 **三条结论，都不靠感觉：**
 
