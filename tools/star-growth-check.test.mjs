@@ -12,6 +12,7 @@ import {
   publishedToolCount,
   staleOwnClaimLines,
   staleToolCounts,
+  unreadableCarriers,
 } from './star-growth-check.mjs';
 
 // An open door on a fast-moving list can silently become unmergeable, which is why
@@ -81,16 +82,40 @@ test('separates unreadable from absent', () => {
 // it disagreed with itself between runs. These cases pin the stable reading and make
 // sure a closed-but-listed door is counted as a win rather than a loss.
 test('countListingKinds totals every row exactly once', () => {
-  const tally = countListingKinds([
+  const rows = [
     { listing: 'readme' },
     { listing: 'readme' },
     { listing: 'absent' },
     { listing: 'unreadable' },
+    { listing: 'n/a' },
+    { listing: 'n/a' },
     {},
-  ]);
-  assert.deepEqual(tally, { readme: 2, absent: 1, unreadable: 2 });
-  assert.equal(tally.readme + tally.absent + tally.unreadable, 5);
-  assert.deepEqual(countListingKinds([]), { readme: 0, absent: 0, unreadable: 0 });
+  ];
+  const tally = countListingKinds(rows);
+  assert.deepEqual(tally, { readme: 2, absent: 1, unreadable: 2, notApplicable: 2 });
+  assert.equal(tally.readme + tally.absent + tally.unreadable + tally.notApplicable, rows.length);
+  assert.deepEqual(countListingKinds([]), { readme: 0, absent: 0, unreadable: 0, notApplicable: 0 });
+});
+
+// The defect this bucket exists for: six submission tickets used to make the report say
+// "6 unreadable", so the blindness count was really a count of our own bookkeeping.
+test('a ticket with no README to read is not counted as a failed probe', () => {
+  const rows = [{ repo: 'chatmcp/mcpso', listing: 'n/a' }, { repo: 'cline/mcp-marketplace', listing: 'n/a' }];
+  assert.equal(countListingKinds(rows).unreadable, 0);
+  assert.deepEqual(unreadableCarriers(rows), []);
+});
+
+test('unreadableCarriers names the repos a probe could not read, once each', () => {
+  const rows = [
+    { repo: 'a/l', listing: 'unreadable' },
+    { repo: 'a/l', listing: 'unreadable' },
+    { repo: 'b/l', listing: 'n/a' },
+    { repo: 'c/l', listing: 'readme' },
+    { repo: 'd/l', listing: 'absent' },
+    { repo: 'e/l' },
+  ];
+  assert.deepEqual(unreadableCarriers(rows), ['a/l', 'e/l']);
+  assert.deepEqual(unreadableCarriers([]), []);
 });
 
 test('a closed door whose list still shows us counts as accepted by hand', () => {

@@ -619,14 +619,29 @@ function renderPrRowsTable(rows) {
   return lines;
 }
 
+// Three readings plus a fourth that must never be folded into blindness: a submission
+// ticket has no upstream README to read, so "n/a" is not "we failed to look". Conflating
+// them makes the blind count track how many issue doors we last added, which is a number
+// about our own bookkeeping rather than about the world.
 export function countListingKinds(rows) {
-  const tally = { readme: 0, absent: 0, unreadable: 0 };
+  const tally = { readme: 0, absent: 0, unreadable: 0, notApplicable: 0 };
   for (const row of rows ?? []) {
     if (row?.listing === "readme") tally.readme += 1;
     else if (row?.listing === "absent") tally.absent += 1;
+    else if (row?.listing === "n/a") tally.notApplicable += 1;
     else tally.unreadable += 1;
   }
   return tally;
+}
+
+// Named, because an aggregate that cannot be pointed at cannot be diagnosed.
+export function unreadableCarriers(rows) {
+  return [...new Set(
+    (rows ?? [])
+      .filter((row) => row?.listing !== "readme" && row?.listing !== "absent" && row?.listing !== "n/a")
+      .map((row) => row?.repo)
+      .filter(Boolean)
+  )];
 }
 
 // The reading that actually matters: a closed door whose list still shows us is a
@@ -739,8 +754,13 @@ function generateCheckReport(repoStats, rows, date, previousStats = null, claimS
   const kinds = countListingKinds(rows);
   lines.push("");
   lines.push(
-    `### Listings carried by an upstream README: ${kinds.readme} listed / ${kinds.absent} not found / ${kinds.unreadable} unreadable`
+    `### Listings carried by an upstream README: ${kinds.readme} listed / ${kinds.absent} not found / `
+    + `${kinds.unreadable} unreadable / ${kinds.notApplicable} no README to read (submission tickets)`
   );
+  const blind = unreadableCarriers(rows);
+  if (blind.length > 0) {
+    lines.push(`Unreadable carriers, named: ${blind.join(", ")}.`);
+  }
   lines.push(
     `Doors the list closed but still carries our entry (accepted by hand): ${countHandAccepted(rows)}. `
     + "PR state alone under-counts these, which is why the README is read as well as the pull request."
