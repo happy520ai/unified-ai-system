@@ -7,6 +7,7 @@ import { gatewayImage } from "./release-metadata.mjs";
 
 const repo = "happy520ai/unified-ai-system";
 const repoUrl = "https://github.com/happy520ai/unified-ai-system";
+const ownerLogin = repo.split("/")[0];
 const promptLabUrl = "https://happy520ai.github.io/unified-ai-system/#enhance";
 const usageReportUrl =
   "https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml";
@@ -1067,11 +1068,83 @@ async function scanRemotePublicClaims() {
   };
 }
 
-function generateCheckReport(repoStats, rows, date, previousStats = null, claimSweep = null, remoteSweep = null, deferred = null, untracked = null, denominatorTruncated = false, carriers = null, queues = null) {
+// A door whose most recent human comment is not ours is a question, and a question we never
+// answer is how a submission dies quietly. A comment count cannot show this, and the door set
+// grows faster than anyone can keep a hand list of it. Bot replies are excluded on purpose: a
+// review bot's summary is not a human ask, and replying to one is the noise that makes a
+// maintainer close the real thread.
+const BOT_OR_SYSTEM_RE = /\[bot\]$|bot$|agent$|^dependabot|^github-actions|^coderabbit|^socket|^greenbot|^snyk-/i;
+// Login shape, not user.type: shiftbot - the up-for-grabs checker that posts "this should be ready to
+// merge!" - reports type User, so the API field cannot tell a bot from a person. Trade-off is
+// deliberate: a human whose login ends in "bot" gets skipped, and one missed question is better
+// than an arm that cries wolf until it is ignored.
+
+export function replyRequestFrom(comments, ownerLogin) {
+  const rows = (comments ?? []).filter((c) => c && typeof c === 'object');
+  if (rows.length === 0) return null;
+  const stamp = (c) => String(c.created_at ?? c.updated_at ?? '');
+  const human = rows.filter((c) => {
+    const login = c.user?.login ?? '';
+    return login !== '' && login !== ownerLogin && c.user?.type !== 'Bot' && !BOT_OR_SYSTEM_RE.test(login);
+  });
+  if (human.length === 0) return null;
+  const ours = rows.filter((c) => c.user?.login === ownerLogin).map(stamp).sort();
+  const newest = human.slice().sort((a, b) => stamp(b).localeCompare(stamp(a)))[0];
+  if (ours.length > 0 && stamp(newest) <= ours[ours.length - 1]) return null;
+  return {
+    author: newest.user.login,
+    at: stamp(newest).slice(0, 10),
+    excerpt: String(newest.body ?? '').replace(/\s+/g, ' ').trim().slice(0, 140),
+  };
+}
+
+async function collectReplyRequests(rows, ownerLogin) {
+  const asks = [];
+  let scanned = 0;
+  let unreadable = 0;
+  for (const row of rows ?? []) {
+    if (row.state !== 'open') continue;
+    scanned += 1;
+    let data;
+    try {
+      data = runJson(`gh api "repos/${row.repo}/issues/${row.pr}/comments?per_page=100&sort=created&direction=desc"`);
+    } catch {
+      unreadable += 1;
+      continue;
+    }
+    if (!Array.isArray(data)) { unreadable += 1; continue; }
+    const ask = replyRequestFrom(data, ownerLogin);
+    if (ask) asks.push({ repo: row.repo, pr: row.pr, kind: row.kind ?? 'pr', ...ask });
+  }
+  return { asks, scanned, unreadable };
+}
+
+function renderReplySection(reply) {
+  const lines = ['### Whether a human has asked us something', ''];
+  if (reply == null) {
+    lines.push('Not evaluated in this mode.');
+    return lines;
+  }
+  if (reply.asks.length === 0) {
+    lines.push(`No open door has an unanswered human comment. Read ${reply.scanned} open doors, newest 100 comments each`
+      + `, ${reply.unreadable} unreadable. This says nobody asked anything - it does not say nobody replied.`);
+  }
+  for (const ask of reply.asks) {
+    lines.push(`- REPLY DUE ${ask.repo}#${ask.pr} (${ask.kind}) - ${ask.author} on ${ask.at}: ${ask.excerpt}`);
+  }
+  if (reply.asks.length > 0) {
+    lines.push(`Scope: ${reply.scanned} open doors read, newest 100 comments each, ${reply.unreadable} unreadable.`);
+  }
+  return lines;
+}
+
+function generateCheckReport(repoStats, rows, date, previousStats = null, claimSweep = null, remoteSweep = null, deferred = null, untracked = null, denominatorTruncated = false, carriers = null, queues = null, reply = null) {
   const lines = [];
   lines.push(`# Star Growth Check (${date})`);
   lines.push("");
   lines.push("## Repository");
+  lines.push(...renderReplySection(reply));
+  lines.push("");
   lines.push(...renderRepoSection(repoStats, date, "-", previousStats));
   lines.push("## External PR Funnel");
   lines.push(...renderPrRowsTable(rows));
@@ -1588,7 +1661,8 @@ async function run() {
     const carriers = collectCarrierFindings();
     const openPrDoorRepos = rows.filter((row) => row.state === "open" && row.kind !== "issue").map((row) => row.repo);
     const queues = await assessQueues(openPrDoorRepos);
-    let report = generateCheckReport(repoStats, rows, date, previous, claimSweep, remoteSweep, deferred, untracked, denominatorTruncated, carriers, queues);
+    const reply = await collectReplyRequests(rows, ownerLogin);
+    let report = generateCheckReport(repoStats, rows, date, previous, claimSweep, remoteSweep, deferred, untracked, denominatorTruncated, carriers, queues, reply);
     const coverage = await assessSearchCoverage();
     report += `\n${searchCoverageLines(coverage.urls, coverage.indexed, { error: coverage.error }).join("\n")}\n`;
     if (options.output) writeReport(options.output, report);

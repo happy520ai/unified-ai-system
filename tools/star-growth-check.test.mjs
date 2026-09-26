@@ -16,6 +16,7 @@ import {
   isListedInReadme,
   needsRecarry,
   publishedToolCount,
+  replyRequestFrom,
   queueHealth,
   searchCoverageLines,
   staleOwnClaimLines,
@@ -556,4 +557,37 @@ test('carrierFindings reads an image tag as the version pin it is', () => {
   assert.ok(findings.some((f) => /pins version 0\.4\.8, published release is 0\.8\.0/.test(f)));
   assert.deepEqual(carrierFindings(stale, 15, null), findings.filter((f) => /MCP tools/.test(f)), 'no version given means no version claim');
   assert.deepEqual(carrierFindings('{"version":"0.8.0","description":"fifteen tools"}', 15, '0.8.0'), []);
+});
+
+// The whole point of this arm is to answer one question across 40+ doors: did a human ask us
+// something we have not answered. Every direction has to be proven, including the ones that
+// must NOT fire - a bot comment or an owner's own reply is not a request, and an author-less
+// record must never be mistaken for one.
+test('replyRequestFrom flags a human who spoke after us and nothing else', () => {
+  const c = (login, at, body = 'note') => ({ user: { login }, created_at: at, body });
+  assert.equal(replyRequestFrom([c('happy520ai', '2026-09-25T10:00:00Z', 'ping'), c('maintainer', '2026-09-24T09:00:00Z', 'question?')], 'happy520ai'), null);
+  const ask = replyRequestFrom([c('maintainer', '2026-09-26T09:00:00Z', 'can you rebase?'), c('happy520ai', '2026-09-25T10:00:00Z', 'thanks')], 'happy520ai');
+  assert.equal(ask.author, 'maintainer');
+  assert.equal(ask.at, '2026-09-26');
+  assert.match(ask.excerpt, /rebase/);
+  assert.equal(replyRequestFrom([c('dependabot[bot]', '2026-09-26T10:00:00Z', 'bump'), c('happy520ai', '2026-09-20T10:00:00Z', 'x')], 'happy520ai'), null);
+  assert.equal(replyRequestFrom([c('InftyAI-Agent', '2026-09-26T10:00:00Z', 'PR updated')], 'happy520ai'), null);
+  assert.equal(replyRequestFrom([c('other', '2026-09-26T10:00:00Z', 'asked')], 'happy520ai').at, '2026-09-26');
+  assert.equal(replyRequestFrom([], 'happy520ai'), null);
+  assert.equal(replyRequestFrom([{ user: {}, created_at: '2026-09-26T10:00:00Z', body: 'no author' }], 'happy520ai'), null);
+  assert.equal(replyRequestFrom([{ user: { login: 'x', type: 'Bot' }, created_at: '2026-09-26T10:00:00Z' }], 'happy520ai'), null);
+});
+test('a human-typed bot account is not a request', () => {
+  const c = (login, at, body) => ({ user: { login, type: 'User' }, created_at: at, body });
+  assert.equal(replyRequestFrom([c('shiftbot', '2026-09-25T16:40:00Z', "I'm a robot checking the state of this pull request")], 'happy520ai'), null);
+  assert.equal(replyRequestFrom([c('review-bot', '2026-09-25T16:40:00Z', 'linted')], 'happy520ai'), null);
+  assert.equal(replyRequestFrom([c('a-person', '2026-09-25T16:40:00Z', 'could you rebase?')], 'happy520ai').author, 'a-person');
+});
+test('named automation accounts are not requests either', () => {
+  const c = (login, at, body) => ({ user: { login, type: 'User' }, created_at: at, body });
+  for (const login of ['github-actions[bot]', 'coderabbitai', 'socket-security', 'snyk-bot', 'cla-bot', 'shiftbot', 'InftyAI-Agent']) {
+    assert.equal(replyRequestFrom([c(login, '2026-09-26T10:00:00Z', 'automated notice')], 'happy520ai'), null, login);
+  }
+  // The direction that must still fire: a person whose login merely contains a bot-ish word.
+  assert.equal(replyRequestFrom([c('robbitten', '2026-09-26T10:00:00Z', 'rebase please')], 'happy520ai').author, 'robbitten');
 });
