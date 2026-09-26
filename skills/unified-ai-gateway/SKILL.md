@@ -175,15 +175,44 @@ deploying a production gateway.
 
 ## Tool Map
 
-- `gateway_health`: managed gateway status and provider mode
-- `gateway_readiness`: chat-path readiness and blockers
-- `gateway_prompt_enhance`: local prompt structuring without a provider call
-- `gateway_chat`: deterministic credential-free chat proof
-- `knowledge_readiness`: knowledge subsystem readiness
-- `workflow_health`: workflow subsystem status
-- `workflow_actions`: available workflow actions
-- `workforce_health`: workforce subsystem status
-- `workforce_agents`: available workforce agents
+Nine of these ship in the reviewed `0.4.9` image below; the six marked 0.5.0 and
+0.8.0 are in the current release and are absent from that older image.
+
+Status and boundaries:
+
+- `gateway_health`: gateway health, provider mode, and the real-provider safety flag
+- `gateway_readiness`: first-run readiness for chat and the local gateway runtime
+- `knowledge_readiness`: knowledge infrastructure without loading or changing data
+- `workflow_health`: the governed workflow subsystem without starting a workflow
+- `workflow_actions`: workflow action definitions without invoking any action
+- `workforce_health`: the workforce subsystem without planning or executing work
+- `workforce_agents`: configured workforce agent descriptors without dispatching them
+
+Doing work locally, still with no provider call:
+
+- `gateway_prompt_enhance`: structures a plain-language request into a prompt
+  locally, without provider credentials or provider calls
+- `gateway_prompt_enhance_llm` *(0.5.0)*: semantic rewriting through a provider
+  when one is configured, falling back to the deterministic local engine when none is
+- `knowledge_retrieve` *(0.5.0)*: keyword search over the local knowledge base,
+  returning ranked chunks with citations; calls no provider
+- `workflow_run` *(0.5.0)*: the 3-step local workflow - retrieve knowledge, compose
+  a Markdown report, write a controlled artifact; calls no provider
+- `gateway_chat`: one chat request, accepted only when the gateway proves real
+  providers are disabled
+
+The governed Agent surface, read-only *(0.8.0)*:
+
+- `agent_governance_status`: governance status through the authenticated Gateway
+  identity; no tenant override is accepted and it fails closed when that identity is
+  not authorized for platform status
+- `agent_governance_list`: only the governed Agents visible to that tenant, with no
+  tenant or owner override argument
+- `agent_governance_describe` (takes `agentId`): one Agent as seen by that tenant;
+  cross-tenant and missing identifiers stay indistinguishable on purpose
+
+Creating, executing, revoking, approving or activating anything in that surface
+remains a human REST/SDK/CLI operation and is not exposed to the model at all.
 
 ## Example
 
