@@ -126,6 +126,12 @@ const externalIssues = [
   ["InftyAI/Awesome-LLMOps", 507],
   ["LuciferForge/mcp-directory", 38],
   ["cuihuan/awesome-ai-gateway", 102],
+  // Not a submission: a content-accuracy request to an indexer. Their skills.sh page
+  // renders a snapshot of our SKILL.md that still claims v0.4.9 is the current release,
+  // an error fixed at source the same day. Installs are unaffected (the CLI resolves
+  // sources from GitHub), so this concerns only the indexed directory page. Filed as a
+  // plain issue because their agent-request template covers adding coding-agent support.
+  ["vercel-labs/skills", 2309],
 ];
 
 const mergeStateMap = {
