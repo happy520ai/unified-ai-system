@@ -634,6 +634,17 @@ the 0.8.0 tag and a reader's first action is to run it.
 
 ## 渠道实测状态（2026-09-26 现读，用于决定你下一步该花哪 20 分钟）
 
+> ⚠ **搜索索引这条道已经有实现了，别再造第二套。** `.github/workflows/indexnow.yml` +
+> `tools/submit-indexnow.mjs` + `docs/indexnow.json`（key 文件必须是 `docs/<key>.txt`，且校验器要求
+> 文件名等于内容）自 2026-08-02 起在每次 Pages 构建后通知；它那道 `git diff --quiet HEAD^ HEAD -- docs`
+> 门经现网核对是在正常工作的：改到 docs 的 head（`9f24c456`、`8cf5097f`）`Notify IndexNow=success`，
+> 没改 docs 的 head（`f2ed3457`）`Notify=skipped`。
+>
+> 2026-09-26 这次是我自己没查就动起手，重造了一份 `tools/notify-indexnow.mjs` + 测试 + 快照工作流第 4 步 +
+> 第二个 key 文件，已整体撤销（master `48abb321`）。留下的直接后果是：**日报里"14 页只有 6 页在 DDG 索引"
+> 那一行，不能用"通知没送达"来解释**——通知这两个月一直在发。那一行为什么是这样，我现在没有证据，
+> 也不要顺着"再补一次通知"这条便宜路去做。动手前先 `ls .github/workflows | grep -i indexnow`。
+
 | 面 | 读数 | 判据来源 |
 | --- | --- | --- |
 | 星数 | **7**（与昨日快照差 0），fork 2，subscriber 0 | `gh api repos/...` |
