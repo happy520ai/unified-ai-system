@@ -491,6 +491,26 @@ reappears elsewhere on its own.
 ## Verify before posting (re-run, do not trust this file)
 
 ```bash
+node tools/launch-preflight.mjs
+```
+
+One command, about two minutes, needs `gh` auth and network. It re-reads from the live
+web what the copy asserts: the latest release tag, the tool count measured out of the
+published image layer, every `ghcr.io/...:<tag>` reference the copy tells a reader to
+run, the registry entry for that version, Glama, the four pages the posts deep-link
+into, and the tag-anchored commit count. Exit 0 means every claim matched a live
+reading; exit 1 means DRIFT - rewrite the flagged figures before posting; exit 3 means
+INCONCLUSIVE because a probe could not run, which is kept visibly different from
+"clean". The version and the counts are read out of the paste-ready `>` lines rather
+than out of the script, so it cannot pass by agreeing with a constant in itself, and
+it knows a line that reproduces somebody else's wording is not our claim to defend.
+Two things it does not cover: the "and the current source" half of the tool-count
+sentence, which `pnpm verify:mcp` is the gate for, and anything the drafts do not
+quote.
+
+The manual form, if you want to see each reading instead of trusting the verdict:
+
+```bash
 # 1. the release is actually out, with the tag and the published body
 gh api repos/happy520ai/unified-ai-system/releases/latest --jq '.tag_name'
 # 2. the exact image tag quoted in every draft resolves
