@@ -84,6 +84,7 @@ const externalPrs = [
   // looking for doors: a reader who registered successfully and saw fifteen tools was told by
   // this file that something was wrong.
   ["sickn33/agentic-awesome-skills", 1616],
+  ["agentskillexchange/skills", 82],
 ];
 
 // Submission doors that are ISSUES, not pull requests: directory sites that take a
@@ -871,6 +872,11 @@ const upstreamCarriers = [
   // Whole file is our entry, so no anchor is needed; their stats: block is bot-maintained and
   // is deliberately outside anything we would edit.
   { repo: "up-for-grabs/up-for-grabs.net", path: "_data/projects/unified-ai-system.yml", checksVersion: false },
+  // Two more from enumerating the files our merged pull requests actually changed, which is the
+  // precise way to find carriers: a listing that vendors our skill file is writing setup
+  // instructions for us, so a stale count in it is a user-facing defect, not a branding nit.
+  { repo: "agentskillexchange/skills", path: "skills/unified-ai-gateway/SKILL.md", checksVersion: true },
+  { repo: "yzfly/Awesome-MCP-ZH", path: "README.md", checksVersion: false, anchor: "happy520ai/unified-ai-system", scope: "line" },
 ];
 
 // A markdown list needs the opposite scoping from a JSON index: our entry is one line, and
