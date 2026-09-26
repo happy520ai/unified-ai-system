@@ -687,3 +687,24 @@ test('submission copy excuses a quotation and rejects an instruction, with no al
   assert.equal(found.length, 1);
   assert.match(found[0], /x\/y#2 .*says "nine governed MCP tools"/);
 });
+
+// The carrier matcher used to run over anchor lines joined with newlines, so a number
+// ending one line and a noun starting another fabricated a sentence the file never said.
+const sc = await import("./star-growth-check.mjs");
+test('a count and a noun on different kept lines never become a claim', () => {
+  const reflowed = ['It gained three', 'governed MCP tools at 0.8.0, and the rest'].join('\n');
+  assert.deepEqual(sc.carrierFindings(reflowed, 15, null), []);
+});
+
+test('a real one-line stale claim survives the line-wise change', () => {
+  const live = '  "description": "Self-hosted gateway with nine governed MCP tools",';
+  const found = sc.carrierFindings(live, 15, null);
+  assert.equal(found.length, 1);
+  assert.match(found[0], /states "nine governed MCP tools" while the roster has 15/);
+});
+
+test('version pins are still reported on their own line', () => {
+  const pinned = 'IMAGE=ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.8';
+  const found = sc.carrierFindings(pinned, 15, "0.8.0");
+  assert.ok(found.some((f) => /0\.4\.8/.test(f)), JSON.stringify(found));
+});

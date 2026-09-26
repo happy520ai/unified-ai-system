@@ -954,8 +954,14 @@ export function carrierLines(text, anchor) {
 // Pure: given carrier text, what does it assert that is no longer true?
 export function carrierFindings(text, rosterCount, version) {
   const findings = [];
-  for (const claim of staleToolCounts(text, rosterCount)) {
-    findings.push(`states "${claim.phrase}" while the roster has ${claim.expected}`);
+  // Line by line, deliberately: matching across the join would let a number from one
+  // anchor line and a noun from another become a sentence nobody wrote. The trade is a
+  // count legitimately wrapped across a line break, which is rarer than the false
+  // reading and, unlike it, does not teach anyone to ignore this guard.
+  for (const line of String(text ?? "").split("\n")) {
+    for (const claim of staleToolCounts(line, rosterCount)) {
+      findings.push(`states "${claim.phrase}" while the roster has ${claim.expected}`);
+    }
   }
   if (version) {
     const pins = [
