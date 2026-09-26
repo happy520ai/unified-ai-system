@@ -501,6 +501,64 @@ Whatever happens, the check worth keeping is this one: the registry description 
 surface found today that other sites copy *without* being asked, so a stale number there
 reappears elsewhere on its own.
 
+### 0h. The Glama quality score - five minutes, and it is the last gate on our biggest door
+
+Readings taken 2026-09-26, all replayable.
+
+`punkpeye/awesome-mcp-servers#12218` is the highest-traffic listing door we have open, and the
+maintainer answered directly on 2026-09-07 with exactly one remaining requirement:
+
+> **Glama quality score**: Your server is listed on Glama and claimed, but the quality score has
+> not yet been evaluated (it currently shows "?"). Glama must evaluate the quality score (any
+> grade is fine) - please check your server dashboard at https://glama.ai/mcp/servers and ensure
+> the evaluation is triggered/completed.
+
+The badge part is already done (their bot confirmed: "Thank you for adding the Glama badge!"),
+and the PR is mergeable. So the whole door now waits on a grade Glama has never computed.
+
+**Why this needs you and not me:** the trigger sits behind the claimant dashboard, and this
+machine's browser is not signed in. `glama.ai/mcp/servers/happy520ai/unified-ai-system/admin`
+reads "Login with GitHub to claim" and "Sign in as that GitHub account and this page becomes
+yours immediately." `/score` currently redirects back to the listing, i.e. no score record exists.
+
+**Do not wait for it to fix itself, and do not assume the server is the problem.** Both were
+checked today. From a cold start, with no credentials and no gateway configured, the entrypoint
+the published MCP image runs (`packages/mcp-server/src/index.js`, `Dockerfile:68`) answered the
+MCP handshake like this:
+
+```
+first byte / initialize   8,541 ms
+tools/list                8,545 ms
+protocol 2025-06-18   serverInfo.name unified-ai-system   tools returned 15
+stderr: "Unified AI System MCP 0.8.0 ready on stdio; real providers disabled."
+```
+
+Glama's own stated bar is "we only need the server to start and respond to introspection
+requests", and it is met in under nine seconds. (Side benefit: gate 4's stdio budget is 30 s, so
+a quiet machine has ~3.5x headroom and a red `mcpStdioReady` under load is a load reading, not a
+startup defect - one fewer reason to think the image is at fault.)
+
+**The one thing worth checking while you are in there.** Their bot also says "you must add
+Dockerfile directly to Glama", and our root `Dockerfile` builds two servers: `AS mcp` at line 62
+(stdio, the one that answers introspection) and `AS gateway` at line 70, which is the **last**
+stage and therefore what `docker build` produces when no `--target` is given. The gateway stage
+listens on `:3100` over HTTP with `PME_ENTERPRISE_AUTH_ENABLED=true` and never speaks MCP on
+stdio. So if Glama's build spec for this listing has no target, no amount of re-running the
+evaluation will ever yield a grade. Under **Docker builds**, set the spec to `--target mcp` (or
+point it at the published `ghcr.io/happy520ai/unified-ai-system/mcp-server:0.8.0`, which is what
+`server.json` already declares as a stdio package). I could not verify which of these the
+dashboard offers - it is behind your login - and I could not rule out that Glama already builds
+`mcp` correctly; that is why this is phrased as "check", not "fix".
+
+**What I ruled out, so you do not spend time on it:** the repo root already carries
+`glama.json` with `maintainers: ["happy520ai"]`, so the claim half is done. And the build target
+cannot be declared from the repository - `https://glama.ai/mcp/schemas/server.json` defines
+`properties: ["maintainers"], required: ["maintainers"]` and nothing else, so there is no field
+that means "build this stage". (The schema does not set `additionalProperties: false`, so an
+invented key would be *accepted* rather than rejected - which is worse: it would look configured
+while being read by nobody.) Their own admin page describes the build spec as a dashboard
+control, so this has to be clicked; it cannot be committed.
+
 ---
 
 ## Verify before posting (re-run, do not trust this file)
