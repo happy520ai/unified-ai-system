@@ -105,6 +105,7 @@ const usage = `Usage:
   node tools/star-growth-check.mjs evidence [--output FILE]
   node tools/star-growth-check.mjs summary [--output FILE]
   node tools/star-growth-check.mjs queues
+  node tools/star-growth-check.mjs coverage
   node tools/star-growth-check.mjs campaign --output FILE [--daily-output FILE] [--check-output FILE]`;
 
 function parseArgs() {
@@ -1334,6 +1335,123 @@ function generateEvidenceReport(repoStats, rows, date, previousStats = null) {
   return `${lines.join("\n")}\n`;
 }
 
+// Search coverage. The docs site is the only promotion channel that needs nobody's
+// permission, and until now this instrument could not say whether any of it is findable.
+// The probe is DuckDuckGo's HTML endpoint: Bing answers a scripted site: query with a block
+// page, and a block page is not a reading. Zero results is reported as a blind probe, never
+// as "not indexed", because the two look identical from here and only one of them is false.
+export const SITE_HOST = "happy520ai.github.io";
+
+// A search engine that suspects you are a bot answers with a challenge page, and that page
+// arrives under a success-looking status: the lite endpoint returned HTTP 202 with "select
+// all squares containing a duck" while a browser session on the same query still worked.
+// Naming the reason matters, because "the probe found nothing" and "the probe was stopped"
+// produce the same empty list and only one of them is worth acting on.
+export function classifyProbeResponse(status, html) {
+  const body = String(html ?? '');
+  if (/select all squares|made by a human|complete the following challenge/i.test(body)) {
+    return { kind: 'CHALLENGE', error: `HTTP ${status}: bot challenge page served instead of results` };
+  }
+  if (status !== 200) {
+    return { kind: 'UNEXPECTED_STATUS', error: `probe answered HTTP ${status}` };
+  }
+  return { kind: 'RESULTS', error: null };
+}
+
+
+export function indexedSiteUrls(html, host = SITE_HOST) {
+  const found = new Set();
+  const accept = (candidate) => {
+    let url;
+    try {
+      url = new URL(candidate);
+    } catch {
+      return;
+    }
+    if (url.hostname !== host) return;
+    // Query strings and fragments are how the probe echoes its own input back at us; they
+    // are not pages, and counting them once made this report claim coverage it did not read.
+    if (url.search || url.hash) return;
+    found.add(url.href);
+  };
+  for (const match of String(html ?? "").matchAll(/href="([^"]*)"/g)) {
+    const href = match[1].replace(/&amp;/g, '&');
+    // A result link is not a plain href: DuckDuckGo routes it through its own redirect and
+    // puts the destination in an encoded parameter. Reading only bare hrefs produced a
+    // confident "0 of 13 indexed" for a site that had six pages in that very index.
+    const redirect = href.match(/[?&](?:uddg|rut)=([^&]*)/);
+    if (redirect) {
+      try {
+        accept(decodeURIComponent(redirect[1]));
+      } catch {
+        /* an undecodable parameter is not a page */
+      }
+      continue;
+    }
+    accept(href);
+  }
+  return [...found].sort();
+}
+
+export function searchCoverageLines(sitemapUrls, indexed, { error = null } = {}) {
+  const lines = ["### Whether a search engine can find the pages we published", ""];
+  if (error) {
+    lines.push(`Inconclusive: the index probe failed (${error}). Absence here is not evidence of absence.`);
+    return lines;
+  }
+  if (indexed.length === 0) {
+    lines.push(
+      `BLIND_PROBE: the probe surfaced none of the ${sitemapUrls.length} published URLs, which is exactly how a blocked`
+      + " probe looks. No coverage claim is made either way.",
+    );
+    return lines;
+  }
+  const seen = new Set(indexed);
+  const missing = sitemapUrls.filter((u) => !seen.has(u));
+  const label = (u) => (u === `https://${SITE_HOST}/` ? "/ (site home)" : u.replace(`https://${SITE_HOST}/`, ""));
+  lines.push(`- Published URLs in docs/sitemap.xml: ${sitemapUrls.length}; found in the index: ${sitemapUrls.filter((u) => seen.has(u)).length}; not visible: ${missing.length}.`);
+  if (missing.length > 0) lines.push(`- Not visible to this probe (may simply be un-crawled yet): ${missing.map(label).join(", ")}`);
+  lines.push(`- Probe: lite.duckduckgo.com for \`site:${SITE_HOST}\`. The instrument matters: `
+    + "a curl of Bing's site: query returns 200 with only our own search string in the body, which reads as zero results to anything not built for it.");
+  return lines;
+}
+
+function readSitemapUrls() {
+  const candidates = [
+    "docs/sitemap.xml",
+    resolve(dirname(fileURLToPath(import.meta.url)), "..", "docs", "sitemap.xml"),
+  ];
+  for (const path of candidates) {
+    try {
+      const xml = readFileSync(path, "utf8");
+      return { urls: [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]), error: null };
+    } catch {
+      // try the next shape; a total miss is reported as an error, not as an empty list.
+    }
+  }
+  return { urls: [], error: "docs/sitemap.xml could not be read" };
+}
+
+async function assessSearchCoverage() {
+  const sitemap = readSitemapUrls();
+  if (sitemap.error) return { ...sitemap, indexed: [] };
+  try {
+    const response = await fetch(
+      `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(`site:${SITE_HOST}`)}`,
+      {
+        headers: { "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
+        signal: AbortSignal.timeout(30_000),
+      },
+    );
+    const body = await response.text();
+    const verdict = classifyProbeResponse(response.status, body);
+    if (verdict.kind !== 'RESULTS') return { urls: sitemap.urls, indexed: [], error: verdict.error };
+    return { urls: sitemap.urls, indexed: indexedSiteUrls(body), error: null };
+  } catch (error) {
+    return { urls: sitemap.urls, indexed: [], error: String(error?.message ?? error).slice(0, 80) };
+  }
+}
+
 async function run() {
   const options = parseArgs();
   if (options.help) {
@@ -1345,13 +1463,19 @@ async function run() {
     options.action === "status" ? "check" : options.action;
   const date = formatReportDate();
 
-  if (!["check", "daily", "evidence", "summary", "campaign", "queues"].includes(action)) {
+  if (!["check", "daily", "evidence", "summary", "campaign", "queues", "coverage"].includes(action)) {
     console.error(`Unsupported growth action: ${action}`);
     console.error(usage);
     process.exit(1);
   }
 
   ensureGhAvailable();
+  if (action === "coverage") {
+    const coverage = await assessSearchCoverage();
+    console.log(`${searchCoverageLines(coverage.urls, coverage.indexed, { error: coverage.error }).join("\n")}\n`);
+    return;
+  }
+
   if (action === "queues") {
     const lines = await reportQueues();
     const nl = String.fromCharCode(10);
@@ -1390,7 +1514,9 @@ async function run() {
     const carriers = collectCarrierFindings();
     const openPrDoorRepos = rows.filter((row) => row.state === "open" && row.kind !== "issue").map((row) => row.repo);
     const queues = await assessQueues(openPrDoorRepos);
-    const report = generateCheckReport(repoStats, rows, date, previous, claimSweep, remoteSweep, deferred, untracked, denominatorTruncated, carriers, queues);
+    let report = generateCheckReport(repoStats, rows, date, previous, claimSweep, remoteSweep, deferred, untracked, denominatorTruncated, carriers, queues);
+    const coverage = await assessSearchCoverage();
+    report += `\n${searchCoverageLines(coverage.urls, coverage.indexed, { error: coverage.error }).join("\n")}\n`;
     if (options.output) writeReport(options.output, report);
     console.log(report);
     return;

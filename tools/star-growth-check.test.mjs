@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   OUR_COPY_STALE_ALLOWED,
+  classifyProbeResponse,
   carrierFindings,
   carrierRegion,
   commentClaimFindings,
@@ -10,10 +11,12 @@ import {
   countListingKinds,
   deferredDoorStatus,
   findUntrackedDoors,
+  indexedSiteUrls,
   isListedInReadme,
   needsRecarry,
   publishedToolCount,
   queueHealth,
+  searchCoverageLines,
   staleOwnClaimLines,
   staleToolCounts,
   unreadableCarriers,
@@ -439,4 +442,61 @@ test('commentClaimFindings reads comments, which the body sweep never looked at'
   assert.deepEqual(commentClaimFindings([], 15).offenders, []);
   // boundary: version pins are out of scope for this arm by standing decision
   assert.deepEqual(commentClaimFindings([{ id: 3, html_url: 'x/issues/3', body: 'pin ai-gateway-service:0.5.0' }], 15).offenders, []);
+});
+
+// The coverage probe reads a search engine's HTML, and a search engine echoes your own
+// query straight back at you - that echo once read as "6 pages indexed" on a page that had
+// indexed none of them. These arms keep a result link, an echo, a fragment and a host
+// spoof apart, and they refuse to let a dead probe be reported as a zero.
+test('indexedSiteUrls counts result links, not the query it was asked', () => {
+  const html = [
+    '<a href="https://happy520ai.github.io/unified-ai-system/">home</a>',
+    '<a href="https://happy520ai.github.io/unified-ai-system/verify-mcp-docker-image.html">page</a>',
+    '<a href="https://happy520ai.github.io/unified-ai-system/index.zh-CN.html#frag">fragment</a>',
+    '<a href="https://happy520ai.github.io/unified-ai-system/sitemap.xml?u=1">query string</a>',
+    '<a href="https://duckduckgo.com/?q=site%3Ahappy520ai.github.io">our own echo</a>',
+    '<a href="https://evil.example/happy520ai.github.io/page.html">host spoof</a>',
+  ].join('\n');
+  assert.deepEqual(indexedSiteUrls(html), [
+    'https://happy520ai.github.io/unified-ai-system/',
+    'https://happy520ai.github.io/unified-ai-system/verify-mcp-docker-image.html',
+  ]);
+  // The shape the real probe returns: destination inside an encoded redirect parameter.
+  const wrapped = '<a href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fhappy520ai.github.io%2Funified-ai-system%2Fverify-mcp-docker-image.html&amp;rut=fbdb8493">wrapped result</a>';
+  assert.deepEqual(indexedSiteUrls(wrapped), [
+    'https://happy520ai.github.io/unified-ai-system/verify-mcp-docker-image.html',
+  ]);
+  assert.deepEqual(indexedSiteUrls(null), []);
+  assert.deepEqual(indexedSiteUrls('no links here'), []);
+});
+
+test('searchCoverage names a dead probe instead of scoring it zero', () => {
+  const published = [
+    'https://happy520ai.github.io/unified-ai-system/',
+    'https://happy520ai.github.io/unified-ai-system/a.html',
+  ];
+  const blind = searchCoverageLines(published, []).join('\n');
+  assert.match(blind, /BLIND_PROBE/);
+  assert.match(blind, /not evidence of absence|No coverage claim/);
+
+  const broken = searchCoverageLines(published, [], { error: 'probe answered HTTP 403' }).join('\n');
+  assert.match(broken, /Inconclusive/);
+  assert.match(broken, /HTTP 403/);
+
+  const counted = searchCoverageLines(published, [published[0]]).join('\n');
+  assert.match(counted, /found in the index: 1; not visible: 1/);
+  assert.match(counted, /a\.html/);
+  assert.ok(!/BLIND_PROBE/.test(counted), 'one page found means the probe is alive');
+});
+
+// Both directions have to be proven with real bytes: the challenge page arrives under a
+// success-looking status, and an empty results page must not be excused as a block.
+test('classifyProbeResponse separates a stopped probe from an empty one', () => {
+  const challenge = '<p>Please complete the following challenge to confirm this search was made by a human.</p><p>Select all squares containing a duck</p>';
+  assert.equal(classifyProbeResponse(202, challenge).kind, 'CHALLENGE');
+  assert.match(classifyProbeResponse(202, challenge).error, /bot challenge page/);
+  assert.equal(classifyProbeResponse(200, '<a href="https://example.invalid/x">one result</a>').kind, 'RESULTS');
+  assert.equal(classifyProbeResponse(200, '').kind, 'RESULTS', 'an empty results page is emptiness, not a block');
+  assert.equal(classifyProbeResponse(500, 'gateway').kind, 'UNEXPECTED_STATUS');
+  assert.equal(classifyProbeResponse(403, '<html>').error, 'probe answered HTTP 403');
 });
