@@ -717,6 +717,18 @@ the 0.8.0 tag and a reader's first action is to run it.
 
 ## 渠道实测状态（2026-09-26 现读，用于决定你下一步该花哪 20 分钟）
 
+> **Smithery：我们不在上面，而且这条不值得你去补。** 现读两条独立证据：规范条目地址
+> `smithery.ai/server/@happy520ai/unified-ai-system` 渲染出的 H1 是 `404: Server Not Found or Removed`
+> （一个会显式区分"没有"的页面，本身就是有效仪器；早先那次"200 但整页只有站名"的读数不算，因为
+> SPA 的外壳对任何路径都长一样）；搜索 `unified-ai-system` 返回 184 条模糊结果，头部是 Relay、
+> Humaux Memory 之流，没有我们的卡。`registry.smithery.ai/servers?q=` 连控制查询都过不了
+> （查 `filesystem` 返回 Google Drive / OneDrive），所以那条 API 路不能用来判存在与否。
+>
+> 为什么把它记成"不做"而不是"该做"：本文件上面的实测结论是**六条已合并的清单条目把星星数推动了 0**。
+> Smithery 刚宣布并入 Arcade.dev（站顶横幅），目录处于迁移状态，此时为它建号的期望收益不比再开一个
+> awesome-list 高。如果哪天你真的花 2 分钟，那就顺手做；但它不该出现在"15 分钟清单"里。
+> 同一条判据也适用于 mcp.so：那边只有 Cloudflare 403，**不可判**，别再为它造探测器。
+
 > ⚠ **搜索索引这条道已经有实现了，别再造第二套。** `.github/workflows/indexnow.yml` +
 > `tools/submit-indexnow.mjs` + `docs/indexnow.json`（key 文件必须是 `docs/<key>.txt`，且校验器要求
 > 文件名等于内容）自 2026-08-02 起在每次 Pages 构建后通知；它那道 `git diff --quiet HEAD^ HEAD -- docs`
