@@ -198,6 +198,11 @@ verify:public-clone all green.
 
 ## 7) 只有仓库所有者能做的四件事（2026-09-26 现读证据）
 
+v0.8.0 的对外文案（Show HN / r/LocalLLaMA / X / dev.to）已收在
+[`growth-launch-kit-2026-09.md`](growth-launch-kit-2026-09.md)，本节只留「只有你能做」的四条。
+同一份文案只保留那一个载体，不要在此文件里再抄一遍。
+
+
 自动化能读到的部分已全部读完并记账；下面四条卡在"身份/账号"上，不是卡在信息上。每条都给了
 判据和回滚，照抄即可。
 
@@ -212,10 +217,14 @@ verify:public-clone all green.
 3. **awesome-selfhosted 要到 2026-11-30 之后手工提交**：资格按"首个非 draft release
    （v0.1.0，2026-07-30）+ 4 个月"算，约 2026-11-30 起可提。该仓库 CONTRIBUTING 明确禁止由
    agent 创建或代写提交（含勾选人工确认框），所以这一步必须你本人做。
-4. **mcpmarket.com 的条目指向注册表 0.3.2**（现读最新是 0.8.0）。2026-09-26 检查过列表页：
-   页面文本不含工具数，只有 registry 链接过期；页面上没有 claim/edit/suggest 之类自助入口
-   （只有页脚 contact）。所以走邮件：收件人 support@mcpmarket.com，正文说明把
-   `.../versions/0.3.2` 更新为 `.../versions/0.8.0` 即可，其余字段无需改动。
+4. **mcpmarket.com 的条目把工具数写成"八个"**（现读原文两处：`providing eight dedicated tools for
+   managing gateway health`、`Codex MCP server with eight integrated tools`），同时它的 registry
+   链接停在 `versions/0.3.2`（现读最新 0.8.0）。发布面是 15 个工具。自助入口实测没有：`/submit`
+   会回复"该 server 已收录"，列表页只有页脚 contact 与 `support@mcpmarket.com`。所以走邮件，
+   正文请对方做两件事——把生成摘要里的 eight 改成 fifteen、把 registry 链接指到 0.8.0。
+
+   （订正记录：本节第一版写的是"列表文本不含工具数"，那是我的检索式漏了 `eight` 这个词造成的假阴性，
+   不是页面真的干净。查数字时必须覆盖 one..twenty 全词表，否则"没找到"只反映模式窄。）
 
 两条已经用反证试死、不必再投入的方向：**GitHub 仓库搜索**和**官方 MCP Registry 搜索**都只按
 name/星数排序与匹配（Registry 的搜索命中集 124/124、161/161 全部只在 `name` 字段命中，条目
