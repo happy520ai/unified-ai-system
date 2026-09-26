@@ -1095,6 +1095,93 @@ export function classifyStaleLines(text, patterns = STALE_CLAIM_PATTERNS) {
   return { labels: [...labels], recordLines };
 }
 
+// Pools someone could actually land on us through, measured with GitHub's own
+// repository search. Rank inside a big pool is star-driven and not ours to change;
+// membership in a small pool often is, because it turns on words the description
+// carries - and words are the one part of this we write on purpose.
+const SEARCH_POOL_QUERIES = [
+  { label: "governed mcp tools in:description", q: "governed+mcp+tools+in:description" },
+  { label: "prompt enhancement in:description mcp", q: "prompt+enhancement+in:description+mcp" },
+  { label: "virtual key in:description", q: "virtual+key+in:description" },
+  { label: "exact repository name", q: "unified-ai-system" },
+];
+
+// A seal, not a wish list: the pools this repository was measurably inside on the date
+// given, each with the reading that earned it. Losing one is a discovery surface closing,
+// so it prints a red line; widening the list costs a fresh measurement, never an edit.
+const SEARCH_POOL_SEAL = [
+  { label: "governed mcp tools in:description", sealed: "2026-09-26", reason: "the phrase is in the repository description" },
+  { label: "prompt enhancement in:description mcp", sealed: "2026-09-26", reason: "added to the description the day the pool went from absent to rank 9 of 42" },
+  { label: "virtual key in:description", sealed: "2026-09-26", reason: "\"virtual-key budgets\" is in the description" },
+];
+
+function scanSearchPools(ownFullName = repo) {
+  const out = [];
+  for (const { label, q } of SEARCH_POOL_QUERIES) {
+    // Two attempts, because the failure this section produced on its first real run was a
+    // secondary rate limit - which clears on its own, and a single attempt would report a
+    // working surface as broken.
+    const cmd = `gh api "search/repositories?q=${q}&per_page=100&sort=stars&order=desc"`;
+    // Not runJson(): its default buffer is smaller than one page of 100 repository
+    // objects, and the resulting ENOBUFS looked exactly like a remote failure.
+    let payload = null;
+    let problem = null;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        payload = JSON.parse(execSync(cmd, { encoding: "utf8", maxBuffer: 128 * 1024 * 1024 }));
+        problem = null;
+        break;
+      } catch (error) {
+        problem = String(error?.message ?? error).replace(/\s+/g, " ").slice(0, 70);
+        if (attempt === 0) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25_000);
+      }
+    }
+    if (payload === null) {
+      out.push({ label, error: problem ?? "search read failed" });
+      continue;
+    }
+    const names = (Array.isArray(payload?.items) ? payload.items : []).map((x) => x.full_name);
+    out.push({
+      label,
+      total: typeof payload?.total_count === "number" ? payload.total_count : null,
+      scanned: names.length,
+      // indexOf returns -1 when absent and 0 for first place, and 0 is a legal rank, so
+      // absence is tested as "< 0" rather than "falsy" everywhere below.
+      rank: names.indexOf(String(ownFullName)),
+    });
+  }
+  return out;
+}
+
+export function searchPoolFindings(pools, seal = SEARCH_POOL_SEAL) {
+  const rows = [];
+  const offenders = [];
+  const byLabel = new Map((pools ?? []).map((p) => [p.label, p]));
+  for (const pool of pools ?? []) {
+    if (pool.error) {
+      rows.push(`${pool.label}: INCONCLUSIVE (${pool.error})`);
+      offenders.push(`READ-FAILED: discovery pool ${pool.label} - ${pool.error}`);
+      continue;
+    }
+    rows.push(
+      pool.rank < 0
+        ? `${pool.label}: absent from the first ${pool.scanned} of ${pool.total} (rank unknown)`
+        : `${pool.label}: rank ${pool.rank + 1} of ${pool.scanned} read (pool ${pool.total})`,
+    );
+  }
+  for (const entry of seal) {
+    const pool = byLabel.get(entry.label);
+    if (!pool) {
+      offenders.push(`READ-FAILED: sealed discovery pool ${entry.label} was not measured`);
+    } else if (!pool.error && pool.rank < 0) {
+      offenders.push(
+        `LOST discovery pool ${entry.label} (sealed ${entry.sealed}: ${entry.reason})`,
+      );
+    }
+  }
+  return { rows, offenders, sealed: seal.length, pools: (pools ?? []).length };
+}
+
 async function scanRemotePublicClaims() {
   const offenders = [];
   let scanned = 0;
@@ -1126,6 +1213,8 @@ async function scanRemotePublicClaims() {
   } catch {
     error = error ?? "comment read failed; the comment sweep is inconclusive";
   }
+  const poolFindings = searchPoolFindings(scanSearchPools());
+  offenders.push(...poolFindings.offenders);
   const commentSweep = commentClaimFindings(comments, readRosterCount());
   if (commentSweep === null) {
     return { scanned, offenders, error, recordOnlyRows, commentScanned: 0, commentKept: 0, commentNote: "roster unreadable, so no comment was judged" };
@@ -1136,6 +1225,9 @@ async function scanRemotePublicClaims() {
     offenders,
     error,
     recordOnlyRows,
+    poolRows: poolFindings.rows,
+    poolSealed: poolFindings.sealed,
+    poolCount: poolFindings.pools,
     commentScanned: commentSweep.scanned,
     commentKept: commentSweep.kept.length,
     commentNote: comments === null
@@ -1402,6 +1494,8 @@ function generateCheckReport(repoStats, rows, date, previousStats = null, claimS
       ? `${remoteSweep.commentScanned} (records kept, by listed rule or self-marked wording: ${remoteSweep.commentKept})`
       : "not run"} |`
   );
+  lines.push(`| Discovery pools measured on repository search | ${remoteSweep?.poolCount ?? "not run"} (sealed membership claims: ${remoteSweep?.poolSealed ?? "?"}) |`);
+  for (const row of remoteSweep?.poolRows ?? []) lines.push(`- ${row}`);
   lines.push("");
   if (claimSweep?.error) lines.push(`- Inconclusive file sweep: ${claimSweep.error}`);
   if (remoteSweep?.error) lines.push(`- Inconclusive remote sweep: ${remoteSweep.error}`);

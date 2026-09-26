@@ -594,7 +594,7 @@ test('named automation accounts are not requests either', () => {
 
 // T-129: the carrier sweep must tell a record from an instruction, and the excuse has
 // to stay narrower than the claim it protects.
-const { classifyStaleLines } = await import("./star-growth-check.mjs");
+const { classifyStaleLines, searchPoolFindings } = await import("./star-growth-check.mjs");
 const { isRecordLine } = await import("./launch-preflight.mjs");
 
 test('a body whose only old number sits in a recorded sentence is not an offender', () => {
@@ -649,4 +649,30 @@ test('comment findings keep a self-marked record and reject an instruction', () 
   assert.match(sweep.kept[0], /marks itself as a record/);
   assert.equal(sweep.offenders.length, 1);
   assert.match(sweep.offenders[0], /comment 2 .*twelve tools/);
+});
+
+// The discovery-pool guard: rank 0 is a legal reading, absence is -1, and a read that
+// failed must never be reported as a lost pool.
+test('a sealed pool still holds us, including at first place', () => {
+  const seal = [{ label: 'p', sealed: '2026-09-26', reason: 'x' }];
+  const first = searchPoolFindings([{ label: 'p', total: 42, scanned: 42, rank: 0 }], seal);
+  assert.deepEqual(first.offenders, []);
+  assert.match(first.rows[0], /rank 1 of 42/);
+});
+
+test('losing a sealed pool is red, and says which one', () => {
+  const seal = [{ label: 'p', sealed: '2026-09-26', reason: 'the phrase is in the description' }];
+  const gone = searchPoolFindings([{ label: 'p', total: 44, scanned: 44, rank: -1 }], seal);
+  assert.equal(gone.offenders.length, 1);
+  assert.match(gone.offenders[0], /^LOST discovery pool p /);
+});
+
+test('a failed search reads inconclusive, never as a lost pool', () => {
+  const seal = [{ label: 'p', sealed: '2026-09-26', reason: 'x' }];
+  const bad = searchPoolFindings([{ label: 'p', error: 'search read failed' }], seal);
+  assert.equal(bad.offenders.length, 1);
+  assert.match(bad.offenders[0], /^READ-FAILED: discovery pool p/);
+  assert.doesNotMatch(bad.offenders.join(' '), /LOST/);
+  const unmeasured = searchPoolFindings([], seal);
+  assert.match(unmeasured.offenders[0], /^READ-FAILED: sealed discovery pool p was not measured/);
 });
