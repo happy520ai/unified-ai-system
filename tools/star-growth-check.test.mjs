@@ -278,14 +278,18 @@ test('staleOwnClaimLines reads our own submission title and body', () => {
   assert.deepEqual(staleOwnClaimLines([], 15), []);
 });
 
-// Declared boundary of the matcher, not an accident: it only reads a count that sits
-// directly against "tools", optionally through "governed"/"MCP". Loosening it to any
-// intervening word would make prose like "one more tool" a stale-count alarm, and a gate
-// that cries wolf gets ignored. A one-time loose sweep of every live door body was run on
-// 2026-09-26 to catch the phrases this arm cannot see.
-test('staleToolCounts leaves adjective-separated count prose alone', () => {
-  assert.deepEqual(staleToolCounts('All nine documented tools are exposed.', 15), []);
+// This arm used to declare a narrower boundary: only a count sitting directly against
+// "tools", optionally through "governed"/"MCP", on the grounds that loosening it would make
+// "one more tool" an alarm and a gate that cries wolf gets ignored. That boundary cost a real
+// miss - "nine stdio MCP tools" inside machine-readable install config read as clean - so it
+// moved: any technical qualifier is now in scope, and the cry-wolf case is handled by an
+// explicit prose stop-list instead of by blindness. Prose cases stay asserted on purpose.
+test('staleToolCounts reads technical qualifiers and still ignores prose quantifiers', () => {
+  assert.deepEqual(staleToolCounts('All nine documented tools are exposed.', 15), [
+    { reported: 9, expected: 15, phrase: 'nine documented tools' },
+  ]);
   assert.deepEqual(staleToolCounts('one more tool', 15), []);
+  assert.deepEqual(staleToolCounts('two other tools', 15), []);
   assert.deepEqual(staleToolCounts('nine governed MCP tools', 15), [
     { reported: 9, expected: 15, phrase: 'nine governed MCP tools' },
   ]);
@@ -518,4 +522,38 @@ test('carrierLines reads only our row out of a shared markdown list', () => {
   assert.equal(carrierLines('- [Someone](https://example.invalid/x) - ten tools.', 'happy520ai/unified-ai-system'), null);
   assert.equal(carrierLines(null, 'a'), null);
   assert.equal(carrierLines('whole file, no anchor needed', undefined), 'whole file, no anchor needed');
+});
+
+// The matcher has failed in both directions here: too narrow missed "nine stdio MCP tools"
+// inside machine-readable install config (printed ok on the most harmful carrier), and the
+// first widening let a preceding word swallow the match so it detected less than before.
+// This table is the contract between those two mistakes.
+test('staleToolCounts matches any technical qualifier and no prose quantifier', () => {
+  const cases = [
+    ['nine governed MCP tools', 1],
+    ['nine stdio MCP tools', 1],
+    ['with nine governed MCP tools', 1],
+    ['exposes fifteen governed MCP tools', 0],
+    ['one more tool', 0],
+    ['two other tools', 0],
+    ['a number of tools', 0],
+    ['nine more available tools', 0],
+    ['12 tools', 1],
+    ['all tools', 0],
+  ];
+  for (const [text, expected] of cases) {
+    assert.equal(staleToolCounts(text, 15).length, expected, text);
+  }
+});
+
+// A version pin is most often an image tag, not a "version" key - and an old tag is what a
+// reader of a directory actually runs.
+test('carrierFindings reads an image tag as the version pin it is', () => {
+  const stale = '{"description":"exposes nine stdio MCP tools","binArgs":["run","ghcr.io/o/r/mcp-server:0.4.8"]}';
+  const findings = carrierFindings(stale, 15, '0.8.0');
+  assert.equal(findings.length, 2);
+  assert.ok(findings.some((f) => /nine stdio MCP tools/.test(f)));
+  assert.ok(findings.some((f) => /pins version 0\.4\.8, published release is 0\.8\.0/.test(f)));
+  assert.deepEqual(carrierFindings(stale, 15, null), findings.filter((f) => /MCP tools/.test(f)), 'no version given means no version claim');
+  assert.deepEqual(carrierFindings('{"version":"0.8.0","description":"fifteen tools"}', 15, '0.8.0'), []);
 });

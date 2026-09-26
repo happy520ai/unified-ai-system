@@ -339,10 +339,29 @@ const COUNT_WORDS = {
 
 // Finds every "N tools" / "N governed MCP tools" claim in a row and returns the ones
 // that disagree with the roster. A row with no count claim returns [] - most do not.
+const COUNT_CLAIM_RE = new RegExp(
+  '\\b(\\d{1,3}|' + Object.keys(COUNT_WORDS).join('|') + ')((?:\\s+[a-z]+){0,3})\\s+tools?\\b',
+  'gi',
+);
+
 export function staleToolCounts(text, current) {
   if (typeof text !== "string" || typeof current !== "number" || current < 1) return [];
   const found = [];
-  for (const match of text.matchAll(/\b(\d{1,3}|[a-z]+)\s+(?:governed\s+)?(?:MCP\s+)?tools?\b/gi)) {
+  // Any technical qualifier may sit between the number and the noun. The narrow form that used
+  // to live here matched "nine governed MCP tools" but not "nine stdio MCP tools", and the
+  // sentence it missed was inside machine-readable install config, so the guard printed ok on
+  // the most harmful case it owns. Quantifier prose stays out: "one more tool" is not a claim
+  // about a roster, and swallowing it would make the sweep cry wolf until someone widened it back.
+  const PROSE_QUANTIFIERS = new Set([
+    'more', 'other', 'others', 'additional', 'extra', 'new', 'remaining', 'left', 'same',
+    'these', 'those', 'both', 'few', 'several', 'many', 'various', 'own',
+  ]);
+  // Group 1 is anchored to the known count words rather than [a-z]+: an open word class let a
+  // preceding word swallow the match ("with nine governed MCP tools" started at "with", which is
+  // not a number, and the real claim was consumed) - so the widened pattern briefly detected
+  // LESS than the narrow one it replaced.
+  for (const match of text.matchAll(COUNT_CLAIM_RE)) {
+    if ((match[2] ?? "").split(/\s+/).filter(Boolean).some((w) => PROSE_QUANTIFIERS.has(w.toLowerCase()))) continue;
     const token = match[1];
     const value = /^\d+$/.test(token) ? Number(token) : COUNT_WORDS[token.toLowerCase()];
     if (typeof value === "number" && value !== current) {
@@ -838,6 +857,15 @@ const upstreamCarriers = [
   // hashgraph-online/awesome-ai-plugins#479, so this carrier going from finding to clean is the
   // measurement that says the merge landed - nobody has to ask.
   { repo: "hashgraph-online/awesome-ai-plugins", path: "README.md", checksVersion: false, anchor: "happy520ai/unified-ai-system", scope: "line" },
+  // Two more found by censusing the places that already carry us, not by opening doors. Both
+  // say "nine" and both already have a clean, in-review correction from us - the point of
+  // watching them is that this report goes green by itself when those merges land.
+  // This one is machine-readable install config, so it is worse than prose: binArgs pinned
+  // mcp-server:0.4.8, i.e. a reader following the directory gets a five-month-old image.
+  { repo: "toolsdk-ai/toolsdk-mcp-registry", path: "packages/aggregators/unified-ai-system.json", checksVersion: true },
+  // Whole file is our entry, so no anchor is needed; their stats: block is bot-maintained and
+  // is deliberately outside anything we would edit.
+  { repo: "up-for-grabs/up-for-grabs.net", path: "_data/projects/unified-ai-system.yml", checksVersion: false },
 ];
 
 // A markdown list needs the opposite scoping from a JSON index: our entry is one line, and
@@ -860,8 +888,17 @@ export function carrierFindings(text, rosterCount, version) {
     findings.push(`states "${claim.phrase}" while the roster has ${claim.expected}`);
   }
   if (version) {
-    for (const match of text.matchAll(/"?version"?\s*[:=]\s*"?(\d+\.\d+\.\d+)"?/g)) {
-      if (match[1] !== version) findings.push(`pins version ${match[1]}, published release is ${version}`);
+    const pins = [
+      ...text.matchAll(/"?version"?\s*[:=]\s*"?(\d+\.\d+\.\d+)/g),
+      // An image tag is a version pin with no word in front of it, and it is how a directory
+      // tells a reader what to run, so it is the pin that matters most.
+      ...text.matchAll(/(?:mcp-server|ai-gateway-service):(\d+\.\d+\.\d+)/g),
+    ];
+    const seen = new Set();
+    for (const match of pins) {
+      if (match[1] === version || seen.has(match[1])) continue;
+      seen.add(match[1]);
+      findings.push(`pins version ${match[1]}, published release is ${version}`);
     }
   }
   return findings;
