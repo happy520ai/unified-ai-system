@@ -384,6 +384,12 @@ const deferredDoors = [
     requiresHumanContributors: 2,
     note: "Open-source section requires 200 stars and 2 contributors; entries are one-line gateway descriptions.",
   },
+  {
+    repo: "bestofjs/bestofjs",
+    requiresStars: 101,
+    requiresHumanContributors: 0,
+    note: "Their own add-a-project template asks the submitter to check \"project has more than 100 stars on GitHub\", and the maintainer told a September suggestion to wait for that threshold. Queue is alive: seven merges in the fortnight to 2026-09-23.",
+  },
 ];
 
 export function deferredDoorStatus(deferred, stars, humanContributors) {
