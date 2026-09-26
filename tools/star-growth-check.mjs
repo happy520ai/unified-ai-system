@@ -103,6 +103,16 @@ const externalPrs = [
   // Filed only after proving their copy was byte-identical to our pre-fix file, so the sync
   // overwrites nothing of theirs.
   ["hashgraph-online/awesome-codex-plugins", 449],
+  // Not a listing: ToolHive's catalog is the data a real runtime reads, so a merged entry
+  // means `thv run unified-ai-system` resolves our image. Self-serve is documented (fork ->
+  // server.json -> PR, plus an add-an-mcp-server issue template), and the star counts in
+  // other entries are written by their bot, not gated by a human.
+  // Two readings a later session needs: their CI does NOT fire on fork PRs ("no checks
+  // reported", mergeable_state blocked) - validation happens when a maintainer runs it, so
+  // "no red checks here" is not evidence the entry validated. And we shipped no icon.svg
+  // (only a 512x512 PNG exists upstream); if an icon turns out to be required, that is the
+  // one known gap in the entry.
+  ["stacklok/toolhive-catalog", 1615],
 ];
 
 // Submission doors that are ISSUES, not pull requests: directory sites that take a
