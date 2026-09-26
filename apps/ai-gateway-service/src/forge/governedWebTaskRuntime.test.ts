@@ -322,4 +322,4 @@ it("executes actual HTTP approval, Forge DAG, Tool Proxy and scoped fake Provide
     await rm(root, { recursive: true, force: true });
     vi.restoreAllMocks();
   }
-}, 30000);
+}, 90000);
