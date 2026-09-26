@@ -453,6 +453,10 @@ the 0.8.0 tag and a reader's first action is to run it.
 
 1. **清单渠道接近饱和，且已按活度过滤。** 又换两种检索式（`mcp gateway in:name` / `awesome agentic in:name` 等）扫到 8 个 ALIVE 候选，逐个读进去：一个是**产品仓**（README 没有 intake 语）、一个是**学习路线图**（Stage 0–8 课程，不收工具）。⇒ 剩下的门主要靠等维护人，不靠再铺新门。
    ⚠ 附带一条仪器边界：筛查脚本报 `intake=yes` 只表示 README 里出现过 "contributing" 一词，**不等于收条目**；判定必须落到小节正文。
+   ⚠ **这条"饱和"结论当天晚些时候又被换形状推翻了一次**（这是本文件里第二次记同型更正）：改用 GitHub 的 **topic 检索** `topic:awesome-list mcp stars:>100` / `topic:awesome-list ai stars:>300`（而不是把 `awesome`/`mcp` 塞进 `in:name`）得 14 个候选，其中两扇是真门并已开出：
+   `alvinreal/awesome-opensource-ai#779`（4,792★，最近 30 条关闭 PR 合并 29 条，其 CONTRIBUTING 明写**不设星数门槛**，提交前跑过他们自带的 `tools/validate_awesome.py`＝0 error，且用"删掉 badge"的篡改靶证明校验器真的读我们那一行）与
+   `steven2358/awesome-generative-ai#1451`（12,683★，10/30 合并，门槛是"1,000 followers 或维护者个人感兴趣"，且**不达标的去处是 Discoveries 列表而不是拒绝**⇒ 自荐时我照实写了"我们知道进不了主表"）。
+   ⇒ 教训不是"渠道没饱和"，而是：**同一形状重复检索只会自证饱和；判"见底"前必须换一次检索维度（name → description → topic）。**
 2. **合并 ≠ 星数。** 已有 6 处收录，星数一次没因此动过。所以本文件里所有"已提交/已合并"的账都只当管道健康度看，别当成效。
 3. **仍然只有你能撬动的两件事没变**（含步骤与回滚在 `growth-launch-kit-2026-08.md` §7）：
    ① 用你自己账号发 HN/Reddit/X（文案在第 1–4 节，发帖前按该节要求重跑现读）；

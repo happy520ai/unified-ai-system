@@ -70,6 +70,11 @@ const externalPrs = [
   // recently closed pull requests, and their own validator was run on the edit before
   // filing: 0 errors.
   ["alvinreal/awesome-opensource-ai", 779],
+  // Same search shape: 12.7k stars, 10 of the last 30 closed pulls merged, newest
+  // 2026-09-24. Their inclusion bar is "1,000 followers OR interesting to the maintainer",
+  // and the stated outcome for a small-but-sound project is the Discoveries list rather
+  // than rejection - which is how this one was filed.
+  ["steven2358/awesome-generative-ai", 1451],
 ];
 
 // Submission doors that are ISSUES, not pull requests: directory sites that take a
