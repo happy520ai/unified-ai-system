@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Self-hosted AI gateways compared: LiteLLM, Portkey, Agent Router and Unified AI System | Unified AI System</title>
+    <meta
+      name="description"
+      content="Four self-hostable AI gateways described in their own words: verbatim README lines, licenses and links, read on 2026-09-26, plus the three questions to ask any of them before handing over agent traffic."
+    />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="theme-color" content="#081011" />
+    <link
+      rel="canonical"
+      href="https://happy520ai.github.io/unified-ai-system/self-hosted-ai-gateways-compared.html"
+    />
+
+    <link rel="sitemap" type="application/xml" href="sitemap.xml" />
+    <link rel="alternate" type="text/plain" href="llms.txt" title="LLM-readable project summary" />
+    <link rel="icon" type="image/png" href="assets/mcp-icon.png" />
+
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Unified AI System" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:title" content="Self-hosted AI gateways, in their own words" />
+    <meta
+      property="og:description"
+      content="LiteLLM, Portkey Gateway, Agent Router and Unified AI System - quoted from each project's own README, dated, with links, and no claims about what anyone lacks."
+    />
+    <meta
+      property="og:url"
+      content="https://happy520ai.github.io/unified-ai-system/self-hosted-ai-gateways-compared.html"
+    />
+    <meta
+      property="og:image"
+      content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png"
+    />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="640" />
+    <meta property="og:image:alt" content="Unified AI System MCP gateway and prompt enhancement preview" />
+    <meta property="article:published_time" content="2026-09-26T00:00:00+00:00" />
+    <meta property="article:modified_time" content="2026-09-26T00:00:00+00:00" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Self-hosted AI gateways, in their own words" />
+    <meta
+      name="twitter:description"
+      content="Four gateways, quoted from their own READMEs, dated - plus three questions to ask before handing over agent traffic."
+    />
+    <meta
+      name="twitter:image"
+      content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png"
+    />
+
+    <link rel="stylesheet" href="site.css" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "TechArticle",
+        "headline": "Self-hosted AI gateways compared, in their own words",
+        "description": "Verbatim README statements from four self-hostable AI gateways, dated and linked, with the questions a buyer should ask each of them.",
+        "datePublished": "2026-09-26",
+        "dateModified": "2026-09-26",
+        "author": {
+          "@type": "Organization",
+          "name": "Unified AI System contributors",
+          "url": "https://github.com/happy520ai/unified-ai-system"
+        },
+        "mainEntityOfPage": "https://happy520ai.github.io/unified-ai-system/self-hosted-ai-gateways-compared.html",
+        "image": "https://happy520ai.github.io/unified-ai-system/assets/social-preview.png",
+        "keywords": "self-hosted AI gateway, LiteLLM, Portkey gateway, Envoy AI Gateway, Agent Router, MCP gateway, LLM routing, comparison"
+      }
+    </script>
+    <script src="site.js" defer></script>
+  </head>
+  <body class="article-page">
+    <a class="skip-link" href="#article">Skip to article</a>
+
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="Unified AI System home">
+        <img src="assets/mcp-icon.png" alt="" width="32" height="32" />
+        <span>Unified AI System</span>
+      </a>
+      <nav aria-label="Primary navigation">
+        <a href="./">Project</a>
+        <a href="#the-four">The four</a>
+        <a href="#questions">Questions to ask</a>
+        <a
+          class="nav-command"
+          href="https://github.com/happy520ai/unified-ai-system"
+          aria-label="Star Unified AI System on GitHub"
+        >
+          Star on GitHub
+        </a>
+      </nav>
+    </header>
+
+    <main id="article">
+      <header class="article-hero">
+        <div class="article-hero-shade" aria-hidden="true"></div>
+        <div class="article-hero-inner">
+          <p class="eyebrow">BUYER'S NOTE / SEPTEMBER 2026</p>
+          <h1>Four self-hosted AI gateways, in their own words</h1>
+          <p class="article-hero-copy">
+            Comparison pages fail in a specific way: someone paraphrases a competitor, the
+            competitor changes, and the sentence outlives the fact. So this page has no
+            paraphrase in it. Everything said about LiteLLM, Portkey Gateway and Agent
+            Router below is copied from that project's own README, with the line linked and
+            the date it was read. Where we did not find a statement, the cell says so
+            instead of implying a gap. We are one of the four, so read the last section for
+            what we claim about ourselves and how to check each claim.
+          </p>
+          <div class="article-meta" aria-label="Article details">
+            <span>Quoted, not paraphrased</span>
+            <span>Read 2026-09-26</span>
+            <span>Every line linked</span>
+          </div>
+        </div>
+      </header>
+
+      <div class="article-layout">
+        <aside class="article-toc" aria-label="Article contents">
+          <p class="eyebrow dark">Contents</p>
+          <a href="#the-four">1. What each project says about itself</a>
+          <a href="#licences">2. Licences as each project states them</a>
+          <a href="#questions">3. Three questions to ask any of them</a>
+          <a href="#ours">4. What we claim, and how to check it</a>
+          <a href="#decay">5. How this page goes stale</a>
+        </aside>
+
+        <div class="article-body">
+          <section id="the-four">
+            <p class="eyebrow dark">SECTION 01 / QUOTATIONS</p>
+            <h2>What each project says about itself</h2>
+            <p>
+              Quoted exactly, from the file linked after each block. Ellipses mark where a
+              line was cut; nothing else was edited.
+            </p>
+
+            <h3>LiteLLM</h3>
+            <blockquote class="quote">
+              <p>Open Source AI Gateway for 100+ LLMs. Self-hosted. Enterprise-ready. Call any LLM in OpenAI format.</p>
+              <p>Production-ready gateway - virtual keys, spend tracking, guardrails, load balancing, and an admin dashboard out of the box</p>
+            </blockquote>
+            <p class="quote-source">
+              <a href="https://github.com/BerriAI/litellm/blob/main/README.md">BerriAI/litellm · README.md</a>
+              (read 2026-09-26)
+            </p>
+
+            <h3>Portkey Gateway</h3>
+            <blockquote class="quote">
+              <p>Smart caching: Cache responses from LLMs to reduce costs and improve latency.</p>
+              <p>Manage MCP servers with enterprise auth &amp; observability using MCP Gateway</p>
+            </blockquote>
+            <p class="quote-source">
+              <a href="https://github.com/Portkey-AI/gateway/blob/main/README.md">Portkey-AI/gateway · README.md</a>
+              (read 2026-09-26; both lines link onward to Portkey's own docs)
+            </p>
+
+            <h3>Agent Router, formerly Envoy AI Gateway</h3>
+            <blockquote class="quote">
+              <p>
+                Agent Router gives application teams one consistent, OpenAI-compatible API
+                for every model and tool, from hosted providers to self-hosted inference and
+                MCP servers. Platform teams keep credentials, routing, quotas, failover, and
+                usage attribution in one place, enforced by Envoy and Envoy Gateway.
+              </p>
+              <p>
+                Envoy AI Gateway is now Agent Router, an Agentic AI Foundation project. Same
+                code, same maintainers, same release cadence and Apache 2.0 license. Nothing
+                you deploy is renamed:
+              </p>
+            </blockquote>
+            <p class="quote-source">
+              <a href="https://github.com/envoyproxy/ai-gateway/blob/main/README.md">envoyproxy/ai-gateway · README.md</a>
+              (read 2026-09-26). If you are searching for "Envoy AI Gateway", that rename is
+              the reason both names appear in results.
+            </p>
+
+            <h3>Unified AI System (this project)</h3>
+            <blockquote class="quote">
+              <p>
+                Public Preview: self-hosted, protocol-first AI gateway and agent control
+                plane for OpenAI, Anthropic, Gemini, MCP and A2A - governed tools,
+                virtual-key budgets, cache and audit; zero-key first run.
+              </p>
+            </blockquote>
+            <p class="quote-source">
+              Our own repository description, so Section 4 restates it as checkable items
+              rather than leaving it as a claim.
+            </p>
+          </section>
+
+          <section id="licences">
+            <p class="eyebrow dark">SECTION 02</p>
+            <h2>Licences as each project states them</h2>
+            <ul>
+              <li><strong>Unified AI System</strong> - Apache-2.0, one licence, whole repository.</li>
+              <li><strong>Agent Router</strong> - its README says "Apache 2.0 license" in the sentence about the rename, quoted above.</li>
+              <li><strong>Portkey Gateway</strong> - its <code>LICENSE</code> file opens with the MIT terms.</li>
+              <li><strong>LiteLLM</strong> - its <code>LICENSE</code> file is split: the first line reads "Portions of this software are licensed as follows", i.e. different parts under different terms. That is worth reading before you assume one licence covers the whole tree, and it is the reason this bullet exists.</li>
+            </ul>
+            <p>
+              A licence is not a feature and does not tell you what a gateway does. It does
+              tell you what you are agreeing to when you fork it into your infrastructure,
+              so read the file rather than the badge.
+            </p>
+          </section>
+
+          <section id="questions">
+            <p class="eyebrow dark">SECTION 03 / THE USEFUL PART</p>
+            <h2>Three questions to ask any gateway before agent traffic goes through it</h2>
+            <ol class="method-list">
+              <li>
+                <strong>Can I see who spent what, after the fact, in a form I can hand to
+                an auditor?</strong> Ask each project where that record lives, what its
+                retention is, and whether it is tamper-evident. A dashboard is not a record.
+              </li>
+              <li>
+                <strong>What happens when I run it with no provider credentials?</strong>
+                Either it refuses, which is fine and should be said plainly, or it has a
+                local mode you can demonstrate on a laptop in a meeting. Ask for the command
+                and run it before you ask for the demo.
+              </li>
+              <li>
+                <strong>How do I verify what the published artifact exposes, without
+                trusting a document?</strong> For a gateway that exposes tools, this is the
+                supply-chain version of question 1: the catalogue entry is prose, the image
+                is the product.
+              </li>
+            </ol>
+            <p>
+              These are not rhetorical. Each one is a question you can put to LiteLLM,
+              Portkey, Agent Router or us, and a competent answer to any of them is a link
+              to a command or a page of documentation, not a sentence.
+            </p>
+          </section>
+
+          <section id="ours">
+            <p class="eyebrow dark">SECTION 04 / ANSWERS FOR US</p>
+            <h2>What we claim, and how to check each one</h2>
+            <ul>
+              <li>
+                <strong>Tamper-evident record.</strong> The gateway writes an append-only
+                audit chain rather than a log you can edit; see
+                <a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/security/README.md">the security index</a>
+                for what it covers and what it does not.
+              </li>
+              <li>
+                <strong>Runs with no credentials.</strong> The default provider is a local
+                fake, and one documented command starts it and prints the enhanced prompt.
+                The run reports its own state as <code>mode=fake</code>,
+                <code>providerCalled=false</code> and <code>credentialRequired=false</code>,
+                which is what <a href="credential-free-evidence.html">the evidence guide</a>
+                walks through field by field - including what those three fields do not
+                establish.
+              </li>
+              <li>
+                <strong>Verifiable artifact.</strong>
+                <code>node tools/verify-image-roster.mjs 0.8.0</code> reads the published
+                image over plain HTTPS, checks every layer blob against the digest its
+                manifest names, and prints the tool roster that image really contains.
+                <a href="verify-mcp-docker-image.html">This page</a> carries the measured
+                readings for eight tags.
+              </li>
+              <li>
+                <strong>Both directions of MCP.</strong> It serves MCP, and it puts
+                upstream MCP servers and OpenAPI 3 operations behind one governed surface -
+                <a href="openapi-to-mcp.html">the OpenAPI-to-MCP guide</a> is the concrete
+                case, and <a href="terminal-first-ai-gateway.html">terminal-first</a> explains
+                why the operator interface is a CLI rather than a console.
+              </li>
+              <li>
+                <strong>Where we are smaller.</strong> We do not advertise 100+ or 200+
+                providers; the surfaces we document are the chat APIs and the MCP and A2A
+                paths named in our own description above, and no number of providers is a
+                quality claim anyway. The honest summary is that we are a Public Preview with
+                single-digit stars, not the default choice for a large estate.
+              </li>
+            </ul>
+          </section>
+
+          <section id="decay">
+            <p class="eyebrow dark">SECTION 05 / EXPIRY</p>
+            <h2>How this page goes stale</h2>
+            <p>
+              Three ways, and they are all checkable. A project renames itself, as Envoy AI
+              Gateway did. A sentence moves in a README, which you can verify against the
+              file's history at the link above rather than against this page. Or our own
+              surface changes and Section 4 stops describing the thing you can run today -
+              which is why every claim there is attached to a command or a document in the
+              repository instead of to a number.
+            </p>
+            <p>
+              If you find a quotation that no longer matches the linked file, that is a bug
+              in this page:
+              <a href="https://github.com/happy520ai/unified-ai-system/issues/new">open an issue</a>
+              with the line and we will fix the date and the text, not the other way round.
+            </p>
+            <p class="article-note">
+              A Public Preview of self-hosted software. Real providers are disabled by
+              default, and no part of this page claims production readiness, L5 autonomy or
+              AGI. The other three projects are named to help a reader find them; this page
+              is not endorsed by, and does not speak for, any of them.
+            </p>
+          </section>
+        </div>
+      </div>
+</main>
+
+    <footer>
+      <span>Unified AI System</span>
+      <span>Gateway comparison note</span>
+      <a href="verify-mcp-docker-image.html">What a published image exposes</a>
+      <span>Apache-2.0</span>
+    </footer>
+  </body>
+</html>
