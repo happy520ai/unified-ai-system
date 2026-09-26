@@ -676,3 +676,14 @@ test('a failed search reads inconclusive, never as a lost pool', () => {
   const unmeasured = searchPoolFindings([], seal);
   assert.match(unmeasured.offenders[0], /^READ-FAILED: sealed discovery pool p was not measured/);
 });
+
+// The structural excuse must work on its own, not only through the door allowlist: three
+// live doors are our own PR bodies quoting the stale row they ask to have fixed.
+test('submission copy excuses a quotation and rejects an instruction, with no allowlist', () => {
+  const quoted = { repo: "x/y", pr: 1, kind: "pr", claimText: 'Their row says "nine governed MCP tools" today; the published roster has fifteen.' };
+  assert.deepEqual(staleOwnClaimLines([quoted], 15, []), []);
+  const instruction = { repo: "x/y", pr: 2, kind: "pr", claimText: "Register the server and confirm nine governed MCP tools appear." };
+  const found = staleOwnClaimLines([instruction], 15, []);
+  assert.equal(found.length, 1);
+  assert.match(found[0], /x\/y#2 .*says "nine governed MCP tools"/);
+});

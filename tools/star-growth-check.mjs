@@ -454,9 +454,16 @@ export function staleOwnClaimLines(rows, rosterCount, allowed = OUR_COPY_STALE_A
   for (const row of rows ?? []) {
     if (!row?.claimText) continue;
     const door = `${row.repo}#${row.pr}`;
-    for (const claim of staleToolCounts(row.claimText, rosterCount)) {
-      if ((allowed ?? []).some((item) => item.door === door && claim.phrase.includes(item.phrase))) continue;
-      out.push(`${door} (${row.kind ?? "pr"}) says "${claim.phrase}" while the roster has ${claim.expected}`);
+    // Per line, because our submission copy is mostly a quotation of the thing being
+    // corrected: "their row says nine governed MCP tools" is the reason the door exists,
+    // not a claim we are publishing. Whole-text matching turned three such doors red and
+    // hid the carriers that really are wrong.
+    for (const line of String(row.claimText).split("\n")) {
+      for (const claim of staleToolCounts(line, rosterCount)) {
+        if ((allowed ?? []).some((item) => item.door === door && claim.phrase.includes(item.phrase))) continue;
+        if (isRecordLine(line)) continue;
+        out.push(`${door} (${row.kind ?? "pr"}) says "${claim.phrase}" while the roster has ${claim.expected}`);
+      }
     }
   }
   return out;
