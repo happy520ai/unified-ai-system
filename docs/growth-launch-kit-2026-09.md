@@ -297,3 +297,29 @@ the 0.8.0 tag and a reader's first action is to run it.
   posting it from the owner's account is astroturfing.
 - Do not ask anyone to star. Stars are the lagging indicator here; the posts are
   the leading one.
+
+---
+
+## 渠道实测状态（2026-09-26 现读，用于决定你下一步该花哪 20 分钟）
+
+| 面 | 读数 | 判据来源 |
+| --- | --- | --- |
+| 星数 | **7**（与昨日快照差 0），fork 2，subscriber 0 | `gh api repos/...` |
+| 记账门 | 39 扇（33 PR + 6 提交型 issue），完备守卫读 Complete | `node tools/star-growth-check.mjs check` |
+| 队列活度 | 压着我们开放 PR 的 19 个仓库：**ALIVE=10 / STALE=3 / DEAD_QUEUE=6** | `node tools/star-growth-check.mjs queues` |
+| 上游 README 收录 | 5 处可见 / 28 处未见 / 0 处读不到（第 6 个已合并的门在数据文件里，不在 README） | 同上 |
+| 人类参与 | 最近 100 条评论作者分布：`happy520ai=88`、`dependabot[bot]=11`、**其他真人 1 人 1 条** | `issues/comments` 分组计数 |
+| 使用回报表 | `usage-verification-report.yml` 存在且 URL 可解析，但**被用过的次数 0** | `.github/ISSUE_TEMPLATE/` + label 查询 |
+| 贡献台 | `good first issue` 开 2 个、`help wanted` 开 3 个（新加 #166 站点安全页、#167 soak 分母修复，都带验收清单） | label 查询 |
+
+**三条结论，都不靠感觉：**
+
+1. **清单渠道接近饱和，且已按活度过滤。** 又换两种检索式（`mcp gateway in:name` / `awesome agentic in:name` 等）扫到 8 个 ALIVE 候选，逐个读进去：一个是**产品仓**（README 没有 intake 语）、一个是**学习路线图**（Stage 0–8 课程，不收工具）。⇒ 剩下的门主要靠等维护人，不靠再铺新门。
+   ⚠ 附带一条仪器边界：筛查脚本报 `intake=yes` 只表示 README 里出现过 "contributing" 一词，**不等于收条目**；判定必须落到小节正文。
+2. **合并 ≠ 星数。** 已有 6 处收录，星数一次没因此动过。所以本文件里所有"已提交/已合并"的账都只当管道健康度看，别当成效。
+3. **仍然只有你能撬动的两件事没变**（含步骤与回滚在 `growth-launch-kit-2026-08.md` §7）：
+   ① 用你自己账号发 HN/Reddit/X（文案在第 1–4 节，发帖前按该节要求重跑现读）；
+   ② 上传 15 工具版社交预览图（`docs/assets/social-preview.png`，与站点 `og:image` 字节一致）。
+   第三件是被动等：mcpservers.org 审核约 2026-10-09 见结果；awesome-selfhosted 约 2026-11-30 才够龄且必须你本人提。
+
+**如果这周只做一件事**：发 HN。理由就是上表——其他所有面要么在等人（清单），要么已经证明对星数没有可测影响（收录），而一次性外部曝光目前没有别的路径能替代。
