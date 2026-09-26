@@ -578,7 +578,7 @@ the 0.8.0 tag and a reader's first action is to run it.
 | 面 | 读数 | 判据来源 |
 | --- | --- | --- |
 | 星数 | **7**（与昨日快照差 0），fork 2，subscriber 0 | `gh api repos/...` |
-| 记账门 | 39 扇（33 PR + 6 提交型 issue），完备守卫读 Complete | `node tools/star-growth-check.mjs check` |
+| 记账门 | 52 扇（44 PR + 8 提交型 issue），完备守卫读 Complete。⚠ 这一行今天白天还写 39 扇（33 PR + 6 issue）——一天之内因为换检索式与第三方手工收录涨到 52，所以**任何手抄的扇数都是过期读数**，要现值就跑右边那条命令；今晚新增的两扇是 `cuihuan/awesome-ai-gateway#104`（已发布条目里写 nine，PR 修描述行与"当前发布版是 v0.4.9"那句）与 `FrancoStino/opencode-skills-collection#127`（vendored 我们 SKILL.md 的 bundle；注意该程序按 digest 钉 0.4.9 ⇒ 步骤里的 nine 是对的，别去改它） | `node tools/star-growth-check.mjs check` |
 | 队列活度 | 压着我们开放 PR 的 19 个仓库：**ALIVE=10 / STALE=3 / DEAD_QUEUE=6** | `node tools/star-growth-check.mjs queues` |
 | 上游 README 收录 | 5 处可见 / 28 处未见 / 0 处读不到（第 6 个已合并的门在数据文件里，不在 README） | 同上 |
 | 人类参与 | 最近 100 条评论作者分布：`happy520ai=88`、`dependabot[bot]=11`、**其他真人 1 人 1 条** | `issues/comments` 分组计数 |
