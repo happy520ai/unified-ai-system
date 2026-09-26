@@ -51,7 +51,7 @@ const COUNT_IN_TEXT =
 // flagging them trains the reader to ignore the flags that matter. Shared with the
 // carrier sweep so the two instruments cannot disagree about where the line sits.
 export const RECORD_MARKER =
-  /says|stated|statement|quoted|verbatim|reproduc|was true|was produced|currently reads|exposed|→|"[^"]*tools|history|as-of|dated|record\b|records\b|recorded/i;
+  /says|stated|statement|quoted|verbatim|reproduc|was true|was produced|currently reads|exposed|→|"[^"]*tools|`[^`]*tools|history|as-of|dated|record\b|records\b|recorded/i;
 export const isRecordLine = (line) => RECORD_MARKER.test(String(line ?? ""));
 // A version is a claim about the present only next to today/latest/current.
 const NEAR_PRESENT = 30;

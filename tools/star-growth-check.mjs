@@ -1399,7 +1399,7 @@ function generateCheckReport(repoStats, rows, date, previousStats = null, claimS
   );
   lines.push(
     `| Comment bodies scanned | ${remoteSweep?.commentScanned !== undefined
-      ? `${remoteSweep.commentScanned} (records kept by rule: ${remoteSweep.commentKept})`
+      ? `${remoteSweep.commentScanned} (records kept, by listed rule or self-marked wording: ${remoteSweep.commentKept})`
       : "not run"} |`
   );
   lines.push("");

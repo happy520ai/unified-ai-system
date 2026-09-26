@@ -628,6 +628,10 @@ test('the record marker does not excuse a present-tense claim', () => {
   // quotation, and a quoted phrase. Both were in the predicate the launch copy depends
   // on, and a narrower shared version made a quoted "eight dedicated tools" read as ours.
   assert.equal(isRecordLine('> the listing points at eight dedicated tools → "eight dedicated tools"'), true);
+  // Backticks are markdown's own "this string, verbatim". The line that made this clear
+  // reads: their `discovered twelve tools` lines stay exactly as they are.
+  assert.equal(isRecordLine('their `discovered twelve tools` lines stay exactly as they are'), true);
+  assert.equal(isRecordLine('the server exposes 12 tools'), false);
 });
 
 test('comment findings keep a self-marked record and reject an instruction', () => {
