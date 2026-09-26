@@ -886,6 +886,42 @@ function collectCarrierFindings() {
   return { rosterCount, version, rows };
 }
 
+// Comments, not bodies: an owner's update note is where a superseded command survives, and
+// a comment containing `docker run ...:0.7.0` is advice a visitor copies, not history.
+// Records are still records, so they are excluded by comment id with the reason stated, and
+// the count is printed rather than hidden.
+const COMMENT_CLAIM_ALLOWED = [
+  { id: 5407452399, reason: "2026-08-25 audit record of which surfaces were aligned to v0.5.0 / twelve tools at that date" },
+  { id: 5235971711, reason: "as-of log of a client verification run that listed the then-nine tools" },
+  { id: 5406922621, reason: "PR #115 changelog: records that the copy was corrected from 9 to 12 at that time" },
+  { id: 5404483693, reason: "PR #115 evidence summary of one verify:public-clone run that discovered 12" },
+  { id: 5228155280, reason: "2026-08-08 log line: the public-clone verification of that day confirmed 9" },
+];
+
+export function commentClaimFindings(comments, rosterCount, allowed = COMMENT_CLAIM_ALLOWED) {
+  if (rosterCount === null) return null;
+  const offenders = [];
+  const kept = [];
+  let scanned = 0;
+  for (const comment of comments ?? []) {
+    const body = String(comment?.body ?? "");
+    if (body.length === 0) continue;
+    scanned += 1;
+    const claims = staleToolCounts(body, rosterCount);
+    if (claims.length === 0) continue;
+    // Comment URLs come in two shapes: /issues/20#issuecomment-N and /pull/115#issuecomment-N.
+    const ref = String(comment.html_url ?? "").match(/\/(?:issues|pull)\/(\d+)/)?.[1] ?? "?";
+    const label = `comment ${comment.id} on #${ref}`;
+    const rule = (allowed ?? []).find((item) => item.id === comment.id);
+    if (rule) {
+      kept.push(`${label} - ${rule.reason}`);
+    } else {
+      offenders.push(`${label} says "${claims.map((claim) => claim.phrase).join('", "')}" while the roster has ${rosterCount}`);
+    }
+  }
+  return { scanned, offenders, kept };
+}
+
 async function scanRemotePublicClaims() {
   const offenders = [];
   let scanned = 0;
@@ -910,7 +946,30 @@ async function scanRemotePublicClaims() {
       if (labels.size > 0) offenders.push(`#${item.number} says: ${[...labels].join(", ")}`);
     }
   }
-  return { scanned, offenders, error };
+  // Comment bodies use the roster-derived matcher rather than the literal pattern list,
+  // because the patterns were written for "twelve tools" copy and a nine-tool run log
+  // needs comparing against the live roster to mean anything.
+  let comments = null;
+  try {
+    comments = runJson(`gh api "repos/${repo}/issues/comments?per_page=100&sort=created&direction=desc"`);
+  } catch {
+    error = error ?? "comment read failed; the comment sweep is inconclusive";
+  }
+  const commentSweep = commentClaimFindings(comments, readRosterCount());
+  if (commentSweep === null) {
+    return { scanned, offenders, error, commentScanned: 0, commentKept: 0, commentNote: "roster unreadable, so no comment was judged" };
+  }
+  offenders.push(...commentSweep.offenders);
+  return {
+    scanned,
+    offenders,
+    error,
+    commentScanned: commentSweep.scanned,
+    commentKept: commentSweep.kept.length,
+    commentNote: comments === null
+      ? "the comment read failed - this sweep did not look at comments"
+      : `most recent ${commentSweep.scanned} comments read; older ones were not`,
+  };
 }
 
 function generateCheckReport(repoStats, rows, date, previousStats = null, claimSweep = null, remoteSweep = null, deferred = null, untracked = null, denominatorTruncated = false, carriers = null, queues = null) {
@@ -1091,6 +1150,11 @@ function generateCheckReport(repoStats, rows, date, previousStats = null, claimS
   lines.push(`| Files with a stale instruction | ${claimSweep ? claimSweep.offenders.length : "not run"} |`);
   lines.push(`| Open issue and PR bodies scanned | ${remoteSweep ? remoteSweep.scanned : "not run"} |`);
   lines.push(`| Issues or PRs with a stale instruction | ${remoteSweep ? remoteSweep.offenders.length : "not run"} |`);
+  lines.push(
+    `| Comment bodies scanned | ${remoteSweep?.commentScanned !== undefined
+      ? `${remoteSweep.commentScanned} (records kept by rule: ${remoteSweep.commentKept})`
+      : "not run"} |`
+  );
   lines.push("");
   if (claimSweep?.error) lines.push(`- Inconclusive file sweep: ${claimSweep.error}`);
   if (remoteSweep?.error) lines.push(`- Inconclusive remote sweep: ${remoteSweep.error}`);
@@ -1099,6 +1163,7 @@ function generateCheckReport(repoStats, rows, date, previousStats = null, claimS
   if (!claimSweep?.error && !remoteSweep?.error
     && (claimSweep?.offenders.length ?? 0) === 0 && (remoteSweep?.offenders.length ?? 0) === 0) {
     lines.push("No public copy asks a reader to verify a tool count the published surface no longer has.");
+    if (remoteSweep?.commentNote) lines.push(`- Coverage limit: ${remoteSweep.commentNote}.`);
   }
   if (claimSweep && claimSweep.allowed.length > 0) {
     lines.push("");

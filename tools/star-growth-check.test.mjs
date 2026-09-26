@@ -4,6 +4,7 @@ import {
   OUR_COPY_STALE_ALLOWED,
   carrierFindings,
   carrierRegion,
+  commentClaimFindings,
   countHandAccepted,
   countHumanContributors,
   countListingKinds,
@@ -383,4 +384,34 @@ test('queueHealth reads merges out of the closed sample only', () => {
   assert.equal(queueHealth([{ state: 'closed' }, { state: 'closed' }], { today }).verdict, 'UNKNOWN');
   assert.equal(queueHealth(null, { today }).verdict, 'UNKNOWN');
   assert.equal(queueHealth([], { today }).verdict, 'UNKNOWN');
+});
+
+// Issue #20 carried `docker run ...:0.7.0` inside an owner comment for weeks: the remote
+// sweep read bodies, never comments, and the pattern list only knew the word "twelve".
+test('commentClaimFindings reads comments, which the body sweep never looked at', () => {
+  const comment = {
+    id: 1,
+    html_url: 'https://github.com/o/r/issues/20#issuecomment-1',
+    body: 'I verified the command is still: docker run image:tag and it exposes twelve governed MCP tools.',
+  };
+  const found = commentClaimFindings([comment], 15);
+  assert.equal(found.offenders.length, 1);
+  assert.match(found.offenders[0], /^comment 1 on #20 says "twelve governed MCP tools" while the roster has 15/);
+  assert.equal(found.scanned, 1);
+
+  const current = { ...comment, id: 2, body: 'exposes fifteen governed MCP tools' };
+  assert.deepEqual(commentClaimFindings([current], 15).offenders, []);
+
+  // allowlist moves a record out of offenders and says so, rather than muting the phrase
+  const kept = commentClaimFindings([comment], 15, [{ id: 1, reason: 'dated audit record' }]);
+  assert.deepEqual(kept.offenders, []);
+  assert.equal(kept.kept.length, 1);
+  assert.match(kept.kept[0], /^comment 1 on #20 - dated audit record$/);
+
+  // comment URLs exist for issues and for pull requests; both must label cleanly
+  assert.match(commentClaimFindings([{ id: 9, html_url: 'https://github.com/o/r/pull/115#issuecomment-9', body: 'twelve tools' }], 15).offenders[0], /^comment 9 on #115/);
+  assert.equal(commentClaimFindings([comment], null), null);
+  assert.deepEqual(commentClaimFindings([], 15).offenders, []);
+  // boundary: version pins are out of scope for this arm by standing decision
+  assert.deepEqual(commentClaimFindings([{ id: 3, html_url: 'x/issues/3', body: 'pin ai-gateway-service:0.5.0' }], 15).offenders, []);
 });
