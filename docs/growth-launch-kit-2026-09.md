@@ -24,7 +24,7 @@ with a ceiling above ~20 stars are the ones that need your identity.
 | # | Action | Where | Why here in the order |
 | --- | --- | --- | --- |
 | 1 | Upload the 15-tool share card (§0) | `https://github.com/happy520ai/unified-ai-system/settings` → Social preview → `docs/assets/social-preview.png` | ~2 minutes, and it multiplies every other link you or anyone else posts. Do it before anything that generates shares. |
-| 2 | Post Show HN (§1) | `https://news.ycombinator.com/submit` | Largest single-event ceiling available. Needs your login; the copy is ready and its reads expire fast, so re-run `## Verify before posting` first. |
+| 2 | Post Show HN (§1) | `https://news.ycombinator.com/submit` | Largest single-event ceiling available. Needs your login; the copy is ready and its reads expire fast, so re-run `## Verify before posting` first. Read §5 before you submit - the replies in the first two hours are the part that was missing. |
 | 3 | Post to one subreddit (§2) | r/LocalLLaMA (or r/selfhosted with the §2 wording swap) | Same shape as HN, slower burn, and the self-hosters there are the audience that actually installs. One post, not a cross-post sweep. |
 | 4 | Sign up and file the news item (§0d) | `https://changelog.com/news/submit` | Three fields. Their page says submitting your own work is encouraged, so this is a legitimate door rather than a favour. |
 | 5 | Click the checkbox and fill the form (§0f) | `https://openalternative.co/submit` | I am not solving a machine-refusal challenge for you; their GitHub list (6,747★) is generated from this one submission. |
@@ -287,6 +287,89 @@ second Reddit self-promotion the same day.
 6. Honest limits: solo maintainer, single-digit stars, single-host,
    public preview.
 7. One-command try-it + the issue template for reporting a verification run.
+
+## 5. The first two hours: the questions that will actually arrive
+
+The Show HN copy closes with "I'll answer the sharp ones", so the sharp ones are what to
+prepare. This section exists because an unanswered question in a live thread is not neutral:
+every reader who arrives later interprets it as the answer you were avoiding. These are drafts
+for shape and links, not lines to paste — say only what is true as of the moment you say it.
+
+Order of operations for the first hour: submit, then immediately post the prepared intro as your
+first comment so the thread has one paragraph of context under a bare URL. Then answer the
+*sharpest* question first, not the friendliest one, and put at most one link in each reply.
+
+### "Isn't this just another LiteLLM / Portkey / OpenRouter?"
+
+Say what this one is rather than what they are not: one self-hosted surface where an agent can
+*act* and be governed, not only forward text. The governed tool surface is fifteen tools today
+(health, readiness, governance list/status/describe, workforce, workflow run/health/actions,
+knowledge retrieve/readiness, prompt enhancement, chat), plus virtual keys with token budgets,
+exact caching with an opt-in lexical-approximate layer, append-only audit, reverse MCP
+governance, and generating tools from an existing OpenAPI spec.
+
+If someone names a specific competitor's feature: answer only from something you read that day,
+in their own words. "I have not tested theirs, so I will not tell you what they lack" is a
+stronger reply than a wrong one, and it is the reply to reach for by default.
+
+### "So you hold my provider keys."
+
+The default needs none. The local fake provider is the credential-free path, and the MCP server
+reads exactly two environment variables — `AI_GATEWAY_MCP_URL` and `AI_GATEWAY_MCP_AUTH_TOKEN` —
+both optional. Leave them unset and it starts its own loopback gateway with a freshly minted
+token. Point it at a remote gateway and it refuses unless the target is https (or loopback over
+plain http), the token is at least 32 characters, and that gateway's own health report says it is
+running the fake-provider runtime. Link `credential-free-evidence` on the site for the replay.
+
+### "'Agent governance' reads like marketing."
+
+Concede the strongest available ground out loud: per-action Forge approvals are **not**
+implemented and fail closed before any effect, and multi-instance governance profiles are
+rejected rather than half-built. That is our own documentation's sentence, not a spin. A
+maintainer who volunteers the gap in the first hour is the one people believe about the parts
+that do work.
+
+### "Prove it runs / is this a screenshot repository?"
+
+`node tools/verify-image-roster.mjs 0.8.0 --json` counts the tool names out of the published
+image instead of out of a README, and the drill-evidence page carries the security exercises.
+The numbers worth quoting are the ones read the same day: tool count from the image, stars from
+the repository page, cold-start latency from a local run.
+
+### "It sat there for eight seconds before it answered."
+
+Yes, and it is filed publicly: issue #168 measures `initialize` at 7.5-8.5 s and lists the runs.
+Do not defend it as configuration. A named, measured, self-filed bug converts better than a
+smoothing answer, and this is the one question where a prospect is quietly deciding whether you
+know your own software.
+
+### "Why no npm package yet?"
+
+Because publishing it is three packages deep and that work is open as #170 with both routes
+specified. The reason `npx` appears nowhere in the README is deliberate: an install command that
+404s costs more than no install command.
+
+### "One maintainer? What happens when you stop?"
+
+Solo, single-digit stars, single-host, Public Preview — the copy already says so and the replies
+should too. What is also true: questions are answered the same day, there is a volunteer starting
+the Helm chart in #113, and #170/#171 are open for anyone who wants a first contribution with a
+reproduction already written out.
+
+### "Can I put this on the public internet?"
+
+The supported boundary is your own network. Apache-2.0 permits any commercial use; that is a
+license statement, not a hardening claim, and production-readiness is explicitly not being
+claimed here. If someone asks about multi-tenant or internet-facing setups, say it has not been
+tested that way rather than reasoning about what should hold.
+
+### Two rules for every reply in this thread
+
+- Never upgrade a claim to make an argument easier to win: no production-ready, no L5, no AGI,
+  no "best", no "industry-leading", nothing about adoption you have not counted.
+- If you discover mid-thread that something you asserted is wrong, correct it in the thread
+  yourself and say what reading changed your mind. That repair is worth more stars than the
+  original mistake cost.
 
 ### 0c. awesome-selfhosted — the biggest list in our category, and it is yours to write
 
