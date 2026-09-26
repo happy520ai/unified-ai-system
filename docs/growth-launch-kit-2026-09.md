@@ -106,6 +106,47 @@ Verification after they act: open the page and confirm the word "eight" is gone 
 
 ---
 
+## Demo links a post can carry
+
+Every post below links the repository. A link that shows the product in one
+click is worth more to a stranger than a link that asks for install faith, and
+the Prompt Lab runs entirely in their browser: no account, no key, no provider
+call, and the status line reads "Generated locally - provider call: none".
+
+The format is `#enhance?prompt=&profile=&language=` with
+`profile` one of `auto|general|coding|analysis|writing|research` and
+`language` one of `auto|zh-CN|en`. An unknown value is ignored rather than
+applied, so a mistyped link degrades to the previous selection instead of
+breaking.
+
+- **coding · en** — https://happy520ai.github.io/unified-ai-system/#enhance?prompt=Add+retry+with+exponential+backoff+to+this+fetch+wrapper&profile=coding&language=en
+  (verified in a browser today)
+- **general · zh-CN** — https://happy520ai.github.io/unified-ai-system/#enhance?prompt=%E5%B8%AE%E6%88%91%E6%8A%8A%E8%BF%99%E6%AE%B5%E9%9C%80%E6%B1%82%E6%95%B4%E7%90%86%E6%88%90%E7%BB%99+agent+%E7%9A%84%E4%BB%BB%E5%8A%A1%E8%AF%B4%E6%98%8E&profile=general&language=zh-CN
+  (verified in a browser today)
+- **analysis · en** — https://happy520ai.github.io/unified-ai-system/#enhance?prompt=Compare+these+three+vector+databases+for+a+5M-row+workload&profile=analysis&language=en
+  (same contract, profile taken from the lab select)
+- **writing · en** — https://happy520ai.github.io/unified-ai-system/#enhance?prompt=Turn+these+bullet+points+into+a+release+note+for+self-hosters&profile=writing&language=en
+  (same contract, profile taken from the lab select)
+- **research · en** — https://happy520ai.github.io/unified-ai-system/#enhance?prompt=What+evidence+would+confirm+or+refute+that+local+prompt+enhancement+improves+agent+output%3F&profile=research&language=en
+  (same contract, profile taken from the lab select)
+- **coding · en** — https://happy520ai.github.io/unified-ai-system/#enhance?prompt=Refactor+this+400-line+ESM+module+into+files+under+200+lines+without+changing+behaviour&profile=coding&language=en
+  (same contract, profile taken from the lab select)
+
+The two marked verified were re-read in a browser today: the lab filled, the
+structured prompt rendered, and the status line showed the local generation with
+no provider call. The others use the same parameters, taken from the lab's own
+option list, and were not each clicked.
+
+Two things changed in the site so these links behave: the lab previously read
+the hash only on page load, so a second link clicked in an open tab kept showing
+the first prompt - it now handles `hashchange` - and the script is loaded with a
+versioned query (`site.js?v=prompt-lab-9`), because deploying the fix while the
+pages still requested the cached copy meant it was live on the server and absent
+from the running page. If you touch `docs/site.js` again, bump that token in both
+homepages or readers keep the old script.
+
+---
+
 ## 1. Show HN (news.ycombinator.com)
 
 **Title (73 chars):**
