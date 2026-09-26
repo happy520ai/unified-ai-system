@@ -4,6 +4,7 @@ import {
   OUR_COPY_STALE_ALLOWED,
   classifyProbeResponse,
   carrierFindings,
+  carrierLines,
   carrierRegion,
   commentClaimFindings,
   countHandAccepted,
@@ -499,4 +500,22 @@ test('classifyProbeResponse separates a stopped probe from an empty one', () => 
   assert.equal(classifyProbeResponse(200, '').kind, 'RESULTS', 'an empty results page is emptiness, not a block');
   assert.equal(classifyProbeResponse(500, 'gateway').kind, 'UNEXPECTED_STATUS');
   assert.equal(classifyProbeResponse(403, '<html>').error, 'probe answered HTTP 403');
+});
+
+// Line-scoped carriers guard a markdown list. Two directions must both hold: a neighbour's
+// count must not become ours, and a file that does not list us must not read as clean.
+test('carrierLines reads only our row out of a shared markdown list', () => {
+  const md = [
+    '- [Other Thing](https://github.com/other/thing) - An MCP server with sixteen governed MCP tools.',
+    '- [Unified AI System](https://github.com/happy520ai/unified-ai-system) - Self-hosted AI gateway with nine governed MCP tools.',
+    '- [Third](https://github.com/third/party) - Ships twelve MCP tools for file access.',
+  ].join('\n');
+  const scoped = carrierLines(md, 'happy520ai/unified-ai-system');
+  assert.equal(scoped.includes('sixteen'), false);
+  assert.equal(scoped.includes('twelve'), false);
+  assert.deepEqual(staleToolCounts(scoped, 15).map((c) => c.phrase), ['nine governed MCP tools']);
+  // A list that does not carry us is "unscoped", never "clean".
+  assert.equal(carrierLines('- [Someone](https://example.invalid/x) - ten tools.', 'happy520ai/unified-ai-system'), null);
+  assert.equal(carrierLines(null, 'a'), null);
+  assert.equal(carrierLines('whole file, no anchor needed', undefined), 'whole file, no anchor needed');
 });

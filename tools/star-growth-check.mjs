@@ -75,6 +75,10 @@ const externalPrs = [
   // and the stated outcome for a small-but-sound project is the Discoveries list rather
   // than rejection - which is how this one was filed.
   ["steven2358/awesome-generative-ai", 1451],
+  // Not a new listing: we found ourselves already listed here with a 0.4.x-era sentence.
+  // Their queue merges 30 of 30 recent closures, and their README is the source the JSON
+  // artifacts regenerate from, so the correction is one line in one file.
+  ["hashgraph-online/awesome-ai-plugins", 479],
 ];
 
 // Submission doors that are ISSUES, not pull requests: directory sites that take a
@@ -829,7 +833,25 @@ const upstreamCarriers = [
   // Checked by hand when #446 merged; guarded from here on so the next release cannot rot it
   // quietly. Same aggregate-index shape as plugins.json, hence the same anchor.
   { repo: "hashgraph-online/awesome-codex-plugins", path: ".agents/plugins/marketplace.json", checksVersion: false, anchor: "happy520ai/unified-ai-system" },
+  // Found by reading a sister list, not by opening a door: this one already carried our entry
+  // with a 0.4.x-era sentence. Line-scoped because it is a markdown README. Correction filed as
+  // hashgraph-online/awesome-ai-plugins#479, so this carrier going from finding to clean is the
+  // measurement that says the merge landed - nobody has to ask.
+  { repo: "hashgraph-online/awesome-ai-plugins", path: "README.md", checksVersion: false, anchor: "happy520ai/unified-ai-system", scope: "line" },
 ];
+
+// A markdown list needs the opposite scoping from a JSON index: our entry is one line, and
+// the file holds hundreds of other projects' counts. Brace matching would return some
+// unrelated earlier object and read those numbers as ours, which is the false positive this
+// guard already had to be fixed for once. Absence of the anchor is null, never an empty
+// list, so "not listed" cannot be printed as "listed and correct".
+export function carrierLines(text, anchor) {
+  if (!anchor) return text;
+  const kept = String(text ?? "")
+    .split("\n")
+    .filter((line) => line.includes(anchor));
+  return kept.length > 0 ? kept.join("\n") : null;
+}
 
 // Pure: given carrier text, what does it assert that is no longer true?
 export function carrierFindings(text, rosterCount, version) {
@@ -891,7 +913,9 @@ function collectCarrierFindings() {
   const rows = [];
   for (const carrier of upstreamCarriers) {
     const text = fetchCarrierFile(carrier.repo, carrier.path);
-    const region = text === null ? null : carrierRegion(text, carrier.anchor);
+    const region = text === null
+      ? null
+      : (carrier.scope === "line" ? carrierLines(text, carrier.anchor) : carrierRegion(text, carrier.anchor));
     if (text === null) {
       rows.push({ carrier, status: "unreadable", findings: [] });
     } else if (region === null) {
