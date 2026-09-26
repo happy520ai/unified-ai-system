@@ -250,6 +250,86 @@ you what looks wrong, which is what their guidelines invite.
 
 ---
 
+### 0d. Changelog News — three fields, and they explicitly allow self-submission
+
+`https://changelog.com/news/submit` is the intake for Changelog News (the newsletter, not
+the podcast). Opened in a browser on 2026-09-26, and four readings decide whether it is
+worth your twenty minutes:
+
+- The form is three fields: **URL**, **Title**, and one free-text "What's interesting…"
+  box. No attachment, no category, no fee.
+- It wants an account: *"Please sign in / up to submit news. Your profile is used for
+  attribution and notification."* That is why this is yours and not mine.
+- The same page removes the awkwardness: *"Submitting other people's work is encouraged.
+  Submitting your own work is also encouraged."* A disclosed self-submission does not
+  break their rules — rare among launch venues, and the reason it beats re-using a
+  throwaway account.
+- Their 🚫 list is the real filter: no how-to's or tutorials, no commercial products
+  (sponsorship is that path), no reader-hostile sites, no podcast episode suggestions.
+  So the entry must read as *a new project you can check right now*, never as a guide.
+  Their bar: *"Do your best to convince us why something is newsworthy."*
+
+Field values, after re-running "Verify before posting" so every word in them is today's:
+
+| Field | Value |
+| --- | --- |
+| URL | `https://github.com/happy520ai/unified-ai-system` |
+| Title | Unified AI System: a self-hosted MCP gateway you can audit without a key |
+| Story | ↓ |
+
+> Apache-2.0 and self-hosted, and the interesting part is that a stranger does not have
+> to take our word for anything: the repo ships a zero-dependency script that resolves
+> the published image's manifest, fetches each layer blob and checks it against the
+> digest the manifest names, then prints the MCP tool roster the image actually contains
+> — no Docker, no API key, no trust in a README. `node tools/verify-image-roster.mjs
+> <tag>`. Behind it: deterministic local prompt enhancement that makes no provider call,
+> virtual keys with per-key token budgets, an append-only audit chain, and reverse
+> governance that turns upstream MCP servers and OpenAPI 3 operations into allow-listed
+> tools.
+
+Keep any star count and any tool count out of the copy you paste. A newsletter inherits
+whatever number was true the day it scraped us, which is exactly the defect we keep
+fixing in other people's entries.
+
+---
+
+### 0e. selfh.st — the closest audience we found, and it is a message not a form
+
+`selfh.st` is a self-hosted-software newsletter, i.e. the readers we actually want. Read
+from the site on 2026-09-26:
+
+- `/submit/` is real (title "Submit Content", "Self-hosted news, content, updates,
+  launches, events, and more") but the only form on it is a **subscribe** form served by
+  Ghost's portal (`selfh.st/#/portal`) — there is no anonymous submission widget to fill.
+- `/contact/` carries no web form either. The single address on the page is
+  `selfhst@fosstodon.org` — a Mastodon-address, so it accepts both Fediverse DMs and
+  plain email.
+
+So the path is one message from you. It has to clear their editorial bar (they cover
+*launches*, and they are allergic to ad-copy), and it has to be checkable in a minute:
+
+> Hi — I built **Unified AI System**, an Apache-2.0 self-hosted MCP gateway, and thought
+> it might fit the newsletter's "launches" lane. One-liner: it puts a policy layer in
+> front of your models and your MCP servers — deterministic local prompt enhancement that
+> makes no provider call, virtual keys with per-key token budgets, an append-only audit
+> chain, and reverse governance that turns upstream MCP servers and OpenAPI 3 operations
+> into allow-listed tools.
+>
+> The part I'd actually want a reader to try: nothing in the README asks for trust.
+> `node tools/verify-image-roster.mjs <tag>` resolves the published image manifest,
+> fetches each layer blob, checks it against the digest the manifest names, and prints
+> the MCP tool roster the image really exposes — no Docker daemon, no API key. Docker
+> Compose up against a local fake provider gives a working gateway in one command.
+>
+> Repo: https://github.com/happy520ai/unified-ai-system
+> Site: https://happy520ai.github.io/unified-ai-system/
+> Screenshots/source links on request; happy to answer anything technical.
+
+Send it as-is only after re-running the reads in "Verify before posting" — if the tag in
+that command has moved, say the current one.
+
+---
+
 ## Verify before posting (re-run, do not trust this file)
 
 ```bash
@@ -311,6 +391,8 @@ the 0.8.0 tag and a reader's first action is to run it.
 | 人类参与 | 最近 100 条评论作者分布：`happy520ai=88`、`dependabot[bot]=11`、**其他真人 1 人 1 条** | `issues/comments` 分组计数 |
 | 使用回报表 | `usage-verification-report.yml` 存在且 URL 可解析，但**被用过的次数 0** | `.github/ISSUE_TEMPLATE/` + label 查询 |
 | 贡献台 | `good first issue` 开 2 个、`help wanted` 开 3 个（新加 #166 站点安全页、#167 soak 分母修复，都带验收清单） | label 查询 |
+| 站点被索引 | Pages 已索引 **6** 个 URL（`/`、`index.zh-CN`、quickstart 中英、`prompt-enhancement`、`terminal-first-ai-gateway`）；`openapi-to-mcp`×2 与 `credential-free-evidence` 尚未出现 | `lite.duckduckgo.com/lite/?q=site:happy520ai.github.io`；Bing 侧 `site:` 查询被反爬页挡住，属探针瞎不是结论 |
+| 新探到的面 | **Changelog News 可自荐**（见 §0d，需你注册）；`thechangelog/ping` 已死（README 首行"no longer in use"，最后一条 issue 2019-11-05）；`modelcontextprotocol/modelcontextprotocol` 有 Discussions 但**没有 showcase 类目**（Announcements/General/Ideas/Meeting Notes）⇒ 发进去是噪音；Higress 系 `openapi-to-mcp` 相关 issue 全是别人产品的 bug ⇒ 不是我们的场子 | 逐个现读，非推测 |
 
 **三条结论，都不靠感觉：**
 
