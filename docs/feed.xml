@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <id>https://happy520ai.github.io/unified-ai-system/</id>
+  <title>Unified AI System - self-hosted AI gateway and agent control plane</title>
+  <subtitle>Every claim in these pages is reproducible: measured tool rosters, credential-free runs, and verbatim quotations from the projects compared.</subtitle>
+  <link rel="self" type="application/atom+xml" href="https://happy520ai.github.io/unified-ai-system/feed.xml"/>
+  <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/"/>
+  <updated>2026-09-26T09:48:58.804Z</updated>
+  <rights>Apache-2.0, Unified AI System contributors</rights>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/security-drill-evidence.html</id>
+    <title type="html">23-attack security regression, run and logged: what a self-hosted AI gateway defends</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/security-drill-evidence.html"/>
+    <updated>2026-09-26T16:47:32+08:00</updated>
+    <summary type="html">All 23 attacks defended by the repository's own regression against a live local gateway: cross-tenant cache and audit isolation, header forgery, role checks, budget and rate enforcement, instant revocation, secret redaction, and metrics authorization. No credentials, one run.</summary>
+    <category term="security-drill-evidence"/>
+  </entry>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/index.zh-CN.html</id>
+    <title type="html">Unified AI System｜面向 Codex、Cursor、Cline 的开源 MCP AI 网关</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/index.zh-CN.html"/>
+    <updated>2026-09-26T16:47:32+08:00</updated>
+    <summary type="html">加固后的 Public Preview：面向 Codex、Cursor 和 Cline 的开源、自托管 MCP 与 AI 网关，提供无需 Provider 的提示增强与 12 个 MCP 工具。</summary>
+    <category term="index.zh-CN"/>
+  </entry>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/</id>
+    <title type="html">Unified AI System</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/"/>
+    <updated>2026-09-26T16:47:32+08:00</updated>
+    <summary type="html">Hardened Public Preview: an open-source, self-hosted MCP and AI gateway for Codex, Cursor, and Cline with provider-free prompt enhancement and reproducible verification.</summary>
+    <category term="index"/>
+  </entry>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/verify-mcp-docker-image.html</id>
+    <title type="html">What a published MCP Docker image actually exposes: 9, 12, then 15 tools</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/verify-mcp-docker-image.html"/>
+    <updated>2026-09-26T16:23:17+08:00</updated>
+    <summary type="html">We read the shipped source out of eight published Docker tags of our MCP server, verified every layer blob against its digest, and printed the tool roster each image really contains. No Docker daemon, no API key.</summary>
+    <category term="verify-mcp-docker-image"/>
+  </entry>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/self-hosted-ai-gateways-compared.zh-CN.html</id>
+    <title type="html">自托管 AI 网关对照：LiteLLM、Portkey、Agent Router 与 Unified AI System</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/self-hosted-ai-gateways-compared.zh-CN.html"/>
+    <updated>2026-09-26T13:29:02+08:00</updated>
+    <summary type="html">四个可自托管的 AI 网关，只用各项目自己 README 里的原文来描述：附链接、标注阅读日期，不替别人说它缺什么。</summary>
+    <category term="self-hosted-ai-gateways-compared.zh-CN"/>
+  </entry>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/self-hosted-ai-gateways-compared.html</id>
+    <title type="html">Self-hosted AI gateways compared: LiteLLM, Portkey, Agent Router and Unified AI System</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/self-hosted-ai-gateways-compared.html"/>
+    <updated>2026-09-26T13:29:02+08:00</updated>
+    <summary type="html">Four self-hostable AI gateways described in their own words: verbatim README lines, licenses and links, read on 2026-09-26, plus the three questions to ask any of them before handing over agent traffic.</summary>
+    <category term="self-hosted-ai-gateways-compared"/>
+  </entry>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/credential-free-evidence.html</id>
+    <title type="html">Credential-free AI gateway: how one run proves no provider was called</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/credential-free-evidence.html"/>
+    <updated>2026-09-26T12:31:47+08:00</updated>
+    <summary type="html">A usage-report envelope with mode=fake, providerCalled=false and credentialRequired=false, plus the enhanced prompt and preserved original request, from a 14-second local run.</summary>
+    <category term="credential-free-evidence"/>
+  </entry>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/openapi-to-mcp.zh-CN.html</id>
+    <title type="html">OpenAPI 转 MCP：把 REST API 变成受治理的 MCP 工具</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/openapi-to-mcp.zh-CN.html"/>
+    <updated>2026-09-26T04:05:58+08:00</updated>
+    <summary type="html">把任意 OpenAPI 3.0 或 3.1 文档生成为 MCP 工具，并置于显式允许清单之后：缺省即全部拒绝、只读声明、出站请求校验，以及审计边界。</summary>
+    <category term="openapi-to-mcp.zh-CN"/>
+  </entry>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/openapi-to-mcp.html</id>
+    <title type="html">OpenAPI to MCP: turn a REST API into governed MCP tools</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/openapi-to-mcp.html"/>
+    <updated>2026-09-26T04:05:58+08:00</updated>
+    <summary type="html">Convert any OpenAPI 3.0 or 3.1 spec into MCP tools behind an explicit allowlist: deny-by-default policy, read-only attestation, SSRF-checked outbound calls, and an audit boundary.</summary>
+    <category term="openapi-to-mcp"/>
+  </entry>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/prompt-enhancement.html</id>
+    <title type="html">Natural-Language Prompt Enhancement</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/prompt-enhancement.html"/>
+    <updated>2026-09-26T02:45:33+08:00</updated>
+    <summary type="html">Turn rough natural-language requests into inspectable prompts with a deterministic, provider-free AI gateway and MCP server.</summary>
+    <category term="prompt-enhancement"/>
+  </entry>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html</id>
+    <title type="html">Codex 接入 MCP Server：Docker 60 秒中文教程</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html"/>
+    <updated>2026-09-26T02:45:13+08:00</updated>
+    <summary type="html">使用一条 Docker 命令把 Codex 接入自托管 MCP Server，检查 15 个工具，本地增强提示词并完成无需 API Key 的安全测试。</summary>
+    <category term="codex-mcp-docker-quickstart.zh-CN"/>
+  </entry>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.html</id>
+    <title type="html">Run an MCP server in Codex with Docker</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.html"/>
+    <updated>2026-09-26T02:45:13+08:00</updated>
+    <summary type="html">Connect Codex to a self-hosted MCP server with one Docker command, verify fifteen tools, enhance a prompt locally, and make a credential-free test call.</summary>
+    <category term="codex-mcp-docker-quickstart"/>
+  </entry>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/prompt-enhancement.zh-CN.html</id>
+    <title type="html">自然语言提示词增强</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/prompt-enhancement.zh-CN.html"/>
+    <updated>2026-09-26T00:02:30+08:00</updated>
+    <summary type="html">使用确定性、无需 provider 的 AI 网关，把普通自然语言需求整理成更容易检查和执行的提示词。</summary>
+    <category term="prompt-enhancement.zh-CN"/>
+  </entry>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/terminal-first-ai-gateway.html</id>
+    <title type="html">Why an AI gateway should be terminal-first</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/terminal-first-ai-gateway.html"/>
+    <updated>2026-09-26T00:02:30+08:00</updated>
+    <summary type="html">A practical design case for terminal-first AI gateways: stable automation, explicit authority, observable execution, and an optional enterprise console.</summary>
+    <category term="terminal-first-ai-gateway"/>
+  </entry>
+</feed>
