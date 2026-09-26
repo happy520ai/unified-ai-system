@@ -86,6 +86,10 @@ const externalPrs = [
   // this file that something was wrong.
   ["sickn33/agentic-awesome-skills", 1616],
   ["agentskillexchange/skills", 82],
+  // The row for this project had already been published with the pre-0.5.0 count, and the
+  // issue asking for it (#102) had sat unapplied, so the correction went in as a
+  // one-word patch to both language READMEs instead of a second request.
+  ["cuihuan/awesome-ai-gateway", 104],
   // 75.6k stars, found by scanning curated lists for ones whose README does not mention
   // us rather than by searching for "awesome mcp". Their CONTRIBUTING asks for exactly
   // this shape of entry and does not bar agents.
