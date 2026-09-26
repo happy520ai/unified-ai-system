@@ -6,8 +6,10 @@ from a third party.
 
 Status: v0.8.0 is published - tag `v0.8.0`, Release published 2026-09-25T16:44:51Z, and
 `0.8.0` is the newest version in the Official MCP Registry (all three read again on
-2026-09-26). What still expires is the observable copy: star count, the "132 commits since
-0.7.0" figure, open-PR counts and dates. Re-run `## Verify before posting` against the live
+2026-09-26). What still expires is the observable copy: star count, open-PR counts and
+dates. The release size no longer belongs to that list - it is stated as "133 commits
+between the v0.7.0 and v0.8.0 tags", which no future merge can invalidate. Re-run
+`## Verify before posting` against the live
 remote immediately before posting, and rewrite any number that moved.
 
 ---
@@ -177,7 +179,8 @@ get read as drive-by marketing):**
 > docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.8.0
 > ```
 >
-> v0.8.0 (today) is a big release, 132 commits since 0.7.0. The parts I'd single
+> v0.8.0 (today) is a big release - 133 commits between the v0.7.0 and v0.8.0 tags
+> (`git rev-list --count v0.7.0..v0.8.0`, so the figure cannot go stale). The parts I'd single
 > out: an Agent Governance control plane (deterministic permission lifecycle,
 > per-call tool-proxy enforcement, cascade revocation; off unless
 > `AI_GATEWAY_AGENT_GOVERNANCE_ENABLED=true`); governed Workforce code delivery
