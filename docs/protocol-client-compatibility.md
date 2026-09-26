@@ -11,8 +11,8 @@ the documented request/route boundaries and provides reproducible evidence.
 
 | Surface | Verified implementation | Covered behavior | Boundary |
 | --- | --- | --- | --- |
-| MCP stdio | Official `@modelcontextprotocol/client` `2.0.0` | Modern `2026-07-28` `server/discover`, per-request envelope, twelve tools, prompt enhancement, fake chat, cleanup | Modern era is source-verified; named host UI behavior still needs a report. |
-| MCP Streamable HTTP | Official `@modelcontextprotocol/client` `2.0.0` | Modern `2026-07-28`, legacy `2025-11-25` and `2025-06-18`, header routing/CORS, twelve tools, Bearer/Origin rejection, cleanup | Source build only; published `v0.8.0` image is stdio-only. |
+| MCP stdio | Official `@modelcontextprotocol/client` `2.0.0` | Modern `2026-07-28` `server/discover`, per-request envelope, fifteen tools, prompt enhancement, fake chat, cleanup (re-verified 2026-09-26 at 9ee4604c with `@modelcontextprotocol/client` 2.0.0; the harness asserts the names by set) | Modern era is source-verified; named host UI behavior still needs a report. |
+| MCP Streamable HTTP | Official `@modelcontextprotocol/client` `2.0.0` | Modern `2026-07-28`, legacy `2025-11-25` and `2025-06-18`, header routing/CORS, fifteen tools, Bearer/Origin rejection, cleanup (same 2026-09-26 run at 9ee4604c) | Source build only; published `v0.8.0` image is stdio-only. |
 | OpenAI Chat Completions | Official `openai` JS SDK `7.4.0` plus real Cline/Continue hosts | Models, text completion, streaming, structured errors, enhancement, function tools, tool results, bounded inline image input | Image input is restricted to validated base64 PNG/JPEG/WebP/GIF data URLs; remote URLs and audio content remain fail-closed. |
 | OpenAI wire-alias profile | OpenAI-compatible HTTP route matrix (`openai-wire-smoke.mjs`) | `/v1`, root aliases, `/openai/deployments`, `/v1/engines`, SSE | Confirms route variants used by many wrappers. |
 | OpenAI Legacy Completions | Official `openai` JS SDK `7.4.0` | `/v1/completions` text `prompt` and streaming | Text profile; no logprobs, no tool calling, no images/audio. |

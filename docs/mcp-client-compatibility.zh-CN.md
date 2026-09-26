@@ -24,7 +24,7 @@
 
 | 客户端路径 | 安装或配置 | 首次检查 | 证据边界 |
 | --- | --- | --- | --- |
-| Node MCP SDK 测试宿主 | 运行 `pnpm verify:mcp`。 | `@modelcontextprotocol/client` 测试宿主会验证 stdio 和 Streamable HTTP、列出 15 个工具、调用受治理工具、检查 HTTP 访问控制并关闭托管网关。 | 这是真实协议集成证据，不代表已经认证第三方客户端界面。 |
+| Node MCP SDK 测试宿主 | 运行 `pnpm verify:mcp`。 | `@modelcontextprotocol/client` 测试宿主会验证 stdio 和 Streamable HTTP、列出 15 个工具、调用受治理工具、检查 HTTP 访问控制并关闭托管网关。 | 这是真实协议集成证据，覆盖于源码测试——`@modelcontextprotocol/client` `2.0.0`，`pnpm verify:mcp` 于 2026-09-26 在 `9ee4604c` 16/16 通过；不代表已经认证第三方客户端界面。 |
 | Codex | `codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.8.0` | 运行 `codex mcp get unified-ai-system --json`，重启 Codex，再使用 `/mcp verbose`。 | 自动化源码档案已验证官方 Codex App Server `0.147.0`、全部 12 个工具、一次无需 Provider 的增强调用和无模型回合清理。 |
 | WorkBuddy | 在 `.mcp.json` 中声明 `mcpServers.unified-ai-system`。机器绝对解释器路径只作为本地未提交覆盖保留，参见[本地客户端收敛](#本地客户端收敛)。 | 重启宿主，确认 15 个工具，再调用 `gateway_health`。 | 配置等价宿主使用 `.mcp.json` 中记录的 `command`/`args`/`cwd` 原样启动，协商 MCP `2025-06-18`，发现 12 个工具并返回 fake-provider 输出。这是启动参数与协议证据，不代表已认证 WorkBuddy 界面。 |
 | ZCode | 在 `.zcode/config.json` 中声明 `mcp.servers.unified-ai-system`。该目录已被 gitignore，因为它保存按机器不同的解释器路径。 | 重启宿主，确认 15 个工具，再调用 `gateway_health`。 | 配置等价宿主使用 `.zcode/config.json` 中记录的 `command`/`args`/`cwd`/`env` 原样启动，协商 MCP `2025-06-18`，发现 12 个工具并返回 fake-provider 输出。这是启动参数与协议证据，不代表已认证 ZCode 界面。 |
@@ -35,8 +35,8 @@
 | Cursor Agent CLI | 配置 `.cursor/mcp.json`，再按[客户端运行时认证](client-runtime-certification.md)使用固定版本宿主。 | 认证器执行 `mcp enable` 和 `mcp list-tools unified-ai-system`。 | Cursor Agent CLI `2026.08.04-aaa8809` 协商 MCP `2025-11-25`，无需账号凭据或模型请求即发现 12 个工具，并完成清理。 |
 | Cline CLI | `cline mcp install unified-ai-system --yes --json -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.8.0` | 按[客户端运行时认证](client-runtime-certification.md)运行隔离的固定版本档案。 | Cline `3.0.52` 发现 12 个工具，并通过本地 fake 模型仅调用只读 `gateway_health`；未启用或调用真实 Provider，清理已验证。 |
 | Continue CLI | 在本地 `config.yaml` 中声明 Server，或按[客户端运行时认证](client-runtime-certification.md)运行固定版本档案。 | 认证器使用本地 fake 模型执行 `cn --config ... -p`。 | Continue `1.5.47` 协商 MCP `2025-11-25`，发现 12 个工具，仅调用只读 `gateway_health`，真实 Provider 尝试为 0，并完成清理。 |
-| 通用 MCP stdio 宿主 | 按[通用客户端配置](mcp-generic-client.md)加入 `mcpServers.unified-ai-system`。 | 重启宿主，确认 15 个工具，调用 `gateway_health`，再调用 `gateway_readiness`。 | JSON 配置和 MCP 服务路径由仓库的 provider-free 验证覆盖。 |
-| 通用 MCP Streamable HTTP 宿主 | 运行 `pnpm mcp:http`，配置 `http://127.0.0.1:3210/mcp`。 | 列出 15 个工具，再调用 `gateway_health` 和 `gateway_readiness`。 | 源码端点已通过协议测试；具名客户端只有提交真实运行报告后才算已认证。 |
+| 通用 MCP stdio 宿主 | 按[通用客户端配置](mcp-generic-client.md)加入 `mcpServers.unified-ai-system`。 | 重启宿主，确认 15 个工具，调用 `gateway_health`，再调用 `gateway_readiness`。 | JSON 配置和 MCP 服务路径由仓库的 provider-free 验证覆盖。2026-09-26 在 `9ee4604c` 复验（Node v25.8.1，Windows）：裸 JSON-RPC 客户端协商到 `2025-06-18`，`tools/list` 返回全部 15 个名字（与已发布 `0.8.0` 镜像同一集合），全程无 Provider 调用；`initialize` 要 7.5-8.5 秒后才应答，即 #168 记的那件事。 |
+| 通用 MCP Streamable HTTP 宿主 | 运行 `pnpm mcp:http`，配置 `http://127.0.0.1:3210/mcp`。 | 列出 15 个工具，再调用 `gateway_health` 和 `gateway_readiness`。 | 源码端点已通过协议测试，2026-09-26 在 `9ee4604c` 复跑：官方客户端测试宿主 16/16 通过，含 Streamable HTTP 工具暴露与非法访问用例（按集合断言 15 个名字）；具名客户端只有提交真实运行报告后才算已认证。 |
 
 > **如何读这张表里的工具数。** 右侧各列记录的是各宿主实际运行时所针对的那个构建：那轮认证跑在公开接口还是 12 个工具的年代。
 > 当前发布版暴露 15 个工具：运行 `node tools/verify-image-roster.mjs 0.8.0` 可直接打印名单，或在 `docs/verify-mcp-docker-image.html` 查每个版本新增了哪些。

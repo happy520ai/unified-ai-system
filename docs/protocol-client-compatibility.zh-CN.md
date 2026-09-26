@@ -7,8 +7,8 @@
 
 | 接口面 | 验证实现 | 已覆盖行为 | 边界 |
 | --- | --- | --- | --- |
-| MCP stdio | 官方 `@modelcontextprotocol/client` `2.0.0` | 现代 `2026-07-28` `server/discover`、逐请求信封、12 个工具、提示词增强、fake chat、进程清理 | 现代协议源码已验证；具名宿主界面行为仍需报告。 |
-| MCP Streamable HTTP | 官方 `@modelcontextprotocol/client` `2.0.0` | 现代 `2026-07-28`、旧版 `2025-11-25`/`2025-06-18`、路由头/CORS、12 个工具、Bearer/Origin 拒绝、清理 | 仅当前源码；已发布 `v0.8.0` 镜像仍只有 stdio。 |
+| MCP stdio | 官方 `@modelcontextprotocol/client` `2.0.0` | 现代 `2026-07-28` `server/discover`、逐请求信封、15 个工具、提示词增强、fake chat、进程清理（2026-09-26 在 9ee4604c 用 `@modelcontextprotocol/client` 2.0.0 复验；测试宿主按集合断言名字） | 现代协议源码已验证；具名宿主界面行为仍需报告。 |
+| MCP Streamable HTTP | 官方 `@modelcontextprotocol/client` `2.0.0` | 现代 `2026-07-28`、旧版 `2025-11-25`/`2025-06-18`、路由头/CORS、15 个工具、Bearer/Origin 拒绝、清理（同在 9ee4604c 那次 2026-09-26 复跑） | 仅当前源码；已发布 `v0.8.0` 镜像仍只有 stdio。 |
 | OpenAI Chat Completions | 官方 `openai` JS SDK `7.4.0` 以及真实 Cline/Continue 宿主 | 模型发现、文本响应、流式、结构化错误、提示词增强、函数工具与工具结果 | 文本与函数工具档位；尚未实现多模态 Chat 输入。 |
 | OpenAI Responses | 官方 `openai` JS SDK `7.4.0` | 文本响应、`output_text`、流式事件、fake 执行证据 | 没有响应存储、后台任务、工具和多模态。 |
 | A2A v1.0 JSON-RPC | 官方 `@a2a-js/sdk` `1.0.1` | 可验证 Agent Card/JWKS、`SendMessage`、`GetTask`、`ListTasks`、`CancelTask`、任务产物、有界 memory/SQLite/PostgreSQL 状态与 PostgreSQL execution fencing | 当前源码、仅 fake provider、没有流式；下游副作用尚未原子消费 fence。 |
