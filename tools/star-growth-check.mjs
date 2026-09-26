@@ -347,6 +347,7 @@ function readRosterCount() {
 export const OUR_COPY_STALE_ALLOWED = [
   { door: "TensorBlock/awesome-mcp-servers#2707", phrase: "nine tools", reason: "PR title records the defect this branch fixed, past tense" },
   { door: "cuihuan/awesome-ai-gateway#102", phrase: "nine governed MCP tools", reason: "correction request quoting the maintainer's stale row verbatim" },
+  { door: "cuihuan/awesome-ai-gateway#48", phrase: "nine governed MCP tools", reason: "closed door the maintainer applied by hand; the live README row is being fixed by #102, so this body is history and re-carrying it would re-open a burned door" },
 ];
 
 // A directory site republishes the title and body we hand it, so a stale number in our

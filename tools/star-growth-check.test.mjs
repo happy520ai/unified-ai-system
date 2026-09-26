@@ -304,6 +304,31 @@ test('the our-copy allowlist is scoped to one door, not to the phrase', () => {
   assert.ok(OUR_COPY_STALE_ALLOWED.length >= 2, 'both recorded-history doors must be named');
 });
 
+// cuihuan/awesome-ai-gateway#48 is a door that already closed: the maintainer applied our
+// row by hand and the stale README sentence is being fixed through #102. Excluding it stops
+// a future session from re-carrying a burned door - but the exclusion is a door AND phrase
+// pair, so these three directions have to hold at once.
+test('the closed-door exclusion mutes one sentence, not one door', () => {
+  const recorded = {
+    repo: 'cuihuan/awesome-ai-gateway',
+    pr: 48,
+    kind: 'pr',
+    claimText: 'Add Unified AI System to self-hosted open source - nine governed MCP tools',
+  };
+  assert.deepEqual(staleOwnClaimLines([recorded], 15), []);
+
+  const sameDoorDifferentClaim = {
+    ...recorded,
+    claimText: 'Add Unified AI System - eleven governed MCP tools',
+  };
+  const doorStillReads = staleOwnClaimLines([sameDoorDifferentClaim], 15);
+  assert.equal(doorStillReads.length, 1, 'a different wrong count at the same door must still fire');
+  assert.match(doorStillReads[0], /eleven governed MCP tools/);
+
+  const samePhraseAnotherDoor = { ...recorded, repo: 'someone-else/list', pr: 2 };
+  assert.equal(staleOwnClaimLines([samePhraseAnotherDoor], 15).length, 1);
+});
+
 // A merged door in someone else's repository keeps our numbers in files this report cannot
 // see from a README. These arms cover the reader AND the tamper direction: the live text
 // (fetched 2026-09-26, kept verbatim) must read clean, and a one-word edit must be named.
