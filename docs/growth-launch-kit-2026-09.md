@@ -12,6 +12,28 @@ remote immediately before posting, and rewrite any number that moved.
 
 ---
 
+## If you only have 15 minutes: the order to do these in
+
+Everything in this file that I could do is done. The list below is the remainder, in
+the order that buys the most per minute — measured, not guessed: six merged listings
+moved the star count by zero, so listings are pipe maintenance, and the only surfaces
+with a ceiling above ~20 stars are the ones that need your identity.
+
+| # | Action | Where | Why here in the order |
+| --- | --- | --- | --- |
+| 1 | Upload the 15-tool share card (§0) | `https://github.com/happy520ai/unified-ai-system/settings` → Social preview → `docs/assets/social-preview.png` | ~2 minutes, and it multiplies every other link you or anyone else posts. Do it before anything that generates shares. |
+| 2 | Post Show HN (§1) | `https://news.ycombinator.com/submit` | Largest single-event ceiling available. Needs your login; the copy is ready and its reads expire fast, so re-run `## Verify before posting` first. |
+| 3 | Post to one subreddit (§2) | r/LocalLLaMA (or r/selfhosted with the §2 wording swap) | Same shape as HN, slower burn, and the self-hosters there are the audience that actually installs. One post, not a cross-post sweep. |
+| 4 | Sign up and file the news item (§0d) | `https://changelog.com/news/submit` | Three fields. Their page says submitting your own work is encouraged, so this is a legitimate door rather than a favour. |
+| 5 | Click the checkbox and fill the form (§0f) | `https://openalternative.co/submit` | I am not solving a machine-refusal challenge for you; their GitHub list (6,747★) is generated from this one submission. |
+| 6 | Send one message to selfh.st (§0e) | `selfhst@fosstodon.org` | The closest audience of the whole list. No form exists; it is a message. |
+
+Two of these (2 and 3) are worth the time even if nothing else is. If you do only one
+thing this week, do #2 — that is the conclusion the data on every other channel
+supports, not a preference.
+
+---
+
 ## 0. Owner-only, before any of the above
 
 **GitHub's repo share card is still the nine-tool era.** When someone pastes
