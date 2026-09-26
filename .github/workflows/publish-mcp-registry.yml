@@ -1,0 +1,97 @@
+name: Publish to MCP Registry
+
+# Manual dispatch only, on purpose. The tag-triggered publish inside
+# docker-build-push.yml is the release path and stays untouched: this file exists
+# because server.json carries better metadata than the registry has for an already
+# published version, and waiting for the next release tag to fix a sentence on a
+# public directory is not a plan. Nothing here runs without a person pressing the
+# button, and the default is validate-only.
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Write to the registry (default: authenticate, validate and read back only)"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  MCP_PUBLISHER_VERSION: v1.8.0
+  MCP_PUBLISHER_LINUX_AMD64_SHA256: 1370446bbe74d562608e8005a6ccce02d146a661fbd78674e11cc70b9618d6cf
+  SERVER_ID: io.github.happy520ai%2Funified-ai-system
+
+concurrency:
+  group: publish-mcp-registry
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Refresh the registry listing
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out the triggering commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install MCP Registry publisher
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="mcp-publisher_linux_amd64.tar.gz"
+          curl --fail --silent --show-error --location \
+            --output "${archive}" \
+            "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/${archive}"
+          echo "${MCP_PUBLISHER_LINUX_AMD64_SHA256}  ${archive}" | sha256sum --check
+          tar -xzf "${archive}" mcp-publisher
+          chmod +x mcp-publisher
+
+      - name: Validate server.json against the live registry schema
+        shell: bash
+        run: ./mcp-publisher validate server.json
+
+      - name: Authenticate to the MCP Registry with repository OIDC identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Proves the namespace is claimed by this repository's own identity, which is
+          # the question the validate-only run above cannot answer.
+          ./mcp-publisher login github-oidc
+
+      - name: Publish server.json
+        if: inputs.publish
+        shell: bash
+        run: ./mcp-publisher publish server.json
+
+      - name: Read back what the directory now says about us
+        shell: bash
+        run: |
+          set -euo pipefail
+          node -e '
+          const fs = require("node:fs");
+          const local = JSON.parse(fs.readFileSync("server.json", "utf8"));
+          const wanted = process.env.PUBLISH_WANTED === "true";
+          fetch(`https://registry.modelcontextprotocol.io/v0.1/servers/${process.env.SERVER_ID}/versions/${local.version}`, {
+            signal: AbortSignal.timeout(30_000),
+          })
+            .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`registry HTTP ${r.status}`))))
+            .then((payload) => {
+              const live = payload.server ?? payload;
+              const same = live.description === local.description;
+              console.log(`server.json version : ${local.version}`);
+              console.log(`registry description: ${JSON.stringify(live.description)}`);
+              console.log(`local description   : ${JSON.stringify(local.description)}`);
+              console.log(`identical           : ${same}`);
+              if (!same && wanted) {
+                console.error("::error::the registry still shows the old description after a publish");
+                process.exit(1);
+              }
+              if (!same) console.log("not published yet - this run was validate-only, so a difference is the expected reading");
+            });
+          '
+        env:
+          PUBLISH_WANTED: ${{ inputs.publish }}
