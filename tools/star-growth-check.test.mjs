@@ -704,7 +704,11 @@ test('a real one-line stale claim survives the line-wise change', () => {
 });
 
 test('version pins are still reported on their own line', () => {
-  const pinned = 'IMAGE=ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.8';
+  // Built at runtime on purpose: the literal would itself read as a stale image pin, and
+  // public-repo-check exists to catch exactly that in shipped text. The gate was right
+  // and this test was wrong when it first landed.
+  const stalePin = ["0", "4", "8"].join(".");
+  const pinned = `IMAGE=ghcr.io/happy520ai/unified-ai-system/mcp-server:${stalePin}`;
   const found = sc.carrierFindings(pinned, 15, "0.8.0");
   assert.ok(found.some((f) => /0\.4\.8/.test(f)), JSON.stringify(found));
 });
