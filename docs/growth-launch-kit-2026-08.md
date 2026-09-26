@@ -136,7 +136,7 @@ asciinema（两次同请求、第二次秒回 + cache_hit 日志）。
 
 | 目标 | 动作 | 入口 |
 | --- | --- | --- |
-| MCP Registry | 已收录（v0.5.0）✅ | registry.modelcontextprotocol.io |
+| MCP Registry | 已收录（最新 0.8.0，2026-09-26 现读）✅ | registry.modelcontextprotocol.io |
 | Smithery | 提交 server（用 server.json + README） | smithery.ai/docs/quickstart |
 | Glama MCP 目录 | 提交 | glama.ai/mcp/servers |
 | PulseMCP | 提交 | pulsemcp.com |
@@ -195,3 +195,28 @@ verify:public-clone all green.
 - 每周跑 `pnpm growth:*` 既有脚本记录趋势；连续 2 周在 README Star History 可见增长叙事。
 - 下一步内容弹药：录制 3 段 30 秒 asciinema（虚拟 key 预算 429、语义缓存命中、
   OpenAPI→MCP 三行配置），比截图转化率高。
+
+## 7) 只有仓库所有者能做的四件事（2026-09-26 现读证据）
+
+自动化能读到的部分已全部读完并记账；下面四条卡在"身份/账号"上，不是卡在信息上。每条都给了
+判据和回滚，照抄即可。
+
+1. **GitHub 社交预览图**：仓库当前上传的那张仍写着 9 个工具。替换文件已经在版本库里：
+   `docs/assets/social-preview.png`（1280×640，15 个工具，与
+   `raw.githubusercontent.com` / Pages 上的字节一致，sha256 前缀 `cfae7a47dd37`）。
+   路径：仓库 → Settings → 右侧 Social preview → Upload image。GitHub 没有开放这个上传的
+   API，所以只能手点。回滚：把弹窗里显示的当前图另存后再替换。
+2. **e2b-dev/awesome-ai-agents#1401 只卡在 CLA**：cla-bot 在 2026-08-15 与 2026-09-25 两次
+   提示 `@happy520ai` 未签署。两步：在 https://e2b.dev/docs/cla 签署，然后在该 PR 下评论
+   `@cla-bot check`。清单合并后条目由他们维护，我方不需再动。
+3. **awesome-selfhosted 要到 2026-11-30 之后手工提交**：资格按"首个非 draft release
+   （v0.1.0，2026-07-30）+ 4 个月"算，约 2026-11-30 起可提。该仓库 CONTRIBUTING 明确禁止由
+   agent 创建或代写提交（含勾选人工确认框），所以这一步必须你本人做。
+4. **mcpmarket.com 的条目指向注册表 0.3.2**（现读最新是 0.8.0）。2026-09-26 检查过列表页：
+   页面文本不含工具数，只有 registry 链接过期；页面上没有 claim/edit/suggest 之类自助入口
+   （只有页脚 contact）。所以走邮件：收件人 support@mcpmarket.com，正文说明把
+   `.../versions/0.3.2` 更新为 `.../versions/0.8.0` 即可，其余字段无需改动。
+
+两条已经用反证试死、不必再投入的方向：**GitHub 仓库搜索**和**官方 MCP Registry 搜索**都只按
+name/星数排序与匹配（Registry 的搜索命中集 124/124、161/161 全部只在 `name` 字段命中，条目
+keywords 为空），所以改描述、改 keywords 都不会改变它们的可发现性。星数本身才是那两处的入口。
