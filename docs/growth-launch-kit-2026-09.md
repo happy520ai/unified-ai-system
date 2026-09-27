@@ -561,7 +561,8 @@ reads the official MCP registry for `streamable-http` servers and sends each one
   older revisions. When this was measured our governed client sent a revision and never read the
   reply, so that negotiation was invisible to us - which is now [#178](https://github.com/happy520ai/unified-ai-system/issues/178),
   filed against ourselves with the row that proved it. `master` now names each upstream's answered
-  revision in the tool listing; no published release carries it yet, and the refuse-vs-report policy
+  revision in the tool listing - reachable today through the rolling `:latest` / `:master` tags, built from
+  `master` on 2026-09-27, though not through the versioned `0.8.0` tag - and the refuse-vs-report policy
   question is still open on the issue.
 
 Paste-ready, in the same voice:

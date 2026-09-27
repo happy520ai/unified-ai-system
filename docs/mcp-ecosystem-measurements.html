@@ -289,7 +289,7 @@ node tools/survey-mcp-instructions-field.mjs 40</code></pre>
         gateway client declares to upstreams (<code>2025-06-18</code>), and when these probes ran the
         gateway did not read what came back. Two components of the same product disagreed about which
         protocol they were on, and nothing in the code noticed. Both halves of that are now different
-        in <code>master</code> and unchanged in every published release: the governed upstream client
+        in <code>master</code> and in the rolling <code>:latest</code> / <code>:master</code> image tags built from it on 2026-09-27, though not in the versioned <code>0.8.0</code> tag: the governed upstream client
         records the revision each server answered and names it per server in the <code>servers</code>
         array of <code>GET /mcp/tools</code>, and the second MCP client path in
         <code>claude-code-patterns</code> sends the same constant as the first, with a test that fails

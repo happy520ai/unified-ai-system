@@ -96,7 +96,7 @@ validation engine; business constraints remain upstream-owned.
 | Route | Permission | Behavior |
 | --- | --- | --- |
 | `GET /mcp/health` | `dashboard:read` | Registry readiness (sanitized). |
-| `GET /mcp/tools` | `workflow:run` | Aggregated tool list with `serverId__toolName` namespacing (60s listing cache). Each upstream reports `observed` (tools it enumerated) and `exposed` (tools left after this gateway's allow-list), so "the source contributes nothing" and "the policy filtered everything" are different readings rather than both looking healthy; an upstream that failed to enumerate reports `error` and no counts. |
+| `GET /mcp/tools` | `workflow:run` | Aggregated tool list with `serverId__toolName` namespacing (60s listing cache). Each upstream reports `observed` (tools it enumerated) and `exposed` (tools left after this gateway's allow-list), so "the source contributes nothing" and "the policy filtered everything" are different readings rather than both looking healthy; an upstream that failed to enumerate reports `error` and no counts. The same object reports `protocolVersion` — the revision the upstream *answered*, not the one we asked for — and omits the key entirely for an upstream kind that negotiates nothing (an OpenAPI bridge has no `initialize` handshake) and for a server that answered with an empty string, because "absent" and "agreed to our newest" are different facts (#178). |
 | `POST /mcp/call` | `workflow:run` | `{server, tool, arguments}` — ACL-checked, audited, size-capped upstream call. Mutations require exactly one `External-Effect-Key` or `Idempotency-Key` header. |
 
 Tool calls require an authenticated tenant context; the tenant is recorded
