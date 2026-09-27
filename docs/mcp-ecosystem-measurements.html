@@ -257,6 +257,25 @@
         an artifact and re-distributed, and a dataset about that problem is not going to demonstrate it.
       </p>
 
+      <p>
+        Two files, two samples, one command.
+        <a href="data/mcp-ecosystem-measurements.json">mcp-ecosystem-measurements.json</a> is the
+        40-endpoint run the tables above are drawn from (19:04-19:08 UTC).
+        <a href="data/mcp-ecosystem-measurements.wide.json">mcp-ecosystem-measurements.wide.json</a>
+        is the widest slice these scripts can reach - 54 to 55 unique endpoints out of the first 400
+        registry records, 19:15-19:22 UTC - and it is the run behind the figures quoted in two upstream
+        threads on 2026-09-27: 15 of 23 servers send <code>instructions</code> (72 to 19,687 characters,
+        median 406, one of fifteen over 2,000) and 1 of 23 answers <code>server/discover</code> while 19
+        return <code>-32601</code>. Both are produced by the same command with a different limit.
+      </p>
+      <p>
+        The row counts in the wide file differ between questions (54 or 55), because each of the five
+        scripts re-reads the registry on its own and nothing pins the list across the five runs; the
+        cause of the one-endpoint difference is not recorded. It is left visible in the files rather
+        than smoothed over, since a dataset that presents its own sample as fixed is one nobody can
+        re-run honestly.
+      </p>
+
       <h2>Method, in one paragraph</h2>
       <p>
         Each script reads the official MCP registry for <code>streamable-http</code> records, takes the

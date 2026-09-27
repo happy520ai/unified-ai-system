@@ -1,0 +1,2172 @@
+{
+ "dataset_version": "uai.mcp-measurements/v1",
+ "generated_at_start_utc": "2026-09-27T19:15:38.484Z",
+ "generated_at_end_utc": "2026-09-27T19:22:04.482Z",
+ "producer": "https://github.com/happy520ai/unified-ai-system",
+ "license": "Apache-2.0",
+ "sample": {
+  "source": "https://registry.modelcontextprotocol.io/v0/servers",
+  "selection": "first records in the registry's default order, keeping unique https streamable-http remote URLs",
+  "limit": 200,
+  "bias": "Not random. The registry's default order is alphabetical by server identifier, so the sample over-represents names beginning with 'a'. A re-run is a new measurement, not a regression test: these servers deploy.",
+  "transport_coverage": "streamable-http remote endpoints only; the stdio population is larger and unreachable by this method",
+  "max_requests_per_server": 3,
+  "credentials_used": false,
+  "writes_performed": false,
+  "no_response_text_recorded": true
+ },
+ "questions": [
+  {
+   "id": "tools-list-pagination",
+   "title": "Does tools/list paginate?",
+   "script": "tools/survey-mcp-tools-list-pagination.mjs",
+   "row_label_field": "outcome",
+   "asked_with": null,
+   "attempted": 55,
+   "verdicts": {
+    "auth_required": 27,
+    "single_page": 23,
+    "rejected": 1,
+    "no_result_502": 1,
+    "no_result_503": 3
+   },
+   "rows": [
+    {
+     "name": "ac.inference.sh/mcp",
+     "url": "https://sh.inference.ac/",
+     "outcome": "auth_required",
+     "init_status": 401,
+     "sse": false,
+     "negotiated": null
+    },
+    {
+     "name": "ac.inference.sh/mcp",
+     "url": "https://api.inference.sh/mcp",
+     "outcome": "auth_required",
+     "init_status": 401,
+     "sse": false,
+     "negotiated": null
+    },
+    {
+     "name": "ac.snag/snag",
+     "url": "https://mcp.snag.ac/mcp",
+     "outcome": "auth_required",
+     "init_status": 401,
+     "sse": false,
+     "negotiated": null
+    },
+    {
+     "name": "ac.tandem/docs-mcp",
+     "url": "https://tandem.ac/mcp",
+     "outcome": "single_page",
+     "init_status": 200,
+     "sse": false,
+     "negotiated": "2025-06-18",
+     "tools_page1": 13,
+     "next_cursor_present": false,
+     "next_cursor_value": null
+    },
+    {
+     "name": "ad.getle/leads",
+     "url": "https://mcp.getle.ad/mcp",
+     "outcome": "single_page",
+     "init_status": 200,
+     "sse": false,
+     "negotiated": "2025-06-18",
+     "tools_page1": 35,
+     "next_cursor_present": false,
+     "next_cursor_value": null
+    },
+    {
+     "name": "ad.inside/inside-ads",
+     "url": "https://app.inside.ad/api/mcp",
+     "outcome": "single_page",
+     "init_status": 200,
+     "sse": false,
+     "negotiated": "2025-06-18",
+     "tools_page1": 3,
+     "next_cursor_present": false,
+     "next_cursor_value": null
+    },
+    {
+     "name": "ae.propick/propick",
+     "url": "https://propick.ae/mcp",
+     "outcome": "auth_required",
+     "init_status": 401,
+     "sse": false,
+     "negotiated": null
+    },
+    {
+     "name": "ag.hood/name-service",
+     "url": "https://www.hood.ag/api/mcp",
+     "outcome": "single_page",
+     "init_status": 200,
+     "sse": false,
+     "negotiated": "2025-06-18",
+     "tools_page1": 5,
+     "next_cursor_present": false,
+     "next_cursor_value": null
+    },
+    {
+     "name": "agency.goji/goji",
+     "url": "https://mcp.goji.agency/mcp",
+     "outcome": "single_page",
+     "init_status": 200,
+     "sse": true,
+     "negotiated": "2025-06-18",
+     "tools_page1": 9,
+     "next_cursor_present": false,
+     "next_cursor_value": null
+    },
+    {
+     "name": "agency.lona/trading",
+     "url": "https://mcp.lona.agency/mcp",
+     "outcome": "auth_required",
+     "init_status": 401,
+     "sse": false,
+     "negotiated": null
+    },
+    {
+     "name": "agency.ottobot/business-contact-finder",
+     "url": "https://business-contact-finder-mcp.ottobot2025.workers.dev/mcp",
+     "outcome": "single_page",
+     "init_status": 200,
+     "sse": false,
+     "negotiated": "2025-06-18",
+     "tools_page1": 1,
+     "next_cursor_present": false,
+     "next_cursor_value": null
+    },
+    {
+     "name": "agency.ottobot/contractor-license-changes",
+     "url": "https://license-changes-mcp.ottobot2025.workers.dev/mcp",
+     "outcome": "single_page",
+     "init_status": 200,
+     "sse": false,
+     "negotiated": "2025-06-18",
+     "tools_page1": 2,
+     "next_cursor_present": false,
+     "next_cursor_value": null
+    },
+    {
+     "name": "agency.ottobot/licensed-house-painters",
+     "url": "https://house-painters-mcp.ottobot2025.workers.dev/mcp",
+     "outcome": "single_page",
+     "init_status": 200,
+     "sse": false,
+     "negotiated": "2025-06-18",
+     "tools_page1": 3,
+     "next_cursor_present": false,
+     "next_cursor_value": null
+    },
+    {
+     "name": "agency.ottobot/licensed-house-painters",
+     "url": "https://house-painters.ottobot.agency/mcp",
+     "outcome": "auth_required",
+     "init_status": 403,
+     "sse": false,
+     "negotiated": null
+    },
+    {
+     "name": "agency.thebureauoflostcontext/bureau-public",
+     "url": "https://thebureauoflostcontext.agency/mcp",
+     "outcome": "rejected",
+     "init_status": 400,
+     "sse": false,
+     "negotiated": null
+    },
+    {
+     "name": "ai.1325/mcp",
+     "url": "https://agoclnqfyinwjxdmjnns.supabase.co/functions/v1/mcp",
+     "outcome": "auth_required",
+     "init_status": 401,
+     "sse": false,
+     "negotiated": null
+    },
+    {
+     "name": "ai.aard/aard",
+     "url": "https://api.aard.ai/mcp",
+     "outcome": "auth_required",
+     "init_status": 401,
+     "sse": false,
+     "negotiated": null
+    },
+    {
+     "name": "ai.aarna/atars-mcp",
+     "url": "https://mcp.aarna.ai/mcp",
+     "outcome": "no_result_502",
+     "init_status": 502,
+     "sse": false,
+     "negotiated": null
+    },
+    {
+     "name": "ai.abmeter/abmeter",
+     "url": "https://mcp.abmeter.ai/",
+     "outcome": "auth_required",
+     "init_status": 401,
+     "sse": false,
+     "negotiated": null
+    },
+    {
+     "name": "ai.actwise/ideation",
+     "url": "https://actwise.ai/ideation/mcp/v1",
+     "outcome": "auth_required",
+     "init_status": 401,
+     "sse": false,
+     "negotiated": null
+    },
+    {
+     "name": "ai.adadvisor/mcp-server",
+     "url": "https://api.adadvisor.ai/mcp",
+     "outcome": "auth_required",
+     "init_status": 401,
+     "sse": false,
+     "negotiated": null
+    },
+    {
+     "name": "ai.adako/ads",
+     "url": "https://adako.ai/mcp",
+     "outcome": "auth_required",
+     "init_status": 401,
+     "sse": false,
+     "negotiated": null
+    },
+    {
+     "name": "ai.adoraads/beauty",
+     "url": "https://mcp.adoraads.ai/beauty",
+     "outcome": "single_page",
+     "init_status": 200,
+     "sse": false,
+     "negotiated": "2024-11-05",
+     "tools_page1": 6,
+     "next_cursor_present": false,
+     "next_cursor_value": null
+    },
+    {
+     "name": "ai.adplane/google-ads",
+     "url": "https://mcp.adplane.ai/",
+     "outcome": "auth_required",
+     "init_status": 401,
+     "sse": false,
+     "negotiated": null
+    },
+    {
+     "name": "ai.adramp/google-ads",
+     "url": "https://mcp.adramp.ai/sse",
+     "outcome": "auth_required",
+     "init_status": 401,
+     "sse": false,
+     "negotiated": null
+    },
+    {
+     "name": "ai.adramp/google-ads",
+     "url": "https://mcp.adramp.ai/",
+     "outcome": "auth_required",
+     "init_status": 401,
+     "sse": false,
+     "negotiated": null
+    },
+    {
+     "name": "ai.adsap/adsap",
+     "url": "https://mcp.adsap.ai/mcp",
+     "outcome": "auth_required",
+     "init_status": 401,
+     "sse": false,
+     "negotiated": null
+    },
+    {
+     "name": "ai.adside/adside",
+     "url": "https://api.adside.ai/mcp",
+     "outcome": "auth_required",
+     "init_status": 401,
+     "sse": false,
+     "negotiated": null
+    },
+    {
+     "name": "ai.advisorsai/service-navigator",
+     "url": "https://advisorsai.ai/mcp",
+     "outcome": "single_page",
+     "init_status": 200,
+     "sse": false,
+     "negotiated": "2025-06-18",
+     "tools_page1": 5,
+     "next_cursor_present": false,
+     "next_cursor_value": null
+    },
+    {
+     "name": "ai.advisorsai/store-readiness",
+     "url": "https://advisorsai.ai/store-readiness-mcp",
+     "outcome": "single_page",
+     "init_status": 200,
+     "sse": false,
+     "negotiated": "2025-06-18",
+     "tools_page1": 1,
+     "next_cursor_present": false,
+     "next_cursor_value": null
+    },
+    {
+     "name": "ai.adweave/meta-ads-mcp",
+     "url": "https://mcp.adweave.ai/meta-ads-mcp",
+     "outcome": "auth_required",
+     "init_status": 401,
+     "sse": false,
+     "negotiated": null
+    },
+    {
+     "name": "ai.aeviamodeler/aevia",
+     "url": "https://app.aeviamodeler.ai/api/v1/connector/mcp",
+     "outcome": "auth_required",
+     "init_status": 401,
+     "sse": false,
+     "negotiated": null
+    },
+    {
+     "name": "ai.afg/afg",
+     "url": "https://afg.ai/mcp",
+     "outcome": "single_page",
+     "init_status": 200,
+     "sse": true,
+     "negotiated": "2025-06-18",
+     "tools_page1": 18,
+     "next_cursor_present": false,
+     "next_cursor_value": null
+    },
+    {
+     "name": "ai.afmr/discovery",
+     "url": "https://afmr.ai/api/rpc",
+     "outcome": "single_page",
+     "init_status": 200,
+     "sse": false,
+     "negotiated": "2025-06-18",
+     "tools_page1": 4,
+     "next_cursor_present": false,
+     "next_cursor_value": null
+    },
+    {
+     "name": "ai.afmr/discovery",
+     "url": "https://afmr.ai/mcp",
+     "outcome": "single_page",
+     "init_status": 200,
+     "sse": false,
+     "negotiated": "2025-06-18",
+     "tools_page1": 4,
+     "next_cursor_present": false,
+     "next_cursor_value": null
+    },
+    {
+     "name": "ai.agent-bev/bev-door",
+     "url": "https://mcp.bev-buyer.ai/mcp",
+     "outcome": "single_page",
+     "init_status": 200,
+     "sse": false,
+     "negotiated": "2025-06-18",
+     "tools_page1": 6,
+     "next_cursor_present": false,
+     "next_cursor_value": null
+    },
+    {
+     "name": "ai.agentberg/agentberg",
+     "url": "https://agentberg.ai/mcp",
+     "outcome": "single_page",
+     "init_status": 200,
+     "sse": true,
+     "negotiated": "2025-06-18",
+     "tools_page1": 11,
+     "next_cursor_present": false,
+     "next_cursor_value": null
+    },
+    {
+     "name": "ai.agentdm/agentdm",
+     "url": "https://api.agentdm.ai/api/v1/grid",
+     "outcome": "auth_required",
+     "init_status": 401,
+     "sse": false,
+     "negotiated": null
+    },
+    {
+     "name": "ai.agentdm/agentdm",
+     "url": "https://api.agentdm.ai/mcp/v1/grid",
+     "outcome": "auth_required",
+     "init_status": 401,
+     "sse": false,
+     "negotiated": null
+    },
+    {
+     "name": "ai.agentgates/mcp",
+     "url": "https://agentgates.ai/mcp",
+     "outcome": "auth_required",
+     "init_status": 401,
+     "sse": false,
+     "negotiated": null
+    },
+    {
+     "name": "ai.agentic-news/mcp",
+     "url": "https://api.agentic-news.ai/mcp",
+     "outcome": "auth_required",
+     "init_status": 401,
+     "sse": false,
+     "negotiated": null
+    },
+    {
+     "name": "ai.agenticaffiliate/affiliate-networks-mcp",
+     "url": "https://mcp.agenticaffiliate.ai/mcp",
+     "outcome": "auth_required",
+     "init_status": 401,
+     "sse": false,
+     "negotiated": null
+    },
+    {
+     "name": "ai.agenticbooks/books",
+     "url": "https://mcp.agenticbooks.ai/mcp",
+     "outcome": "auth_required",
+     "init_status": 401,
+     "sse": false,
+     "negotiated": null
+    },
+    {
+     "name": "ai.agenticfabricationnetwork/ufp",
+     "url": "https://agenticfabricationnetwork.ai/mcp",
+     "outcome": "single_page",
+     "init_status": 200,
+     "sse": false,
+     "negotiated": "2025-06-18",
+     "tools_page1": 13,
+     "next_cursor_present": false,
+     "next_cursor_value": null
+    },
+    {
+     "name": "ai.agenticshelf/graffeo",
+     "url": "https://api.agenticshelf.ai/m/graffeo/mcp",
+     "outcome": "no_result_503",
+     "init_status": 503,
+     "sse": false,
+     "negotiated": null
+    },
+    {
+     "name": "ai.agenticshelf/mcp",
+     "url": "https://api.agenticshelf.ai/mcp",
+     "outcome": "no_result_503",
+     "init_status": 503,
+     "sse": false,
+     "negotiated": null
+    },
+    {
+     "name": "ai.agenticshelf/puroair",
+     "url": "https://api.agenticshelf.ai/m/puroair/mcp",
+     "outcome": "no_result_503",
+     "init_status": 503,
+     "sse": false,
+     "negotiated": null
+    },
+    {
+     "name": "ai.agenticterminal/directory",
+     "url": "https://mcp.agenticterminal.ai/mcp",
+     "outcome": "single_page",
+     "init_status": 200,
+     "sse": true,
+     "negotiated": "2025-06-18",
+     "tools_page1": 6,
+     "next_cursor_present": false,
+     "next_cursor_value": null
+    },
+    {
+     "name": "ai.agentlookups/counterscript",
+     "url": "https://rx.agentlookups.ai/mcp",
+     "outcome": "single_page",
+     "init_status": 200,
+     "sse": false,
+     "negotiated": "2025-06-18",
+     "tools_page1": 1,
+     "next_cursor_present": false,
+     "next_cursor_value": null
+    },
+    {
+     "name": "ai.agentlookups/greenlight",
+     "url": "https://solar.agentlookups.ai/mcp",
+     "outcome": "single_page",
+     "init_status": 200,
+     "sse": false,
+     "negotiated": "2025-06-18",
+     "tools_page1": 2,
+     "next_cursor_present": false,
+     "next_cursor_value": null
+    },
+    {
+     "name": "ai.agentlookups/groundtruth",
+     "url": "https://env.agentlookups.ai/mcp",
+     "outcome": "single_page",
+     "init_status": 200,
+     "sse": false,
+     "negotiated": "2025-06-18",
+     "tools_page1": 3,
+     "next_cursor_present": false,
+     "next_cursor_value": null
+    },
+    {
+     "name": "ai.agentlookups/overassessed",
+     "url": "https://overassessed.agentlookups.ai/mcp",
+     "outcome": "single_page",
+     "init_status": 200,
+     "sse": false,
+     "negotiated": "2025-06-18",
+     "tools_page1": 1,
+     "next_cursor_present": false,
+     "next_cursor_value": null
+    },
+    {
+     "name": "ai.agentlookups/plumbline",
+     "url": "https://contractors.agentlookups.ai/mcp",
+     "outcome": "single_page",
+     "init_status": 200,
+     "sse": false,
+     "negotiated": "2025-06-18",
+     "tools_page1": 1,
+     "next_cursor_present": false,
+     "next_cursor_value": null
+    },
+    {
+     "name": "ai.agentmesh/mesh",
+     "url": "https://api.agentmesh.ai/v1/mcp",
+     "outcome": "auth_required",
+     "init_status": 401,
+     "sse": false,
+     "negotiated": null
+    },
+    {
+     "name": "ai.agentplaybooks/agentplaybooks",
+     "url": "https://agentplaybooks.ai/api/mcp/manage",
+     "outcome": "auth_required",
+     "init_status": 401,
+     "sse": false,
+     "negotiated": null
+    }
+   ]
+  },
+  {
+   "id": "protocol-revision-tolerance",
+   "title": "Will a server agree to a protocol revision that does not exist?",
+   "script": "tools/survey-mcp-revision-tolerance.mjs",
+   "row_label_field": "verdict",
+   "asked_with": "9999-99-99",
+   "attempted": 55,
+   "verdicts": {
+    "auth_required": 26,
+    "error_object": 2,
+    "substituted_supported_version": 11,
+    "AGREED_TO_THE_IMPOSSIBLE": 2,
+    "answered_2025-11-25": 9,
+    "no_version_502": 1,
+    "answered_2024-11-05": 1,
+    "no_version_503": 3
+   },
+   "rows": [
+    {
+     "name": "ac.inference.sh/mcp",
+     "url": "https://sh.inference.ac/",
+     "bogus_status": 401,
+     "bogus_answered": null,
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ac.inference.sh/mcp",
+     "url": "https://api.inference.sh/mcp",
+     "bogus_status": 400,
+     "bogus_answered": null,
+     "verdict": "error_object"
+    },
+    {
+     "name": "ac.snag/snag",
+     "url": "https://mcp.snag.ac/mcp",
+     "bogus_status": 401,
+     "bogus_answered": null,
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ac.tandem/docs-mcp",
+     "url": "https://tandem.ac/mcp",
+     "bogus_status": 200,
+     "bogus_answered": "2025-06-18",
+     "verdict": "substituted_supported_version"
+    },
+    {
+     "name": "ad.getle/leads",
+     "url": "https://mcp.getle.ad/mcp",
+     "bogus_status": 200,
+     "bogus_answered": "2025-06-18",
+     "verdict": "substituted_supported_version"
+    },
+    {
+     "name": "ad.inside/inside-ads",
+     "url": "https://app.inside.ad/api/mcp",
+     "bogus_status": 200,
+     "bogus_answered": "2025-06-18",
+     "verdict": "substituted_supported_version"
+    },
+    {
+     "name": "ae.propick/propick",
+     "url": "https://propick.ae/mcp",
+     "bogus_status": 401,
+     "bogus_answered": null,
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ag.hood/name-service",
+     "url": "https://www.hood.ag/api/mcp",
+     "bogus_status": 200,
+     "bogus_answered": "9999-99-99",
+     "verdict": "AGREED_TO_THE_IMPOSSIBLE"
+    },
+    {
+     "name": "agency.goji/goji",
+     "url": "https://mcp.goji.agency/mcp",
+     "bogus_status": 200,
+     "bogus_answered": "2025-11-25",
+     "verdict": "answered_2025-11-25"
+    },
+    {
+     "name": "agency.lona/trading",
+     "url": "https://mcp.lona.agency/mcp",
+     "bogus_status": 401,
+     "bogus_answered": null,
+     "verdict": "auth_required"
+    },
+    {
+     "name": "agency.ottobot/business-contact-finder",
+     "url": "https://business-contact-finder-mcp.ottobot2025.workers.dev/mcp",
+     "bogus_status": 200,
+     "bogus_answered": "2025-06-18",
+     "verdict": "substituted_supported_version"
+    },
+    {
+     "name": "agency.ottobot/contractor-license-changes",
+     "url": "https://license-changes-mcp.ottobot2025.workers.dev/mcp",
+     "bogus_status": 200,
+     "bogus_answered": "2025-06-18",
+     "verdict": "substituted_supported_version"
+    },
+    {
+     "name": "agency.ottobot/licensed-house-painters",
+     "url": "https://house-painters-mcp.ottobot2025.workers.dev/mcp",
+     "bogus_status": 200,
+     "bogus_answered": "2025-06-18",
+     "verdict": "substituted_supported_version"
+    },
+    {
+     "name": "agency.ottobot/licensed-house-painters",
+     "url": "https://house-painters.ottobot.agency/mcp",
+     "bogus_status": 403,
+     "bogus_answered": null,
+     "verdict": "auth_required"
+    },
+    {
+     "name": "agency.thebureauoflostcontext/bureau-public",
+     "url": "https://thebureauoflostcontext.agency/mcp",
+     "bogus_status": 400,
+     "bogus_answered": null,
+     "verdict": "error_object"
+    },
+    {
+     "name": "ai.1325/mcp",
+     "url": "https://agoclnqfyinwjxdmjnns.supabase.co/functions/v1/mcp",
+     "bogus_status": 401,
+     "bogus_answered": null,
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.aard/aard",
+     "url": "https://api.aard.ai/mcp",
+     "bogus_status": 401,
+     "bogus_answered": null,
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.aarna/atars-mcp",
+     "url": "https://mcp.aarna.ai/mcp",
+     "bogus_status": 502,
+     "bogus_answered": null,
+     "verdict": "no_version_502"
+    },
+    {
+     "name": "ai.abmeter/abmeter",
+     "url": "https://mcp.abmeter.ai/",
+     "bogus_status": 401,
+     "bogus_answered": null,
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.actwise/ideation",
+     "url": "https://actwise.ai/ideation/mcp/v1",
+     "bogus_status": 401,
+     "bogus_answered": null,
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.adadvisor/mcp-server",
+     "url": "https://api.adadvisor.ai/mcp",
+     "bogus_status": 401,
+     "bogus_answered": null,
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.adako/ads",
+     "url": "https://adako.ai/mcp",
+     "bogus_status": 401,
+     "bogus_answered": null,
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.adoraads/beauty",
+     "url": "https://mcp.adoraads.ai/beauty",
+     "bogus_status": 200,
+     "bogus_answered": "2024-11-05",
+     "verdict": "answered_2024-11-05"
+    },
+    {
+     "name": "ai.adplane/google-ads",
+     "url": "https://mcp.adplane.ai/",
+     "bogus_status": 401,
+     "bogus_answered": null,
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.adramp/google-ads",
+     "url": "https://mcp.adramp.ai/sse",
+     "bogus_status": 401,
+     "bogus_answered": null,
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.adramp/google-ads",
+     "url": "https://mcp.adramp.ai/",
+     "bogus_status": 401,
+     "bogus_answered": null,
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.adsap/adsap",
+     "url": "https://mcp.adsap.ai/mcp",
+     "bogus_status": 401,
+     "bogus_answered": null,
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.adside/adside",
+     "url": "https://api.adside.ai/mcp",
+     "bogus_status": 401,
+     "bogus_answered": null,
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.advisorsai/service-navigator",
+     "url": "https://advisorsai.ai/mcp",
+     "bogus_status": 200,
+     "bogus_answered": "2025-11-25",
+     "verdict": "answered_2025-11-25"
+    },
+    {
+     "name": "ai.advisorsai/store-readiness",
+     "url": "https://advisorsai.ai/store-readiness-mcp",
+     "bogus_status": 200,
+     "bogus_answered": "2025-11-25",
+     "verdict": "answered_2025-11-25"
+    },
+    {
+     "name": "ai.adweave/meta-ads-mcp",
+     "url": "https://mcp.adweave.ai/meta-ads-mcp",
+     "bogus_status": 401,
+     "bogus_answered": null,
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.aeviamodeler/aevia",
+     "url": "https://app.aeviamodeler.ai/api/v1/connector/mcp",
+     "bogus_status": 401,
+     "bogus_answered": null,
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.afg/afg",
+     "url": "https://afg.ai/mcp",
+     "bogus_status": 200,
+     "bogus_answered": "2025-11-25",
+     "verdict": "answered_2025-11-25"
+    },
+    {
+     "name": "ai.afmr/discovery",
+     "url": "https://afmr.ai/api/rpc",
+     "bogus_status": 200,
+     "bogus_answered": "2025-11-25",
+     "verdict": "answered_2025-11-25"
+    },
+    {
+     "name": "ai.afmr/discovery",
+     "url": "https://afmr.ai/mcp",
+     "bogus_status": 200,
+     "bogus_answered": "2025-11-25",
+     "verdict": "answered_2025-11-25"
+    },
+    {
+     "name": "ai.agent-bev/bev-door",
+     "url": "https://mcp.bev-buyer.ai/mcp",
+     "bogus_status": 200,
+     "bogus_answered": "9999-99-99",
+     "verdict": "AGREED_TO_THE_IMPOSSIBLE"
+    },
+    {
+     "name": "ai.agentberg/agentberg",
+     "url": "https://agentberg.ai/mcp",
+     "bogus_status": 200,
+     "bogus_answered": "2025-11-25",
+     "verdict": "answered_2025-11-25"
+    },
+    {
+     "name": "ai.agentdm/agentdm",
+     "url": "https://api.agentdm.ai/api/v1/grid",
+     "bogus_status": 401,
+     "bogus_answered": null,
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.agentdm/agentdm",
+     "url": "https://api.agentdm.ai/mcp/v1/grid",
+     "bogus_status": 401,
+     "bogus_answered": null,
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.agentgates/mcp",
+     "url": "https://agentgates.ai/mcp",
+     "bogus_status": 401,
+     "bogus_answered": null,
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.agentic-news/mcp",
+     "url": "https://api.agentic-news.ai/mcp",
+     "bogus_status": 401,
+     "bogus_answered": null,
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.agenticaffiliate/affiliate-networks-mcp",
+     "url": "https://mcp.agenticaffiliate.ai/mcp",
+     "bogus_status": 401,
+     "bogus_answered": null,
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.agenticbooks/books",
+     "url": "https://mcp.agenticbooks.ai/mcp",
+     "bogus_status": 401,
+     "bogus_answered": null,
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.agenticfabricationnetwork/ufp",
+     "url": "https://agenticfabricationnetwork.ai/mcp",
+     "bogus_status": 200,
+     "bogus_answered": "2025-11-25",
+     "verdict": "answered_2025-11-25"
+    },
+    {
+     "name": "ai.agenticshelf/graffeo",
+     "url": "https://api.agenticshelf.ai/m/graffeo/mcp",
+     "bogus_status": 503,
+     "bogus_answered": null,
+     "verdict": "no_version_503"
+    },
+    {
+     "name": "ai.agenticshelf/mcp",
+     "url": "https://api.agenticshelf.ai/mcp",
+     "bogus_status": 503,
+     "bogus_answered": null,
+     "verdict": "no_version_503"
+    },
+    {
+     "name": "ai.agenticshelf/puroair",
+     "url": "https://api.agenticshelf.ai/m/puroair/mcp",
+     "bogus_status": 503,
+     "bogus_answered": null,
+     "verdict": "no_version_503"
+    },
+    {
+     "name": "ai.agenticterminal/directory",
+     "url": "https://mcp.agenticterminal.ai/mcp",
+     "bogus_status": 200,
+     "bogus_answered": "2025-11-25",
+     "verdict": "answered_2025-11-25"
+    },
+    {
+     "name": "ai.agentlookups/counterscript",
+     "url": "https://rx.agentlookups.ai/mcp",
+     "bogus_status": 200,
+     "bogus_answered": "2025-06-18",
+     "verdict": "substituted_supported_version"
+    },
+    {
+     "name": "ai.agentlookups/greenlight",
+     "url": "https://solar.agentlookups.ai/mcp",
+     "bogus_status": 200,
+     "bogus_answered": "2025-06-18",
+     "verdict": "substituted_supported_version"
+    },
+    {
+     "name": "ai.agentlookups/groundtruth",
+     "url": "https://env.agentlookups.ai/mcp",
+     "bogus_status": 200,
+     "bogus_answered": "2025-06-18",
+     "verdict": "substituted_supported_version"
+    },
+    {
+     "name": "ai.agentlookups/overassessed",
+     "url": "https://overassessed.agentlookups.ai/mcp",
+     "bogus_status": 200,
+     "bogus_answered": "2025-06-18",
+     "verdict": "substituted_supported_version"
+    },
+    {
+     "name": "ai.agentlookups/plumbline",
+     "url": "https://contractors.agentlookups.ai/mcp",
+     "bogus_status": 200,
+     "bogus_answered": "2025-06-18",
+     "verdict": "substituted_supported_version"
+    },
+    {
+     "name": "ai.agentmesh/mesh",
+     "url": "https://api.agentmesh.ai/v1/mcp",
+     "bogus_status": 401,
+     "bogus_answered": null,
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.agentplaybooks/agentplaybooks",
+     "url": "https://agentplaybooks.ai/api/mcp/manage",
+     "bogus_status": 401,
+     "bogus_answered": null,
+     "verdict": "auth_required"
+    }
+   ]
+  },
+  {
+   "id": "session-enforcement",
+   "title": "If a server issues an MCP-Session-Id, does it require it back?",
+   "script": "tools/survey-mcp-session-enforcement.mjs",
+   "row_label_field": "verdict",
+   "asked_with": null,
+   "attempted": 54,
+   "verdicts": {
+    "auth_required": 26,
+    "no_session_issued": 21,
+    "init_failed_400": 1,
+    "init_failed_502": 1,
+    "enforced": 2,
+    "init_failed_503": 3
+   },
+   "rows": [
+    {
+     "name": "ac.inference.sh/mcp",
+     "url": "https://sh.inference.ac/",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ac.inference.sh/mcp",
+     "url": "https://api.inference.sh/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ac.snag/snag",
+     "url": "https://mcp.snag.ac/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ac.tandem/docs-mcp",
+     "url": "https://tandem.ac/mcp",
+     "verdict": "no_session_issued",
+     "issued_session": false,
+     "no_session_status": 200,
+     "tools": 13
+    },
+    {
+     "name": "ad.getle/leads",
+     "url": "https://mcp.getle.ad/mcp",
+     "verdict": "no_session_issued",
+     "issued_session": false,
+     "no_session_status": 200,
+     "tools": 35
+    },
+    {
+     "name": "ad.inside/inside-ads",
+     "url": "https://app.inside.ad/api/mcp",
+     "verdict": "no_session_issued",
+     "issued_session": false,
+     "no_session_status": 200,
+     "tools": 3
+    },
+    {
+     "name": "ae.propick/propick",
+     "url": "https://propick.ae/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ag.hood/name-service",
+     "url": "https://www.hood.ag/api/mcp",
+     "verdict": "no_session_issued",
+     "issued_session": false,
+     "no_session_status": 200,
+     "tools": 5
+    },
+    {
+     "name": "agency.goji/goji",
+     "url": "https://mcp.goji.agency/mcp",
+     "verdict": "no_session_issued",
+     "issued_session": false,
+     "no_session_status": 200,
+     "tools": 9
+    },
+    {
+     "name": "agency.lona/trading",
+     "url": "https://mcp.lona.agency/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "agency.ottobot/business-contact-finder",
+     "url": "https://business-contact-finder-mcp.ottobot2025.workers.dev/mcp",
+     "verdict": "no_session_issued",
+     "issued_session": false,
+     "no_session_status": 200,
+     "tools": 1
+    },
+    {
+     "name": "agency.ottobot/contractor-license-changes",
+     "url": "https://license-changes-mcp.ottobot2025.workers.dev/mcp",
+     "verdict": "no_session_issued",
+     "issued_session": false,
+     "no_session_status": 200,
+     "tools": 2
+    },
+    {
+     "name": "agency.ottobot/licensed-house-painters",
+     "url": "https://house-painters-mcp.ottobot2025.workers.dev/mcp",
+     "verdict": "no_session_issued",
+     "issued_session": false,
+     "no_session_status": 200,
+     "tools": 3
+    },
+    {
+     "name": "agency.ottobot/licensed-house-painters",
+     "url": "https://house-painters.ottobot.agency/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "agency.thebureauoflostcontext/bureau-public",
+     "url": "https://thebureauoflostcontext.agency/mcp",
+     "verdict": "init_failed_400"
+    },
+    {
+     "name": "ai.1325/mcp",
+     "url": "https://agoclnqfyinwjxdmjnns.supabase.co/functions/v1/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.aard/aard",
+     "url": "https://api.aard.ai/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.aarna/atars-mcp",
+     "url": "https://mcp.aarna.ai/mcp",
+     "verdict": "init_failed_502"
+    },
+    {
+     "name": "ai.abmeter/abmeter",
+     "url": "https://mcp.abmeter.ai/",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.actwise/ideation",
+     "url": "https://actwise.ai/ideation/mcp/v1",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.adadvisor/mcp-server",
+     "url": "https://api.adadvisor.ai/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.adako/ads",
+     "url": "https://adako.ai/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.adoraads/beauty",
+     "url": "https://mcp.adoraads.ai/beauty",
+     "verdict": "no_session_issued",
+     "issued_session": false,
+     "no_session_status": 200,
+     "tools": 6
+    },
+    {
+     "name": "ai.adplane/google-ads",
+     "url": "https://mcp.adplane.ai/",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.adramp/google-ads",
+     "url": "https://mcp.adramp.ai/",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.adsap/adsap",
+     "url": "https://mcp.adsap.ai/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.adside/adside",
+     "url": "https://api.adside.ai/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.advisorsai/service-navigator",
+     "url": "https://advisorsai.ai/mcp",
+     "verdict": "no_session_issued",
+     "issued_session": false,
+     "no_session_status": 200,
+     "tools": 5
+    },
+    {
+     "name": "ai.advisorsai/store-readiness",
+     "url": "https://advisorsai.ai/store-readiness-mcp",
+     "verdict": "no_session_issued",
+     "issued_session": false,
+     "no_session_status": 200,
+     "tools": 1
+    },
+    {
+     "name": "ai.adweave/meta-ads-mcp",
+     "url": "https://mcp.adweave.ai/meta-ads-mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.aeviamodeler/aevia",
+     "url": "https://app.aeviamodeler.ai/api/v1/connector/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.afg/afg",
+     "url": "https://afg.ai/mcp",
+     "verdict": "enforced",
+     "issued_session": true,
+     "with_session_status": 200,
+     "without_session_status": 400,
+     "tools_with": 18,
+     "tools_without": null
+    },
+    {
+     "name": "ai.afmr/discovery",
+     "url": "https://afmr.ai/api/rpc",
+     "verdict": "no_session_issued",
+     "issued_session": false,
+     "no_session_status": 200,
+     "tools": 4
+    },
+    {
+     "name": "ai.afmr/discovery",
+     "url": "https://afmr.ai/mcp",
+     "verdict": "no_session_issued",
+     "issued_session": false,
+     "no_session_status": 200,
+     "tools": 4
+    },
+    {
+     "name": "ai.agent-bev/bev-door",
+     "url": "https://mcp.bev-buyer.ai/mcp",
+     "verdict": "no_session_issued",
+     "issued_session": false,
+     "no_session_status": 200,
+     "tools": 6
+    },
+    {
+     "name": "ai.agentberg/agentberg",
+     "url": "https://agentberg.ai/mcp",
+     "verdict": "enforced",
+     "issued_session": true,
+     "with_session_status": 200,
+     "without_session_status": 400,
+     "tools_with": 11,
+     "tools_without": null
+    },
+    {
+     "name": "ai.agentdm/agentdm",
+     "url": "https://api.agentdm.ai/api/v1/grid",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.agentdm/agentdm",
+     "url": "https://api.agentdm.ai/mcp/v1/grid",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.agentgates/mcp",
+     "url": "https://agentgates.ai/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.agentic-news/mcp",
+     "url": "https://api.agentic-news.ai/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.agenticaffiliate/affiliate-networks-mcp",
+     "url": "https://mcp.agenticaffiliate.ai/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.agenticbooks/books",
+     "url": "https://mcp.agenticbooks.ai/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.agenticfabricationnetwork/ufp",
+     "url": "https://agenticfabricationnetwork.ai/mcp",
+     "verdict": "no_session_issued",
+     "issued_session": false,
+     "no_session_status": 200,
+     "tools": 13
+    },
+    {
+     "name": "ai.agenticshelf/graffeo",
+     "url": "https://api.agenticshelf.ai/m/graffeo/mcp",
+     "verdict": "init_failed_503"
+    },
+    {
+     "name": "ai.agenticshelf/mcp",
+     "url": "https://api.agenticshelf.ai/mcp",
+     "verdict": "init_failed_503"
+    },
+    {
+     "name": "ai.agenticshelf/puroair",
+     "url": "https://api.agenticshelf.ai/m/puroair/mcp",
+     "verdict": "init_failed_503"
+    },
+    {
+     "name": "ai.agenticterminal/directory",
+     "url": "https://mcp.agenticterminal.ai/mcp",
+     "verdict": "no_session_issued",
+     "issued_session": false,
+     "no_session_status": 200,
+     "tools": 6
+    },
+    {
+     "name": "ai.agentlookups/counterscript",
+     "url": "https://rx.agentlookups.ai/mcp",
+     "verdict": "no_session_issued",
+     "issued_session": false,
+     "no_session_status": 200,
+     "tools": 1
+    },
+    {
+     "name": "ai.agentlookups/greenlight",
+     "url": "https://solar.agentlookups.ai/mcp",
+     "verdict": "no_session_issued",
+     "issued_session": false,
+     "no_session_status": 200,
+     "tools": 2
+    },
+    {
+     "name": "ai.agentlookups/groundtruth",
+     "url": "https://env.agentlookups.ai/mcp",
+     "verdict": "no_session_issued",
+     "issued_session": false,
+     "no_session_status": 200,
+     "tools": 3
+    },
+    {
+     "name": "ai.agentlookups/overassessed",
+     "url": "https://overassessed.agentlookups.ai/mcp",
+     "verdict": "no_session_issued",
+     "issued_session": false,
+     "no_session_status": 200,
+     "tools": 1
+    },
+    {
+     "name": "ai.agentlookups/plumbline",
+     "url": "https://contractors.agentlookups.ai/mcp",
+     "verdict": "no_session_issued",
+     "issued_session": false,
+     "no_session_status": 200,
+     "tools": 1
+    },
+    {
+     "name": "ai.agentmesh/mesh",
+     "url": "https://api.agentmesh.ai/v1/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.agentplaybooks/agentplaybooks",
+     "url": "https://agentplaybooks.ai/api/mcp/manage",
+     "verdict": "auth_required"
+    }
+   ]
+  },
+  {
+   "id": "server-discover-support",
+   "title": "Does anyone implement server/discover?",
+   "script": "tools/survey-mcp-server-discover.mjs",
+   "row_label_field": "verdict",
+   "asked_with": "2025-06-18",
+   "attempted": 54,
+   "verdicts": {
+    "auth_required": 26,
+    "no_payload_404": 1,
+    "DISCOVER_IMPLEMENTED": 1,
+    "method_not_found": 19,
+    "init_failed_400": 1,
+    "init_failed_502": 1,
+    "other_error_undefined": 1,
+    "other_error_-32602": 1,
+    "init_failed_503": 3
+   },
+   "rows": [
+    {
+     "name": "ac.inference.sh/mcp",
+     "url": "https://sh.inference.ac/",
+     "verdict": "auth_required",
+     "negotiated": null
+    },
+    {
+     "name": "ac.inference.sh/mcp",
+     "url": "https://api.inference.sh/mcp",
+     "verdict": "auth_required",
+     "negotiated": null
+    },
+    {
+     "name": "ac.snag/snag",
+     "url": "https://mcp.snag.ac/mcp",
+     "verdict": "auth_required",
+     "negotiated": null
+    },
+    {
+     "name": "ac.tandem/docs-mcp",
+     "url": "https://tandem.ac/mcp",
+     "verdict": "no_payload_404",
+     "negotiated": "2025-06-18",
+     "issued_session": false,
+     "discover_status": 404,
+     "discover_error": null,
+     "discover_error_text": null
+    },
+    {
+     "name": "ad.getle/leads",
+     "url": "https://mcp.getle.ad/mcp",
+     "verdict": "DISCOVER_IMPLEMENTED",
+     "negotiated": "2025-06-18",
+     "issued_session": false,
+     "discover_status": 200,
+     "discover_error": null,
+     "discover_error_text": null,
+     "discover_keys": "cacheScope,capabilities,instructions,supportedVersions,ttlMs"
+    },
+    {
+     "name": "ad.inside/inside-ads",
+     "url": "https://app.inside.ad/api/mcp",
+     "verdict": "method_not_found",
+     "negotiated": "2025-06-18",
+     "issued_session": false,
+     "discover_status": 200,
+     "discover_error": -32601,
+     "discover_error_text": "Method not found: server/discover"
+    },
+    {
+     "name": "ae.propick/propick",
+     "url": "https://propick.ae/mcp",
+     "verdict": "auth_required",
+     "negotiated": null
+    },
+    {
+     "name": "ag.hood/name-service",
+     "url": "https://www.hood.ag/api/mcp",
+     "verdict": "method_not_found",
+     "negotiated": "2025-06-18",
+     "issued_session": false,
+     "discover_status": 200,
+     "discover_error": -32601,
+     "discover_error_text": "Method not found: server/discover"
+    },
+    {
+     "name": "agency.goji/goji",
+     "url": "https://mcp.goji.agency/mcp",
+     "verdict": "method_not_found",
+     "negotiated": "2025-06-18",
+     "issued_session": false,
+     "discover_status": 200,
+     "discover_error": -32601,
+     "discover_error_text": "Method not found"
+    },
+    {
+     "name": "agency.lona/trading",
+     "url": "https://mcp.lona.agency/mcp",
+     "verdict": "auth_required",
+     "negotiated": null
+    },
+    {
+     "name": "agency.ottobot/business-contact-finder",
+     "url": "https://business-contact-finder-mcp.ottobot2025.workers.dev/mcp",
+     "verdict": "method_not_found",
+     "negotiated": "2025-06-18",
+     "issued_session": false,
+     "discover_status": 200,
+     "discover_error": -32601,
+     "discover_error_text": "unknown method: server/discover"
+    },
+    {
+     "name": "agency.ottobot/contractor-license-changes",
+     "url": "https://license-changes-mcp.ottobot2025.workers.dev/mcp",
+     "verdict": "method_not_found",
+     "negotiated": "2025-06-18",
+     "issued_session": false,
+     "discover_status": 200,
+     "discover_error": -32601,
+     "discover_error_text": "unknown method: server/discover"
+    },
+    {
+     "name": "agency.ottobot/licensed-house-painters",
+     "url": "https://house-painters-mcp.ottobot2025.workers.dev/mcp",
+     "verdict": "method_not_found",
+     "negotiated": "2025-06-18",
+     "issued_session": false,
+     "discover_status": 200,
+     "discover_error": -32601,
+     "discover_error_text": "unknown method: server/discover"
+    },
+    {
+     "name": "agency.ottobot/licensed-house-painters",
+     "url": "https://house-painters.ottobot.agency/mcp",
+     "verdict": "auth_required",
+     "negotiated": null
+    },
+    {
+     "name": "agency.thebureauoflostcontext/bureau-public",
+     "url": "https://thebureauoflostcontext.agency/mcp",
+     "verdict": "init_failed_400",
+     "negotiated": null
+    },
+    {
+     "name": "ai.1325/mcp",
+     "url": "https://agoclnqfyinwjxdmjnns.supabase.co/functions/v1/mcp",
+     "verdict": "auth_required",
+     "negotiated": null
+    },
+    {
+     "name": "ai.aard/aard",
+     "url": "https://api.aard.ai/mcp",
+     "verdict": "auth_required",
+     "negotiated": null
+    },
+    {
+     "name": "ai.aarna/atars-mcp",
+     "url": "https://mcp.aarna.ai/mcp",
+     "verdict": "init_failed_502",
+     "negotiated": null
+    },
+    {
+     "name": "ai.abmeter/abmeter",
+     "url": "https://mcp.abmeter.ai/",
+     "verdict": "auth_required",
+     "negotiated": null
+    },
+    {
+     "name": "ai.actwise/ideation",
+     "url": "https://actwise.ai/ideation/mcp/v1",
+     "verdict": "auth_required",
+     "negotiated": null
+    },
+    {
+     "name": "ai.adadvisor/mcp-server",
+     "url": "https://api.adadvisor.ai/mcp",
+     "verdict": "auth_required",
+     "negotiated": null
+    },
+    {
+     "name": "ai.adako/ads",
+     "url": "https://adako.ai/mcp",
+     "verdict": "auth_required",
+     "negotiated": null
+    },
+    {
+     "name": "ai.adoraads/beauty",
+     "url": "https://mcp.adoraads.ai/beauty",
+     "verdict": "other_error_undefined",
+     "negotiated": "2024-11-05",
+     "issued_session": false,
+     "discover_status": 400,
+     "discover_error": null,
+     "discover_error_text": null
+    },
+    {
+     "name": "ai.adplane/google-ads",
+     "url": "https://mcp.adplane.ai/",
+     "verdict": "auth_required",
+     "negotiated": null
+    },
+    {
+     "name": "ai.adramp/google-ads",
+     "url": "https://mcp.adramp.ai/",
+     "verdict": "auth_required",
+     "negotiated": null
+    },
+    {
+     "name": "ai.adsap/adsap",
+     "url": "https://mcp.adsap.ai/mcp",
+     "verdict": "auth_required",
+     "negotiated": null
+    },
+    {
+     "name": "ai.adside/adside",
+     "url": "https://api.adside.ai/mcp",
+     "verdict": "auth_required",
+     "negotiated": null
+    },
+    {
+     "name": "ai.advisorsai/service-navigator",
+     "url": "https://advisorsai.ai/mcp",
+     "verdict": "method_not_found",
+     "negotiated": "2025-06-18",
+     "issued_session": false,
+     "discover_status": 200,
+     "discover_error": -32601,
+     "discover_error_text": "Method not found"
+    },
+    {
+     "name": "ai.advisorsai/store-readiness",
+     "url": "https://advisorsai.ai/store-readiness-mcp",
+     "verdict": "method_not_found",
+     "negotiated": "2025-06-18",
+     "issued_session": false,
+     "discover_status": 200,
+     "discover_error": -32601,
+     "discover_error_text": "Method not found"
+    },
+    {
+     "name": "ai.adweave/meta-ads-mcp",
+     "url": "https://mcp.adweave.ai/meta-ads-mcp",
+     "verdict": "auth_required",
+     "negotiated": null
+    },
+    {
+     "name": "ai.aeviamodeler/aevia",
+     "url": "https://app.aeviamodeler.ai/api/v1/connector/mcp",
+     "verdict": "auth_required",
+     "negotiated": null
+    },
+    {
+     "name": "ai.afg/afg",
+     "url": "https://afg.ai/mcp",
+     "verdict": "method_not_found",
+     "negotiated": "2025-06-18",
+     "issued_session": true,
+     "discover_status": 200,
+     "discover_error": -32601,
+     "discover_error_text": "Method not found"
+    },
+    {
+     "name": "ai.afmr/discovery",
+     "url": "https://afmr.ai/api/rpc",
+     "verdict": "method_not_found",
+     "negotiated": "2025-06-18",
+     "issued_session": false,
+     "discover_status": 200,
+     "discover_error": -32601,
+     "discover_error_text": "Method not found"
+    },
+    {
+     "name": "ai.afmr/discovery",
+     "url": "https://afmr.ai/mcp",
+     "verdict": "method_not_found",
+     "negotiated": "2025-06-18",
+     "issued_session": false,
+     "discover_status": 200,
+     "discover_error": -32601,
+     "discover_error_text": "Method not found"
+    },
+    {
+     "name": "ai.agent-bev/bev-door",
+     "url": "https://mcp.bev-buyer.ai/mcp",
+     "verdict": "method_not_found",
+     "negotiated": "2025-06-18",
+     "issued_session": false,
+     "discover_status": 200,
+     "discover_error": -32601,
+     "discover_error_text": "method not found: server/discover"
+    },
+    {
+     "name": "ai.agentberg/agentberg",
+     "url": "https://agentberg.ai/mcp",
+     "verdict": "other_error_-32602",
+     "negotiated": "2025-06-18",
+     "issued_session": true,
+     "discover_status": 200,
+     "discover_error": -32602,
+     "discover_error_text": "Invalid request parameters"
+    },
+    {
+     "name": "ai.agentdm/agentdm",
+     "url": "https://api.agentdm.ai/api/v1/grid",
+     "verdict": "auth_required",
+     "negotiated": null
+    },
+    {
+     "name": "ai.agentdm/agentdm",
+     "url": "https://api.agentdm.ai/mcp/v1/grid",
+     "verdict": "auth_required",
+     "negotiated": null
+    },
+    {
+     "name": "ai.agentgates/mcp",
+     "url": "https://agentgates.ai/mcp",
+     "verdict": "auth_required",
+     "negotiated": null
+    },
+    {
+     "name": "ai.agentic-news/mcp",
+     "url": "https://api.agentic-news.ai/mcp",
+     "verdict": "auth_required",
+     "negotiated": null
+    },
+    {
+     "name": "ai.agenticaffiliate/affiliate-networks-mcp",
+     "url": "https://mcp.agenticaffiliate.ai/mcp",
+     "verdict": "auth_required",
+     "negotiated": null
+    },
+    {
+     "name": "ai.agenticbooks/books",
+     "url": "https://mcp.agenticbooks.ai/mcp",
+     "verdict": "auth_required",
+     "negotiated": null
+    },
+    {
+     "name": "ai.agenticfabricationnetwork/ufp",
+     "url": "https://agenticfabricationnetwork.ai/mcp",
+     "verdict": "method_not_found",
+     "negotiated": "2025-06-18",
+     "issued_session": false,
+     "discover_status": 200,
+     "discover_error": -32601,
+     "discover_error_text": "Method not found"
+    },
+    {
+     "name": "ai.agenticshelf/graffeo",
+     "url": "https://api.agenticshelf.ai/m/graffeo/mcp",
+     "verdict": "init_failed_503",
+     "negotiated": null
+    },
+    {
+     "name": "ai.agenticshelf/mcp",
+     "url": "https://api.agenticshelf.ai/mcp",
+     "verdict": "init_failed_503",
+     "negotiated": null
+    },
+    {
+     "name": "ai.agenticshelf/puroair",
+     "url": "https://api.agenticshelf.ai/m/puroair/mcp",
+     "verdict": "init_failed_503",
+     "negotiated": null
+    },
+    {
+     "name": "ai.agenticterminal/directory",
+     "url": "https://mcp.agenticterminal.ai/mcp",
+     "verdict": "method_not_found",
+     "negotiated": "2025-06-18",
+     "issued_session": false,
+     "discover_status": 200,
+     "discover_error": -32601,
+     "discover_error_text": "Method not found"
+    },
+    {
+     "name": "ai.agentlookups/counterscript",
+     "url": "https://rx.agentlookups.ai/mcp",
+     "verdict": "method_not_found",
+     "negotiated": "2025-06-18",
+     "issued_session": false,
+     "discover_status": 200,
+     "discover_error": -32601,
+     "discover_error_text": "method not found: server/discover"
+    },
+    {
+     "name": "ai.agentlookups/greenlight",
+     "url": "https://solar.agentlookups.ai/mcp",
+     "verdict": "method_not_found",
+     "negotiated": "2025-06-18",
+     "issued_session": false,
+     "discover_status": 200,
+     "discover_error": -32601,
+     "discover_error_text": "method not found: server/discover"
+    },
+    {
+     "name": "ai.agentlookups/groundtruth",
+     "url": "https://env.agentlookups.ai/mcp",
+     "verdict": "method_not_found",
+     "negotiated": "2025-06-18",
+     "issued_session": false,
+     "discover_status": 200,
+     "discover_error": -32601,
+     "discover_error_text": "method not found: server/discover"
+    },
+    {
+     "name": "ai.agentlookups/overassessed",
+     "url": "https://overassessed.agentlookups.ai/mcp",
+     "verdict": "method_not_found",
+     "negotiated": "2025-06-18",
+     "issued_session": false,
+     "discover_status": 200,
+     "discover_error": -32601,
+     "discover_error_text": "method not found: server/discover"
+    },
+    {
+     "name": "ai.agentlookups/plumbline",
+     "url": "https://contractors.agentlookups.ai/mcp",
+     "verdict": "method_not_found",
+     "negotiated": "2025-06-18",
+     "issued_session": false,
+     "discover_status": 200,
+     "discover_error": -32601,
+     "discover_error_text": "method not found: server/discover"
+    },
+    {
+     "name": "ai.agentmesh/mesh",
+     "url": "https://api.agentmesh.ai/v1/mcp",
+     "verdict": "auth_required",
+     "negotiated": null
+    },
+    {
+     "name": "ai.agentplaybooks/agentplaybooks",
+     "url": "https://agentplaybooks.ai/api/mcp/manage",
+     "verdict": "auth_required",
+     "negotiated": null
+    }
+   ]
+  },
+  {
+   "id": "instructions-field",
+   "title": "How much server-written instructions prose reaches a client?",
+   "script": "tools/survey-mcp-instructions-field.mjs",
+   "row_label_field": "verdict",
+   "asked_with": null,
+   "attempted": 54,
+   "verdicts": {
+    "answered_initialize": 23,
+    "sent_instructions_on_initialize": 15,
+    "initialize_instruction_chars": [
+     72,
+     247,
+     294,
+     294,
+     339,
+     375,
+     397,
+     406,
+     414,
+     495,
+     617,
+     872,
+     1097,
+     1423,
+     19687
+    ],
+    "initialize_marker_hits": 0,
+    "answered_server_discover": 1,
+    "discover_with_instructions": 1,
+    "discover_cache_scopes": [
+     "public"
+    ]
+   },
+   "rows": [
+    {
+     "name": "ac.inference.sh/mcp",
+     "url": "https://sh.inference.ac/",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ac.inference.sh/mcp",
+     "url": "https://api.inference.sh/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ac.snag/snag",
+     "url": "https://mcp.snag.ac/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ac.tandem/docs-mcp",
+     "url": "https://tandem.ac/mcp",
+     "verdict": "answered",
+     "init_instructions": {
+      "chars": 72,
+      "digest": "19c401cfb35a",
+      "markers": 0
+     },
+     "discover": "http_404"
+    },
+    {
+     "name": "ad.getle/leads",
+     "url": "https://mcp.getle.ad/mcp",
+     "verdict": "answered",
+     "init_instructions": {
+      "chars": 617,
+      "digest": "bfd47424f310",
+      "markers": 0
+     },
+     "discover": "answered",
+     "discover_keys": "cacheScope,capabilities,instructions,supportedVersions,ttlMs",
+     "discover_cache_scope": "public",
+     "discover_ttl_ms": 300000,
+     "discover_instructions": {
+      "chars": 617,
+      "digest": "bfd47424f310",
+      "markers": 0
+     }
+    },
+    {
+     "name": "ad.inside/inside-ads",
+     "url": "https://app.inside.ad/api/mcp",
+     "verdict": "answered",
+     "init_instructions": null,
+     "discover": "error_-32601"
+    },
+    {
+     "name": "ae.propick/propick",
+     "url": "https://propick.ae/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ag.hood/name-service",
+     "url": "https://www.hood.ag/api/mcp",
+     "verdict": "answered",
+     "init_instructions": null,
+     "discover": "error_-32601"
+    },
+    {
+     "name": "agency.goji/goji",
+     "url": "https://mcp.goji.agency/mcp",
+     "verdict": "answered",
+     "init_instructions": {
+      "chars": 1423,
+      "digest": "b700d88be471",
+      "markers": 0
+     },
+     "discover": "error_-32601"
+    },
+    {
+     "name": "agency.lona/trading",
+     "url": "https://mcp.lona.agency/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "agency.ottobot/business-contact-finder",
+     "url": "https://business-contact-finder-mcp.ottobot2025.workers.dev/mcp",
+     "verdict": "answered",
+     "init_instructions": null,
+     "discover": "error_-32601"
+    },
+    {
+     "name": "agency.ottobot/contractor-license-changes",
+     "url": "https://license-changes-mcp.ottobot2025.workers.dev/mcp",
+     "verdict": "answered",
+     "init_instructions": null,
+     "discover": "error_-32601"
+    },
+    {
+     "name": "agency.ottobot/licensed-house-painters",
+     "url": "https://house-painters-mcp.ottobot2025.workers.dev/mcp",
+     "verdict": "answered",
+     "init_instructions": null,
+     "discover": "error_-32601"
+    },
+    {
+     "name": "agency.ottobot/licensed-house-painters",
+     "url": "https://house-painters.ottobot.agency/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "agency.thebureauoflostcontext/bureau-public",
+     "url": "https://thebureauoflostcontext.agency/mcp",
+     "verdict": "init_failed_400"
+    },
+    {
+     "name": "ai.1325/mcp",
+     "url": "https://agoclnqfyinwjxdmjnns.supabase.co/functions/v1/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.aard/aard",
+     "url": "https://api.aard.ai/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.aarna/atars-mcp",
+     "url": "https://mcp.aarna.ai/mcp",
+     "verdict": "init_failed_502"
+    },
+    {
+     "name": "ai.abmeter/abmeter",
+     "url": "https://mcp.abmeter.ai/",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.actwise/ideation",
+     "url": "https://actwise.ai/ideation/mcp/v1",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.adadvisor/mcp-server",
+     "url": "https://api.adadvisor.ai/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.adako/ads",
+     "url": "https://adako.ai/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.adoraads/beauty",
+     "url": "https://mcp.adoraads.ai/beauty",
+     "verdict": "answered",
+     "init_instructions": null,
+     "discover": "error_no_code"
+    },
+    {
+     "name": "ai.adplane/google-ads",
+     "url": "https://mcp.adplane.ai/",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.adramp/google-ads",
+     "url": "https://mcp.adramp.ai/",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.adsap/adsap",
+     "url": "https://mcp.adsap.ai/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.adside/adside",
+     "url": "https://api.adside.ai/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.advisorsai/service-navigator",
+     "url": "https://advisorsai.ai/mcp",
+     "verdict": "answered",
+     "init_instructions": {
+      "chars": 397,
+      "digest": "a09594405abd",
+      "markers": 0
+     },
+     "discover": "error_-32601"
+    },
+    {
+     "name": "ai.advisorsai/store-readiness",
+     "url": "https://advisorsai.ai/store-readiness-mcp",
+     "verdict": "answered",
+     "init_instructions": {
+      "chars": 247,
+      "digest": "74a9a45f9929",
+      "markers": 0
+     },
+     "discover": "error_-32601"
+    },
+    {
+     "name": "ai.adweave/meta-ads-mcp",
+     "url": "https://mcp.adweave.ai/meta-ads-mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.aeviamodeler/aevia",
+     "url": "https://app.aeviamodeler.ai/api/v1/connector/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.afg/afg",
+     "url": "https://afg.ai/mcp",
+     "verdict": "answered",
+     "init_instructions": {
+      "chars": 1097,
+      "digest": "1f01292d2696",
+      "markers": 0
+     },
+     "discover": "error_-32601"
+    },
+    {
+     "name": "ai.afmr/discovery",
+     "url": "https://afmr.ai/api/rpc",
+     "verdict": "answered",
+     "init_instructions": {
+      "chars": 294,
+      "digest": "a30fdd03ba72",
+      "markers": 0
+     },
+     "discover": "error_-32601"
+    },
+    {
+     "name": "ai.afmr/discovery",
+     "url": "https://afmr.ai/mcp",
+     "verdict": "answered",
+     "init_instructions": {
+      "chars": 294,
+      "digest": "a30fdd03ba72",
+      "markers": 0
+     },
+     "discover": "error_-32601"
+    },
+    {
+     "name": "ai.agent-bev/bev-door",
+     "url": "https://mcp.bev-buyer.ai/mcp",
+     "verdict": "answered",
+     "init_instructions": {
+      "chars": 414,
+      "digest": "b03ec5f13a9d",
+      "markers": 0
+     },
+     "discover": "error_-32601"
+    },
+    {
+     "name": "ai.agentberg/agentberg",
+     "url": "https://agentberg.ai/mcp",
+     "verdict": "answered",
+     "init_instructions": null,
+     "discover": "error_-32602"
+    },
+    {
+     "name": "ai.agentdm/agentdm",
+     "url": "https://api.agentdm.ai/api/v1/grid",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.agentdm/agentdm",
+     "url": "https://api.agentdm.ai/mcp/v1/grid",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.agentgates/mcp",
+     "url": "https://agentgates.ai/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.agentic-news/mcp",
+     "url": "https://api.agentic-news.ai/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.agenticaffiliate/affiliate-networks-mcp",
+     "url": "https://mcp.agenticaffiliate.ai/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.agenticbooks/books",
+     "url": "https://mcp.agenticbooks.ai/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.agenticfabricationnetwork/ufp",
+     "url": "https://agenticfabricationnetwork.ai/mcp",
+     "verdict": "answered",
+     "init_instructions": {
+      "chars": 19687,
+      "digest": "fff5a39ae794",
+      "markers": 0
+     },
+     "discover": "error_-32601"
+    },
+    {
+     "name": "ai.agenticshelf/graffeo",
+     "url": "https://api.agenticshelf.ai/m/graffeo/mcp",
+     "verdict": "init_failed_503"
+    },
+    {
+     "name": "ai.agenticshelf/mcp",
+     "url": "https://api.agenticshelf.ai/mcp",
+     "verdict": "init_failed_503"
+    },
+    {
+     "name": "ai.agenticshelf/puroair",
+     "url": "https://api.agenticshelf.ai/m/puroair/mcp",
+     "verdict": "init_failed_503"
+    },
+    {
+     "name": "ai.agenticterminal/directory",
+     "url": "https://mcp.agenticterminal.ai/mcp",
+     "verdict": "answered",
+     "init_instructions": null,
+     "discover": "error_-32601"
+    },
+    {
+     "name": "ai.agentlookups/counterscript",
+     "url": "https://rx.agentlookups.ai/mcp",
+     "verdict": "answered",
+     "init_instructions": {
+      "chars": 339,
+      "digest": "fb7c40b724c7",
+      "markers": 0
+     },
+     "discover": "error_-32601"
+    },
+    {
+     "name": "ai.agentlookups/greenlight",
+     "url": "https://solar.agentlookups.ai/mcp",
+     "verdict": "answered",
+     "init_instructions": {
+      "chars": 495,
+      "digest": "12f1f9cbff36",
+      "markers": 0
+     },
+     "discover": "error_-32601"
+    },
+    {
+     "name": "ai.agentlookups/groundtruth",
+     "url": "https://env.agentlookups.ai/mcp",
+     "verdict": "answered",
+     "init_instructions": {
+      "chars": 375,
+      "digest": "ad4f59dcad92",
+      "markers": 0
+     },
+     "discover": "error_-32601"
+    },
+    {
+     "name": "ai.agentlookups/overassessed",
+     "url": "https://overassessed.agentlookups.ai/mcp",
+     "verdict": "answered",
+     "init_instructions": {
+      "chars": 406,
+      "digest": "4aa524e2e0ae",
+      "markers": 0
+     },
+     "discover": "error_-32601"
+    },
+    {
+     "name": "ai.agentlookups/plumbline",
+     "url": "https://contractors.agentlookups.ai/mcp",
+     "verdict": "answered",
+     "init_instructions": {
+      "chars": 872,
+      "digest": "534153f269bc",
+      "markers": 0
+     },
+     "discover": "error_-32601"
+    },
+    {
+     "name": "ai.agentmesh/mesh",
+     "url": "https://api.agentmesh.ai/v1/mcp",
+     "verdict": "auth_required"
+    },
+    {
+     "name": "ai.agentplaybooks/agentplaybooks",
+     "url": "https://agentplaybooks.ai/api/mcp/manage",
+     "verdict": "auth_required"
+    }
+   ]
+  }
+ ],
+ "incomplete": []
+}
