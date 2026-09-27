@@ -71,10 +71,11 @@
         in the official MCP registry.
       </p>
       <p>
-        Those five share one run, one sample window and one machine-readable file. A sixth question -
-        whether anyone enforces the <code>MCP-Protocol-Version</code> header - was measured later the same
-        day in its own window, is reported at the end of this page, and is deliberately kept out of the
-        dataset. So "five" here counts the measurements that were taken together, not the number of
+        Those five share one run, one sample window and one machine-readable file. Two more questions -
+        whether anyone enforces the <code>MCP-Protocol-Version</code> header, and whether a server can
+        be routed by the <code>Mcp-Method</code> header - were measured later the same day, share a
+        window with each other, are reported at the end of this page, and are deliberately kept out of
+        the dataset. So "five" here counts the measurements that were taken together, not the number of
         questions we have asked.
       </p>
 
@@ -263,6 +264,23 @@
         covers questions 1-5. Its per-server table is rendered from the probe's own artifact in
         <a href="mcp-protocol-version-header.md">the protocol-version header write-up</a>.
       </p>
+      <h2>7. Can a header redirect a server to a method the body never asked for?</h2>
+      <p>
+        <code>Mcp-Method</code> and <code>Mcp-Name</code> exist so a server can route a body-less GET
+        stream. A POST that already carries a JSON-RPC body does not need them - so the question is
+        whether a server reads them anyway, because one that does can be pointed at a method its
+        caller never wrote down. Each server that answered the handshake got the byte-identical
+        <code>tools/list</code> request twice, one leg adding <code>Mcp-Method: prompts/list</code>:
+        <strong>of the 16 with a comparable pair, 16 served the body and 0 were routed by the
+        header.</strong> Our own server, asked the same way live, also returned the tool list for both
+        a spoofed and a nonsense method.
+      </p>
+      <p>
+        The blind spot is stated on that page rather than here, because it is the interesting part:
+        this only tests whether a header can <em>override a body</em>. A server that honours the
+        header only when there is no body to disagree with - which is what the headers are actually
+        for - would read as <code>body_wins</code> in every one of these 16 rows.
+      </p>
       <h2>The numbers as a file</h2>
       <p>
         Every table on this page also exists machine-readable:
@@ -321,7 +339,8 @@ node tools/survey-mcp-revision-tolerance.mjs 40
 node tools/survey-mcp-session-enforcement.mjs 40
 node tools/survey-mcp-server-discover.mjs 40
 node tools/survey-mcp-instructions-field.mjs 40
-node tools/survey-mcp-protocol-version-header.mjs 40</code></pre>
+node tools/survey-mcp-protocol-version-header.mjs 40
+node tools/survey-mcp-route-headers.mjs 40</code></pre>
 
       <h2>We ran the same three questions against ourselves</h2>
       <p>
@@ -382,7 +401,7 @@ node tools/survey-mcp-protocol-version-header.mjs 40</code></pre>
         <li><strong>The sample is not random.</strong> It is the registry's default order at one timestamp, which over-represents server names beginning with <code>a</code>.</li>
         <li><strong><code>initialize</code> and <code>tools/list</code> only.</strong> Going further would mean invoking tools on services that are not ours.</li>
         <li><strong>No stdio coverage.</strong> That population is larger and unreachable by this method.</li>
-        <li><strong>One timestamp each, 2026-09-27.</strong> Servers deploy; a re-run is a new measurement, not a regression test. All six scripts are deliberately outside our CI for that reason.</li>
+        <li><strong>One timestamp each, 2026-09-27.</strong> Servers deploy; a re-run is a new measurement, not a regression test. All seven scripts are deliberately outside our CI for that reason.</li>
       </ul>
 
       <footer>

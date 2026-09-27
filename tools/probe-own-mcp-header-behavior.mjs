@@ -17,7 +17,7 @@ const TIMEOUT = 15000;
 const ASKED = "2025-06-18";
 const DECLINED = "2025-03-26";
 
-async function rpc(base, body, { revision, session } = {}) {
+async function rpc(base, body, { revision, session, routeMethod } = {}) {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), TIMEOUT);
   try {
@@ -27,6 +27,7 @@ async function rpc(base, body, { revision, session } = {}) {
     };
     if (revision) headers["mcp-protocol-version"] = revision;
     if (session) headers["mcp-session-id"] = session;
+    if (routeMethod) headers["mcp-method"] = routeMethod;
     const res = await fetch(base, { method: "POST", headers, body: JSON.stringify(body), signal: ctl.signal });
     const text = await res.text();
     const dataLine = text.split("\n").find((l) => l.startsWith("data:"));
@@ -102,6 +103,21 @@ try {
     params: { protocolVersion: ASKED, capabilities: {}, clientInfo: { name: "uai-own-header-probe", version: "0.1.0" } },
   }, { revision: ASKED });
 
+  // Does the header route us? Our server lists Mcp-Method/Mcp-Name in its CORS allow-list, so an
+  // inbound request can carry them. If it answered `prompts/list` while the body said `tools/list`,
+  // a caller could reach a method it never wrote down; if it answers the body, the header is inert.
+  const spoofed = await rpc(base, { jsonrpc: "2.0", id: "6", method: "tools/list", params: {} }, {
+    revision: opts.revision,
+    session: opts.session,
+    routeMethod: "prompts/list",
+  });
+  const nonsense = await rpc(base, { jsonrpc: "2.0", id: "7", method: "tools/list", params: {} }, {
+    revision: opts.revision,
+    session: opts.session,
+    routeMethod: "totally-not-a-method",
+  });
+
+  const keysOf = (r) => (r.payload?.result ? Object.keys(r.payload.result) : []);
   const blind = !served(baseline);
   const count = (r) => (r.payload?.result?.tools || []).length;
   report = {
@@ -124,6 +140,30 @@ try {
       header_omitted: { status: omitted.status, served: served(omitted), tools: count(omitted) || null },
       header_declined_revision: { status: declined.status, served: served(declined), tools: count(declined) || null },
       initialize_with_header: { status: initWithHeader.status, served: served(initWithHeader) },
+    },
+    // Header-vs-body routing, the question the public survey asks in the same shape.
+    route_headers: {
+      body_method: "tools/list",
+      baseline_result_keys: keysOf(baseline),
+      spoof_prompts_list: {
+        status: spoofed.status,
+        result_keys: keysOf(spoofed),
+        error_code: spoofed.payload?.error?.code ?? null,
+      },
+      spoof_nonsense_method: {
+        status: nonsense.status,
+        result_keys: keysOf(nonsense),
+        error_code: nonsense.payload?.error?.code ?? null,
+      },
+      verdict: blind
+        ? "not_evaluated_baseline_blind"
+        : keysOf(spoofed).includes("prompts")
+          ? "HEADER_ROUTES_IT"
+          : keysOf(spoofed).includes("tools") && keysOf(nonsense).includes("tools")
+            ? "body_is_authoritative_header_inert"
+            : keysOf(spoofed).includes("tools")
+              ? "body_wins_but_nonsense_changed_shape"
+              : "inconclusive_shape_change",
     },
     reading: blind
       ? `baseline leg did not reach a tool list (http ${baseline.status}: ${baseline.bodyHead}) - this run says nothing about header handling`
