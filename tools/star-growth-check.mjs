@@ -321,6 +321,50 @@ function addDeltaLine(prefix, label, value, previousValue) {
   return `${prefix} ${label}: ${value}${formatDelta(value, previousValue)}`;
 }
 
+const SELF_REFERRER_HOST = "happy520ai.github.io";
+// Matched as words rather than domains, because GitHub's referrer field is a label: it returns
+// "Google" for one engine and "search.brave.com" for another. A "google." needle silently files the
+// first under "everything else", which is exactly the bucket this section exists to read.
+const SEARCH_ENGINE_WORDS = ["google", "bing", "duckduckgo", "brave", "baidu", "yandex", "ecosia"];
+const isSearchEngine = (host) => SEARCH_ENGINE_WORDS.some(
+  (word) => new RegExp(`(^|[^a-z0-9])${word}([^a-z0-9]|$)`).test(host),
+);
+
+// Buckets the referrer rows into who they are, because the interesting question is narrow: did any
+// list or directory we spent effort on send a single visitor? An empty array is a measured zero and
+// must not share a verdict with an unreadable response - a probe that returns nothing and a probe that
+// failed look identical unless the code separates them.
+export function summariseReferrers(rows) {
+  if (!Array.isArray(rows)) {
+    return { readable: false, listingReferred: null, lines: ["Referrer data not readable (no rows returned, or the endpoint refused)."] };
+  }
+  const buckets = { self: [], github: [], search: [], listing: [] };
+  for (const row of rows) {
+    const host = String(row?.referrer ?? "").toLowerCase();
+    const entry = { host, count: Number(row?.count ?? 0), uniques: Number(row?.uniques ?? 0) };
+    if (host === SELF_REFERRER_HOST || host.endsWith(".github.io")) buckets.self.push(entry);
+    else if (host === "github.com" || host.endsWith(".github.com")) buckets.github.push(entry);
+    else if (isSearchEngine(host)) buckets.search.push(entry);
+    else buckets.listing.push(entry);
+  }
+  const sum = (list) => list.reduce((a, b) => a + b.uniques, 0);
+  const lines = [
+    `Referrers by who they are: our own site ${sum(buckets.self)} uniques, GitHub itself ${sum(buckets.github)}, search engines ${sum(buckets.search)}, everything else ${sum(buckets.listing)}.`,
+    buckets.listing.length === 0
+      ? "Verdict: not one awesome-list, directory or submission ticket referred a visitor in this window. That is a measured zero, not a missing reading."
+      : `Verdict: ${buckets.listing.length} external referrer(s) that are neither our site, GitHub, nor a search engine: ${buckets.listing.map((e) => `${e.host}(${e.uniques})`).join(", ")}.`,
+  ];
+  if (buckets.github.length > 0) {
+    lines.push("Caveat on the GitHub row: arrivals from GitHub search, a profile, or a list page all land there too, so it cannot be credited to any single door.");
+  }
+  return {
+    readable: true,
+    listingReferred: buckets.listing.reduce((a, b) => a + b.count, 0),
+    buckets,
+    lines,
+  };
+}
+
 function trafficSummary(result, entryKey) {
   if (!result.ok || !result.data || !Number.isFinite(result.data.count)) {
     return null;
@@ -364,6 +408,9 @@ async function getRepoStats() {
     safeGetJson(`gh api repos/${repo}/traffic/clones`),
     "clones"
   );
+  // Referrers are the only field here that separates "we published a thing" from "a thing sent
+  // somebody". Views and clones cannot, and neither can the count of merged list entries.
+  const referrers = safeGetJson(`gh api repos/${repo}/traffic/popular/referrers`);
 
   return {
     stars: result.data.stargazers_count,
@@ -379,6 +426,7 @@ async function getRepoStats() {
     traffic: {
       views,
       clones,
+      referrers: Array.isArray(referrers?.data) ? referrers.data : null,
       available: Boolean(views || clones),
     },
   };
@@ -718,6 +766,14 @@ function renderRepoSection(repoStats, date, prefix, previousStats = null) {
       );
     }
   }
+  // Read outside the `available` guard on purpose: referrers can answer even on a day when the
+  // views/clones payload is missing, and this is the one field that says whether the doors we
+  // pushed on sent anybody.
+  const referrerRead = summariseReferrers(repoStats.traffic?.referrers);
+  for (const line of referrerRead.lines) {
+    lines.push(`${prefix} ${line}`);
+  }
+  lines.push(`${prefix} Window: GitHub reports referrers for the trailing 14 days, top rows only.`);
   lines.push(`${prefix} Last updated: ${repoStats.updated}`);
   lines.push("");
   return lines;

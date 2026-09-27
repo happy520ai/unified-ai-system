@@ -970,3 +970,44 @@ test('ticketQueueHealth reads issue closes only, and says when the sample is too
   assert.equal(failed.verdict, 'UNKNOWN');
   assert.equal(failed.reason, 'the closed-issue read failed');
 });
+
+// The module is imported above for its other exports; this adds the referrer buckets only.
+import { summariseReferrers } from "./star-growth-check.mjs";
+
+const referrerRows = [
+  { referrer: "happy520ai.github.io", count: 7, uniques: 3 },
+  { referrer: "github.com", count: 6, uniques: 3 },
+  { referrer: "Google", count: 3, uniques: 3 },
+  { referrer: "search.brave.com", count: 1, uniques: 1 },
+  { referrer: "glama.ai", count: 2, uniques: 2 },
+];
+
+test("referrer buckets separate our site, GitHub, engines and everything else", () => {
+  const r = summariseReferrers(referrerRows);
+  assert.equal(r.readable, true);
+  assert.equal(r.buckets.self[0].uniques, 3);
+  assert.equal(r.buckets.search.length, 2);
+  assert.deepEqual(r.buckets.listing.map((e) => e.host), ["glama.ai"]);
+  assert.equal(r.listingReferred, 2);
+  assert.ok(r.lines[1].includes("glama.ai(2)"));
+});
+
+test("an absence of listing referrers is stated as a measured zero", () => {
+  const r = summariseReferrers(referrerRows.filter((x) => x.referrer !== "glama.ai"));
+  assert.equal(r.listingReferred, 0);
+  assert.match(r.lines[1], /measured zero, not a missing reading/);
+});
+
+test("an empty response and an unreadable one print different sentences", () => {
+  const empty = summariseReferrers([]);
+  const unreadable = summariseReferrers(null);
+  assert.equal(empty.readable, true);
+  assert.equal(unreadable.readable, false);
+  assert.equal(unreadable.listingReferred, null);
+  assert.notEqual(empty.lines[1], unreadable.lines[0]);
+  assert.match(unreadable.lines[0], /not readable/i);
+});
+
+test("the GitHub row is refused as credit for any single door", () => {
+  assert.match(summariseReferrers(referrerRows).lines[2], /GitHub search|cannot be credited/);
+});
