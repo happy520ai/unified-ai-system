@@ -988,14 +988,15 @@ test("referrer buckets separate our site, GitHub, engines and everything else", 
   assert.equal(r.buckets.self[0].uniques, 3);
   assert.equal(r.buckets.search.length, 2);
   assert.deepEqual(r.buckets.listing.map((e) => e.host), ["glama.ai"]);
-  assert.equal(r.listingReferred, 2);
+  assert.equal(r.offGithubReferred, 2);
   assert.ok(r.lines[1].includes("glama.ai(2)"));
 });
 
-test("an absence of listing referrers is stated as a measured zero", () => {
+test("an absence of off-GitHub referrers is stated, scoped so it cannot read as anti-list evidence", () => {
   const r = summariseReferrers(referrerRows.filter((x) => x.referrer !== "glama.ai"));
-  assert.equal(r.listingReferred, 0);
-  assert.match(r.lines[1], /measured zero, not a missing reading/);
+  assert.equal(r.offGithubReferred, 0);
+  assert.match(r.lines[1], /no off-GitHub site referred a visitor/);
+  assert.doesNotMatch(r.lines[1], /not one awesome-list/);
 });
 
 test("an empty response and an unreadable one print different sentences", () => {
@@ -1003,11 +1004,11 @@ test("an empty response and an unreadable one print different sentences", () => 
   const unreadable = summariseReferrers(null);
   assert.equal(empty.readable, true);
   assert.equal(unreadable.readable, false);
-  assert.equal(unreadable.listingReferred, null);
+  assert.equal(unreadable.offGithubReferred, null);
   assert.notEqual(empty.lines[1], unreadable.lines[0]);
   assert.match(unreadable.lines[0], /not readable/i);
 });
 
 test("the GitHub row is refused as credit for any single door", () => {
-  assert.match(summariseReferrers(referrerRows).lines[2], /GitHub search|cannot be credited/);
+  assert.match(summariseReferrers(referrerRows).lines[2], /evidence for nothing in particular/);
 });

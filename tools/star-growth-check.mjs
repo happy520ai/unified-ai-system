@@ -336,7 +336,7 @@ const isSearchEngine = (host) => SEARCH_ENGINE_WORDS.some(
 // failed look identical unless the code separates them.
 export function summariseReferrers(rows) {
   if (!Array.isArray(rows)) {
-    return { readable: false, listingReferred: null, lines: ["Referrer data not readable (no rows returned, or the endpoint refused)."] };
+    return { readable: false, offGithubReferred: null, lines: ["Referrer data not readable (no rows returned, or the endpoint refused)."] };
   }
   const buckets = { self: [], github: [], search: [], listing: [] };
   for (const row of rows) {
@@ -348,18 +348,22 @@ export function summariseReferrers(rows) {
     else buckets.listing.push(entry);
   }
   const sum = (list) => list.reduce((a, b) => a + b.uniques, 0);
+  // Scope, stated because the first version of this sentence over-claimed it. An awesome-list entry
+  // lives on github.com, so a click from it arrives with `github.com` as its referrer and is
+  // indistinguishable here from GitHub search or a profile visit. This line can only ever speak about
+  // referrers that are NOT GitHub and NOT us - directories, docs sites, ticket pages, blogs.
   const lines = [
-    `Referrers by who they are: our own site ${sum(buckets.self)} uniques, GitHub itself ${sum(buckets.github)}, search engines ${sum(buckets.search)}, everything else ${sum(buckets.listing)}.`,
+    `Referrers by who they are: our own site ${sum(buckets.self)} uniques, GitHub itself ${sum(buckets.github)} (includes arrivals from list READMEs on GitHub - not separable), search engines ${sum(buckets.search)}, off-GitHub third-party sites ${sum(buckets.listing)}.`,
     buckets.listing.length === 0
-      ? "Verdict: not one awesome-list, directory or submission ticket referred a visitor in this window. That is a measured zero, not a missing reading."
-      : `Verdict: ${buckets.listing.length} external referrer(s) that are neither our site, GitHub, nor a search engine: ${buckets.listing.map((e) => `${e.host}(${e.uniques})`).join(", ")}.`,
+      ? "Verdict: no off-GitHub site referred a visitor in this window - zero from directories, listing sites and submission tickets. This says nothing about entries merged into READMEs on GitHub itself; their clicks are inside the GitHub row."
+      : `Verdict: ${buckets.listing.length} off-GitHub referrer(s) that are neither our site, GitHub, nor a search engine: ${buckets.listing.map((e) => `${e.host}(${e.uniques})`).join(", ")}.`,
   ];
   if (buckets.github.length > 0) {
-    lines.push("Caveat on the GitHub row: arrivals from GitHub search, a profile, or a list page all land there too, so it cannot be credited to any single door.");
+    lines.push("Credit rule for the GitHub row: it may contain list-page clicks, so it is evidence for nothing in particular - neither for the doors nor against them.");
   }
   return {
     readable: true,
-    listingReferred: buckets.listing.reduce((a, b) => a + b.count, 0),
+    offGithubReferred: buckets.listing.reduce((a, b) => a + b.count, 0),
     buckets,
     lines,
   };
