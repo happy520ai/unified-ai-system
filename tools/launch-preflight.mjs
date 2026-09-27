@@ -58,6 +58,11 @@ const NEAR_PRESENT = 30;
 const PRESENT_WORD = /\b(today|latest|current)\b/i;
 const IMAGE_REF = /ghcr\.io\/[a-z0-9._/-]+\/([a-z0-9-]+):(\d+\.\d+\.\d+)/g;
 
+// Deep links out of the published copy itself. A hardcoded page list is how a launch post can
+// point at a page nobody thought to add to the checklist, so the pages we verify are exactly the
+// pages the reader is told to open.
+export const SITE_LINK = /https:\/\/happy520ai\.github\.io\/unified-ai-system\/([A-Za-z0-9._-]*\.html)?/g;
+
 // The paste-ready copy - the `>` blockquote lines, which is what gets published
 // verbatim - is the only thing this parses. Everything else in the kit is notes to
 // the author that never leave the repository.
@@ -65,6 +70,7 @@ export function readCopyClaims(kitText) {
   const copyLines = kitText.split("\n").filter((l) => l.startsWith("> "));
   const presentVersions = [];
   const imageRefs = [];
+  const siteLinks = [];
   const claimedCounts = [];
   const quotedCounts = [];
   for (const line of copyLines) {
@@ -81,12 +87,17 @@ export function readCopyClaims(kitText) {
       if (value === null) continue;
       (isRecordLine(line) ? quotedCounts : claimedCounts).push(value);
     }
+    for (const m of line.matchAll(SITE_LINK)) {
+      const page = m[1] ?? "";
+      if (!siteLinks.includes(page)) siteLinks.push(page);
+    }
   }
   return {
     copyLines,
     presentVersions,
     namedVersion: presentVersions.length === 1 ? presentVersions[0] : null,
     imageRefs,
+    siteLinks,
     claimedCounts,
     distinctCounts: [...new Set(claimedCounts)].sort((a, b) => a - b),
     quotedCounts,
@@ -229,9 +240,17 @@ const run = async () => {
   // 5. Glama - linked from the punkpeye badge and the gate on that door.
   add("Glama listing", "200", await status(`https://glama.ai/mcp/servers/${REPO}`), "http");
 
-  // 6. Pages the posts deep-link into.
-  for (const page of ["", "verify-mcp-docker-image.html", "security-drill-evidence.html", "self-hosted-ai-gateways-compared.html"]) {
+  // 6. Pages the copy actually deep-links into, plus the site root every post lands on.
+  const pagesToCheck = [...new Set(["", ...claims.siteLinks])];
+  for (const page of pagesToCheck) {
     add(`site /${page || "(home)"}`, "200", await status(`${SITE}/${page}`), "http");
+  }
+  if (claims.siteLinks.length === 0) {
+    notes.push(
+      "the paste-ready copy links no site pages - page coverage fell to the root alone, so a deep link could not have been checked",
+    );
+  } else {
+    notes.push(`${claims.siteLinks.length} site page link(s) read out of the copy: ${claims.siteLinks.map((p) => p || "(home)").join(", ")}`);
   }
 
   // 7. The tag-anchored release size, which cannot drift but is worth proving readable.

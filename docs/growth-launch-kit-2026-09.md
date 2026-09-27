@@ -341,6 +341,15 @@ the repository page, cold-start latency from a local run.
 ### "It sat there for eight seconds before it answered."
 
 Yes, and it is filed publicly: issue #168 measures `initialize` at 7.5-8.5 s and lists the runs.
+The measurement itself is a page now, not a claim - five consecutive runs on 2026-09-27 answered
+between 7,630 ms and 8,461 ms, the complete tool list arrived 3-7 ms after that, and the first run
+was the slowest, so there is no cold-cache excuse to reach for. Paste the reply, not a defence:
+
+> Yes, and we measured it instead of waiting for someone to report it: five consecutive runs answered
+> `initialize` between 7.6 and 8.5 seconds, with the full tool list arriving 3-7 ms after that - so the
+> wait is process boot, not tool work. It is open as #168, with the method and the limits of the
+> measurement on https://happy520ai.github.io/unified-ai-system/mcp-startup-timeouts.html
+
 Do not defend it as configuration. A named, measured, self-filed bug converts better than a
 smoothing answer, and this is the one question where a prospect is quietly deciding whether you
 know your own software.

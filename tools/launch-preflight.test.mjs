@@ -83,3 +83,29 @@ test("prose that is not paste-ready is notes to the author, not claims", () => {
   );
   assert.deepEqual(c.claimedCounts, [15]);
 });
+
+test("page coverage is read out of the copy, not out of a list in the checker", () => {
+  const linked = readCopyClaims(kit(
+    "> see https://happy520ai.github.io/unified-ai-system/verify-mcp-docker-image.html.",
+    "> or the landing page https://happy520ai.github.io/unified-ai-system/#enhance",
+    "> again https://happy520ai.github.io/unified-ai-system/verify-mcp-docker-image.html",
+  ));
+  // A trailing sentence period must not become part of the filename, and a fragment-only
+  // link is the site root; duplicates collapse so one page is one check.
+  assert.deepEqual(linked.siteLinks, ["verify-mcp-docker-image.html", ""]);
+
+  // Boundary arm: author notes are never published, so they must not drive what gets checked.
+  const unlinked = readCopyClaims(kit(
+    "The notes mention https://happy520ai.github.io/unified-ai-system/secret-draft.html to the author.",
+    "> nothing linkable in the line that ships",
+  ));
+  assert.deepEqual(unlinked.siteLinks, [], "a non-paste line must not add page coverage");
+});
+
+test("the shipped copy links the startup-timing measurement", () => {
+  const c = readCopyClaims(readFileSync("docs/growth-launch-kit-2026-09.md", "utf8"));
+  assert.ok(c.siteLinks.includes("mcp-startup-timeouts.html"), "the objection reply should link the measured page");
+  assert.ok(c.siteLinks.includes("verify-mcp-docker-image.html"), "the roster page link is still there");
+  assert.equal(c.claimedCounts.length, 1, "the added timings must not be read as tool-count claims");
+  assert.deepEqual(c.distinctCounts, [15]);
+});
