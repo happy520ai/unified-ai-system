@@ -1062,3 +1062,14 @@ the 0.8.0 tag and a reader's first action is to run it.
    第三件是被动等：mcpservers.org 审核约 2026-10-09 见结果；awesome-selfhosted 约 2026-11-30 才够龄且必须你本人提。
 
 **如果这周只做一件事**：发 HN。理由就是上表——其他所有面要么在等人（清单），要么已经证明对星数没有可测影响（收录），而一次性外部曝光目前没有别的路径能替代。
+
+### 2026-09-27 19:29 UTC 现读补充：三条"渠道"从假设变成读数
+
+| 面 | 现读 | 怎么读的 / 还没测什么 |
+| --- | --- | --- |
+| **Glama** | **我们已经在上面，而且条目是准的。** `glama.ai/mcp/servers/happy520ai/unified-ai-system`，页面标题 `unified-ai-system by happy520ai \| Glama`，正文取自我们 README，且写的是 "Expected: a line reading tools **15**"，还带一句"同一个命令打在 0.4.0 上报 nine，所以这个数跟着工件走、不跟着描述走"——那句话是我们自己写的口径，它替我们答了"为什么别处看到 nine" | 浏览器渲染后读 `innerText`/DOM，不是 curl（这站也是前端注数据，curl 拿不到卡片）。**没测**：这个条目是被认领过还是它自己从 GitHub/Registry 同步来的；页面上没有 `unclaimed` 字样，所以我判不出认领状态，也就不能把它写成"待认领"。<br>⚠ 本文件之前（和我的台账之前）把 Glama 记成"等 owner 花一分钟去认领"的活；现读至少否证了"我们不在上面"，剩下的那半（认领到底有没有价值）仍然没有证据 |
+| **Show HN** | **浏览器里没有登录态。** 首页头部是 `login`，DOM 里找不到 `logout` | 所以 §1 那条仍然是只能你本人做，不是我"可以先替你发"的活。这条值得记一句：我在四条已授权渠道里挑了两条去实测能不能代办，一条（Glama）证明我们的假设是错的，一条证明它是对的——**"已授权"不等于"可代办"，也不等于"已知现状"**，两者都要读 |
+| **官方 MCP Registry** | **在列，且描述里没有工具计数**（避免了一整类过期问题）。`io.github.happy520ai/unified-ai-system`，latest 记录 version `0.8.0`、`status=active`、`isLatest=true`，17 条历史记录从 `0.3.1` 到 `0.8.0`（旧条目里写着 eight / nine，那是当时的事实）；README 上两种形态的徽章地址（`/v0/…` 与 `/v0.1/…`）都返回 200 | `curl` 打 `registry.modelcontextprotocol.io` + 读 `_meta['io.modelcontextprotocol.registry/official']`。<br>**可用于任何投稿的一句真话**：项目登记在官方 MCP Registry 里。这一句我现在核对过，写它不需要钱、不需要账号、也不需要等任何人 |
+
+> 这三行都是同一件事的两侧：**目录站的收录状态会自己变，而"我们不在上面"这种句子最容易从记忆里活下来。**
+> 任何出现在本文件里的"没被收录 / 需要认领"，都请当它是它写下那一刻的读数——判据就在右边那一列，两分钟能重跑。
