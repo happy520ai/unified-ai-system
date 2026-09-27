@@ -117,6 +117,46 @@ try {
     routeMethod: "totally-not-a-method",
   });
 
+  // The case the routing headers actually exist for: a GET stream with no body to disagree with.
+  // The POST survey cannot see this, so the caveat it published is closed here instead of restated.
+  async function getProbe(headers) {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 5000);
+    try {
+      const res = await fetch(base, {
+        method: "GET",
+        headers: { accept: "text/event-stream", ...headers },
+        signal: ctl.signal,
+      });
+      let text = "";
+      try {
+        text = await res.text();
+      } catch {
+        text = "";
+      }
+      return {
+        status: res.status,
+        contentType: res.headers.get("content-type") || "",
+        chars: text.length,
+        dataEvents: text.split("\n").filter((l) => l.startsWith("data:")).length,
+        errorCodes: (text.match(/"code"\s*:\s*("([^"]+)"|-?\d+)/g) || []).slice(0, 3),
+      };
+    } catch (err) {
+      return { status: 0, contentType: "", chars: 0, dataEvents: 0, aborted: String(err && err.name ? err.name : err) };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  const getPlain = await getProbe({});
+  const getSpoofed = await getProbe({ "mcp-method": "prompts/list" });
+  const getVerdict = getPlain.status === 0 && getSpoofed.status === 0
+    ? "GET_BLIND"
+    : getSpoofed.dataEvents > 0 && getSpoofed.dataEvents !== getPlain.dataEvents
+      ? "header_changed_the_stream"
+      : getPlain.status === getSpoofed.status && getPlain.chars === getSpoofed.chars
+        ? "get_shape_identical_with_and_without_header"
+        : "get_differs_but_not_routed";
+
   const keysOf = (r) => (r.payload?.result ? Object.keys(r.payload.result) : []);
   const blind = !served(baseline);
   const count = (r) => (r.payload?.result?.tools || []).length;
@@ -164,6 +204,11 @@ try {
             : keysOf(spoofed).includes("tools")
               ? "body_wins_but_nonsense_changed_shape"
               : "inconclusive_shape_change",
+    },
+    get_stream: {
+      plain: { status: getPlain.status, contentType: getPlain.contentType, chars: getPlain.chars, dataEvents: getPlain.dataEvents },
+      with_route_header: { status: getSpoofed.status, contentType: getSpoofed.contentType, chars: getSpoofed.chars, dataEvents: getSpoofed.dataEvents },
+      verdict: getVerdict,
     },
     reading: blind
       ? `baseline leg did not reach a tool list (http ${baseline.status}: ${baseline.bodyHead}) - this run says nothing about header handling`
