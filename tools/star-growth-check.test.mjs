@@ -738,7 +738,8 @@ test('referral readings keep blind, empty and populated apart', () => {
   assert.match(malformed.notes[0], /INCONCLUSIVE: page - response was not a list/);
 });
 
-test("a traffic-endpoint failure is reported as blindness, not as an empty referral list", () => {
+test("a traffic-endpoint failure is reported as blindness, not as an empty referral list", async () => {
+  const { formatReferralReadings } = await import("./star-growth-check.mjs");
   const out = formatReferralReadings([{ label: "referrer", error: "Command failed: gh api repos/x/y/traffic/popular/referrers 403" }]);
   assert.equal(out.rows.length, 0, "a failed read must never render referrers");
   assert.equal(out.notes.length, 1);
