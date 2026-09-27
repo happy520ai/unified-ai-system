@@ -139,6 +139,12 @@ const externalPrs = [
   // evening as #449 and merged into a different file than #449 did.
   ["KalyanKS-NLP/llm-engineer-toolkit", 46],
   ["hashgraph-online/awesome-codex-plugins", 450],
+  // Found by searching README content for the hosted gateways we are the self-hosted
+  // counterpart of (anchors LiteLLM, "AI gateway", Portkey, "LLM router"): this list hits
+  // three of them and does not contain our slug. Their AGENTS.md invites AI coding agents by
+  // name and documents the contribution contract, so the door was filed to it: both READMEs,
+  // one CHANGELOG line, and `scripts/format_readmes.py` run afterwards changing nothing.
+  ["ikaijua/Awesome-AITools", 1045],
 ];
 
 // Submission doors that are ISSUES, not pull requests: directory sites that take a
@@ -500,6 +506,12 @@ const deferredDoors = [
     requiresStars: 101,
     requiresHumanContributors: 0,
     note: "Their own add-a-project template asks the submitter to check \"project has more than 100 stars on GitHub\", and the maintainer told a September suggestion to wait for that threshold. Queue is alive: seven merges in the fortnight to 2026-09-23.",
+  },
+  {
+    repo: "sereneblue/awesome-oss",
+    requiresStars: 100,
+    requiresHumanContributors: 0,
+    note: "CONTRIBUTING line 9: \"only open to pull requests for projects that have gained traction (at least 100 stars) and are actively being developed\". Topically a fit rather than a stretch - the list already carries an LLM gateway entry (Bifrost) - and 22 of the 30 most recently closed pull requests were merged, so the queue is live. The bar is the only thing holding this one.",
   },
 ];
 
