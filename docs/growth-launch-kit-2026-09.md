@@ -41,10 +41,13 @@ Two of these (1 and 2) are worth the time even if nothing else is. If you do onl
 thing this week, do #1 — that is the conclusion the data on every other channel
 supports, not a preference.
 
-There is now also **§4b, a data post that asks nothing of the reader** — four surveys of
-public MCP servers, with our own server measured by the same questions. It is the only copy in
-this file that can be pasted into a technical thread without pitching, so if you have five spare
-minutes after the list above, that is the one to use. Re-run the three scripts first, or keep the
+There are now also **§4b, §4c and §4d - three data posts that ask nothing of the reader**. They
+rest on nine surveys of public MCP servers, counted as of 2026-09-27 by `ls tools/survey-mcp-*.mjs`,
+so the number is re-checkable in one command rather than trusted: our own server is put through the same
+questions as everyone else's. These are the only copy in this file that can be pasted into a technical
+thread without pitching, so if you have five spare minutes after the list above, use whichever of the
+three matches the venue - §4c and §4d are the newest and each is built around a mistake, which travels
+better than a table. Re-run the scripts named at the end of the post you pick, or keep the
 "as of 2026-09-27" framing: a stale dataset about a moving ecosystem is worse than none.
 
 ---
