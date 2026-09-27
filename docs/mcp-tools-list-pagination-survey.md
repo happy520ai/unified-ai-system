@@ -69,3 +69,7 @@ node tools/survey-mcp-tools-list-pagination.mjs 40
 ```
 
 The script prints a JSON tally plus one row per server. It makes outbound requests to third-party services that are not ours; run it knowingly, and keep the timestamp with any number you quote from it.
+
+## Related measurement
+
+The same 40 endpoints were asked a second question an hour later: **will they agree to a protocol revision that does not exist?** Two of the nineteen that answered echoed `9999-99-99` with HTTP 200, and one server answered `2024-11-05` to both probes. See [mcp-protocol-revision-tolerance.md](mcp-protocol-revision-tolerance.md).
