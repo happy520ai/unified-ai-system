@@ -49,8 +49,9 @@ One server, `ai.adoraads/beauty`, answered `2024-11-05` in **both** probes. Same
 ## Reproduce
 
 ```bash
-node tools/survey-mcp-revision-tolerance.mjs 40   # this page: does it check the revision?
-node tools/survey-mcp-tools-list-pagination.mjs 40  # the paired reading: does it paginate?
+node tools/survey-mcp-revision-tolerance.mjs 40      # this page: does it check the revision?
+node tools/survey-mcp-tools-list-pagination.mjs 40   # the paired reading: does it paginate?
+node tools/survey-mcp-session-enforcement.mjs 40     # the third: does it require its own session id?
 ```
 
 Both scripts make outbound requests to third-party services that are not ours, and neither is wired into CI for that reason. Keep the timestamp with any number quoted from them.
