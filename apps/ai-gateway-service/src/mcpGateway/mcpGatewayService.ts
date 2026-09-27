@@ -199,31 +199,41 @@ export function createMcpGatewayService(options: {
     return config.allowedRoles.includes("*") || config.allowedRoles.includes(identity.role);
   }
 
-  async function listTools(identity: McpGatewayIdentity | null | undefined): Promise<{ tools: AggregatedMcpTool[]; servers: Array<{ id: string; error?: string }> }> {
+  // `observed` is what the upstream enumerated and `exposed` is what survived this gateway's
+  // allow-list, so the two different zeros an operator would otherwise conflate are named
+  // separately: observed=0 means the source contributes nothing (an OpenAPI document with no
+  // resolvable operations reads exactly like a healthy server here), and observed>0 with
+  // exposed=0 means the policy filtered everything. A server missing from this array is the
+  // only case that means "not enumerated yet".
+  async function listTools(identity: McpGatewayIdentity | null | undefined): Promise<{ tools: AggregatedMcpTool[]; servers: Array<{ id: string; observed?: number; exposed?: number; error?: string }> }> {
     const identityContext = requireIdentity(identity);
     const tools: AggregatedMcpTool[] = [];
-    const servers: Array<{ id: string; error?: string }> = [];
+    const servers: Array<{ id: string; observed?: number; exposed?: number; error?: string }> = [];
     for (const { config, client } of upstreams) {
       if (!upstreamAllowed(config, identityContext)) continue;
       const cached = toolListCache.get(config.id);
       if (cached && Date.now() - cached.at < TOOL_LIST_CACHE_TTL_MS) {
+        let exposed = 0;
         for (const tool of cached.tools) {
           if (toolAllowed(config.allowedTools, String(tool.name))) {
             tools.push(toAggregated(config, tool));
+            exposed += 1;
           }
         }
-        servers.push({ id: config.id });
+        servers.push({ id: config.id, observed: cached.tools.length, exposed });
         continue;
       }
       try {
         const upstreamTools = await client.listTools();
         toolListCache.set(config.id, { at: Date.now(), tools: upstreamTools });
+        let exposed = 0;
         for (const tool of upstreamTools) {
           if (toolAllowed(config.allowedTools, String(tool.name))) {
             tools.push(toAggregated(config, tool));
+            exposed += 1;
           }
         }
-        servers.push({ id: config.id });
+        servers.push({ id: config.id, observed: upstreamTools.length, exposed });
       } catch (error) {
         servers.push({ id: config.id, error: error instanceof Error ? error.message : String(error) });
       }

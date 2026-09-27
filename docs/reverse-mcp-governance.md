@@ -96,7 +96,7 @@ validation engine; business constraints remain upstream-owned.
 | Route | Permission | Behavior |
 | --- | --- | --- |
 | `GET /mcp/health` | `dashboard:read` | Registry readiness (sanitized). |
-| `GET /mcp/tools` | `workflow:run` | Aggregated tool list with `serverId__toolName` namespacing (60s listing cache). |
+| `GET /mcp/tools` | `workflow:run` | Aggregated tool list with `serverId__toolName` namespacing (60s listing cache). Each upstream reports `observed` (tools it enumerated) and `exposed` (tools left after this gateway's allow-list), so "the source contributes nothing" and "the policy filtered everything" are different readings rather than both looking healthy; an upstream that failed to enumerate reports `error` and no counts. |
 | `POST /mcp/call` | `workflow:run` | `{server, tool, arguments}` — ACL-checked, audited, size-capped upstream call. Mutations require exactly one `External-Effect-Key` or `Idempotency-Key` header. |
 
 Tool calls require an authenticated tenant context; the tenant is recorded

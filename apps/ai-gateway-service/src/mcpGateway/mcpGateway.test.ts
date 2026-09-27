@@ -136,7 +136,10 @@ describe("mcp gateway governance", () => {
     const result = await service.listTools(TENANT);
     expect(result.tools.map((tool) => tool.namespacedName)).toEqual(["weather__get_forecast"]);
     expect(result.tools[0]).toMatchObject({ readOnly: true, externalEffectRequired: false });
-    expect(result.servers).toEqual([{ id: "weather" }]);
+    // observed/exposed are the two halves of "this upstream is fine": a listing that
+    // says nothing about them cannot tell "the source has no tools" from "the allow-list filtered
+    // them", which is the defect this row now pins.
+    expect(result.servers).toEqual([{ id: "weather", observed: 2, exposed: 1 }]);
 
     // Second listing served from cache: upstream asked once.
     await service.listTools(TENANT);
@@ -885,5 +888,47 @@ describe('CORE010 actual OpenAPI mapper regressions', () => {
       spec: cases[0], allowedTools: ['*'], allowedTenants: ['tenant-a'] }] });
     expect((await badRegistry.listTools(TENANT)).tools).toEqual([]);
     expect((await badRegistry.listTools(TENANT)).servers[0].error).toContain('unsupported'); await badRegistry.close();
+  });
+});
+
+describe("mcp gateway upstream visibility (#174)", () => {
+  // Three readings of the same call, so the zeros are not all the same zero. The third row is
+  // the control: without it, rows one and two only prove the counters were never wired up.
+  const cases: Array<[string, Array<{ name: string }>, string[], number, number]> = [
+    ["source contributes nothing", [], ["*"], 0, 0],
+    ["policy filtered everything", [{ name: "a" }, { name: "b" }, { name: "c" }], ["no_match_*"], 3, 0],
+    ["one of three survives", [{ name: "a" }, { name: "b" }, { name: "c" }], ["a"], 3, 1],
+  ];
+
+  for (const [name, tools, allow, observed, exposed] of cases) {
+    it(`reports ${name} as observed=${observed} exposed=${exposed}, fresh and cached`, async () => {
+      const client = createFakeClient(tools);
+      const service = createMcpGatewayService({
+        upstreams: [{ config: { ...httpConfig({ allowedTools: allow }) }, client }],
+      });
+
+      const fresh = await service.listTools(TENANT);
+      expect(fresh.servers).toEqual([{ id: "weather", observed, exposed }]);
+
+      // The cached branch is a separate push in the service, so it has to be read separately.
+      const cached = await service.listTools(TENANT);
+      expect(cached.servers).toEqual([{ id: "weather", observed, exposed }]);
+      expect(cached.tools.length).toBe(exposed);
+      expect(client.listTools).toHaveBeenCalledTimes(1);
+      await service.close();
+    });
+  }
+
+  it("keeps a failing upstream reported as an error rather than as a zero", async () => {
+    // Boundary arm: observed/exposed must not be invented for a server that never enumerated.
+    // A zero here would read as "healthy but empty", which is the exact confusion being fixed.
+    const client = { listTools: vi.fn(async () => { throw new Error("upstream exploded"); }), callTool: vi.fn(), close: vi.fn() };
+    const service = createMcpGatewayService({
+      upstreams: [{ config: { ...httpConfig({}) }, client: client as never }],
+    });
+    const result = await service.listTools(TENANT);
+    expect(result.servers).toEqual([{ id: "weather", error: "upstream exploded" }]);
+    expect(JSON.stringify(result.servers[0])).not.toContain("observed");
+    await service.close();
   });
 });
