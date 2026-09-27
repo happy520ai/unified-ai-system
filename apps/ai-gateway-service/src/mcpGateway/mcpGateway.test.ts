@@ -49,6 +49,8 @@ function createFakeClient(tools: Array<{ name: string }>, calls: Array<{ name: s
   };
 }
 
+const openApiTenants: string[] = [String((TENANT as { tenantId?: unknown }).tenantId ?? "tenant-a")];
+
 function httpConfig(overrides: Partial<HttpGovernedConfig> = {}): HttpGovernedConfig {
   return {
     transport: "http",
@@ -956,7 +958,14 @@ describe("mcp gateway openapi upstreams (#174, real bridge)", () => {
       });
       const service = createMcpGatewayService({
         upstreams: [{
-          config: { ...httpConfig({ id: "rest-demo", transport: "openapi", allowedTools: allow }), spec: document } as never,
+          config: {
+            transport: "openapi",
+            id: "rest-demo",
+            baseUrl: "http://127.0.0.1:1/",
+            spec: document,
+            allowedTools: allow,
+            allowedTenants: openApiTenants,
+          } satisfies McpGovernedServerConfig,
           client,
         }],
       });
