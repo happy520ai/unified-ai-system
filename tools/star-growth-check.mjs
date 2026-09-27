@@ -798,6 +798,83 @@ export function queueHealth(closedPulls, { today, windowDays = 60, minSample = 5
   };
 }
 
+// Submission tickets that are ISSUES take no pull request, so the closed-PR sample above says
+// nothing about them: a directory site that has not emptied its issue queue in a year looks
+// identical to one that merges within a day. This reads the same shape off closed issues instead.
+// Pull requests are excluded from the sample because the issues endpoint returns both.
+export function ticketQueueHealth(closedItems, { today, windowDays = 60, deadDays = 120, minSample = 5 } = {}) {
+  if (!Array.isArray(closedItems)) return { verdict: "UNKNOWN", reason: "the closed-issue read failed" };
+  const issues = closedItems.filter((item) => item?.state === "closed" && item?.pull_request === undefined);
+  const sample = Array.isArray(closedItems) ? closedItems.length : 0;
+  if (issues.length < minSample) {
+    return {
+      verdict: "UNKNOWN",
+      reason: `only ${issues.length} closed issue(s) in a sample of ${sample}, fewer than ${minSample}`,
+      closedIssues: issues.length,
+      sample,
+    };
+  }
+  const dates = issues
+    .map((item) => item?.closed_at)
+    .filter((value) => typeof value === "string" && value.length > 0)
+    .map((value) => Date.parse(value))
+    .filter((value) => Number.isFinite(value))
+    .sort((a, b) => b - a);
+  const base = Date.parse(today ?? new Date().toISOString());
+  const summary = { closedIssues: issues.length, sample };
+  if (dates.length === 0) {
+    return { verdict: "UNKNOWN", reason: `no parseable closed_at on ${issues.length} closed issues`, ...summary };
+  }
+  if (!Number.isFinite(base)) return { verdict: "UNKNOWN", reason: "no reference date", ...summary };
+  const ageDays = Math.round((base - dates[0]) / 86_400_000);
+  const lastClosedAt = new Date(dates[0]).toISOString().slice(0, 10);
+  if (ageDays > deadDays) {
+    return {
+      verdict: "DEAD_DRAWER",
+      reason: `newest closed submission issue is ${ageDays} day(s) old (${lastClosedAt}), past ${deadDays}`,
+      lastClosedAt,
+      ...summary,
+    };
+  }
+  return {
+    verdict: ageDays <= windowDays ? "ALIVE" : "STALE",
+    reason: `newest closed submission issue is ${ageDays} day(s) old (${lastClosedAt}), window ${windowDays}/${deadDays}`,
+    lastClosedAt,
+    ...summary,
+  };
+}
+
+async function assessTicketQueues(repoNames) {
+  const out = [];
+  for (const repoName of [...new Set(repoNames)]) {
+    const result = safeGetJson(
+      `gh api "repos/${repoName}/issues?state=closed&sort=updated&direction=desc&per_page=30"`
+    );
+    out.push({
+      repo: repoName,
+      ...ticketQueueHealth(result.ok ? result.data : null, { today: new Date().toISOString() }),
+    });
+  }
+  return out;
+}
+
+function renderTicketQueueLines(assessments) {
+  const lines = ["### Whether each submission ticket's drawer is being emptied", ""];
+  const counts = {};
+  for (const item of assessments) {
+    counts[item.verdict] = (counts[item.verdict] ?? 0) + 1;
+    lines.push(`- ${item.verdict.padEnd(12)} ${item.repo} - ${item.reason}`);
+  }
+  lines.push("");
+  lines.push(
+    `Tallied: ${Object.entries(counts).map(([key, value]) => `${key}=${value}`).join(", ")} across ${assessments.length} ticket repositories.`
+  );
+  lines.push(
+    "This reads closed *issues* only, because these doors never carry a pull request. `DEAD_DRAWER` means the newest closed issue in the sample is older than 120 days: the queue is not slow, it is unattended, and a ticket there should be counted as zero expected listings. `UNKNOWN` means the sample was too small to say, and is not a claim of health."
+  );
+  return lines;
+}
+
 // One closed-sample read per repository. Shared by the standalone `queues` action and the
 // daily check, so a door's chance of ever merging is computed the same way in both.
 async function assessQueues(repoNames) {
@@ -2181,6 +2258,8 @@ async function run() {
     const queues = await assessQueues(openPrDoorRepos);
     const reply = await collectReplyRequests(rows, ownerLogin);
     let report = generateCheckReport(repoStats, rows, date, previous, claimSweep, remoteSweep, deferred, untracked, denominatorTruncated, carriers, queues, reply);
+    const ticketQueues = await assessTicketQueues(externalIssues.map(([repoName]) => repoName));
+    report += `\n${renderTicketQueueLines(ticketQueues).join("\n")}\n`;
     const coverage = await assessSearchCoverage();
     report += `\n${searchCoverageLines(coverage.urls, coverage.indexed, { error: coverage.error }).join("\n")}\n`;
     if (options.output) writeReport(options.output, report);

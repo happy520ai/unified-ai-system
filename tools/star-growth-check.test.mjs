@@ -23,6 +23,7 @@ import {
   publishedToolCount,
   replyRequestFrom,
   queueHealth,
+  ticketQueueHealth,
   searchCoverageLines,
   staleOwnClaimLines,
   staleToolCounts,
@@ -923,4 +924,49 @@ test("the count excuse does not reach into the version arm - a stale tag is stil
   const staleTag = "Install it with docker run the mcp-server:0.4.8 image";
   const findings = carrierFindings(staleTag, 15, "0.8.0");
   assert.deepEqual(findings, ["pins version 0.4.8, published release is 0.8.0"]);
+});
+
+// The submission tickets carry no pull request, so the closed-PR arm cannot tell whether anyone
+// empties those drawers - LuciferForge/mcp-directory#38 sat 49 days with no reading at all.
+// These arms exist for the two ways the issue-side reading could lie: counting pull requests as
+// issues (a repo whose PRs merge daily would call a dead directory alive), and letting a missing
+// closed_at read as "just closed".
+test('ticketQueueHealth reads issue closes only, and says when the sample is too small', () => {
+  const today = '2026-09-27T00:00:00Z';
+  const issue = (closedAt) => ({ state: 'closed', closed_at: closedAt });
+  const pr = (closedAt) => ({ state: 'closed', closed_at: closedAt, pull_request: { url: 'x' } });
+  const many = (n, make) => Array.from({ length: n }, make);
+
+  assert.equal(
+    ticketQueueHealth(many(5, () => issue('2026-09-24T00:00:00Z')), { today }).verdict,
+    'ALIVE',
+  );
+
+  // 25 merging pull requests must not outvote 4 cold issues
+  const contaminated = [...many(25, () => pr('2026-09-25T00:00:00Z')), ...many(4, () => issue('2025-01-05T00:00:00Z'))];
+  const contaminatedVerdict = ticketQueueHealth(contaminated, { today });
+  assert.equal(contaminatedVerdict.verdict, 'UNKNOWN');
+  assert.equal(contaminatedVerdict.closedIssues, 4);
+  assert.equal(contaminatedVerdict.sample, 29);
+  assert.match(contaminatedVerdict.reason, /sample of 29/);
+
+  const cold = [...many(4, () => issue('2025-11-01T00:00:00Z')), issue('2026-03-10T00:00:00Z')];
+  const dead = ticketQueueHealth(cold, { today });
+  assert.equal(dead.verdict, 'DEAD_DRAWER');
+  assert.equal(dead.lastClosedAt, '2026-03-10');
+  assert.match(dead.reason, /201 day\(s\) old/);
+
+  assert.equal(
+    ticketQueueHealth(many(5, () => issue('2026-07-20T00:00:00Z')), { today }).verdict,
+    'STALE',
+  );
+
+  // a closed item with no closed_at is ignored, not treated as the newest activity
+  const noDates = [...many(4, () => issue('2026-09-20T00:00:00Z')), { state: 'closed' }];
+  assert.equal(ticketQueueHealth(noDates, { today }).lastClosedAt, '2026-09-20');
+  assert.equal(ticketQueueHealth(many(6, () => ({ state: 'closed' })), { today }).verdict, 'UNKNOWN');
+
+  const failed = ticketQueueHealth(null, { today });
+  assert.equal(failed.verdict, 'UNKNOWN');
+  assert.equal(failed.reason, 'the closed-issue read failed');
 });
