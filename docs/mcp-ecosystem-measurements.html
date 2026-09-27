@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Four measurements of the public MCP ecosystem: pagination, revision checking, session ids, server/discover | Unified AI System</title>
+    <title>Five measurements of the public MCP ecosystem: pagination, revision checking, session ids, server/discover, instructions | Unified AI System</title>
     <meta
       name="description"
-      content="We asked 40 servers advertised in the official MCP registry four anonymous questions: does tools/list paginate (0 of 16 responders), will a server agree to a protocol version that does not exist (2 did), and does an issued session id have to come back (2 of 16 issue one, and both require it), and does anyone implement server/discover yet (1 of 16 does). Scripts included."
+      content="We asked 40 servers advertised in the official MCP registry five anonymous questions: does tools/list paginate (0 of 16 responders), will a server agree to a protocol version that does not exist (2 did), and does an issued session id have to come back (2 of 16 issue one, and both require it), and does anyone implement server/discover yet (1 of 16 does, and 9 of 16 already send server-written instructions into the prompt). Scripts included."
     />
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <meta name="theme-color" content="#081011" />
@@ -18,7 +18,7 @@
     <link rel="alternate" type="text/plain" href="llms.txt" title="LLM-readable project summary" />
     <link rel="icon" type="image/png" href="assets/mcp-icon.png" />
     <meta property="og:type" content="article" />
-    <meta property="og:title" content="Four measurements of the public MCP ecosystem" />
+    <meta property="og:title" content="Five measurements of the public MCP ecosystem" />
     <meta
       property="og:description"
       content="0 of 16 reachable servers paginate tools/list. 2 agreed to a protocol version that does not exist. 0 issued a session id and then ignored it. 1 of 16 implements server/discover; 12 have never heard of it."
@@ -64,9 +64,9 @@
   </head>
   <body>
     <main>
-      <h1>Four measurements of the public MCP ecosystem</h1>
+      <h1>Five measurements of the public MCP ecosystem</h1>
       <p class="lede">
-        We asked servers that are not ours four anonymous questions, because the claims we make about
+        We asked servers that are not ours five anonymous questions, because the claims we make about
         gateway behaviour were otherwise just opinions. Run 2026-09-27, sample of 40 servers advertised
         in the official MCP registry.
       </p>
@@ -214,6 +214,25 @@
         probe our own endpoint with this fourth script, so nothing here says whether we would answer it.
       </p>
 
+
+      <h2>5. How much server-written natural language do clients already swallow?</h2>
+      <p>
+        The fourth answer was a single server, but the field it returns is the interesting part:
+        <code>instructions</code> is server-controlled prose that a client is told it "can use ... by
+        including it in a system prompt" (<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/issues/3213">MCP-2026-015</a>).
+        Run 2026-09-27 18:19 UTC against the same 40 endpoints:
+      </p>
+      <ul>
+        <li><strong>9 of the 16 that answered <code>initialize</code> sent <code>instructions</code></strong> - between 72 and 1,423 characters, to an anonymous client, before any tool had been called. Eight distinct server names; one of them is registered at two endpoints and sent the field from both.</li>
+        <li>The one server that answers <code>server/discover</code> pairs its 617 characters with <code>cacheScope: "public"</code> and <code>ttlMs: 300000</code>. That is the exact combination the security issue describes as a cache-poisoning amplifier, running on a registry-advertised endpoint.</li>
+        <li><strong>0 of 9 matched any blatant override marker</strong> we looked for ("ignore all previous safety", "you are now", "do not tell", "system prompt", "OVERRIDE"). Read that narrowly: it says the deployed population is not currently <em>abusing</em> the field. It says nothing about whether the field is safe, and a null result on nine samples is not a risk assessment.</li>
+        <li>The legacy <code>initialize</code> path carries it 9 times, the new <code>server/discover</code> path 1. A mitigation scoped to <code>server/discover</code> would cover one tenth of where the prose actually arrives today.</li>
+      </ul>
+      <p>
+        No response text is re-emitted by the script: it records length, a SHA-256 prefix and a marker
+        count. Copying an <code>instructions</code> string into a terminal, a report or an issue is the
+        same act the issue is about, and this page is not going to commit it while arguing about it.
+      </p>
       <h2>Method, in one paragraph</h2>
       <p>
         Each script reads the official MCP registry for <code>streamable-http</code> records, takes the
@@ -227,7 +246,8 @@
       <pre><code>node tools/survey-mcp-tools-list-pagination.mjs 40
 node tools/survey-mcp-revision-tolerance.mjs 40
 node tools/survey-mcp-session-enforcement.mjs 40
-node tools/survey-mcp-server-discover.mjs 40</code></pre>
+node tools/survey-mcp-server-discover.mjs 40
+node tools/survey-mcp-instructions-field.mjs 40</code></pre>
 
       <h2>We ran the same three questions against ourselves</h2>
       <p>
@@ -288,7 +308,7 @@ node tools/survey-mcp-server-discover.mjs 40</code></pre>
         <li><strong>The sample is not random.</strong> It is the registry's default order at one timestamp, which over-represents server names beginning with <code>a</code>.</li>
         <li><strong><code>initialize</code> and <code>tools/list</code> only.</strong> Going further would mean invoking tools on services that are not ours.</li>
         <li><strong>No stdio coverage.</strong> That population is larger and unreachable by this method.</li>
-        <li><strong>One timestamp each, 2026-09-27.</strong> Servers deploy; a re-run is a new measurement, not a regression test. All four scripts are deliberately outside our CI for that reason.</li>
+        <li><strong>One timestamp each, 2026-09-27.</strong> Servers deploy; a re-run is a new measurement, not a regression test. All five scripts are deliberately outside our CI for that reason.</li>
       </ul>
 
       <footer>

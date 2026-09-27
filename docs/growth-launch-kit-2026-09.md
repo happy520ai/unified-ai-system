@@ -176,10 +176,10 @@ from the running page. If you touch `docs/site.js` again, bump that token in bot
 homepages or readers keep the old script.
 
 **When a post needs a credibility link rather than an install link, use:**
-https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.html — four anonymous
+https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.html — five anonymous
 surveys of 40 servers advertised in the official MCP registry (does `tools/list` paginate, will a
 server agree to a protocol version that does not exist, does an issued session id have to come back,
-does anyone implement `server/discover` yet),
+does anyone implement `server/discover` yet, and how much server-written prose reaches a prompt),
 each with its denominator, its sample bias and the script that produced it named on the page. It is
 in `docs/sitemap.xml` and `docs/indexnow.json`, and `pnpm check:public` fails if those two ever
 disagree, so it cannot quietly become an un-notified orphan.
