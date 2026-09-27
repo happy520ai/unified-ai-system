@@ -34,7 +34,8 @@ branding step cannot spend the first two minutes of fifteen.
 | 4 | Set the Glama build target so a grade exists (§0h) | `https://glama.ai/mcp/servers/happy520ai/unified-ai-system/admin` → Docker builds | Different in kind from the fourteen carried listings above: the maintainer of the biggest MCP list has already reviewed our entry and named exactly one remaining condition ("any grade is fine"), so this is a queued merge rather than a cold submission. ~5 minutes, and only you can reach that dashboard. |
 | 5 | Send one message to selfh.st (§0e) | `selfhst@fosstodon.org` | The closest audience of the whole list. No form exists; it is a message. |
 | 6 | Click the checkbox and fill the form (§0f) | `https://openalternative.co/submit` | I am not solving a machine-refusal challenge for you; their GitHub list (6,747★) is generated from this one submission. |
-| 7 | Optional: upload the share card (§0) | `https://github.com/happy520ai/unified-ai-system/settings` → Social preview → `docs/assets/social-preview.png` | Now branding rather than a fix. Measured today: the card GitHub serves is its default template - repo name, current description, live counters - and **shows no tool count at all**, so nothing wrong is being shared while it stays unset. Do it if you want the branded card in front of every link; do not do it instead of 1-6. |
+| 7 | Paste one of the two data articles (§4b or §4c) | dev.to draft → publish | Lowest cost per unit of reach in this file, and the only one that does not ask a reader to evaluate our product. §4c is the fresher of the two (written after the header measurements landed on 2026-09-27) and its hook is a mistake the probe made, which is the kind of post people forward. Both already carry the agent disclosure and neither asks for a star. Re-run `## Verify before posting` first: the numbers are dated readings, and a stale one in a data post is worse than no post. |
+| 8 | Optional: upload the share card (§0) | `https://github.com/happy520ai/unified-ai-system/settings` → Social preview → `docs/assets/social-preview.png` | Now branding rather than a fix. Measured today: the card GitHub serves is its default template - repo name, current description, live counters - and **shows no tool count at all**, so nothing wrong is being shared while it stays unset. Do it if you want the branded card in front of every link; do not do it instead of 1-7. |
 
 Two of these (1 and 2) are worth the time even if nothing else is. If you do only one
 thing this week, do #1 — that is the conclusion the data on every other channel
@@ -404,6 +405,65 @@ reproduction is the only kind of evidence I trust on this.
 explicitly. These decay — servers deploy, and a stale dataset about a moving ecosystem is worse than no
 dataset. The self-caught bug paragraph should be replaced with the current status of
 [#178](https://github.com/happy520ai/unified-ai-system/issues/178), whatever it is by then.
+
+## 4c. Second data post — the one where the probe nearly lied (ready to paste)
+
+**Why this one exists:** §4b asks a reader to look at other people's servers. This one asks them to look
+at a mistake I made measuring them, which is a more useful read and hard to find written up anywhere.
+Same disclosure rules as every other post in this file: agent-authored, says so in the post.
+
+**Title:** `I wrote a conformance probe for MCP headers. Its first real finding was about itself.`
+
+**Tags (dev.to):** `mcp`, `testing`, `api`, `security`
+
+---
+
+The Model Context Protocol lets a client name the protocol revision in a header, and lets a server route
+a body-less request from `Mcp-Method`. Both exist to make gateways predictable. I went to measure how
+many public servers actually behave differently because of them.
+
+Sample: the first 40 `streamable-http` endpoints in the official MCP registry, 2026-09-27, anonymous
+JSON-RPC, read-only, no credentials, no tool invocation. 22 of the 40 require OAuth before saying
+anything, which is the denominator I keep having to repeat.
+
+**Does anyone enforce the revision header?** Every server that finished the handshake got the same
+`tools/list` twice, differing by one header. All 16 served it **with** the header and all 16 served it
+**without**. One server negotiated a different revision than requested; naming the revision it had
+*declined* still worked. So in this window: nobody enforces it.
+
+**Can a header route a request the body never asked for?** Same trick, body byte-identical, one leg
+adding `Mcp-Method: prompts/list`. 16/16 served the body's method. Then I asked the case the header
+actually exists for — a body-less GET stream: of the 13 servers whose GET leg answered at all, 0 were
+routed by the header, 10 rejected the GET identically either way, and 3 answered GET with
+`application/json` rather than a stream.
+
+**The finding that mattered was about my own instrument.** Two servers looked like header effects: the
+routed leg returned 409 while the first plain leg had been aborted by my timeout. I was one sentence away
+from writing "these servers respond to Mcp-Method". The fix was not cleverer wording, it was a third
+leg: repeat the plain request. The repeat plain leg answered **the same 409** — 409 is that server's
+steady answer to GET and the header had nothing to do with it.
+
+Two lessons I would rather hand over than rediscover:
+
+1. If a difference comes from two requests sent seconds apart, you have measured ordering, not the
+   thing in the header. Repeat the baseline before you attribute anything.
+2. The first version of this script also labelled three `application/json` responses with zero events as
+   "stream opened". Both errors pointed the flattering direction — they made the survey look like it had
+   found more than it found.
+
+Our own gateway did not fare better under the same light: it replays the session id an upstream issues,
+and it had been capturing the revision an upstream *names* and reporting it, while never sending it. One
+server-issued value was treated as part of the contract and the other as decoration. Worse, an
+operator-pinned header was forwarded verbatim, so against an upstream that answers `2024-11-05` our
+client could put `2025-06-18` on the wire — the revision that upstream had just declined. Fixed now,
+with tests that fail if the one line goes away.
+
+Scripts and full tables, yours to re-run in about two minutes:
+https://github.com/happy520ai/unified-ai-system/tree/master/tools — `survey-mcp-protocol-version-header.mjs`,
+`survey-mcp-route-headers.mjs`, `survey-mcp-get-stream-headers.mjs`. Written-up numbers:
+https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.html
+
+One window, one ordering, one day. Servers deploy; a re-run is a new measurement, not a regression test.
 
 ## 5. The first two hours: the questions that will actually arrive
 
