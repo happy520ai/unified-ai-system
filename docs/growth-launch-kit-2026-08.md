@@ -5,7 +5,7 @@
 边界 + MCP/A2A 治理"，并明确当前仍是 Public Preview。
 
 一句话（EN）: *Self-hosted AI gateway with virtual keys & token budgets, exact
-+ lexical-approximate response cache, and reverse MCP governance (any OpenAPI spec →
++ lexical-approximate response cache, and reverse MCP governance (unambiguous OpenAPI operations →
 governed MCP tools) — verify the first path with zero credentials.*
 
 一句话（中）：*自托管 AI 网关：虚拟 key + token 预算、精确/语义双层响应缓存、
@@ -32,8 +32,8 @@ The project takes a different angle from model-aggregation-first gateways:
    windows, per-key RPM, soft-budget alerts, spend attribution, instant
    revocation. Consumers never hold provider keys.
 3. Reverse MCP governance: aggregate upstream MCP servers (HTTP + stdio) behind
-   one authenticated, audited, allow-listed surface. Any OpenAPI 3 spec becomes
-   governed MCP tools (REST→MCP).
+   one authenticated, audited, allow-listed surface. Each unambiguous OpenAPI 3
+   operation becomes a governed MCP tool (REST→MCP).
 4. Exact + lexical-approximate response cache on the chat hot path with byte-identical
    SSE replay and per-tenant isolation.
 5. Chat-native Prometheus metrics (TTFT histograms, tokens/model, cache hit
@@ -103,7 +103,7 @@ Reddit 规则提醒：三个 sub 分开发、间隔 ≥1 天、正文带 demo �
 
 5/ Reverse MCP governance: aggregate upstream MCP servers (HTTP + stdio)
    behind one authenticated, audited, allow-listed surface. And REST→MCP:
-   any OpenAPI 3 spec becomes governed MCP tools.
+   each unambiguous OpenAPI 3 operation becomes a governed MCP tool.
 
 6/ Observability: chat-native Prometheus metrics — TTFT histograms, tokens
    per model, cache hit rates, key rejections — plus optional Langfuse
@@ -171,7 +171,7 @@ provider execution remains explicitly opt-in:
 - **Response cache (exact + lexical-approximate)** — tenant-scoped hot-path caching
   with byte-identical JSON/SSE replay and an opt-in semantic layer.
 - **Reverse MCP governance** — aggregate upstream MCP servers (HTTP/stdio)
-  with tool ACLs, audits, and size caps; REST→MCP turns any OpenAPI 3 spec
+  with tool ACLs, audits, and size caps; REST→MCP turns each unambiguous OpenAPI 3 operation
   into governed MCP tools.
 - **Observability** — ai_gateway_* Prometheus metrics (TTFT histogram,
   tokens/model, cache hits, key rejections) + opt-in Langfuse export.

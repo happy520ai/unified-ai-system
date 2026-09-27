@@ -168,7 +168,7 @@ get read as drive-by marketing):**
 > limits, exact + lexical-approximate response caching, circuit breaking, an append-only
 > audit chain, Prometheus metrics and optional Langfuse export. It is also an MCP
 > server, and it does reverse MCP governance: upstream MCP servers (stdio and
-> HTTP) and any OpenAPI 3 spec get exposed as allow-listed, audited MCP tools.
+> HTTP) and the OpenAPI 3 operations whose semantics are unambiguous get exposed as allow-listed, audited MCP tools.
 >
 > The reason I built it the way I did, and the part I'd most want skeptical
 > readers to poke at: **the default provider is a deterministic local fake
@@ -241,7 +241,7 @@ without independent evidence, and on HN the ask reads as desperation anyway.
 > What you get: OpenAI/Anthropic-compatible endpoints over OpenAI, Anthropic,
 > Gemini, plus virtual keys with budgets and rate limits, exact + lexical-approximate
 > response cache, circuit breaking, Prometheus metrics, optional Langfuse, and an
-> MCP server that can also wrap *other* MCP servers and any OpenAPI 3 spec behind
+> MCP server that can also wrap *other* MCP servers and the operations an OpenAPI 3 document defines unambiguously, behind
 > allow-lists and audit.
 >
 > v0.8.0 today adds an agent governance control plane (permission lifecycle,
@@ -266,7 +266,7 @@ second Reddit self-promotion the same day.
 1. I keep meeting people who can't evaluate an AI gateway without first handing it an API key and trusting it. So the first design rule in ours was: the default provider is a deterministic fake one. Zero keys, nothing leaves the box, every feature still exercisable. Thread on how it works 🧵
 2. `docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.8.0` — that's the whole install. It's an MCP server. Tool discovery + all tool calls run against the fake provider.
 3. What the gateway actually is: OpenAI + Anthropic compatible APIs over OpenAI/Anthropic/Gemini. Virtual keys w/ per-key token budgets + rate limits. Exact + lexical-approximate response cache (semantic-grade needs an attached embedding endpoint). Circuit breaking. Append-only audit. Prometheus, optional Langfuse. Apache-2.0, self-hosted.
-4. The part I'm actually proud of — reverse MCP governance. Point it at your existing stdio/HTTP MCP servers and any OpenAPI 3 spec, and it re-exposes them as allow-listed, audited, budget-bounded tools. Governance is the product, routing is the substrate.
+4. The part I'm actually proud of — reverse MCP governance. Point it at your existing stdio/HTTP MCP servers and an OpenAPI 3 document, and it re-exposes them - operation by operation, refusing anything whose semantics it cannot resolve - as allow-listed, audited, budget-bounded tools. Governance is the product, routing is the substrate.
 5. v0.8.0 today: agent governance control plane + governed code delivery that verifies in a read-only network-disabled container (never commits/merges/deploys). Honest caveat: solo maintainer, single-host, no production track record. Repo ↓ github.com/happy520ai/unified-ai-system
 
 ---
