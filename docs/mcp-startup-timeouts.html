@@ -28,7 +28,7 @@
     <meta property="og:title" content="Why an MCP client times out before the server answers" />
     <meta
       property="og:description"
-      content="Measured: 6.4-8.5 s to answer `initialize` across three batches on one day (the gap between batches is not attributed), and 3-7 ms from that answer to a full 15-tool list. The budget is process boot, not your tools."
+      content="Measured: 6.4-8.5 s to answer `initialize` across three batches on one day (the gap between batches is not attributed), and 3-7 ms from that answer to a full 15-tool list. Under load it does not answer at all. The budget is process boot, not your tools."
     />
     <meta property="og:image" content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png" />
     <meta property="article:published_time" content="2026-09-27T04:14:00+00:00" />
@@ -155,6 +155,23 @@
           at</strong>, and every one of those readings is still seconds that a client spends waiting
           for <code>initialize</code>. All fourteen runs across the three batches returned the same
           15 tool names.
+        </p>
+        <p>
+          One more experiment moved this from "slow" to "fragile", and it is the reason the number
+          above should not be read as a latency complaint. Running the same three-repeat profile
+          while eight CPU burners were busy: <strong>0 of 3 runs answered at all within 45,000 ms</strong> -
+          not slower, absent. Kill the burners and measure again immediately: 3 of 3 answered at
+          6,618-6,669 ms. A loaded machine does not make this handshake 20% worse; past some point it
+          makes it not happen, and the effect reverses as soon as the load leaves. Three runs place no
+          number on that point.
+        </p>
+        <p>
+          This is the shape of the real complaint, because the machine most likely to run this server
+          is a laptop already compiling, indexing, or hosting other MCP servers. It is also why the
+          1.2-1.8 s gap between batches needs no code-change explanation to be plausible: load moves
+          this metric by <em>tens of seconds</em>, so a gap the size of one second is well inside its
+          reach. The interleaved pre-cut comparison remains the only thing that can say which it was,
+          and this page still does not claim startup got faster.
         </p>
       </section>
 

@@ -492,6 +492,13 @@ For a Chinese venue, the same reply in Chinese, with the same numbers and the sa
 > （批次之间的差距我们还没有归因，也不声称它变快了），完整工具清单只在其后 3-7 毫秒到达——所以这段等待是进程启动，不是工具枚举。问题公开记在 #168，测量方法
 > 和这条测量的边界都在 https://happy520ai.github.io/unified-ai-system/mcp-startup-timeouts.zh-CN.html
 
+If the visitor's version of this is "it never answered at all", do not treat that as a
+different complaint - it is the same one further along. Measured: with eight CPU burners running,
+three of three repeats got no `initialize` response inside 45 s; kill the load and the same build
+answers again at 6.6 s. So the honest reply is not "your machine is busy", it is that we have a
+fragile handshake and a 30 s budget that is a hard-coded literal with no configuration path, both
+tracked in #168. Say that, then say the reproduction is two commands.
+
 Do not defend it as configuration. A named, measured, self-filed bug converts better than a
 smoothing answer, and this is the one question where a prospect is quietly deciding whether you
 know your own software.
