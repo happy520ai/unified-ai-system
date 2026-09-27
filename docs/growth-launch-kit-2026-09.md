@@ -199,8 +199,10 @@ get read as drive-by marketing):**
 >   the v0.7.0 image exposed 12. Both readings are checkable without installing anything:
 >   `node tools/verify-image-roster.mjs 0.8.0` pulls `MCP_TOOL_NAMES` straight out of the
 >   published layer and verifies every blob against the digest its manifest names, so nobody
->   has to take my word for either number. The README hero, the architecture image and the
->   link-preview card all render 15 too.
+>   has to take my word for either number. That command is a script in the repository, so run it
+>   from a clone; without one, the same reading is published at
+>   https://happy520ai.github.io/unified-ai-system/verify-mcp-docker-image.html. The README
+>   hero, the architecture image and the link-preview card all render 15 too.
 > - Native Codex-backed role execution is Windows x64 only.
 >
 > I will not claim this is better than LiteLLM/Portkey/OpenRouter — they are
@@ -432,7 +434,9 @@ Field values, after re-running "Verify before posting" so every word in them is 
 > the published image's manifest, fetches each layer blob and checks it against the
 > digest the manifest names, then prints the MCP tool roster the image actually contains
 > — no Docker, no API key, no trust in a README. `node tools/verify-image-roster.mjs
-> <tag>`. Behind it: deterministic local prompt enhancement that makes no provider call,
+> <tag>`, from a clone of the repo; the same reading without one is at
+> https://happy520ai.github.io/unified-ai-system/verify-mcp-docker-image.html. Behind it:
+> deterministic local prompt enhancement that makes no provider call,
 > virtual keys with per-key token budgets, an append-only audit chain, and reverse
 > governance that turns upstream MCP servers and OpenAPI 3 operations into allow-listed
 > tools.
@@ -468,7 +472,9 @@ So the path is one message from you. It has to clear their editorial bar (they c
 > The part I'd actually want a reader to try: nothing in the README asks for trust.
 > `node tools/verify-image-roster.mjs <tag>` resolves the published image manifest,
 > fetches each layer blob, checks it against the digest the manifest names, and prints
-> the MCP tool roster the image really exposes — no Docker daemon, no API key. Docker
+> the MCP tool roster the image really exposes — no Docker daemon, no API key. It is a
+> script in the tree, so run it from a clone; the same proof without a clone is published
+> at https://happy520ai.github.io/unified-ai-system/verify-mcp-docker-image.html. Docker
 > Compose up against a local fake provider gives a working gateway in one command.
 >
 > Repo: https://github.com/happy520ai/unified-ai-system
