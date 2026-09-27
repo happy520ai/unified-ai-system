@@ -338,6 +338,25 @@ image instead of out of a README, and the drill-evidence page carries the securi
 The numbers worth quoting are the ones read the same day: tool count from the image, stars from
 the repository page, cold-start latency from a local run.
 
+### "Is any of this landing anywhere but in your own repository?"
+
+Two dated readings, both outside our repository, both checkable by clicking:
+
+- `ljcl/intervals-mcp` issue #91 (filed 2026-09-26) reported that their MCP registry publish
+  had no validation before release and no recovery run. The maintainer shipped
+  [pull request #123](https://github.com/ljcl/intervals-mcp/pull/123) - 4 files, +164/-23,
+  merged to `main` at 2026-09-27T05:13:39Z, which adds a `validate` job that stamps
+  `server.json` the way a publish would and runs `mcp-publisher validate` on every PR that
+  touches it - then closed #91 as completed. Twenty-seven hours from report to fix.
+- `happyvertical/smrt` issue #2961 reported that the launcher in their README never answers
+  `initialize` while `node dist/index.js` answers instantly. Their maintainer claimed it with
+  an agent lease on branch `codex/2961-lean-mcp` at 2026-09-27T05:48:47Z and the work is
+  active. Not fixed yet, and we are not counting it until it merges.
+
+> Two of the three audits we run against other people's MCP servers have turned into upstream
+> changes within a day of being filed. The third is still open, and this line will say so until
+> it is not.
+
 ### "It sat there for eight seconds before it answered."
 
 Yes, and it is filed publicly: issue #168 measures `initialize` at 7.5-8.5 s and lists the runs.
