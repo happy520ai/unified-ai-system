@@ -67,6 +67,7 @@ function answeredRevision(result: unknown): string | undefined {
 async function collectUpstreamTools(
   label: string,
   fetchPage: (params: Record<string, unknown>) => Promise<Record<string, unknown>>,
+  hints?: { ttlMs?: number; cacheScope?: string },
 ): Promise<McpToolDescriptor[]> {
   const seen = new Map<string, McpToolDescriptor>();
   let cursor: string | undefined;
@@ -75,7 +76,11 @@ async function collectUpstreamTools(
     if (response.error) {
       throw new Error(`${label} tools/list failed: ${JSON.stringify(response.error).slice(0, 300)}`);
     }
-    const result = response.result as { tools?: unknown; nextCursor?: unknown } | undefined;
+    const result = response.result as { tools?: unknown; nextCursor?: unknown; ttlMs?: unknown; cacheScope?: unknown } | undefined;
+    if (page === 1 && hints) {
+      if (typeof result?.ttlMs === "number" && Number.isFinite(result.ttlMs)) hints.ttlMs = result.ttlMs;
+      if (typeof result?.cacheScope === "string") hints.cacheScope = result.cacheScope;
+    }
     if (Array.isArray(result?.tools)) {
       for (const tool of result.tools) {
         if (!tool || typeof tool !== "object") continue;
@@ -141,6 +146,7 @@ export function createHttpMcpUpstream(config: McpUpstreamHttpConfig, options: {
   let sessionId: string | null = null;
   let initialized = false;
   let negotiatedRevision: string | undefined;
+  let listHints: { ttlMs?: number; cacheScope?: string } | undefined;
 
   async function post(body: Record<string, unknown>, signal?: AbortSignal): Promise<Record<string, unknown>> {
     throwIfExecutionAborted(signal);
@@ -217,9 +223,13 @@ export function createHttpMcpUpstream(config: McpUpstreamHttpConfig, options: {
     id: config.id,
     transport: "http" as const,
     protocolVersion: () => negotiatedRevision,
+    cacheHints: () => listHints,
     async listTools(): Promise<McpToolDescriptor[]> {
       await ensureInitialized();
-      return collectUpstreamTools(`MCP upstream ${config.id}`, (params) => post(createRequest("tools/list", params)));
+      const collected: { ttlMs?: number; cacheScope?: string } = {};
+      const tools = await collectUpstreamTools(`MCP upstream ${config.id}`, (params) => post(createRequest("tools/list", params)), collected);
+      listHints = Object.keys(collected).length > 0 ? collected : undefined;
+      return tools;
     },
     async callTool(
       name: string,
@@ -247,6 +257,7 @@ export function createStdioMcpUpstream(config: McpUpstreamStdioConfig, options: 
   let buffer = "";
   let initialized = false;
   let negotiatedRevision: string | undefined;
+  let listHints: { ttlMs?: number; cacheScope?: string } | undefined;
   const pending = new Map<number, { resolve: (message: Record<string, unknown>) => void; reject: (error: Error) => void }>();
 
   function ensureChild() {
@@ -379,9 +390,13 @@ export function createStdioMcpUpstream(config: McpUpstreamStdioConfig, options: 
     id: config.id,
     transport: "stdio" as const,
     protocolVersion: () => negotiatedRevision,
+    cacheHints: () => listHints,
     async listTools(): Promise<McpToolDescriptor[]> {
       await ensureInitialized();
-      return collectUpstreamTools(`MCP stdio upstream ${config.id}`, (params) => request("tools/list", params));
+      const collected: { ttlMs?: number; cacheScope?: string } = {};
+      const tools = await collectUpstreamTools(`MCP stdio upstream ${config.id}`, (params) => request("tools/list", params), collected);
+      listHints = Object.keys(collected).length > 0 ? collected : undefined;
+      return tools;
     },
     async callTool(
       name: string,

@@ -27,6 +27,24 @@ export type { McpGovernedServerConfig } from "./mcpGatewayConfig.ts";
 const MAX_ARGUMENTS_CHARS = 100_000;
 const MAX_RESULT_CHARS = 1_000_000;
 const TOOL_LIST_CACHE_TTL_MS = 60_000;
+// Bounds on a server's own ttlMs. The floor keeps a declared 0 from turning /mcp/tools into a
+// per-request upstream handshake (measured cold start is seconds); the ceiling stops one response
+// from freezing a tool list for a day. Both are our policy, stated because the server's number is
+// an input to it, not an instruction to cache forever or not at all.
+const TOOL_LIST_MIN_TTL_MS = 1_000;
+const TOOL_LIST_MAX_TTL_MS = 600_000;
+
+function cachePolicyFor(hints: { ttlMs?: number; cacheScope?: string } | undefined): { ttlMs: number; sharedAcrossTenants: boolean } {
+  const declared = hints?.ttlMs;
+  const ttlMs = typeof declared === "number" && Number.isFinite(declared)
+    ? Math.min(TOOL_LIST_MAX_TTL_MS, Math.max(TOOL_LIST_MIN_TTL_MS, Math.floor(declared)))
+    : TOOL_LIST_CACHE_TTL_MS;
+  // "private" is the server saying the response belongs to one session/credential. Our request is
+  // built from the upstream config, not the caller, so nothing differs per tenant today - but a
+  // process-global map is a shared cache, and sharing what the server called private is the exact
+  // assumption that would turn a future per-caller header into a cross-tenant leak.
+  return { ttlMs, sharedAcrossTenants: hints?.cacheScope !== "private" };
+}
 interface McpGatewayClient {
   listTools(): Promise<McpToolDescriptor[]>;
   callTool(
@@ -38,6 +56,7 @@ interface McpGatewayClient {
   // Absent on upstream kinds that negotiate nothing (an OpenAPI bridge has no initialize
   // handshake), so callers must not read a missing value as an old revision.
   protocolVersion?: () => string | undefined;
+  cacheHints?: () => { ttlMs?: number; cacheScope?: string } | undefined;
 }
 
 interface GovernedUpstream {
@@ -142,7 +161,7 @@ export function createMcpGatewayService(options: {
         ? createOpenApiRestBridge(config as Parameters<typeof createOpenApiRestBridge>[0])
         : createMcpUpstreamFromConfig(config),
     }));
-  const toolListCache = new Map<string, { at: number; tools: McpToolDescriptor[] }>();
+  const toolListCache = new Map<string, { at: number; ttlMs: number; tools: McpToolDescriptor[] }>();
 
   function getReadiness() {
     return {
@@ -231,8 +250,9 @@ export function createMcpGatewayService(options: {
     const servers: McpServerSummary[] = [];
     for (const { config, client } of upstreams) {
       if (!upstreamAllowed(config, identityContext)) continue;
-      const cached = toolListCache.get(config.id);
-      if (cached && Date.now() - cached.at < TOOL_LIST_CACHE_TTL_MS) {
+      const cacheKey = `${config.id}#shared`;
+      const cached = toolListCache.get(cacheKey) ?? toolListCache.get(`${config.id}#${identityContext.tenantId}`);
+      if (cached && Date.now() - cached.at < cached.ttlMs) {
         let exposed = 0;
         for (const tool of cached.tools) {
           if (toolAllowed(config.allowedTools, String(tool.name))) {
@@ -245,7 +265,12 @@ export function createMcpGatewayService(options: {
       }
       try {
         const upstreamTools = await client.listTools();
-        toolListCache.set(config.id, { at: Date.now(), tools: upstreamTools });
+        const policy = cachePolicyFor(client.cacheHints?.());
+        toolListCache.set(policy.sharedAcrossTenants ? cacheKey : `${config.id}#${identityContext.tenantId}`, {
+          at: Date.now(),
+          ttlMs: policy.ttlMs,
+          tools: upstreamTools,
+        });
         let exposed = 0;
         for (const tool of upstreamTools) {
           if (toolAllowed(config.allowedTools, String(tool.name))) {

@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import {
   createMcpGatewayService,
   type McpGovernedServerConfig,
@@ -1080,6 +1080,105 @@ describe("mcp upstream client puts the negotiated revision on the wire (#183)", 
     await client.listTools();
     expect(headerFor("tools/list")).toBe("2024-11-05");
     await client.close();
+  });
+});
+
+describe("mcp gateway honours an upstream's own cache hints (#184)", () => {
+  // A frozen clock is the whole test: without it "cached" and "refetched" are indistinguishable in a
+  // suite that finishes in milliseconds.
+  let nowMs = 0;
+  beforeEach(() => {
+    nowMs = 1_700_000_000_000;
+    vi.spyOn(Date, "now").mockImplementation(() => nowMs);
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function hintClient(hints: { ttlMs?: number; cacheScope?: string } | undefined, allowedTenants: string[] = ["tenant-a"]) {
+    const listTools = vi.fn(async () => [{ name: "get_forecast" }] as never);
+    const client: Record<string, unknown> = {
+      id: "weather",
+      transport: "http",
+      listTools,
+      callTool: vi.fn(async () => ({ content: [] })),
+      close: vi.fn(async () => undefined),
+    };
+    // Only expose cacheHints when the server said something - a client that answers nothing must
+    // behave exactly like it did before this change.
+    if (hints !== undefined) client.cacheHints = () => hints;
+    return {
+      client: client as never,
+      config: httpConfig({ allowedTools: ["get_forecast"], allowedTenants }) as never,
+      listTools,
+    };
+  }
+
+  it("keeps a long declared ttlMs far beyond our own default window", async () => {
+    const { client, config, listTools } = hintClient({ ttlMs: 300_000 });
+    const service = createMcpGatewayService({ upstreams: [{ config, client }] });
+    await service.listTools(TENANT);
+    nowMs += 120_000; // 2 minutes: past the old hard-coded 60 s, inside the server's 5 minutes
+    await service.listTools(TENANT);
+    expect(listTools).toHaveBeenCalledTimes(1);
+    await service.close();
+  });
+
+  it("floors a tiny declared ttlMs instead of turning every read into a handshake", async () => {
+    const { client, config, listTools } = hintClient({ ttlMs: 1 });
+    const service = createMcpGatewayService({ upstreams: [{ config, client }] });
+    await service.listTools(TENANT);
+    nowMs += 500; // under the 1 s floor: still served from cache
+    await service.listTools(TENANT);
+    expect(listTools).toHaveBeenCalledTimes(1);
+    nowMs += 1_000; // past the floor: the server asked for freshness, so we re-read
+    await service.listTools(TENANT);
+    expect(listTools).toHaveBeenCalledTimes(2);
+    await service.close();
+  });
+
+  it("caps a wild ttlMs rather than freezing a tool list forever", async () => {
+    const { client, config, listTools } = hintClient({ ttlMs: 999_999_999 });
+    const service = createMcpGatewayService({ upstreams: [{ config, client }] });
+    await service.listTools(TENANT);
+    nowMs += 600_001; // one ms past the 10 minute ceiling
+    await service.listTools(TENANT);
+    expect(listTools).toHaveBeenCalledTimes(2);
+    await service.close();
+  });
+
+  it("keeps the old 60 second behaviour when the upstream says nothing", async () => {
+    const { client, config, listTools } = hintClient(undefined);
+    const service = createMcpGatewayService({ upstreams: [{ config, client }] });
+    await service.listTools(TENANT);
+    nowMs += 59_000;
+    await service.listTools(TENANT);
+    expect(listTools).toHaveBeenCalledTimes(1);
+    nowMs += 2_000;
+    await service.listTools(TENANT);
+    expect(listTools).toHaveBeenCalledTimes(2);
+    await service.close();
+  });
+
+  it("does not share a response the upstream called cacheScope private across tenants", async () => {
+    const { client, config, listTools } = hintClient({ ttlMs: 300_000, cacheScope: "private" }, ["tenant-a", "tenant-b"]);
+    const service = createMcpGatewayService({ upstreams: [{ config, client }] });
+    await service.listTools(TENANT);
+    await service.listTools({ tenantId: "tenant-b", role: "operator" } as never);
+    expect(listTools).toHaveBeenCalledTimes(2);
+    await service.close();
+  });
+
+  it("still shares a public or unstated scope, so the fix is not a blanket cache disable", async () => {
+    const shared = hintClient({ ttlMs: 300_000, cacheScope: "public" }, ["tenant-a", "tenant-b"]);
+    const service = createMcpGatewayService({ upstreams: [{ config: shared.config, client: shared.client }] });
+    const first = await service.listTools(TENANT);
+    const second = await service.listTools({ tenantId: "tenant-b", role: "operator" } as never);
+    // Both tenants must actually see the server, or this arm proves nothing about sharing.
+    expect(first.servers.map((s: { id: string }) => s.id)).toEqual(["weather"]);
+    expect(second.servers.map((s: { id: string }) => s.id)).toEqual(["weather"]);
+    expect(shared.listTools).toHaveBeenCalledTimes(1);
+    await service.close();
   });
 });
 

@@ -185,6 +185,10 @@ try {
     route_headers: {
       body_method: "tools/list",
       baseline_result_keys: keysOf(baseline),
+      // Do WE tell a cache anything? Same question the public survey asks strangers.
+      our_tool_field_names: Object.keys(baseline.payload?.result?.tools?.[0] ?? {}),
+      our_result_ttlMs_present: keysOf(baseline).includes("ttlMs"),
+      our_result_cacheScope_present: keysOf(baseline).includes("cacheScope"),
       spoof_prompts_list: {
         status: spoofed.status,
         result_keys: keysOf(spoofed),
