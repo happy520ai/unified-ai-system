@@ -145,6 +145,11 @@ const externalPrs = [
   // name and documents the contribution contract, so the door was filed to it: both READMEs,
   // one CHANGELOG line, and `scripts/format_readmes.py` run afterwards changing nothing.
   ["ikaijua/Awesome-AITools", 1045],
+  // Found by the same content search, one anchor over: this list's MCP Servers section
+  // already carries a dozen upstream MCP servers, and its CONTRIBUTING asks for an entry in
+  // both README.md and README_JA.md plus a bump to the total tool count each file states.
+  // The bilingual half is why the diff is 2/1 per file rather than one line.
+  ["eltociear/awesome-AI-driven-development", 140],
 ];
 
 // Submission doors that are ISSUES, not pull requests: directory sites that take a
