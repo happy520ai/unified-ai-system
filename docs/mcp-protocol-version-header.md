@@ -79,9 +79,26 @@ operator-pin arm reports the exact wrong value (`2025-06-18`) on the wire. Two f
 answers no revision, and one that answers an empty string — stay green in both states by design: they are
 there to catch a future fallback, not to prove this one.
 
+## What our own server does, observed rather than read out of source
+
+`tools/probe-own-mcp-header-behavior.mjs` boots `packages/mcp-server/src/http.js` in-process on the
+credential-free local runtime, asks it to `initialize`, then sends the same `tools/list` under three
+header shapes:
+
+- answered revision: **2025-06-18**, asked: 2025-06-18, session id issued: **no**, tools served: **15**
+- header present: http 200, 15 tools
+- header absent: http 200, 15 tools
+- header naming a revision this server never agreed to: http 200, 15 tools
+
+So we are one of the permissive ones, and that is now an observation instead of a code reading. The
+probe refuses to publish any of it if its own baseline leg fails to reach a tool list:
+`--tamper-blind` sends the request to a path one character off, and that run exits 3 with
+`INSTRUMENT_BLIND` and the sentence `this run says nothing about header handling` - because a
+misconfigured probe otherwise looks exactly like a server that accepted everything.
+
 ## Deliberately not claimed
 
-- That this fixed an interoperability failure. Nothing in the sample rejects an headerless request today.
+- That this fixed an interoperability failure. Nothing in the sample rejects a headerless request today.
 - That the header is unimportant. The sample says who enforces it *now*; the spec says what a client owes.
 - That our HTTP server enforces inbound revisions. It advertises the header over CORS and does not read its
   value — measured behaviour, and a documented choice: the gateway negotiates and records revisions
@@ -93,5 +110,7 @@ there to catch a future fallback, not to prove this one.
 
 ```bash
 node tools/survey-mcp-protocol-version-header.mjs 40   # anonymous, read-only, one window
-npx vitest run apps/ai-gateway-service/src/mcpGateway/mcpGateway.test.ts
+node tools/probe-own-mcp-header-behavior.mjs              # our own server, local runtime, no credentials
+node tools/probe-own-mcp-header-behavior.mjs --tamper-blind   # must exit 3: the probe can refuse
+npx vitest run apps/ai-gateway-service/src/mcpGateway/mcpGateway.test.ts   # the five client arms
 ```
