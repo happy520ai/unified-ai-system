@@ -386,7 +386,7 @@ pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile co
 - [文档总览](docs/README.md)：安装、CLI、自然语言增强与 provider 配置。
 - [Codex MCP 快速开始](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html)：最快接入 Codex 与 MCP；仓库内同时保留[源码指南](docs/codex-mcp-quickstart.md)。
 - [自托管 AI 网关对比（各自原话）](https://happy520ai.github.io/unified-ai-system/self-hosted-ai-gateways-compared.zh-CN.html)：LiteLLM、Portkey Gateway、Agent Router 与本项目，逐条摘自各自 README 并标注阅读日期，另附移交智能体流量前应当先问的三个问题。
-- [有人真的在分页 `tools/list` 吗？](https://github.com/happy520ai/unified-ai-system/blob/master/docs/mcp-tools-list-pagination-survey.md)：向官方 MCP 注册表登记的 40 个服务器匿名提问——16 个应答者中 0 个分页，22 个完全不接受匿名查看，还有 1 个回答了我们没请求的旧协议版本，而那恰好暴露了我们自己客户端的一个缺陷。
+- [对公开 MCP 生态的三项测量](https://github.com/happy520ai/unified-ai-system/blob/master/docs/mcp-tools-list-pagination-survey.md)——向官方注册表登记的 40 个服务器匿名提问：[16 个应答者中 0 个在分页 `tools/list`](https://github.com/happy520ai/unified-ai-system/blob/master/docs/mcp-tools-list-pagination-survey.md)、[其中 2 个答应使用一个根本不存在的协议版本](https://github.com/happy520ai/unified-ai-system/blob/master/docs/mcp-protocol-revision-tolerance.md)、而[发出 session id 的那 2 个服务器都要求把它带回来](https://github.com/happy520ai/unified-ai-system/blob/master/docs/mcp-session-enforcement.md)。40 个里有 22 个根本不接受匿名客户端，每一页都如实写明自己的分母是什么。每页都附带脚本，两分钟就能自己重跑一遍。
 - [贡献指南](CONTRIBUTING.md)：聚焦改动与安全验证要求。
 - [使用报告模板](.github/ISSUE_TEMPLATE/usage-verification-report.yml)：提交可复现反馈。
 - [引用本项目](CITATION.cff)、[路线图](ROADMAP.md)与[支持页面](SUPPORT.md)。
