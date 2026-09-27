@@ -357,6 +357,7 @@ const rootPackage = readJson("package.json");
 const servicePackage = readJson("apps/ai-gateway-service/package.json");
 const registryMetadata = readJson("server.json");
 const pluginManifest = readJson(".codex-plugin/plugin.json");
+const mcpServerPackage = readJson("packages/mcp-server/package.json");
 const pluginMcpConfig = readTrackedJson(".mcp.json");
 const requiredScripts = [
   "start",
@@ -431,6 +432,18 @@ if (pluginManifest.version !== rootPackage.version) {
     "codex_plugin_version_mismatch",
     ".codex-plugin/plugin.json#version",
     `${pluginManifest.version} != ${rootPackage.version}`,
+  );
+}
+
+// The published MCP image is tagged from this package's own version, and every other version
+// guard above compares against the root manifest - so a release bump that updates the root,
+// server.json and plugin.json but misses packages/mcp-server/package.json ships an image whose
+// tag and internal version disagree, with this check still green.
+if (mcpServerPackage.version !== rootPackage.version) {
+  addError(
+    "mcp_server_package_version_mismatch",
+    "packages/mcp-server/package.json#version",
+    `${mcpServerPackage.version} != ${rootPackage.version}`,
   );
 }
 

@@ -790,6 +790,57 @@ control, so this has to be clicked; it cannot be committed.
 
 ---
 
+## 0i. If you want v0.8.1 - the release that would make our own docs true
+
+**Why this exists:** three fixes are on `master` and in no published image. The upstream-visibility
+fields (`observed`/`exposed`), the `tools/list` walk that refuses a truncated enumeration (#177),
+and the governance surfaces documented in `docs/reverse-mcp-governance.md`. That document now
+describes behaviour a person running `mcp-server:0.8.0` cannot reproduce. It is not a false claim -
+the repository does what it says - but the gap between "the repo" and "the image" is exactly the
+kind of thing that gets read as a broken promise.
+
+**The surface, measured today rather than from memory:** `git grep -l "0\.8\.0"` returns **60 files
+carrying 236 occurrences**. Of those, four are *declared* versions that must move together:
+
+| File | Guarded by |
+| --- | --- |
+| `package.json` | the reference everything else is compared to |
+| `server.json` | `mcp_registry_version_mismatch` |
+| `.codex-plugin/plugin.json` | `codex_plugin_version_mismatch` |
+| `packages/mcp-server/package.json` | `mcp_server_package_version_mismatch` - **added today** |
+
+That last row was a real hole, not a tidy-up. The published image is tagged from that package's own
+version, and every existing guard compared against the root manifest, so a bump that updated
+`package.json`, `server.json` and `plugin.json` and missed `packages/mcp-server/package.json`
+produced an image whose tag and internal version disagreed **with `pnpm check:public` still green**.
+Proven by tampering rather than asserted: setting that one file to `0.8.1` flipped the gate to
+`"ok": false` naming exactly `mcp_server_package_version_mismatch` and no other version guard, then
+reverting restored `"ok": true` with the file byte-identical to `HEAD`.
+
+**What no gate covers:** the other ~56 files are prose. `public-repo-check.mjs` pins one version
+literal, so a half-finished documentation sweep is invisible to CI by construction. Enumerate them
+before committing: `git grep -l "0\.8\.0"` and read the list.
+
+**What must NOT move:** `CHANGELOG.md`'s 0.8.0 entry, `docs/growth-launch-kit-2026-08.md`, the
+as-of certification matrices (`docs/mcp-client-compatibility.md`,
+`docs/protocol-client-compatibility.md` and their `.zh-CN` twins), anything under `docs/history/`,
+and the sealed roster in `tools/check-pinned-count.mjs`. That roster records what each *published*
+release exposed (0.4.9→9, 0.5.0→12, 0.7.0→12, 0.8.0→15) and is **extended, never edited** - and the
+new entry has to come from reading the roster out of the built image, not from the source count,
+which is the whole reason the roster exists.
+
+**Gate order, because the last one is not optional but is locally broken:**
+`pnpm check` → `pnpm test` → `pnpm check:public` → commit → `pnpm verify:public-clone` → tag → push.
+`verify:public-clone` currently fails on this machine for a reason unrelated to any change: its
+hard-coded 480 s budget against a measured ~451 s run, and it refuses a dirty tree, so it must come
+after the commit. The authoritative reading is the CI step **"Public clone runtime"** on the pushed
+commit - on the v0.8.0 release commit it reported success while the same gate failed locally three
+times.
+
+**Why this is a decision and not a task.** The push-and-tag approval that shipped v0.8.0 was for
+that release. A new tag and a new published image are the same kind of shared, hard-to-reverse
+action, so they need their own yes - which is the reason this section exists: to make the yes cost
+one sentence rather than an afternoon of archaeology.
 ## Verify before posting (re-run, do not trust this file)
 
 ```bash
