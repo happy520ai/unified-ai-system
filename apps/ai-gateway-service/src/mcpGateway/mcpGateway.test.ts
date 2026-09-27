@@ -1009,6 +1009,80 @@ describe("mcp gateway reports the negotiated upstream revision (#178)", () => {
   });
 });
 
+describe("mcp upstream client puts the negotiated revision on the wire (#183)", () => {
+  function recordingUpstream(initResult: Record<string, unknown>, extraHeaders?: Record<string, string>) {
+    const calls: Array<{ method: string | undefined; headers: Record<string, string> }> = [];
+    const fetchImpl = vi.fn(async (_url: string, init: Record<string, unknown>) => {
+      const body = JSON.parse(String(init.body));
+      const headers = (init.headers ?? {}) as Record<string, string>;
+      calls.push({ method: body.method, headers: { ...headers } });
+      if (body.method === "initialize") {
+        return respond({ jsonrpc: "2.0", id: body.id, result: initResult });
+      }
+      if (body.method === "tools/list") {
+        return respond({ jsonrpc: "2.0", id: body.id, result: { tools: [{ name: "get_forecast" }] } });
+      }
+      return respond({ jsonrpc: "2.0", id: body.id, result: {} });
+    });
+    const client = createHttpMcpUpstream(
+      httpConfig({ allowedTools: ["get_forecast"], ...(extraHeaders ? { headers: extraHeaders } : {}) }) as never,
+      { fetchImpl: fetchImpl as never },
+    );
+    return { client, calls, headerFor: (method: string) => calls.find((c) => c.method === method)?.headers?.["mcp-protocol-version"] };
+  }
+
+  it("names the revision the upstream answered, never the one we asked for", async () => {
+    const { client, calls, headerFor } = recordingUpstream({ protocolVersion: "2024-11-05", capabilities: {} });
+    await client.listTools();
+
+    // initialize is the one request that must not carry it: the revision it proposes is in the body,
+    // and a header asserting an agreement that has not happened yet is the wrong shape.
+    expect(headerFor("initialize")).toBeUndefined();
+    expect(calls.filter((c) => c.method !== "initialize").length).toBeGreaterThan(0);
+    for (const call of calls.filter((c) => c.method !== "initialize")) {
+      expect(call.headers["mcp-protocol-version"]).toBe("2024-11-05");
+    }
+    expect(JSON.stringify(calls)).not.toContain("2025-06-18");
+    await client.close();
+  });
+
+  it("carries it on notifications/initialized, which is a request after the handshake", async () => {
+    const { client, headerFor } = recordingUpstream({ protocolVersion: "2024-11-05", capabilities: {} });
+    await client.listTools();
+    expect(headerFor("notifications/initialized")).toBe("2024-11-05");
+    await client.close();
+  });
+
+  it("sends no revision header when the upstream answered no revision", async () => {
+    // The fallback this arm forbids is the tempting one: "they did not say, so say what we wanted".
+    const { client, calls } = recordingUpstream({ capabilities: {} });
+    await client.listTools();
+    for (const call of calls) {
+      expect(call.headers["mcp-protocol-version"]).toBeUndefined();
+    }
+    await client.close();
+  });
+
+  it("treats an empty answered revision as no answer on the wire too", async () => {
+    const { client, calls } = recordingUpstream({ protocolVersion: "", capabilities: {} });
+    await client.listTools();
+    for (const call of calls) {
+      expect(call.headers["mcp-protocol-version"]).toBeUndefined();
+    }
+    await client.close();
+  });
+
+  it("lets the server's answer outvote an operator-pinned header", async () => {
+    const { client, headerFor } = recordingUpstream(
+      { protocolVersion: "2024-11-05", capabilities: {} },
+      { "mcp-protocol-version": "2025-06-18" },
+    );
+    await client.listTools();
+    expect(headerFor("tools/list")).toBe("2024-11-05");
+    await client.close();
+  });
+});
+
 describe("mcp gateway openapi upstreams (#174, real bridge)", () => {
   // The issue's own construction: a real createOpenApiRestBridge over a well-formed document
   // that resolves to no operations, driven through the aggregation that answers /mcp/tools.

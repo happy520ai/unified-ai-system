@@ -159,6 +159,10 @@ export function createHttpMcpUpstream(config: McpUpstreamHttpConfig, options: {
           accept: "application/json, text/event-stream",
           ...(config.headers ?? {}),
           ...(sessionId ? { "mcp-session-id": sessionId } : {}),
+          // The revision the upstream named in its own answer, not the one we asked for. Placed
+          // after config.headers on purpose: an operator pin cannot outvote the server's reply,
+          // and a header claiming a revision the upstream rejected is what the spec says to refuse.
+          ...(negotiatedRevision ? { "mcp-protocol-version": negotiatedRevision } : {}),
         },
         body: JSON.stringify(body),
         signal: effectiveSignal,

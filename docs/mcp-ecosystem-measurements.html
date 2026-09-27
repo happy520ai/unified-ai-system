@@ -70,6 +70,13 @@
         gateway behaviour were otherwise just opinions. Run 2026-09-27, sample of 40 servers advertised
         in the official MCP registry.
       </p>
+      <p>
+        Those five share one run, one sample window and one machine-readable file. A sixth question -
+        whether anyone enforces the <code>MCP-Protocol-Version</code> header - was measured later the same
+        day in its own window, is reported at the end of this page, and is deliberately kept out of the
+        dataset. So "five" here counts the measurements that were taken together, not the number of
+        questions we have asked.
+      </p>
 
       <div class="cards">
         <div class="card">
@@ -233,6 +240,29 @@
         count. Copying an <code>instructions</code> string into a terminal, a report or an issue is the
         same act the issue is about, and this page is not going to commit it while arguing about it.
       </p>
+      <h2>6. Does anyone enforce the <code>MCP-Protocol-Version</code> header?</h2>
+      <p>
+        The 2025-06-18 revision makes the header a client obligation on every request after
+        <code>initialize</code>, and permits a server to reject one naming a revision it did not agree to.
+        Of 40 endpoints, 22 sat behind OAuth, 2 failed the handshake, and 16 completed it. Each of those 16
+        was asked for <code>tools/list</code> twice, the two requests differing by exactly one header:
+        <strong>16 of 16 served it with the header, and 16 of 16 served it without.</strong> One server
+        negotiated upward; naming the <em>requested</em> revision at it still worked.
+      </p>
+      <p>
+        So enforcement is not happening in this sample - and that answer is why the fix was still worth
+        making. A negative reading about other people's servers says nothing about what our client owes,
+        and checking ourselves turned up a real one: the gateway stored the session id an upstream issued and
+        replayed it, but stored the revision an upstream <em>named</em> and never sent it. Worse, an
+        operator-supplied header was forwarded verbatim, so against an upstream that answers
+        <code>2024-11-05</code> our client could send <code>2025-06-18</code> - a revision the upstream had
+        explicitly declined, which is precisely the request a conforming server may refuse.
+      </p>
+      <p>
+        This question is measured but <strong>not</strong> in the machine-readable dataset below; the dataset
+        covers questions 1-5. Its per-server table is rendered from the probe's own artifact in
+        <a href="mcp-protocol-version-header.md">the protocol-version header write-up</a>.
+      </p>
       <h2>The numbers as a file</h2>
       <p>
         Every table on this page also exists machine-readable:
@@ -290,7 +320,8 @@
 node tools/survey-mcp-revision-tolerance.mjs 40
 node tools/survey-mcp-session-enforcement.mjs 40
 node tools/survey-mcp-server-discover.mjs 40
-node tools/survey-mcp-instructions-field.mjs 40</code></pre>
+node tools/survey-mcp-instructions-field.mjs 40
+node tools/survey-mcp-protocol-version-header.mjs 40</code></pre>
 
       <h2>We ran the same three questions against ourselves</h2>
       <p>
@@ -351,7 +382,7 @@ node tools/survey-mcp-instructions-field.mjs 40</code></pre>
         <li><strong>The sample is not random.</strong> It is the registry's default order at one timestamp, which over-represents server names beginning with <code>a</code>.</li>
         <li><strong><code>initialize</code> and <code>tools/list</code> only.</strong> Going further would mean invoking tools on services that are not ours.</li>
         <li><strong>No stdio coverage.</strong> That population is larger and unreachable by this method.</li>
-        <li><strong>One timestamp each, 2026-09-27.</strong> Servers deploy; a re-run is a new measurement, not a regression test. All five scripts are deliberately outside our CI for that reason.</li>
+        <li><strong>One timestamp each, 2026-09-27.</strong> Servers deploy; a re-run is a new measurement, not a regression test. All six scripts are deliberately outside our CI for that reason.</li>
       </ul>
 
       <footer>
