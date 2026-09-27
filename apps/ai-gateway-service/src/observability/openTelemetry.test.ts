@@ -122,6 +122,47 @@ describe("OpenTelemetry runtime", () => {
     expect(trace.traceId).not.toBe("00000000000000000000000000000000");
     await runtime.shutdown();
   });
+  it("mints a local id for every unparseable context, and still honours a valid one", async () => {
+    // A malformed header is a correlation problem, not a request failure: the invariant is
+    // parse-or-mint. The valid row is the control - a build that ignored every incoming
+    // context would otherwise pass the four invalid rows by accident.
+    const runtime = createOpenTelemetryRuntime({
+      env: { AI_GATEWAY_OTEL_ENABLED: "true", NODE_ENV: "test" },
+      registerGlobal: false,
+    });
+    const start = (traceparent: string) => {
+      const response = createResponse();
+      const trace = runtime.startHttpRequest({
+        request: { method: "POST", headers: { traceparent } },
+        response,
+        url: new URL("http://127.0.0.1:3100/mcp/call"),
+      });
+      return { trace, echoed: String(response.headers.traceparent ?? "") };
+    };
+    const callerId = "4bf92f3577b34da6a3ce929d0e0e4736";
+    const valid = start(`00-${callerId}-00f067aa0ba902b7-01`);
+    expect(valid.trace.traceId).toBe(callerId);
+    expect(valid.echoed).toMatch(new RegExp(`^00-${callerId}-[0-9a-f]{16}-[0-9a-f]{2}$`));
+
+    const unparseable = [
+      // Parses against the header grammar and is invalid by semantics (W3C forbids all-zero).
+      "00-00000000000000000000000000000000-0000000000000000-01",
+      "not-a-traceparent-at-all",
+      `00-${callerId}`,
+      // Version "ff" is reserved for a future format: a reader must not act on its fields.
+      `ff-${callerId}-00f067aa0ba902b7-01`,
+    ];
+    for (const traceparent of unparseable) {
+      const { trace, echoed } = start(traceparent);
+      expect(trace.traceId).toMatch(/^[0-9a-f]{32}$/);
+      expect(trace.traceId).not.toBe("0".repeat(32));
+      expect(trace.traceId).not.toBe(callerId);
+      expect(echoed).toMatch(/^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$/);
+      expect(echoed).toContain(trace.traceId);
+    }
+    await runtime.forceFlush();
+    await runtime.shutdown();
+  });
 
   it("rejects credential-bearing OTLP endpoints", () => {
     expect(() => createOpenTelemetryRuntime({
