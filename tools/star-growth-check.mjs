@@ -709,6 +709,14 @@ function renderRepoSection(repoStats, date, prefix, previousStats = null) {
     lines.push(
       `${prefix} GitHub traffic snapshot through ${through}: ${views}; ${clones}.`
     );
+    // Same reading rule as the summary report: `through` is the newest date among the top
+    // referrer rows returned, and the top-level traffic `timestamp` is null from this API. A
+    // quiet date is a floor on the last visit, not evidence that nobody arrived.
+    if (through !== "N/A") {
+      lines.push(
+        `${prefix} What "${through}" is not: the last visit. Traffic after it may simply rank below the top referrers GitHub returns.`
+      );
+    }
   }
   lines.push(`${prefix} Last updated: ${repoStats.updated}`);
   lines.push("");
@@ -1863,6 +1871,15 @@ function generateSummaryReport(repoStats, rows, date) {
     lines.push(
       `- GitHub traffic snapshot through ${through}: ${repoStats.traffic.views?.count ?? "N/A"} views / ${repoStats.traffic.views?.uniques ?? "N/A"} uniques; ${repoStats.traffic.clones?.count ?? "N/A"} clones / ${repoStats.traffic.clones?.uniques ?? "N/A"} uniques.`
     );
+    // `through` is the newest timestamp among the referrer rows this endpoint returned, and it
+    // returns only the top referrers; the top-level traffic `timestamp` came back null. So a
+    // quiet date here is a floor on the last visit, not proof nobody arrived - and the two
+    // readings support very different conclusions about reach.
+    if (through !== "N/A") {
+      lines.push(
+        `- What "${through}" is not: the last visit. It is the newest date among the top referrer rows returned, so traffic after it may simply rank below what GitHub sends back.`
+      );
+    }
   }
   lines.push("");
   lines.push("## PR Funnel Signals");

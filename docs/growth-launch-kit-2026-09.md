@@ -17,35 +17,56 @@ remote immediately before posting, and rewrite any number that moved.
 ## If you only have 15 minutes: the order to do these in
 
 Everything in this file that I could do is done. The list below is the remainder, in
-the order that buys the most per minute — measured, not guessed: six merged listings
-moved the star count by zero, so listings are pipe maintenance, and the only surfaces
-with a ceiling above ~20 stars are the ones that need your identity.
+the order that buys the most per minute — measured, not guessed: **fourteen listings are now
+carried by an upstream README (read 2026-09-27) and the star count is still 7**, so listings are
+pipe maintenance, and the only surfaces with a ceiling above ~20 stars are the ones that need
+your identity.
+
+The order changed today. Uploading the share card used to lead this list because it was recorded
+as fixing a stale "9 tools" card; that premise was measured and is void (§0 explains), so a
+branding step cannot spend the first two minutes of fifteen.
 
 | # | Action | Where | Why here in the order |
 | --- | --- | --- | --- |
-| 1 | Upload the 15-tool share card (§0) | `https://github.com/happy520ai/unified-ai-system/settings` → Social preview → `docs/assets/social-preview.png` | ~2 minutes, and it multiplies every other link you or anyone else posts. Do it before anything that generates shares. |
-| 2 | Post Show HN (§1) | `https://news.ycombinator.com/submit` | Largest single-event ceiling available. Needs your login; the copy is ready and its reads expire fast, so re-run `## Verify before posting` first. Read §5 before you submit - the replies in the first two hours are the part that was missing. |
-| 3 | Post to one subreddit (§2) | r/LocalLLaMA (or r/selfhosted with the §2 wording swap) | Same shape as HN, slower burn, and the self-hosters there are the audience that actually installs. One post, not a cross-post sweep. |
-| 4 | Sign up and file the news item (§0d) | `https://changelog.com/news/submit` | Three fields. Their page says submitting your own work is encouraged, so this is a legitimate door rather than a favour. |
-| 5 | Click the checkbox and fill the form (§0f) | `https://openalternative.co/submit` | I am not solving a machine-refusal challenge for you; their GitHub list (6,747★) is generated from this one submission. |
-| 6 | Send one message to selfh.st (§0e) | `selfhst@fosstodon.org` | The closest audience of the whole list. No form exists; it is a message. |
-| 7 | Set the Glama build target so a grade exists (§0h) | `https://glama.ai/mcp/servers/happy520ai/unified-ai-system/admin` → Docker builds | Different in kind from the six merged listings above: the maintainer of the biggest MCP list has already reviewed our entry and named exactly one remaining condition ("any grade is fine"), so this is a queued merge rather than a cold submission. ~5 minutes, and only you can reach that dashboard. |
+| 1 | Post Show HN (§1) | `https://news.ycombinator.com/submit` | Largest single-event ceiling available. Needs your login; the copy is ready and its reads expire fast, so re-run `## Verify before posting` first. Read §5 before you submit - the replies in the first two hours are the part that was missing. |
+| 2 | Post to one subreddit (§2) | r/LocalLLaMA (or r/selfhosted with the §2 wording swap) | Same shape as HN, slower burn, and the self-hosters there are the audience that actually installs. One post, not a cross-post sweep. |
+| 3 | Sign up and file the news item (§0d) | `https://changelog.com/news/submit` | Three fields. Their page says submitting your own work is encouraged, so this is a legitimate door rather than a favour. |
+| 4 | Set the Glama build target so a grade exists (§0h) | `https://glama.ai/mcp/servers/happy520ai/unified-ai-system/admin` → Docker builds | Different in kind from the fourteen carried listings above: the maintainer of the biggest MCP list has already reviewed our entry and named exactly one remaining condition ("any grade is fine"), so this is a queued merge rather than a cold submission. ~5 minutes, and only you can reach that dashboard. |
+| 5 | Send one message to selfh.st (§0e) | `selfhst@fosstodon.org` | The closest audience of the whole list. No form exists; it is a message. |
+| 6 | Click the checkbox and fill the form (§0f) | `https://openalternative.co/submit` | I am not solving a machine-refusal challenge for you; their GitHub list (6,747★) is generated from this one submission. |
+| 7 | Optional: upload the share card (§0) | `https://github.com/happy520ai/unified-ai-system/settings` → Social preview → `docs/assets/social-preview.png` | Now branding rather than a fix. Measured today: the card GitHub serves is its default template - repo name, current description, live counters - and **shows no tool count at all**, so nothing wrong is being shared while it stays unset. Do it if you want the branded card in front of every link; do not do it instead of 1-6. |
 
-Two of these (2 and 3) are worth the time even if nothing else is. If you do only one
-thing this week, do #2 — that is the conclusion the data on every other channel
+Two of these (1 and 2) are worth the time even if nothing else is. If you do only one
+thing this week, do #1 — that is the conclusion the data on every other channel
 supports, not a preference.
 
 ---
 
 ## 0. Owner-only, before any of the above
 
-**GitHub's repo share card is still the nine-tool era.** When someone pastes
-`github.com/happy520ai/unified-ai-system` into X, Slack, Discord or LinkedIn, the
-preview image is the one uploaded under repository settings, not
-`docs/assets/social-preview.png`. The uploaded copy reads "OPEN-SOURCE MCP GATEWAY",
-"Natural language in. Structured, reviewable prompts out." and **9 governed tools**.
-Every page and the published image now say 15, so this is the last surface where the
-first impression a stranger gets contradicts the repository.
+**Corrected 2026-09-27: this section used to say "GitHub's repo share card is still the nine-tool
+era". That claim is no longer supported by what is actually served, and it is the reason this item
+moved from first to last in the 15-minute list.**
+
+What was measured: `https://opengraph.githubassets.com/1/happy520ai/unified-ai-system` and
+`.../latest/happy520ai/unified-ai-system` return **byte-identical 57,981-byte PNGs**, and the image
+is GitHub's **default template** - repository name, the current description, live counters (2
+contributors / 14 issues / 7 discussions / 7 stars / 2 forks) and the language colour bar along the
+bottom. **It contains no tool count at all.** The colour bar is the structural tell: a custom
+social image replaces that whole graphic, so its presence means the card being served is not a
+custom upload.
+
+What that does and does not prove: it proves the card a stranger sees today does not contradict the
+repository. It does **not** prove no image was ever uploaded - I cannot see the settings form, and
+only two cache keys were sampled. So the earlier "9 governed tools" note may have been a true
+reading of the settings thumbnail at a time when GitHub served something else, and it is now
+either stale or superseded. Either way, the observable surface is clean.
+
+What remains here is therefore **branding, not a fix**. When someone pastes
+`github.com/happy520ai/unified-ai-system` into X, Slack, Discord or LinkedIn they get GitHub's
+plain default card; uploading `docs/assets/social-preview.png` replaces it with the designed one.
+That is worth doing before a launch that generates shares, and it is not worth spending the first
+two minutes of fifteen on.
 
 There is no REST endpoint for it — the upload only exists behind the settings form,
 so this one cannot be done from here.
