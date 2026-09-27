@@ -1,4 +1,12 @@
 name: Gateway Release Soak
+# STATUS NOTE (verified 2026-09-27, please update it if the situation changes): this workflow has never
+# completed a run. It requires runs-on [self-hosted, linux, x64, gateway-soak] and the repository
+# currently registers zero self-hosted runners (GET /repos/.../actions/runners -> total_count 0), so
+# every scheduled attempt has been cancelled while still queued (runs 1-4) or is still queued (run 5).
+# That means the "six continuous hours" release soak below is a capability, NOT evidence: nothing here
+# has measured anything. The soak that does gate releases is the benchmark inside the CI quality job,
+# which runs on a hosted runner and passed on 2026-09-26. See issue #172 for the three ways to resolve
+# the discrepancy (register a runner, shorten to a hosted job, or remove the workflow).
 
 on:
   schedule:
