@@ -475,20 +475,21 @@ Two dated readings, both outside our repository, both checkable by clicking:
 
 ### "It sat there for eight seconds before it answered."
 
-Yes, and it is filed publicly: issue #168 measures `initialize` at 7.5-8.5 s and lists the runs.
+Yes, and it is filed publicly: issue #168 measures `initialize` at 6.4-8.5 s across three batches on 2026-09-27 and lists every run.
 The measurement itself is a page now, not a claim - five consecutive runs on 2026-09-27 answered
 between 7,630 ms and 8,461 ms, the complete tool list arrived 3-7 ms after that, and the first run
 was the slowest, so there is no cold-cache excuse to reach for. Paste the reply, not a defence:
 
-> Yes, and we measured it instead of waiting for someone to report it: five consecutive runs answered
-> `initialize` between 7.6 and 8.5 seconds, with the full tool list arriving 3-7 ms after that - so the
-> wait is process boot, not tool work. It is open as #168, with the method and the limits of the
+> Yes, and we measured it instead of waiting for someone to report it: three batches on one day answered
+> `initialize` between 6.4 and 8.5 seconds (we have not attributed the gap between batches, and we are not
+> claiming it got faster), with the full tool list arriving 3-7 ms after that - so the wait is process boot,
+> not tool work. It is open as #168, with the method and the limits of the
 > measurement on https://happy520ai.github.io/unified-ai-system/mcp-startup-timeouts.html
 
 For a Chinese venue, the same reply in Chinese, with the same numbers and the same page's Chinese twin:
 
-> 是的，而且我们是自己先量了，而不是等别人来报告：连续五次实测，`initialize` 在 7.6 到 8.5 秒之间应答，
-> 完整工具清单只在其后 3-7 毫秒到达——所以这段等待是进程启动，不是工具枚举。问题公开记在 #168，测量方法
+> 是的，而且我们是自己先量了，而不是等别人来报告：同一天三批实测，`initialize` 在 6.4 到 8.5 秒之间应答
+> （批次之间的差距我们还没有归因，也不声称它变快了），完整工具清单只在其后 3-7 毫秒到达——所以这段等待是进程启动，不是工具枚举。问题公开记在 #168，测量方法
 > 和这条测量的边界都在 https://happy520ai.github.io/unified-ai-system/mcp-startup-timeouts.zh-CN.html
 
 Do not defend it as configuration. A named, measured, self-filed bug converts better than a

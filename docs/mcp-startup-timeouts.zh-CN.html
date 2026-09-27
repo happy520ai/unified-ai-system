@@ -6,7 +6,7 @@
     <title>MCP 客户端为什么在服务端应答之前就超时 | Unified AI System</title>
     <meta
       name="description"
-      content="实测：stdio MCP 服务端从进程启动到回答 initialize 用了 7,630 到 8,461 毫秒，而完整的 15 个工具清单只在其后 3 到 7 毫秒就给出。连接预算几乎全部花在进程启动与模块加载，不是 MCP 工作本身。一条命令即可复现，无需 API Key。"
+      content="实测：stdio MCP 服务端从进程启动到回答 initialize 落在 6,391 到 8,461 毫秒之间（同日三批），而完整的 15 个工具清单只在其后 3 到 7 毫秒就给出。连接预算几乎全部花在进程启动与模块加载，不是 MCP 工作本身。一条命令即可复现，无需 API Key。"
     />
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <meta name="theme-color" content="#081011" />
@@ -27,7 +27,7 @@
     <meta property="og:title" content="MCP 客户端为什么在服务端应答之前就超时" />
     <meta
       property="og:description"
-      content="实测：initialize 回答在 7,630 到 8,461 毫秒之间，工具清单只晚 3 到 7 毫秒。慢的是进程启动，不是你的工具。"
+      content="实测：initialize 回答在 6,391 到 8,461 毫秒之间（同日三批、同一命令，批次间差异未归因），工具清单只晚 3 到 7 毫秒。慢的是进程启动，不是你的工具。"
     />
     <meta property="og:image" content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png" />
     <meta property="article:published_time" content="2026-09-27T04:30:00+00:00" />
@@ -106,6 +106,40 @@
           <strong>3 到 7 毫秒</strong>内到达。服务端自报为 <code>unified-ai-system</code>，
           协议版本 <code>2025-06-18</code>，五次都向 stderr 写出同样的 69 字节。
         </p>
+        <p>
+          <strong>同日晚间又跑了第二批与第三批，命令完全相同，读数更低——而这段差距我们不做归因。</strong>
+          下面是 <code>node tools/mcp-startup-profile.mjs --repeat N --json</code> 对同一个入口、同一套精简环境
+          （<code>PATH</code> 与 <code>NODE_ENV=production</code>）的原样读数：
+        </p>
+        <table class="numbers-table">
+          <thead>
+            <tr>
+              <th scope="col">批次</th>
+              <th scope="col">时刻（UTC）</th>
+              <th scope="col">次数</th>
+              <th scope="col"><code>initialize</code> 区间</th>
+              <th scope="col">中位数</th>
+              <th scope="col">极差</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>A（上表）</td><td>2026-09-27 约 17:19</td><td>5</td><td>7,630 – 8,461 ms</td><td>7,853 ms</td><td>831 ms</td></tr>
+            <tr><td>B</td><td>2026-09-27 21:37</td><td>3</td><td>6,399 – 6,671 ms</td><td>6,432 ms</td><td>272 ms</td></tr>
+            <tr><td>C</td><td>2026-09-27 21:40</td><td>5</td><td>6,391 – 6,688 ms</td><td>6,654 ms</td><td>297 ms</td></tr>
+          </tbody>
+        </table>
+        <p>
+          B 与 C 彼此吻合，且整体低于 A 的最小值：差出约 1.2–1.8 秒，约等于任一批次内部极差的四倍。
+          所以这是<strong>批次之间</strong>的差异，不是一批内部的噪声——而真实的差异恰恰是最容易被悄悄写成「变快了」的那种东西。
+          <strong>本页不声称启动变快了。</strong>仅凭这几批数字无法区分两种解释：A 采样时的机器负载（C 也是在仍有九个
+          <code>node.exe</code> 进程存活的机器上测的，并不是「终于找到一台空闲机器」），
+          或者是同一天落进本仓库的 ESM 循环依赖削减——它缩短了首字节之前必须解析完的导入链，理论上确实可能值一两秒。
+        </p>
+        <p>
+          能判定的做法是：在一个临时工作树里对着削减之前的那个提交，交替跑 A/B/A/B，且全程在同一台机器上。
+          在那之前，诚实的一句话是这段等待<strong>看哪一批，落在 6.4–8.5 秒之间</strong>，
+          而无论哪一批，客户端都还在为 <code>initialize</code> 等好几秒。三批共十四次运行返回的都是同样 15 个工具名。
+        </p>
       </section>
 
       <section class="article-section" aria-labelledby="where">
@@ -174,7 +208,7 @@ node tools/mcp-startup-profile.mjs --repeat 3 --json</code></pre>
         <ul>
           <li>
             一台机器、一个 Node 版本。这里是 v25.8.1，而我们的 CI 钉在 22；我们还单独见过一个预编译
-            原生依赖在新主版本上拿不到二进制文件。所以不要把 7.6-8.5 秒读成跨平台常数。
+            原生依赖在新主版本上拿不到二进制文件。所以不要把 6.4-8.5 秒读成跨平台常数。
           </li>
           <li>
             不与其他服务端比较。我们量的是自己的。任何人都可以用同一条命令量自己的并得到自己的五个数字；
