@@ -33,7 +33,10 @@ These are two different things and they are not equal today:
   [60-second demo command](https://github.com/happy520ai/unified-ai-system#try-it-in-60-seconds)
   in the README names that version. Read it live with
   `node tools/verify-image-roster.mjs 0.8.0`, which reports the roster from the
-  image bytes rather than from this file.
+  image bytes rather than from this file. That command needs a clone of the
+  repository, run from its root: the script ships with the source, not inside an
+  installed skill bundle. Without a clone, the same roster is published at
+  https://happy520ai.github.io/unified-ai-system/verify-mcp-docker-image.html.
 - **Reviewed and pinned below: `0.4.9`.** The inspection procedure in this file
   pins that image's recorded digests because `0.4.9` is the newest version with a
   completed [content review](https://github.com/happy520ai/unified-ai-system/blob/master/docs/security/mcp-image-review-0.4.9.md).
