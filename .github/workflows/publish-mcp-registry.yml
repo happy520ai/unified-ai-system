@@ -54,6 +54,23 @@ jobs:
         shell: bash
         run: ./mcp-publisher validate server.json
 
+      - name: Check that the images server.json points at really exist
+        shell: bash
+        env:
+          PUBLISH_WANTED: ${{ inputs.publish }}
+        run: |
+          set -euo pipefail
+          # This dispatch path can run without the release workflow that builds the images, so a
+          # bumped server.json alone would register an artifact nobody can pull. A missing tag is a
+          # hard stop when a write was requested and an advisory otherwise, which keeps the
+          # validate-only default useful. The checker sends an `accept` header on purpose: GHCR
+          # answers 404 for tags that exist when it is absent.
+          if [ "${PUBLISH_WANTED}" = "true" ]; then
+            node tools/check-registry-artifacts.mjs --require-present
+          else
+            node tools/check-registry-artifacts.mjs
+          fi
+
       - name: Authenticate to the MCP Registry with repository OIDC identity
         shell: bash
         run: |
