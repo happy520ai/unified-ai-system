@@ -424,6 +424,46 @@ Paste-ready, because the corrected version is the one that survives being checke
 
 Do not quietly upgrade it to "semantic" in a later thread now that the distinction has been written
 down in the open.
+
+### "You say you measure things. Show me one that surprised you."
+
+This is the question to *want* asked, because the best answer so far is a measurement whose most
+useful output was a defect in our own code.
+
+We fixed `tools/list` pagination (#177): the gateway now walks every page and refuses to present a
+truncated enumeration as complete. Closing it came with an admission written into the closure comment -
+no test had ever seen a real third-party server paginate, so the bounds in the fix were a stance about a
+protocol feature, not a survey of it. So we measured it: `tools/survey-mcp-tools-list-pagination.mjs`
+reads the official MCP registry for `streamable-http` servers and sends each one an anonymous
+`initialize` plus one `tools/list`. Forty servers, 2026-09-27 15:11 UTC:
+
+- **16 answered. 0 of the 16 emitted `nextCursor`** - the biggest single-page list was 35 tools. The
+  walk is insurance against a server nobody has met yet, not a repair for an observed failure.
+- **22 of 40 refused the anonymous handshake outright** (21x `401`, 1x `403`). So any percentage
+  measured this way is a percentage of the servers that let you look, and the page says that about
+  itself rather than waiting to be asked.
+- **1 of the 16 answered `2024-11-05` after being asked with `2025-06-18`.** Servers really do pick
+  older revisions. Our governed client sends a revision and never reads the reply, so that negotiation
+  is invisible to us - which is now [#178](https://github.com/happy520ai/unified-ai-system/issues/178),
+  filed against ourselves with the row that proved it.
+
+Paste-ready, in the same voice:
+
+> The one that surprised us: we shipped a pagination fix and closed it by admitting no real server had
+> ever been observed paginating. So we went and asked 40 servers advertised in the official registry.
+> Zero of the 16 that answered paginate. 22 of the 40 wouldn't let us look at all without an account.
+> And exactly one answered with an older protocol revision than we asked for - which turned out to be a
+> bug in our own client, because we send a version and never read the answer. That's the measurement
+> we're proudest of, and its main product was a defect report against us.
+
+Full table, method and limits: `docs/mcp-tools-list-pagination-survey.md`.
+
+Two cautions, because this number will get quoted: **never** say "no MCP server paginates" - the
+defensible claim is "0 of the 16 we could introspect, in one alphabetical slice of the registry at one
+timestamp, and stdio servers were out of reach entirely". And do not let "we found a bug in ourselves"
+drift into "we are unusually rigorous"; the finding was one server, and the honest framing is that a
+two-minute script was cheaper to write than the assumption was to keep.
+
 ### Two rules for every reply in this thread
 
 - Never upgrade a claim to make an argument easier to win: no production-ready, no L5, no AGI,
