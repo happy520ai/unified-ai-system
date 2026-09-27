@@ -126,8 +126,19 @@ Description: Self-hosted MCP and AI gateway for Codex, Cursor, and Cline. It tur
 
 Free public submission forms currently available include:
 
-- MCP Server Directory: https://mcpserver.cc/submit
-- Awesome MCP Servers: https://mcpservers.org/submit
+- MCP Server Directory: https://mcpserver.cc/submit - plain form, no account. Its own page script
+  posts JSON to `/api/submit-server` with `name`, `url`, `description` (description capped at 1000
+  characters). Submitted 2026-09-27 and accepted for review (`code: 0`).
+- Awesome MCP Servers: https://mcpservers.org/submit - no account and no captcha, with a real free
+  tier: choose `free-submit` ($0, review within two weeks) over `premium-submit` ($39 for a dofollow
+  link). Required fields are name, category, a short description, URL and a contact email; the
+  repository-scope GitHub noreply address is sufficient for the last one. The optional `registryName`
+  takes `io.github.happy520ai/unified-ai-system`. Submitted 2026-09-27 on the free tier and
+  acknowledged by the site.
+
+Neither submission is verified as *published*: both sites say review is pending, and their listing
+pages are client-rendered, so a `curl` probe of a search URL cannot tell pending from listed. Confirm
+from a browser before writing either one up as a listing.
 
 For Awesome MCP Servers, choose the free listing. The site also offers a paid
 review upgrade, but it is not required for an open-source submission.
