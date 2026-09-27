@@ -1,6 +1,6 @@
 # Will an MCP server agree to a protocol version that does not exist?
 
-**Run:** 2026-09-27 15:29 UTC · **Sample:** 40 servers · **Answered the handshake:** 19 · **Agreed to the impossible revision:** **2**
+**Run:** 2026-09-27 15:29 UTC · **Sample:** 40 servers · **Answered the handshake:** 18 · **Returned `502`:** 1 · **Agreed to the impossible revision:** **2**
 
 The Model Context Protocol says a server must answer `initialize` with a revision it supports, and the revision is not decoration: it decides whether `MCP-Session-Id` is part of the contract, how server-initiated traffic works, and — in `2026-07-28` — whether the conversation is stateful at all. A server that echoes whatever the client asked for makes the handshake information-free, and a client cannot tell the difference from the inside.
 
@@ -31,7 +31,9 @@ The two that agreed:
 - `ag.hood/name-service` — `https://www.hood.ag/api/mcp`
 - `ai.agent-bev/bev-door` — `https://mcp.bev-buyer.ai/mcp`
 
-Of the 19 servers that answered at all, **17 behaved correctly and 2 did not check**. That is the honest ratio: 2/19, not 2/40 — 21 of the 40 would not talk to an anonymous client, so they are outside this measurement rather than passing it.
+Of the 18 that produced a JSON-RPC answer, **16 behaved correctly and 2 did not check**: 14 named a revision they support, 2 rejected the request outright, 2 echoed the nonsense. A 19th endpoint returned `502` with no revision at all, which is neither a pass nor a failure of this check — it is an upstream that did not answer. That is the honest ratio: 2/18, not 2/40 — 21 of the 40 would not talk to an anonymous client, so they are outside this measurement rather than passing it.
+
+The same seven-way tally came back unchanged when the script was re-run at 18:01 UTC on the same day (`auth_required` 21, `error_object` 2, `substituted_supported_version` 6, `AGREED_TO_THE_IMPOSSIBLE` 2, `answered_2025-11-25` 7, `no_version_502` 1, `answered_2024-11-05` 1). That caught an arithmetic error in the first version of this page, which described those 18 answers as 19 and counted the `502` as correct behaviour; the table above is the record, and the prose now adds up to it.
 
 ## The part that is more useful than the headline
 
@@ -41,7 +43,7 @@ One server, `ai.adoraads/beauty`, answered `2024-11-05` in **both** probes. Same
 
 ## What this does not show
 
-- It is 19 observations, not a population. The sample is the registry's default order at one timestamp and over-represents server names beginning with `a`.
+- It is 18 observations, not a population. The sample is the registry's default order at one timestamp and over-represents server names beginning with `a`.
 - It tests `initialize` only. A server that echoes the revision may still enforce the semantics of a real one on every subsequent method — that would take a second request per server, and this survey deliberately did not go poking further into services that are not ours.
 - It says nothing about stdio servers, which are the majority of what people run and cannot be reached this way.
 - Both runs were taken within an hour of each other on 2026-09-27. Servers deploy; re-running is a new measurement, not a regression test.

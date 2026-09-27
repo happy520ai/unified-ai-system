@@ -350,9 +350,9 @@ anonymous handshake, which is the number I keep having to repeat because it is t
 spec provides is close to unused among servers you can actually reach.
 
 **Question 2: will a server agree to a protocol version that does not exist?** I asked for
-`9999-99-99`. Of the 19 that responded, 14 named a revision they support, 2 rejected it with a
+`9999-99-99`. Of the 18 that produced a JSON-RPC answer, 14 named a revision they support, 2 rejected it with a
 JSON-RPC error over HTTP 400, and **2 answered HTTP 200 with `9999-99-99` echoed back**. Two out of
-nineteen is small until you notice what it means: those servers just told a client that they speak a
+eighteen is small until you notice what it means: those servers just told a client that they speak a
 protocol that has never existed, and the client has no way to know the handshake was decorative.
 
 The detail I liked: seven servers answered `2025-11-25` to the nonsense request while answering
@@ -376,7 +376,7 @@ what each upstream answered and names it in the tool listing, with a test that f
 client paths drift apart again. Whether a mismatching revision should be refused or just reported is
 still undecided on the issue, and I would rather leave that visible than close it quietly.
 
-**Limits, because n matters here:** 16–19 observations, not a population. The sample is alphabetical by
+**Limits, because n matters here:** 16–18 observations, not a population. The sample is alphabetical by
 registry identifier at one timestamp, so it over-represents names starting with `a`. Only `initialize`
 and `tools/list` were exercised — going further means invoking tools on services that are not mine. No
 stdio servers are reachable by this method at all, and they are the majority of what people run. Every

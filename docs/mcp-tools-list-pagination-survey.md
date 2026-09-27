@@ -57,7 +57,7 @@ Three things are worth more than the headline:
 
 ## What this does not show
 
-- It does not show that no MCP server paginates. 24 of the 40 were never asked, because they refused the anonymous handshake, and the sample is alphabetical, not random.
+- It does not show that no MCP server paginates. 22 of the 40 refused the anonymous handshake (21x `401`, 1x `403`) and 2 more failed before `tools/list` was reached, so 24 were never asked - and the sample is alphabetical, not random.
 - It does not show a size threshold. The spec gives no "paginate after N tools" rule, and the largest list observed here (35) is well under our 2,000-tool bound, so the bound is a guard against pathological answers, not a fitted parameter.
 - It says nothing about stdio servers. This method can only reach advertised HTTP remotes; the stdio population is larger and is not addressed here.
 - It is one timestamp. Servers change; a re-run is a new measurement, not a regression test.
@@ -72,4 +72,4 @@ The script prints a JSON tally plus one row per server. It makes outbound reques
 
 ## Related measurement
 
-The same 40 endpoints were asked a second question an hour later: **will they agree to a protocol revision that does not exist?** Two of the nineteen that answered echoed `9999-99-99` with HTTP 200, and one server answered `2024-11-05` to both probes. See [mcp-protocol-revision-tolerance.md](mcp-protocol-revision-tolerance.md).
+The same 40 endpoints were asked a second question an hour later: **will they agree to a protocol revision that does not exist?** Two of the eighteen that produced a JSON-RPC answer echoed `9999-99-99` with HTTP 200, and one server answered `2024-11-05` to both probes. See [mcp-protocol-revision-tolerance.md](mcp-protocol-revision-tolerance.md).
