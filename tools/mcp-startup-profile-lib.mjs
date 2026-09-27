@@ -147,8 +147,11 @@ export function runProfile({
     child.stderr.on("data", (chunk) => { stderrBytes += chunk.length; });
 
     const timer = setTimeout(() => {
+      // Keep which stage stalled, and mark that the budget ran out: "answered initialize but never
+      // listed tools" and "never said anything" are different diagnoses, and collapsing them into a
+      // single timeout is what let the pre-process case below be misread as a broken handler.
       const result = settle();
-      stop(result.verdict === "answered" ? result : { ...result, verdict: "timed_out", timeoutMs });
+      stop({ ...result, timedOut: true, timeoutMs });
     }, timeoutMs);
 
     child.on("error", (error) => {

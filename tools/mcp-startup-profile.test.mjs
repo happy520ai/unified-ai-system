@@ -65,16 +65,32 @@ test("the harness refuses a credential-carrying child environment and never answ
   assert.match(refused.stderr, /UAI_TEST_ACCESS_TOKEN/, "the refusal must name the offending variable");
   assert.doesNotMatch(refused.stderr, /not-a-real-secret/, "the refusal must not echo the value");
 
-  // Boundary arm for the same guard: without --keep-env the child gets PATH/NODE_ENV only, so the
+  // Boundary arms for the same guard: without --keep-env the child gets PATH/NODE_ENV only, so the
   // poisoned variable is simply absent rather than causing a refusal. That is what makes the
   // page's "no provider key reaches the process" claim true by construction.
-  const timedOut = spawnSync(
+  const silent = spawnSync(
     process.execPath,
     [TOOL, "--json", "--repeat", "1", "--timeout-ms", "1500", "--", process.execPath, "-e", "setInterval(() => {}, 1000)"],
     { env: poisoned, encoding: "utf8" },
   );
-  assert.equal(timedOut.status, 1, "a server that never answers must exit non-zero");
-  const parsed = JSON.parse(timedOut.stdout);
-  assert.equal(parsed.runs[0].verdict, "timed_out");
-  assert.equal(parsed.summary.verdict, "never_answered");
+  assert.equal(silent.status, 1, "a server that never answers must exit non-zero");
+  const silentParsed = JSON.parse(silent.stdout);
+  assert.equal(silentParsed.runs[0].verdict, "no_initialize_response");
+  assert.equal(silentParsed.runs[0].timedOut, true);
+  assert.equal(silentParsed.summary.verdict, "never_answered");
+
+  // The distinction that makes the pre-process case diagnosable: a child that answers the
+  // handshake and then goes quiet must not read the same as one that never says anything.
+  const halfOpen = spawnSync(
+    process.execPath,
+    [TOOL, "--json", "--repeat", "1", "--timeout-ms", "1500", "--", process.execPath, "-e",
+      "process.stdin.on('data',(b)=>{const m=JSON.parse(String(b));if(m.id===1){process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:1,result:{protocolVersion:'2025-06-18',serverInfo:{name:'half-open',version:'1'},capabilities:{}}})+String.fromCharCode(10));}});"],
+    { env: poisoned, encoding: "utf8" },
+  );
+  assert.equal(halfOpen.status, 1);
+  const halfParsed = JSON.parse(halfOpen.stdout);
+  assert.equal(halfParsed.runs[0].verdict, "no_tools_list_response");
+  assert.equal(halfParsed.runs[0].timedOut, true);
+  assert.ok(Number.isInteger(halfParsed.runs[0].initializeMs), "the answered stage must still be timed");
+  assert.notEqual(halfParsed.runs[0].verdict, silentParsed.runs[0].verdict, "the two stall stages must not collapse");
 });

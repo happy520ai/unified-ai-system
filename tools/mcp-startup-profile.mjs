@@ -46,7 +46,8 @@ process.exit(failed === 0 ? 0 : 1);
 
 function formatRun(run) {
   if (run.verdict !== "answered") {
-    return `${run.verdict.toUpperCase()} after ${run.elapsedMs ?? "?"} ms (${run.detail ?? "no detail"})`;
+    const budget = run.timedOut ? ` after ${run.timeoutMs} ms budget` : "";
+    return `${run.verdict.toUpperCase()}${budget} (${run.elapsedMs ?? "?"} ms elapsed${run.detail ? `, ${run.detail}` : ""})`;
   }
   const server = run.serverInfo ? ` ${run.serverInfo.name}/${run.serverInfo.protocolVersion}` : "";
   return [
