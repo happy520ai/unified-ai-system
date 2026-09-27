@@ -1878,6 +1878,63 @@ async function assessSearchCoverage() {
   }
 }
 
+// github.com/mcp is fed from the OSS registry plus a manual onboarding request, and a 404
+// on our own entry means nothing unless pages that are certainly listed also answer 200.
+// Without that pair, "not listed" and "we cannot read the site" are the same output, and the
+// first reading was reported as fact for days.
+export const GITHUB_MCP_ENTRY = "io.github.happy520ai/unified-ai-system";
+export const GITHUB_MCP_CONTROLS = ["com.figma.mcp/mcp", "bytebase/dbhub"];
+export const githubMcpUrl = (id) => `https://github.com/mcp/${id}`;
+
+export function githubMcpVerdict(ours, controls) {
+  const unreadable = controls.filter((status) => status === 0 || status === null || status === undefined);
+  if (ours === 0 || ours === null || ours === undefined) return { kind: "unreadable", detail: "our entry could not be read" };
+  if (unreadable.length) return { kind: "instrument_blind", detail: `controls unreadable: ${unreadable.length}` };
+  const failing = controls.filter((status) => status !== 200);
+  if (failing.length) return { kind: "instrument_blind", detail: `controls not 200: ${failing.join(",")}` };
+  if (ours === 200) return { kind: "listed", detail: "200" };
+  if (ours === 404) return { kind: "not_listed", detail: "404 with every control 200" };
+  return { kind: "unreadable", detail: `ours=${ours}` };
+}
+
+async function readStatus(url) {
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      redirect: "manual",
+      headers: { "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
+      signal: AbortSignal.timeout(25_000),
+    });
+    return response.status;
+  } catch {
+    return 0;
+  }
+}
+
+async function assessGithubMcpListing() {
+  const ours = await readStatus(githubMcpUrl(GITHUB_MCP_ENTRY));
+  const controls = [];
+  for (const id of GITHUB_MCP_CONTROLS) controls.push(await readStatus(githubMcpUrl(id)));
+  return { ours, controls, verdict: githubMcpVerdict(ours, controls) };
+}
+
+function githubMcpLines(reading) {
+  const v = reading.verdict;
+  const head = "### Whether GitHub's own MCP directory lists us";
+  const statuses = `ours=${reading.ours} controls=${reading.controls.join(",")}`;
+  if (v.kind === "listed") return [head, `- LISTED (${statuses})`];
+  if (v.kind === "not_listed") {
+    return [
+      head,
+      `- NOT LISTED - ${statuses}; both control entries answer 200, so this 404 is the site's real answer and not a blind probe.`,
+      "- The onboarding request is filed; nothing here is actionable without a maintainer, so do not re-file it.",
+    ];
+  }
+  if (v.kind === "instrument_blind") {
+    return [head, `- UNKNOWN - a control entry did not answer 200 (${v.detail}); ${statuses}. Refusing to read this as "not listed".`];
+  }
+  return [head, `- UNREADABLE - ${statuses}: ${v.detail}`];
+}
 async function run() {
   const options = parseArgs();
   if (options.help) {
@@ -1899,6 +1956,8 @@ async function run() {
   if (action === "coverage") {
     const coverage = await assessSearchCoverage();
     console.log(`${searchCoverageLines(coverage.urls, coverage.indexed, { error: coverage.error }).join("\n")}\n`);
+    const listing = await assessGithubMcpListing();
+    console.log(`${githubMcpLines(listing).join("\n")}\n`);
     return;
   }
 

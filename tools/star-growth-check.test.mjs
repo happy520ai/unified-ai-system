@@ -12,6 +12,9 @@ import {
   countListingKinds,
   deferredDoorStatus,
   findUntrackedDoors,
+  GITHUB_MCP_CONTROLS,
+  githubMcpUrl,
+  githubMcpVerdict,
   indexedSiteUrls,
   isListedInReadme,
   needsRecarry,
@@ -787,4 +790,21 @@ test("carrier correction pointers stay well-formed and cover the carriers that w
     assert.ok(byKey.has(key), `carrier entry disappeared: ${key}`);
     assert.equal(byKey.get(key), pr, `correction pointer changed or was dropped for ${key}`);
   }
+});
+
+test("GitHub MCP directory: a 404 only means absence when the controls answer 200", () => {
+  assert.equal(githubMcpVerdict(200, [200, 200]).kind, "listed");
+  assert.equal(githubMcpVerdict(404, [200, 200]).kind, "not_listed");
+  // A control that did not answer, or answered something other than 200, means we cannot
+  // read the site - which is exactly the state that would have let a blind probe report
+  // "not listed" as fact.
+  assert.equal(githubMcpVerdict(404, [200, 0]).kind, "instrument_blind");
+  assert.equal(githubMcpVerdict(404, [404, 200]).kind, "instrument_blind");
+  assert.equal(githubMcpVerdict(0, [200, 200]).kind, "unreadable");
+  assert.equal(githubMcpVerdict(301, [200, 200]).kind, "unreadable");
+});
+
+test("GitHub MCP directory: the entry URL is namespace/slug without percent-encoding", () => {
+  assert.equal(githubMcpUrl("io.github.happy520ai/unified-ai-system"), "https://github.com/mcp/io.github.happy520ai/unified-ai-system");
+  assert.match(githubMcpUrl(GITHUB_MCP_CONTROLS[0]), /^https:\/\/github\.com\/mcp\/[^/]+\/[^/]+$/);
 });
