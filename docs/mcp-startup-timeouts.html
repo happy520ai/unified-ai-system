@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Why an MCP client times out before the server answers | Unified AI System</title>
+    <meta
+      name="description"
+      content="A stdio MCP server can spend its whole connect budget before it answers the first handshake. We measured where that time goes - five runs, no API key, one command - and found tool enumeration costs 3 to 7 milliseconds while process boot costs seven seconds."
+    />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="theme-color" content="#081011" />
+    <link
+      rel="canonical"
+      href="https://happy520ai.github.io/unified-ai-system/mcp-startup-timeouts.html"
+    />
+    <link rel="sitemap" type="application/xml" href="sitemap.xml" />
+    <link rel="alternate" type="text/plain" href="llms.txt" title="LLM-readable project summary" />
+    <link rel="icon" type="image/png" href="assets/mcp-icon.png" />
+    <link rel="stylesheet" href="site.css" />
+
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Unified AI System" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:title" content="Why an MCP client times out before the server answers" />
+    <meta
+      property="og:description"
+      content="Measured: 7.6-8.5 s to answer `initialize`, and 3-7 ms from that answer to a full 15-tool list. The budget is process boot, not your tools."
+    />
+    <meta property="og:image" content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png" />
+    <meta property="article:published_time" content="2026-09-27T04:14:00+00:00" />
+    <meta property="article:modified_time" content="2026-09-27T04:14:00+00:00" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Why an MCP client times out before the server answers" />
+    <meta
+      name="twitter:description"
+      content="Tool enumeration costs 3-7 ms. Process boot costs seven seconds. Here is the one-command measurement."
+    />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="./">Unified AI System</a>
+      <nav aria-label="Primary navigation">
+        <a href="./">Project</a>
+        <a href="credential-free-evidence.html">Credential-free evidence</a>
+        <a href="verify-mcp-docker-image.html">What an image exposes</a>
+        <a
+          class="nav-command"
+          href="https://github.com/happy520ai/unified-ai-system#try-it-in-60-seconds"
+          >60-second demo</a
+        >
+      </nav>
+    </header>
+
+    <main id="article">
+      <header class="article-hero">
+        <div class="article-hero-shade" aria-hidden="true"></div>
+        <div class="article-hero-inner">
+          <p class="eyebrow">TIMING NOTE / SEPTEMBER 2026</p>
+          <h1>Why an MCP client gives up before the server answers</h1>
+          <p class="article-hero-copy">
+            A stdio MCP server has to be a running process before it can say anything, and a
+            client's connect budget starts when the client spawns it, not when the server finishes
+            loading. When those two facts meet, the failure looks like a broken server: the client
+            reports a timeout, the server never gets a chance to answer, and nothing in either log
+            says "I was still importing". We measured our own server against that budget so the
+            number is on the record instead of in a guess.
+          </p>
+          <div class="article-meta" aria-label="Article details">
+            <span>5 runs, one command</span>
+            <span>No API key in the child process</span>
+            <span>Tool list costs 3-7 ms</span>
+          </div>
+        </div>
+      </header>
+
+      <section class="article-section" aria-labelledby="numbers">
+        <h2 id="numbers">The numbers</h2>
+        <p>
+          Run on 2026-09-27 on a Windows 10 x64 machine with Node.js v25.8.1, from a clone of the
+          repository, against the source entry point the published image also runs
+          (<code>packages/mcp-server/src/index.js</code>):
+        </p>
+        <pre><code>node tools/mcp-startup-profile.mjs --repeat 5</code></pre>
+        <table>
+          <caption>
+            Milliseconds from <code>spawn</code> until the response byte arrived
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Run</th>
+              <th scope="col"><code>initialize</code></th>
+              <th scope="col"><code>tools/list</code></th>
+              <th scope="col">Gap</th>
+              <th scope="col">Tools</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>1</td><td>8,461 ms</td><td>8,464 ms</td><td>3 ms</td><td>15</td></tr>
+            <tr><td>2</td><td>7,853 ms</td><td>7,860 ms</td><td>7 ms</td><td>15</td></tr>
+            <tr><td>3</td><td>8,304 ms</td><td>8,309 ms</td><td>5 ms</td><td>15</td></tr>
+            <tr><td>4</td><td>7,630 ms</td><td>7,633 ms</td><td>3 ms</td><td>15</td></tr>
+            <tr><td>5</td><td>7,787 ms</td><td>7,790 ms</td><td>3 ms</td><td>15</td></tr>
+          </tbody>
+        </table>
+        <p>
+          Five consecutive attempts answered <code>initialize</code> between
+          <strong>7,630 ms and 8,461 ms</strong> (median 7,853 ms, spread 831 ms). In every run the
+          complete 15-name tool list arrived <strong>3 to 7 ms later</strong>. The server identified
+          itself as <code>unified-ai-system</code> over protocol <code>2025-06-18</code>, and wrote
+          69 bytes to stderr, identically in all five runs.
+        </p>
+      </section>
+
+      <section class="article-section" aria-labelledby="where">
+        <h2 id="where">Where the budget actually goes</h2>
+        <p>
+          The gap is the whole point. If enumerating tools were expensive, the second number would
+          move. It does not: whatever is slow happens <em>before the first response byte</em>, which
+          for a stdio server means process start plus the module graph, and not MCP work. Two
+          consequences follow:
+        </p>
+        <ul>
+          <li>
+            A client whose connect budget is shorter than the import time cannot be helped by
+            trimming the tool list, caching discovery, or making the server "lazy" about tools -
+            the server is not the part that is slow yet.
+          </li>
+          <li>
+            A server that answers in 7-8 seconds fits inside a 30-second budget but fails inside a
+            5-second one, so the same artifact is "fine" in one client and "failed" in the next.
+            OpenCode documents a default MCP startup timeout of 30 s; the report that led us to
+            build this measurement described a cold install that landed at 33-34 s and was marked
+            failed on that boundary.
+          </li>
+        </ul>
+        <p>
+          There is no first-launch premium visible here. Run 1 was the <em>slowest</em> of the five,
+          so on this machine the seven seconds are paid on every launch, not once per cache
+          lifetime - which is worth saying out loud, because "just warm the cache" is the advice most
+          often given for this symptom.
+        </p>
+      </section>
+
+      <section class="article-section" aria-labelledby="method">
+        <h2 id="method">Method, and how to run it against your own server</h2>
+        <pre><code># our server, five attempts
+node tools/mcp-startup-profile.mjs --repeat 5
+
+# any stdio MCP server on your machine
+node tools/mcp-startup-profile.mjs -- npx -y some-mcp-server@1.2.3
+
+# machine-readable
+node tools/mcp-startup-profile.mjs --repeat 3 --json</code></pre>
+        <p>What the harness does, and deliberately does not do:</p>
+        <ul>
+          <li>
+            It spawns the command, sends <code>initialize</code>, and sends
+            <code>tools/list</code> the instant the first answer is parsed, so the gap measures the
+            server's own work rather than our write latency.
+          </li>
+          <li>
+            It runs the child with <strong>only</strong> <code>PATH</code> and
+            <code>NODE_ENV=production</code> in its environment, and refuses to start at all if the
+            requested environment carries a variable whose name matches
+            <code>KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH</code>. The no-provider claim is
+            enforced by the harness, not asserted by this page.
+          </li>
+          <li>
+            It never treats a notification, a log line or a partial write as an answer: a line counts
+            only if it parses as JSON and carries an integer <code>id</code>. A false "answered" is
+            the one reading that would hide a real timeout.
+          </li>
+          <li>It kills the child on every exit path, so a profiling run leaves no process behind.</li>
+        </ul>
+      </section>
+
+      <section class="article-section" aria-labelledby="limits">
+        <h2 id="limits">What this page does not establish</h2>
+        <ul>
+          <li>
+            One machine, one Node version. Our CI pins Node 22 and this box ran v25.8.1, and we have
+            separately watched a prebuilt-native dependency fail to provide binaries for a newer
+            major - so do not read 7.6-8.5 s as a cross-platform constant.
+          </li>
+          <li>
+            Not a comparison with other servers. We measured ours. Anybody can run the same command
+            against their own and get their own five numbers; nothing here ranks anything.
+          </li>
+          <li>
+            Not a claim that our startup time is acceptable. Seven to eight seconds to first byte is
+            the reason this measurement exists: we would rather own the number in an issue
+            (<a href="https://github.com/happy520ai/unified-ai-system/issues/168">#168</a>) than let
+            a newcomer meet it as a "failed" badge in a client UI.
+          </li>
+        </ul>
+      </section>
+    </main>
+
+    <footer>
+      <span>Unified AI System</span>
+      <span>Startup timing note</span>
+      <a href="verify-mcp-docker-image.html">What a published image exposes</a>
+      <a href="credential-free-evidence.html">Credential-free evidence guide</a>
+      <span>Apache-2.0</span>
+    </footer>
+  </body>
+</html>
