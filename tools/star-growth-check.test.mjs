@@ -748,3 +748,43 @@ test("a traffic-endpoint failure is reported as blindness, not as an empty refer
   const other = formatReferralReadings([{ label: "referrer", error: "some unrelated failure" }]);
   assert.doesNotMatch(other.notes[0], /push-capable token/, "the cause note must not be bolted onto unrelated errors");
 });
+
+test("a stale carrier names whether its correction is already in review", async () => {
+  const { carrierCorrectionVerdict } = await import("./star-growth-check.mjs");
+  // Every verdict must be reachable, so each arm gets its own input rather than a table loop.
+  assert.equal(carrierCorrectionVerdict(0, 552, { state: "open", merged: false }), "not_stale");
+  assert.equal(carrierCorrectionVerdict(1, undefined, { state: "open", merged: false }), "no_correction_recorded");
+  assert.equal(carrierCorrectionVerdict(1, 552, null), "correction_state_unreadable");
+  assert.equal(carrierCorrectionVerdict(1, 552, { state: "open", merged: false }), "pending_merge");
+  assert.equal(carrierCorrectionVerdict(1, 552, { state: "closed", merged: false }), "closed_unmerged");
+  // Boundary arm: a merged correction that left the file stale is the one reading that must
+  // never be softened into "pending", because that is how a real defect gets excused.
+  assert.equal(carrierCorrectionVerdict(1, 552, { state: "closed", merged: true }), "merged_but_still_stale");
+  assert.notEqual(carrierCorrectionVerdict(1, 552, { state: "closed", merged: true }), "pending_merge");
+});
+
+test("carrier correction pointers stay well-formed and cover the carriers that were stale", async () => {
+  const { upstreamCarriers } = await import("./star-growth-check.mjs");
+  for (const carrier of upstreamCarriers) {
+    if (carrier.correction === undefined) continue;
+    assert.ok(
+      Number.isInteger(carrier.correction) && carrier.correction > 0,
+      `${carrier.repo}/${carrier.path}: correction must be a pull-request number, got ${carrier.correction}`,
+    );
+  }
+  // Membership, not a count: dropping one of these silently would turn a named stale file back
+  // into "no_correction_recorded", which reads like work nobody did rather than work in review.
+  const byKey = new Map(upstreamCarriers.map((c) => [`${c.repo}/${c.path}`, c.correction]));
+  const expected = [
+    ["toolsdk-ai/toolsdk-mcp-registry/packages/aggregators/unified-ai-system.json", 552],
+    ["up-for-grabs/up-for-grabs.net/_data/projects/unified-ai-system.yml", 6176],
+    ["agentskillexchange/skills/skills/unified-ai-gateway/SKILL.md", 82],
+    ["hashgraph-online/awesome-ai-plugins/README.md", 479],
+    ["sickn33/agentic-awesome-skills/skills/unified-ai-gateway/SKILL.md", 1616],
+    ["sickn33/agentic-awesome-skills/README.md", 1616],
+  ];
+  for (const [key, pr] of expected) {
+    assert.ok(byKey.has(key), `carrier entry disappeared: ${key}`);
+    assert.equal(byKey.get(key), pr, `correction pointer changed or was dropped for ${key}`);
+  }
+});

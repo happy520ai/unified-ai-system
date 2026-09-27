@@ -906,7 +906,7 @@ function scanPublicClaims() {
 // cannot see these, and on the next release they start mis-stating the project in a tree we
 // do not control. Each entry is a carrier someone accepted, not an instruction to re-ping:
 // the report names the file and the stale reading, and a correction is a fresh, factual PR.
-const upstreamCarriers = [
+export const upstreamCarriers = [
   { repo: "hashgraph-online/awesome-codex-plugins", path: "plugins/happy520ai/unified-ai-system/.codex-plugin/plugin.json", checksVersion: true },
   { repo: "hashgraph-online/awesome-codex-plugins", path: "plugins/happy520ai/unified-ai-system/skills/unified-ai-gateway/SKILL.md", checksVersion: false },
   { repo: "hashgraph-online/awesome-codex-plugins", path: "plugins.json", checksVersion: false, anchor: "happy520ai/unified-ai-system" },
@@ -917,25 +917,25 @@ const upstreamCarriers = [
   // with a 0.4.x-era sentence. Line-scoped because it is a markdown README. Correction filed as
   // hashgraph-online/awesome-ai-plugins#479, so this carrier going from finding to clean is the
   // measurement that says the merge landed - nobody has to ask.
-  { repo: "hashgraph-online/awesome-ai-plugins", path: "README.md", checksVersion: false, anchor: "happy520ai/unified-ai-system", scope: "line" },
+  { repo: "hashgraph-online/awesome-ai-plugins", path: "README.md", checksVersion: false, anchor: "happy520ai/unified-ai-system", scope: "line", correction: 479 },
   // Two more found by censusing the places that already carry us, not by opening doors. Both
   // say "nine" and both already have a clean, in-review correction from us - the point of
   // watching them is that this report goes green by itself when those merges land.
   // This one is machine-readable install config, so it is worse than prose: binArgs pinned
   // mcp-server:0.4.8, i.e. a reader following the directory gets a five-month-old image.
-  { repo: "toolsdk-ai/toolsdk-mcp-registry", path: "packages/aggregators/unified-ai-system.json", checksVersion: true },
+  { repo: "toolsdk-ai/toolsdk-mcp-registry", path: "packages/aggregators/unified-ai-system.json", checksVersion: true, correction: 552 },
   // Whole file is our entry, so no anchor is needed; their stats: block is bot-maintained and
   // is deliberately outside anything we would edit.
-  { repo: "up-for-grabs/up-for-grabs.net", path: "_data/projects/unified-ai-system.yml", checksVersion: false },
+  { repo: "up-for-grabs/up-for-grabs.net", path: "_data/projects/unified-ai-system.yml", checksVersion: false, correction: 6176 },
   // Two more from enumerating the files our merged pull requests actually changed, which is the
   // precise way to find carriers: a listing that vendors our skill file is writing setup
   // instructions for us, so a stale count in it is a user-facing defect, not a branding nit.
-  { repo: "agentskillexchange/skills", path: "skills/unified-ai-gateway/SKILL.md", checksVersion: true },
+  { repo: "agentskillexchange/skills", path: "skills/unified-ai-gateway/SKILL.md", checksVersion: true, correction: 82 },
   { repo: "yzfly/Awesome-MCP-ZH", path: "README.md", checksVersion: false, anchor: "happy520ai/unified-ai-system", scope: "line" },
   // The 46.9k-star vendor. Both of these are wrong right now and both are fixed by #1616,
   // so the line going from STALE to ok is the confirmation that it merged - nobody has to ask.
-  { repo: "sickn33/agentic-awesome-skills", path: "skills/unified-ai-gateway/SKILL.md", checksVersion: true },
-  { repo: "sickn33/agentic-awesome-skills", path: "README.md", checksVersion: false, anchor: "happy520ai/unified-ai-system", scope: "line" },
+  { repo: "sickn33/agentic-awesome-skills", correction: 1616, path: "skills/unified-ai-gateway/SKILL.md", checksVersion: true },
+  { repo: "sickn33/agentic-awesome-skills", correction: 1616, path: "README.md", checksVersion: false, anchor: "happy520ai/unified-ai-system", scope: "line" },
 ];
 
 // A markdown list needs the opposite scoping from a JSON index: our entry is one line, and
@@ -999,6 +999,25 @@ function fetchCarrierFile(repoName, filePath) {
   return result.ok ? String(result.data) : null;
 }
 
+// A stale carrier row is only informational when the fix is already in review; otherwise it is
+// an open defect in a file that tells people what to install. The pull-request number lives in the
+// carrier table as a pointer and its state is read live, so a correction that merged yet left the
+// file stale is named instead of excused by a code comment that was true once.
+export function carrierCorrectionVerdict(findingCount, correction, pull) {
+  if (findingCount === 0) return "not_stale";
+  if (!correction) return "no_correction_recorded";
+  if (pull === null) return "correction_state_unreadable";
+  if (pull.merged) return "merged_but_still_stale";
+  if (pull.state === "open") return "pending_merge";
+  return "closed_unmerged";
+}
+
+function fetchPullState(repoName, prNumber) {
+  const result = safeGetJson(`gh api repos/${repoName}/pulls/${prNumber}`);
+  if (!result.ok) return null;
+  return { state: result.data.state ?? "unknown", merged: Boolean(result.data.merged_at) };
+}
+
 // Aggregate catalogue files describe many products, so a count found anywhere in them is not
 // a claim about us - the first live run of this arm reported other plugins' "16 MCP tools" and
 // "23 MCP tools" as our staleness. Carriers that live in an index therefore name an anchor,
@@ -1036,11 +1055,20 @@ function collectCarrierFindings() {
     } else if (rosterCount === null) {
       rows.push({ carrier, status: "roster-unknown", findings: [] });
     } else {
-      rows.push({
-        carrier,
-        status: "read",
-        findings: carrierFindings(region, rosterCount, carrier.checksVersion ? version : null),
-      });
+      const findings = carrierFindings(region, rosterCount, carrier.checksVersion ? version : null);
+      let correction = null;
+      if (findings.length > 0) {
+        if (carrier.correction) {
+          const pull = fetchPullState(carrier.repo, carrier.correction);
+          correction = {
+            verdict: carrierCorrectionVerdict(findings.length, carrier.correction, pull),
+            ref: carrier.repo + "#" + carrier.correction,
+          };
+        } else {
+          correction = { verdict: "no_correction_recorded", ref: "" };
+        }
+      }
+      rows.push({ carrier, status: "read", findings, correction });
     }
   }
   return { rosterCount, version, rows };
@@ -1501,8 +1529,10 @@ function generateCheckReport(repoStats, rows, date, previousStats = null, claimS
       } else if (row.findings.length === 0) {
         lines.push(`- ok ${name}`);
       } else {
+        const verdict = row.correction ? row.correction.verdict : "not_stale";
+        const ref = row.correction && row.correction.ref ? ` ${row.correction.ref}` : "";
         for (const finding of row.findings) {
-          lines.push(`- STALE ${name} ${finding}`);
+          lines.push(`- STALE ${name} ${finding} [${verdict}${ref}]`);
         }
       }
     }
