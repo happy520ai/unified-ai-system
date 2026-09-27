@@ -34,7 +34,7 @@ branding step cannot spend the first two minutes of fifteen.
 | 4 | Set the Glama build target so a grade exists (§0h) | `https://glama.ai/mcp/servers/happy520ai/unified-ai-system/admin` → Docker builds | Different in kind from the fourteen carried listings above: the maintainer of the biggest MCP list has already reviewed our entry and named exactly one remaining condition ("any grade is fine"), so this is a queued merge rather than a cold submission. ~5 minutes, and only you can reach that dashboard. |
 | 5 | Send one message to selfh.st (§0e) | `selfhst@fosstodon.org` | The closest audience of the whole list. No form exists; it is a message. |
 | 6 | Click the checkbox and fill the form (§0f) | `https://openalternative.co/submit` | I am not solving a machine-refusal challenge for you; their GitHub list (6,747★) is generated from this one submission. |
-| 7 | Paste one of the two data articles (§4b or §4c) | dev.to draft → publish | Lowest cost per unit of reach in this file, and the only one that does not ask a reader to evaluate our product. §4c is the fresher of the two (written after the header measurements landed on 2026-09-27) and its hook is a mistake the probe made, which is the kind of post people forward. Both already carry the agent disclosure and neither asks for a star. Re-run `## Verify before posting` first: the numbers are dated readings, and a stale one in a data post is worse than no post. |
+| 7 | Paste one of the three data articles (§4b, §4c or §4d) | dev.to draft → publish | Lowest cost per unit of reach in this file, and the only one that does not ask a reader to evaluate our product. §4c and §4d are the two freshest (both written 2026-09-27, after the header and cache-hint measurements); each of the three is built around a mistake or a small number rather than a claim, which is the kind of post people forward. All three already carry the agent disclosure and none asks for a star. Re-run `## Verify before posting` first: the numbers are dated readings, and a stale one in a data post is worse than no post. |
 | 8 | Optional: upload the share card (§0) | `https://github.com/happy520ai/unified-ai-system/settings` → Social preview → `docs/assets/social-preview.png` | Now branding rather than a fix. Measured today: the card GitHub serves is its default template - repo name, current description, live counters - and **shows no tool count at all**, so nothing wrong is being shared while it stays unset. Do it if you want the branded card in front of every link; do not do it instead of 1-7. |
 
 Two of these (1 and 2) are worth the time even if nothing else is. If you do only one
@@ -464,6 +464,70 @@ https://github.com/happy520ai/unified-ai-system/tree/master/tools — `survey-mc
 https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.html
 
 One window, one ordering, one day. Servers deploy; a re-run is a new measurement, not a regression test.
+
+## 4d. Third data post — the number nobody sent (ready to paste)
+
+**Why this one exists:** §4b and §4c are about what other servers do. This one is about a field we were
+ignoring, found by asking a question nobody had published an answer to. It is also the only post in this
+file where the punchline is "one in sixteen, so the interesting part was somewhere else" - a claim small
+enough to be believable.
+
+**Title:** `I asked 40 MCP servers how long their tool list may be cached. 15 said nothing, 1 said something I wasn't reading.`
+
+**Tags (dev.to):** `mcp`, `api`, `architecture`, `testing`
+
+---
+
+A gateway has to decide how long to keep a cached tool list. The Model Context Protocol lets the server
+answer that directly: `ttlMs` and `cacheScope` on a list response. I wanted to know how often anyone
+uses them, because a policy designed for a signal nobody sends is just overhead.
+
+Method, and the limits of it: the first 40 `streamable-http` endpoints in the official MCP registry,
+registry order, anonymous JSON-RPC, read-only, no tool invocation, no credentials, one window on
+2026-09-27. 22 of the 40 require OAuth before they will talk, which is the denominator every one of
+these posts has to repeat. The probe records structure only - presence, type, numeric buckets, counts -
+and copies no tool names, descriptions or other server-authored text out of the response.
+
+**The answer:** of the 16 servers that returned a tool list, **15 declared neither field** and **1
+declared both**: `ttlMs: 300000` and `cacheScope: "private"`.
+
+So the timing lesson is small, and I am going to keep it small: honour the number when it arrives,
+clamped to 1 s .. 10 min. The clamp is mine, not the server's, because a declared `0` would turn every
+read into a fresh upstream handshake (we measured that handshake at 6.4 s on a quiet machine) and a
+declared decade would let one response freeze a tool list indefinitely. A number off the network is an
+input to a decision, not the decision. When a server says nothing - 15 of 16 - the behaviour is
+unchanged from before, deliberately.
+
+**The part that was worth the exercise is not the timing.** That one server also said
+`cacheScope: private`, and we were storing its response in a process-global map keyed by upstream id,
+handed to every tenant allowed on that server. Nothing was leaked, and pretending otherwise would be
+marketing: the list call takes no caller identity and the upstream request is built from server config,
+so the content genuinely is the same for everyone today.
+
+What was wrong is the shape. The cache was built as though sharing were always safe. The first person to
+forward a per-caller token, or a header derived from the tenant, into an upstream list call would have
+been serving tenant A's tool list to tenant B out of a key neither of them owned - and no code would
+have objected, because the assumption was never written down anywhere to object to. Fixing a shape costs
+one cache key. Auditing the same shape after that header ships costs a disclosure.
+
+One more thing, because it is the honest part of writing this: the guard I built for this page refused
+my own test data mid-write. I had changed a verdict and dropped a row, and it said `sum=3 rows=2`.
+That is the entire reason to publish the instrument with the numbers - a bad fixture caught by a tool is
+better than a bad page caught by a reader.
+
+Scripts and full tables, re-runnable in about two minutes:
+https://github.com/happy520ai/unified-ai-system/tree/master/tools - `survey-mcp-list-cache-hints.mjs`,
+`render-mcp-cache-hints-doc.mjs`. Write-up with its blind spots stated:
+https://happy520ai.github.io/unified-ai-system/mcp-list-cache-hints.md · tracked as
+https://github.com/happy520ai/unified-ai-system/issues/184
+
+If you want the same question answered for your own server: send a `tools/list`, and look at what comes
+back besides `tools` and `nextCursor`. Most of the time, in this sample, that answer was nothing.
+
+<sub>Disclosure: this text was drafted by an AI agent working on the project, from a measurement it ran.
+The numbers are one dated window, not a general property of the ecosystem.</sub>
+
+---
 
 ## 5. The first two hours: the questions that will actually arrive
 
