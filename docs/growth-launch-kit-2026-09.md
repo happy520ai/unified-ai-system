@@ -40,6 +40,12 @@ Two of these (1 and 2) are worth the time even if nothing else is. If you do onl
 thing this week, do #1 — that is the conclusion the data on every other channel
 supports, not a preference.
 
+There is now also **§4b, a data post that asks nothing of the reader** — three surveys of
+public MCP servers, with our own server measured by the same questions. It is the only copy in
+this file that can be pasted into a technical thread without pitching, so if you have five spare
+minutes after the list above, that is the one to use. Re-run the three scripts first, or keep the
+"as of 2026-09-27" framing: a stale dataset about a moving ecosystem is worse than none.
+
 ---
 
 ## 0. Owner-only, before any of the above
@@ -318,6 +324,72 @@ second Reddit self-promotion the same day.
 6. Honest limits: solo maintainer, single-digit stars, single-host,
    public preview.
 7. One-command try-it + the issue template for reporting a verification run.
+
+## 4b. A data post that is not about the product (ready to paste)
+
+**Why this exists separately:** every other post in this file asks a reader to look at our software.
+This one asks them to look at a measurement, and the software appears only as "the scripts are here".
+Data posts travel further than product posts, and this is the only asset we have that a stranger can
+reproduce in two minutes and disagree with on the merits.
+
+**Title:** `I asked 40 public MCP servers three questions. Two agreed to a protocol version that does not exist.`
+
+**Tags (dev.to):** `mcp`, `ai`, `testing`, `golang`-adjacent — use `apirest` if `mcp` is unavailable.
+
+---
+
+The Model Context Protocol has a handshake, a session header, and a pagination field, and almost
+nobody has published how much of that is actually used in the wild. So I asked. Sample: the first 40
+servers advertising a `streamable-http` endpoint in the official MCP registry, taken in the registry's
+default order on 2026-09-27. Anonymous `initialize`, one `tools/list`, nothing written, no
+credentials.
+
+**Question 1: does `tools/list` ever paginate?** 16 of the 40 answered at all — 22 refused an
+anonymous handshake, which is the number I keep having to repeat because it is the real denominator.
+**0 of the 16 emitted `nextCursor`.** Largest single-page list: 35 tools. So the cursor mechanism the
+spec provides is close to unused among servers you can actually reach.
+
+**Question 2: will a server agree to a protocol version that does not exist?** I asked for
+`9999-99-99`. Of the 19 that responded, 14 named a revision they support, 2 rejected it with a
+JSON-RPC error over HTTP 400, and **2 answered HTTP 200 with `9999-99-99` echoed back**. Two out of
+nineteen is small until you notice what it means: those servers just told a client that they speak a
+protocol that has never existed, and the client has no way to know the handshake was decorative.
+
+The detail I liked: seven servers answered `2025-11-25` to the nonsense request while answering
+`2025-06-18` to a polite one an hour earlier. The fallback is disclosing the revision the server
+actually prefers — the one piece of information you cannot get by behaving correctly.
+
+**Question 3: if a server issues an `MCP-Session-Id`, does it require it back?** 14 of the 16 issue no
+session id at all. Two issue one, and **both return HTTP 400 when it is omitted**. Zero issued a token
+and then ignored it. The interesting bit is who those two are: both are among the seven that negotiate
+upward, and both reply over SSE. Statefulness is not a legacy tail in this sample — it is attached to
+the servers adopting newer revisions, which is the opposite of the easy story.
+
+**Then I ran the same three questions against my own server.** It negotiates `2025-06-18` when asked,
+serves 15 tools with no cursor (so: I am in the non-paginating majority too), issues no session id,
+and substitutes `2025-11-25` rather than echoing the impossible one. That self-test also caught a real
+bug in my own project, which is the honest reason the whole exercise was worth an afternoon: my server
+prefers a newer revision than my gateway client declares upstream, and the client never reads the
+answer. Two components of one product disagree about which protocol they are speaking and nothing
+noticed. Filed against myself as an issue, not quietly patched.
+
+**Limits, because n matters here:** 16–19 observations, not a population. The sample is alphabetical by
+registry identifier at one timestamp, so it over-represents names starting with `a`. Only `initialize`
+and `tools/list` were exercised — going further means invoking tools on services that are not mine. No
+stdio servers are reachable by this method at all, and they are the majority of what people run. Every
+number above is a floor on "what the servers that let me look do", not a claim about the ecosystem.
+
+The three scripts and the write-ups are in
+[unified-ai-system/tools](https://github.com/happy520ai/unified-ai-system/tree/master/tools) — run
+them against your own server or against the registry and tell me my numbers are wrong; a two-minute
+reproduction is the only kind of evidence I trust on this.
+
+---
+
+**Before posting:** re-run all three scripts and update every number, or say "as of 2026-09-27"
+explicitly. These decay — servers deploy, and a stale dataset about a moving ecosystem is worse than no
+dataset. The self-caught bug paragraph should be replaced with the current status of
+[#178](https://github.com/happy520ai/unified-ai-system/issues/178), whatever it is by then.
 
 ## 5. The first two hours: the questions that will actually arrive
 
