@@ -129,7 +129,7 @@ Cursor、Cline、Continue 和通用 stdio 客户端都可以通过同一个网�
 <p align="center">
   <img
     src="docs/assets/readme-architecture.png"
-    alt="架构总览：OpenAI/Anthropic SDK、MCP 客户端、A2A、CLI 与 HTTP 汇入统一网关——提示词增强、虚拟 key、精确+语义缓存、反向 MCP 治理、可观测性、审计——provider 位于三重白名单之后，fake provider 为零凭证默认"
+    alt="架构总览：OpenAI/Anthropic SDK、MCP 客户端、A2A、CLI 与 HTTP 汇入统一网关——提示词增强、虚拟 key、精确缓存 + 可选语义层、反向 MCP 治理、可观测性、审计——provider 位于三重白名单之后，fake provider 为零凭证默认"
     width="100%"
   />
   <br />
@@ -162,7 +162,7 @@ Cursor、Cline、Continue 和通用 stdio 客户端都可以通过同一个网�
 <p align="center">
   <img
     src="docs/assets/readme-capabilities.png"
-    alt="能力卡片：OpenAI、Anthropic 与 Gemini API，虚拟 key 与预算，精确和语义缓存，反向 MCP 治理，可观测性，本地优先 RAG，Provider 治理，以及 23 项攻击安全回归"
+    alt="能力卡片：OpenAI、Anthropic 与 Gemini API，虚拟 key 与预算，精确缓存 + 可选语义层，反向 MCP 治理，可观测性，本地优先 RAG，Provider 治理，以及 23 项攻击安全回归"
     width="100%"
   />
 </p>

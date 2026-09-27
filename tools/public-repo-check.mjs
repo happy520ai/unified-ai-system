@@ -3,6 +3,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CURRENT_RELEASE, PINNED_ROSTER, pinnedCorrectReadings, pinnedCountMismatches, pinnedIdentityReadings } from "./check-pinned-count.mjs";
+import { CACHE_CLAIM_CARRIERS, findUnqualifiedCacheClaims } from "./launch-preflight.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const errors = [];
@@ -770,6 +771,26 @@ for (const [name, asset] of Object.entries(marketingAssets)) {
   if (rendered !== expected) {
     addError("marketing_asset_png_stale", asset.output, `${rendered} != ${expected} declared by ${asset.source}`);
   }
+}
+
+// A public sentence that pairs the cache with "semantic" without naming which grade is the
+// default is the claim a maintainer of another list checked against our own doc and asked us
+// to match. The word pair and its qualifiers come from the launch-preflight instrument, so the
+// paste-copy guard and this carrier guard cannot disagree about what counts as unqualified.
+if (CACHE_CLAIM_CARRIERS.length === 0) {
+  addError("public_cache_claim_scan_blind", "tools/launch-preflight.mjs", "the carrier list is empty, so nothing is being checked");
+}
+const cacheClaimFindings = [];
+for (const carrier of CACHE_CLAIM_CARRIERS) {
+  const carrierPath = resolve(repoRoot, carrier);
+  if (!existsSync(carrierPath)) {
+    addError("public_cache_claim_carrier_missing", carrier, "declared as a public carrier but not present in the tree");
+    continue;
+  }
+  cacheClaimFindings.push(...findUnqualifiedCacheClaims(readFileSync(carrierPath, "utf8"), carrier));
+}
+if (cacheClaimFindings.length > 0) {
+  addError("public_cache_claim_unqualified", CACHE_CLAIM_CARRIERS.join(", "), cacheClaimFindings.join(" | "));
 }
 
 const currentVersionMarker = String(rootPackage.version);

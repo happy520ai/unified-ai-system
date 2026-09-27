@@ -193,3 +193,54 @@ test("somebody else's sentence about any spec is a record, not our promise", () 
   const c = readCopyClaims(kit("> Their README says it converts any OpenAPI 3 spec, which is not what ours does."));
   assert.deepEqual(c.openApiClaims, []);
 });
+
+// --- public carriers, not just the paste-ready kit -------------------------------------
+// The same overclaim reached the reader through README alt text and the rendered
+// architecture PNG, which no kit-scoped guard can see. These fixtures are the real
+// pre-fix bytes, so the bite is anchored to the defect that actually shipped.
+import { CACHE_CLAIM_CARRIERS, findUnqualifiedCacheClaims } from "./launch-preflight.mjs";
+
+test("the wording that drew a maintainer's objection is what the carrier guard catches", () => {
+  const readmeAlt = '    alt="Architecture: OpenAI/Anthropic SDKs, MCP clients, A2A, CLI, and HTTP enter one gateway that adds prompt enhancement, virtual keys, exact + semantic cache, reverse MCP governance, observability, and audit"';
+  const chip = '        <div class="chip"><b>Response Cache</b><span>exact + semantic · byte-identical SSE replay</span></div>';
+  const readmeFindings = findUnqualifiedCacheClaims(readmeAlt, "README.md");
+  assert.equal(readmeFindings.length, 1);
+  assert.match(readmeFindings[0], /^README.md:1 /);
+  assert.match(readmeFindings[0], /exact \+ semantic cache/);
+  const chipFindings = findUnqualifiedCacheClaims(chip, "docs/assets/readme-architecture.html");
+  assert.equal(chipFindings.length, 1, "the rendered image source must not be able to say it silently");
+  assert.match(chipFindings[0], /^docs\/assets\/readme-architecture\.html:1 /);
+});
+
+test("naming which grade is the default clears the claim", () => {
+  assert.deepEqual(
+    findUnqualifiedCacheClaims("virtual keys, exact cache with an optional semantic layer, reverse MCP governance", "README.md"),
+    [],
+  );
+  assert.deepEqual(
+    findUnqualifiedCacheClaims("<span>opt-in semantic layer that catches paraphrases</span>", "docs/index.html"),
+    [],
+  );
+  assert.deepEqual(
+    findUnqualifiedCacheClaims("alt=\"精确缓存 + 可选语义层，反向 MCP 治理\"", "README.zh-CN.md"),
+    [],
+    "the Chinese carrier needs the same escape hatch, or the guard only speaks English",
+  );
+});
+
+test("every shipped public carrier reads clean, and the list itself cannot quietly empty", () => {
+  assert.ok(CACHE_CLAIM_CARRIERS.length >= 8, `carrier list collapsed to ${CACHE_CLAIM_CARRIERS.length}`);
+  const all = [];
+  for (const carrier of CACHE_CLAIM_CARRIERS) {
+    all.push(...findUnqualifiedCacheClaims(readFileSync(carrier, "utf8"), carrier));
+  }
+  assert.deepEqual(all, []);
+});
+
+test("the public gate is wired to this instrument rather than a copy of it", () => {
+  const gate = readFileSync("tools/public-repo-check.mjs", "utf8");
+  assert.match(gate, /from "\.\/launch-preflight\.mjs"/);
+  assert.match(gate, /findUnqualifiedCacheClaims/);
+  assert.match(gate, /public_cache_claim_unqualified/);
+  assert.match(gate, /CACHE_CLAIM_CARRIERS\.length === 0/, "an empty carrier list must be reported blind, not clean");
+});

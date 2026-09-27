@@ -130,7 +130,7 @@ Useful in a real workflow? [Star the repository](https://github.com/happy520ai/u
 <p align="center">
   <img
     src="docs/assets/readme-architecture.png"
-    alt="Architecture: OpenAI/Anthropic SDKs, MCP clients, A2A, CLI, and HTTP enter one gateway that adds prompt enhancement, virtual keys, exact + semantic cache, reverse MCP governance, observability, and audit — providers stay behind a three-gate whitelist with the fake provider as the credential-free default"
+    alt="Architecture: OpenAI/Anthropic SDKs, MCP clients, A2A, CLI, and HTTP enter one gateway that adds prompt enhancement, virtual keys, exact cache with an optional semantic layer, reverse MCP governance, observability, and audit — providers stay behind a three-gate whitelist with the fake provider as the credential-free default"
     width="100%"
   />
   <br />
@@ -163,7 +163,7 @@ fake-provider-first, so you can try every feature with zero credentials:
 <p align="center">
   <img
     src="docs/assets/readme-capabilities.png"
-    alt="Capability cards: OpenAI, Anthropic, and Gemini APIs; virtual keys and budgets; exact and semantic cache; reverse MCP governance; observability; local-first RAG; provider governance; and a 23-attack security regression"
+    alt="Capability cards: OpenAI, Anthropic, and Gemini APIs; virtual keys and budgets; exact cache with an optional semantic layer; reverse MCP governance; observability; local-first RAG; provider governance; and a 23-attack security regression"
     width="100%"
   />
 </p>

@@ -69,7 +69,7 @@ export const SITE_LINK = /https:\/\/happy520ai\.github\.io\/unified-ai-system\/(
 // for it to match. Paste-ready copy may call it semantic only where the same paragraph
 // says what semantic-grade matching takes.
 export const CACHE_WORD_PAIR = /\bsemantic\b[^\n]{0,60}\bcach\w*\b|\bcach\w*\b[^\n]{0,60}\bsemantic\b/i;
-export const CACHE_QUALIFIER = /lexical|approximat|subword|not semantic|embedding endpoint|embedding hook/i;
+export const CACHE_QUALIFIER = /lexical|approximat|subword|not semantic|embedding endpoint|embedding hook|opt-in|optional|\u53ef\u9009/i;
 
 // Same class, second instance: we publish a converter that refuses a document whose
 // semantics it cannot resolve (Notion's 48-path spec is one), so paste-ready copy may
@@ -117,6 +117,38 @@ export function readOpenApiClaims(kitText) {
     if (OPENAPI_QUALIFIER.test(p.text) || isRecordLine(p.text)) continue;
     found.push({ line: p.line, text: p.text.slice(0, 160) });
   }
+  return found;
+}
+
+// The pages a reader acts on, as opposed to the paste-ready kit paragraphs the guard above
+// reads. The kits are deliberately absent: they are already audited paragraph by paragraph,
+// and a line-scoped second opinion there would disagree with the better instrument.
+export const CACHE_CLAIM_CARRIERS = [
+  "README.md",
+  "README.zh-CN.md",
+  "docs/index.html",
+  "docs/index.zh-CN.html",
+  "docs/llms.txt",
+  "docs/response-cache-hot-path.md",
+  "docs/assets/readme-architecture.html",
+  "docs/assets/readme-capabilities.html",
+  "docs/assets/readme-hero.html",
+  "docs/assets/social-preview-source.html",
+];
+
+// Line-scoped, because these carriers are HTML and Markdown prose rather than hard-wrapped
+// blockquotes. Returns "path:line excerpt" so the caller can point at the sentence.
+export function findUnqualifiedCacheClaims(text, relPath) {
+  const found = [];
+  String(text ?? "").split(/\r?\n/).forEach((line, i) => {
+    const pair = CACHE_WORD_PAIR.exec(line);
+    if (!pair) return;
+    if (CACHE_QUALIFIER.test(line) || isRecordLine(line)) return;
+    // Excerpt around the match, not the line start: an alt attribute is long enough that the
+    // first 120 characters can stop before the words that made it fire.
+    const from = Math.max(0, pair.index - 40);
+    found.push(`${relPath}:${i + 1} ${line.slice(from, from + 120).trim()}`);
+  });
   return found;
 }
 
