@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Three measurements of the public MCP ecosystem: pagination, revision checking, session ids | Unified AI System</title>
+    <meta
+      name="description"
+      content="We asked 40 servers advertised in the official MCP registry three anonymous questions: does tools/list paginate (0 of 16 responders), will a server agree to a protocol version that does not exist (2 did), and does an issued session id have to come back (2 of 16 issue one, and both require it). Scripts included."
+    />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="theme-color" content="#081011" />
+    <link
+      rel="canonical"
+      href="https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.html"
+    />
+    <link rel="sitemap" type="application/xml" href="sitemap.xml" />
+    <link rel="alternate" type="text/plain" href="llms.txt" title="LLM-readable project summary" />
+    <link rel="icon" type="image/png" href="assets/mcp-icon.png" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Three measurements of the public MCP ecosystem" />
+    <meta
+      property="og:description"
+      content="0 of 16 reachable servers paginate tools/list. 2 agreed to a protocol version that does not exist. 0 issued a session id and then ignored it."
+    />
+    <meta property="og:url" content="https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.html" />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #081011;
+        --panel: #0f1a1b;
+        --line: #1f3032;
+        --ink: #e8f1f0;
+        --muted: #9db1b0;
+        --accent: #5fd0bd;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 40px 20px 72px;
+        background: var(--bg);
+        color: var(--ink);
+        font: 16px/1.65 "Segoe UI", system-ui, -apple-system, sans-serif;
+      }
+      main { max-width: 900px; margin: 0 auto; }
+      h1 { font-size: 30px; line-height: 1.25; margin: 0 0 12px; }
+      h2 { font-size: 21px; margin: 40px 0 12px; }
+      p.lede { color: var(--muted); font-size: 18px; margin: 0 0 8px; }
+      .cards { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); margin: 26px 0 6px; }
+      .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; }
+      .num { font-size: 30px; font-weight: 700; color: var(--accent); line-height: 1.1; }
+      .card p { margin: 8px 0 0; color: var(--muted); font-size: 14.5px; }
+      table { width: 100%; border-collapse: collapse; margin: 14px 0 6px; font-size: 15px; }
+      caption { text-align: left; color: var(--muted); font-size: 14px; padding-bottom: 8px; }
+      th, td { border-bottom: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+      th { color: var(--muted); font-weight: 600; font-size: 13.5px; }
+      code { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 14px; }
+      pre { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; overflow-x: auto; font-size: 14px; }
+      a { color: var(--accent); }
+      ul { padding-left: 22px; }
+      .note { border-left: 3px solid var(--accent); background: var(--panel); padding: 12px 16px; border-radius: 0 10px 10px 0; color: var(--muted); }
+      footer { margin-top: 46px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Three measurements of the public MCP ecosystem</h1>
+      <p class="lede">
+        We asked servers that are not ours three anonymous questions, because the claims we make about
+        gateway behaviour were otherwise just opinions. Run 2026-09-27, sample of 40 servers advertised
+        in the official MCP registry.
+      </p>
+
+      <div class="cards">
+        <div class="card">
+          <div class="num">0 / 16</div>
+          <p>
+            <strong>paginate <code>tools/list</code>.</strong> Sixteen servers returned a tool list; none
+            emitted <code>nextCursor</code>. Largest single page seen: 35 tools.
+          </p>
+        </div>
+        <div class="card">
+          <div class="num">2 / 19</div>
+          <p>
+            <strong>agreed to a protocol version that does not exist.</strong> Asked for
+            <code>9999-99-99</code>, two answered HTTP 200 with that value echoed back.
+          </p>
+        </div>
+        <div class="card">
+          <div class="num">2 of 2</div>
+          <p>
+            <strong>require the session id they issue.</strong> Two servers handed out
+            <code>MCP-Session-Id</code> and returned <code>400</code> without it. Zero issued a token and
+            then ignored it.
+          </p>
+        </div>
+      </div>
+
+      <p class="note">
+        The denominator that matters most is the unfashionable one: <strong>22 of the 40 servers refused an
+        anonymous handshake entirely</strong> (<code>401</code>/<code>403</code>). Every ratio above is
+        therefore about the servers that let us look, not about the ecosystem.
+      </p>
+
+      <h2>1. Does anyone's <code>tools/list</code> actually paginate?</h2>
+      <p>
+        Our gateway walks every page and refuses to present a truncated enumeration as complete
+        (<a href="https://github.com/happy520ai/unified-ai-system/issues/177">issue #177</a>). We closed
+        that issue by admitting no real server had been observed paginating, so the bounds in the fix -
+        20 pages, 2,000 tools, dedupe by name, hard error on a repeated cursor - were a stance about a
+        protocol feature rather than a survey of it. This is the survey.
+      </p>
+      <p>
+        Result: the walk is insurance against a server nobody has met yet. Which is the honest way to
+        describe a fix for an unobserved failure, and worth saying out loud, because "we fixed pagination"
+        would otherwise be read as "we saw pagination break".
+      </p>
+      <p>
+        Why it still matters: an aggregator that treats one response as complete applies its tool
+        allowlist to page one only. Page-two tools are then neither permitted nor denied - they never
+        reach the policy. A truncated enumeration that looks complete is worse than one that looks
+        truncated, and nothing in the response shape lets a client tell the difference.
+      </p>
+      <p><a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/mcp-tools-list-pagination-survey.md">Full table and limits: pagination survey</a></p>
+
+      <h2>2. Will a server agree to a protocol version that does not exist?</h2>
+      <p>
+        The revision decides whether <code>MCP-Session-Id</code> is part of the contract and - in
+        <code>2026-07-28</code> - whether the conversation is stateful at all. A server that echoes
+        whatever the client asked for makes the handshake information-free, and a client cannot notice
+        from the inside.
+      </p>
+      <table>
+        <caption>Answered <code>initialize</code> with <code>protocolVersion: "9999-99-99"</code></caption>
+        <thead><tr><th>Behaviour</th><th>Servers</th></tr></thead>
+        <tbody>
+          <tr><td>Named a revision they support</td><td>14 (6x <code>2025-06-18</code>, 7x <code>2025-11-25</code>, 1x <code>2024-11-05</code>)</td></tr>
+          <tr><td>Rejected with a JSON-RPC error over HTTP 400</td><td>2</td></tr>
+          <tr><td><strong>Echoed <code>9999-99-99</code> with HTTP 200</strong></td><td>2</td></tr>
+          <tr><td><code>502</code>, no version</td><td>1</td></tr>
+        </tbody>
+      </table>
+      <p>
+        The paired reading is more useful than the headline: seven servers answered
+        <code>2025-11-25</code> to the nonsense request while answering <code>2025-06-18</code> to a valid
+        one an hour earlier. The fallback is disclosing the revision the server would have preferred -
+        the one a client never learns by asking politely.
+      </p>
+      <p><a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/mcp-protocol-revision-tolerance.md">Full table and limits: revision-tolerance survey</a></p>
+
+      <h2>3. If a server issues a session id, does it require it back?</h2>
+      <p>
+        Of the 16 servers that answered <code>initialize</code>, 14 issued no session id at all and served
+        <code>tools/list</code> without one. Two issued one and required it back. The two that enforce it
+        are also two of the seven that negotiated upward, and both reply over SSE - so in this sample the
+        stateful servers are not a legacy tail, they are the ones adopting newer revisions. That is the
+        opposite of the reading where statelessness is simply taking over.
+      </p>
+      <p>
+        For anyone writing a gateway: store whatever the upstream issued and replay it, and treat "no
+        session id" as a per-upstream property discovered at connect time rather than a global assumption
+        about the protocol.
+      </p>
+      <p><a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/mcp-session-enforcement.md">Full table and limits: session-enforcement survey</a></p>
+
+      <h2>Method, in one paragraph</h2>
+      <p>
+        Each script reads the official MCP registry for <code>streamable-http</code> records, takes the
+        first 40 endpoints in the registry's default order, and sends anonymous JSON-RPC:
+        <code>initialize</code>, then <code>notifications/initialized</code>, then
+        <code>tools/list</code> - with a second page or a header-omitted repeat only where the specific
+        question requires it. No credentials, no writes, no tool invocation, sequential requests with a
+        short delay. The two final requests in the session probe differ in exactly one header, so a
+        rejection cannot be blamed on something else the client forgot to send.
+      </p>
+      <pre><code>node tools/survey-mcp-tools-list-pagination.mjs 40
+node tools/survey-mcp-revision-tolerance.mjs 40
+node tools/survey-mcp-session-enforcement.mjs 40</code></pre>
+
+      <h2>Limits, stated rather than implied</h2>
+      <ul>
+        <li><strong>n is 16-19, not 40.</strong> 22 servers would not talk to an anonymous client, so they are outside these measurements rather than passing them.</li>
+        <li><strong>The sample is not random.</strong> It is the registry's default order at one timestamp, which over-represents server names beginning with <code>a</code>.</li>
+        <li><strong><code>initialize</code> and <code>tools/list</code> only.</strong> Going further would mean invoking tools on services that are not ours.</li>
+        <li><strong>No stdio coverage.</strong> That population is larger and unreachable by this method.</li>
+        <li><strong>One timestamp each, 2026-09-27.</strong> Servers deploy; a re-run is a new measurement, not a regression test. All three scripts are deliberately outside our CI for that reason.</li>
+      </ul>
+
+      <footer>
+        Part of <a href="index.html">Unified AI System</a>, a self-hosted AI gateway with virtual keys,
+        budgets and governed MCP tool surfaces. Apache-2.0. The defects these measurements found in our
+        own software are public: <a href="https://github.com/happy520ai/unified-ai-system/issues/177">#177</a>
+        (truncated enumeration treated as complete) and
+        <a href="https://github.com/happy520ai/unified-ai-system/issues/178">#178</a>
+        (we send a protocol revision and never read the answer).
+      </footer>
+    </main>
+  </body>
+</html>
