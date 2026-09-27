@@ -350,6 +350,12 @@ was the slowest, so there is no cold-cache excuse to reach for. Paste the reply,
 > wait is process boot, not tool work. It is open as #168, with the method and the limits of the
 > measurement on https://happy520ai.github.io/unified-ai-system/mcp-startup-timeouts.html
 
+For a Chinese venue, the same reply in Chinese, with the same numbers and the same page's Chinese twin:
+
+> 是的，而且我们是自己先量了，而不是等别人来报告：连续五次实测，`initialize` 在 7.6 到 8.5 秒之间应答，
+> 完整工具清单只在其后 3-7 毫秒到达——所以这段等待是进程启动，不是工具枚举。问题公开记在 #168，测量方法
+> 和这条测量的边界都在 https://happy520ai.github.io/unified-ai-system/mcp-startup-timeouts.zh-CN.html
+
 Do not defend it as configuration. A named, measured, self-filed bug converts better than a
 smoothing answer, and this is the one question where a prospect is quietly deciding whether you
 know your own software.

@@ -105,6 +105,7 @@ test("page coverage is read out of the copy, not out of a list in the checker", 
 test("the shipped copy links the startup-timing measurement", () => {
   const c = readCopyClaims(readFileSync("docs/growth-launch-kit-2026-09.md", "utf8"));
   assert.ok(c.siteLinks.includes("mcp-startup-timeouts.html"), "the objection reply should link the measured page");
+  assert.ok(c.siteLinks.includes("mcp-startup-timeouts.zh-CN.html"), "the Chinese reply should link the Chinese page, so neither language ships an unchecked link");
   assert.ok(c.siteLinks.includes("verify-mcp-docker-image.html"), "the roster page link is still there");
   assert.equal(c.claimedCounts.length, 1, "the added timings must not be read as tool-count claims");
   assert.deepEqual(c.distinctCounts, [15]);
