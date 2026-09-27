@@ -150,6 +150,12 @@ const externalPrs = [
   // both README.md and README_JA.md plus a bump to the total tool count each file states.
   // The bilingual half is why the diff is 2/1 per file rather than one line.
   ["eltociear/awesome-AI-driven-development", 140],
+  // A different anchor family on the same day: instead of naming the hosted gateways, this
+  // one searched for the governance words a gateway actually ships (virtual keys, cost
+  // tracking, semantic cache). Their CONTRIBUTING permits a self-submission by the people who
+  // maintain the project provided the relationship is disclosed in the pull request, which is
+  // what the first line of #109 does.
+  ["walkinglabs/awesome-harness-engineering", 109],
 ];
 
 // Submission doors that are ISSUES, not pull requests: directory sites that take a
