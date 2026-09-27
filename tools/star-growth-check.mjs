@@ -129,6 +129,16 @@ const externalPrs = [
   // (only a 512x512 PNG exists upstream); if an icon turns out to be required, that is the
   // one known gap in the entry.
   ["stacklok/toolhive-catalog", 1615],
+  // Two doors that were filed but never registered, which the completeness arm surfaced on
+  // its own run: it prints "UNTRACKED pr" for an open pull request authored by us that no
+  // arm can see. Both sat invisible for a day, so the funnel counted 25 open doors while 27
+  // were actually open, and the mergeability sweep never looked at either head.
+  //
+  // KalyanKS: found by reading the curated lists that mention LiteLLM and Portkey without
+  // mentioning us. ToolHive: our correction to a vendored copy of SKILL.md, filed the same
+  // evening as #449 and merged into a different file than #449 did.
+  ["KalyanKS-NLP/llm-engineer-toolkit", 46],
+  ["hashgraph-online/awesome-codex-plugins", 450],
 ];
 
 // Submission doors that are ISSUES, not pull requests: directory sites that take a
