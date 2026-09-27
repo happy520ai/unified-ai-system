@@ -932,3 +932,38 @@ describe("mcp gateway upstream visibility (#174)", () => {
     await service.close();
   });
 });
+
+describe("mcp gateway openapi upstreams (#174, real bridge)", () => {
+  // The issue's own construction: a real createOpenApiRestBridge over a well-formed document
+  // that resolves to no operations, driven through the aggregation that answers /mcp/tools.
+  // A fake MCP client cannot show this, because the silent zero comes from the converter.
+  const spec = (paths: unknown) => ({ openapi: "3.0.0", info: { title: "t", version: "1" }, paths });
+  const getOp = { get: { operationId: "getX", responses: { 200: { description: "ok" } } } };
+
+  const rows: Array<[string, unknown, string[], number, number]> = [
+    ["paths:{} resolves to nothing", spec({}), ["*"], 0, 0],
+    ["path object with no operations", spec({ "/x": {} }), ["*"], 0, 0],
+    ["one valid GET operation (control)", spec({ "/x": getOp }), ["*"], 1, 1],
+    ["valid operation, policy filters it", spec({ "/x": getOp }), ["nothing_matches_*"], 1, 0],
+  ];
+
+  for (const [name, document, allow, observed, exposed] of rows) {
+    it(`${name} reads as observed=${observed} exposed=${exposed}`, async () => {
+      const client = createOpenApiRestBridge({
+        id: "rest-demo",
+        baseUrl: "http://127.0.0.1:1/",
+        spec: document as never,
+      });
+      const service = createMcpGatewayService({
+        upstreams: [{
+          config: { ...httpConfig({ id: "rest-demo", transport: "openapi", allowedTools: allow }), spec: document } as never,
+          client,
+        }],
+      });
+      const result = await service.listTools(TENANT);
+      expect(result.tools.length).toBe(exposed);
+      expect(result.servers).toEqual([{ id: "rest-demo", observed, exposed }]);
+      await service.close();
+    });
+  }
+});
