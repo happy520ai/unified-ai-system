@@ -406,3 +406,38 @@ describe("chat completions virtual key enforcement", () => {
     expect(manager.list().totalCount).toBe(0);
   });
 });
+
+describe("the rate limit is a wall-clock minute bucket, not a rolling window", () => {
+  // Recorded deliberately: an httpServer suite test that charges a request and then reads
+  // `rateRequestCount` a moment later used to fail in CI with the rate counter at 0 while
+  // `requestCount` and `tokensUsed` stayed correct. That combination is only reachable one way -
+  // the clock crossed a minute between the two calls - because rollover resets the rate bucket and
+  // leaves a budget-free key's other counters alone. Pinning the clock here shows the boundary
+  // without depending on when the suite happens to run.
+  it("re-admits on the next minute while every other counter survives", () => {
+    const minute = 60_000;
+    const startOfMinute = Math.floor(1_700_000_000_000 / minute) * minute;
+    let clock = startOfMinute + 40_000;
+    const manager = createApiKeyManager({ storePath: null, now: () => clock });
+    // A daily budget over a one-request-per-minute rate limit: the two windows differ in length,
+    // which is the only way the CI signature - request and token counters intact, rate counter
+    // zeroed - is reachable. A budget-free key rolls both together.
+    const { record } = manager.create({
+      budget: { limitTokens: 100, window: "daily" },
+      rateLimit: { requestsPerMinute: 1 },
+    });
+
+    expect(manager.authorizeUsage({ keyId: record.keyId }).allowed).toBe(true);
+    manager.recordUsage({ keyId: record.keyId, tokens: 12 });
+    expect(manager.describeUsage({ keyId: record.keyId })?.usage)
+      .toMatchObject({ requestCount: 1, rateRequestCount: 1, tokensUsed: 12 });
+    expect(manager.authorizeUsage({ keyId: record.keyId }).code).toBe("VIRTUAL_KEY_RATE_LIMITED");
+
+    // One millisecond into the next named minute: the same distance the real suite can drift by
+    // when it happens to straddle a wall-clock boundary.
+    clock = startOfMinute + minute + 1;
+    const crossed = manager.describeUsage({ keyId: record.keyId })?.usage;
+    expect(crossed).toMatchObject({ requestCount: 1, rateRequestCount: 0, tokensUsed: 12 });
+    expect(manager.authorizeUsage({ keyId: record.keyId }).allowed).toBe(true);
+  });
+});

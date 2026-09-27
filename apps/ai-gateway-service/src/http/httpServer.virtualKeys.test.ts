@@ -218,6 +218,15 @@ describe("actual authenticated HTTP and WebSocket virtual-key accounting", () =>
   }, 30_000);
 
   it("shares concurrent native replay and still replays after budget and RPM exhaustion", async () => {
+    // The rate limiter buckets by wall-clock minute (apiKeyManager rolloverIfNeeded), so a run that
+    // straddles a boundary between the charge and the readout resets rateRequestCount to 0 while
+    // requestCount and tokensUsed stay correct - which is exactly how this test failed in CI on
+    // 2026-09-27. Freezing Date.now removes the boundary without weakening one assertion; the same
+    // rollover is pinned deliberately in enterprise/apiKeyManager.virtualKeys.test.ts with an
+    // injected clock, so the semantics stay documented rather than avoided.
+    const frozenNow = Date.now();
+    const nowSpy = vi.spyOn(Date, "now").mockImplementation(() => frozenNow);
+    cleanups.push(async () => { nowSpy.mockRestore(); });
     const f = await fixture(); const key = await f.createKey(12, 1);
     let release!: () => void;
     f.generate.mockImplementationOnce(async () => { await new Promise<void>(resolve => { release = resolve; }); return result(); });
