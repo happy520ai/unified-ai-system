@@ -458,6 +458,17 @@ Paste-ready, in the same voice:
 
 Full table, method and limits: `docs/mcp-tools-list-pagination-survey.md`.
 
+The same endpoints were asked a second question an hour later, and it is the better answer of the
+two: **will an MCP server agree to a protocol version that does not exist?** Asked with
+`protocolVersion: "9999-99-99"`, 19 of 40 answered the handshake at all, and of those **2 echoed the
+impossible revision back with HTTP 200** (`www.hood.ag/api/mcp`, `mcp.bev-buyer.ai/mcp`), 2 rejected it
+with a JSON-RPC error, 14 answered with a revision they really support, and 1 returned `502`. Seven of
+those 14 chose `2025-11-25` when asked nonsense while answering `2025-06-18` when asked politely - so
+the fallback discloses the version a server would have preferred, which is the one piece of information
+a client never gets by behaving. Method and limits: `docs/mcp-protocol-revision-tolerance.md`. Both
+scripts run in about two minutes and are in `tools/`, deliberately outside CI because they measure
+other people's servers.
+
 Two cautions, because this number will get quoted: **never** say "no MCP server paginates" - the
 defensible claim is "0 of the 16 we could introspect, in one alphabetical slice of the registry at one
 timestamp, and stdio servers were out of reach entirely". And do not let "we found a bug in ourselves"
