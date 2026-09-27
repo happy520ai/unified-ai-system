@@ -459,6 +459,7 @@ contains the input text.
 
 - [Documentation](docs/README.md) for setup, the CLI, prompt enhancement, and providers.
 - [Codex MCP quickstart](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.html) for the fastest agent-tool integration; the [source guide](docs/codex-mcp-quickstart.md) is kept in the repository.
+- [Self-hosted AI gateways, in their own words](https://happy520ai.github.io/unified-ai-system/self-hosted-ai-gateways-compared.html) - LiteLLM, Portkey Gateway, Agent Router and this project, each quoted from its own README with the date it was read, plus three questions to ask before handing over agent traffic.
 - [Contributing guide](CONTRIBUTING.md) for focused changes and safe verification.
 - [Usage Report template](.github/ISSUE_TEMPLATE/usage-verification-report.yml) for reproducible feedback.
 - [Cite this project](CITATION.cff), [Roadmap](ROADMAP.md), and [Support](SUPPORT.md).

@@ -385,6 +385,7 @@ pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile co
 
 - [文档总览](docs/README.md)：安装、CLI、自然语言增强与 provider 配置。
 - [Codex MCP 快速开始](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html)：最快接入 Codex 与 MCP；仓库内同时保留[源码指南](docs/codex-mcp-quickstart.md)。
+- [自托管 AI 网关对比（各自原话）](https://happy520ai.github.io/unified-ai-system/self-hosted-ai-gateways-compared.zh-CN.html)：LiteLLM、Portkey Gateway、Agent Router 与本项目，逐条摘自各自 README 并标注阅读日期，另附移交智能体流量前应当先问的三个问题。
 - [贡献指南](CONTRIBUTING.md)：聚焦改动与安全验证要求。
 - [使用报告模板](.github/ISSUE_TEMPLATE/usage-verification-report.yml)：提交可复现反馈。
 - [引用本项目](CITATION.cff)、[路线图](ROADMAP.md)与[支持页面](SUPPORT.md)。
