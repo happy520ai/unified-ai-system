@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MCP 客户端为什么在服务端应答之前就超时 | Unified AI System</title>
+    <meta
+      name="description"
+      content="实测：stdio MCP 服务端从进程启动到回答 initialize 用了 7,630 到 8,461 毫秒，而完整的 15 个工具清单只在其后 3 到 7 毫秒就给出。连接预算几乎全部花在进程启动与模块加载，不是 MCP 工作本身。一条命令即可复现，无需 API Key。"
+    />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="theme-color" content="#081011" />
+    <link
+      rel="canonical"
+      href="https://happy520ai.github.io/unified-ai-system/mcp-startup-timeouts.zh-CN.html"
+    />
+    <link rel="alternate" hreflang="en" href="https://happy520ai.github.io/unified-ai-system/mcp-startup-timeouts.html" />
+    <link rel="alternate" hreflang="zh-CN" href="https://happy520ai.github.io/unified-ai-system/mcp-startup-timeouts.zh-CN.html" />
+    <link rel="alternate" hreflang="x-default" href="https://happy520ai.github.io/unified-ai-system/mcp-startup-timeouts.html" />
+    <link rel="sitemap" type="application/xml" href="sitemap.xml" />
+    <link rel="icon" type="image/png" href="assets/mcp-icon.png" />
+    <link rel="stylesheet" href="site.css" />
+
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Unified AI System" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:title" content="MCP 客户端为什么在服务端应答之前就超时" />
+    <meta
+      property="og:description"
+      content="实测：initialize 回答在 7,630 到 8,461 毫秒之间，工具清单只晚 3 到 7 毫秒。慢的是进程启动，不是你的工具。"
+    />
+    <meta property="og:image" content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png" />
+    <meta property="article:published_time" content="2026-09-27T04:30:00+00:00" />
+    <meta property="article:modified_time" content="2026-09-27T04:30:00+00:00" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="MCP 客户端为什么在服务端应答之前就超时" />
+    <meta
+      name="twitter:description"
+      content="工具枚举只要 3-7 毫秒，进程启动要七秒。附一条可复现的测量命令。"
+    />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="index.zh-CN.html">Unified AI System</a>
+      <nav aria-label="Primary navigation">
+        <a href="index.zh-CN.html">项目主页</a>
+        <a href="credential-free-evidence.html">无凭据证据指南</a>
+        <a href="verify-mcp-docker-image.html">镜像真实暴露的工具</a>
+        <a
+          class="nav-command"
+          href="https://github.com/happy520ai/unified-ai-system#try-it-in-60-seconds"
+          >60 秒上手</a
+        >
+      </nav>
+    </header>
+
+    <main id="article">
+      <header class="article-hero">
+        <div class="article-hero-shade" aria-hidden="true"></div>
+        <div class="article-hero-inner">
+          <p class="eyebrow">计时记录 / 2026 年 9 月</p>
+          <h1>MCP 客户端为什么在服务端应答之前就放弃</h1>
+          <p class="article-hero-copy">
+            stdio 形态的 MCP 服务端必须先成为一个跑起来的进程，才能说第一句话；而客户端的连接预算是从
+            它 spawn 进程那一刻开始计时的，不是从服务端加载完成那一刻。这两件事一旦相遇，故障看起来就像
+            服务端坏了：客户端报超时，服务端还没得到回答的机会，两边日志里都没有「我还在 import」这句话。
+            我们把自己的服务端对着这个预算量了一遍，让数字留在记录上，而不是留在猜测里。
+          </p>
+          <div class="article-meta" aria-label="Article details">
+            <span>五次连续实测</span>
+            <span>子进程环境不含任何 Key</span>
+            <span>工具清单只花 3-7 毫秒</span>
+          </div>
+        </div>
+      </header>
+
+      <section class="article-section" aria-labelledby="numbers">
+        <h2 id="numbers">数字</h2>
+        <p>
+          2026-09-27 在一台 Windows 10 x64 机器上，用 Node.js v25.8.1，从仓库克隆里针对已发布镜像
+          同样会执行的入口文件（<code>packages/mcp-server/src/index.js</code>）测得：
+        </p>
+        <pre><code>node tools/mcp-startup-profile.mjs --repeat 5</code></pre>
+        <table>
+          <caption>从 <code>spawn</code> 到收到应答字节的毫秒数</caption>
+          <thead>
+            <tr>
+              <th scope="col">次序</th>
+              <th scope="col"><code>initialize</code></th>
+              <th scope="col"><code>tools/list</code></th>
+              <th scope="col">间隔</th>
+              <th scope="col">工具数</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>1</td><td>8,461 ms</td><td>8,464 ms</td><td>3 ms</td><td>15</td></tr>
+            <tr><td>2</td><td>7,853 ms</td><td>7,860 ms</td><td>7 ms</td><td>15</td></tr>
+            <tr><td>3</td><td>8,304 ms</td><td>8,309 ms</td><td>5 ms</td><td>15</td></tr>
+            <tr><td>4</td><td>7,630 ms</td><td>7,633 ms</td><td>3 ms</td><td>15</td></tr>
+            <tr><td>5</td><td>7,787 ms</td><td>7,790 ms</td><td>3 ms</td><td>15</td></tr>
+          </tbody>
+        </table>
+        <p>
+          五次都回答了 <code>initialize</code>，落在 <strong>7,630 ms 到 8,461 ms</strong> 之间
+          （中位数 7,853 ms，极差 831 ms）。每一次完整的 15 个工具清单都在其后
+          <strong>3 到 7 毫秒</strong>内到达。服务端自报为 <code>unified-ai-system</code>，
+          协议版本 <code>2025-06-18</code>，五次都向 stderr 写出同样的 69 字节。
+        </p>
+      </section>
+
+      <section class="article-section" aria-labelledby="where">
+        <h2 id="where">预算究竟花在哪里</h2>
+        <p>
+          间隔就是重点。如果枚举工具是昂贵的那一步，第二个数字会动。它不动：无论多少次，
+          清单都在第一条应答之后几毫秒内到达。也就是说慢的部分发生在<em>第一个应答字节之前</em>，
+          对 stdio 服务端而言就是进程启动加上模块图，而不是 MCP 工作本身。由此有两条结论：
+        </p>
+        <ul>
+          <li>
+            如果客户端的连接预算比 import 时间还短，那么精简工具清单、延迟发现、让服务端「按需」加载工具
+            都救不了它——慢的部分根本还没轮到服务端做事。
+          </li>
+          <li>
+            一个 7-8 秒应答的服务端，在 30 秒预算里是合格的，在 5 秒预算里就是失败的。同一个产物因此
+            在一个客户端里「正常」、在下一个客户端里被标成「failed」。OpenCode 文档写的 MCP 启动默认超时是
+            30 秒；促使我们做这套测量的那份外部报告里，冷安装落在 33-34 秒，正好越界被判失败。
+          </li>
+        </ul>
+        <p>
+          这里看不出「首次启动专属开销」。五次里第一次反而<em>最慢</em>，所以在这台机器上七秒是每次都要付的，
+          不是缓存一次就消失的成本。这一点值得明说，因为针对这个症状最常见的建议恰恰是「把缓存预热一下」。
+        </p>
+        <p>
+          补充一条同类读数：服务端向 stderr 写出的唯一一行（69 字节的
+          「ready on stdio; real providers disabled」）出现在 <strong>7,160 ms</strong>，
+          比第一个 stdout 字节（同一次运行 7,194 ms）只早 34 毫秒。也就是说盯着 stderr 的人，
+          前七秒看到的是完全沉默——「还在加载模块」就是这样被读成「卡死了」的。
+        </p>
+      </section>
+
+      <section class="article-section" aria-labelledby="method">
+        <h2 id="method">方法，以及怎么拿它量你自己的服务端</h2>
+        <pre><code># 我们的服务端，跑五次
+node tools/mcp-startup-profile.mjs --repeat 5
+
+# 你机器上任意一个 stdio MCP 服务端
+node tools/mcp-startup-profile.mjs -- npx -y some-mcp-server@1.2.3
+
+# 机器可读输出
+node tools/mcp-startup-profile.mjs --repeat 3 --json</code></pre>
+        <p>这套测量工具做了什么、以及刻意不做什么：</p>
+        <ul>
+          <li>
+            启动子进程、发送 <code>initialize</code>，并在第一条应答解析完成后立刻发送
+            <code>tools/list</code>，这样两条应答之差量的是服务端自己的工作，不是我们的写入延迟。
+          </li>
+          <li>
+            子进程环境里<strong>只有</strong> <code>PATH</code> 和 <code>NODE_ENV=production</code>；
+            如果请求注入的环境变量名里出现
+            <code>KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH</code>（按名字分段匹配，所以
+            <code>AUTHOR</code> 这类良性名字不会被误杀），工具直接拒绝启动。「没有任何 provider Key
+            进到进程里」这句话是由工具强制成立的，不是由本页断言的。
+          </li>
+          <li>
+            通知、日志行、半截 JSON 都不会被当成应答：只有能解析成带整数 <code>id</code> 的行才算数。
+            假的「已应答」是唯一能掩盖真实连接超时的读数。
+          </li>
+          <li>每一条退出路径都会 SIGKILL 子进程，因此一次测量不会留下残余进程。</li>
+        </ul>
+      </section>
+
+      <section class="article-section" aria-labelledby="limits">
+        <h2 id="limits">这一页不能证明什么</h2>
+        <ul>
+          <li>
+            一台机器、一个 Node 版本。这里是 v25.8.1，而我们的 CI 钉在 22；我们还单独见过一个预编译
+            原生依赖在新主版本上拿不到二进制文件。所以不要把 7.6-8.5 秒读成跨平台常数。
+          </li>
+          <li>
+            不与其他服务端比较。我们量的是自己的。任何人都可以用同一条命令量自己的并得到自己的五个数字；
+            本页不给任何服务端排名。
+          </li>
+          <li>
+            不声称我们的启动时间可以接受。七到八秒才出第一个字节，正是这件事存在的理由：我们宁愿把这个数字
+            写进公开的 issue（<a href="https://github.com/happy520ai/unified-ai-system/issues/168">#168</a>），
+            也不愿让新用户在客户端界面里把它当成一个「failed」徽章第一次遇到。
+          </li>
+        </ul>
+      </section>
+    </main>
+
+    <footer>
+      <span>Unified AI System</span>
+      <span>启动计时记录</span>
+      <a href="mcp-startup-timeouts.html">English version</a>
+      <a href="verify-mcp-docker-image.html">镜像真实暴露的工具</a>
+      <a href="credential-free-evidence.html">无凭据证据指南</a>
+      <span>Apache-2.0</span>
+    </footer>
+  </body>
+</html>
