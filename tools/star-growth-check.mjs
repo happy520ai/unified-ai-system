@@ -50,6 +50,11 @@ const externalPrs = [
   ["punkpeye/awesome-mcp-servers", 12218],
   ["e2b-dev/awesome-ai-agents", 1401],
   ["Hannibal046/Awesome-LLM", 786],
+  // Filed 2026-09-27, both found by searching list content rather than list names. They belong
+  // in the door table, not in upstreamCarriers: that list reads the default branch, and nothing
+  // of ours is on either default branch until these merge.
+  ["EthicalML/awesome-production-machine-learning", 822],
+  ["andyrewlee/awesome-agent-orchestrators", 252],
   ["mikeroyal/Self-Hosting-Guide", 385],
   ["up-for-grabs/up-for-grabs.net", 6176],
   ["toolsdk-ai/toolsdk-mcp-registry", 552],
@@ -958,11 +963,20 @@ export function carrierFindings(text, rosterCount, version) {
   // anchor line and a noun from another become a sentence nobody wrote. The trade is a
   // count legitimately wrapped across a line break, which is rarer than the false
   // reading and, unlike it, does not teach anyone to ignore this guard.
-  for (const line of String(text ?? "").split("\n")) {
+  // A count that matches the image the surrounding text pins is a correct reading, not drift.
+  // This uses the same excuse engine our release gate applies to our own SKILL.md, so the two
+  // cannot disagree about what "nine" means. Without it the guard flags a vendored skill file
+  // for stating the truth about the 0.4.9 procedure it pins - and a daily report that cries wolf
+  // is a daily report nobody reads.
+  const excused = new Map(pinnedCorrectReadings(text, rosterCount).map((k) => [k.line, k.pinnedVersion]));
+  String(text ?? "").split("\n").forEach((line, i) => {
+    if (excused.has(i + 1)) return;
     for (const claim of staleToolCounts(line, rosterCount)) {
-      findings.push(`states "${claim.phrase}" while the roster has ${claim.expected}`);
+      // Line number because two different lines can carry the same phrase, and a reader needs to
+      // be able to tell "one stale claim" from "the same claim twice in one file".
+      findings.push(`line ${i + 1} states "${claim.phrase}" while the roster has ${claim.expected}`);
     }
-  }
+  })
   if (version) {
     const pins = [
       ...text.matchAll(/"?version"?\s*[:=]\s*"?(\d+\.\d+\.\d+)/g),
@@ -1081,6 +1095,7 @@ function collectCarrierFindings() {
 // One shared predicate decides what counts as recording an old number, so this sweep and
 // the launch-copy checker cannot drift apart on the boundary.
 import { isRecordLine } from "./launch-preflight.mjs";
+import { pinnedCorrectReadings } from "./check-pinned-count.mjs";
 
 const COMMENT_CLAIM_ALLOWED = [
   { id: 5407452399, reason: "2026-08-25 audit record of which surfaces were aligned to v0.5.0 / twelve tools at that date" },

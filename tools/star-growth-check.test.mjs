@@ -351,11 +351,25 @@ test('carrierFindings reads a clean upstream plugin manifest as clean', () => {
   assert.deepEqual(carrierFindings(live, 15, '0.8.0'), []);
 });
 
-test('carrierFindings names a stale count and a stale version pin', () => {
+// This case changed meaning on 2026-09-27, deliberately, when carrierFindings adopted the same
+// pinned-count excuse the release gate uses. A manifest that declares version 0.7.0 and says
+// "twelve governed MCP tools" is not lying: twelve is what 0.7.0 ships. The defect is that it is
+// an old version, which the version arm reports. Before, this row asserted two problems and one
+// of them was not a problem - which is how a carrier report earns being ignored.
+test('a carrier consistent with its own older declared version reports the version, not a lie', () => {
   const stale = '{"version":"0.7.0","description":"... twelve governed MCP tools ..."}';
   const findings = carrierFindings(stale, 15, '0.8.0');
+  assert.deepEqual(findings, ['pins version 0.7.0, published release is 0.8.0']);
+});
+
+// Tamper direction for the excuse: a count that does NOT match the version the file declares is
+// still named, alongside the version. If the excuse ever widened past "matches the pinned
+// roster", this is the row that goes red.
+test('a count that contradicts its own declared version is still reported', () => {
+  const lying = '{"version":"0.7.0","description":"... nine governed MCP tools ..."}';
+  const findings = carrierFindings(lying, 15, '0.8.0');
   assert.equal(findings.length, 2);
-  assert.match(findings[0], /states "twelve governed MCP tools" while the roster has 15/);
+  assert.match(findings[0], /line 1 states "nine governed MCP tools" while the roster has 15/);
   assert.match(findings[1], /pins version 0\.7\.0, published release is 0\.8\.0/);
 });
 
@@ -869,4 +883,44 @@ test("the wrong workflow, no completed run, and a failed gh call are three diffe
   const blind = indexNowVerdict({ error: "gh: HTTP 401" });
   assert.equal(blind.kind, "unreadable");
   assert.match(indexNowLines(blind).join("\n"), /a missing read is not a missing submission/);
+});
+
+// --- pinned readings inside a third-party carrier -----------------------------------------
+// The sickn33 copy of our skill file states "nine tools" twice, both times about the digest-
+// pinned 0.4.9 image, and the carrier report was printing that as STALE with a
+// merged_but_still_stale verdict. Same excuse engine as our own release gate, same file shape.
+test("a carrier that pins an older image may state that image's count", () => {
+  const pinned = [
+    "## Version Note",
+    "- **Reviewed and pinned below: 0.4.9.** It carries 9 of the fifteen names.",
+    "1. Pull the immutable 0.4.9 multi-platform index into Docker's cache.",
+    "2. If the nine tools are already visible, skip setup and do not register a second time.",
+    "   image reference sha256:342a47313927870bcc696be13c9e5fb922062dac (0.4.9, content-reviewed),",
+    "3. Confirm the nine tools are available - the pinned 0.4.9 image ships nine of the fifteen.",
+  ].join("\n");
+  assert.deepEqual(carrierFindings(pinned, 15, "0.8.0"), []);
+});
+
+test("the same phrase with nothing pinning it is still a finding, and says which line", () => {
+  const current = "Unified AI System exposes nine governed MCP tools for agents.";
+  const findings = carrierFindings(current, 15, null);
+  assert.equal(findings.length, 1);
+  assert.match(findings[0], /^line 1 states "nine governed MCP tools" while the roster has 15$/);
+});
+
+test("two identical stale phrases on two lines are reported as two lines", () => {
+  const twice = ["row one says twelve tools here", "row two says twelve tools here"].join("\n");
+  const findings = carrierFindings(twice, 15, null);
+  assert.equal(findings.length, 2);
+  assert.deepEqual(findings.map((f) => /^line (\d+) /.exec(f)[1]), ["1", "2"]);
+});
+
+test("the count excuse does not reach into the version arm - a stale tag is still reported", () => {
+  // Boundary target for the fixture above: this carrier states no count at all, so the only
+  // thing it gets wrong is telling a reader to run a five-month-old image. If the pinned-count
+  // excuse ever widened to version pins, this row would go quiet and the worst defect class in
+  // a directory entry - the one that ships the wrong artifact - would stop being caught.
+  const staleTag = "Install it with docker run ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.8";
+  const findings = carrierFindings(staleTag, 15, "0.8.0");
+  assert.deepEqual(findings, ["pins version 0.4.8, published release is 0.8.0"]);
 });
