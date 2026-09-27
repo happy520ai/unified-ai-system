@@ -165,7 +165,7 @@ get read as drive-by marketing):**
 >
 > What it does: OpenAI- and Anthropic-compatible chat APIs in front of
 > OpenAI/Anthropic/Gemini, plus virtual keys with per-key token budgets and rate
-> limits, exact + semantic response caching, circuit breaking, an append-only
+> limits, exact + lexical-approximate response caching, circuit breaking, an append-only
 > audit chain, Prometheus metrics and optional Langfuse export. It is also an MCP
 > server, and it does reverse MCP governance: upstream MCP servers (stdio and
 > HTTP) and any OpenAPI 3 spec get exposed as allow-listed, audited MCP tools.
@@ -239,7 +239,7 @@ without independent evidence, and on HN the ask reads as desperation anyway.
 > ```
 >
 > What you get: OpenAI/Anthropic-compatible endpoints over OpenAI, Anthropic,
-> Gemini, plus virtual keys with budgets and rate limits, exact + semantic
+> Gemini, plus virtual keys with budgets and rate limits, exact + lexical-approximate
 > response cache, circuit breaking, Prometheus metrics, optional Langfuse, and an
 > MCP server that can also wrap *other* MCP servers and any OpenAPI 3 spec behind
 > allow-lists and audit.
@@ -265,7 +265,7 @@ second Reddit self-promotion the same day.
 
 1. I keep meeting people who can't evaluate an AI gateway without first handing it an API key and trusting it. So the first design rule in ours was: the default provider is a deterministic fake one. Zero keys, nothing leaves the box, every feature still exercisable. Thread on how it works 🧵
 2. `docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.8.0` — that's the whole install. It's an MCP server. Tool discovery + all tool calls run against the fake provider.
-3. What the gateway actually is: OpenAI + Anthropic compatible APIs over OpenAI/Anthropic/Gemini. Virtual keys w/ per-key token budgets + rate limits. Exact + semantic response cache. Circuit breaking. Append-only audit. Prometheus, optional Langfuse. Apache-2.0, self-hosted.
+3. What the gateway actually is: OpenAI + Anthropic compatible APIs over OpenAI/Anthropic/Gemini. Virtual keys w/ per-key token budgets + rate limits. Exact + lexical-approximate response cache (semantic-grade needs an attached embedding endpoint). Circuit breaking. Append-only audit. Prometheus, optional Langfuse. Apache-2.0, self-hosted.
 4. The part I'm actually proud of — reverse MCP governance. Point it at your existing stdio/HTTP MCP servers and any OpenAPI 3 spec, and it re-exposes them as allow-listed, audited, budget-bounded tools. Governance is the product, routing is the substrate.
 5. v0.8.0 today: agent governance control plane + governed code delivery that verifies in a read-only network-disabled container (never commits/merges/deploys). Honest caveat: solo maintainer, single-host, no production track record. Repo ↓ github.com/happy520ai/unified-ai-system
 
@@ -380,6 +380,30 @@ license statement, not a hardening claim, and production-readiness is explicitly
 claimed here. If someone asks about multi-tenant or internet-facing setups, say it has not been
 tested that way rather than reasoning about what should hold.
 
+### "Is the response cache actually semantic?"
+
+This one is no longer hypothetical: a maintainer of another list read "exact and semantic response
+cache" in one of our submission rows, checked our own documentation, and asked us to state it the way
+the docs do. They were right, and the row says `lexical-approximate` now.
+
+The cache has two layers. Exact replay is byte-identical and always on. The similarity layer is on by
+default and scores candidates with a deterministic local embedder that approximates **lexical/subword**
+overlap - it exists so the whole path runs with no credentials and no network, and it deliberately
+under-promises. Attach a real embedding endpoint through the HTTP embedding hook and the same layer does
+semantic-grade matching. `docs/response-cache-hot-path.md` carries that honesty note itself, and the
+hit metric is labelled `layer="semantic"` in `/metrics` whether or not an endpoint is attached, which is
+how the loose phrasing got into a pitch in the first place.
+
+Paste-ready, because the corrected version is the one that survives being checked:
+
+> Honestly: the default similarity layer is lexical, not semantic. It is a deterministic local embedder
+> that approximates subword overlap, so near-duplicate requests hit and paraphrases that share little
+> vocabulary do not. That is what makes the cache testable with zero credentials and no network. Point
+> it at a real embedding endpoint through the HTTP hook and the same layer does semantic matching. Our
+> own doc says so, which is why we corrected the wording you caught instead of defending it.
+
+Do not quietly upgrade it to "semantic" in a later thread now that the distinction has been written
+down in the open.
 ### Two rules for every reply in this thread
 
 - Never upgrade a claim to make an argument easier to win: no production-ready, no L5, no AGI,
@@ -522,7 +546,7 @@ What the form will want, with the honest values:
 - **License**: Apache-2.0 (this is what makes us eligible at all)
 - **Description**: route, budget and audit model traffic from your own machine.
   Deterministic prompt enhancement that makes no provider call, virtual keys with per-key
-  token budgets, exact and semantic response cache, append-only audit chain, and reverse
+  token budgets, exact + lexical-approximate response cache, append-only audit chain, and reverse
   MCP governance that turns upstream MCP servers and OpenAPI 3 operations into
   allow-listed tools. The published image's tool roster is verifiable without installing
   it.

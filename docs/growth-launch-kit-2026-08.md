@@ -5,7 +5,7 @@
 边界 + MCP/A2A 治理"，并明确当前仍是 Public Preview。
 
 一句话（EN）: *Self-hosted AI gateway with virtual keys & token budgets, exact
-+ semantic response cache, and reverse MCP governance (any OpenAPI spec →
++ lexical-approximate response cache, and reverse MCP governance (any OpenAPI spec →
 governed MCP tools) — verify the first path with zero credentials.*
 
 一句话（中）：*自托管 AI 网关：虚拟 key + token 预算、精确/语义双层响应缓存、
@@ -14,7 +14,7 @@ governed MCP tools) — verify the first path with zero credentials.*
 
 ## 1) Show HN
 
-标题：`Show HN: Self-hosted AI gateway with virtual keys, semantic cache, and reverse MCP governance`
+标题：`Show HN: Self-hosted AI gateway with virtual keys, lexical-approximate cache, and reverse MCP governance`
 
 正文（直接粘贴）：
 
@@ -34,7 +34,7 @@ The project takes a different angle from model-aggregation-first gateways:
 3. Reverse MCP governance: aggregate upstream MCP servers (HTTP + stdio) behind
    one authenticated, audited, allow-listed surface. Any OpenAPI 3 spec becomes
    governed MCP tools (REST→MCP).
-4. Exact + semantic response cache on the chat hot path with byte-identical
+4. Exact + lexical-approximate response cache on the chat hot path with byte-identical
    SSE replay and per-tenant isolation.
 5. Chat-native Prometheus metrics (TTFT histograms, tokens/model, cache hit
    rates) + optional Langfuse export.
@@ -62,7 +62,7 @@ approach (we document what is NOT production-ready).
 ## 2) Reddit
 
 **r/LocalLLaMA**（标题）：
-`Self-hosted LLM gateway with virtual keys, semantic cache, and reverse MCP governance — credential-free first run (Apache-2.0)`
+`Self-hosted LLM gateway with virtual keys, lexical-approximate cache, and reverse MCP governance — credential-free first run (Apache-2.0)`
 
 正文：复用 HN 正文，开头改为 "Sharing my open-source gateway — local-first by
 default (deterministic fake provider), so you can try budgets/caching/MCP
@@ -85,7 +85,7 @@ Reddit 规则提醒：三个 sub 分开发、间隔 ≥1 天、正文带 demo �
 
 ```text
 1/ We just open-sourced the gateway layer we wanted for AI products:
-   virtual keys with token budgets, exact+semantic response cache, and
+   virtual keys with token budgets, exact + lexical-approximate response cache, and
    reverse MCP governance. The first verified path is credential-free. 🧵
 
 2/ Fake-provider-first: the default runtime is deterministic and local, so
@@ -124,7 +124,7 @@ asciinema（两次同请求、第二次秒回 + cache_hit 日志）。
 ## 4) 中文社区
 
 **V2EX（分享创造节点）** 标题：
-`开源了一个自托管 AI 网关：虚拟 key + token 预算、语义缓存、反向 MCP 治理`
+`开源了一个自托管 AI 网关：虚拟 key + token 预算、近似（词法）缓存、反向 MCP 治理`
 
 正文：中文 README 的"网关能力全景"表 + 60 秒 docker 命令 + 诚实边界一节
 （V2EX 用户吃"不吹牛"这套）。结尾：`欢迎拍砖，star 是更新的动力。`
@@ -150,7 +150,7 @@ asciinema（两次同请求、第二次秒回 + cache_hit 日志）。
 
 ```text
 Added unified-ai-system — a self-hosted AI gateway and governed MCP server.
-Notable: virtual keys with token budgets, exact+semantic response cache, and
+Notable: virtual keys with token budgets, exact + lexical-approximate response cache, and
 reverse MCP governance (REST→MCP). Official MCP Registry listed; credential-
 free Docker demo in the README.
 ```
@@ -168,7 +168,7 @@ provider execution remains explicitly opt-in:
 - **Virtual keys & budgets** — uai- keys with daily/monthly token budget
   windows, per-key RPM limits, soft-budget alerts, spend attribution, and
   instant revocation; enforcement on streaming and non-streaming chat.
-- **Response cache (exact + semantic)** — tenant-scoped hot-path caching
+- **Response cache (exact + lexical-approximate)** — tenant-scoped hot-path caching
   with byte-identical JSON/SSE replay and an opt-in semantic layer.
 - **Reverse MCP governance** — aggregate upstream MCP servers (HTTP/stdio)
   with tool ACLs, audits, and size caps; REST→MCP turns any OpenAPI 3 spec
@@ -193,7 +193,7 @@ verify:public-clone all green.
 - 发帖当天：前 2 小时回复所有评论；HN 用主账号答架构问题。
 - 每收 10 star：在 issue #106（usage report）下公开感谢里程碑。
 - 每周跑 `pnpm growth:*` 既有脚本记录趋势；连续 2 周在 README Star History 可见增长叙事。
-- 下一步内容弹药：录制 3 段 30 秒 asciinema（虚拟 key 预算 429、语义缓存命中、
+- 下一步内容弹药：录制 3 段 30 秒 asciinema（虚拟 key 预算 429、近似（词法）缓存命中、
   OpenAPI→MCP 三行配置），比截图转化率高。
 
 ## 7) 只有仓库所有者能做的四件事（2026-09-26 现读证据）
