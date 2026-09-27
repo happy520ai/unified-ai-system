@@ -1145,7 +1145,14 @@ export function formatReferralReadings(readings) {
   const notes = [];
   for (const { label, data, error } of readings ?? []) {
     if (error) {
-      notes.push(`INCONCLUSIVE: ${label} - ${error}`);
+      // GitHub only exposes /traffic/* to a token with push access, so a scheduled job running
+      // the workflow-scoped GITHUB_TOKEN (contents: read) fails here on every run, forever.
+      // Naming that in the message is the difference between "this instrument is blind" and
+      // "the endpoint is broken" - the second reading cost a whole measurement channel once.
+      const cause = /traffic/i.test(String(error))
+        ? " (needs a push-capable token; the workflow GITHUB_TOKEN is contents:read, so CI is blind here by design - read it from a maintainer session)"
+        : "";
+      notes.push(`INCONCLUSIVE: ${label} - ${error}${cause}`);
       continue;
     }
     if (!Array.isArray(data)) {

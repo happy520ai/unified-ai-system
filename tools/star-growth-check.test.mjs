@@ -737,3 +737,13 @@ test('referral readings keep blind, empty and populated apart', () => {
   const malformed = sc.formatReferralReadings([{ label: 'page', data: { not: 'a list' } }]);
   assert.match(malformed.notes[0], /INCONCLUSIVE: page - response was not a list/);
 });
+
+test("a traffic-endpoint failure is reported as blindness, not as an empty referral list", () => {
+  const out = formatReferralReadings([{ label: "referrer", error: "Command failed: gh api repos/x/y/traffic/popular/referrers 403" }]);
+  assert.equal(out.rows.length, 0, "a failed read must never render referrers");
+  assert.equal(out.notes.length, 1);
+  assert.match(out.notes[0], /INCONCLUSIVE: referrer/);
+  assert.match(out.notes[0], /push-capable token/, "the message must name the cause so nobody rebuilds the endpoint");
+  const other = formatReferralReadings([{ label: "referrer", error: "some unrelated failure" }]);
+  assert.doesNotMatch(other.notes[0], /push-capable token/, "the cause note must not be bolted onto unrelated errors");
+});
