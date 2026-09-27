@@ -52,7 +52,7 @@ The 16 that answered:
 Three things are worth more than the headline:
 
 1. **0 of 16 emitted `nextCursor`.** The largest list seen was 35 tools, returned in one page. So today the pagination path in our gateway is insurance against a server that has not been met yet — which is the honest way to describe a fix for an unobserved failure, and the way #177 should be read.
-2. **1 of 16 answered with `2024-11-05`** after being asked with `2025-06-18`. A server in the wild *does* pick an older revision than the client declared. That is the concrete case for [#178](https://github.com/happy520ai/unified-ai-system/issues/178): our governed upstream client sends a revision and never reads the answer, so a negotiation like this one is invisible to us and to its callers.
+2. **1 of 16 answered with `2024-11-05`** after being asked with `2025-06-18`. A server in the wild *does* pick an older revision than the client declared. That is the concrete case for [#178](https://github.com/happy520ai/unified-ai-system/issues/178): when this was measured, our governed upstream client sent a revision and never read the answer, so a negotiation like this one was invisible to us and to its callers. `master` now captures the answer and publishes it per upstream in the `servers` array of `GET /mcp/tools`; no published release carries that yet, and whether a mismatching revision should be refused or merely reported is still being decided on the issue.
 3. **22 of 40 advertised remote endpoints cannot be introspected anonymously** (401/403). Any claim of the form "N% of MCP servers do X" that was measured this way is really a claim about the fraction that lets you look.
 
 ## What this does not show

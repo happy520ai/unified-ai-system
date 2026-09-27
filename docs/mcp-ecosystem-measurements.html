@@ -214,9 +214,16 @@ node tools/survey-mcp-session-enforcement.mjs 40</code></pre>
         The fourth row is also the clearest illustration of
         <a href="https://github.com/happy520ai/unified-ai-system/issues/178">issue #178</a>: our
         server's fallback revision (<code>2025-11-25</code>) is <em>newer</em> than the one our own
-        gateway client declares to upstreams (<code>2025-06-18</code>), and the gateway does not read
-        what comes back. Two components of the same product disagree about which protocol they are on,
-        and nothing in the current code notices.
+        gateway client declares to upstreams (<code>2025-06-18</code>), and when these probes ran the
+        gateway did not read what came back. Two components of the same product disagreed about which
+        protocol they were on, and nothing in the code noticed. Both halves of that are now different
+        in <code>master</code> and unchanged in every published release: the governed upstream client
+        records the revision each server answered and names it per server in the <code>servers</code>
+        array of <code>GET /mcp/tools</code>, and the second MCP client path in
+        <code>claude-code-patterns</code> sends the same constant as the first, with a test that fails
+        if the two drift apart. What the gateway should <em>do</em> when a server names a different
+        revision - refuse it, or serve it and say so - is still open on the issue, and this page will
+        be edited again when it is decided.
       </p>
       <p>
         The run left nothing behind: the port was probed again after shutdown and refuses

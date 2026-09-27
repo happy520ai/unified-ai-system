@@ -35,11 +35,31 @@ interface McpGatewayClient {
     options?: { signal?: AbortSignal },
   ): Promise<McpCallResult>;
   close(): void | Promise<void>;
+  // Absent on upstream kinds that negotiate nothing (an OpenAPI bridge has no initialize
+  // handshake), so callers must not read a missing value as an old revision.
+  protocolVersion?: () => string | undefined;
 }
 
 interface GovernedUpstream {
   config: McpGovernedServerConfig;
   client: McpGatewayClient;
+}
+
+type McpServerSummary = {
+  id: string;
+  observed?: number;
+  exposed?: number;
+  error?: string;
+  protocolVersion?: string;
+};
+
+// A client that negotiated nothing contributes no key at all, and an empty string is treated the
+// same way. Falling back to the revision we asked for would report "the server accepted
+// 2025-06-18" on a connection that never agreed to anything, which is the exact claim this field
+// exists to distinguish.
+function negotiatedRevision(client: McpGatewayClient): { protocolVersion?: string } {
+  const value = client.protocolVersion?.();
+  return typeof value === "string" && value.length > 0 ? { protocolVersion: value } : {};
 }
 
 type McpGatewayError = Error & {
@@ -205,10 +225,10 @@ export function createMcpGatewayService(options: {
   // resolvable operations reads exactly like a healthy server here), and observed>0 with
   // exposed=0 means the policy filtered everything. A server missing from this array is the
   // only case that means "not enumerated yet".
-  async function listTools(identity: McpGatewayIdentity | null | undefined): Promise<{ tools: AggregatedMcpTool[]; servers: Array<{ id: string; observed?: number; exposed?: number; error?: string }> }> {
+  async function listTools(identity: McpGatewayIdentity | null | undefined): Promise<{ tools: AggregatedMcpTool[]; servers: McpServerSummary[] }> {
     const identityContext = requireIdentity(identity);
     const tools: AggregatedMcpTool[] = [];
-    const servers: Array<{ id: string; observed?: number; exposed?: number; error?: string }> = [];
+    const servers: McpServerSummary[] = [];
     for (const { config, client } of upstreams) {
       if (!upstreamAllowed(config, identityContext)) continue;
       const cached = toolListCache.get(config.id);
@@ -220,7 +240,7 @@ export function createMcpGatewayService(options: {
             exposed += 1;
           }
         }
-        servers.push({ id: config.id, observed: cached.tools.length, exposed });
+        servers.push({ id: config.id, observed: cached.tools.length, exposed, ...negotiatedRevision(client) });
         continue;
       }
       try {
@@ -233,7 +253,7 @@ export function createMcpGatewayService(options: {
             exposed += 1;
           }
         }
-        servers.push({ id: config.id, observed: upstreamTools.length, exposed });
+        servers.push({ id: config.id, observed: upstreamTools.length, exposed, ...negotiatedRevision(client) });
       } catch (error) {
         servers.push({ id: config.id, error: error instanceof Error ? error.message : String(error) });
       }

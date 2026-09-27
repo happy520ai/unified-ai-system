@@ -40,6 +40,11 @@ function createJsonRpcNotification(method, params) {
 // MCP 客户端 - 管理与单个 MCP 服务器的交互
 // ============================================================
 
+// Must match PROTOCOL_VERSION in ../mcpGateway/mcpUpstreamClient.ts. The revision this client puts
+// on the wire is compared against that constant in mcpClient.test.js, because two MCP client paths
+// inside one gateway disagreeing about the protocol is not visible from either path on its own.
+const MCP_PROTOCOL_VERSION = "2025-06-18";
+
 /**
  * 创建 MCP 客户端
  * 借鉴 Claude Code 的 mcpClient.ts 模式:
@@ -124,7 +129,7 @@ export function createMcpClient(serverConfig) {
       // 发送初始化请求
       try {
         const initResult = await rpcCall("initialize", {
-          protocolVersion: "2024-11-05",
+          protocolVersion: MCP_PROTOCOL_VERSION,
           capabilities: {},
           clientInfo: {
             name: "pme-mcp-bridge",

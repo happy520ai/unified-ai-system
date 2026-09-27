@@ -935,6 +935,80 @@ describe("mcp gateway upstream visibility (#174)", () => {
   });
 });
 
+describe("mcp gateway reports the negotiated upstream revision (#178)", () => {
+  // Driven through the real HTTP client so the handshake is genuinely performed, not stubbed:
+  // the whole point of the field is that its value comes from the server's reply.
+  function upstreamAnswering(result: Record<string, unknown>) {
+    const sent: Array<Record<string, unknown>> = [];
+    const fetchImpl = vi.fn(async (_url: string, init: Record<string, unknown>) => {
+      const body = JSON.parse(String(init.body));
+      if (body.method === "initialize") {
+        sent.push(body.params);
+        return respond({ jsonrpc: "2.0", id: body.id, result });
+      }
+      if (body.method === "tools/list") {
+        return respond({ jsonrpc: "2.0", id: body.id, result: { tools: [{ name: "get_forecast" }] } });
+      }
+      return respond({ jsonrpc: "2.0", id: body.id, result: {} });
+    });
+    const client = createHttpMcpUpstream(httpConfig({ allowedTools: ["get_forecast"] }) as never, { fetchImpl: fetchImpl as never });
+    return { client, sent };
+  }
+
+  it("names the revision the upstream answered, not the one we asked for", async () => {
+    // The disagreement arm: a server that answers 2024-11-05 to a 2025-06-18 request is a server
+    // on 2024-11-05. Echoing our own declaration here would be the exact bug being closed.
+    const { client, sent } = upstreamAnswering({ protocolVersion: "2024-11-05", capabilities: {} });
+    const service = createMcpGatewayService({ upstreams: [{ config: httpConfig({ allowedTools: ["get_forecast"] }), client }] });
+
+    const fresh = await service.listTools(TENANT);
+    expect(fresh.servers).toEqual([{ id: "weather", observed: 1, exposed: 1, protocolVersion: "2024-11-05" }]);
+    expect(sent[0]).toMatchObject({ protocolVersion: "2025-06-18" });
+
+    // The cached branch is a separate push and is served without a second handshake, so it has to
+    // remember the answer rather than report nothing on the second read.
+    const cached = await service.listTools(TENANT);
+    expect(cached.servers).toEqual([{ id: "weather", observed: 1, exposed: 1, protocolVersion: "2024-11-05" }]);
+    await service.close();
+  });
+
+  it("omits the revision when the upstream answers without one", async () => {
+    // Boundary arm: an absent answer is not an agreement. If this fell back to our own request
+    // value, every non-conforming server would read as having accepted the newest revision.
+    const { client } = upstreamAnswering({ capabilities: {} });
+    const service = createMcpGatewayService({ upstreams: [{ config: httpConfig({ allowedTools: ["get_forecast"] }), client }] });
+
+    const result = await service.listTools(TENANT);
+    expect(result.servers).toEqual([{ id: "weather", observed: 1, exposed: 1 }]);
+    expect(JSON.stringify(result.servers[0])).not.toContain("protocolVersion");
+    await service.close();
+  });
+
+  it("treats an empty revision string as no answer rather than as agreement", async () => {
+    // A server that answers with "" has answered nothing. The transport collapses empty to absent,
+    // and nothing downstream can tell the two apart afterwards - so the rule belongs here.
+    const { client } = upstreamAnswering({ protocolVersion: "", capabilities: {} });
+    const service = createMcpGatewayService({ upstreams: [{ config: httpConfig({ allowedTools: ["get_forecast"] }), client }] });
+
+    const result = await service.listTools(TENANT);
+    expect(result.servers).toEqual([{ id: "weather", observed: 1, exposed: 1 }]);
+    await service.close();
+  });
+
+  it("omits the revision for an upstream that negotiates nothing at all", async () => {
+    // The OpenAPI bridge has no initialize handshake. A fake client with no protocolVersion
+    // member is what the service actually receives for it.
+    const client = createFakeClient([{ name: "get_forecast" }]);
+    const service = createMcpGatewayService({ upstreams: [{ config: httpConfig({ allowedTools: ["get_forecast"] }), client }] });
+
+    const fresh = await service.listTools(TENANT);
+    expect(fresh.servers).toEqual([{ id: "weather", observed: 1, exposed: 1 }]);
+    const cached = await service.listTools(TENANT);
+    expect(cached.servers).toEqual([{ id: "weather", observed: 1, exposed: 1 }]);
+    await service.close();
+  });
+});
+
 describe("mcp gateway openapi upstreams (#174, real bridge)", () => {
   // The issue's own construction: a real createOpenApiRestBridge over a well-formed document
   // that resolves to no operations, driven through the aggregation that answers /mcp/tools.

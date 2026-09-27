@@ -369,9 +369,12 @@ the servers adopting newer revisions, which is the opposite of the easy story.
 serves 15 tools with no cursor (so: I am in the non-paginating majority too), issues no session id,
 and substitutes `2025-11-25` rather than echoing the impossible one. That self-test also caught a real
 bug in my own project, which is the honest reason the whole exercise was worth an afternoon: my server
-prefers a newer revision than my gateway client declares upstream, and the client never reads the
-answer. Two components of one product disagree about which protocol they are speaking and nothing
-noticed. Filed against myself as an issue, not quietly patched.
+prefers a newer revision than my gateway client declares upstream, and the client never read the
+answer. Two components of one product disagreed about which protocol they were speaking and nothing
+noticed. Filed against myself as an issue, not quietly patched - and on 2026-09-27 the gateway records
+what each upstream answered and names it in the tool listing, with a test that fails if my two MCP
+client paths drift apart again. Whether a mismatching revision should be refused or just reported is
+still undecided on the issue, and I would rather leave that visible than close it quietly.
 
 **Limits, because n matters here:** 16–19 observations, not a population. The sample is alphabetical by
 registry identifier at one timestamp, so it over-represents names starting with `a`. Only `initialize`
@@ -544,9 +547,11 @@ reads the official MCP registry for `streamable-http` servers and sends each one
   measured this way is a percentage of the servers that let you look, and the page says that about
   itself rather than waiting to be asked.
 - **1 of the 16 answered `2024-11-05` after being asked with `2025-06-18`.** Servers really do pick
-  older revisions. Our governed client sends a revision and never reads the reply, so that negotiation
-  is invisible to us - which is now [#178](https://github.com/happy520ai/unified-ai-system/issues/178),
-  filed against ourselves with the row that proved it.
+  older revisions. When this was measured our governed client sent a revision and never read the
+  reply, so that negotiation was invisible to us - which is now [#178](https://github.com/happy520ai/unified-ai-system/issues/178),
+  filed against ourselves with the row that proved it. `master` now names each upstream's answered
+  revision in the tool listing; no published release carries it yet, and the refuse-vs-report policy
+  question is still open on the issue.
 
 Paste-ready, in the same voice:
 

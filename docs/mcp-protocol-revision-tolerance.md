@@ -4,7 +4,7 @@
 
 The Model Context Protocol says a server must answer `initialize` with a revision it supports, and the revision is not decoration: it decides whether `MCP-Session-Id` is part of the contract, how server-initiated traffic works, and — in `2026-07-28` — whether the conversation is stateful at all. A server that echoes whatever the client asked for makes the handshake information-free, and a client cannot tell the difference from the inside.
 
-So this is measured rather than assumed. It is also the field evidence behind [#178](https://github.com/happy520ai/unified-ai-system/issues/178): our own governed upstream client sends a revision and never reads the reply, so whatever a server decides here is invisible to us today.
+So this is measured rather than assumed. It is also the field evidence behind [#178](https://github.com/happy520ai/unified-ai-system/issues/178): our own governed upstream client used to send a revision and never read the reply, so whatever a server decided here was invisible to us. That was the state of the code when this was measured. As of 2026-09-27 `master` records what each upstream answered and reports it per server on `GET /mcp/tools` — not yet in any published release, `v0.8.0` predates it — and what the gateway should *do* about a server that names a different revision is still open on the issue.
 
 ## Method
 

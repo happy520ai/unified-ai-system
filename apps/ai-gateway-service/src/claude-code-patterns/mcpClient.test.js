@@ -3,6 +3,7 @@ import { EOL, tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createMcpClient } from "./mcpClient.js";
+import { PROTOCOL_VERSION as GATEWAY_REVISION } from "../mcpGateway/mcpUpstreamClient.ts";
 describe('mcpClient tools/list pagination (#177)', () => {
   // The third call site had no test before this and no transport seam, so the fake is a real
   // child process speaking the newline-delimited JSON-RPC this transport parses. It is written
@@ -25,7 +26,7 @@ describe('mcpClient tools/list pagination (#177)', () => {
       'rl.on("line", (line) => {',
       '  let msg; try { msg = JSON.parse(line); } catch { return; }',
       '  if (msg.id === undefined) return;',
-      '  if (msg.method === "initialize") return send({ jsonrpc: "2.0", id: msg.id, result: { protocolVersion: "2025-06-18", capabilities: {}, serverInfo: { name: "fake", version: "1" } } });',
+      '  if (msg.method === "initialize") return send({ jsonrpc: "2.0", id: msg.id, result: { protocolVersion: msg.params?.protocolVersion, capabilities: {}, serverInfo: { name: "fake", version: "1" } } });',
       '  if (msg.method === "tools/list") {',
       '    const expected = page === 0 ? undefined : PAGES[page - 1].nextCursor;',
       '    if (msg.params?.cursor !== expected) return send({ jsonrpc: "2.0", id: msg.id, error: { code: -1, message: "unexpected cursor " + String(msg.params?.cursor) } });',
@@ -43,6 +44,16 @@ describe('mcpClient tools/list pagination (#177)', () => {
     transport: "stdio",
     command: process.execPath,
     args: [fakeServer(pages)],
+  });
+
+  it("declares the revision the gateway's own MCP client declares (#178)", async () => {
+    // The fake answers with whatever it was asked, so this compares the bytes that actually went
+    // on the wire against the other client's constant - not against a second copy of the same
+    // literal. Two MCP client paths inside one product disagreeing is invisible from either alone.
+    const client = clientFor([{ tools: [] }]);
+    const connected = await client.connect();
+    expect(connected.protocolVersion).toBe(GATEWAY_REVISION);
+    client.disconnect();
   });
 
   it("walks to the second page and namespaces every tool it finds", async () => {

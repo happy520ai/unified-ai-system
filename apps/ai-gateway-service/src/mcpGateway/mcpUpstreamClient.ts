@@ -42,7 +42,7 @@ export interface McpCallResult {
 }
 
 const JSONRPC_VERSION = "2.0";
-const PROTOCOL_VERSION = "2025-06-18";
+export const PROTOCOL_VERSION = "2025-06-18";
 const DEFAULT_TIMEOUT_MS = 20_000;
 const MAX_RESPONSE_CHARS = 1_000_000;
 const MAX_STDIO_BUFFER_CHARS = 1_000_000;
@@ -57,6 +57,13 @@ const MAX_TOOL_LIST_TOOLS = 2_000;
 // Truncation is raised rather than returned as a short list. A caller cannot tell "this
 // upstream has three tools" from "this upstream has more and we stopped looking", and the
 // gateway's whole claim is that the second case is visible.
+// Records the revision verbatim as the server named it. Whether that counts as an answer is
+// decided once, where it is reported, rather than twice in two layers that cannot see each other.
+function answeredRevision(result: unknown): string | undefined {
+  const value = (result as { protocolVersion?: unknown } | undefined)?.protocolVersion;
+  return typeof value === "string" ? value : undefined;
+}
+
 async function collectUpstreamTools(
   label: string,
   fetchPage: (params: Record<string, unknown>) => Promise<Record<string, unknown>>,
@@ -133,6 +140,7 @@ export function createHttpMcpUpstream(config: McpUpstreamHttpConfig, options: {
   const fetchImpl = options.fetchImpl ?? null;
   let sessionId: string | null = null;
   let initialized = false;
+  let negotiatedRevision: string | undefined;
 
   async function post(body: Record<string, unknown>, signal?: AbortSignal): Promise<Record<string, unknown>> {
     throwIfExecutionAborted(signal);
@@ -193,6 +201,10 @@ export function createHttpMcpUpstream(config: McpUpstreamHttpConfig, options: {
     if (response.error) {
       throw new Error(`MCP upstream ${config.id} initialize failed: ${JSON.stringify(response.error).slice(0, 300)}`);
     }
+    // The answer is not decoration: it decides whether MCP-Session-Id and streaming refusals are
+    // part of the contract. A server may name a revision other than the one we asked for, and a
+    // gateway that drops that value cannot tell its callers which protocol it is actually on.
+    negotiatedRevision = answeredRevision(response.result);
     await post(createRequest("notifications/initialized"), signal);
     initialized = true;
   }
@@ -200,6 +212,7 @@ export function createHttpMcpUpstream(config: McpUpstreamHttpConfig, options: {
   return {
     id: config.id,
     transport: "http" as const,
+    protocolVersion: () => negotiatedRevision,
     async listTools(): Promise<McpToolDescriptor[]> {
       await ensureInitialized();
       return collectUpstreamTools(`MCP upstream ${config.id}`, (params) => post(createRequest("tools/list", params)));
@@ -229,6 +242,7 @@ export function createStdioMcpUpstream(config: McpUpstreamStdioConfig, options: 
   let child: ReturnType<typeof spawn> | null = null;
   let buffer = "";
   let initialized = false;
+  let negotiatedRevision: string | undefined;
   const pending = new Map<number, { resolve: (message: Record<string, unknown>) => void; reject: (error: Error) => void }>();
 
   function ensureChild() {
@@ -352,6 +366,7 @@ export function createStdioMcpUpstream(config: McpUpstreamStdioConfig, options: 
     if (response.error) {
       throw new Error(`MCP stdio upstream ${config.id} initialize failed: ${JSON.stringify(response.error).slice(0, 300)}`);
     }
+    negotiatedRevision = answeredRevision(response.result);
     send({ jsonrpc: JSONRPC_VERSION, method: "notifications/initialized" });
     initialized = true;
   }
@@ -359,6 +374,7 @@ export function createStdioMcpUpstream(config: McpUpstreamStdioConfig, options: 
   return {
     id: config.id,
     transport: "stdio" as const,
+    protocolVersion: () => negotiatedRevision,
     async listTools(): Promise<McpToolDescriptor[]> {
       await ensureInitialized();
       return collectUpstreamTools(`MCP stdio upstream ${config.id}`, (params) => request("tools/list", params));
