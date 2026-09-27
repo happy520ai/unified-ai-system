@@ -63,6 +63,47 @@ const IMAGE_REF = /ghcr\.io\/[a-z0-9._/-]+\/([a-z0-9-]+):(\d+\.\d+\.\d+)/g;
 // pages the reader is told to open.
 export const SITE_LINK = /https:\/\/happy520ai\.github\.io\/unified-ai-system\/([A-Za-z0-9._-]*\.html)?/g;
 
+// The cache's default similarity layer scores candidates with a deterministic local
+// embedder that approximates lexical/subword overlap. A maintainer of another list read
+// "exact and semantic response cache" in one of our rows, checked our own doc, and asked
+// for it to match. Paste-ready copy may call it semantic only where the same paragraph
+// says what semantic-grade matching takes.
+export const CACHE_WORD_PAIR = /\bsemantic\b[^\n]{0,60}\bcach\w*\b|\bcach\w*\b[^\n]{0,60}\bsemantic\b/i;
+export const CACHE_QUALIFIER = /lexical|approximat|subword|not semantic|embedding endpoint|embedding hook/i;
+
+// Kit copy is hard-wrapped inside one blockquote, so a claim can straddle two `> ` lines.
+// A paragraph is a maximal run of quoted prose lines; a fence, bullet, numbered step or
+// blank quote line ends it, because those are not the sentences a reader pastes.
+export function copyParagraphs(kitText) {
+  const paragraphs = [];
+  let current = null;
+  const raw = String(kitText ?? "").split(/\r?\n/);
+  for (let i = 0; i < raw.length; i += 1) {
+    const line = raw[i];
+    const quoted = line.startsWith(">") && line.slice(1).trim().length > 0;
+    const prose = quoted && !/^>\s*(?:```|[-*+]\s|\d+\.\s)/.test(line);
+    if (!prose) {
+      if (current) paragraphs.push(current);
+      current = null;
+      continue;
+    }
+    if (!current) current = { start: i + 1, lines: [] };
+    current.lines.push(line.replace(/^>\s?/, ""));
+  }
+  if (current) paragraphs.push(current);
+  return paragraphs.map((p) => ({ line: p.start, text: p.lines.join(" ") }));
+}
+
+export function readCacheClaims(kitText) {
+  const found = [];
+  for (const p of copyParagraphs(kitText)) {
+    if (!CACHE_WORD_PAIR.test(p.text)) continue;
+    if (CACHE_QUALIFIER.test(p.text) || isRecordLine(p.text)) continue;
+    found.push({ line: p.line, text: p.text.slice(0, 160) });
+  }
+  return found;
+}
+
 // The paste-ready copy - the `>` blockquote lines, which is what gets published
 // verbatim - is the only thing this parses. Everything else in the kit is notes to
 // the author that never leave the repository.
@@ -101,6 +142,7 @@ export function readCopyClaims(kitText) {
     claimedCounts,
     distinctCounts: [...new Set(claimedCounts)].sort((a, b) => a - b),
     quotedCounts,
+    cacheClaims: readCacheClaims(kitText),
   };
 }
 
@@ -218,7 +260,19 @@ const run = async () => {
     `${claims.claimedCounts.length} count claims read from the copy, ${claims.quotedCounts.length} excused as quoting or recording somebody else's wording`,
   );
 
-  // 3. The images the copy tells a reader to run, read out of the copy, so a stale or
+  // 3. Whether the copy calls the cache semantic without saying what that takes. This is
+  //    not a network claim: the reading is the kit's own sentences, and the standard is
+  //    the one a maintainer of another list held us to.
+  add(
+    "cache wording in the paste-ready copy",
+    "clean",
+    claims.cacheClaims.length === 0
+      ? "clean"
+      : `${claims.cacheClaims.length} unqualified [${claims.cacheClaims.map((c) => `L${c.line}`).join(",")}]`,
+    "eq",
+  );
+
+  // 3b. The images the copy tells a reader to run, read out of the copy, so a stale or
   //    mistyped tag cannot pass by pointing at whatever this file hard-codes.
   if (claims.imageRefs.length === 0) {
     add("ghcr image the copy runs", "READ-FAILED:no-image-ref-in-copy", "not-read", "http");

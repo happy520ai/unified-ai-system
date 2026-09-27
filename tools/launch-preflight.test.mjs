@@ -110,3 +110,54 @@ test("the shipped copy links the startup-timing measurement", () => {
   assert.equal(c.claimedCounts.length, 1, "the added timings must not be read as tool-count claims");
   assert.deepEqual(c.distinctCounts, [15]);
 });
+
+test("the shipped copy never calls the cache semantic without saying what that takes", () => {
+  const c = readCopyClaims(readFileSync("docs/growth-launch-kit-2026-09.md", "utf8"));
+  assert.deepEqual(c.cacheClaims, [], `unqualified semantic-cache claims at ${c.cacheClaims.map((x) => `L${x.line}`).join(",")}`);
+});
+
+test("an unqualified semantic-cache sentence in the published copy is a finding", () => {
+  const c = readCopyClaims(kit("> You get virtual keys with budgets, exact + semantic response cache, and an audit chain."));
+  assert.equal(c.cacheClaims.length, 1);
+  assert.match(c.cacheClaims[0].text, /semantic response cache/);
+});
+
+test("the finding survives hard wrapping, because kit copy wraps mid-sentence", () => {
+  const c = readCopyClaims(kit(
+    "> plus virtual keys with budgets and rate limits, exact + semantic",
+    "> response cache, circuit breaking, and Prometheus metrics.",
+  ));
+  assert.equal(c.cacheClaims.length, 1, "two quoted lines are one paragraph and one claim");
+  assert.equal(c.cacheClaims[0].line, 1);
+});
+
+test("naming what semantic-grade matching takes clears the claim", () => {
+  const qualified = readCopyClaims(kit(
+    "> The default similarity layer is lexical approximation; attach a real embedding endpoint through the HTTP embedding hook for semantic-grade matching.",
+  ));
+  assert.deepEqual(qualified.cacheClaims, []);
+  const honest = readCopyClaims(kit("> Honestly: the default similarity layer is lexical, not semantic."));
+  assert.deepEqual(honest.cacheClaims, []);
+});
+
+test("a paragraph boundary is a blank quote line, so two replies are two claims", () => {
+  const c = readCopyClaims(kit(
+    "> exact + semantic response cache here.",
+    ">",
+    "> and the same phrase again, semantic caching over models, here.",
+  ));
+  assert.equal(c.cacheClaims.length, 2);
+  assert.deepEqual(c.cacheClaims.map((x) => x.line), [1, 3]);
+});
+
+test("author notes and somebody else's recorded wording are not our claim to defend", () => {
+  const notes = readCopyClaims(kit("The notes say exact + semantic response cache to the author."));
+  assert.deepEqual(notes.cacheClaims, [], "not paste-ready, never published");
+  const quoted = readCopyClaims(kit("> Their README says exact + semantic response cache, which we do not claim."));
+  assert.deepEqual(quoted.cacheClaims, [], "a record of somebody else's sentence");
+});
+
+test("'semantic' far from any cache word is not a cache claim", () => {
+  const c = readCopyClaims(kit("> Semantic search over your own documents, no cloud tier."));
+  assert.deepEqual(c.cacheClaims, []);
+});
