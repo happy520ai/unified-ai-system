@@ -71,6 +71,12 @@ export const SITE_LINK = /https:\/\/happy520ai\.github\.io\/unified-ai-system\/(
 export const CACHE_WORD_PAIR = /\bsemantic\b[^\n]{0,60}\bcach\w*\b|\bcach\w*\b[^\n]{0,60}\bsemantic\b/i;
 export const CACHE_QUALIFIER = /lexical|approximat|subword|not semantic|embedding endpoint|embedding hook/i;
 
+// Same class, second instance: we publish a converter that refuses a document whose
+// semantics it cannot resolve (Notion's 48-path spec is one), so paste-ready copy may
+// not promise *any* spec unless the same paragraph says what gets refused.
+export const OPENAPI_CLAIM = /\b(?:any|every)\b[^\n.]{0,60}\bopenapi\b|\bopenapi\b[^\n.]{0,60}\b(?:any|every)\b/i;
+export const OPENAPI_QUALIFIER = /unambiguous|ambiguous|refus|cannot be resolved|skipped|operation by operation/i;
+
 // Kit copy is hard-wrapped inside one blockquote, so a claim can straddle two `> ` lines.
 // A paragraph is a maximal run of quoted prose lines; a fence, bullet, numbered step or
 // blank quote line ends it, because those are not the sentences a reader pastes.
@@ -99,6 +105,16 @@ export function readCacheClaims(kitText) {
   for (const p of copyParagraphs(kitText)) {
     if (!CACHE_WORD_PAIR.test(p.text)) continue;
     if (CACHE_QUALIFIER.test(p.text) || isRecordLine(p.text)) continue;
+    found.push({ line: p.line, text: p.text.slice(0, 160) });
+  }
+  return found;
+}
+
+export function readOpenApiClaims(kitText) {
+  const found = [];
+  for (const p of copyParagraphs(kitText)) {
+    if (!OPENAPI_CLAIM.test(p.text)) continue;
+    if (OPENAPI_QUALIFIER.test(p.text) || isRecordLine(p.text)) continue;
     found.push({ line: p.line, text: p.text.slice(0, 160) });
   }
   return found;
@@ -143,6 +159,7 @@ export function readCopyClaims(kitText) {
     distinctCounts: [...new Set(claimedCounts)].sort((a, b) => a - b),
     quotedCounts,
     cacheClaims: readCacheClaims(kitText),
+    openApiClaims: readOpenApiClaims(kitText),
   };
 }
 
@@ -264,11 +281,14 @@ const run = async () => {
   //    not a network claim: the reading is the kit's own sentences, and the standard is
   //    the one a maintainer of another list held us to.
   add(
-    "cache wording in the paste-ready copy",
+    "cache + conversion wording in the paste-ready copy",
     "clean",
-    claims.cacheClaims.length === 0
+    claims.cacheClaims.length + claims.openApiClaims.length === 0
       ? "clean"
-      : `${claims.cacheClaims.length} unqualified [${claims.cacheClaims.map((c) => `L${c.line}`).join(",")}]`,
+      : [
+          ...claims.cacheClaims.map((c) => `cache L${c.line}`),
+          ...claims.openApiClaims.map((c) => `openapi L${c.line}`),
+        ].join(","),
     "eq",
   );
 

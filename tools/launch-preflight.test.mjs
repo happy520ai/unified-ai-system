@@ -161,3 +161,35 @@ test("'semantic' far from any cache word is not a cache claim", () => {
   const c = readCopyClaims(kit("> Semantic search over your own documents, no cloud tier."));
   assert.deepEqual(c.cacheClaims, []);
 });
+
+test("the shipped copy promises only what the converter accepts", () => {
+  const c = readCopyClaims(readFileSync("docs/growth-launch-kit-2026-09.md", "utf8"));
+  assert.deepEqual(c.openApiClaims, [], `unqualified conversion claims at ${c.openApiClaims.map((x) => `L${x.line}`).join(",")}`);
+});
+
+test("a promise that any OpenAPI document converts is a finding", () => {
+  const c = readCopyClaims(kit("> Point it at any OpenAPI 3 spec and every endpoint becomes a governed MCP tool."));
+  assert.equal(c.openApiClaims.length, 1);
+  assert.match(c.openApiClaims[0].text, /any OpenAPI 3 spec/);
+});
+
+test("the finding survives hard wrapping, same as the cache arm", () => {
+  const c = readCopyClaims(kit(
+    "> wraps *other* MCP servers and any",
+    "> OpenAPI 3 spec behind allow-lists and audit.",
+  ));
+  assert.equal(c.openApiClaims.length, 1, "one paragraph, one claim");
+  assert.equal(c.openApiClaims[0].line, 1);
+});
+
+test("naming what gets refused clears the conversion claim", () => {
+  const c = readCopyClaims(kit(
+    "> Point it at any OpenAPI 3 document: each unambiguous operation becomes a tool, and a construct whose semantics cannot be resolved is refused rather than guessed.",
+  ));
+  assert.deepEqual(c.openApiClaims, []);
+});
+
+test("somebody else's sentence about any spec is a record, not our promise", () => {
+  const c = readCopyClaims(kit("> Their README says it converts any OpenAPI 3 spec, which is not what ours does."));
+  assert.deepEqual(c.openApiClaims, []);
+});
