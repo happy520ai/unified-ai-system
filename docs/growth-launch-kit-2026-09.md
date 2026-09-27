@@ -148,6 +148,14 @@ pages still requested the cached copy meant it was live on the server and absent
 from the running page. If you touch `docs/site.js` again, bump that token in both
 homepages or readers keep the old script.
 
+**When a post needs a credibility link rather than an install link, use:**
+https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.html — three anonymous
+surveys of 40 servers advertised in the official MCP registry (does `tools/list` paginate, will a
+server agree to a protocol version that does not exist, does an issued session id have to come back),
+each with its denominator, its sample bias and the script that produced it named on the page. It is
+in `docs/sitemap.xml` and `docs/indexnow.json`, and `pnpm check:public` fails if those two ever
+disagree, so it cannot quietly become an un-notified orphan.
+
 ---
 
 ## 1. Show HN (news.ycombinator.com)
