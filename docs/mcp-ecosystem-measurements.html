@@ -71,12 +71,13 @@
         in the official MCP registry.
       </p>
       <p>
-        Those five share one run, one sample window and one machine-readable file. Three more questions -
+        Those five share one run, one sample window and one machine-readable file. Four more questions -
         whether anyone enforces the <code>MCP-Protocol-Version</code> header, whether a server can
-        be routed by the <code>Mcp-Method</code> header when the body says otherwise, and the same
-        question with no body at all - were measured later the same day over the same endpoints, are
-        reported at the end of this page, and are deliberately kept out of the dataset. So "five" here
-        counts the measurements that were taken together, not the number of questions we have asked.
+        be routed by the <code>Mcp-Method</code> header when the body says otherwise, the same question
+        with no body at all, and whether a server ever says how long its tool list may be cached - were
+        measured later the same day over the same endpoints, are reported at the end of this page, and
+        are deliberately kept out of the dataset. So "five" here counts the measurements that were
+        taken together, not the number of questions we have asked.
       </p>
 
       <div class="cards">
@@ -288,6 +289,24 @@
         identically either way; three answered GET with <code>application/json</code> and no stream at
         all, again identically.
       </p>
+      <h2>8. Does a server ever say how long its tool list may be cached?</h2>
+      <p>
+        A gateway has to decide how long to keep a cached list, and the spec lets the server answer that
+        with <code>ttlMs</code> and <code>cacheScope</code>. Of 16 servers that returned a list,
+        <strong>15 declared neither and 1 declared both</strong> -
+        <code>ttlMs: 300000</code> with <code>cacheScope: "private"</code>. We were reading neither
+        field, caching every upstream for a hard-coded 60 seconds in a process-global map shared by all
+        tenants.
+      </p>
+      <p>
+        The timing half is small: one declarant in sixteen, and honouring it meant clamping to
+        1&nbsp;s..10&nbsp;min so that a declared <code>0</code> cannot turn a read into a fresh handshake
+        and a declared decade cannot freeze a list. The sharing half is the one worth the change, and it
+        is stated without inflation: <code>listTools()</code> takes no caller identity, so nothing was
+        exposed - the cache was merely built as though sharing were always safe, which is the shape that
+        would turn a future per-caller header into a cross-tenant leak with nobody objecting.
+        <a href="mcp-list-cache-hints.md">The write-up, its blind spots, and our own silence</a>.
+      </p>
       <h2>The numbers as a file</h2>
       <p>
         Every table on this page also exists machine-readable:
@@ -348,7 +367,8 @@ node tools/survey-mcp-server-discover.mjs 40
 node tools/survey-mcp-instructions-field.mjs 40
 node tools/survey-mcp-protocol-version-header.mjs 40
 node tools/survey-mcp-route-headers.mjs 40
-node tools/survey-mcp-get-stream-headers.mjs 40</code></pre>
+node tools/survey-mcp-get-stream-headers.mjs 40
+node tools/survey-mcp-list-cache-hints.mjs 40</code></pre>
 
       <h2>We ran the same three questions against ourselves</h2>
       <p>
@@ -409,7 +429,7 @@ node tools/survey-mcp-get-stream-headers.mjs 40</code></pre>
         <li><strong>The sample is not random.</strong> It is the registry's default order at one timestamp, which over-represents server names beginning with <code>a</code>.</li>
         <li><strong><code>initialize</code> and <code>tools/list</code> only.</strong> Going further would mean invoking tools on services that are not ours.</li>
         <li><strong>No stdio coverage.</strong> That population is larger and unreachable by this method.</li>
-        <li><strong>One timestamp each, 2026-09-27.</strong> Servers deploy; a re-run is a new measurement, not a regression test. All eight scripts are deliberately outside our CI for that reason.</li>
+        <li><strong>One timestamp each, 2026-09-27.</strong> Servers deploy; a re-run is a new measurement, not a regression test. All nine scripts are deliberately outside our CI for that reason.</li>
       </ul>
 
       <footer>
