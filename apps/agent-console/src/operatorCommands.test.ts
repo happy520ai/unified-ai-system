@@ -50,7 +50,7 @@ async function fixture() {
     if (variant === "unknown") { response.writeHead(503, { "content-type": "application/json" }); response.end(JSON.stringify({ status: "error", error: {
       code: "FORGE_EXTERNAL_EFFECT_OUTCOME_UNCERTAIN", message: "api_key=fixture-secret-value", details: { outcomeUnknown: true, reconciliation: { runId: "forge_fixture" } } } })); return; }
     if (variant === "sensitive") data = { ...data, apiKey: "fixture-private", label: "\u001b[31mBearer fixture-private-token\rforged" };
-    response.setHeader("content-type", "application/json"); response.end(JSON.stringify({ status: "ok", data }));
+    response.setHeader("content-type", "application/json"); response.setHeader("connection", "close"); response.end(JSON.stringify({ status: "ok", data }));
   });
   server.listen(0, "127.0.0.1"); await once(server, "listening");
   const baseUrl = `http://127.0.0.1:${(server.address() as any).port}`;

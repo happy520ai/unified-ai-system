@@ -4031,6 +4031,10 @@ async function readJsonBody(request) {
 function writeJson(response, statusCode, body) {
   response.writeHead(statusCode, {
     "content-type": "application/json",
+    // Test-only. A pooled keep-alive socket can outlive this fixture and be re-issued after the
+    // OS hands the same ephemeral port to a sibling test file's server; that stray request is
+    // what showed up as calls[0] in operatorCommands.test.ts. See #171.
+    connection: "close",
   });
   response.end(JSON.stringify(body));
 }
