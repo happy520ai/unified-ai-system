@@ -55,6 +55,7 @@ const externalPrs = [
   // of ours is on either default branch until these merge.
   ["EthicalML/awesome-production-machine-learning", 822],
   ["andyrewlee/awesome-agent-orchestrators", 252],
+  ["MobinX/awesome-mcp-list", 529],
   ["mikeroyal/Self-Hosting-Guide", 385],
   ["up-for-grabs/up-for-grabs.net", 6176],
   ["toolsdk-ai/toolsdk-mcp-registry", 552],
