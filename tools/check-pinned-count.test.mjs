@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { pinnedCountMismatches, pinnedCorrectReadings, CURRENT_RELEASE, PINNED_ROSTER, run } from "./check-pinned-count.mjs";
+import { pinnedCountMismatches, pinnedCorrectReadings, pinnedIdentityReadings, CURRENT_RELEASE, PINNED_ROSTER, run } from "./check-pinned-count.mjs";
 
 // A byte-for-byte shape of what shipped: a numbered step plus the digest pin a few lines away.
 const DEFECTIVE = [
@@ -78,4 +78,25 @@ test("a count that merely sits near a pin but matches the pinned roster is not a
   ].join("\n");
   const { findings } = pinnedCountMismatches(text, 15);
   assert.equal(findings.length, 0);
+});
+
+test("identity readings tell an older measured pin from the future current pin and from an unmeasured one", () => {
+  const today = pinnedIdentityReadings("names `v0.8.0` and pins the reviewed `0.4.9` image at sha256:aaaa");
+  assert.equal(today.pinnedVersion, "0.4.9");
+  assert.equal(today.namesCurrent, true);
+  assert.deepEqual(today.unmeasuredPins, []);
+
+  // The state #173 creates: review finished, procedure pins the current release. If this read as
+  // drift, the gate would punish the person who completed the work.
+  const future = pinnedIdentityReadings("the reviewed image is `0.8.0`, pinned at sha256:bbbb");
+  assert.equal(future.pinnedVersion, null);
+  assert.equal(future.namesCurrent, true);
+  assert.deepEqual(future.unmeasuredPins, []);
+
+  const unknown = pinnedIdentityReadings("names `v0.8.0` but pins `0.9.7` for inspection");
+  assert.equal(unknown.namesCurrent, true);
+  assert.deepEqual(unknown.unmeasuredPins, ["0.9.7"], "an unmeasured identity is named, never excused");
+
+  const none = pinnedIdentityReadings("no image identity appears anywhere in this text");
+  assert.equal(none.namesCurrent, false, "naming nothing is unverifiable, not clean");
 });

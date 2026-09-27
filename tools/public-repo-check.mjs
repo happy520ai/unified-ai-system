@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { CURRENT_RELEASE, PINNED_ROSTER, pinnedCorrectReadings, pinnedCountMismatches } from "./check-pinned-count.mjs";
+import { CURRENT_RELEASE, PINNED_ROSTER, pinnedCorrectReadings, pinnedCountMismatches, pinnedIdentityReadings } from "./check-pinned-count.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const errors = [];
@@ -669,14 +669,21 @@ const publishedToolCountWord = countWords[publishedToolCount] ?? String(publishe
 // placing either in the other's place is the violation.
 const SKILL_PATH = "skills/unified-ai-gateway/SKILL.md";
 const skillText = readFileSync(resolve(repoRoot, SKILL_PATH), "utf8");
-const pinnedVersion = [...skillText.matchAll(/\bv?(\d+\.\d+\.\d+)\b/g)]
-  .map((m) => m[1])
-  .find((v) => v !== CURRENT_RELEASE && PINNED_ROSTER[v] !== undefined) ?? null;
+const pinnedIdentity = pinnedIdentityReadings(skillText);
+const pinnedVersion = pinnedIdentity.pinnedVersion;
 const pinnedCount = pinnedVersion ? PINNED_ROSTER[pinnedVersion] : publishedToolCount;
 const pinnedCountWord = countWords[pinnedCount] ?? String(pinnedCount);
 const pluginSurfaceDrift = [];
 if (pinnedVersion === null) {
-  pluginSurfaceDrift.push(`${SKILL_PATH}: no pinned image version with a measured roster row was found, so the procedure's expected count is unverifiable`);
+  // Two states look alike here. The file may pin the CURRENT release - the intended outcome once
+  // a newer image is reviewed (#173) - or it may name an identity nobody ever measured. Only the
+  // second is a problem: treating the first as drift would turn this gate red exactly when
+  // somebody finishes that work, which is the same trap as an anchor pinned to world state.
+  if (!pinnedIdentity.namesCurrent) {
+    pluginSurfaceDrift.push(`${SKILL_PATH}: no image identity with a measured roster row is named, so the procedure's expected count is unverifiable`);
+  } else if (pinnedIdentity.unmeasuredPins.length > 0) {
+    pluginSurfaceDrift.push(`${SKILL_PATH}: names the current release but also pins unmeasured version(s) ${pinnedIdentity.unmeasuredPins.join(", ")} - measure them before asserting a count for them`);
+  }
 }
 const pluginSurfaceClaims = [
   [".codex-plugin/plugin.json", [`${publishedToolCountWord} governed MCP tools`]],

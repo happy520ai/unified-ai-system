@@ -108,6 +108,21 @@ export function pinnedCorrectReadings(text, currentCount) {
 
 export const CURRENT_RELEASE = "0.8.0";
 
+// Which image identities a document names, and whether each has actually been measured. Lives in
+// this tested module rather than inline in the release gate, because the interesting case is the
+// future one - someone completes the pending content review (#173) and pins the CURRENT release -
+// and that state has to be asserted directly instead of by mutating a live tree under a gate.
+export function pinnedIdentityReadings(text, currentRelease = CURRENT_RELEASE) {
+  const found = String(text ?? "").match(/\bv?(\d+\.\d+\.\d+)\b/g) ?? [];
+  const versions = [...new Set(found.map((s) => s.replace(/^v/, "")))];
+  return {
+    versions,
+    pinnedVersion: versions.find((v) => v !== currentRelease && PINNED_ROSTER[v] !== undefined) ?? null,
+    namesCurrent: versions.includes(currentRelease),
+    unmeasuredPins: versions.filter((v) => v !== currentRelease && !(v in PINNED_ROSTER)),
+  };
+}
+
 export function run({ paths = null } = {}) {
   const roster = PINNED_ROSTER[CURRENT_RELEASE];
   if (!Number.isInteger(roster)) return { status: "inconclusive", reason: "no measured roster for the current release" };
