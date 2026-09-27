@@ -21,6 +21,7 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+import { PINNED_ROSTER } from "./check-pinned-count.mjs";
 
 const REPO = "happy520ai/unified-ai-system";
 const SLUG = "io.github.happy520ai%2Funified-ai-system";
@@ -150,6 +151,55 @@ export function findUnqualifiedCacheClaims(text, relPath) {
     found.push(`${relPath}:${i + 1} ${line.slice(from, from + 120).trim()}`);
   });
   return found;
+}
+
+// Our own Discussions are the second-most-viewed page on the repository, and three separate
+// stale readings have been corrected there by hand. A release note legitimately says
+// "v0.5.0 - twelve tools" as a record, so the discriminator cannot be "mentions a number": it is
+// "states a number next to today/latest/current", which is the same window the kit reader uses.
+// A count that equals the roster of a version named on the same line is a correct reading of that
+// version, not drift - the same excuse the release gate applies to a pinned procedure.
+export function presentClaimFindings(text, { liveTag = null, rosterCount = null, label = "document" } = {}) {
+  const findings = [];
+  const live = liveTag === null ? null : String(liveTag).replace(/^v/, "");
+  String(text ?? "").split(/\r?\n/).forEach((line, i) => {
+    // Sentence-scoped, not a fixed character window: "The current release is v0.8.0 with twelve
+    // governed MCP tools" puts the number 37 characters from the word that makes it a claim
+    // about today, and any window length that happens to be shorter turns a real claim into a
+    // silent one. A sentence is the unit a reader actually interprets.
+    for (const sentence of line.split(/(?<=[.;:!?])\s+|\s+[—-]\s+/)) {
+      if (!PRESENT_WORD.test(sentence)) continue;
+      const versions = [...sentence.matchAll(/\bv?(\d+\.\d+\.\d+)\b/g)].map((m) => m[1]);
+      if (live && /\brelease\b/i.test(sentence)) {
+        for (const version of new Set(versions)) {
+          if (version !== live) {
+            findings.push(`${label}: line ${i + 1} calls v${version} the current release; the live release is v${live}`);
+          }
+        }
+      }
+      if (rosterCount === null) continue;
+      for (const m of sentence.matchAll(COUNT_IN_TEXT)) {
+        const value = num(m[1]);
+        if (value === null || value === rosterCount || isRecordLine(sentence)) continue;
+        // A count that equals the roster of a version the same sentence names is a correct
+        // reading of that version, not drift - the release gate excuses it the same way.
+        if (versions.some((v) => PINNED_ROSTER[v] === value)) continue;
+        findings.push(`${label}: line ${i + 1} states ${value} tools in a present-tense sentence; the published image has ${rosterCount}`);
+      }
+    }
+  });
+  return [...new Set(findings)];
+}
+
+export const DISCUSSION_QUERY = 'query($owner:String!,$name:String!){repository(owner:$owner,name:$name){discussions(first:25){nodes{databaseId title body updatedAt}}}}';
+
+export function discussionFindings(nodes, { liveTag, rosterCount }) {
+  const out = [];
+  for (const node of nodes ?? []) {
+    const label = `discussion #${node?.databaseId ?? "?"}`;
+    out.push(...presentClaimFindings(`${node?.title ?? ""}\n${node?.body ?? ""}`, { liveTag, rosterCount, label }));
+  }
+  return { findings: [...new Set(out)], read: Array.isArray(nodes) ? nodes.length : null };
 }
 
 // The paste-ready copy - the `>` blockquote lines, which is what gets published
@@ -364,7 +414,24 @@ const run = async () => {
   const kitCount = /(\d+)\s+commits between the v0\.7\.0 and v0\.8\.0 tags/.exec(kit);
   add("release size stated tag-to-tag", kitCount ? kitCount[1] : "READ-FAILED:not-stated-in-kit", tagCount || "READ-FAILED", "num");
 
-  console.log("\n=== launch pre-flight ===");
+  // 5. Our own Discussions, which no file-scoped guard can see.
+  const discussions = sh("gh", ["api", "graphql", "-f", "owner=happy520ai", "-f", "name=unified-ai-system", "-f", "query=" + DISCUSSION_QUERY]);
+  let discussionNodes = null;
+  try {
+    discussionNodes = JSON.parse(discussions.stdout)?.data?.repository?.discussions?.nodes ?? null;
+  } catch {
+    discussionNodes = null;
+  }
+  const dRead = discussionFindings(discussionNodes, { liveTag, rosterCount: Number.isNaN(Number(rosterCount)) ? null : Number(rosterCount) });
+  add(
+    "our own Discussions state the same release and count the image does",
+    "clean",
+    discussionNodes === null ? "READ-FAILED:graphql" : (dRead.findings.length === 0 ? "clean" : dRead.findings.join(" | ")),
+    "eq",
+  );
+  notes.push(`read ${dRead.read ?? "no"} discussion(s) from the repository's own GraphQL read`);
+
+    console.log("\n=== launch pre-flight ===");
   for (const n of notes) console.log(`note ${n}`);
   for (const r of rows) {
     console.log(`${r.pass ? "OK  " : "FAIL"} ${r.claim.padEnd(44)} expected=${r.expect.padEnd(18)} live=${r.live}`);

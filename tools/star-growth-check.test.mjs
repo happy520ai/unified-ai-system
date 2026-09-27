@@ -920,7 +920,7 @@ test("the count excuse does not reach into the version arm - a stale tag is stil
   // thing it gets wrong is telling a reader to run a five-month-old image. If the pinned-count
   // excuse ever widened to version pins, this row would go quiet and the worst defect class in
   // a directory entry - the one that ships the wrong artifact - would stop being caught.
-  const staleTag = "Install it with docker run ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.8";
+  const staleTag = "Install it with docker run the mcp-server:0.4.8 image";
   const findings = carrierFindings(staleTag, 15, "0.8.0");
   assert.deepEqual(findings, ["pins version 0.4.8, published release is 0.8.0"]);
 });

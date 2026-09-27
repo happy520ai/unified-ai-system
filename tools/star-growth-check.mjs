@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { execSync } from "node:child_process";
+import { execSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -1094,7 +1094,7 @@ function collectCarrierFindings() {
 // the count is printed rather than hidden.
 // One shared predicate decides what counts as recording an old number, so this sweep and
 // the launch-copy checker cannot drift apart on the boundary.
-import { isRecordLine } from "./launch-preflight.mjs";
+import { DISCUSSION_QUERY, discussionFindings, isRecordLine } from "./launch-preflight.mjs";
 import { pinnedCorrectReadings } from "./check-pinned-count.mjs";
 
 const COMMENT_CLAIM_ALLOWED = [
@@ -1296,6 +1296,35 @@ export function searchPoolFindings(pools, seal = SEARCH_POOL_SEAL) {
   return { rows, offenders, sealed: seal.length, pools: (pools ?? []).length };
 }
 
+// Discussions have no /issues number to list, so the REST sweep above cannot reach them, and
+// they are the second-most-viewed page on this repository. The judgement is delegated to the
+// same sentence-scoped reader the launch pre-flight uses rather than restated here.
+function readDiscussions() {
+  const out = spawnSync("gh", [
+    "api", "graphql",
+    "-f", "owner=happy520ai",
+    "-f", "name=unified-ai-system",
+    "-f", `query=${DISCUSSION_QUERY}`,
+  ], { encoding: "utf8", timeout: 90_000, maxBuffer: 32 * 1024 * 1024 });
+  if (out.status !== 0) {
+    return { nodes: null, error: (String(out.stderr ?? "").trim() || `exit-${out.status}`).slice(0, 140) };
+  }
+  try {
+    const nodes = JSON.parse(out.stdout)?.data?.repository?.discussions?.nodes;
+    return Array.isArray(nodes) ? { nodes, error: null } : { nodes: null, error: "no discussion nodes in the response" };
+  } catch (error) {
+    return { nodes: null, error: String(error?.message ?? error).slice(0, 140) };
+  }
+}
+
+function readLiveReleaseTag() {
+  const out = spawnSync("gh", ["api", `repos/${repo}/releases/latest`, "--jq", ".tag_name"], {
+    encoding: "utf8", timeout: 60_000, maxBuffer: 4 * 1024 * 1024,
+  });
+  const tag = String(out.stdout ?? "").trim();
+  return out.status === 0 && /^v?\d+\.\d+\.\d+$/.test(tag) ? tag : null;
+}
+
 async function scanRemotePublicClaims() {
   const offenders = [];
   let scanned = 0;
@@ -1327,7 +1356,19 @@ async function scanRemotePublicClaims() {
   } catch {
     error = error ?? "comment read failed; the comment sweep is inconclusive";
   }
-  const poolFindings = searchPoolFindings(scanSearchPools());
+  const discussions = readDiscussions();
+  const liveTag = readLiveReleaseTag();
+  const discussionRead = discussions.nodes === null
+    ? { findings: [], read: null }
+    : discussionFindings(discussions.nodes, { liveTag, rosterCount: readRosterCount() });
+  if (discussions.error) {
+    offenders.push(`READ-FAILED: our own Discussions - ${discussions.error} (a missing read is not a clean sweep)`);
+  } else if (liveTag === null) {
+    offenders.push("READ-FAILED: the live release tag - Discussions were read but no version claim could be judged");
+  }
+  offenders.push(...discussionRead.findings);
+
+    const poolFindings = searchPoolFindings(scanSearchPools());
   offenders.push(...poolFindings.offenders);
   const commentSweep = commentClaimFindings(comments, readRosterCount());
   if (commentSweep === null) {
@@ -1339,6 +1380,7 @@ async function scanRemotePublicClaims() {
     offenders,
     error,
     recordOnlyRows,
+    discussionScanned: discussionRead.read,
     poolRows: poolFindings.rows,
     poolSealed: poolFindings.sealed,
     poolCount: poolFindings.pools,
@@ -1610,7 +1652,8 @@ function generateCheckReport(repoStats, rows, date, previousStats = null, claimS
       ? `${remoteSweep.commentScanned} (records kept, by listed rule or self-marked wording: ${remoteSweep.commentKept})`
       : "not run"} |`
   );
-  lines.push(`| Discovery pools measured on repository search | ${remoteSweep?.poolCount ?? "not run"} (sealed membership claims: ${remoteSweep?.poolSealed ?? "?"}) |`);
+  lines.push(`| Our own Discussions scanned for present-tense release claims | ${remoteSweep?.discussionScanned ?? "not read"} |`);
+    lines.push(`| Discovery pools measured on repository search | ${remoteSweep?.poolCount ?? "not run"} (sealed membership claims: ${remoteSweep?.poolSealed ?? "?"}) |`);
   for (const row of remoteSweep?.poolRows ?? []) lines.push(`- ${row}`);
   lines.push("");
   lines.push("### Who referred the repository, and to which page");

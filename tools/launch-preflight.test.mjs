@@ -5,6 +5,8 @@ import {
   countClaim,
   isUnreadable,
   num,
+  presentClaimFindings,
+  discussionFindings,
   readCopyClaims,
   versionClaim,
 } from "./launch-preflight.mjs";
@@ -243,4 +245,56 @@ test("the public gate is wired to this instrument rather than a copy of it", () 
   assert.match(gate, /findUnqualifiedCacheClaims/);
   assert.match(gate, /public_cache_claim_unqualified/);
   assert.match(gate, /CACHE_CLAIM_CARRIERS\.length === 0/, "an empty carrier list must be reported blind, not clean");
+});
+
+// --- our own Discussions, the carrier no file guard can see --------------------------------
+test("a discussion that calls an older release current is named, and only for the version", () => {
+  // One finding, not two, and that is the precise reading: the sentence is wrong about which
+  // release is current, while "twelve tools" is a true statement about 0.7.0. Reporting the count
+  // too would send a reader to fix a number that does not need fixing.
+  const body = "The current release is v0.7.0 with twelve governed MCP tools.";
+  const findings = presentClaimFindings(body, { liveTag: "0.8.0", rosterCount: 15, label: "d" });
+  assert.deepEqual(findings, ["d: line 1 calls v0.7.0 the current release; the live release is v0.8.0"]);
+});
+
+test("a correct version with a stale count is named for the count alone", () => {
+  const findings = presentClaimFindings(
+    "The current release is v0.8.0 with twelve governed MCP tools.",
+    { liveTag: "0.8.0", rosterCount: 15, label: "d" },
+  );
+  assert.equal(findings.length, 1);
+  assert.match(findings[0], /states 12 tools in a present-tense sentence; the published image has 15/);
+});
+
+test("the same wording matching the live readings is clean, not merely unread", () => {
+  assert.deepEqual(
+    presentClaimFindings("The current release is v0.8.0 with fifteen governed MCP tools.", { liveTag: "0.8.0", rosterCount: 15, label: "d" }),
+    [],
+  );
+});
+
+test("a historical release note is a record, not a stale claim", () => {
+  // Two arms had to be satisfied to get this wrong: no present-tense word means no claim, and
+  // a count that equals the roster of the version the line names is a correct reading of it.
+  const title = "v0.5.0 - The Gateway Release: 12 governed tools, budgets, cache";
+  assert.deepEqual(presentClaimFindings(title, { liveTag: "0.8.0", rosterCount: 15, label: "d" }), []);
+  // The hard case: a present-tense word next to a pinned version, where the number is true of
+  // that version. The version arm must stay quiet because no "release" is being claimed, and the
+  // count arm must stay quiet because 9 is what 0.4.9 ships.
+  const presentButPinned = "The current 0.4.9 procedure exposes nine tools.";
+  assert.deepEqual(presentClaimFindings(presentButPinned, { liveTag: "0.8.0", rosterCount: 15, label: "d" }), []);
+  // And the excuse must not be a blanket: same sentence shape, a count that is true of nothing.
+  assert.equal(
+    presentClaimFindings("The current 0.4.9 procedure exposes eleven tools.", { liveTag: "0.8.0", rosterCount: 15, label: "d" }).length,
+    1,
+  );
+});
+
+test("a failed GraphQL read is reported as unreadable rather than as clean", () => {
+  const unreadable = discussionFindings(null, { liveTag: "0.8.0", rosterCount: 15 });
+  assert.equal(unreadable.read, null);
+  assert.deepEqual(unreadable.findings, []);
+  const listed = discussionFindings([{ databaseId: 7, title: "current: v0.4.9", body: "The current release is v0.4.9 with eleven governed MCP tools." }], { liveTag: "0.8.0", rosterCount: 15 });
+  assert.equal(listed.read, 1);
+  assert.equal(listed.findings.length, 2);
 });
