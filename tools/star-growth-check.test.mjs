@@ -16,6 +16,8 @@ import {
   githubMcpUrl,
   githubMcpVerdict,
   indexedSiteUrls,
+  indexNowLines,
+  indexNowVerdict,
   isListedInReadme,
   needsRecarry,
   publishedToolCount,
@@ -807,4 +809,64 @@ test("GitHub MCP directory: a 404 only means absence when the controls answer 20
 test("GitHub MCP directory: the entry URL is namespace/slug without percent-encoding", () => {
   assert.equal(githubMcpUrl("io.github.happy520ai/unified-ai-system"), "https://github.com/mcp/io.github.happy520ai/unified-ai-system");
   assert.match(githubMcpUrl(GITHUB_MCP_CONTROLS[0]), /^https:\/\/github\.com\/mcp\/[^/]+\/[^/]+$/);
+});
+
+// --- IndexNow acceptance reader -----------------------------------------------------------
+// The index probe reports "not visible", which reads like a broken pipeline. This arm reports
+// whether we ever told the engine at all, and it must not turn a missing read into a claim.
+const indexNowRun = (over = {}) => ({
+  id: 1, status: "completed", event: "page_build", created_at: "2026-09-27T08:49:06Z", ...over,
+});
+const indexNowSteps = (conclusion) => [
+  { name: "Check out the default branch", conclusion: "success" },
+  { name: "Detect public site changes", conclusion: "success" },
+  { name: "Notify IndexNow", conclusion },
+];
+
+test("a completed submit step with a 200 in its log is reported as accepted, with the count", () => {
+  const v = indexNowVerdict({
+    runs: [indexNowRun()],
+    steps: indexNowSteps("success"),
+    logText: '  "ok": true,\n  "mode": "submit",\n  "status": 200,\n  "submittedUrlCount": 16,\n',
+  });
+  assert.equal(v.kind, "accepted");
+  assert.equal(v.status, "200");
+  assert.equal(v.count, "16");
+  const line = indexNowLines(v).join("\n");
+  assert.match(line, /ACCEPTED by api\.indexnow\.org with HTTP 200; 16 URL/);
+  assert.match(line, /not un-submitted/);
+});
+
+test("a skipped submit step is 'not triggered', not 'never submitted'", () => {
+  const v = indexNowVerdict({ runs: [indexNowRun()], steps: indexNowSteps("skipped") });
+  assert.equal(v.kind, "not_triggered");
+  assert.match(v.detail, /did not touch docs/);
+  assert.match(indexNowLines(v).join("\n"), /NOT TRIGGERED/);
+});
+
+test("a successful step whose log has no status line reports no count", () => {
+  const v = indexNowVerdict({ runs: [indexNowRun()], steps: indexNowSteps("success"), logText: "no json here" });
+  assert.equal(v.kind, "accepted_count_unread");
+  assert.equal(v.count, undefined);
+  assert.doesNotMatch(indexNowLines(v).join("\n"), /16 URL/);
+});
+
+test("a non-2xx endpoint status is a refusal we own, not an unreadable", () => {
+  const v = indexNowVerdict({
+    runs: [indexNowRun()],
+    steps: indexNowSteps("success"),
+    logText: '  "status": 403,\n  "submittedUrlCount": 16,\n',
+  });
+  assert.equal(v.kind, "rejected");
+  assert.match(indexNowLines(v).join("\n"), /REFUSED by the endpoint.*ours to fix/s);
+});
+
+test("the wrong workflow, no completed run, and a failed gh call are three different answers", () => {
+  const absent = indexNowVerdict({ runs: [indexNowRun()], steps: [{ name: "Build", conclusion: "success" }] });
+  assert.equal(absent.kind, "step_absent");
+  const running = indexNowVerdict({ runs: [indexNowRun({ status: "in_progress" })] });
+  assert.equal(running.kind, "no_completed_run");
+  const blind = indexNowVerdict({ error: "gh: HTTP 401" });
+  assert.equal(blind.kind, "unreadable");
+  assert.match(indexNowLines(blind).join("\n"), /a missing read is not a missing submission/);
 });

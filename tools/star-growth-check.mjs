@@ -1842,6 +1842,92 @@ export function searchCoverageLines(sitemapUrls, indexed, { error = null } = {})
   return lines;
 }
 
+// The index probe above can only report what an index shows, and a reader will otherwise
+// diagnose a thin reading as a broken pipeline. The other half is whether we ever told a search
+// engine: the IndexNow workflow posts the configured URL list and its submitter prints the
+// endpoint's own status and count into the job log. Read from the newest *completed* run, because
+// a run still in flight has no step conclusions to read.
+export const INDEXNOW_NOTIFY_STEP = "Notify IndexNow";
+
+export function indexNowVerdict({ runs = null, steps = null, logText = null, error = null } = {}) {
+  if (error) return { kind: "unreadable", detail: String(error).slice(0, 140) };
+  if (!Array.isArray(runs)) return { kind: "unreadable", detail: "the runs call returned no array" };
+  const run = runs.find((r) => r?.status === "completed");
+  if (!run) return { kind: "no_completed_run", detail: `${runs.length} run(s) read, none completed` };
+  if (!Array.isArray(steps)) {
+    return { kind: "unreadable", detail: `run ${run.id} returned no step list`, ranAt: run.created_at };
+  }
+  const step = steps.find((s) => s?.name === INDEXNOW_NOTIFY_STEP);
+  if (!step) {
+    return {
+      kind: "step_absent",
+      detail: `the workflow's newest completed run (${run.event} at ${run.created_at}) has no "${INDEXNOW_NOTIFY_STEP}" step, so this reader is pointed at the wrong workflow`,
+      ranAt: run.created_at,
+    };
+  }
+  if (step.conclusion === "skipped") {
+    return {
+      kind: "not_triggered",
+      detail: `newest completed run (${run.event} at ${run.created_at}) skipped the submit step, which is what a Pages build whose commit did not touch docs/ looks like`,
+      ranAt: run.created_at,
+    };
+  }
+  if (step.conclusion !== "success") {
+    return { kind: "step_failed", detail: `step conclusion "${step.conclusion ?? "null"}" in run ${run.id}`, ranAt: run.created_at };
+  }
+  const status = logText ? /"status":\s*(\d{3})/.exec(logText)?.[1] ?? null : null;
+  const count = logText ? /"submittedUrlCount":\s*(\d+)/.exec(logText)?.[1] ?? null : null;
+  if (status === null) {
+    return {
+      kind: "accepted_count_unread",
+      detail: `the step succeeded but no endpoint status line was found in its log; report no count`,
+      ranAt: run.created_at,
+      runId: run.id,
+    };
+  }
+  return {
+    kind: status === "200" || status === "202" ? "accepted" : "rejected",
+    status,
+    count,
+    ranAt: run.created_at,
+    runId: run.id,
+  };
+}
+
+export function indexNowLines(v) {
+  const lines = ["### Whether we told a search engine about those pages", ""];
+  const when = v.ranAt ? ` (newest completed run: ${v.ranAt})` : "";
+  if (v.kind === "accepted") {
+    lines.push(`- ACCEPTED by api.indexnow.org with HTTP ${v.status}; ${v.count ?? "an unread"} URL(s) in the submission${when}.`);
+    lines.push("- So a page the index probe above did not surface is un-crawled or ranked low, not un-submitted. Indexing, ranking and traffic are still not guaranteed by a submission.");
+  } else if (v.kind === "not_triggered") {
+    lines.push(`- NOT TRIGGERED: ${v.detail}. This says nothing about the pages - a submission only runs when the Pages build's commit touches docs/, so re-run the probe after the next docs change.`);
+  } else if (v.kind === "rejected" || v.kind === "step_failed") {
+    lines.push(`- ${v.kind === "rejected" ? "REFUSED by the endpoint" : "SUBMIT STEP FAILED"}: ${v.detail}${when}. This one is ours to fix.`);
+  } else {
+    lines.push(`- UNREADABLE (${v.kind}): ${v.detail}. No claim either way - a missing read is not a missing submission.`);
+  }
+  return lines;
+}
+
+async function assessIndexNow() {
+  const runsRes = safeGetJson(`gh api repos/${repo}/actions/workflows/indexnow.yml/runs?per_page=5`);
+  if (!runsRes.ok) return indexNowVerdict({ error: runsRes.error });
+  const runs = Array.isArray(runsRes.data?.workflow_runs) ? runsRes.data.workflow_runs : null;
+  const run = (runs ?? []).find((r) => r?.status === "completed");
+  if (!run) return indexNowVerdict({ runs });
+  const jobsRes = safeGetJson(`gh api repos/${repo}/actions/runs/${run.id}/jobs`);
+  const job = jobsRes.ok ? jobsRes.data?.jobs?.[0] ?? null : null;
+  const steps = Array.isArray(job?.steps) ? job.steps : null;
+  let logText = null;
+  const notify = steps?.find((s) => s?.name === INDEXNOW_NOTIFY_STEP);
+  if (notify?.conclusion === "success" && job?.id) {
+    const logRes = safeGetText(`gh api repos/${repo}/actions/jobs/${job.id}/logs`);
+    if (logRes.ok) logText = logRes.data;
+  }
+  return indexNowVerdict({ runs, steps, logText });
+}
+
 function readSitemapUrls() {
   const candidates = [
     "docs/sitemap.xml",
@@ -1958,6 +2044,8 @@ async function run() {
     console.log(`${searchCoverageLines(coverage.urls, coverage.indexed, { error: coverage.error }).join("\n")}\n`);
     const listing = await assessGithubMcpListing();
     console.log(`${githubMcpLines(listing).join("\n")}\n`);
+    const indexNow = await assessIndexNow();
+    console.log(`${indexNowLines(indexNow).join("\n")}\n`);
     return;
   }
 
