@@ -46,6 +46,51 @@ const PROTOCOL_VERSION = "2025-06-18";
 const DEFAULT_TIMEOUT_MS = 20_000;
 const MAX_RESPONSE_CHARS = 1_000_000;
 const MAX_STDIO_BUFFER_CHARS = 1_000_000;
+const MAX_TOOL_LIST_PAGES = 20;
+const MAX_TOOL_LIST_TOOLS = 2_000;
+
+// Both transports enumerate the same way, so they share one walk: a server may answer
+// tools/list with nextCursor, and stopping at page one would govern an incomplete surface -
+// tools nobody asked for are neither allowed nor denied, and a call that cannot be routed is
+// also a call that never reaches the audit log.
+//
+// Truncation is raised rather than returned as a short list. A caller cannot tell "this
+// upstream has three tools" from "this upstream has more and we stopped looking", and the
+// gateway's whole claim is that the second case is visible.
+async function collectUpstreamTools(
+  label: string,
+  fetchPage: (params: Record<string, unknown>) => Promise<Record<string, unknown>>,
+): Promise<McpToolDescriptor[]> {
+  const seen = new Map<string, McpToolDescriptor>();
+  let cursor: string | undefined;
+  for (let page = 1; page <= MAX_TOOL_LIST_PAGES; page += 1) {
+    const response = await fetchPage(cursor === undefined ? {} : { cursor });
+    if (response.error) {
+      throw new Error(`${label} tools/list failed: ${JSON.stringify(response.error).slice(0, 300)}`);
+    }
+    const result = response.result as { tools?: unknown; nextCursor?: unknown } | undefined;
+    if (Array.isArray(result?.tools)) {
+      for (const tool of result.tools) {
+        if (!tool || typeof tool !== "object") continue;
+        const name = String((tool as { name?: unknown }).name ?? "");
+        if (!seen.has(name)) seen.set(name, tool as McpToolDescriptor);
+      }
+    }
+    if (seen.size > MAX_TOOL_LIST_TOOLS) {
+      throw new Error(`${label} tools/list exceeded ${MAX_TOOL_LIST_TOOLS} tools across ${page} page(s).`);
+    }
+    const next = typeof result?.nextCursor === "string" ? result.nextCursor : undefined;
+    if (next === undefined) return [...seen.values()];
+    if (next === cursor) {
+      throw new Error(`${label} repeated the same tools/list cursor, so enumeration cannot finish.`);
+    }
+    cursor = next;
+  }
+  throw new Error(
+    `${label} tools/list still returned a cursor after ${MAX_TOOL_LIST_PAGES} pages; `
+    + "refusing to treat a partial enumeration as complete.",
+  );
+}
 
 let nextRequestId = 1;
 
@@ -157,12 +202,7 @@ export function createHttpMcpUpstream(config: McpUpstreamHttpConfig, options: {
     transport: "http" as const,
     async listTools(): Promise<McpToolDescriptor[]> {
       await ensureInitialized();
-      const response = await post(createRequest("tools/list", {}));
-      if (response.error) {
-        throw new Error(`MCP upstream ${config.id} tools/list failed: ${JSON.stringify(response.error).slice(0, 300)}`);
-      }
-      const tools = (response.result as { tools?: unknown } | undefined)?.tools;
-      return Array.isArray(tools) ? tools.filter((tool) => tool && typeof tool === "object") : [];
+      return collectUpstreamTools(`MCP upstream ${config.id}`, (params) => post(createRequest("tools/list", params)));
     },
     async callTool(
       name: string,
@@ -321,12 +361,7 @@ export function createStdioMcpUpstream(config: McpUpstreamStdioConfig, options: 
     transport: "stdio" as const,
     async listTools(): Promise<McpToolDescriptor[]> {
       await ensureInitialized();
-      const response = await request("tools/list", {});
-      if (response.error) {
-        throw new Error(`MCP stdio upstream ${config.id} tools/list failed: ${JSON.stringify(response.error).slice(0, 300)}`);
-      }
-      const tools = (response.result as { tools?: unknown } | undefined)?.tools;
-      return Array.isArray(tools) ? tools.filter((tool) => tool && typeof tool === "object") : [];
+      return collectUpstreamTools(`MCP stdio upstream ${config.id}`, (params) => request("tools/list", params));
     },
     async callTool(
       name: string,

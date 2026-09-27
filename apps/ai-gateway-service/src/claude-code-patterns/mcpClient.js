@@ -63,6 +63,7 @@ export function createMcpClient(serverConfig) {
   let cachedTools = null;
   let toolsCacheTimestamp = 0;
   const TOOLS_CACHE_TTL_MS = 60_000; // 工具列表缓存 60 秒
+  const MAX_TOOL_LIST_PAGES = 20; // 与 mcpUpstreamClient 同一立场：分页必须走完，且必须能停下
 
   /** 服务器能力 */
   let serverCapabilities = null;
@@ -164,15 +165,37 @@ export function createMcpClient(serverConfig) {
       }
 
       try {
-        const result = await rpcCall("tools/list");
-        cachedTools = (result?.tools || []).map((t) => ({
-          name: `${serverConfig.name}__${t.name}`,
-          originalName: t.name,
-          serverName: serverConfig.name,
-          description: t.description || "",
-          inputSchema: t.inputSchema || { type: "object", properties: {} },
-          source: "mcp",
-        }));
+        // 一个带 nextCursor 的上游如果被当成一页读完，这里列出的"全部工具"其实是残缺的，
+        // 而残缺的枚举既不会被允许也不会被拒绝——它只是不存在于策略的视野里。
+        const collected = [];
+        const names = new Set();
+        let cursor;
+        let complete = false;
+        for (let page = 0; page <= MAX_TOOL_LIST_PAGES; page += 1) {
+          const result = await rpcCall("tools/list", cursor === undefined ? {} : { cursor });
+          for (const t of result?.tools || []) {
+            if (!t || names.has(t.name)) continue;
+            names.add(t.name);
+            collected.push({
+              name: `${serverConfig.name}__${t.name}`,
+              originalName: t.name,
+              serverName: serverConfig.name,
+              description: t.description || "",
+              inputSchema: t.inputSchema || { type: "object", properties: {} },
+              source: "mcp",
+            });
+          }
+          const next = typeof result?.nextCursor === "string" ? result.nextCursor : undefined;
+          if (next === undefined) { complete = true; break; }
+          if (next === cursor) {
+            throw new Error(`MCP tools/list 返回了重复的 cursor (${next})，分页无法收敛`);
+          }
+          cursor = next;
+        }
+        if (!complete) {
+          throw new Error(`MCP tools/list 在 ${MAX_TOOL_LIST_PAGES} 页之后仍有 cursor，拒绝把残缺的枚举当作完整列表`);
+        }
+        cachedTools = collected;
         toolsCacheTimestamp = now;
         return { status: "success", tools: cachedTools, cached: false };
       } catch (err) {

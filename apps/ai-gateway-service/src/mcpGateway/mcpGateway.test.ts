@@ -976,3 +976,87 @@ describe("mcp gateway openapi upstreams (#174, real bridge)", () => {
     });
   }
 });
+
+describe('upstream tools/list pagination (#177)', () => {
+  // The outbound policy is stubbed for this whole file (see the vi.mock at the top), so these
+  // rows measure enumeration rather than the SSRF guard - which itself rejected an unstubbed
+  // loopback literal with blocked_hostname_or_literal when the defect was being probed.
+  const desc = (name: string) => ({ name, description: name, inputSchema: { type: 'object', properties: {} } });
+
+  function pagingFetch(pages: Array<{ tools: unknown[]; nextCursor?: string }>) {
+    const requests: Array<Record<string, unknown>> = [];
+    let page = 0;
+    const fetchImpl = async (_url: string, init: Record<string, unknown>) => {
+      const msg = JSON.parse(String(init.body));
+      if (msg.method !== 'notifications/initialized') requests.push(msg);
+      let result: Record<string, unknown> = { protocolVersion: '2025-06-18', capabilities: {} };
+      if (msg.method === 'tools/list') {
+        const asked = (msg.params as { cursor?: string } | undefined)?.cursor;
+        const expected = page === 0 ? undefined : pages[page - 1].nextCursor;
+        if (asked !== expected) {
+          result = { tools: [], error: { code: -1, message: 'unexpected cursor ' + String(asked) } };
+        } else {
+          result = { ...pages[page] };
+          page += 1;
+        }
+      }
+      return {
+        ok: true, status: 200, headers: {},
+        text: async () => JSON.stringify({ jsonrpc: '2.0', id: msg.id ?? 1, result }),
+      };
+    };
+    return { fetchImpl, requests };
+  }
+
+  const upstreamFor = (fetchImpl: unknown) => createHttpMcpUpstream(
+    { transport: 'http', id: 'paging', url: 'https://mcp.example.com/mcp', allowedTools: ['*'] } as never,
+    { fetchImpl } as never,
+  );
+
+  it('walks to the end and hands the cursor back on the second request', async () => {
+    const { fetchImpl, requests } = pagingFetch([
+      { tools: [desc('alpha'), desc('beta')], nextCursor: 'page-2' },
+      { tools: [desc('gamma')] },
+    ]);
+    const upstream = upstreamFor(fetchImpl);
+    const tools = await upstream.listTools();
+    expect(tools.map((t: { name: string }) => t.name)).toEqual(['alpha', 'beta', 'gamma']);
+    const listCalls = requests.filter((m) => m.method === 'tools/list');
+    expect(listCalls.length).toBe(2);
+    expect((listCalls[1].params as { cursor?: string }).cursor).toBe('page-2');
+    await upstream.close();
+  });
+
+  it('stops after one request when the upstream does not paginate', async () => {
+    // The common case must not start over-fetching: no cursor in the result means no second call.
+    const { fetchImpl, requests } = pagingFetch([{ tools: [desc('only')] }]);
+    const upstream = upstreamFor(fetchImpl);
+    expect((await upstream.listTools()).map((t: { name: string }) => t.name)).toEqual(['only']);
+    expect(requests.filter((m) => m.method === 'tools/list').length).toBe(1);
+    await upstream.close();
+  });
+
+  it('deduplicates a tool the server re-emits on a later page', async () => {
+    const { fetchImpl } = pagingFetch([
+      { tools: [desc('alpha'), desc('beta')], nextCursor: 'p2' },
+      { tools: [desc('beta'), desc('gamma')] },
+    ]);
+    const upstream = upstreamFor(fetchImpl);
+    expect((await upstream.listTools()).map((t: { name: string }) => t.name)).toEqual(['alpha', 'beta', 'gamma']);
+    await upstream.close();
+  });
+
+  it('refuses a server that repeats the same cursor instead of looping forever', async () => {
+    const { fetchImpl } = pagingFetch(Array.from({ length: 30 }, () => ({ tools: [desc('alpha')], nextCursor: 'same' })));
+    const upstream = upstreamFor(fetchImpl);
+    await expect(upstream.listTools()).rejects.toThrow(/repeated the same tools\/list cursor/);
+    await upstream.close();
+  });
+
+  it('refuses to report a still-paginating enumeration as complete', async () => {
+    const { fetchImpl } = pagingFetch(Array.from({ length: 30 }, (_unused, i) => ({ tools: [desc('t' + i)], nextCursor: 'p' + (i + 2) })));
+    const upstream = upstreamFor(fetchImpl);
+    await expect(upstream.listTools()).rejects.toThrow(/partial enumeration as complete/);
+    await upstream.close();
+  });
+});
