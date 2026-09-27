@@ -347,15 +347,16 @@ Two dated readings, both outside our repository, both checkable by clicking:
   [pull request #123](https://github.com/ljcl/intervals-mcp/pull/123) - 4 files, +164/-23,
   merged to `main` at 2026-09-27T05:13:39Z, which adds a `validate` job that stamps
   `server.json` the way a publish would and runs `mcp-publisher validate` on every PR that
-  touches it - then closed #91 as completed. Twenty-seven hours from report to fix.
+  touches it - then closed #91 as completed. Under 27 hours from report to fix (filed
+  2026-09-26T02:34:54Z, merged 2026-09-27T05:13:39Z).
 - `happyvertical/smrt` issue #2961 reported that the launcher in their README never answers
   `initialize` while `node dist/index.js` answers instantly. Their maintainer claimed it with
   an agent lease on branch `codex/2961-lean-mcp` at 2026-09-27T05:48:47Z and the work is
   active. Not fixed yet, and we are not counting it until it merges.
 
-> Two of the three audits we run against other people's MCP servers have turned into upstream
-> changes within a day of being filed. The third is still open, and this line will say so until
-> it is not.
+> Two audits have gone into other people's MCP servers so far. One is fixed upstream and
+> merged; the other is claimed by their maintainer and still open. Nobody should read that as
+> two out of two, and this line says which is which.
 
 ### "It sat there for eight seconds before it answered."
 
