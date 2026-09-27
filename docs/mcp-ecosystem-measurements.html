@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Three measurements of the public MCP ecosystem: pagination, revision checking, session ids | Unified AI System</title>
+    <title>Four measurements of the public MCP ecosystem: pagination, revision checking, session ids, server/discover | Unified AI System</title>
     <meta
       name="description"
-      content="We asked 40 servers advertised in the official MCP registry three anonymous questions: does tools/list paginate (0 of 16 responders), will a server agree to a protocol version that does not exist (2 did), and does an issued session id have to come back (2 of 16 issue one, and both require it). Scripts included."
+      content="We asked 40 servers advertised in the official MCP registry four anonymous questions: does tools/list paginate (0 of 16 responders), will a server agree to a protocol version that does not exist (2 did), and does an issued session id have to come back (2 of 16 issue one, and both require it), and does anyone implement server/discover yet (1 of 16 does). Scripts included."
     />
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <meta name="theme-color" content="#081011" />
@@ -18,10 +18,10 @@
     <link rel="alternate" type="text/plain" href="llms.txt" title="LLM-readable project summary" />
     <link rel="icon" type="image/png" href="assets/mcp-icon.png" />
     <meta property="og:type" content="article" />
-    <meta property="og:title" content="Three measurements of the public MCP ecosystem" />
+    <meta property="og:title" content="Four measurements of the public MCP ecosystem" />
     <meta
       property="og:description"
-      content="0 of 16 reachable servers paginate tools/list. 2 agreed to a protocol version that does not exist. 0 issued a session id and then ignored it."
+      content="0 of 16 reachable servers paginate tools/list. 2 agreed to a protocol version that does not exist. 0 issued a session id and then ignored it. 1 of 16 implements server/discover; 12 have never heard of it."
     />
     <meta property="og:url" content="https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.html" />
     <style>
@@ -64,9 +64,9 @@
   </head>
   <body>
     <main>
-      <h1>Three measurements of the public MCP ecosystem</h1>
+      <h1>Four measurements of the public MCP ecosystem</h1>
       <p class="lede">
-        We asked servers that are not ours three anonymous questions, because the claims we make about
+        We asked servers that are not ours four anonymous questions, because the claims we make about
         gateway behaviour were otherwise just opinions. Run 2026-09-27, sample of 40 servers advertised
         in the official MCP registry.
       </p>
@@ -163,19 +163,71 @@
       </p>
       <p><a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/mcp-session-enforcement.md">Full table and limits: session-enforcement survey</a></p>
 
+      <h2>4. Does anyone implement <code>server/discover</code> yet?</h2>
+      <p>
+        <code>2026-07-28</code> makes <code>server/discover</code> a named RPC - one call that returns
+        supported protocol versions, capabilities and identity. A server maintainer's request log showed
+        real clients already sending it and receiving <code>-32601 method not found</code>, so the question
+        is how much of the reachable population would answer at all. Run 2026-09-27 18:08 UTC, same first 40
+        endpoints, same slice:
+      </p>
+      <table>
+        <thead><tr><th>What came back</th><th>Count</th></tr></thead>
+        <tbody>
+          <tr><td>A real result</td><td><strong>1</strong></td></tr>
+          <tr><td><code>-32601</code> method not found</td><td>12</td></tr>
+          <tr><td><code>-32602</code> invalid params (the method was recognised)</td><td>1</td></tr>
+          <tr><td>HTTP <code>404</code>, no JSON-RPC payload at all</td><td>1</td></tr>
+          <tr><td>An error object with no <code>code</code> field</td><td>1</td></tr>
+        </tbody>
+      </table>
+      <p>
+        That is 16 servers that answered <code>initialize</code>; the other 24 of the 40 either refused an
+        anonymous client (22) or failed <code>initialize</code> (2), and they are outside this count rather
+        than failing it.
+      </p>
+      <p>
+        The one that implements it is <code>ad.getle/leads</code> (<code>https://mcp.getle.ad/mcp</code>),
+        answering over plain JSON with <code>supportedVersions</code>, <code>capabilities</code>,
+        <code>instructions</code>, <code>cacheScope</code> and <code>ttlMs</code> - and it negotiated
+        <code>2025-06-18</code>, an older revision than the one <code>server/discover</code> belongs to. So
+        the method is not being gated on the version string.
+      </p>
+      <p>
+        Two readings worth more than the headline. <code>ai.agentberg/agentberg</code> returned
+        <code>-32602 Invalid request parameters</code> rather than <code>-32601</code>: it knows the method
+        exists and rejected our empty <code>params</code>, which means a client cannot infer "not
+        implemented" from an error alone - it has to look at which error. And <code>ac.tandem/docs-mcp</code>
+        answered the RPC with HTTP <code>404</code> and no JSON-RPC body, which is a transport-level answer
+        to a method-level question: a gateway that maps status codes to "unsupported" and a gateway that
+        parses JSON-RPC errors will disagree about that server.
+      </p>
+      <p>
+        For anyone deciding whether to send <code>server/discover</code> first: in this sample it costs one
+        round trip and tells you almost nothing you could not get from <code>initialize</code>, because 12
+        of 16 have never heard of it. Try it, do not depend on it.
+      </p>
+      <p>
+        This is one timestamp and one alphabetical slice, same caveat as the other three: the sample
+        over-represents server names starting with <code>a</code>, and <code>n=1</code> on the
+        implemented side is a demonstration that it exists in the wild, not an adoption rate. We did not
+        probe our own endpoint with this fourth script, so nothing here says whether we would answer it.
+      </p>
+
       <h2>Method, in one paragraph</h2>
       <p>
         Each script reads the official MCP registry for <code>streamable-http</code> records, takes the
         first 40 endpoints in the registry's default order, and sends anonymous JSON-RPC:
         <code>initialize</code>, then <code>notifications/initialized</code>, then
-        <code>tools/list</code> - with a second page or a header-omitted repeat only where the specific
-        question requires it. No credentials, no writes, no tool invocation, sequential requests with a
+        <code>tools/list</code> - or, for the fourth script, <code>server/discover</code> - with a second
+        page or a header-omitted repeat only where the specific question requires it. No credentials, no writes, no tool invocation, sequential requests with a
         short delay. The two final requests in the session probe differ in exactly one header, so a
         rejection cannot be blamed on something else the client forgot to send.
       </p>
       <pre><code>node tools/survey-mcp-tools-list-pagination.mjs 40
 node tools/survey-mcp-revision-tolerance.mjs 40
-node tools/survey-mcp-session-enforcement.mjs 40</code></pre>
+node tools/survey-mcp-session-enforcement.mjs 40
+node tools/survey-mcp-server-discover.mjs 40</code></pre>
 
       <h2>We ran the same three questions against ourselves</h2>
       <p>
@@ -236,7 +288,7 @@ node tools/survey-mcp-session-enforcement.mjs 40</code></pre>
         <li><strong>The sample is not random.</strong> It is the registry's default order at one timestamp, which over-represents server names beginning with <code>a</code>.</li>
         <li><strong><code>initialize</code> and <code>tools/list</code> only.</strong> Going further would mean invoking tools on services that are not ours.</li>
         <li><strong>No stdio coverage.</strong> That population is larger and unreachable by this method.</li>
-        <li><strong>One timestamp each, 2026-09-27.</strong> Servers deploy; a re-run is a new measurement, not a regression test. All three scripts are deliberately outside our CI for that reason.</li>
+        <li><strong>One timestamp each, 2026-09-27.</strong> Servers deploy; a re-run is a new measurement, not a regression test. All four scripts are deliberately outside our CI for that reason.</li>
       </ul>
 
       <footer>

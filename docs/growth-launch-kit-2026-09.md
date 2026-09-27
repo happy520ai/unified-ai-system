@@ -40,7 +40,7 @@ Two of these (1 and 2) are worth the time even if nothing else is. If you do onl
 thing this week, do #1 — that is the conclusion the data on every other channel
 supports, not a preference.
 
-There is now also **§4b, a data post that asks nothing of the reader** — three surveys of
+There is now also **§4b, a data post that asks nothing of the reader** — four surveys of
 public MCP servers, with our own server measured by the same questions. It is the only copy in
 this file that can be pasted into a technical thread without pitching, so if you have five spare
 minutes after the list above, that is the one to use. Re-run the three scripts first, or keep the
@@ -176,9 +176,10 @@ from the running page. If you touch `docs/site.js` again, bump that token in bot
 homepages or readers keep the old script.
 
 **When a post needs a credibility link rather than an install link, use:**
-https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.html — three anonymous
+https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.html — four anonymous
 surveys of 40 servers advertised in the official MCP registry (does `tools/list` paginate, will a
-server agree to a protocol version that does not exist, does an issued session id have to come back),
+server agree to a protocol version that does not exist, does an issued session id have to come back,
+does anyone implement `server/discover` yet),
 each with its denominator, its sample bias and the script that produced it named on the page. It is
 in `docs/sitemap.xml` and `docs/indexnow.json`, and `pnpm check:public` fails if those two ever
 disagree, so it cannot quietly become an un-notified orphan.
@@ -365,7 +366,17 @@ and then ignored it. The interesting bit is who those two are: both are among th
 upward, and both reply over SSE. Statefulness is not a legacy tail in this sample — it is attached to
 the servers adopting newer revisions, which is the opposite of the easy story.
 
-**Then I ran the same three questions against my own server.** It negotiates `2025-06-18` when asked,
+**Question 4: does anyone implement `server/discover` yet?** It is a named RPC in `2026-07-28` — one call
+that returns supported versions, capabilities and identity. Of the 16 that answered `initialize`: **1
+returns a real result** (`ad.getle/leads`, and it negotiated `2025-06-18`, an older revision than the one
+its own method belongs to), 12 answer `-32601 method not found`, 1 answers `-32602 invalid params` — so it
+recognises the method and rejected our empty `params` — 1 replies HTTP `404` with no JSON-RPC body at all,
+and 1 sends an error object with no `code` field. The practical reading: "did not implement it" is not one
+answer here, it is four shapes, and a client that collapses them will be wrong about at least one server —
+the `-32602` case in particular has the method and just disagreed about the arguments. Try the call; do
+not depend on it.
+
+**Then I ran three of the four against my own server.** It negotiates `2025-06-18` when asked,
 serves 15 tools with no cursor (so: I am in the non-paginating majority too), issues no session id,
 and substitutes `2025-11-25` rather than echoing the impossible one. That self-test also caught a real
 bug in my own project, which is the honest reason the whole exercise was worth an afternoon: my server
