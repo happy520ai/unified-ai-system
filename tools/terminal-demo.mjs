@@ -155,6 +155,9 @@ function buildEvidence(result) {
       result.promptEnhancement.language,
     );
   }
+  if (evidenceOutput) {
+    commandParts.push("--evidence");
+  }
 
   return {
     schema: "unified-ai-system/usage-report/v1",

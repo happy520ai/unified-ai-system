@@ -2069,6 +2069,7 @@ test("enhance can emit report-ready provider-free evidence", async (context) => 
   const evidence = JSON.parse(result.stdout);
   assert.equal(evidence.schema, "unified-ai-system/usage-report/v1");
   assert.match(evidence.command, /pnpm gateway enhance/);
+  assert.match(evidence.command, / --evidence$/, "the printed command must reproduce this artifact");
   assert.equal(evidence.mode, "prompt-enhancement");
   assert.equal(evidence.providerCalled, false);
   assert.equal(evidence.credentialRequired, false);
@@ -2140,6 +2141,7 @@ test("demo can emit report-ready evidence without changing fake execution", asyn
   const evidence = JSON.parse(result.stdout);
   assert.equal(evidence.schema, "unified-ai-system/usage-report/v1");
   assert.match(evidence.command, /--enhance --profile coding/);
+  assert.match(evidence.command, / --evidence$/, "the printed command must reproduce this artifact");
   assert.equal(evidence.mode, "fake");
   assert.equal(evidence.providerCalled, false);
   assert.equal(evidence.credentialRequired, false);

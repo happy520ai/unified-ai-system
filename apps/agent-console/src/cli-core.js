@@ -325,6 +325,9 @@ function buildEnhancementEvidence(result) {
       result.profile,
       "--language",
       result.language,
+      // The report is only produced under --evidence, so the command that
+      // reproduces this artifact has to carry the flag.
+      "--evidence",
     ].join(" "),
     environment: `${process.platform}; Node ${process.version}`,
     mode: "prompt-enhancement",
