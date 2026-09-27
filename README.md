@@ -471,6 +471,9 @@ We separate what is verified from what is not claimed:
 - Hosted public API: **No**
 - Real provider execution by default: **No**, must be explicitly enabled
 - Browser chat UI in this repo: **No** (CLI/API/MCP are first-class)
+- Cold stdio handshake: **~8 s** on the published source entry point, measured rather than estimated —
+  [where an MCP connect budget actually goes](https://happy520ai.github.io/unified-ai-system/mcp-startup-timeouts.html)
+  says which part is process boot, which part is tool work, and what that page does not establish.
 - Production ready / AGI / L5: **Not claimed**
 
 Real provider calls are disabled by default. Configure safely via `.env.example` and `docs/providers.md`.
