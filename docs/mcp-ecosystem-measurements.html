@@ -233,6 +233,30 @@
         count. Copying an <code>instructions</code> string into a terminal, a report or an issue is the
         same act the issue is about, and this page is not going to commit it while arguing about it.
       </p>
+      <h2>The numbers as a file</h2>
+      <p>
+        Every table on this page also exists machine-readable:
+        <a href="data/mcp-ecosystem-measurements.json">docs/data/mcp-ecosystem-measurements.json</a> -
+        one entry per question, each with its script, its verdict counts and the per-endpoint rows behind
+        them. Regenerate it with
+      </p>
+      <pre><code>node tools/build-mcp-measurement-dataset.mjs 40 docs/data/mcp-ecosystem-measurements.json</code></pre>
+      <p>
+        The file is generated and never hand-edited, and the builder refuses to write it if any
+        question's verdict tally does not sum to that question's own row count. That guard is here
+        because prose on this site has already disagreed with the table beneath it once
+        (<a href="https://github.com/happy520ai/unified-ai-system/issues/180">#180</a>): a headline said
+        <code>2/19</code> next to a tally of 18, and every doc check in the repository passed, because
+        they match words and none of them does arithmetic. A generated file cannot make that particular
+        mistake quietly.
+      </p>
+      <p>
+        It contains verdicts, counts, character lengths and a SHA-256 prefix for each
+        <code>instructions</code> value. It contains no server response text: an
+        <code>instructions</code> field is precisely the kind of payload that should not be copied into
+        an artifact and re-distributed, and a dataset about that problem is not going to demonstrate it.
+      </p>
+
       <h2>Method, in one paragraph</h2>
       <p>
         Each script reads the official MCP registry for <code>streamable-http</code> records, takes the
