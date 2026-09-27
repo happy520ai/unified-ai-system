@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { CURRENT_RELEASE, PINNED_ROSTER, pinnedCorrectReadings, pinnedCountMismatches } from "./check-pinned-count.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const errors = [];
@@ -659,32 +660,59 @@ const countWords = [
   "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty",
 ];
 const publishedToolCountWord = countWords[publishedToolCount] ?? String(publishedToolCount);
+// The skill's setup procedure does not install the current release: it pins an older image by
+// digest, and that image ships fewer names. Demanding the CURRENT count inside those steps is how
+// this gate came to mandate a false instruction ("If the 15 tools are already visible") in a file
+// that also correctly said nine - and the same false text then merged into two other
+// repositories. So the markers and the numeric sweep are both scoped to the referent: product-level
+// prose must say the current count, procedure-level prose must say the PINNED image's count, and
+// placing either in the other's place is the violation.
+const SKILL_PATH = "skills/unified-ai-gateway/SKILL.md";
+const skillText = readFileSync(resolve(repoRoot, SKILL_PATH), "utf8");
+const pinnedVersion = [...skillText.matchAll(/\bv?(\d+\.\d+\.\d+)\b/g)]
+  .map((m) => m[1])
+  .find((v) => v !== CURRENT_RELEASE && PINNED_ROSTER[v] !== undefined) ?? null;
+const pinnedCount = pinnedVersion ? PINNED_ROSTER[pinnedVersion] : publishedToolCount;
+const pinnedCountWord = countWords[pinnedCount] ?? String(pinnedCount);
+const pluginSurfaceDrift = [];
+if (pinnedVersion === null) {
+  pluginSurfaceDrift.push(`${SKILL_PATH}: no pinned image version with a measured roster row was found, so the procedure's expected count is unverifiable`);
+}
 const pluginSurfaceClaims = [
   [".codex-plugin/plugin.json", [`${publishedToolCountWord} governed MCP tools`]],
   [
-    "skills/unified-ai-gateway/SKILL.md",
+    SKILL_PATH,
     [
       `through ${publishedToolCountWord} governed MCP tools`,
-      `If the ${publishedToolCount} tools are already visible`,
-      `${publishedToolCount} tools are available`,
+      `If the ${pinnedCountWord} tools are already visible`,
+      `${pinnedCountWord} tools are available`,
     ],
   ],
 ];
-const pluginSurfaceDrift = [];
 for (const [path, markers] of pluginSurfaceClaims) {
-  const content = readFileSync(resolve(repoRoot, path), "utf8");
+  const content = path === SKILL_PATH ? skillText : readFileSync(resolve(repoRoot, path), "utf8");
   for (const marker of markers) {
     if (!content.includes(marker)) {
       pluginSurfaceDrift.push(`${path} is missing "${marker}"`);
     }
   }
+  // A count that matches the image the text actually pins is a correct reading, not drift. The
+  // excusal is line-scoped and comes from the same measured table the standalone guard uses, so
+  // these two instruments cannot disagree about what "nine" means in this file.
+  const excused = new Set(pinnedCorrectReadings(content, publishedToolCount).map((k) => k.line));
   for (const match of content.matchAll(/(\d+|zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\s+(?:governed MCP tools|tools are)/g)) {
+    if (excused.has(content.slice(0, match.index).split("\n").length)) continue;
     const token = match[1];
     const numeric = /^\d+$/.test(token) ? Number(token) : countWords.indexOf(token);
     if (numeric !== publishedToolCount) {
       pluginSurfaceDrift.push(`${path}: says "${token}" where the roster has ${publishedToolCount}`);
     }
   }
+}
+// The mirror-image error the old gate could not see at all, and in fact mandated: the CURRENT
+// count written into the steps that install the pinned older image.
+for (const f of pinnedCountMismatches(skillText, publishedToolCount).findings) {
+  pluginSurfaceDrift.push(`${SKILL_PATH}:${f.line} claims ${f.claimed} tools inside the procedure pinned to ${f.pinnedVersion}, which ships ${f.pinnedShips}`);
 }
 if (pluginSurfaceDrift.length > 0) {
   addError("plugin_surface_count_stale", ".codex-plugin/plugin.json", pluginSurfaceDrift.join(" | "));
