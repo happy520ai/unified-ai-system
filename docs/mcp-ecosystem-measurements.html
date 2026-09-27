@@ -177,6 +177,52 @@
 node tools/survey-mcp-revision-tolerance.mjs 40
 node tools/survey-mcp-session-enforcement.mjs 40</code></pre>
 
+      <h2>We ran the same three questions against ourselves</h2>
+      <p>
+        Publishing numbers about other people's servers is easy; the test of whether the questions
+        mean anything is answering them about your own. Our HTTP MCP endpoint
+        (<code>pnpm mcp:http</code>, loopback only, credential-free default, port 3299 for the run)
+        was asked the same three things on 2026-09-27 17:19 UTC:
+      </p>
+      <table>
+        <caption>Our own server, same probes</caption>
+        <thead><tr><th>Question</th><th>Our answer</th><th>Which group that puts us in</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Asked for <code>2025-06-18</code></td>
+            <td>negotiated <code>2025-06-18</code>, HTTP 200</td>
+            <td>normal</td>
+          </tr>
+          <tr>
+            <td>Does our <code>tools/list</code> paginate?</td>
+            <td>15 tools, <strong>no <code>nextCursor</code></strong></td>
+            <td>we are in the non-paginating majority ourselves - which is the honest context for the 0 of 16 above</td>
+          </tr>
+          <tr>
+            <td>Do we issue a session id?</td>
+            <td>none issued; requests served without one</td>
+            <td>the 14-of-16 stateless group</td>
+          </tr>
+          <tr>
+            <td>Asked for <code>9999-99-99</code></td>
+            <td>answered <code>2025-11-25</code>, HTTP 200</td>
+            <td>we substitute a supported revision rather than echo the impossible one - we are not in the group of 2</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The fourth row is also the clearest illustration of
+        <a href="https://github.com/happy520ai/unified-ai-system/issues/178">issue #178</a>: our
+        server's fallback revision (<code>2025-11-25</code>) is <em>newer</em> than the one our own
+        gateway client declares to upstreams (<code>2025-06-18</code>), and the gateway does not read
+        what comes back. Two components of the same product disagree about which protocol they are on,
+        and nothing in the current code notices.
+      </p>
+      <p>
+        The run left nothing behind: the port was probed again after shutdown and refuses
+        connections, and no <code>http-entry</code> process remained.
+      </p>
+
       <h2>Limits, stated rather than implied</h2>
       <ul>
         <li><strong>n is 16-19, not 40.</strong> 22 servers would not talk to an anonymous client, so they are outside these measurements rather than passing them.</li>
