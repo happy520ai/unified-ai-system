@@ -220,7 +220,7 @@ get read as drive-by marketing):**
 > docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.8.0
 > ```
 >
-> v0.8.0 (today) is a big release - 133 commits between the v0.7.0 and v0.8.0 tags
+> v0.8.0 (released 2026-09-25) is a big release - 133 commits between the v0.7.0 and v0.8.0 tags
 > (`git rev-list --count v0.7.0..v0.8.0`, so the figure cannot go stale). The parts I'd single
 > out: an Agent Governance control plane (deterministic permission lifecycle,
 > per-call tool-proxy enforcement, cascade revocation; off unless
@@ -284,7 +284,7 @@ without independent evidence, and on HN the ask reads as desperation anyway.
 > MCP server that can also wrap *other* MCP servers and the operations an OpenAPI 3 document defines unambiguously, behind
 > allow-lists and audit.
 >
-> v0.8.0 today adds an agent governance control plane (permission lifecycle,
+> v0.8.0, released 2026-09-25, adds an agent governance control plane (permission lifecycle,
 > per-call tool proxy, cascade revocation, off by default) and governed code
 > delivery that verifies inside a network-disabled read-only container.
 >
@@ -307,7 +307,7 @@ second Reddit self-promotion the same day.
 2. `docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.8.0` — that's the whole install. It's an MCP server. Tool discovery + all tool calls run against the fake provider.
 3. What the gateway actually is: OpenAI + Anthropic compatible APIs over OpenAI/Anthropic/Gemini. Virtual keys w/ per-key token budgets + rate limits. Exact + lexical-approximate response cache (semantic-grade needs an attached embedding endpoint). Circuit breaking. Append-only audit. Prometheus, optional Langfuse. Apache-2.0, self-hosted.
 4. The part I'm actually proud of — reverse MCP governance. Point it at your existing stdio/HTTP MCP servers and an OpenAPI 3 document, and it re-exposes them - operation by operation, refusing anything whose semantics it cannot resolve - as allow-listed, audited, budget-bounded tools. Governance is the product, routing is the substrate.
-5. v0.8.0 today: agent governance control plane + governed code delivery that verifies in a read-only network-disabled container (never commits/merges/deploys). Honest caveat: solo maintainer, single-host, no production track record. Repo ↓ github.com/happy520ai/unified-ai-system
+5. v0.8.0 (2026-09-25): agent governance control plane + governed code delivery that verifies in a read-only network-disabled container (never commits/merges/deploys). Honest caveat: solo maintainer, single-host, no production track record. Repo ↓ github.com/happy520ai/unified-ai-system
 
 ---
 
