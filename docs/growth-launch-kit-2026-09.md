@@ -1665,3 +1665,48 @@ and the exact assertion to write, and #189 names a measured gap with the command
 CodeTriage is a submission like any directory form, but it is a submission made *through an authorisation
 grant*, and that is an account-level decision rather than a posting. Everything up to the click is done:
 the URL is pre-filled, the labels exist, and the issue shelf has real items on it.
+
+## 0n. Topic pages: two of them are reachable this week, and the write needs one scope you have to add (2026-09-28)
+
+GitHub's topic pages are the only discovery surface in this whole file that keeps working with no further
+effort - they are evergreen, they are ordered by stars, and unlike a launch post nobody has to catch them
+on the day. So the question is not "do we have topics" (we have all 20) but "on which topic page could a
+stranger actually find us". Measured today with `search/repositories?q=topic:<t>`, ordered as GitHub
+orders it:
+
+| topic | repos in the topic | where we stand today | what stars buy there |
+| --- | --- | --- | --- |
+| `agent-governance` | 858 | rank 85 at 8 stars | 13 stars enters the top 50; 31 reaches page one |
+| `mcp-gateway` | 330 | rank 88 | 38 for the top 50; 212 for page one |
+| `mcp-security` | 476 | outside the top 100 | 13 for the top 50; 120 for page one |
+| `agent-control-plane` | 30 | not tagged | tagging it lists us on page one immediately, around 8th of 31 |
+| `tool-governance` | 23 | not tagged | tagging it lists us on page one immediately, around 4th of 24 |
+| `typescript` | 452,428 | outside the top 100 | unreachable at any realistic star count |
+| `llm` | 141,253 | outside the top 100 | unreachable at any realistic star count |
+
+**The concrete ask.** Swap the two topics we can never rank on for the two small ones we belong in:
+drop `typescript` and `llm`, add `agent-control-plane` and `tool-governance`. Both new terms come from our
+own description and docs ("agent control plane", "governed tools"), so this is labelling, not tag-squatting -
+and a 30-repo topic fits entirely on its first page, so the listing is immediate rather than aspirational.
+
+I could not do it: `PATCH /repos/happy520ai/unified-ai-system` with a `topics` array returns HTTP 200 and
+**silently ignores the field**. Checked twice - a full 20-topic payload and then a minimal three-topic one -
+and a fresh `GET` after each showed the list unchanged. The token scopes are gist, read:org, repo and workflow -
+workflow`; topic updates are public-repo metadata and need `public_repo`, which is a distinct scope string
+and is not in that list. So it is one checkbox on the token (or 20 seconds in the web UI under the repo's
+About -> topics), and the exact list to paste is:
+
+```
+a2a-protocol, agent-control-plane, agent-governance, agentic-ai, ai-gateway, codex-cli, llm-gateway,
+llm-observability, llm-proxy, llmops, local-first, mcp, mcp-gateway, mcp-security, mcp-server,
+model-context-protocol, model-routing, openai-compatible, self-hosted, tool-governance
+```
+
+The previous 20 are saved verbatim in `.pm/topics-before-2026-09-28.txt` if you would rather revert than
+edit. Nothing was changed by the attempts: the only field that did take was `description`, which I wrote
+back byte-identical to what the API had returned, so the visible effect is nil and `updated_at` moved.
+
+**Why this matters more than it looks.** At 13 stars we enter the top 50 of `agent-governance`; at 31 we
+are on its first page. That is the smallest number of stars in this entire file that buys a permanent
+position on a page people browse looking for exactly this category of thing. Every other channel here has
+to be re-earned each week.
