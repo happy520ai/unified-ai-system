@@ -43,6 +43,9 @@ async function getListPage(url, attempts = 8) {
   return { status: 0, error: tried.join(" | "), attempts };
 }
 
+// Which artifact types to frame. The default keeps this file's original behaviour, so the published npm
+// page remains reproducible byte for byte; a wider set costs no extra walk because the list is read once.
+const TYPES = (process.env.FRAME_TYPES || "npm").split(",").map((s) => s.trim()).filter(Boolean);
 const frame = new Map();
 let pages = 0, rows = 0, retries = 0, cursor, activeLatest = 0, npmSightings = 0;
 const seenControl = { found: false, record: null };
@@ -67,9 +70,12 @@ for (; pages < MAX_PAGES; pages += 1) {
       seenControl.record = { name: s.name, version: s.version, registryTypes: (s.packages || []).map((p) => p.registryType), packageCount: (s.packages || []).length };
     }
     for (const p of s.packages || []) {
-      if (p.registryType !== "npm") continue;
+      if (!TYPES.includes(p.registryType)) continue;
       npmSightings += 1;
-      frame.set(s.name, {
+      // Keyed by type+server: one server can declare two artifacts of the same kind, and collapsing them
+      // would quietly shrink the frame's population below the census's record count.
+      frame.set(p.registryType + "|" + s.name, {
+        type: p.registryType,
         server: s.name,
         // `identifier` is the field server.json uses for the artifact coordinate; `package` does not exist.
         // The first run of this frame read p.package and collected 9,896 nulls, which the sampler caught by
@@ -85,7 +91,7 @@ for (; pages < MAX_PAGES; pages += 1) {
   }
   cursor = (r.body.metadata || {}).nextCursor || null;
   if (!cursor) break;
-  if (pages % 50 === 0) console.log("... " + (pages + 1) + " pages, " + rows + " rows, " + activeLatest + " active-latest, " + frame.size + " npm records");
+  if (pages % 50 === 0) console.log("... " + (pages + 1) + " pages, " + rows + " rows, " + activeLatest + " active-latest, " + frame.size + " framed records (" + TYPES.join(",") + ")");
 }
 
 const problems = [];
@@ -93,21 +99,36 @@ if (cursor) problems.push("cursor still present after " + pages + " pages - this
 if (!seenControl.found || !seenControl.record || seenControl.record.packageCount < 1) {
   problems.push("control record not seen with a package, so the packages array is not being reached");
 }
-const npmCount = frame.size;
-const withIdentifier = [...frame.values()].filter((r) => r.identifier).length;
-// A frame whose identifiers are all null is a field-path bug, not an ecosystem finding. The first run of
-// this file produced exactly that (9,896 nulls, because `package` is not a field), so this arm has a real
-// failure behind it rather than being defensive decoration.
-if (npmCount > 0 && withIdentifier / npmCount < 0.95) {
-  problems.push(`only ${withIdentifier}/${npmCount} npm records carry an identifier - the field path is wrong, not the registry empty`);
+// Per-type bookkeeping. The census tallied "records mentioning a type"; this frame keys on type+server,
+// so a server declaring two artifacts of one kind contributes two rows here and one record there - the
+// tolerance is there for that reason, not as slack for a wrong field path.
+const byType = {};
+for (const t of TYPES) {
+  const rowsT = [...frame.values()].filter((r) => r.type === t);
+  const withId = rowsT.filter((r) => r.identifier).length;
+  const censusT = census.package_registry_types[t];
+  const entry = { framed: rowsT.length, with_identifier: withId, census_published: censusT ?? null };
+  if (rowsT.length === 0) {
+    if (Number.isSafeInteger(censusT) && censusT > 0) problems.push(`type "${t}" appears in the census tally but framed 0 records - filter path is wrong`);
+    else problems.push(`type "${t}" framed 0 records and is absent from the census tally - the type name is not one this API emits`);
+  } else {
+    if (withId / rowsT.length < 0.95) {
+      problems.push(`only ${withId}/${rowsT.length} ${t} records carry an identifier - the field path differs for this type`);
+    }
+    if (!Number.isSafeInteger(censusT)) problems.push(`the published census has no ${t} tally to compare against`);
+    else {
+      entry.deviation_pct = Number((Math.abs(rowsT.length - censusT) / censusT * 100).toFixed(2));
+      if (Math.abs(rowsT.length - censusT) / censusT > 0.1) {
+        problems.push(`${t} frame ${rowsT.length} deviates ${(Math.abs(rowsT.length - censusT) / censusT * 100).toFixed(1)}% from the published census tally ${censusT}`);
+      }
+    }
+  }
+  byType[t] = entry;
 }
+const npmCount = byType.npm ? byType.npm.framed : 0;
+const withIdentifier = byType.npm ? byType.npm.with_identifier : 0;
 const censusNpm = census.package_registry_types.npm;
-if (!Number.isSafeInteger(censusNpm)) problems.push("the published census has no npm tally to compare against");
-// The census counts records mentioning npm; this counts records with at least one npm package - the same
-// set. A mismatch beyond a few percent means one of the two walks is wrong, so the number is reported
-// rather than hidden, and a gross mismatch is fatal.
-const dev = censusNpm ? Math.abs(npmCount - censusNpm) / censusNpm : 1;
-if (dev > 0.1) problems.push(`npm frame ${npmCount} deviates ${(dev * 100).toFixed(1)}% from the published census tally ${censusNpm}`);
+const dev = byType.npm ? byType.npm.deviation_pct / 100 : 1;
 
 const result = {
   schema: "mcp-npm-frame-v1",
@@ -122,6 +143,8 @@ const result = {
   npm_records_in_frame: npmCount,
   npm_records_with_identifier: withIdentifier,
   npm_package_sightings: npmSightings,
+  types_framed: TYPES,
+  by_type: byType,
   census_published_npm: censusNpm,
   census_published_active: census.active_latest_records,
   active_latest_matches_census_within_2pct: Math.abs(activeLatest - census.active_latest_records) / census.active_latest_records <= 0.02,
