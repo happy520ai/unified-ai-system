@@ -1,8 +1,10 @@
 # Every server in the official MCP registry, counted: what does its record actually let a client do?
 
 Measured 2026-09-28 (17:17-17:53 UTC) by
-`tools/survey-mcp-registry-census.mjs` against `https://registry.modelcontextprotocol.io/v0/servers`. This is the whole list, not a sample:
-the walk followed the cursor to its end and the instrument refuses to report otherwise.
+`tools/survey-mcp-registry-census.mjs` against `https://registry.modelcontextprotocol.io/v0/servers`. This is the whole default list, not a
+slice of it: the walk followed the cursor to its end and the instrument refuses to report otherwise. The
+scope that phrasing buys is stated under "What this does not support", because it is not every record the
+registry has ever held.
 Structure only - counts, booleans, registry and transport type strings. No server-authored text is
 captured, and no server was sent an MCP request.
 
@@ -87,9 +89,16 @@ instrument does report disagreement when it buckets on the wrong row.
 - That the population is stable. It grew from 25,125 servers reported on 2026-08-27
   (upstream issue modelcontextprotocol/registry#1579) to 37,013 on 2026-09-28, so any share quoted from this
   page has a shelf life measured in weeks.
-- That the `status` field filters anything. `?status=active`, `?status[]=active` and `?state=active` each
-  returned the same first page as no filter at all on 2026-09-28, including `deprecated` rows, so the split
-  above is done client-side from the whole walk.
+- That the `status` query parameter filters anything. It is not among the documented parameters of
+  `GET /v0/servers` (`cursor`, `limit`, `updated_since`, `search`, `version`, `include_deleted`), and `?status=active` answered with a first page whose sha256 equalled
+  the unfiltered one on 2026-09-28, `deprecated` rows included - no error, no effect. So the active split above
+  is computed client-side from the whole walk.
+- That this census is every record the registry holds. The documented visibility switch is `include_deleted`
+  and this walk used its default: asking `?include_deleted=true` surfaced rows whose status is `deleted` - 5 of the first 100, against 0 unfiltered - which the walk therefore never sees.
+  37,013 is the population of the default view, not of the store. An earlier draft of this
+  page and of the comment posted on upstream #1579 said the server cannot be asked for a status-restricted
+  count at all; the published OpenAPI documents `include_deleted` and `updated_since`, so that sentence was
+  written before the spec was read and is corrected here.
 
 ## Our own record, as a control
 
@@ -101,6 +110,7 @@ not hosted, which is the `package_only` row above.
 
 ```bash
 node tools/survey-mcp-registry-census.mjs /tmp/census.json   # ~30 minutes, anonymous GETs, no credentials
+node tools/probe-mcp-registry-visibility-params.mjs /tmp/visibility.json   # the scope caveat above, ~6 GETs
 node tools/render-mcp-census-doc.mjs --artifact /tmp/census.json --out /tmp/census.md
 ```
 

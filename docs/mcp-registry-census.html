@@ -30,7 +30,7 @@
   "headline": "Every server in the official MCP registry, counted: what does its record actually let a client do?",
   "description": "Rows are not servers: one row is one published version, and a server's current record is the row whose...",
   "datePublished": "2026-09-28T17:57:04Z",
-  "dateModified": "2026-09-28T17:57:04Z",
+  "dateModified": "2026-09-28T17:59:00Z",
   "author": {
     "@type": "Organization",
     "name": "Unified AI System",
@@ -59,7 +59,7 @@
         <a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/mcp-registry-census.md">mcp-registry-census.md</a>.
       </nav>
       <h1>Every server in the official MCP registry, counted: what does its record actually let a client do?</h1>
-    <p>Measured 2026-09-28 (17:17-17:53 UTC) by <code>tools/survey-mcp-registry-census.mjs</code> against <code>https://registry.modelcontextprotocol.io/v0/servers</code>. This is the whole list, not a sample: the walk followed the cursor to its end and the instrument refuses to report otherwise. Structure only - counts, booleans, registry and transport type strings. No server-authored text is captured, and no server was sent an MCP request.</p>
+    <p>Measured 2026-09-28 (17:17-17:53 UTC) by <code>tools/survey-mcp-registry-census.mjs</code> against <code>https://registry.modelcontextprotocol.io/v0/servers</code>. This is the whole default list, not a slice of it: the walk followed the cursor to its end and the instrument refuses to report otherwise. The scope that phrasing buys is stated under &quot;What this does not support&quot;, because it is not every record the registry has ever held. Structure only - counts, booleans, registry and transport type strings. No server-authored text is captured, and no server was sent an MCP request.</p>
     <h2>The walk, and what it cost</h2>
     <table><thead><tr><th></th><th>value</th></tr></thead><tbody><tr><td>list pages read</td><td>1,238</td></tr><tr><td>rows counted</td><td>123,831</td></tr><tr><td>distinct servers</td><td>37,013</td></tr><tr><td>versions per server</td><td>3.35</td></tr><tr><td>pages needing a retry</td><td>7 (worst single page: 2 attempts)</td></tr><tr><td>cursor reached the end</td><td>yes</td></tr></tbody></table>
     <p>Rows are not servers: one row is one published version, and a server's current record is the row whose <code>_meta[&quot;io.modelcontextprotocol.registry/official&quot;].isLatest</code> is true. Every number below is computed on that row. 37,013 servers yielded 37,013 latest records, with 0 servers left without one - a non-zero value there would mean the bucketing lost a server, so the renderer refuses rather than dividing by a denominator it cannot name.</p>
@@ -83,12 +83,15 @@
     <p>  their own installer, and a registry record is a catalogue entry, not a deployment.</p>
     <ul><li>That the population is stable. It grew from 25,125 servers reported on 2026-08-27</li></ul>
     <p>  (upstream issue modelcontextprotocol/registry#1579) to 37,013 on 2026-09-28, so any share quoted from this   page has a shelf life measured in weeks.</p>
-    <ul><li>That the <code>status</code> field filters anything. <code>?status=active</code>, <code>?status[]=active</code> and <code>?state=active</code> each</li></ul>
-    <p>  returned the same first page as no filter at all on 2026-09-28, including <code>deprecated</code> rows, so the split   above is done client-side from the whole walk.</p>
+    <ul><li>That the <code>status</code> query parameter filters anything. It is not among the documented parameters of</li></ul>
+    <p>  <code>GET /v0/servers</code> (<code>cursor</code>, <code>limit</code>, <code>updated_since</code>, <code>search</code>, <code>version</code>, <code>include_deleted</code>), and <code>?status=active</code> answered with a first page whose sha256 equalled   the unfiltered one on 2026-09-28, <code>deprecated</code> rows included - no error, no effect. So the active split above   is computed client-side from the whole walk.</p>
+    <ul><li>That this census is every record the registry holds. The documented visibility switch is <code>include_deleted</code></li></ul>
+    <p>  and this walk used its default: asking <code>?include_deleted=true</code> surfaced rows whose status is <code>deleted</code> - 5 of the first 100, against 0 unfiltered - which the walk therefore never sees.   37,013 is the population of the default view, not of the store. An earlier draft of this   page and of the comment posted on upstream #1579 said the server cannot be asked for a status-restricted   count at all; the published OpenAPI documents <code>include_deleted</code> and <code>updated_since</code>, so that sentence was   written before the spec was read and is corrected here.</p>
     <h2>Our own record, as a control</h2>
     <p>The instrument requires <code>io.github.happy520ai/unified-ai-system</code> to appear as an active latest record with a package - otherwise &quot;439 records declare nothing&quot; and &quot;my probe read nothing&quot; are the same shape. It reports oci over <code>stdio</code>, version 0.8.0, <code>has_remotes: false</code>: installable as a container image, not hosted, which is the <code>package_only</code> row above.</p>
     <h2>Reproduce</h2>
     <pre class="language-bash"><code>node tools/survey-mcp-registry-census.mjs /tmp/census.json   # ~30 minutes, anonymous GETs, no credentials
+node tools/probe-mcp-registry-visibility-params.mjs /tmp/visibility.json   # the scope caveat above, ~6 GETs
 node tools/render-mcp-census-doc.mjs --artifact /tmp/census.json --out /tmp/census.md</code></pre>
     <p>The artifact is published at <a href="https://happy520ai.github.io/unified-ai-system/data/mcp-registry-census.2026-09-28.json"><code>data/mcp-registry-census.2026-09-28.json</code></a>.</p>
     </main>

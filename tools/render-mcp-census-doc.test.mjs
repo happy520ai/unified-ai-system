@@ -10,13 +10,22 @@ const GEN = "tools/render-mcp-census-doc.mjs";
 const CENSUS = "docs/data/mcp-registry-census.2026-09-28.json";
 const SAMPLE = "docs/data/mcp-registry-installability.2026-09-28.json";
 const CROSS = "docs/data/mcp-installability-crosscheck.2026-09-28.json";
+const VIS = "docs/data/mcp-registry-visibility-params.2026-09-28.json";
 const dir = mkdtempSync(join(tmpdir(), "census-render-"));
 const readJson = (p) => JSON.parse(readFileSync(join(ROOT, p), "utf8"));
 
-function run({ census = join(ROOT, CENSUS), sample = join(ROOT, SAMPLE), cross = join(ROOT, CROSS), out = join(dir, "a.md") } = {}) {
-  return spawnSync(process.execPath, [GEN, "--artifact", census, "--sample", sample, "--crosscheck", cross, "--out", out], {
+function run({ census = join(ROOT, CENSUS), sample = join(ROOT, SAMPLE), cross = join(ROOT, CROSS), vis = join(ROOT, VIS), out = join(dir, "a.md") } = {}) {
+  return spawnSync(process.execPath, [GEN, "--artifact", census, "--sample", sample, "--crosscheck", cross, "--visibility", vis, "--out", out], {
     cwd: ROOT, encoding: "utf8",
   });
+}
+
+function copyVis(name, edit) {
+  const base = readJson(VIS);
+  edit(base);
+  const p = join(dir, name + ".json");
+  writeFileSync(p, JSON.stringify(base), "utf8");
+  return p;
 }
 
 function copy(name, edit) {
@@ -94,6 +103,25 @@ test("refuses when tally semantics are undeclared, because the type columns coul
   const r = run({ census: p });
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /tally semantics|TALLY_SEMANTICS/i);
+});
+
+test("the page states its scope, and refuses when the visibility facts stop backing that scope", () => {
+  const out = join(dir, "scope.md");
+  assert.equal(run({ out }).status, 0);
+  const text = readFileSync(out, "utf8");
+  assert.match(text, /population of the default view, not of the store/);
+  assert.match(text, /is not among the documented parameters/);
+
+  // Each of these is a claim about someone else's live API. If the API changes, the sentence must go red
+  // rather than stay published as history.
+  const a = copyVis("statusdoc", (b) => { b.status_param_documented = true; });
+  assert.match(run({ vis: a, out: join(dir, "s1.md") }).stderr, /`status` is documented now/);
+  const b = copyVis("statusnoign", (br) => { br.status_param_matches_no_filter_sha = false; });
+  assert.match(run({ vis: b, out: join(dir, "s2.md") }).stderr, /no longer returns the unfiltered page/);
+  const c = copyVis("nogate", (br) => { br.deleted_status_seen_only_with_include_deleted = false; });
+  assert.match(run({ vis: c, out: join(dir, "s3.md") }).stderr, /no longer gated behind include_deleted/);
+  const d = copyVis("prob", (br) => { br.problem_count = 1; });
+  assert.match(run({ vis: d, out: join(dir, "s4.md") }).stderr, /visibility instrument reported 1 problems/);
 });
 
 test("the shipped page on disk equals a fresh render of its artifacts", () => {

@@ -98,6 +98,21 @@ const priorNeither = prior.active_reachability.neither;
 const priorNames = prior.distinct_names;
 const priorBadKey = (prior.package_transport_types || {})["[object Object]"];
 if (!Number.isSafeInteger(priorBadKey)) throw new Error("REFUSED: the superseded reading no longer carries the coerced-key tally the page describes");
+// The visibility instrument, because the scope sentence above is a live claim about someone else's API and
+// must fail rather than age quietly if that API changes.
+const vis = JSON.parse(readFileSync(arg("--visibility", "docs/data/mcp-registry-visibility-params.2026-09-28.json"), "utf8"));
+for (const k of ["documented_get_parameters", "pages", "status_param_documented", "status_param_matches_no_filter_sha", "deleted_status_seen_only_with_include_deleted", "problem_count"]) {
+  if (vis[k] === undefined) throw new Error("REFUSED: visibility artifact is missing " + k);
+}
+if (vis.problem_count !== 0) throw new Error("REFUSED: the visibility instrument reported " + vis.problem_count + " problems");
+if (vis.status_param_documented !== false) throw new Error("REFUSED: `status` is documented now, so the bullet about it being ignored is wrong");
+if (vis.status_param_matches_no_filter_sha !== true) throw new Error("REFUSED: `?status=active` no longer returns the unfiltered page, so it is not ignored");
+if (vis.deleted_status_seen_only_with_include_deleted !== true) throw new Error("REFUSED: `deleted` records are no longer gated behind include_deleted, so the scope caveat is wrong");
+const visParams = vis.documented_get_parameters.map((p) => "`" + p + "`").join(", ");
+const visDeletedTrue = (vis.pages.include_deleted_true.statuses || {}).deleted;
+const visDeletedDefault = (vis.pages.default.statuses || {}).deleted || 0;
+if (!Number.isSafeInteger(visDeletedTrue)) throw new Error("REFUSED: the include_deleted=true page has no deleted count to compare");
+
 const denom = d.active_latest_records;
 const pct = (n) => ((n / denom) * 100).toFixed(n === denom || n === 0 ? 1 : 2) + "%";
 const tallyLines = (obj) => Object.entries(obj).sort((a, b) => b[1] - a[1]).map(([k, v]) => "`" + k + "` " + v.toLocaleString("en-US")).join(", ");
@@ -111,8 +126,10 @@ const lines = [
   "# Every server in the official MCP registry, counted: what does its record actually let a client do?",
   "",
   "Measured " + date + " (" + d.started_at.slice(11, 16) + "-" + d.finished_at.slice(11, 16) + " UTC) by",
-  "`tools/survey-mcp-registry-census.mjs` against `" + d.source + "`. This is the whole list, not a sample:",
-  "the walk followed the cursor to its end and the instrument refuses to report otherwise.",
+  "`tools/survey-mcp-registry-census.mjs` against `" + d.source + "`. This is the whole default list, not a",
+  "slice of it: the walk followed the cursor to its end and the instrument refuses to report otherwise. The",
+  "scope that phrasing buys is stated under \"What this does not support\", because it is not every record the",
+  "registry has ever held.",
   "Structure only - counts, booleans, registry and transport type strings. No server-authored text is",
   "captured, and no server was sent an MCP request.",
   "",
@@ -207,9 +224,17 @@ const lines = [
   "- That the population is stable. It grew from 25,125 servers reported on 2026-08-27",
   "  (upstream issue modelcontextprotocol/registry#1579) to " + d.distinct_names.toLocaleString("en-US") + " on " + date + ", so any share quoted from this",
   "  page has a shelf life measured in weeks.",
-  "- That the `status` field filters anything. `?status=active`, `?status[]=active` and `?state=active` each",
-  "  returned the same first page as no filter at all on " + date + ", including `deprecated` rows, so the split",
-  "  above is done client-side from the whole walk.",
+  "- That the `status` query parameter filters anything. It is not among the documented parameters of",
+  "  `GET /v0/servers` (" + visParams + "), and `?status=active` answered with a first page whose sha256 equalled",
+  "  the unfiltered one on " + date + ", `deprecated` rows included - no error, no effect. So the active split above",
+  "  is computed client-side from the whole walk.",
+  "- That this census is every record the registry holds. The documented visibility switch is `include_deleted`",
+  "  and this walk used its default: asking `?include_deleted=true` surfaced rows whose status is `deleted` - " +
+  visDeletedTrue + " of the first 100, against " + visDeletedDefault + " unfiltered - which the walk therefore never sees.",
+  "  " + d.distinct_names.toLocaleString("en-US") + " is the population of the default view, not of the store. An earlier draft of this",
+  "  page and of the comment posted on upstream #1579 said the server cannot be asked for a status-restricted",
+  "  count at all; the published OpenAPI documents `include_deleted` and `updated_since`, so that sentence was",
+  "  written before the spec was read and is corrected here.",
   "",
   "## Our own record, as a control",
   "",
@@ -222,6 +247,7 @@ const lines = [
   "",
   "```bash",
   "node tools/survey-mcp-registry-census.mjs /tmp/census.json   # ~30 minutes, anonymous GETs, no credentials",
+  "node tools/probe-mcp-registry-visibility-params.mjs /tmp/visibility.json   # the scope caveat above, ~6 GETs",
   "node tools/render-mcp-census-doc.mjs --artifact /tmp/census.json --out /tmp/census.md",
   "```",
   "",

@@ -1,0 +1,80 @@
+{
+  "schema": "mcp-registry-visibility-params-v1",
+  "run_at": "2026-09-28T18:06:50.461Z",
+  "source": "https://registry.modelcontextprotocol.io/openapi.json",
+  "documented_get_parameters": [
+    "cursor",
+    "limit",
+    "updated_since",
+    "search",
+    "version",
+    "include_deleted"
+  ],
+  "pages": {
+    "default": {
+      "http": 200,
+      "rows": 100,
+      "statuses": {
+        "active": 98,
+        "deprecated": 2
+      },
+      "cursor": true,
+      "sha256": "86e0f062f91894015f7680ee1d8cd755505c2e8ee8b195b083d00597049e9b11",
+      "utf8_bytes": 73733,
+      "code_units": 73687
+    },
+    "include_deleted_false": {
+      "http": 200,
+      "rows": 100,
+      "statuses": {
+        "active": 98,
+        "deprecated": 2
+      },
+      "cursor": true,
+      "sha256": "86e0f062f91894015f7680ee1d8cd755505c2e8ee8b195b083d00597049e9b11",
+      "utf8_bytes": 73733,
+      "code_units": 73687
+    },
+    "include_deleted_true": {
+      "http": 200,
+      "rows": 100,
+      "statuses": {
+        "deleted": 5,
+        "active": 93,
+        "deprecated": 2
+      },
+      "cursor": true,
+      "sha256": "a099b1731042f976aa7588a7c3f65eb49d27db6db5e190959841182a4bae2840",
+      "utf8_bytes": 74263,
+      "code_units": 74207
+    },
+    "status_active": {
+      "http": 200,
+      "rows": 100,
+      "statuses": {
+        "active": 98,
+        "deprecated": 2
+      },
+      "cursor": true,
+      "sha256": "86e0f062f91894015f7680ee1d8cd755505c2e8ee8b195b083d00597049e9b11",
+      "utf8_bytes": 73733,
+      "code_units": 73687
+    },
+    "include_deleted_bogus": {
+      "http": 422,
+      "rows": 0,
+      "statuses": {},
+      "cursor": false,
+      "sha256": "f91b43a81dda581366ce0dd8e93212af26c3e3220eb48672524a57cf32bd7f8e",
+      "utf8_bytes": 166,
+      "code_units": 166
+    }
+  },
+  "default_and_include_deleted_false_sha_equal": true,
+  "default_and_include_deleted_true_sha_equal": false,
+  "status_param_matches_no_filter_sha": true,
+  "status_param_documented": false,
+  "deleted_status_seen_only_with_include_deleted": true,
+  "problems": [],
+  "problem_count": 0
+}
