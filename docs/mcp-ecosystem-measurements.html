@@ -450,7 +450,7 @@ node tools/survey-mcp-list-cache-hints.mjs 40</code></pre>
         <li><strong>The sample is not random.</strong> It is the registry's default order at one timestamp, which over-represents server names beginning with <code>a</code>.</li>
         <li><strong><code>initialize</code> and <code>tools/list</code> only.</strong> Going further would mean invoking tools on services that are not ours.</li>
         <li><strong>No stdio coverage.</strong> That population is larger and unreachable by this method.</li>
-        <li><strong>One timestamp each, 2026-09-27.</strong> Servers deploy; a re-run is a new measurement, not a regression test. All nine <em>survey</em> scripts are deliberately outside our CI for that reason; a tenth tool,
+        <li><strong>One timestamp each, 2026-09-27 - with one deliberate exception.</strong> The cache-hint question is published as a same-day pair re-run on 2026-09-28, because asking for a revision that does not require <code>ttlMs</code>/<code>cacheScope</code> is a different measurement from asking for the one that does; the 2026-09-28 dataset records which revision each leg asked. Servers deploy; a re-run is a new measurement, not a regression test. All nine <em>survey</em> scripts are deliberately outside our CI for that reason; a tenth tool,
         <code>tools/compare-mcp-revision-legs.mjs</code>, only joins two saved legs and does run under
         <code>pnpm test:verification-tools</code>, which is the list CI actually runs.</li>
       </ul>
