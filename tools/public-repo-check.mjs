@@ -1199,21 +1199,27 @@ for (const url of sitemapLocSet) {
 // while omitting a page nobody added to either. Deriving the requirement from the hub's own outbound
 // .md links means the next measurement article cannot be published undeclared, and the list is not a
 // second place someone has to remember to update.
-const hubPagePath = "docs/mcp-ecosystem-measurements.html";
-const hubPage = readFileSync(resolve(repoRoot, hubPagePath), "utf8");
-const hubArticleLinks = [...new Set(
-  [...hubPage.matchAll(/href="([\w.-]+\.md)"/g)].map((match) => match[1]),
-)];
-for (const article of hubArticleLinks) {
+// The hub now exists in two languages, and a page can be linked by only one of them: three survey
+// articles were reachable solely from the Chinese index and were consequently undeclared to crawlers.
+// Deriving the requirement from either hub means a language pair cannot hide an undeclared page.
+const hubPagePaths = ["docs/mcp-ecosystem-measurements.html", "docs/mcp-ecosystem-measurements.zh-CN.html"];
+const hubArticles = new Map();
+for (const hubPagePath of hubPagePaths) {
+  const hubPage = readFileSync(resolve(repoRoot, hubPagePath), "utf8");
+  for (const match of hubPage.matchAll(/href="([\w.-]+\.md)"/g)) {
+    if (!hubArticles.has(match[1])) hubArticles.set(match[1], hubPagePath);
+  }
+}
+for (const [article, linker] of hubArticles) {
   if (!existsSync(resolve(repoRoot, "docs", article))) {
-    addError("hub_article_file_missing", hubPagePath, article);
+    addError("hub_article_file_missing", linker, article);
   }
   if (!sitemap.includes(`<loc>${expectedIndexNowPrefix}${article}</loc>`)) {
     addError("measurement_article_not_declared", "docs/sitemap.xml", article);
   }
 }
 
-for (const article of hubArticleLinks) {
+for (const article of hubArticles.keys()) {
   if (!indexNowConfig.urlList.includes(`${expectedIndexNowPrefix}${article}`)) {
     addError("measurement_article_not_pingable", indexNowConfigPath, article);
   }
