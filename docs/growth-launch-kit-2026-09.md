@@ -34,21 +34,22 @@ branding step cannot spend the first two minutes of fifteen.
 | 4 | Set the Glama build target so a grade exists (§0h) | `https://glama.ai/mcp/servers/happy520ai/unified-ai-system/admin` → Docker builds | Different in kind from the fourteen carried listings above: the maintainer of the biggest MCP list has already reviewed our entry and named exactly one remaining condition ("any grade is fine"), so this is a queued merge rather than a cold submission. ~5 minutes, and only you can reach that dashboard. |
 | 5 | Send one message to selfh.st (§0e) | `selfhst@fosstodon.org` | The closest audience of the whole list. No form exists; it is a message. |
 | 6 | Click the checkbox and fill the form (§0f) | `https://openalternative.co/submit` | I am not solving a machine-refusal challenge for you; their GitHub list (6,747★) is generated from this one submission. |
-| 7 | Paste one of the three data articles (§4b, §4c or §4d) | dev.to draft → publish | Lowest cost per unit of reach in this file, and the only one that does not ask a reader to evaluate our product. §4c and §4d are the two freshest (both written 2026-09-27, after the header and cache-hint measurements); each of the three is built around a mistake or a small number rather than a claim, which is the kind of post people forward. All three already carry the agent disclosure and none asks for a star. Re-run `## Verify before posting` first: the numbers are dated readings, and a stale one in a data post is worse than no post. |
+| 7 | Paste one of the four data articles (§4b, §4c, §4d or §4e) | dev.to draft → publish | Lowest cost per unit of reach in this file, and the only one that does not ask a reader to evaluate our product. §4e is the newest (the whole-registry census, measured 2026-09-28) and it is the strongest of the four: it answers "how many MCP servers are there", a question people type into search engines, and its narrative is four mistakes we caught in our own work rather than a claim about anyone else's; §4c and §4d follow (both written 2026-09-27, after the header and cache-hint measurements). All four already carry the agent disclosure and none asks for a star. Re-run `## Verify before posting` first: the numbers are dated readings, and a stale one in a data post is worse than no post. |
 | 8 | Optional: upload the share card (§0) | `https://github.com/happy520ai/unified-ai-system/settings` → Social preview → `docs/assets/social-preview.png` | Now branding rather than a fix. Measured today: the card GitHub serves is its default template - repo name, current description, live counters - and **shows no tool count at all**, so nothing wrong is being shared while it stays unset. Do it if you want the branded card in front of every link; do not do it instead of 1-7. |
 
 Two of these (1 and 2) are worth the time even if nothing else is. If you do only one
 thing this week, do #1 — that is the conclusion the data on every other channel
 supports, not a preference.
 
-There are now also **§4b, §4c and §4d - three data posts that ask nothing of the reader**. They
-rest on nine surveys of public MCP servers, counted as of 2026-09-27 by `ls tools/survey-mcp-*.mjs`,
+There are now also **§4b through §4e - four data posts that ask nothing of the reader**. They
+rest on eleven survey instruments, counted as of 2026-09-28 by `ls tools/survey-mcp-*.mjs`,
 so the number is re-checkable in one command rather than trusted: our own server is put through the same
 questions as everyone else's. These are the only copy in this file that can be pasted into a technical
 thread without pitching, so if you have five spare minutes after the list above, use whichever of the
-three matches the venue - §4c and §4d are the newest and each is built around a mistake, which travels
-better than a table. Re-run the scripts named at the end of the post you pick, or keep the
-"as of 2026-09-27" framing: a stale dataset about a moving ecosystem is worse than none.
+four matches the venue - §4e is the newest and the census is the kind of post that travels because it
+answers a searched question rather than because it argues, and §4c and §4d each turn on a mistake.
+Re-run the scripts named at the end of the post you pick, or keep the
+"as of 2026-09-27/28" framing: a stale dataset about a moving ecosystem is worse than none.
 
 ---
 
@@ -533,6 +534,112 @@ back besides `tools` and `nextCursor`. Most of the time, in this sample, that an
 
 <sub>Disclosure: this text was drafted by an AI agent working on the project, from a measurement it ran.
 The numbers are one dated window, not a general property of the ecosystem.</sub>
+
+---
+
+## 4e. Fourth data post — how many MCP servers are there (ready to paste)
+
+The census is the most shareable thing on the site because it answers a question people type into
+search engines, and the story includes three corrections we made against ourselves. It does not
+mention the gateway except as the reason the probe exists. Paste as-is; the disclosure line is
+already in it. Numbers are the 2026-09-28 readings — if this goes out later than ~2026-10-12,
+re-run the walk first (`node tools/survey-mcp-registry-census.mjs` plus the `include_deleted` pass,
+about an hour of anonymous GETs) and replace the figures, or post it with the date visible as it is now.
+
+**Title:** `How many MCP servers are there? I walked every record, and the answer is three numbers`
+
+**Body:**
+
+> *Written by an AI agent working for happy520ai, who maintains an MCP gateway and publishes one server
+> in the registry this post counts about. Every number here is a dated reading of the official registry's
+> own public API, reproducible without credentials, and the corrections are ours rather than anyone
+> else's.*
+>
+> Ask five people and you will get five numbers, none of them wrong exactly, all of them
+> answering different questions. I went to the source - the official MCP registry's own API - and
+> walked it to the end of its pagination cursor, twice, plus a third pass with a switch flipped.
+> Here is what came back, and the four mistakes I made on the way, because the mistakes are the
+> useful part.
+>
+> **The three answers, as of 2026-09-28:**
+>
+> - **37,854** servers are retrievable from the API when you ask it to include records that have
+>   been removed. 125,783 version rows resolve to that many distinct servers.
+> - **37,013** of them are in the view you actually get. 830 servers' current record has status
+>   `deleted`, and the default listing does not show them at all.
+> - **36,612** are `active` within that default view. Another 401 are `deprecated` and still listed.
+>
+> So "there are N MCP servers" needs a view and a status named before the number means anything.
+> The registry grew from 25,125 servers reported on 2026-08-27 to 37,013 visible now - about 47% in
+> a month - which is also why every figure in this post carries its date.
+>
+> **What the records actually let a client do.** Read one row per server, the one the API marks
+> `isLatest`:
+>
+> | the record declares | servers | share of active |
+> | --- | --- | --- |
+> | a hosted endpoint, no package | 20,852 | 56.95% |
+> | a package, no hosted endpoint | 13,510 | 36.90% |
+> | both | 1,811 | 4.95% |
+> | **neither** | **439** | **1.20%** |
+>
+> 439 records tell you a server exists and nothing about how to reach it. That is 1.20% - a small
+> share and a large absolute number, and it is the count behind an open issue on the registry
+> (modelcontextprotocol/registry#1579), which measured 387 of 25,125 in August. The absolute number
+> went up; the share went down.
+>
+> For the artifact types among package-bearing records: `npm` 9,868, `pypi` 3,982, `oci` 986,
+> `mcpb` 921, `nuget` 129, `cargo` 62. Those count records that mention a type and a record can
+> mention several, so they sum above the 15,321 package-bearing records. Of those packages,
+> 15,102 name `stdio` as their transport, 429 `streamable-http`, 28 `sse`. An install button
+> aimed at this registry is, overwhelmingly, a local process.
+>
+> **Mistake one: I counted 54 servers and called it an ecosystem.** An earlier version of this
+> work read "the first 54 servers" and reported that only 6 of 54 carried a package - 11%. The
+> list turns out to be ordered by server name ascending, so those 54 were the alphabetically-first
+> ones - `ac.inference.sh/mcp`, `ac.snag/snag`, `ad.getle/leads` and so on - and that slice is
+> heavily skewed: 48 of its 54 declare a hosted endpoint, against 62% of the population. The real
+> population figure for package-bearing records is 41.85%. Same endpoint, same code, same day; one
+> was a prefix of an ordering and I quoted it like a sample.
+>
+> **Mistake two: I asserted a capability from the absence of one field.** The same page said that
+> records without a package "tell you a server exists without telling a client how to run it". I
+> had read `packages`. I had never read `remotes`. Re-reading the identical 54 records through a
+> different endpoint path found **48 of them declare a hosted endpoint** - so the sentence was not
+> under-evidenced, it was false for almost every record it described. Retracted in place on the page.
+>
+> **Mistake three: I called an undocumented parameter a defect.** `?status=active` returns 200 and a
+> first page whose sha256 equals the unfiltered one, which I reported as "the status filter is
+> silently ignored, so you cannot ask for an active-only count". Then I read `/openapi.json`: the
+> documented parameters are `cursor`, `limit`, `updated_since`, `search`, `version` and
+> `include_deleted`. There is no `status` parameter. An undocumented parameter doing nothing is the
+> expected shape; what surprised me is that `include_deleted` exists and changes the answer, which
+> is how mistake one's number got a third variant.
+>
+> **Mistake four, in my own tooling:** a package's `transport` is an object, and my first walk read
+> it as a string. The tally came out as `{ "[object Object]": 16597 }`. It would have published. Now
+> the renderer refuses any tally whose key contains `[object`, and the buggy first artifact is
+> published next to the fixed one marked `.superseded`, because deleting your own bad reading is how
+> everyone else ends up trusting a number that was never checked.
+>
+> **The check I would keep even if nothing else worked:** two walks of the same list, 23 minutes
+> apart, must reconcile. 37,854 minus 37,013 is 841 extra servers, and the four reachability classes
+> move by +632, +143, +52 and +14 - which sums to exactly 841. If those two numbers ever disagree,
+> one of the walks is dropping or double-counting a server, and the code refuses to write the page.
+> A count that cannot be reconciled against a second view of the same data is a number, not a
+> measurement.
+>
+> **What this does not say.** That a declared endpoint answers - "the record names an address" and
+> "the address replies to an MCP request" are different claims, measured separately elsewhere. That
+> those 439 records are abandoned or low quality. That any of this is stable: it is a dated snapshot
+> of a registry that grew 47% in a month.
+>
+> Everything is reproducible without credentials: the walks are anonymous GETs, the scripts and the
+> raw artifacts are published, and each page states its own denominator.
+
+**Deliberately absent:** no ask for a star, no "we built", no claim about our own product's
+quality. The author's product is named once, in the disclosure line, and nowhere in the body - which is
+the whole reason this post can be pasted into a technical thread without pitching.
 
 ---
 
