@@ -53,14 +53,41 @@ forward a per-caller token or a tenant-derived header into an upstream list call
 serving tenant A's list to tenant B out of a key neither of them owned, and no code would have
 objected. Fixing the shape costs one key; auditing it after that change lands costs a disclosure.
 
-## Our own server, measured
+## The same question at the revision that requires the answer
 
-Asked directly, we emit nothing a cache could act on: result keys `tools`,
-per-tool fields `name, title, description, inputSchema, annotations`, `ttlMs` present:
-**false**, `cacheScope` present: **false**.
+Everything counted above was counted on a connection the server agreed to run at `2025-06-18`, where
+`ttlMs` and `cacheScope` are **not required**. So that sentence describes legacy-negotiated traffic and
+cannot be read as conformance in either direction. The older artifact also predates the per-row
+revision fields, so that run cannot re-derive what each server answered - which is why this section is
+written against a second capture.
 
-So we are in the silent 15-of-16 ourselves, which is fine - and worth stating anyway, because the
-alternative is a gateway that reads a hint nobody sends and a server that sends one nobody reads.
+Re-asked 2026-09-28 with `tools/survey-mcp-list-cache-hints.mjs 40 --revision 2026-07-28`: of 40
+endpoints, 13 returned a tool list and only 3 of those actually
+negotiated `2026-07-28`; the rest answered an older revision, where sending neither field is correct
+behaviour. **Of the modern-negotiated responders, 0 of 3 sent both
+`ttlMs` and `cacheScope`.**
+
+Two readings are available here and only one is comfortable: most public endpoints in this sample
+decline the revision that requires the fields, and inside the small part that accepts it, nearly all of
+them still omit them. The second is exactly the population a strict validator bites - so a client that
+rejects an absent hint is not enforcing a widely-implemented rule; on this sample it is enforcing one
+that the few servers advertising support for it almost universally fail. Small n, one window, one
+ordering, and 20 endpoints sat behind OAuth where behaviour is unknown rather than absent.
+
+## Our own server, measured at both revisions
+
+At the revision this repo's own probe negotiates, our result keys are `tools`,
+per-tool fields `name, title, description, inputSchema, annotations`: `ttlMs` present: **false**,
+`cacheScope` present: **false**. That is legitimate at `2025-06-18`, and an
+earlier version of this page wrote it up as though it settled what we send under the new revision. It
+did not - and the sentence was wrong in the direction of being *more* self-critical than the truth.
+
+Under a real modern negotiation we do send both fields. Captured through a stdio tee that records whole
+frames (no truncation; per-frame byte length asserted) while a pinned official client reached
+`2026-07-28`: our server answered `server/discover` with `supportedVersions: ["2026-07-28"]`, and its
+`tools/list` result carried keys `tools, resultType, ttlMs, cacheScope, _meta`. So the honest contrast
+is not that we hide in the silent majority: most endpoints decline the revision, those that accept it
+mostly omit what it then requires, and our server is in the minority that fills the fields in.
 
 ## Deliberately not claimed
 

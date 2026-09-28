@@ -13,7 +13,13 @@
 // Not wired into CI: it measures other people's servers, and its numbers belong to its timestamp.
 const LIMIT = Number(process.argv[2] || 40);
 const TIMEOUT = 9000;
-const REVISION = "2025-06-18";
+// The revision this probe asks for decides whether ttlMs/cacheScope are required at all, so it is a
+// parameter rather than a constant: at 2025-06-18 a server that sends neither is conformant, and a count
+// of "declared nothing" taken at that revision says nothing about behaviour under 2026-07-28.
+const REVISION = (() => {
+  const i = process.argv.indexOf("--revision");
+  return i > 0 && typeof process.argv[i + 1] === "string" && process.argv[i + 1] ? process.argv[i + 1] : "2025-06-18";
+})();
 const UA = "unified-ai-system-survey/1.0 (+https://github.com/happy520ai/unified-ai-system)";
 
 const seen = new Set();
@@ -116,6 +122,10 @@ for (const target of targets.slice(0, LIMIT)) {
       const revision = typeof init.payload.result.protocolVersion === "string" ? init.payload.result.protocolVersion : REVISION;
       const opts = { revision, sessionId: init.sessionId ?? undefined };
       record.session_id = Boolean(init.sessionId);
+      // Without these two fields a verdict cannot be read as conformance or non-conformance: the fields
+      // are only required at the revision the server actually agreed to.
+      record.revision_requested = REVISION;
+      record.revision_answered = revision;
       await call(target.url, { jsonrpc: "2.0", method: "notifications/initialized" }, opts);
       const listed = await call(target.url, { jsonrpc: "2.0", id: String((id += 1)), method: "tools/list", params: {} }, opts);
       const shape = describe(listed.payload?.result);
