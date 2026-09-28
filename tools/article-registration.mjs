@@ -73,6 +73,33 @@ export function auditArticlePages({ sitemapText, llmsText, pages, mdStems, feedT
       problems.push({ code: "article_page_missing_chinese_navigation", page: name, detail: "no link to it from any .zh-CN. page, so the Chinese index cannot send a reader here" });
     }
 
+    // Structured data is what makes an article eligible for a rich result, and it is the one
+    // thing a page can lose silently: hand-edit the head, regenerate from an older template,
+    // and the page still looks perfect to a reader. Required per declared article page,
+    // checked by parsing rather than by grepping for the tag.
+    const ld = (pages[name] || "").match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
+    if (!ld) {
+      problems.push({ code: "article_page_missing_jsonld", page: name, detail: "no TechArticle block; run: pnpm docs:articles" });
+    } else {
+      let parsed = null;
+      try {
+        parsed = JSON.parse(ld[1]);
+      } catch {
+        problems.push({ code: "article_page_jsonld_unparseable", page: name, detail: "the ld+json block is not valid JSON" });
+      }
+      if (parsed) {
+        const required = ["headline", "description", "datePublished", "dateModified", "author", "mainEntityOfPage"];
+        const missing = required.filter((k) => !parsed[k]);
+        if (missing.length) {
+          problems.push({ code: "article_page_jsonld_incomplete", page: name, detail: "missing " + missing.join(",") });
+        }
+        const canonical = parsed.mainEntityOfPage && parsed.mainEntityOfPage["@id"];
+        if (canonical && !canonical.endsWith("/" + name)) {
+          problems.push({ code: "article_page_jsonld_wrong_url", page: name, detail: "mainEntityOfPage says " + canonical });
+        }
+      }
+    }
+
     // Being reachable from llms.txt counts either as the page itself or as the markdown
     // source on github.com/blob, which GitHub renders for a reader. A raw *.md link on our
     // own host is the other case: Pages has no Jekyll (docs/.nojekyll), so that URL answers

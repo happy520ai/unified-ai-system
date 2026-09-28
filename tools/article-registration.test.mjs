@@ -9,6 +9,20 @@ import { auditArticlePages } from "./article-registration.mjs";
 const sitemap = (...urls) =>
   "<urlset>" + urls.map((u) => `<url><loc>https://example.test/${u}</loc></url>`).join("") + "</urlset>";
 
+const LD = (id) =>
+  '<script type="application/ld+json">' +
+  JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    headline: "Does anyone's tools/list actually paginate?",
+    description: "A measurement of cursor support across public MCP servers.",
+    datePublished: "2026-01-01T00:00:00Z",
+    dateModified: "2026-01-02T00:00:00Z",
+    author: { "@type": "Organization", name: "Unified AI System" },
+    mainEntityOfPage: { "@type": "WebPage", "@id": id },
+  }) +
+  "</script>";
+
 const base = {
   sitemapText: sitemap("article-one.html", "index.html"),
   llmsText: "- [One](https://example.test/article-one.html)",
@@ -16,7 +30,7 @@ const base = {
   pages: {
     "index.html": '<a href="article-one.html">one</a>',
     "index.zh-CN.html": '<a href="article-one.html">一</a>',
-    "article-one.html": "<main>body</main>",
+    "article-one.html": "<main>body</main>" + LD("https://example.test/article-one.html"),
   },
 };
 
@@ -112,6 +126,43 @@ test("boundary: the feed does not have to list itself, and a caller may audit li
   assert.deepEqual(withSelf, [], "feed.xml must not be demanded as a feed entry: " + JSON.stringify(withSelf));
   // The arms are skipped rather than guessed at when the caller has no feed to compare.
   assert.deepEqual(auditArticlePages({ ...base, feedText: undefined }), []);
+});
+
+test("structured data is required per article page, by parsing rather than by grepping", () => {
+  const withPage = (html) => ({
+    ...base,
+    pages: { ...base.pages, "article-one.html": html },
+  });
+
+  const absent = auditArticlePages(withPage("<main>body</main>"));
+  assert.deepEqual(codes(absent), ["article_page_missing_jsonld"], JSON.stringify(absent));
+
+  const broken = auditArticlePages(withPage('<main></main><script type="application/ld+json">{nope}</script>'));
+  assert.deepEqual(codes(broken), ["article_page_jsonld_unparseable"], JSON.stringify(broken));
+
+  const short = LD("https://example.test/article-one.html").replace(/"author":\s*\{[^}]*\},?/, "");
+  const incomplete = auditArticlePages(withPage("<main></main>" + short));
+  assert.deepEqual(codes(incomplete), ["article_page_jsonld_incomplete"], JSON.stringify(incomplete));
+
+  // A block that describes a different URL is the interesting failure: the page looks
+  // complete and points search engines somewhere else.
+  const wrong = auditArticlePages(withPage("<main></main>" + LD("https://example.test/other.html")));
+  assert.deepEqual(codes(wrong), ["article_page_jsonld_wrong_url"], JSON.stringify(wrong));
+
+  assert.deepEqual(auditArticlePages(withPage("<main></main>" + LD("https://example.test/article-one.html"))), []);
+});
+
+test("boundary: a landing page with no markdown source is not required to carry structured data", () => {
+  // Same exemption as the link arms: applying generated-page rules to a hand-authored page
+  // is how a guard starts producing false reds that someone later weakens.
+  const problems = auditArticlePages({
+    sitemapText: sitemap("terminal-first-ai-gateway.html"),
+    llmsText: "nothing",
+    mdStems: [],
+    pages: { "terminal-first-ai-gateway.html": "<main>x</main>" },
+    feedText: '<feed><entry><id>https://example.test/terminal-first-ai-gateway.html</id></entry></feed>',
+  });
+  assert.deepEqual(problems, []);
 });
 
 test("the real repository passes the audit it is about to enforce", () => {
