@@ -33,6 +33,10 @@ const LABELS = {
 const doc = JSON.parse(readFileSync(DATASET, "utf8"));
 const blocks = Array.isArray(doc.questions) ? doc.questions : [];
 if (blocks.length === 0) throw new Error("dataset has no questions");
+// A block is one measurement leg. One question was asked twice, once per protocol revision, so
+// counting blocks as questions overstates the question count and disagrees with the English hub.
+const questionNames = new Set(blocks.map((b) => String(b.id).replace(/-(legacy|modern)-leg$/, "")));
+if (questionNames.size > blocks.length) throw new Error("more questions than legs");
 const problems = [];
 for (const b of blocks) {
   if (!LABELS[b.id]) problems.push(`no Chinese label for question id ${b.id}`);
@@ -84,7 +88,7 @@ const out = `<!doctype html>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>对公开 MCP 生态的测量（中文索引） | Unified AI System</title>
-    <meta name="description" content="向官方注册表登记的 ${blocks[0].attempted} 个服务端匿名提问，共 ${blocks.length} 个问题。每个数字都从机器可读数据集生成，页面自己声明分母与所请求的协议修订。" />
+    <meta name="description" content="向官方注册表登记的 ${blocks[0].attempted} 个服务端匿名提问：${questionNames.size} 个问题、${blocks.length} 次测量。每个数字都从机器可读数据集生成，页面自己声明分母与所请求的协议修订。" />
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <link rel="canonical" href="${BASE}mcp-ecosystem-measurements.zh-CN.html" />
     <link rel="alternate" hreflang="en" href="${BASE}mcp-ecosystem-measurements.html" />
@@ -94,7 +98,7 @@ const out = `<!doctype html>
     <meta property="og:type" content="article" />
     <meta property="og:locale" content="zh_CN" />
     <meta property="og:title" content="对公开 MCP 生态的测量（中文索引）" />
-    <meta property="og:description" content="同一个问题清单的中文索引：${blocks.length} 个条目、每题一行，数字全部来自数据集。" />
+    <meta property="og:description" content="同一个问题清单的中文索引：${questionNames.size} 个问题、${blocks.length} 次测量，每次测量一行，数字全部来自数据集。" />
   </head>
   <body>
     <main>
@@ -123,7 +127,7 @@ ${rows}
         </tbody>
       </table>
       <p>
-        机器可读数据（含逐端点判据行）：<a href="data/mcp-ecosystem-measurements.2026-09-28.json">十题重跑，${window}</a>；
+        机器可读数据（含逐端点判据行）：<a href="data/mcp-ecosystem-measurements.2026-09-28.json">${questionNames.size} 问 ${blocks.length} 次测量的重跑，${window}</a>；
         英文原文与可重跑脚本：<a href="mcp-ecosystem-measurements.html">Nine measurements of the public MCP ecosystem</a>。
         每份调查都是双次采样同一窗口：把 <code>ttlMs</code> 与 <code>cacheScope</code> 那题在两个协议修订下各问一遍，
         所以「没人声明」这句话必须配上「问的是哪个修订」才有意义。

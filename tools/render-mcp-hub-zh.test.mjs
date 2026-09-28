@@ -77,3 +77,21 @@ test("an empty sample is refused instead of rendering a page that reports zero s
   assert.match(r.stderr + r.stdout, /no rows/);
   assert.equal(existsSync(outPath), false);
 });
+
+test("a question asked at two protocol revisions counts as one question and two legs", () => {
+  // The dataset holds ten blocks for nine questions because the cache-hint question was asked
+  // once per revision. Counting blocks as questions made the Chinese index say "10 个问题" while
+  // the English page said nine measurements about the same artifact - both pages read as correct
+  // to whoever wrote them, and the reader is the one left choosing.
+  const { r, outPath } = run(
+    dataset([
+      block(),
+      block({ id: "cache-hints-legacy-leg" }),
+      block({ id: "cache-hints-modern-leg" }),
+    ]),
+  );
+  assert.equal(r.status, 0, r.stderr.slice(0, 300));
+  const page = readFileSync(outPath, "utf8");
+  assert.match(page, /2 个问题、3 次测量/, "the page must separate questions from measurement legs");
+  assert.ok(!/3 个问题/.test(page), "three blocks are not three questions");
+});
