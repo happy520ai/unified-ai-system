@@ -14,7 +14,7 @@ Unified AI System provides one governed boundary for models, agents, knowledge, 
 - [Turn a REST API into governed MCP tools](https://happy520ai.github.io/unified-ai-system/openapi-to-mcp.html)
 - [How a credential-free run proves no provider was called](https://happy520ai.github.io/unified-ai-system/credential-free-evidence.html)
 - [What a published MCP image actually exposes (9, 12, then 15 tools)](https://happy520ai.github.io/unified-ai-system/verify-mcp-docker-image.html)
-- [Five measurements of the public MCP ecosystem (pagination, revision checking, session ids, server/discover, instructions)](https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.html)
+- [Nine measurements of the public MCP ecosystem (pagination, revision tolerance, session ids, server/discover, instructions, protocol-version header, header routing, body-less GET, cache hints)](https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.html)
 - [Does anyone enforce the MCP-Protocol-Version header? (0 of the 16 servers that answered, measured in its own window)](https://happy520ai.github.io/unified-ai-system/mcp-protocol-version-header.md)
 - [Can an Mcp-Method header redirect a server to a method the body never asked for? (0 of 16 POST pairs and 0 of 13 body-less GET legs, plus our own server measured; includes a false positive the repeat leg caught)](https://happy520ai.github.io/unified-ai-system/mcp-route-headers.md)
 - [Do MCP servers say how long their tool list may be cached? (1 of the 16 that returned a list did; we were reading neither field)](https://happy520ai.github.io/unified-ai-system/mcp-list-cache-hints.md)
