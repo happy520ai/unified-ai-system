@@ -18,16 +18,16 @@ const BASE = "https://happy520ai.github.io/unified-ai-system/";
 
 // Prose labels only: nothing here may carry a number.
 const LABELS = {
-  "tools-list-pagination": { q: "tools/list 会不会分页？", art: "mcp-tools-list-pagination-survey.md" },
-  "protocol-revision-tolerance": { q: "服务端会不会答应一个根本不存在的协议版本？", art: "mcp-protocol-revision-tolerance.md" },
-  "session-enforcement": { q: "发出 session id 的服务端，会不会要求客户端带回来？", art: "mcp-session-enforcement.md" },
+  "tools-list-pagination": { q: "tools/list 会不会分页？", art: "mcp-tools-list-pagination-survey.html" },
+  "protocol-revision-tolerance": { q: "服务端会不会答应一个根本不存在的协议版本？", art: "mcp-protocol-revision-tolerance.html" },
+  "session-enforcement": { q: "发出 session id 的服务端，会不会要求客户端带回来？", art: "mcp-session-enforcement.html" },
   "server-discover-support": { q: "有人实现 server/discover 吗？", art: "mcp-ecosystem-measurements.html" },
   "instructions-field": { q: "服务端写的 instructions 长文本会送到匿名客户端吗？", art: "mcp-ecosystem-measurements.html" },
-  "protocol-version-header": { q: "有人真的强制 MCP-Protocol-Version 头吗？", art: "mcp-protocol-version-header.md" },
-  "route-headers": { q: "Mcp-Method / Mcp-Name 头能把请求改道到正文没写的方法吗？", art: "mcp-route-headers.md" },
-  "get-stream-headers": { q: "没有正文的 GET 事件流，带不带这个头有区别吗？", art: "mcp-route-headers.md" },
-  "cache-hints-legacy-leg": { q: "在【不要求】缓存提示的那个修订下，有人声明吗？", art: "mcp-list-cache-hints.md" },
-  "cache-hints-modern-leg": { q: "在【要求】缓存提示的那个修订下，接受了该修订的服务端声明了吗？", art: "mcp-list-cache-hints.md" },
+  "protocol-version-header": { q: "有人真的强制 MCP-Protocol-Version 头吗？", art: "mcp-protocol-version-header.html" },
+  "route-headers": { q: "Mcp-Method / Mcp-Name 头能把请求改道到正文没写的方法吗？", art: "mcp-route-headers.html" },
+  "get-stream-headers": { q: "没有正文的 GET 事件流，带不带这个头有区别吗？", art: "mcp-route-headers.html" },
+  "cache-hints-legacy-leg": { q: "在【不要求】缓存提示的那个修订下，有人声明吗？", art: "mcp-list-cache-hints.html" },
+  "cache-hints-modern-leg": { q: "在【要求】缓存提示的那个修订下，接受了该修订的服务端声明了吗？", art: "mcp-list-cache-hints.html" },
 };
 
 const doc = JSON.parse(readFileSync(DATASET, "utf8"));

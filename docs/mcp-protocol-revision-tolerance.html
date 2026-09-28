@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Will an MCP server agree to a protocol version that does not exist? | Unified AI System</title>
+    <meta name="description" content="Run: 2026-09-27 15:29 UTC · Sample: 40 servers · Answered the handshake: 18 · Returned 502: 1 · Agreed to the impossible revision: 2" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="theme-color" content="#081011" />
+    <link rel="canonical" href="https://happy520ai.github.io/unified-ai-system/mcp-protocol-revision-tolerance.html" />
+      <link rel="alternate" hreflang="en" href="https://happy520ai.github.io/unified-ai-system/mcp-protocol-revision-tolerance.html" />
+    <link rel="sitemap" type="application/xml" href="sitemap.xml" />
+    <link rel="alternate" type="text/plain" href="llms.txt" title="LLM-readable project summary" />
+    <link rel="icon" type="image/png" href="assets/mcp-icon.png" />
+    <link rel="stylesheet" href="site.css" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Will an MCP server agree to a protocol version that does not exist?" />
+    <meta property="og:description" content="Run: 2026-09-27 15:29 UTC · Sample: 40 servers · Answered the handshake: 18 · Returned 502: 1 · Agreed to the impossible revision: 2" />
+    <meta property="og:url" content="https://happy520ai.github.io/unified-ai-system/mcp-protocol-revision-tolerance.html" />
+    <meta property="og:image" content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Will an MCP server agree to a protocol version that does not exist?" />
+    <meta name="twitter:description" content="Run: 2026-09-27 15:29 UTC · Sample: 40 servers · Answered the handshake: 18 · Returned 502: 1 · Agreed to the impossible revision: 2" />
+    <meta name="twitter:image" content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="index.html">Unified AI System</a>
+      <nav aria-label="Primary">
+        <a href="mcp-ecosystem-measurements.html">MCP measurements</a>
+        <a href="https://github.com/happy520ai/unified-ai-system">Repository</a>
+      </nav>
+    </header>
+    <main class="article">
+      <nav class="article-source" aria-label="Source">
+        Measured and written in the open: this page is generated from
+        <a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/mcp-protocol-revision-tolerance.md">mcp-protocol-revision-tolerance.md</a>.
+      </nav>
+      <h1>Will an MCP server agree to a protocol version that does not exist?</h1>
+    <p><strong>Run:</strong> 2026-09-27 15:29 UTC · <strong>Sample:</strong> 40 servers · <strong>Answered the handshake:</strong> 18 · <strong>Returned <code>502</code>:</strong> 1 · <strong>Agreed to the impossible revision:</strong> <strong>2</strong></p>
+    <p>The Model Context Protocol says a server must answer <code>initialize</code> with a revision it supports, and the revision is not decoration: it decides whether <code>MCP-Session-Id</code> is part of the contract, how server-initiated traffic works, and — in <code>2026-07-28</code> — whether the conversation is stateful at all. A server that echoes whatever the client asked for makes the handshake information-free, and a client cannot tell the difference from the inside.</p>
+    <p>So this is measured rather than assumed. It is also the field evidence behind <a href="https://github.com/happy520ai/unified-ai-system/issues/178">#178</a>: our own governed upstream client used to send a revision and never read the reply, so whatever a server decided here was invisible to us. That was the state of the code when this was measured. As of 2026-09-27 <code>master</code> records what each upstream answered and reports it per server on <code>GET /mcp/tools</code>; that is available from source and from the rolling <code>:latest</code> / <code>:master</code> image tags, which were built from <code>master</code> on 2026-09-27 - but not from the versioned <code>0.8.0</code> tag, which predates it. What the gateway should <em>do</em> about a server that names a different revision is still open on the issue.</p>
+    <h2>Method</h2>
+    <p><code>tools/survey-mcp-revision-tolerance.mjs</code> reads the official MCP registry for <code>streamable-http</code> records — the same first 40 endpoints, in the same order, as the <a href="https://happy520ai.github.io/unified-ai-system/mcp-tools-list-pagination-survey.md">pagination survey</a> — and sends each one <code>initialize</code> with:</p>
+    <pre class="language-json"><code>{ &quot;protocolVersion&quot;: &quot;9999-99-99&quot; }</code></pre>
+    <p>a revision that has never existed. One request per server, anonymous, no credentials, no writes.</p>
+    <h2>Result</h2>
+    <table><thead><tr><th>Verdict</th><th>Count</th><th>What it means</th></tr></thead><tbody><tr><td>Refused the anonymous handshake (<code>401</code>/<code>403</code>)</td><td>21</td><td>not measurable this way</td></tr><tr><td>Answered with a revision it supports</td><td>14</td><td>correct: 6 chose <code>2025-06-18</code>, 7 chose <code>2025-11-25</code>, 1 chose <code>2024-11-05</code></td></tr><tr><td>Returned a JSON-RPC error (HTTP <code>400</code>)</td><td>2</td><td>correct: strict rejection, the behaviour <code>2026-07-28</code> spells out</td></tr><tr><td><strong>Echoed <code>9999-99-99</code> with HTTP 200</strong></td><td><strong>2</strong></td><td><strong>agreed to a protocol version that does not exist</strong></td></tr><tr><td><code>502</code>, no version</td><td>1</td><td>upstream failure</td></tr></tbody></table>
+    <p>The two that agreed:</p>
+    <ul><li><code>ag.hood/name-service</code> — <code>https://www.hood.ag/api/mcp</code></li><li><code>ai.agent-bev/bev-door</code> — <code>https://mcp.bev-buyer.ai/mcp</code></li></ul>
+    <p>Of the 18 that produced a JSON-RPC answer, <strong>16 behaved correctly and 2 did not check</strong>: 14 named a revision they support, 2 rejected the request outright, 2 echoed the nonsense. A 19th endpoint returned <code>502</code> with no revision at all, which is neither a pass nor a failure of this check — it is an upstream that did not answer. That is the honest ratio: 2/18, not 2/40 — 21 of the 40 would not talk to an anonymous client, so they are outside this measurement rather than passing it.</p>
+    <p>The same seven-way tally came back unchanged when the script was re-run at 18:01 UTC on the same day (<code>auth_required</code> 21, <code>error_object</code> 2, <code>substituted_supported_version</code> 6, <code>AGREED_TO_THE_IMPOSSIBLE</code> 2, <code>answered_2025-11-25</code> 7, <code>no_version_502</code> 1, <code>answered_2024-11-05</code> 1). That caught an arithmetic error in the first version of this page, which described those 18 answers as 19 and counted the <code>502</code> as correct behaviour; the table above is the record, and the prose now adds up to it.</p>
+    <h2>The part that is more useful than the headline</h2>
+    <p>Seven servers answered <code>2025-11-25</code> when asked for the impossible revision, yet all seven answered <code>2025-06-18</code> when the pagination survey asked them for <code>2025-06-18</code> an hour earlier. Those two readings together say something a single probe cannot: <strong>the server supports both, honours a valid request, and falls back to its newest when the request is nonsense.</strong> So the fallback value is the more informative one — it is the revision the server would have preferred, the one a client never learns by asking politely.</p>
+    <p>One server, <code>ai.adoraads/beauty</code>, answered <code>2024-11-05</code> in <strong>both</strong> probes. Same endpoint, two different requests, same answer: that looks like a server pinned to one revision rather than noise, which is the exact case a gateway that ignores the reply cannot see.</p>
+    <h2>What this does not show</h2>
+    <ul><li>It is 18 observations, not a population. The sample is the registry's default order at one timestamp and over-represents server names beginning with <code>a</code>.</li><li>It tests <code>initialize</code> only. A server that echoes the revision may still enforce the semantics of a real one on every subsequent method — that would take a second request per server, and this survey deliberately did not go poking further into services that are not ours.</li><li>It says nothing about stdio servers, which are the majority of what people run and cannot be reached this way.</li><li>Both runs were taken within an hour of each other on 2026-09-27. Servers deploy; re-running is a new measurement, not a regression test.</li></ul>
+    <h2>Reproduce</h2>
+    <pre class="language-bash"><code>node tools/survey-mcp-revision-tolerance.mjs 40      # this page: does it check the revision?
+node tools/survey-mcp-tools-list-pagination.mjs 40   # the paired reading: does it paginate?
+node tools/survey-mcp-session-enforcement.mjs 40     # the third: does it require its own session id?</code></pre>
+    <p>Both scripts make outbound requests to third-party services that are not ours, and neither is wired into CI for that reason. Keep the timestamp with any number quoted from them.</p>
+    </main>
+    <footer class="site-footer">
+      <p>
+        Apache-2.0 · self-hosted · the numbers on this page are reproducible with one command
+        from the <a href="https://github.com/happy520ai/unified-ai-system">repository</a>.
+      </p>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Does an MCP server check the protocol-version header? | Unified AI System</title>
+    <meta name="description" content="Sample taken 2026-09-27, from the anonymous probe tools/survey-mcp-protocol-version-header.mjs 40." />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="theme-color" content="#081011" />
+    <link rel="canonical" href="https://happy520ai.github.io/unified-ai-system/mcp-protocol-version-header.html" />
+      <link rel="alternate" hreflang="en" href="https://happy520ai.github.io/unified-ai-system/mcp-protocol-version-header.html" />
+    <link rel="sitemap" type="application/xml" href="sitemap.xml" />
+    <link rel="alternate" type="text/plain" href="llms.txt" title="LLM-readable project summary" />
+    <link rel="icon" type="image/png" href="assets/mcp-icon.png" />
+    <link rel="stylesheet" href="site.css" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Does an MCP server check the protocol-version header?" />
+    <meta property="og:description" content="Sample taken 2026-09-27, from the anonymous probe tools/survey-mcp-protocol-version-header.mjs 40." />
+    <meta property="og:url" content="https://happy520ai.github.io/unified-ai-system/mcp-protocol-version-header.html" />
+    <meta property="og:image" content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Does an MCP server check the protocol-version header?" />
+    <meta name="twitter:description" content="Sample taken 2026-09-27, from the anonymous probe tools/survey-mcp-protocol-version-header.mjs 40." />
+    <meta name="twitter:image" content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="index.html">Unified AI System</a>
+      <nav aria-label="Primary">
+        <a href="mcp-ecosystem-measurements.html">MCP measurements</a>
+        <a href="https://github.com/happy520ai/unified-ai-system">Repository</a>
+      </nav>
+    </header>
+    <main class="article">
+      <nav class="article-source" aria-label="Source">
+        Measured and written in the open: this page is generated from
+        <a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/mcp-protocol-version-header.md">mcp-protocol-version-header.md</a>.
+      </nav>
+      <h1>Does an MCP server check the protocol-version header?</h1>
+    <p>Sample taken 2026-09-27, from the anonymous probe <code>tools/survey-mcp-protocol-version-header.mjs 40</code>.</p>
+    <p>The 2025-06-18 revision of MCP says a client MUST put <code>MCP-Protocol-Version</code> on every HTTP request after <code>initialize</code>, and that a server SHOULD reject a request whose header names a revision it did not agree to. Two questions follow, and they have different answers:</p>
+    <ol><li>Do public servers enforce it? In this sample: no, none of them.</li><li>Did our own gateway send it? No — and that second one was a defect regardless of the first.</li></ol>
+    <h2>What the sample says</h2>
+    <p>Of 40 <code>streamable-http</code> endpoints taken from the official MCP registry in its default order:</p>
+    <ul><li><code>auth_required</code>: 22</li><li><code>accepts_anything_we_tried</code>: 16</li><li><code>init_failed_400</code>: 1</li><li><code>init_failed_502</code>: 1</li></ul>
+    <p><strong>16 servers completed the handshake.</strong> For each, the same <code>tools/list</code> request was sent twice, differing by exactly one header — once naming the revision the server had answered with, once with the header absent entirely:</p>
+    <ul><li>served with the header: <strong>16/16</strong></li><li>served without the header: <strong>16/16</strong></li></ul>
+    <p>So enforcement is not a thing that is happening today. The honest reading is narrower than that, though: 16 answering servers is a small slice of a registry whose majority (<code>22</code>) sit behind OAuth, and the sample is one window of one ordering. It is evidence about September 2026, not a statement about the protocol.</p>
+    <h2>The one disagreement that mattered</h2>
+    <p>1 of the 16 servers that answered named a different revision than the one requested. For that server, asking <code>tools/list</code> while the header claimed the <em>requested</em> revision still worked. A permissive upstream, not a proof of safety: a conforming one is allowed to reject exactly that request.</p>
+    <h2>The rows</h2>
+    <table><thead><tr><th>server</th><th>answered revision</th><th>with header</th><th>without header</th><th>session id issued</th></tr></thead><tbody><tr><td>ac.tandem/docs-mcp</td><td>2025-06-18</td><td>served</td><td>served</td><td>no</td></tr><tr><td>ad.getle/leads</td><td>2025-06-18</td><td>served</td><td>served</td><td>no</td></tr><tr><td>ad.inside/inside-ads</td><td>2025-06-18</td><td>served</td><td>served</td><td>no</td></tr><tr><td>ag.hood/name-service</td><td>2025-06-18</td><td>served</td><td>served</td><td>no</td></tr><tr><td>agency.goji/goji</td><td>2025-06-18</td><td>served</td><td>served</td><td>no</td></tr><tr><td>agency.ottobot/business-contact-finder</td><td>2025-06-18</td><td>served</td><td>served</td><td>no</td></tr><tr><td>agency.ottobot/contractor-license-changes</td><td>2025-06-18</td><td>served</td><td>served</td><td>no</td></tr><tr><td>agency.ottobot/licensed-house-painters</td><td>2025-06-18</td><td>served</td><td>served</td><td>no</td></tr><tr><td>ai.adoraads/beauty</td><td>2024-11-05</td><td>served</td><td>served</td><td>no</td></tr><tr><td>ai.advisorsai/service-navigator</td><td>2025-06-18</td><td>served</td><td>served</td><td>no</td></tr><tr><td>ai.advisorsai/store-readiness</td><td>2025-06-18</td><td>served</td><td>served</td><td>no</td></tr><tr><td>ai.afg/afg</td><td>2025-06-18</td><td>served</td><td>served</td><td>yes</td></tr><tr><td>ai.afmr/discovery</td><td>2025-06-18</td><td>served</td><td>served</td><td>no</td></tr><tr><td>ai.afmr/discovery</td><td>2025-06-18</td><td>served</td><td>served</td><td>no</td></tr><tr><td>ai.agent-bev/bev-door</td><td>2025-06-18</td><td>served</td><td>served</td><td>no</td></tr><tr><td>ai.agentberg/agentberg</td><td>2025-06-18</td><td>served</td><td>served</td><td>yes</td></tr></tbody></table>
+    <h2>What we found in ourselves</h2>
+    <p>The gateway's own upstream client (<code>apps/ai-gateway-service/src/mcpGateway/mcpUpstreamClient.ts</code>) stores the session id the upstream issues and replays it on every later request. It did <strong>not</strong> do the same for the negotiated revision: it captured that value, reported it through <code>GET /mcp/tools</code>, and then never put it back on the wire. One server-issued value was treated as part of the contract and the other as decoration.</p>
+    <p>That asymmetry had a concrete failure shape, which the new tests pin. Before the fix, an operator-supplied <code>mcp-protocol-version</code> header was forwarded verbatim — so against an upstream that answers <code>2024-11-05</code> to a <code>2025-06-18</code> request, our client sent <code>2025-06-18</code> in the header: a revision the upstream had explicitly not agreed to, which is the request a conforming server is allowed to reject.</p>
+    <p>Now the post-handshake requests carry the revision the upstream <em>named</em>, never the one we asked for, and the <code>initialize</code> request itself carries none (the revision it proposes is in the body; a header asserting an agreement that has not happened yet is the wrong shape). An operator pin cannot outvote the server's answer.</p>
+    <p>Three arms prove the change rather than describe it: removing the one-line fix turns them red, and the operator-pin arm reports the exact wrong value (<code>2025-06-18</code>) on the wire. Two further arms — an upstream that answers no revision, and one that answers an empty string — stay green in both states by design: they are there to catch a future fallback, not to prove this one.</p>
+    <h2>What our own server does, observed rather than read out of source</h2>
+    <p><code>tools/probe-own-mcp-header-behavior.mjs</code> boots <code>packages/mcp-server/src/http.js</code> in-process on the credential-free local runtime, asks it to <code>initialize</code>, then sends the same <code>tools/list</code> under three header shapes:</p>
+    <ul><li>answered revision: <strong>2025-06-18</strong>, asked: 2025-06-18, session id issued: <strong>no</strong>, tools served: <strong>15</strong></li><li>header present: http 200, 15 tools</li><li>header absent: http 200, 15 tools</li><li>header naming a revision this server never agreed to: http 200, 15 tools</li></ul>
+    <p>So we are one of the permissive ones, and that is now an observation instead of a code reading. The probe refuses to publish any of it if its own baseline leg fails to reach a tool list: <code>--tamper-blind</code> sends the request to a path one character off, and that run exits 3 with <code>INSTRUMENT_BLIND</code> and the sentence <code>this run says nothing about header handling</code> - because a misconfigured probe otherwise looks exactly like a server that accepted everything.</p>
+    <h2>Deliberately not claimed</h2>
+    <ul><li>That this fixed an interoperability failure. Nothing in the sample rejects a headerless request today.</li><li>That the header is unimportant. The sample says who enforces it <em>now</em>; the spec says what a client owes.</li><li>That our HTTP server enforces inbound revisions. It advertises the header over CORS and does not read its</li></ul>
+    <p>  value — measured behaviour, and a documented choice: the gateway negotiates and records revisions   (<code>#178</code>) rather than dropping connections that name a different one.</p>
+    <ul><li>The <code>claude-code-patterns</code> demo client was left alone: it has no session handling either, and nothing in the</li></ul>
+    <p>  product path imports it outside tests. Recorded, not silently doubled.</p>
+    <h2>Reproduce</h2>
+    <pre class="language-bash"><code>node tools/survey-mcp-protocol-version-header.mjs 40   # anonymous, read-only, one window
+node tools/probe-own-mcp-header-behavior.mjs              # our own server, local runtime, no credentials
+node tools/probe-own-mcp-header-behavior.mjs --tamper-blind   # must exit 3: the probe can refuse
+npx vitest run apps/ai-gateway-service/src/mcpGateway/mcpGateway.test.ts   # the five client arms</code></pre>
+    </main>
+    <footer class="site-footer">
+      <p>
+        Apache-2.0 · self-hosted · the numbers on this page are reproducible with one command
+        from the <a href="https://github.com/happy520ai/unified-ai-system">repository</a>.
+      </p>
+    </footer>
+  </body>
+</html>

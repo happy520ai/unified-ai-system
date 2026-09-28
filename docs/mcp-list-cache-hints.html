@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Do MCP servers say how long their tool list may be cached? | Unified AI System</title>
+    <meta name="description" content="Sample taken 2026-09-27 by tools/survey-mcp-list-cache-hints.mjs 40." />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="theme-color" content="#081011" />
+    <link rel="canonical" href="https://happy520ai.github.io/unified-ai-system/mcp-list-cache-hints.html" />
+      <link rel="alternate" hreflang="en" href="https://happy520ai.github.io/unified-ai-system/mcp-list-cache-hints.html" />
+    <link rel="sitemap" type="application/xml" href="sitemap.xml" />
+    <link rel="alternate" type="text/plain" href="llms.txt" title="LLM-readable project summary" />
+    <link rel="icon" type="image/png" href="assets/mcp-icon.png" />
+    <link rel="stylesheet" href="site.css" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Do MCP servers say how long their tool list may be cached?" />
+    <meta property="og:description" content="Sample taken 2026-09-27 by tools/survey-mcp-list-cache-hints.mjs 40." />
+    <meta property="og:url" content="https://happy520ai.github.io/unified-ai-system/mcp-list-cache-hints.html" />
+    <meta property="og:image" content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Do MCP servers say how long their tool list may be cached?" />
+    <meta name="twitter:description" content="Sample taken 2026-09-27 by tools/survey-mcp-list-cache-hints.mjs 40." />
+    <meta name="twitter:image" content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="index.html">Unified AI System</a>
+      <nav aria-label="Primary">
+        <a href="mcp-ecosystem-measurements.html">MCP measurements</a>
+        <a href="https://github.com/happy520ai/unified-ai-system">Repository</a>
+      </nav>
+    </header>
+    <main class="article">
+      <nav class="article-source" aria-label="Source">
+        Measured and written in the open: this page is generated from
+        <a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/mcp-list-cache-hints.md">mcp-list-cache-hints.md</a>.
+      </nav>
+      <h1>Do MCP servers say how long their tool list may be cached?</h1>
+    <p>Sample taken 2026-09-27 by <code>tools/survey-mcp-list-cache-hints.mjs 40</code>.</p>
+    <p>A gateway has to decide how long to keep a cached tool list. The spec gives servers a way to answer that: <code>ttlMs</code> and <code>cacheScope</code> on a list result. So the question is not what our policy should be in the abstract, it is how often an upstream actually tells us anything - because a policy built for a signal nobody sends is just overhead.</p>
+    <p>The probe records <strong>structure only</strong>: field presence, type, numeric buckets, counts. No tool name, description or any other server-authored text is copied out of the response.</p>
+    <h2>What the sample says</h2>
+    <p>Of 40 endpoints in the registry's default order:</p>
+    <ul><li><code>auth_required</code>: 22</li><li><code>no_cache_hint_declared</code>: 15</li><li><code>RESULT_LEVEL_HINT</code>: 1</li><li><code>init_failed_400</code>: 1</li><li><code>init_failed_502</code>: 1</li></ul>
+    <p><strong>16 returned a tool list. 15 of them declared no cache hint at all, and 1 declared one.</strong></p>
+    <ul><li><code>ad.getle/leads</code> answered at the result level with ttlMs=300000 and cacheScope=private.</li></ul>
+    <h2>What we did with that, and what it does not justify</h2>
+    <p>Our gateway used to cache every upstream's list for a hard-coded 60 seconds and shared it across tenants, reading neither field. One declarant in sixteen is not a large enough signal to invent a policy engine, so the change stayed small and boring:</p>
+    <ul><li>A declared <code>ttlMs</code> is honoured, clamped to 1,000..600,000 ms. The one server in this sample that</li></ul>
+    <p>  declared anything said 300,000, which is inside that band and becomes 300000 ms.</p>
+    <ul><li>No declaration keeps the previous 60 seconds <strong>exactly</strong> - the 15-of-16 path is the unchanged path.</li><li><code>cacheScope: &quot;private&quot;</code> keys the cache per tenant instead of sharing one entry.</li></ul>
+    <p>The floor and the ceiling are ours, not the server's, and they are written down because a declared <code>0</code> would otherwise turn every <code>/mcp/tools</code> read into a fresh upstream handshake (we measure that handshake at 6.4 s on a quiet machine) and a declared decade would let one response freeze a tool list indefinitely. A number from the network is an input to a policy, not the policy.</p>
+    <h2>The part worth more than the timing</h2>
+    <p>That declarant also said <code>cacheScope: private</code>, and we were putting the response in a process-global map keyed by upstream id, served to every tenant allowed on that server. <strong>Nothing was leaked</strong>, and saying otherwise would be marketing: <code>listTools()</code> receives no caller identity and the upstream request is built from server config, so the content genuinely is the same for every tenant today.</p>
+    <p>What was wrong was the shape - a cache built as though sharing were always safe. The first person to forward a per-caller token or a tenant-derived header into an upstream list call would have been serving tenant A's list to tenant B out of a key neither of them owned, and no code would have objected. Fixing the shape costs one key; auditing it after that change lands costs a disclosure.</p>
+    <h2>The same question at the revision that requires the answer</h2>
+    <p>Everything counted above was counted on a connection the server agreed to run at <code>2025-06-18</code>, where <code>ttlMs</code> and <code>cacheScope</code> are <strong>not required</strong>. So that sentence describes legacy-negotiated traffic and cannot be read as conformance in either direction. The older artifact also predates the per-row revision fields, so that run cannot re-derive what each server answered - which is why this section is written against a second capture.</p>
+    <p>Re-asked 2026-09-28 with <code>tools/survey-mcp-list-cache-hints.mjs 40 --revision 2026-07-28</code>: of 40 endpoints, 13 returned a tool list and only 3 of those actually negotiated <code>2026-07-28</code>; the rest answered an older revision, where sending neither field is correct behaviour. <strong>Of the modern-negotiated responders, 0 of 3 sent both <code>ttlMs</code> and <code>cacheScope</code>.</strong></p>
+    <p>Paired control, same instrument and same day, asking for the older revision: both legs touched exactly the same 40 endpoints. At the older revision 17 returned a tool list and 1 of those declared a hint; at the newer revision 13 returned a list and 0 of those declared one. Asking for the newer revision therefore costs 4 of those list answers, and the extra failures are HTTP 400 on initialize (6 in the modern leg against 1 in the legacy leg) rather than a negotiation down to an older revision. The registry's first rows also shift from day to day, which is why this page pairs same-day legs instead of comparing across days.</p>
+    <p>Two readings are available here and only one is comfortable: most public endpoints in this sample decline the revision that requires the fields, and inside the small part that accepts it, nearly all of them still omit them. The second is exactly the population a strict validator bites - so a client that rejects an absent hint is not enforcing a widely-implemented rule; on this sample it is enforcing one that the few servers advertising support for it almost universally fail. Small n, one window, one ordering, and 20 endpoints sat behind OAuth where behaviour is unknown rather than absent.</p>
+    <h2>The shape of the refusal, which is the part no client can work around</h2>
+    <p>Joining the two same-day legs by endpoint, 5 of the servers that answered the older revision return HTTP 400 to the newer one instead of replying with their latest supported revision. A further 1 failed with 400 in both legs, so they are not a negotiation story and are counted separately rather than folded in.</p>
+    <p>A 400 leaves a client nothing to downgrade from, so the endpoint does not fall back to an older era - it simply disappears for a newer-era client. That is what bounds every declaration statistic on this page: only 3 of 40 endpoints could be asked whether they send the new fields at all, and among those the answer was that none of them do.</p>
+    <p>Individual endpoints are deliberately not named here. The argument is the failure shape and the rate; a list of small servers would be the less useful and less fair way to make it.</p>
+    <h2>Our own server, measured at both revisions</h2>
+    <p>At the revision this repo's own probe negotiates, our result keys are <code>tools</code>, per-tool fields <code>name, title, description, inputSchema, annotations</code>: <code>ttlMs</code> present: <strong>false</strong>, <code>cacheScope</code> present: <strong>false</strong>. That is legitimate at <code>2025-06-18</code>, and an earlier version of this page wrote it up as though it settled what we send under the new revision. It did not - and the sentence was wrong in the direction of being <em>more</em> self-critical than the truth.</p>
+    <p>Under a real modern negotiation we do send both fields. Captured through a stdio tee that records whole frames (no truncation; per-frame byte length asserted) while a pinned official client reached <code>2026-07-28</code>: our server answered <code>server/discover</code> with <code>supportedVersions: [&quot;2026-07-28&quot;]</code>, and its <code>tools/list</code> result carried keys <code>tools, resultType, ttlMs, cacheScope, _meta</code>. So the honest contrast is not that we hide in the silent majority: most endpoints decline the revision, those that accept it mostly omit what it then requires, and our server is in the minority that fills the fields in.</p>
+    <h2>Deliberately not claimed</h2>
+    <ul><li>That the rate is stable. One window, one ordering, 22 of 40 endpoints behind OAuth where</li></ul>
+    <p>  behaviour is unknown rather than absent.</p>
+    <ul><li>That 1-of-16 means the feature is unimportant. It means the <em>timing</em> half is; the sharing half is</li></ul>
+    <p>  about a property of our own cache that no server had to declare for us to get wrong.</p>
+    <ul><li>That <code>resources/list</code> or <code>prompts/list</code> carry hints too. Only <code>tools/list</code> was examined.</li></ul>
+    <h2>Reproduce</h2>
+    <pre class="language-bash"><code>node tools/survey-mcp-list-cache-hints.mjs 40 --revision 2025-06-18   # the leg above
+node tools/survey-mcp-list-cache-hints.mjs 40 --revision 2026-07-28   # the modern leg
+node tools/compare-mcp-revision-legs.mjs modern.json legacy.json      # refuses unless the two legs
+                                                                      # cover the same endpoints
+node tools/probe-own-mcp-header-behavior.mjs
+node tools/render-mcp-cache-hints-doc.mjs</code></pre>
+    </main>
+    <footer class="site-footer">
+      <p>
+        Apache-2.0 · self-hosted · the numbers on this page are reproducible with one command
+        from the <a href="https://github.com/happy520ai/unified-ai-system">repository</a>.
+      </p>
+    </footer>
+  </body>
+</html>

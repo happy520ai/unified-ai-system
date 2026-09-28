@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Does anyone's `tools/list` actually paginate? A measurement. | Unified AI System</title>
+    <meta name="description" content="Run: 2026-09-27 15:11 UTC · Sample: 40 servers · Servers that answered: 16 · Servers that paginated: 0" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="theme-color" content="#081011" />
+    <link rel="canonical" href="https://happy520ai.github.io/unified-ai-system/mcp-tools-list-pagination-survey.html" />
+      <link rel="alternate" hreflang="en" href="https://happy520ai.github.io/unified-ai-system/mcp-tools-list-pagination-survey.html" />
+    <link rel="sitemap" type="application/xml" href="sitemap.xml" />
+    <link rel="alternate" type="text/plain" href="llms.txt" title="LLM-readable project summary" />
+    <link rel="icon" type="image/png" href="assets/mcp-icon.png" />
+    <link rel="stylesheet" href="site.css" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Does anyone's `tools/list` actually paginate? A measurement." />
+    <meta property="og:description" content="Run: 2026-09-27 15:11 UTC · Sample: 40 servers · Servers that answered: 16 · Servers that paginated: 0" />
+    <meta property="og:url" content="https://happy520ai.github.io/unified-ai-system/mcp-tools-list-pagination-survey.html" />
+    <meta property="og:image" content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Does anyone's `tools/list` actually paginate? A measurement." />
+    <meta name="twitter:description" content="Run: 2026-09-27 15:11 UTC · Sample: 40 servers · Servers that answered: 16 · Servers that paginated: 0" />
+    <meta name="twitter:image" content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="index.html">Unified AI System</a>
+      <nav aria-label="Primary">
+        <a href="mcp-ecosystem-measurements.html">MCP measurements</a>
+        <a href="https://github.com/happy520ai/unified-ai-system">Repository</a>
+      </nav>
+    </header>
+    <main class="article">
+      <nav class="article-source" aria-label="Source">
+        Measured and written in the open: this page is generated from
+        <a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/mcp-tools-list-pagination-survey.md">mcp-tools-list-pagination-survey.md</a>.
+      </nav>
+      <h1>Does anyone's <code>tools/list</code> actually paginate? A measurement.</h1>
+    <p><strong>Run:</strong> 2026-09-27 15:11 UTC · <strong>Sample:</strong> 40 servers · <strong>Servers that answered:</strong> 16 · <strong>Servers that paginated:</strong> 0</p>
+    <p>This exists because <a href="https://github.com/happy520ai/unified-ai-system/issues/177">issue #177</a> was closed with an honest caveat: the fix walks a paginated <code>tools/list</code> to the end and refuses to present a truncated enumeration as complete, and that behaviour is executed by tests — but <em>no test had ever observed a real third-party server paginate</em>. The bounds in that fix (20 pages, 2,000 tools, dedupe by name, hard error on a repeated cursor) were therefore a stance about a protocol feature, not a survey of it. This page is the survey.</p>
+    <h2>Method</h2>
+    <p><code>tools/survey-mcp-tools-list-pagination.mjs</code> reads <code>https://registry.modelcontextprotocol.io/v0/servers</code> (the official MCP registry), takes records that advertise a <code>streamable-http</code> remote, and sends each one:</p>
+    <ol><li>an anonymous <code>initialize</code> declaring protocol revision <code>2025-06-18</code>,</li><li>a <code>tools/list</code> using the returned session id when the server issued one,</li><li>a second <code>tools/list</code> with the returned cursor — <strong>only</strong> if the first response carried a <code>nextCursor</code>.</li></ol>
+    <p>No credentials are used or requested, nothing is written, and no server is called more than three times. Requests are sequential with a short delay.</p>
+    <p><strong>The sample is not random.</strong> It is the first 40 <code>streamable-http</code> endpoints in the registry's default order at that timestamp, which is alphabetical by server identifier — so it over-represents names starting with <code>a</code>/<code>ac</code>/<code>ad</code>/<code>ae</code>/<code>ag</code>. Treat it as a snapshot, not as a population estimate.</p>
+    <h2>Result</h2>
+    <p>Of 40 attempted:</p>
+    <table><thead><tr><th>Outcome</th><th>Count</th></tr></thead><tbody><tr><td>Answered <code>initialize</code> and returned a tool list</td><td>16</td></tr><tr><td>Rejected anonymously (<code>401</code>)</td><td>21</td></tr><tr><td>Rejected anonymously (<code>403</code>)</td><td>1</td></tr><tr><td><code>400</code> on <code>initialize</code></td><td>1</td></tr><tr><td><code>502</code>, no result</td><td>1</td></tr></tbody></table>
+    <p>The 16 that answered:</p>
+    <table><thead><tr><th>Server</th><th>Endpoint</th><th>Tools on page 1</th><th>Revision answered</th><th>Transport shape</th><th><code>nextCursor</code>?</th></tr></thead><tbody><tr><td><code>ad.getle/leads</code></td><td><code>mcp.getle.ad/mcp</code></td><td>35</td><td>2025-06-18</td><td>JSON</td><td>no</td></tr><tr><td><code>ai.afg/afg</code></td><td><code>afg.ai/mcp</code></td><td>18</td><td>2025-06-18</td><td>SSE</td><td>no</td></tr><tr><td><code>ac.tandem/docs-mcp</code></td><td><code>tandem.ac/mcp</code></td><td>13</td><td>2025-06-18</td><td>JSON</td><td>no</td></tr><tr><td><code>ai.agentberg/agentberg</code></td><td><code>agentberg.ai/mcp</code></td><td>11</td><td>2025-06-18</td><td>SSE</td><td>no</td></tr><tr><td><code>agency.goji/goji</code></td><td><code>mcp.goji.agency/mcp</code></td><td>9</td><td>2025-06-18</td><td>SSE</td><td>no</td></tr><tr><td><code>ai.adoraads/beauty</code></td><td><code>mcp.adoraads.ai/beauty</code></td><td>6</td><td><strong>2024-11-05</strong></td><td>JSON</td><td>no</td></tr><tr><td><code>ai.agent-bev/bev-door</code></td><td><code>mcp.bev-buyer.ai/mcp</code></td><td>6</td><td>2025-06-18</td><td>JSON</td><td>no</td></tr><tr><td><code>ag.hood/name-service</code></td><td><code>www.hood.ag/api/mcp</code></td><td>5</td><td>2025-06-18</td><td>JSON</td><td>no</td></tr><tr><td><code>ai.advisorsai/service-navigator</code></td><td><code>advisorsai.ai/mcp</code></td><td>5</td><td>2025-06-18</td><td>JSON</td><td>no</td></tr><tr><td><code>ai.afmr/discovery</code></td><td><code>afmr.ai/api/rpc</code></td><td>4</td><td>2025-06-18</td><td>JSON</td><td>no</td></tr><tr><td><code>ai.afmr/discovery</code></td><td><code>afmr.ai/mcp</code></td><td>4</td><td>2025-06-18</td><td>JSON</td><td>no</td></tr><tr><td><code>ad.inside/inside-ads</code></td><td><code>app.inside.ad/api/mcp</code></td><td>3</td><td>2025-06-18</td><td>JSON</td><td>no</td></tr><tr><td><code>agency.ottobot/licensed-house-painters</code></td><td><code>house-painters-mcp.ottobot2025.workers.dev/mcp</code></td><td>3</td><td>2025-06-18</td><td>JSON</td><td>no</td></tr><tr><td><code>agency.ottobot/contractor-license-changes</code></td><td><code>license-changes-mcp.ottobot2025.workers.dev/mcp</code></td><td>2</td><td>2025-06-18</td><td>JSON</td><td>no</td></tr><tr><td><code>agency.ottobot/business-contact-finder</code></td><td><code>business-contact-finder-mcp.ottobot2025.workers.dev/mcp</code></td><td>1</td><td>2025-06-18</td><td>JSON</td><td>no</td></tr><tr><td><code>ai.advisorsai/store-readiness</code></td><td><code>advisorsai.ai/store-readiness-mcp</code></td><td>1</td><td>2025-06-18</td><td>JSON</td><td>no</td></tr></tbody></table>
+    <p>Three things are worth more than the headline:</p>
+    <ol><li><strong>0 of 16 emitted <code>nextCursor</code>.</strong> The largest list seen was 35 tools, returned in one page. So today the pagination path in our gateway is insurance against a server that has not been met yet — which is the honest way to describe a fix for an unobserved failure, and the way #177 should be read.</li><li><strong>1 of 16 answered with <code>2024-11-05</code></strong> after being asked with <code>2025-06-18</code>. A server in the wild <em>does</em> pick an older revision than the client declared. That is the concrete case for <a href="https://github.com/happy520ai/unified-ai-system/issues/178">#178</a>: when this was measured, our governed upstream client sent a revision and never read the answer, so a negotiation like this one was invisible to us and to its callers. <code>master</code> now captures the answer and publishes it per upstream in the <code>servers</code> array of <code>GET /mcp/tools</code> - available from source and from the rolling <code>:latest</code> / <code>:master</code> image tags, which were built from <code>master</code> on 2026-09-27 - but not from the versioned <code>0.8.0</code> tag, which predates it - and whether a mismatching revision should be refused or merely reported is still being decided on the issue.</li><li><strong>22 of 40 advertised remote endpoints cannot be introspected anonymously</strong> (401/403). Any claim of the form &quot;N% of MCP servers do X&quot; that was measured this way is really a claim about the fraction that lets you look.</li></ol>
+    <h2>What this does not show</h2>
+    <ul><li>It does not show that no MCP server paginates. 22 of the 40 refused the anonymous handshake (21x <code>401</code>, 1x <code>403</code>) and 2 more failed before <code>tools/list</code> was reached, so 24 were never asked - and the sample is alphabetical, not random.</li><li>It does not show a size threshold. The spec gives no &quot;paginate after N tools&quot; rule, and the largest list observed here (35) is well under our 2,000-tool bound, so the bound is a guard against pathological answers, not a fitted parameter.</li><li>It says nothing about stdio servers. This method can only reach advertised HTTP remotes; the stdio population is larger and is not addressed here.</li><li>It is one timestamp. Servers change; a re-run is a new measurement, not a regression test.</li></ul>
+    <h2>Reproduce</h2>
+    <pre class="language-bash"><code>node tools/survey-mcp-tools-list-pagination.mjs 40</code></pre>
+    <p>The script prints a JSON tally plus one row per server. It makes outbound requests to third-party services that are not ours; run it knowingly, and keep the timestamp with any number you quote from it.</p>
+    <h2>Related measurement</h2>
+    <p>The same 40 endpoints were asked a second question an hour later: <strong>will they agree to a protocol revision that does not exist?</strong> Two of the eighteen that produced a JSON-RPC answer echoed <code>9999-99-99</code> with HTTP 200, and one server answered <code>2024-11-05</code> to both probes. See <a href="https://happy520ai.github.io/unified-ai-system/mcp-protocol-revision-tolerance.md">mcp-protocol-revision-tolerance.md</a>.</p>
+    </main>
+    <footer class="site-footer">
+      <p>
+        Apache-2.0 · self-hosted · the numbers on this page are reproducible with one command
+        from the <a href="https://github.com/happy520ai/unified-ai-system">repository</a>.
+      </p>
+    </footer>
+  </body>
+</html>

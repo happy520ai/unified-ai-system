@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>If an MCP server hands you a session id, does it require it back? | Unified AI System</title>
+    <meta name="description" content="Run: 2026-09-27 15:57 UTC · Sample: 40 servers · Answered initialize: 16 · Issued a session id: 2 · Issued one and then ignored it: 0" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="theme-color" content="#081011" />
+    <link rel="canonical" href="https://happy520ai.github.io/unified-ai-system/mcp-session-enforcement.html" />
+      <link rel="alternate" hreflang="en" href="https://happy520ai.github.io/unified-ai-system/mcp-session-enforcement.html" />
+    <link rel="sitemap" type="application/xml" href="sitemap.xml" />
+    <link rel="alternate" type="text/plain" href="llms.txt" title="LLM-readable project summary" />
+    <link rel="icon" type="image/png" href="assets/mcp-icon.png" />
+    <link rel="stylesheet" href="site.css" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="If an MCP server hands you a session id, does it require it back?" />
+    <meta property="og:description" content="Run: 2026-09-27 15:57 UTC · Sample: 40 servers · Answered initialize: 16 · Issued a session id: 2 · Issued one and then ignored it: 0" />
+    <meta property="og:url" content="https://happy520ai.github.io/unified-ai-system/mcp-session-enforcement.html" />
+    <meta property="og:image" content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="If an MCP server hands you a session id, does it require it back?" />
+    <meta name="twitter:description" content="Run: 2026-09-27 15:57 UTC · Sample: 40 servers · Answered initialize: 16 · Issued a session id: 2 · Issued one and then ignored it: 0" />
+    <meta name="twitter:image" content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="index.html">Unified AI System</a>
+      <nav aria-label="Primary">
+        <a href="mcp-ecosystem-measurements.html">MCP measurements</a>
+        <a href="https://github.com/happy520ai/unified-ai-system">Repository</a>
+      </nav>
+    </header>
+    <main class="article">
+      <nav class="article-source" aria-label="Source">
+        Measured and written in the open: this page is generated from
+        <a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/mcp-session-enforcement.md">mcp-session-enforcement.md</a>.
+      </nav>
+      <h1>If an MCP server hands you a session id, does it require it back?</h1>
+    <p><strong>Run:</strong> 2026-09-27 15:57 UTC · <strong>Sample:</strong> 40 servers · <strong>Answered <code>initialize</code>:</strong> 16 · <strong>Issued a session id:</strong> 2 · <strong>Issued one and then ignored it:</strong> <strong>0</strong></p>
+    <p>The <code>2026-07-28</code> revision moves MCP from a stateful <code>initialize</code> handshake toward per-request state, and a lot of gateway work right now is deciding what to do about that. This is one input nobody had: how much of the <em>deployed</em> remote-server population is actually stateful, and whether the ones that look stateful are.</p>
+    <p>A server that issues <code>MCP-Session-Id</code> and then accepts requests without it has created a token that means nothing — and a gateway cannot tell &quot;this upstream is stateless&quot; from &quot;this upstream forgot to check&quot;. Only the second one is a bug, and it is invisible from the happy path.</p>
+    <h2>Method</h2>
+    <p><code>tools/survey-mcp-session-enforcement.mjs</code> takes the same first 40 <code>streamable-http</code> endpoints from the official MCP registry as the <a href="https://happy520ai.github.io/unified-ai-system/mcp-tools-list-pagination-survey.md">pagination</a> and <a href="https://happy520ai.github.io/unified-ai-system/mcp-protocol-revision-tolerance.md">revision-tolerance</a> surveys, and per server:</p>
+    <ol><li><code>initialize</code> with a valid revision and records whether <code>MCP-Session-Id</code> came back,</li><li>sends <code>notifications/initialized</code> with that session,</li><li>calls <code>tools/list</code> <strong>with</strong> the header, then <code>tools/list</code> <strong>without</strong> it.</li></ol>
+    <p>The last two requests differ in exactly one header, so a rejection cannot be blamed on some other field the client forgot to send. Anonymous, read-only, no credentials, nothing written.</p>
+    <h2>Result</h2>
+    <table><thead><tr><th>Outcome</th><th>Count</th></tr></thead><tbody><tr><td>Refused an anonymous handshake (<code>401</code>/<code>403</code>)</td><td>22</td></tr><tr><td><code>initialize</code> failed (<code>400</code>, <code>502</code>)</td><td>2</td></tr><tr><td>Answered, issued <strong>no</strong> session id, and served <code>tools/list</code> without one</td><td>14</td></tr><tr><td>Issued a session id and <strong>required</strong> it (<code>400</code> without)</td><td>2</td></tr><tr><td>Issued a session id and then ignored it</td><td><strong>0</strong></td></tr></tbody></table>
+    <p>The two that require a session:</p>
+    <ul><li><code>ai.afg/afg</code> — <code>https://afg.ai/mcp</code> (18 tools, <code>400</code> without the id)</li><li><code>ai.agentberg/agentberg</code> — <code>https://agentberg.ai/mcp</code> (11 tools, <code>400</code> without the id)</li></ul>
+    <h2>The part worth more than the headline</h2>
+    <p>Both of those servers are also in the seven that answered <code>2025-11-25</code> when the revision-tolerance probe asked them for <code>9999-99-99</code>, and both replied over SSE rather than plain JSON. So in this sample the stateful servers are not a random tail — <strong>they are the ones that negotiate up</strong>, which is the opposite of what a &quot;stateless is taking over&quot; reading would predict.</p>
+    <p>For anyone writing a gateway that means something concrete: you cannot assume statelessness (2 of 16 responders need the session back), and you also cannot assume an issued id is decorative (0 of 2 were). The safe shape is to store whatever the upstream issued and replay it, and to treat &quot;no session id&quot; as a per-upstream property discovered at connect time rather than a global assumption about the protocol.</p>
+    <h2>What this does not show</h2>
+    <ul><li>22 of 40 would not talk to an anonymous client, so the denominator is 16 observations, not 40.</li><li>n=2 for the stateful case. It establishes that stateful remote servers exist in the registry today and enforce it correctly; it does not estimate how many there are.</li><li>Only <code>tools/list</code> was probed. A server could enforce a session on <code>tools/call</code> and not on reads, or vice versa; that would require actually invoking tools, which means doing things on services that are not ours.</li><li>Same alphabetical slice of the registry, same single timestamp, no stdio coverage.</li></ul>
+    <h2>Reproduce</h2>
+    <pre class="language-bash"><code>node tools/survey-mcp-session-enforcement.mjs 40</code></pre>
+    <p>All three surveys run against the same sample, take about two minutes each, and are deliberately outside CI because they measure other people's servers. Keep the timestamp with any number quoted from them.</p>
+    </main>
+    <footer class="site-footer">
+      <p>
+        Apache-2.0 · self-hosted · the numbers on this page are reproducible with one command
+        from the <a href="https://github.com/happy520ai/unified-ai-system">repository</a>.
+      </p>
+    </footer>
+  </body>
+</html>

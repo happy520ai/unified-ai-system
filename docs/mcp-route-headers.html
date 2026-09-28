@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Does an MCP server route by the `Mcp-Method` header? | Unified AI System</title>
+    <meta name="description" content="Measured 2026-09-27 by tools/survey-mcp-route-headers.mjs 40." />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="theme-color" content="#081011" />
+    <link rel="canonical" href="https://happy520ai.github.io/unified-ai-system/mcp-route-headers.html" />
+      <link rel="alternate" hreflang="en" href="https://happy520ai.github.io/unified-ai-system/mcp-route-headers.html" />
+    <link rel="sitemap" type="application/xml" href="sitemap.xml" />
+    <link rel="alternate" type="text/plain" href="llms.txt" title="LLM-readable project summary" />
+    <link rel="icon" type="image/png" href="assets/mcp-icon.png" />
+    <link rel="stylesheet" href="site.css" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Does an MCP server route by the `Mcp-Method` header?" />
+    <meta property="og:description" content="Measured 2026-09-27 by tools/survey-mcp-route-headers.mjs 40." />
+    <meta property="og:url" content="https://happy520ai.github.io/unified-ai-system/mcp-route-headers.html" />
+    <meta property="og:image" content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Does an MCP server route by the `Mcp-Method` header?" />
+    <meta name="twitter:description" content="Measured 2026-09-27 by tools/survey-mcp-route-headers.mjs 40." />
+    <meta name="twitter:image" content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="index.html">Unified AI System</a>
+      <nav aria-label="Primary">
+        <a href="mcp-ecosystem-measurements.html">MCP measurements</a>
+        <a href="https://github.com/happy520ai/unified-ai-system">Repository</a>
+      </nav>
+    </header>
+    <main class="article">
+      <nav class="article-source" aria-label="Source">
+        Measured and written in the open: this page is generated from
+        <a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/mcp-route-headers.md">mcp-route-headers.md</a>.
+      </nav>
+      <h1>Does an MCP server route by the <code>Mcp-Method</code> header?</h1>
+    <p>Measured 2026-09-27 by <code>tools/survey-mcp-route-headers.mjs 40</code>.</p>
+    <p>The spec puts <code>Mcp-Method</code> and <code>Mcp-Name</code> on requests so a server can route a <strong>body-less</strong> GET stream. A POST that already carries a JSON-RPC body does not need them - which is why the question is worth measuring rather than assuming: if a server reads the header even when the body disagrees with it, then a caller can point it at a method it never wrote down.</p>
+    <h2>The two legs</h2>
+    <p>Byte-identical JSON-RPC bodies (<code>tools/list</code>), differing by exactly one header pair:</p>
+    <ul><li>baseline: no <code>Mcp-Method</code> at all - the positive control, it must return <code>result.tools</code></li><li>spoof:  - if this comes back with , or an error</li></ul>
+    <p>  naming <code>prompts/list</code>, the server looked at the header</p>
+    <p>Read-only throughout: <code>tools/list</code> and <code>prompts/list</code> are discovery. There is no <code>tools/call</code> leg, because invoking a stranger's tool is not something an anonymous survey gets to do.</p>
+    <h2>What the sample says</h2>
+    <p>Of 40 endpoints in the registry's default order:</p>
+    <ul><li><code>auth_required</code>: 22</li><li><code>body_wins</code>: 16</li><li><code>init_failed_400</code>: 1</li><li><code>init_failed_502</code>: 1</li></ul>
+    <p><strong>All 16 servers that gave a comparable pair served the method written in the body. None could be routed by a header.</strong></p>
+    <p>Not one endpoint in this window could be pointed at a method its caller never wrote down - which is the useful negative, because it is the failure mode the upstream header-vs-body issues are worried about, and it did not appear.</p>
+    <h2>The no-body case, measured as well</h2>
+    <p><code>tools/survey-mcp-get-stream-headers.mjs 40</code> asks the question the POST legs could not: after a real handshake, send <strong>GET</strong> with <code>accept: text/event-stream</code>, once with no routing hint and once adding <code>Mcp-Method: prompts/list</code>, and compare the shapes. Because a held-open stream can hang and a hang looks like a status difference, each server also gets a <strong>third leg - the plain GET again</strong>, so an ordering effect cannot be mistaken for a header effect.</p>
+    <p>Of 40 endpoints: 22 behind OAuth, 3 where at least one leg never answered (counted separately, never as a negative), and <strong>13 with a readable GET leg on both sides</strong>.</p>
+    <ul><li><code>auth_required</code>: 22</li><li><code>get_rejected_alike</code>: 10</li><li><code>get_answered_json_not_stream</code>: 3</li><li><code>GET_LEG_UNREADABLE</code>: 3</li><li><code>init_failed_400</code>: 1</li><li><code>init_failed_502</code>: 1</li></ul>
+    <p><strong>0 servers routed by the header with no body present.</strong> Ten rejected the GET identically with and without it; three answered GET with <code>application/json</code> rather than a stream at all, again identically.</p>
+    <h3>The control caught a false positive before it became a sentence</h3>
+    <p>2 servers did look header-sensitive at first - each answered <code>409</code> on the routed leg while its first plain leg had been aborted at the timeout. Repeating the plain leg settles it:</p>
+    <ul><li><code>ai.afg/afg</code>: plain 0 -&gt; routed 409 -&gt; plain again 409 (the 409 is the server's steady GET answer, not a header effect)</li><li><code>ai.agentberg/agentberg</code>: plain 0 -&gt; routed 409 -&gt; plain again 409 (the 409 is the server's steady GET answer, not a header effect)</li></ul>
+    <p>The first version of this instrument had no repeat leg and classified both rows as <code>get_rejected_routed_409</code> - a difference attributed to the header. That reading was withdrawn before publication, not corrected in place, and the earlier artifact is kept out of this page deliberately.</p>
+    <h2>Read this with its limits</h2>
+    <ul><li><strong>Same window as the protocol-version-header question.</strong> The 22 auth-gated and 16 answering</li></ul>
+    <p>  endpoints are the same servers, measured a second time the same day. This is a new question asked   of one sample, not a second sample - so nothing here doubles the confidence of the other survey.</p>
+    <ul><li><strong>Both shapes were tested, but only along one path.</strong> POST with a body, and GET with no body after a</li></ul>
+    <p>  successful handshake. A server that refuses the GET outright cannot reveal header routing on that   leg - ten did exactly that here, identically with and without the header, so they count as   &quot;no observable routing&quot;, not as &quot;routing proven absent&quot;.</p>
+    <ul><li><strong>One alternate method was tried</strong> (<code>prompts/list</code>). A server that honours <code>Mcp-Method</code> for some</li></ul>
+    <p>  methods and not others would show up here only if it happened to treat that one differently.</p>
+    <ul><li>One window, one ordering, anonymous only, and 22 of 40 endpoints sit behind OAuth where routing</li></ul>
+    <p>  behaviour is unknown rather than absent.</p>
+    <h2>Our own server, measured rather than grepped</h2>
+    <p><code>packages/mcp-server/src/http.js:25-26</code> lists <code>Mcp-Method</code> and <code>Mcp-Name</code> in its CORS allow-list and nothing in this repository reads their values - which is a static reading, and static readings get wrong. <code>tools/probe-own-mcp-header-behavior.mjs</code> asks the running server instead:</p>
+    <ul><li>baseline body <code>tools/list</code>: result keys <code>tools</code></li><li>with <code>Mcp-Method: prompts/list</code>: result keys <code>tools</code> (http 200)</li><li>with <code>Mcp-Method: totally-not-a-method</code>: result keys <code>tools</code> (http 200)</li></ul>
+    <p>Verdict: <strong>body_is_authoritative_header_inert</strong>. A spoofed method and a nonsense method both still received the tool list, so on our server the header is inert and the body is authoritative. Advertising a header that nothing reads is not a vulnerability; it is only misleading if nobody checks - which is why this is a run and not a paragraph. If anyone later implements header routing here, this probe is the check that has to change its answer.</p>
+    <p>The same probe asks us the no-body question directly. Our server's GET leg:</p>
+    <ul><li>GET with no routing hint: http 405, content-type <code>application/json</code>, 83 bytes</li><li>GET with <code>Mcp-Method: prompts/list</code>: http 405, 83 bytes</li></ul>
+    <p>Verdict: <strong>get_shape_identical_with_and_without_header</strong>. We do not serve a GET stream at all, so there is no surface on which a routing header could choose behaviour for us - stated as an observation, because the CORS list alone would have let a reader assume we do.</p>
+    <h2>Reproduce</h2>
+    <pre class="language-bash"><code>node tools/survey-mcp-route-headers.mjs 40
+node tools/survey-mcp-get-stream-headers.mjs 40     # no-body GET, with a repeated plain leg
+node tools/probe-own-mcp-header-behavior.mjs          # routing legs included
+node tools/render-mcp-route-headers-doc.mjs          # this file, from those two artifacts</code></pre>
+    </main>
+    <footer class="site-footer">
+      <p>
+        Apache-2.0 · self-hosted · the numbers on this page are reproducible with one command
+        from the <a href="https://github.com/happy520ai/unified-ai-system">repository</a>.
+      </p>
+    </footer>
+  </body>
+</html>
