@@ -330,7 +330,7 @@
         would turn a future per-caller header into a cross-tenant leak with nobody objecting.
         <a href="mcp-list-cache-hints.html">The write-up, its blind spots, and our own silence</a>.
       </p>
-      <h2>Two more things the same API told us</h2>
+      <h2>Three more things the same API told us</h2>
       <p>
         Reading registry records for their own reason surfaced a separate question: does a listing carry an
         artifact an installer can consume? On the alphabetically-first 54 records the answer was
@@ -341,7 +341,11 @@
         at 41.85%, and finds 439 records (1.20%) that declare neither a package nor a hosted endpoint, which
         is the only group a client genuinely cannot act on. A package and a remote are two different ways to
         be actionable, and the first version of the sample page conflated them; the census page records the
-        retraction and the reading that disproved it.
+        retraction and the reading that disproved it. Then a seeded draw of
+        <a href="mcp-npm-installability.html">200 of the 9,896 npm-listed records</a> came back the other way:
+        196 resolve on npm at exactly the listed version, 3 list a version npm does not have, and 1 name is
+        gone - a 2.00% unusable rate with a 95% interval of 0.06% to 3.94%, which is the number that narrows
+        the problem to the records with no coordinates at all rather than stale ones.
       </p>
       <h2>The numbers as a file</h2>
       <p>

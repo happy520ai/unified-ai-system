@@ -1,0 +1,31 @@
+{
+ "schema": "mcp-npm-frame-v1",
+ "started_at": "2026-09-28T19:40:59.038Z",
+ "finished_at": "2026-09-28T19:54:12.329Z",
+ "source": "https://registry.modelcontextprotocol.io/v0/servers",
+ "pages_walked": 1239,
+ "rows_seen": 123985,
+ "retry_events": 0,
+ "walk_complete": true,
+ "active_latest_records": 36658,
+ "npm_records_in_frame": 9896,
+ "npm_records_with_identifier": 9896,
+ "npm_package_sightings": 10092,
+ "census_published_npm": 9868,
+ "census_published_active": 36612,
+ "active_latest_matches_census_within_2pct": true,
+ "deviation_from_census_pct": 0.28,
+ "control_record": {
+  "name": "io.github.happy520ai/unified-ai-system",
+  "version": "0.8.0",
+  "registryTypes": [
+   "oci"
+  ],
+  "packageCount": 1
+ },
+ "problem_count": 0,
+ "problems": [],
+ "records_omitted": 9896,
+ "records_bytes": 1951526,
+ "rebuild": "node tools/survey-mcp-npm-frame.mjs  # ~17 min of anonymous GETs"
+}
