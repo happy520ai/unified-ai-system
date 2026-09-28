@@ -157,6 +157,7 @@ for (const r of rows) tally[r.verdict] = (tally[r.verdict] || 0) + 1;
 const comparable = rows.filter((r) => r.shape);
 const anyHint = comparable.filter((r) => r.verdict === "RESULT_LEVEL_HINT" || r.verdict === "TOOL_LEVEL_HINT").length;
 console.log(JSON.stringify({
+  asked_with_revision: REVISION,
   attempted: rows.length,
   servers_with_a_tool_list: comparable.length,
   declaring_any_cache_hint: anyHint,

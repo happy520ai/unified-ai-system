@@ -71,13 +71,17 @@
         in the official MCP registry.
       </p>
       <p>
-        Those five share one run, one sample window and one machine-readable file. Four more questions -
-        whether anyone enforces the <code>MCP-Protocol-Version</code> header, whether a server can
-        be routed by the <code>Mcp-Method</code> header when the body says otherwise, the same question
-        with no body at all, and whether a server ever says how long its tool list may be cached - were
-        measured later the same day over the same endpoints, are reported at the end of this page, and
-        are deliberately kept out of the dataset. So "five" here counts the measurements that were
-        taken together, not the number of questions we have asked.
+        Two machine-readable artifacts back this page. The first,
+        <code>data/mcp-ecosystem-measurements.json</code>, is the 2026-09-27 run: five questions measured
+        together in one window, which is why its tables match the five write-ups above. The second,
+        <code>data/mcp-ecosystem-measurements.2026-09-28.json</code>, is a wider re-run - all ten questions,
+        including whether anyone enforces the <code>MCP-Protocol-Version</code> header, whether a server can
+        be routed by the <code>Mcp-Method</code> header when the body says otherwise, the same question with
+        no body at all, and the cache-hint survey entered <em>twice</em>: once asking the revision that does
+        not require <code>ttlMs</code>/<code>cacheScope</code>, once asking the revision that does. It is a
+        new measurement, not a regression test of the first. Where a count differs by a server or two from a
+        page above, both figures are correct for their own window and the page's own date governs - which is
+        the reason neither file was quietly overwritten with the other.
       </p>
 
       <div class="cards">
@@ -261,8 +265,9 @@
         explicitly declined, which is precisely the request a conforming server may refuse.
       </p>
       <p>
-        This question is measured but <strong>not</strong> in the machine-readable dataset below; the dataset
-        covers questions 1-5. Its per-server table is rendered from the probe's own artifact in
+        This question is measured, and from the 2026-09-28 re-run onward it is in the machine-readable
+        dataset as well; the 2026-09-27 file below covers questions 1-5. Its per-server table is rendered
+        from the probe's own artifact in
         <a href="mcp-protocol-version-header.md">the protocol-version header write-up</a>.
       </p>
       <h2>7. Can a header redirect a server to a method the body never asked for?</h2>
