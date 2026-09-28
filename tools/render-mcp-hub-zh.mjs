@@ -128,6 +128,8 @@ ${rows}
       </table>
       <p>
         机器可读数据（含逐端点判据行）：<a href="data/mcp-ecosystem-measurements.2026-09-28.json">${questionNames.size} 问 ${blocks.length} 次测量的重跑，${window}</a>；
+        同一批 API 读数还带出另一个问题：注册表里有记录，是否就能安装？答案多半是不能——
+        <a href="mcp-registry-installability.html">54 个去重后的记录里只有 6 个带 package</a>。
         英文原文与可重跑脚本：<a href="mcp-ecosystem-measurements.html">Nine measurements of the public MCP ecosystem</a>。
         每份调查都是双次采样同一窗口：把 <code>ttlMs</code> 与 <code>cacheScope</code> 那题在两个协议修订下各问一遍，
         所以「没人声明」这句话必须配上「问的是哪个修订」才有意义。

@@ -330,6 +330,14 @@
         would turn a future per-caller header into a cross-tenant leak with nobody objecting.
         <a href="mcp-list-cache-hints.html">The write-up, its blind spots, and our own silence</a>.
       </p>
+      <h2>One more thing the same API told us</h2>
+      <p>
+        Reading registry records for their own reason surfaced a separate question: does a
+        listing mean anyone can install the server? It does not, most of the time -
+        <a href="mcp-registry-installability.html">6 of 54 records carried a package at all</a>, and the page
+        records why counting them on the oldest list row instead of the latest record gives a
+        different number.
+      </p>
       <h2>The numbers as a file</h2>
       <p>
         Every table on this page also exists machine-readable:
