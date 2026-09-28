@@ -34,21 +34,25 @@ branding step cannot spend the first two minutes of fifteen.
 | 4 | Set the Glama build target so a grade exists (§0h; updated 2026-09-28 - introspection is now observed never to have run, and public ticket glama-ai/tool-definition-quality-score#7 asks which artifact they build) | `https://glama.ai/mcp/servers/happy520ai/unified-ai-system/admin` → Docker builds | Different in kind from the fourteen carried listings above: the maintainer of the biggest MCP list has already reviewed our entry and named exactly one remaining condition ("any grade is fine"), so this is a queued merge rather than a cold submission. ~5 minutes, and only you can reach that dashboard. |
 | 5 | Send one message to selfh.st (§0e) | `selfhst@fosstodon.org` | The closest audience of the whole list. No form exists; it is a message. |
 | 6 | Click the checkbox and fill the form (§0f) | `https://openalternative.co/submit` | I am not solving a machine-refusal challenge for you; their GitHub list (6,747★) is generated from this one submission. |
-| 7 | Paste one of the five data articles (§4b, §4c, §4d, §4e or §4f) | dev.to draft → publish | Lowest cost per unit of reach in this file, and the only one that does not ask a reader to evaluate our product. §4e and §4f are the newest (the whole-registry census and the npm draw, both measured 2026-09-28); §4e answers "how many MCP servers are there", a question people type into search engines, and §4f is the rarer shape - a post whose news is that a problem I went looking for mostly was not there. §4c and §4d follow (both written 2026-09-27, after the header and cache-hint measurements). All five already carry the agent disclosure and none asks for a star. Re-run `## Verify before posting` first: the numbers are dated readings, and a stale one in a data post is worse than no post. |
+| 7 | Paste one of the six data articles (§4b through §4g) | dev.to draft → publish | Lowest cost per unit of reach in this file, and the only one that does not ask a reader to evaluate our product. §4e, §4f and §4g are the newest (the whole-registry census, the npm draw and the self-grading, all measured 2026-09-28); §4e answers "how many MCP servers are there", a question people type into search engines, and §4f is the rarer shape - a post whose news is that a problem I went looking for mostly was not there. §4c and §4d follow (both written 2026-09-27, after the header and cache-hint measurements). All five already carry the agent disclosure and none asks for a star. Re-run `## Verify before posting` first: the numbers are dated readings, and a stale one in a data post is worse than no post. |
 | 8 | Optional: upload the share card (§0) | `https://github.com/happy520ai/unified-ai-system/settings` → Social preview → `docs/assets/social-preview.png` | Now branding rather than a fix. Measured today: the card GitHub serves is its default template - repo name, current description, live counters - and **shows no tool count at all**, so nothing wrong is being shared while it stays unset. Do it if you want the branded card in front of every link; do not do it instead of 1-7. |
 
 Two of these (1 and 2) are worth the time even if nothing else is. If you do only one
 thing this week, do #1 — that is the conclusion the data on every other channel
 supports, not a preference.
 
-There are now also **§4b through §4f - five data posts that ask nothing of the reader**. They
+There are now also **§4b through §4g - six data posts that ask nothing of the reader**. They
 rest on twelve survey instruments, counted as of 2026-09-28 by `ls tools/survey-mcp-*.mjs`,
 so the number is re-checkable in one command rather than trusted: our own server is put through the same
 questions as everyone else's. These are the only copy in this file that can be pasted into a technical
 thread without pitching, so if you have five spare minutes after the list above, use whichever of the
-five matches the venue - §4e answers a searched question rather than arguing, and §4f is the shape that
+six matches the venue - §4e answers a searched question rather than arguing, §4f is the shape that
 travels for a different reason: it went looking for a broken-install problem in the registry's npm
 listings and reported that 196 of 200 were fine, then itemised the four ways its own probe nearly lied.
+listings and reported that 196 of 200 were fine, then itemised the four ways its own probe nearly lied. §4g is the
+one that grades us rather than the ecosystem, and it is the only post in this file whose payload is a row we
+fail: 0 of our 15 tools declare an outputSchema, and three of them are health checks whose descriptions never
+name each other.
 Re-run the scripts named at the end of the post you pick, or keep the
 "as of 2026-09-27/28" framing: a stale dataset about a moving ecosystem is worse than none.
 
@@ -713,6 +717,63 @@ couple of weeks later, re-run the two commands at its end and replace them, or k
 of this post is that most listings are fine, which is less clickable and more true.
 
 ---
+
+## 4g. Sixth data post - I scored my own server against the rubric a directory uses for strangers (ready to paste)
+
+The emotional shape is different again from §4e and §4f: this one is us grading ourselves and publishing the
+row we fail. Numbers are the 2026-09-28 readings from
+`docs/data/mcp-tool-definition-quality.2026-09-28.json`; re-run the two commands at the end of §4g before
+posting later, or keep the date as written.
+
+**Title:** `I scored my own MCP server against the open rubric a directory uses. It found a gap I would have missed`
+
+**Body:**
+
+> *Written by an AI agent working for happy520ai, who maintains an MCP gateway. The gateway is the server being
+> graded here, so treat this as a self-assessment and check the two commands at the end yourself.*
+>
+> A submission of ours to the largest MCP directory is held by one requirement: the server's quality grade must
+> not read "?". So I went looking for how that grade is computed, and found it is an open specification -
+> [Tool Definition Quality Score](https://github.com/glama-ai/tool-definition-quality-score), 760 lines, with the
+> rubric, the exact prompts and the aggregation formulas in it.
+>
+> The pipeline has four stages. Three are deterministic code. One - stage 3 - is an LLM call. That meant I could
+> check three quarters of it against my own server without a judge, so I did, and published the result including
+> the part that looks bad.
+>
+> What came back for 15 tools: every one has a display title and declares all four MCP annotations
+> (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`), and all 20 input properties carry a
+> description. What did not come back: **not one of the 15 declares an `outputSchema`**. Eight of the 15
+> descriptions are under 90 characters. So the thing that is supposed to say what a tool returns is missing in
+> both places the spec allows it to live.
+>
+> The finding I would not have found by reading my own code is the sibling problem. Three of my tools are
+> `gateway_health`, `workflow_health` and `workforce_health`. The spec says a description is only clear if it lets
+> an agent distinguish this tool from its neighbours - and across all three descriptions, the number of times any
+> of them names one of the others is zero. I wrote three sentences that each describe a health check and none
+> that say which health check to call. That is a real defect in the thing agents read, and it took an outside
+> rubric to make me see it, because reading your own prose is how you stop seeing it.
+>
+> Two things I did not do. I did not claim a score: stage 3 is an LLM call I did not make, and the graded
+> dimensions are not computed by anything I ran. And I did not launder a proxy into a finding - one row in my
+> table counts descriptions containing `when`, `if you`, `use this` or `for`, which approximates the rubric's
+> "usage guidelines" dimension and is not it, so the page says so in its own heading.
+>
+> If you maintain an MCP server: the spec's "Improving your score" section is a checklist you can run by eye in
+> ten minutes, and the highest-weighted item is the cheapest one - say what the tool does, and say which sibling
+> to call instead when this one is wrong.
+
+**Why this one is worth posting:** it is the only shape in this file that shows judgement rather than advocacy.
+A post whose payload is "here is the row I fail" is the kind of thing people upvote on r/mcp and Hacker News
+without being asked, and it is the kind of thing a directory maintainer forwards. It also does not need the
+Glama introspection thread (§0h) resolved - do not merge the two stories in the body; if a commenter asks why
+the grade is missing, the honest answer is that their crawler has never read our server and we have
+asked them which artifact they build.
+
+**Before posting:** the numbers above are derived, so re-run
+`node tools/audit-tool-definition-quality.mjs /tmp/tdqs.json --expect-count 15` and paste its one-line output
+rather than transcribing this paragraph. If the tool count has moved, the `--expect-count` argument is the thing
+that tells you the pages disagree with the code.
 
 ## 5. The first two hours: the questions that will actually arrive
 
