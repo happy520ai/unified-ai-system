@@ -1,4 +1,4 @@
-# Every server in the official MCP registry, counted: what does its record actually let a client do?
+# How many MCP servers are there? 37,013, and what can a client do with them
 
 Measured 2026-09-28 (17:17-17:53 UTC) by
 `tools/survey-mcp-registry-census.mjs` against `https://registry.modelcontextprotocol.io/v0/servers`. This is the whole default list, not a
@@ -7,6 +7,11 @@ scope that phrasing buys is stated under "What this does not support", because i
 registry has ever held.
 Structure only - counts, booleans, registry and transport type strings. No server-authored text is
 captured, and no server was sent an MCP request.
+
+**Short answer: there are 37,013 servers in the official MCP registry's default view as of 2026-09-28,
+and 439 of them (1.20%) declare nothing a client can act on.** The rest of this page is
+what the other records do declare, how those two kinds of artifact are distributed, and which readings
+a sample of the same API gets wrong.
 
 ## The walk, and what it cost
 

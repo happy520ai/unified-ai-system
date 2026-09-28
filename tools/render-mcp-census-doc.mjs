@@ -123,7 +123,7 @@ const reachable = denom - reach.neither;
 const versionsPerServer = (d.rows_seen / d.distinct_names).toFixed(2);
 
 const lines = [
-  "# Every server in the official MCP registry, counted: what does its record actually let a client do?",
+  "# How many MCP servers are there? " + d.distinct_names.toLocaleString("en-US") + ", and what can a client do with them",
   "",
   "Measured " + date + " (" + d.started_at.slice(11, 16) + "-" + d.finished_at.slice(11, 16) + " UTC) by",
   "`tools/survey-mcp-registry-census.mjs` against `" + d.source + "`. This is the whole default list, not a",
@@ -132,6 +132,11 @@ const lines = [
   "registry has ever held.",
   "Structure only - counts, booleans, registry and transport type strings. No server-authored text is",
   "captured, and no server was sent an MCP request.",
+  "",
+  "**Short answer: there are " + d.distinct_names.toLocaleString("en-US") + " servers in the official MCP registry's default view as of " + date + ",",
+  "and " + reach.neither.toLocaleString("en-US") + " of them (" + pct(reach.neither) + ") declare nothing a client can act on.** The rest of this page is",
+  "what the other records do declare, how those two kinds of artifact are distributed, and which readings",
+  "a sample of the same API gets wrong.",
   "",
   "## The walk, and what it cost",
   "",

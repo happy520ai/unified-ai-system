@@ -4,8 +4,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Every server in the official MCP registry, counted: what does its record actually let a client do? | Unified AI System</title>
-    <meta name="description" content="Rows are not servers: one row is one published version, and a server's current record is the row whose..." />
+    <title>How many MCP servers are there? 37,013, and what can a client do with them | Unified AI System</title>
+    <meta name="description" content="Short answer: there are 37,013 servers in the official MCP registry's default view as of 2026-09-28, and 439 of them (1.20%) declare nothing a client can..." />
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <meta name="theme-color" content="#081011" />
     <link rel="canonical" href="https://happy520ai.github.io/unified-ai-system/mcp-registry-census.html" />
@@ -15,22 +15,22 @@
     <link rel="icon" type="image/png" href="assets/mcp-icon.png" />
     <link rel="stylesheet" href="site.css" />
     <meta property="og:type" content="article" />
-    <meta property="og:title" content="Every server in the official MCP registry, counted: what does its record actually let a client do?" />
-    <meta property="og:description" content="Rows are not servers: one row is one published version, and a server's current record is the row whose..." />
+    <meta property="og:title" content="How many MCP servers are there? 37,013, and what can a client do with them" />
+    <meta property="og:description" content="Short answer: there are 37,013 servers in the official MCP registry's default view as of 2026-09-28, and 439 of them (1.20%) declare nothing a client can..." />
     <meta property="og:url" content="https://happy520ai.github.io/unified-ai-system/mcp-registry-census.html" />
     <meta property="og:image" content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Every server in the official MCP registry, counted: what does its record actually let a client do?" />
-    <meta name="twitter:description" content="Rows are not servers: one row is one published version, and a server's current record is the row whose..." />
+    <meta name="twitter:title" content="How many MCP servers are there? 37,013, and what can a client do with them" />
+    <meta name="twitter:description" content="Short answer: there are 37,013 servers in the official MCP registry's default view as of 2026-09-28, and 439 of them (1.20%) declare nothing a client can..." />
     <meta name="twitter:image" content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png" />
       <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "TechArticle",
-  "headline": "Every server in the official MCP registry, counted: what does its record actually let a client do?",
-  "description": "Rows are not servers: one row is one published version, and a server's current record is the row whose...",
+  "headline": "How many MCP servers are there? 37,013, and what can a client do with them",
+  "description": "Short answer: there are 37,013 servers in the official MCP registry's default view as of 2026-09-28, and 439 of them (1.20%) declare nothing a client can...",
   "datePublished": "2026-09-28T17:57:04Z",
-  "dateModified": "2026-09-28T17:59:00Z",
+  "dateModified": "2026-09-28T18:08:54Z",
   "author": {
     "@type": "Organization",
     "name": "Unified AI System",
@@ -58,8 +58,9 @@
         Measured and written in the open: this page is generated from
         <a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/mcp-registry-census.md">mcp-registry-census.md</a>.
       </nav>
-      <h1>Every server in the official MCP registry, counted: what does its record actually let a client do?</h1>
+      <h1>How many MCP servers are there? 37,013, and what can a client do with them</h1>
     <p>Measured 2026-09-28 (17:17-17:53 UTC) by <code>tools/survey-mcp-registry-census.mjs</code> against <code>https://registry.modelcontextprotocol.io/v0/servers</code>. This is the whole default list, not a slice of it: the walk followed the cursor to its end and the instrument refuses to report otherwise. The scope that phrasing buys is stated under &quot;What this does not support&quot;, because it is not every record the registry has ever held. Structure only - counts, booleans, registry and transport type strings. No server-authored text is captured, and no server was sent an MCP request.</p>
+    <p><strong>Short answer: there are 37,013 servers in the official MCP registry's default view as of 2026-09-28, and 439 of them (1.20%) declare nothing a client can act on.</strong> The rest of this page is what the other records do declare, how those two kinds of artifact are distributed, and which readings a sample of the same API gets wrong.</p>
     <h2>The walk, and what it cost</h2>
     <table><thead><tr><th></th><th>value</th></tr></thead><tbody><tr><td>list pages read</td><td>1,238</td></tr><tr><td>rows counted</td><td>123,831</td></tr><tr><td>distinct servers</td><td>37,013</td></tr><tr><td>versions per server</td><td>3.35</td></tr><tr><td>pages needing a retry</td><td>7 (worst single page: 2 attempts)</td></tr><tr><td>cursor reached the end</td><td>yes</td></tr></tbody></table>
     <p>Rows are not servers: one row is one published version, and a server's current record is the row whose <code>_meta[&quot;io.modelcontextprotocol.registry/official&quot;].isLatest</code> is true. Every number below is computed on that row. 37,013 servers yielded 37,013 latest records, with 0 servers left without one - a non-zero value there would mean the bucketing lost a server, so the renderer refuses rather than dividing by a denominator it cannot name.</p>
