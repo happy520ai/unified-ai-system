@@ -741,10 +741,10 @@ posting later, or keep the date as written.
 > check three quarters of it against my own server without a judge, so I did, and published the result including
 > the part that looks bad.
 >
-> What came back for 15 tools: every one has a display title and declares all four MCP annotations
+> What came back: every one of our tools has a display title and declares all four MCP annotations
 > (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`), and all 20 input properties carry a
-> description. What did not come back: **not one of the 15 declares an `outputSchema`**. Eight of the 15
-> descriptions are under 90 characters. So the thing that is supposed to say what a tool returns is missing in
+> description. What did not come back: **not one of the 15 declares an `outputSchema`**. Eight of those
+> descriptions run under 90 characters. So the thing that is supposed to say what a tool returns is missing in
 > both places the spec allows it to live.
 >
 > The finding I would not have found by reading my own code is the sibling problem. Three of my tools are
