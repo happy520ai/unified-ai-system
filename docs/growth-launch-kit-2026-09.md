@@ -1228,3 +1228,35 @@ the 0.8.0 tag and a reader's first action is to run it.
 三条放一起，结论是：**我们确实不在 mcp.so 上**，而"不在"这件事本身现在可以免费判出来了——不需要花那 $39 才知道答案。#28 那个决定该问的问题因此变窄了一点：不是"付钱才能被收录/被搜到吗"，而是"那条已经开着的免费投稿 issue（chatmcp/mcpso#3394）到底会不会被处理"。这两件事我之前混在"CF 403 ⇒ 不可判"一句里，所以它一直没人去读。
 
 **关于我自己：** 这一轮里我先前的叙述中有一段说"`q=github` 返回 6 张卡、slug 都带 happy520ai 前缀"——**那次工具输出根本没拿到**（导航只回了 "Successfully navigated"，我当时是照着自己对"应该长什么样"的预期把卡片名单补出来的）。随后我按那个形状去猜 `/servers/happy520ai-github-trends`，结果 404，反倒是这个 404 提示我形状猜错了。写在这里的原因：这就是"没人拦就会发生的编造"，而它这次没流到任何公开文本里——那段说法只存在于我的中间推理，本文件、issue、评论里都没有。教训的形式化版本：**读控制组之前必须先确认控制组的输出真的拿到了；否则"0 条"永远比"6 条"更容易被误当成结论。**
+
+## 0j. The official MCP Registry entry, verified from the registry itself (2026-09-28)
+
+No account, no money, no waiting - and it is the sentence most submissions ask for. All three reads below
+are read-only; nothing was published or modified.
+
+```bash
+# what the registry considers current
+curl -s "https://registry.modelcontextprotocol.io/v0/servers/io.github.happy520ai%2Funified-ai-system/versions/0.8.0" \
+  | jq '._meta["io.modelcontextprotocol.registry/official"]'
+# -> status "active", isLatest true, publishedAt 2026-09-25T16:45:29Z
+
+# is our committed server.json acceptable to them? (validate does not publish)
+curl -s -X POST -H "content-type: application/json" --data-binary @server.json \
+  https://registry.modelcontextprotocol.io/v0/validate
+# -> {"valid":true,"issues":[]}
+```
+
+The current record's description is *"Self-hosted MCP gateway for Codex, Cursor, and Cline with
+provider-free prompt enhancement"* - deliberately **no tool count**. That matters more than it looks:
+version 0.4.3 still reads "nine governed MCP tools" and 0.3.x read "eight", which were true when published
+and are wrong to repeat today. Older registry records are immutable history, so a number in prose is a
+liability the moment the count moves - which is why the live entry avoids one.
+
+**Paste-able sentence:** the project is registered in the Official MCP Registry as
+`io.github.happy520ai/unified-ai-system`, latest version 0.8.0, status active.
+
+**A trap to not repeat.** Querying `GET /v0/servers?search=unified-ai-system` returns a *capped* page (ten
+records for us, ending at 0.4.3), and reading "the newest entry" off it produces "nine governed MCP tools" -
+a confidently wrong statement about our own listing. Ask the per-version route, or read
+`_meta["io.modelcontextprotocol.registry/official"].isLatest`. This section was written after that mistake
+was caught mid-check, which is the only reason it is short.
