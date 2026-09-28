@@ -491,15 +491,19 @@ registry order, anonymous JSON-RPC, read-only, no tool invocation, no credential
 these posts has to repeat. The probe records structure only - presence, type, numeric buckets, counts -
 and copies no tool names, descriptions or other server-authored text out of the response.
 
-**The answer:** of the 16 servers that returned a tool list, **15 declared neither field** and **1
-declared both**: `ttlMs: 300000` and `cacheScope: "private"`.
+**The answer, with the revision attached to it:** asked at `2025-06-18` - a revision where these two fields
+are *not required* - 17 of 40 endpoints returned a tool list, **16 declared neither** and **1 declared both**
+(`ttlMs: 300000`, `cacheScope: "private"`). Re-asked the same day over the exactly identical 40 endpoints at
+`2026-07-28`, the revision that does require them: 13 returned a list, only 3 accepted that revision, and
+**0 of those 3 sent the fields**. So "almost nobody declares cache hints" is true, but it is only testable in
+that small set - and the bigger legacy count, read as conformance, was never evidence of anything.
 
 So the timing lesson is small, and I am going to keep it small: honour the number when it arrives,
 clamped to 1 s .. 10 min. The clamp is mine, not the server's, because a declared `0` would turn every
 read into a fresh upstream handshake (we measured that handshake at 6.4 s on a quiet machine) and a
 declared decade would let one response freeze a tool list indefinitely. A number off the network is an
-input to a decision, not the decision. When a server says nothing - 15 of 16 - the behaviour is
-unchanged from before, deliberately.
+input to a decision, not the decision. When a server says nothing - 16 of 17 at the revision that does not
+ask, and 3 of 3 at the revision that does - the behaviour is unchanged from before, deliberately.
 
 **The part that was worth the exercise is not the timing.** That one server also said
 `cacheScope: private`, and we were storing its response in a process-global map keyed by upstream id,

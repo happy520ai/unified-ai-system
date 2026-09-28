@@ -67,6 +67,15 @@ negotiated `2026-07-28`; the rest answered an older revision, where sending neit
 behaviour. **Of the modern-negotiated responders, 0 of 3 sent both
 `ttlMs` and `cacheScope`.**
 
+Paired control, same instrument and same day, asking for the older revision: both legs touched exactly
+the same 40 endpoints. At the older revision 17 returned a tool list and
+1 of those declared a hint; at the newer revision 13 returned a list and
+0 of those declared one. Asking for the newer revision therefore costs
+4 of those list answers, and the extra failures are HTTP 400 on
+initialize (6 in the modern leg against 1 in the legacy
+leg) rather than a negotiation down to an older revision. The registry's first rows also shift from day
+to day, which is why this page pairs same-day legs instead of comparing across days.
+
 Two readings are available here and only one is comfortable: most public endpoints in this sample
 decline the revision that requires the fields, and inside the small part that accepts it, nearly all of
 them still omit them. The second is exactly the population a strict validator bites - so a client that

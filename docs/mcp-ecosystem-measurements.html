@@ -292,11 +292,18 @@
       <h2>8. Does a server ever say how long its tool list may be cached?</h2>
       <p>
         A gateway has to decide how long to keep a cached list, and the spec lets the server answer that
-        with <code>ttlMs</code> and <code>cacheScope</code>. Of 16 servers that returned a list,
-        <strong>15 declared neither and 1 declared both</strong> -
-        <code>ttlMs: 300000</code> with <code>cacheScope: "private"</code>. We were reading neither
-        field, caching every upstream for a hard-coded 60 seconds in a process-global map shared by all
-        tenants.
+        with <code>ttlMs</code> and <code>cacheScope</code> - but only from protocol revision
+        <code>2026-07-28</code> onward, which decides what a count of silent servers can mean. Asked at
+        <code>2025-06-18</code>, where those fields are <em>not required</em>, 17 of 40 endpoints returned a
+        list and <strong>16 declared neither, 1 declared both</strong>
+        (<code>ttlMs: 300000</code> with <code>cacheScope: "private"</code>). Re-asked the same day, over the
+        exactly identical 40 endpoints, at <code>2026-07-28</code>: 13 returned a list, only <strong>3
+        accepted that revision, and 0 of those 3 sent the fields it requires</strong>. So the claim that
+        servers do not declare hints survives only in the small place where it can actually be tested - and
+        the larger count, read as conformance, was never evidence of anything. We were reading neither field
+        ourselves, caching every upstream for a hard-coded 60 seconds in a process-global map shared by all
+        tenants; measured through a whole-frame stdio tee once the new revision is negotiated, our server
+        does send both.
       </p>
       <p>
         The timing half is small: one declarant in sixteen, and honouring it meant clamping to

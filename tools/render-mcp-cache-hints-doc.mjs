@@ -15,6 +15,9 @@ const OWN = arg("--own", ".pm/t447-own-cachehints.json");
 // The revision-scoped re-run. Without it this page carries a count taken at a revision where the two
 // fields are not required, sitting next to prose a reader could take as conformance.
 const MODERN = arg("--modern", ".pm/t504-cachehints-modern.json");
+// Same instrument, same day, older revision: the leg that makes the modern run a single-variable
+// comparison instead of two different windows.
+const CONTROL = arg("--control", ".pm/t510-cachehints-legacy-today.json");
 const OUT = arg("--out", "docs/mcp-list-cache-hints.md");
 
 const data = JSON.parse(readFileSync(SURVEY, "utf8"));
@@ -42,6 +45,19 @@ if (modRows.length === 0) throw new Error("modern artifact has no answering rows
 const modNegotiated = modRows.filter((r) => r.revision_answered === "2026-07-28");
 const modDeclared = modNegotiated.filter((r) => r.verdict === "RESULT_LEVEL_HINT" || r.verdict === "TOOL_LEVEL_HINT");
 const modDate = statSync(MODERN).mtime.toISOString().slice(0, 10);
+const ctl = JSON.parse(readFileSync(CONTROL, "utf8"));
+const ctlRows = (ctl.rows || []).filter((r) => r.shape);
+if ((ctl.rows || []).length === 0) throw new Error("control artifact has no rows: nothing to pair against");
+if (ctlRows.some((r) => typeof r.revision_answered !== "string")) {
+  throw new Error("control rows lack revision_answered: the pair cannot be labelled");
+}
+const ctlSet = new Set((ctl.rows || []).map((r) => r.url));
+const modSet = new Set((mod.rows || []).map((r) => r.url));
+const overlap = [...modSet].filter((u) => ctlSet.has(u)).length;
+if (overlap !== modSet.size || overlap !== ctlSet.size) {
+  throw new Error(`the two legs are not the same endpoint set (overlap ${overlap} of ${modSet.size}/${ctlSet.size})`);
+}
+const ctlDeclared = ctlRows.filter((r) => r.verdict === "RESULT_LEVEL_HINT" || r.verdict === "TOOL_LEVEL_HINT").length;
 for (const key of ["our_tool_field_names", "our_result_ttlMs_present", "our_result_cacheScope_present", "baseline_result_keys"]) {
   if (!(key in route)) throw new Error(`own artifact missing route_headers.${key}`);
 }
@@ -124,6 +140,15 @@ lines.push(
   "negotiated `2026-07-28`; the rest answered an older revision, where sending neither field is correct",
   `behaviour. **Of the modern-negotiated responders, ${modDeclared.length} of ${modNegotiated.length} sent both`,
   "`ttlMs` and `cacheScope`.**",
+  "",
+  `Paired control, same instrument and same day, asking for the older revision: both legs touched exactly`,
+  `the same ${overlap} endpoints. At the older revision ${ctlRows.length} returned a tool list and`,
+  `${ctlDeclared} of those declared a hint; at the newer revision ${modRows.length} returned a list and`,
+  `${modDeclared.length} of those declared one. Asking for the newer revision therefore costs`,
+  `${ctlRows.length - modRows.length} of those list answers, and the extra failures are HTTP 400 on`,
+  `initialize (${mod.tally?.init_failed_400 ?? 0} in the modern leg against ${ctl.tally?.init_failed_400 ?? 0} in the legacy`,
+  "leg) rather than a negotiation down to an older revision. The registry's first rows also shift from day",
+  "to day, which is why this page pairs same-day legs instead of comparing across days.",
   "",
   "Two readings are available here and only one is comfortable: most public endpoints in this sample",
   "decline the revision that requires the fields, and inside the small part that accepts it, nearly all of",
