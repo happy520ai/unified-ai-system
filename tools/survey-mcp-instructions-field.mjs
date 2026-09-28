@@ -124,6 +124,7 @@ const withInit = answered.filter((r) => r.init_instructions && r.init_instructio
 const discoverAnswered = rows.filter((r) => r.discover === "answered");
 console.log(JSON.stringify({
   attempted: rows.length,
+  asked_with: REVISION,
   answered_initialize: answered.length,
   sent_instructions_on_initialize: withInit.length,
   initialize_instruction_chars: withInit.map((r) => r.init_instructions.chars).sort((a, b) => a - b),

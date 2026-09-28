@@ -1,7 +1,7 @@
 {
  "dataset_version": "uai.mcp-measurements/v1",
- "generated_at_start_utc": "2026-09-28T02:18:37.047Z",
- "generated_at_end_utc": "2026-09-28T02:28:14.338Z",
+ "generated_at_start_utc": "2026-09-28T02:33:01.721Z",
+ "generated_at_end_utc": "2026-09-28T02:42:44.902Z",
  "producer": "https://github.com/happy520ai/unified-ai-system",
  "license": "Apache-2.0",
  "sample": {
@@ -21,7 +21,7 @@
    "title": "Does tools/list paginate?",
    "script": "tools/survey-mcp-tools-list-pagination.mjs",
    "row_label_field": "outcome",
-   "asked_with": null,
+   "asked_with": "2025-06-18",
    "attempted": 40,
    "verdicts": {
     "auth_required": 21,
@@ -707,7 +707,7 @@
    "title": "If a server issues an MCP-Session-Id, does it require it back?",
    "script": "tools/survey-mcp-session-enforcement.mjs",
    "row_label_field": "verdict",
-   "asked_with": null,
+   "asked_with": "2025-06-18",
    "attempted": 40,
    "verdicts": {
     "auth_required": 21,
@@ -1308,9 +1308,10 @@
    "title": "How much server-written instructions prose reaches a client?",
    "script": "tools/survey-mcp-instructions-field.mjs",
    "row_label_field": "verdict",
-   "asked_with": null,
+   "asked_with": "2025-06-18",
    "attempted": 40,
    "verdicts": {
+    "asked_with": "2025-06-18",
     "answered_initialize": 17,
     "sent_instructions_on_initialize": 10,
     "initialize_instruction_chars": [
@@ -1622,7 +1623,7 @@
    "title": "Does a server require MCP-Protocol-Version on posts after initialize?",
    "script": "tools/survey-mcp-protocol-version-header.mjs",
    "row_label_field": "verdict",
-   "asked_with": null,
+   "asked_with": "2025-06-18",
    "attempted": 40,
    "verdicts": {
     "auth_required": 21,
@@ -2011,7 +2012,7 @@
    "title": "Do Mcp-Method/Mcp-Name headers route anything, or is the body authoritative?",
    "script": "tools/survey-mcp-route-headers.mjs",
    "row_label_field": "verdict",
-   "asked_with": null,
+   "asked_with": "2025-06-18",
    "attempted": 40,
    "verdicts": {
     "auth_required": 21,
@@ -2401,7 +2402,7 @@
    "title": "Does a body-less GET event stream behave the same with and without the header?",
    "script": "tools/survey-mcp-get-stream-headers.mjs",
    "row_label_field": "verdict",
-   "asked_with": null,
+   "asked_with": "2025-06-18",
    "attempted": 40,
    "verdicts": {
     "auth_required": 21,

@@ -147,4 +147,4 @@ for (const target of targets.slice(0, LIMIT)) {
 const tally = {};
 for (const r of rows) tally[r.verdict] = (tally[r.verdict] || 0) + 1;
 const upward = rows.filter((r) => r.negotiated_upward).length;
-console.log(JSON.stringify({ attempted: rows.length, asked: ASKED, negotiated_upward: upward, tally, rows }, null, 1));
+console.log(JSON.stringify({ attempted: rows.length, asked: ASKED, asked_with: ASKED, negotiated_upward: upward, tally, rows }, null, 1));

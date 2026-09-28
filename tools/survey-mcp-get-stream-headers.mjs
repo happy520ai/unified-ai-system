@@ -197,4 +197,4 @@ for (const target of targets.slice(0, LIMIT)) {
 const tally = {};
 for (const r of rows) tally[r.verdict] = (tally[r.verdict] || 0) + 1;
 const usable = rows.filter((r) => !["auth_required", "GET_BLIND"].includes(r.verdict) && !/^init_failed/.test(r.verdict) && !/^error/.test(r.verdict)).length;
-console.log(JSON.stringify({ attempted: rows.length, get_legs_answered: usable, tally, rows }, null, 1));
+console.log(JSON.stringify({ attempted: rows.length, asked_with: REVISION, get_legs_answered: usable, tally, rows }, null, 1));

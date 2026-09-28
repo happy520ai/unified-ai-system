@@ -112,4 +112,4 @@ for (const target of targets.slice(0, LIMIT)) {
 
 const tally = {};
 for (const r of rows) tally[r.outcome] = (tally[r.outcome] || 0) + 1;
-console.log(JSON.stringify({ attempted: rows.length, tally, rows }, null, 1));
+console.log(JSON.stringify({ attempted: rows.length, asked_with: "2025-06-18", tally, rows }, null, 1));

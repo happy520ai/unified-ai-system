@@ -145,4 +145,4 @@ for (const target of targets.slice(0, LIMIT)) {
 const tally = {};
 for (const r of rows) tally[r.verdict] = (tally[r.verdict] || 0) + 1;
 const usable = rows.filter((r) => ["body_wins", "HEADER_ROUTES_IT", "HEADER_READ_AND_REJECTED"].includes(r.verdict)).length;
-console.log(JSON.stringify({ attempted: rows.length, usable_comparison: usable, tally, rows }, null, 1));
+console.log(JSON.stringify({ attempted: rows.length, asked_with: REVISION, usable_comparison: usable, tally, rows }, null, 1));
