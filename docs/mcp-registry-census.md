@@ -1,0 +1,108 @@
+# Every server in the official MCP registry, counted: what does its record actually let a client do?
+
+Measured 2026-09-28 (17:17-17:53 UTC) by
+`tools/survey-mcp-registry-census.mjs` against `https://registry.modelcontextprotocol.io/v0/servers`. This is the whole list, not a sample:
+the walk followed the cursor to its end and the instrument refuses to report otherwise.
+Structure only - counts, booleans, registry and transport type strings. No server-authored text is
+captured, and no server was sent an MCP request.
+
+## The walk, and what it cost
+
+| | value |
+| --- | --- |
+| list pages read | 1,238 |
+| rows counted | 123,831 |
+| distinct servers | 37,013 |
+| versions per server | 3.35 |
+| pages needing a retry | 7 (worst single page: 2 attempts) |
+| cursor reached the end | yes |
+
+Rows are not servers: one row is one published version, and a server's current record is the row whose
+`_meta["io.modelcontextprotocol.registry/official"].isLatest` is true. Every number below is computed on
+that row. 37,013 servers yielded 37,013 latest records, with 0 servers left without one - a non-zero value there would mean the bucketing lost a server, so the renderer
+refuses rather than dividing by a denominator it cannot name.
+
+The walk was run twice on the same day, half an hour apart, because a census that cannot be repeated is
+an anecdote with a bigger table. The first pass read 37,007 servers and found 439 declaring nothing; the second, reported here, reads 37,013 and finds 439. The gap is servers published in those thirty minutes, and the unreachable count did not move.
+That first pass is also the one that caught this instrument's own bug - it read a package's `transport` as
+a string when the API returns an object, and tallied 16,597 records under a key spelled
+`[object Object]`.
+Its artifact is published next to this one, marked superseded, and the renderer now refuses any tally whose
+key contains that string.
+
+## What the population's records declare
+
+Of **36,612 active servers**, read one row each:
+
+| the record declares | servers | share |
+| --- | --- | --- |
+| a hosted endpoint (`remotes`), no package | 20,852 | 56.95% |
+| a package, no hosted endpoint | 13,510 | 36.90% |
+| both | 1,811 | 4.95% |
+| **neither - nothing a client can act on** | **439** | 1.20% |
+
+So 36,173 of 36,612 (98.80%) tell a client where or how to go, and 439 (1.20%) do not. Of the active records, 15,321 carry a package somewhere and 22,663 carry a remote; those two sets overlap by 1,811, which is why the four rows above partition the population while those two counts do not.
+
+A separate status: 36,612 servers are `active` and 401 are `deprecated`. Counting every latest record instead of only
+active ones gives: remote only 20,963, package only 13,773, both 1,826, neither 451 - reported so the choice of denominator
+is visible rather than baked in.
+
+## How those artifacts are distributed
+
+Registry types among active records with a package: `npm` 9,868, `pypi` 3,982, `oci` 986, `mcpb` 921, `nuget` 129, `cargo` 62.
+These count **records that mention a type**, and a record can mention several, so the columns sum above
+the 15,321 package-bearing records; they are not counts of package entries.
+
+Transports named by those packages: `stdio` 15,102, `streamable-http` 429, `sse` 28.
+Transports named by remotes: `streamable-http` 21,927, `sse` 1,072.
+
+## Why this page exists next to a sample that said 6 of 54
+
+The earlier reading on this site, [`mcp-registry-installability.html`](mcp-registry-installability.html),
+counted package presence across the first 54 servers in the registry's own list order and got 6 of 54.
+That list is grouped by server name ascending, so those 54 are the alphabetically-first servers, and the
+population reads differently: 15,321 of 36,612 active records carry a package (41.85% against the sample's 11%). One number is a prefix of an alphabetical ordering and the
+other is the whole registry; both are true, and only the second can be quoted as a population figure.
+
+That page also carried a sentence this reading disproves. It asserted that records without a package
+"tell you a server exists without telling a client how to run it". A second instrument re-read the same
+sample records through a different endpoint path (`?search=<name>` rows bucketed on `isLatest`) and found
+ 48 of the 54 declare a hosted endpoint, and 54 of 54 agreed with the record read
+through the per-server endpoint on both class and version (0 class mismatches, 0 version mismatches). So the claim was not merely unsupported by the field
+that was measured - it was wrong for most of those records. Retracted on 2026-09-28 in place.
+
+The same comparison run bucketing on the **first** list row for each name instead of the `isLatest` row -
+the mistake upstream issue modelcontextprotocol/registry#1676 describes - agrees on only 29 of 54 names:
+24 report a different version and 1 lands in a different reachability class
+altogether. That gap is why "54 of 54 agree" above is a reading rather than a tautology: the same
+instrument does report disagreement when it buckets on the wrong row.
+
+## What this does not support
+
+- That a declared address works. "The record names an endpoint" and "the endpoint answers an MCP request"
+  are different claims; whether servers answer at all is measured on the nine-question hub,
+  [`mcp-ecosystem-measurements.html`](mcp-ecosystem-measurements.html).
+- That 439 unreachable records are abandoned, low quality, or a defect of their authors. Some publish through
+  their own installer, and a registry record is a catalogue entry, not a deployment.
+- That the population is stable. It grew from 25,125 servers reported on 2026-08-27
+  (upstream issue modelcontextprotocol/registry#1579) to 37,013 on 2026-09-28, so any share quoted from this
+  page has a shelf life measured in weeks.
+- That the `status` field filters anything. `?status=active`, `?status[]=active` and `?state=active` each
+  returned the same first page as no filter at all on 2026-09-28, including `deprecated` rows, so the split
+  above is done client-side from the whole walk.
+
+## Our own record, as a control
+
+The instrument requires `io.github.happy520ai/unified-ai-system` to appear as an active latest record with a package - otherwise
+"439 records declare nothing" and "my probe read nothing" are the same shape. It reports oci over `stdio`, version 0.8.0, `has_remotes: false`: installable as a container image,
+not hosted, which is the `package_only` row above.
+
+## Reproduce
+
+```bash
+node tools/survey-mcp-registry-census.mjs /tmp/census.json   # ~30 minutes, anonymous GETs, no credentials
+node tools/render-mcp-census-doc.mjs --artifact /tmp/census.json --out /tmp/census.md
+```
+
+The artifact is published at [`data/mcp-registry-census.2026-09-28.json`](data/mcp-registry-census.2026-09-28.json).
+

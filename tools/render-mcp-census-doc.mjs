@@ -1,0 +1,235 @@
+// Renders the registry census artifact into a markdown article. Every number in the output is read from
+// the artifact; a missing or inconsistent field aborts the render rather than printing a stale sentence.
+//
+// The guards exist because of two defects this instrument actually produced on real data:
+//  - a truncated walk that looked like a complete one (HTTP 500 partway through), now refused;
+//  - a transport field read as a string while the API returns an object, which tallied to
+//    "[object Object]" 16,597 times, now refused.
+import { readFileSync, writeFileSync } from "node:fs";
+
+const args = process.argv.slice(2);
+const arg = (flag, fallback) => {
+  const i = args.indexOf(flag);
+  return i >= 0 ? args[i + 1] : fallback;
+};
+const IN = arg("--artifact", "docs/data/mcp-registry-census.2026-09-28.json");
+const OUT = arg("--out", "docs/mcp-registry-census.md");
+
+const d = JSON.parse(readFileSync(IN, "utf8"));
+const required = [
+  "schema", "started_at", "finished_at", "source", "pages_walked", "list_retry_events",
+  "worst_attempts_for_one_page", "walk_complete", "rows_seen", "distinct_names", "latest_records",
+  "names_without_latest_row", "server_status_counts", "active_latest_records", "active_reachability",
+  "active_reachability_sum", "active_sum_matches_denominator", "all_latest_reachability",
+  "package_registry_types", "package_transport_types", "remote_transport_types",
+  "active_records_with_a_package", "active_records_with_a_remote", "tally_counts_records_not_entries",
+  "control_record", "problem_count",
+];
+for (const key of required) {
+  if (d[key] === undefined) throw new Error("REFUSED: " + key + " missing from " + IN);
+}
+if (d.schema !== "mcp-registry-installability-census-v1") throw new Error("REFUSED: unexpected schema " + d.schema);
+if (d.walk_complete !== true) throw new Error("REFUSED: the walk did not reach the end of the list, so this is a prefix, not a census");
+if (d.problem_count !== 0) throw new Error("REFUSED: the census instrument reported " + d.problem_count + " problems");
+if (d.active_sum_matches_denominator !== true) throw new Error("REFUSED: reachability classes do not sum to the active denominator");
+if (d.names_without_latest_row !== 0) throw new Error("REFUSED: " + d.names_without_latest_row + " names had no isLatest row, so the denominator is not servers");
+if (d.tally_counts_records_not_entries !== true) throw new Error("REFUSED: tally semantics undeclared, so the type columns could be read as entry counts");
+
+const reach = d.active_reachability;
+for (const k of ["remote_only", "package_only", "both", "neither"]) {
+  if (!Number.isSafeInteger(reach[k])) throw new Error("REFUSED: reachability class " + k + " is not an integer");
+}
+const sum = reach.remote_only + reach.package_only + reach.both + reach.neither;
+if (sum !== d.active_latest_records) throw new Error("REFUSED: re-added to " + sum + " but the active denominator is " + d.active_latest_records);
+
+const c = d.control_record;
+if (!c || c.name !== "io.github.happy520ai/unified-ai-system") throw new Error("REFUSED: control record is not our own server");
+if (c.is_latest !== true || c.status !== "active" || c.has_packages !== true) {
+  throw new Error("REFUSED: the control record is not an active latest record with a package, so a low count would be blindness");
+}
+const objKeys = [...Object.keys(d.package_transport_types), ...Object.keys(d.remote_transport_types), ...Object.keys(d.package_registry_types)].filter((k) => k.includes("[object"));
+if (objKeys.length) throw new Error("REFUSED: a type tally contains a coerced object key: " + objKeys.join(", "));
+
+// Two companion artifacts, because the sentences that compare this census against the earlier sample have
+// no right to invent the sample's numbers. The comparison is only meaningful over the same objects, so the
+// two name sets are checked for equality rather than for a matching count.
+const sample = JSON.parse(readFileSync(arg("--sample", "docs/data/mcp-registry-installability.2026-09-28.json"), "utf8"));
+const cross = JSON.parse(readFileSync(arg("--crosscheck", "docs/data/mcp-installability-crosscheck.2026-09-28.json"), "utf8"));
+for (const [label, obj, keys] of [["sample", sample, ["tally", "rows"]], ["cross-check", cross, ["class_distribution_from_endpoint", "rows", "names_checked", "paths_agree"]]]) {
+  for (const k of keys) if (obj[k] === undefined) throw new Error("REFUSED: " + label + " artifact is missing " + k);
+}
+const sPkg = sample.tally.package_present;
+const sRead = sample.rows.length;
+const sPkgPct = Math.round((sPkg / sRead) * 100);
+const xNames = cross.names_checked;
+const xAgree = cross.paths_agree;
+const xMismatch = cross.class_mismatch;
+const xVerMismatch = (cross.version_mismatch_on_agreeing_class || []).length;
+const xRemote = cross.class_distribution_from_endpoint.remote_only || 0;
+if (xNames !== sRead) throw new Error("REFUSED: cross-check covered " + xNames + " names but the sample row count is " + sRead);
+const sampleNames = new Set(sample.rows.map((r) => r.row_label));
+const crossNames = new Set(cross.rows.map((r) => r.name));
+const onlySample = [...sampleNames].filter((n) => !crossNames.has(n));
+const onlyCross = [...crossNames].filter((n) => !sampleNames.has(n));
+if (onlySample.length || onlyCross.length) {
+  throw new Error("REFUSED: the two instruments did not read the same servers (sample-only " + onlySample.length + ", crosscheck-only " + onlyCross.length + ")");
+}
+const oldest = JSON.parse(readFileSync(arg("--oldest", "docs/data/mcp-installability-crosscheck-oldest.2026-09-28.json"), "utf8"));
+for (const k of ["names_checked", "paths_agree", "class_mismatch", "version_mismatch_on_agreeing_class", "rows"]) {
+  if (oldest[k] === undefined) throw new Error("REFUSED: oldest-bucket cross-check is missing " + k);
+}
+const xOldest = {
+  agree: oldest.paths_agree,
+  names: oldest.names_checked,
+  classMismatch: oldest.class_mismatch,
+  versionMismatch: (oldest.version_mismatch_on_agreeing_class || []).length,
+};
+if (oldest.names_checked !== sRead) throw new Error("REFUSED: oldest-bucket arm covered " + oldest.names_checked + " names, the sample is " + sRead);
+const oldestNames = new Set(oldest.rows.map((r) => r.name));
+if (oldestNames.size !== sampleNames.size || [...sampleNames].some((n) => !oldestNames.has(n))) {
+  throw new Error("REFUSED: the oldest-bucket arm did not read the same servers as the sample");
+}
+
+const prior = JSON.parse(readFileSync(arg("--prior", "docs/data/mcp-registry-census.2026-09-28.superseded.json"), "utf8"));
+for (const k of ["distinct_names", "active_reachability", "started_at", "finished_at"]) {
+  if (prior[k] === undefined) throw new Error("REFUSED: prior census reading is missing " + k);
+}
+const priorNeither = prior.active_reachability.neither;
+const priorNames = prior.distinct_names;
+const priorBadKey = (prior.package_transport_types || {})["[object Object]"];
+if (!Number.isSafeInteger(priorBadKey)) throw new Error("REFUSED: the superseded reading no longer carries the coerced-key tally the page describes");
+const denom = d.active_latest_records;
+const pct = (n) => ((n / denom) * 100).toFixed(n === denom || n === 0 ? 1 : 2) + "%";
+const tallyLines = (obj) => Object.entries(obj).sort((a, b) => b[1] - a[1]).map(([k, v]) => "`" + k + "` " + v.toLocaleString("en-US")).join(", ");
+const date = d.started_at.slice(0, 10);
+const withPackage = d.active_records_with_a_package;
+const withRemote = d.active_records_with_a_remote;
+const reachable = denom - reach.neither;
+const versionsPerServer = (d.rows_seen / d.distinct_names).toFixed(2);
+
+const lines = [
+  "# Every server in the official MCP registry, counted: what does its record actually let a client do?",
+  "",
+  "Measured " + date + " (" + d.started_at.slice(11, 16) + "-" + d.finished_at.slice(11, 16) + " UTC) by",
+  "`tools/survey-mcp-registry-census.mjs` against `" + d.source + "`. This is the whole list, not a sample:",
+  "the walk followed the cursor to its end and the instrument refuses to report otherwise.",
+  "Structure only - counts, booleans, registry and transport type strings. No server-authored text is",
+  "captured, and no server was sent an MCP request.",
+  "",
+  "## The walk, and what it cost",
+  "",
+  "| | value |",
+  "| --- | --- |",
+  "| list pages read | " + d.pages_walked.toLocaleString("en-US") + " |",
+  "| rows counted | " + d.rows_seen.toLocaleString("en-US") + " |",
+  "| distinct servers | " + d.distinct_names.toLocaleString("en-US") + " |",
+  "| versions per server | " + versionsPerServer + " |",
+  "| pages needing a retry | " + d.list_retry_events + " (worst single page: " + d.worst_attempts_for_one_page + " attempts) |",
+  "| cursor reached the end | " + (d.walk_complete ? "yes" : "no") + " |",
+  "",
+  "Rows are not servers: one row is one published version, and a server's current record is the row whose",
+  "`_meta[\"io.modelcontextprotocol.registry/official\"].isLatest` is true. Every number below is computed on",
+  "that row. " + d.distinct_names.toLocaleString("en-US") + " servers yielded " + d.latest_records.toLocaleString("en-US") + " latest records, with " +
+  d.names_without_latest_row + " servers left without one - a non-zero value there would mean the bucketing lost a server, so the renderer",
+  "refuses rather than dividing by a denominator it cannot name.",
+  "",
+  "The walk was run twice on the same day, half an hour apart, because a census that cannot be repeated is",
+  "an anecdote with a bigger table. The first pass read " + priorNames.toLocaleString("en-US") + " servers and found " +
+  priorNeither.toLocaleString("en-US") + " declaring nothing; the second, reported here, reads " + d.distinct_names.toLocaleString("en-US") + " and finds " +
+  reach.neither.toLocaleString("en-US") + ". The gap is servers published in those thirty minutes, and the unreachable count did not move.",
+  "That first pass is also the one that caught this instrument's own bug - it read a package's `transport` as",
+  "a string when the API returns an object, and tallied " + priorBadKey.toLocaleString("en-US") + " records under a key spelled",
+  "`[object Object]`.",
+  "Its artifact is published next to this one, marked superseded, and the renderer now refuses any tally whose",
+  "key contains that string.",
+  "",
+  "## What the population's records declare",
+  "",
+  "Of **" + denom.toLocaleString("en-US") + " active servers**, read one row each:",
+  "",
+  "| the record declares | servers | share |",
+  "| --- | --- | --- |",
+  "| a hosted endpoint (`remotes`), no package | " + reach.remote_only.toLocaleString("en-US") + " | " + pct(reach.remote_only) + " |",
+  "| a package, no hosted endpoint | " + reach.package_only.toLocaleString("en-US") + " | " + pct(reach.package_only) + " |",
+  "| both | " + reach.both.toLocaleString("en-US") + " | " + pct(reach.both) + " |",
+  "| **neither - nothing a client can act on** | **" + reach.neither.toLocaleString("en-US") + "** | " + pct(reach.neither) + " |",
+  "",
+  "So " + reachable.toLocaleString("en-US") + " of " + denom.toLocaleString("en-US") + " (" + pct(reachable) + ") tell a client where or how to go, and " +
+  reach.neither.toLocaleString("en-US") + " (" + pct(reach.neither) + ") do not. Of the active records, " + withPackage.toLocaleString("en-US") +
+  " carry a package somewhere and " + withRemote.toLocaleString("en-US") + " carry a remote; those two sets overlap by " +
+  reach.both.toLocaleString("en-US") + ", which is why the four rows above partition the population while those two counts do not.",
+  "",
+  "A separate status: " + (d.server_status_counts.active || 0).toLocaleString("en-US") + " servers are `active` and " +
+  (d.server_status_counts.deprecated || 0).toLocaleString("en-US") + " are `deprecated`. Counting every latest record instead of only",
+  "active ones gives: " + Object.entries(d.all_latest_reachability).map(([k, v]) => k.replace(/_/g, " ") + " " + v.toLocaleString("en-US")).join(", ") +
+  " - reported so the choice of denominator",
+  "is visible rather than baked in.",
+  "",
+  "## How those artifacts are distributed",
+  "",
+  "Registry types among active records with a package: " + tallyLines(d.package_registry_types) + ".",
+  "These count **records that mention a type**, and a record can mention several, so the columns sum above",
+  "the " + withPackage.toLocaleString("en-US") + " package-bearing records; they are not counts of package entries.",
+  "",
+  "Transports named by those packages: " + tallyLines(d.package_transport_types) + ".",
+  "Transports named by remotes: " + tallyLines(d.remote_transport_types) + ".",
+  "",
+  "## Why this page exists next to a sample that said " + sPkg + " of " + sRead + "",
+  "",
+  "The earlier reading on this site, [`mcp-registry-installability.html`](mcp-registry-installability.html),",
+  "counted package presence across the first " + sRead + " servers in the registry's own list order and got " + sPkg + " of " + sRead + ".",
+  "That list is grouped by server name ascending, so those " + sRead + " are the alphabetically-first servers, and the",
+  "population reads differently: " + withPackage.toLocaleString("en-US") + " of " + denom.toLocaleString("en-US") + " active records carry a package (" +
+  pct(withPackage) + " against the sample's " + sPkgPct + "%). One number is a prefix of an alphabetical ordering and the",
+  "other is the whole registry; both are true, and only the second can be quoted as a population figure.",
+  "",
+  "That page also carried a sentence this reading disproves. It asserted that records without a package",
+  "\"tell you a server exists without telling a client how to run it\". A second instrument re-read the same",
+  "sample records through a different endpoint path (`?search=<name>` rows bucketed on `isLatest`) and found",
+  " " + xRemote + " of the " + xNames + " declare a hosted endpoint, and " + xAgree + " of " + xNames + " agreed with the record read",
+  "through the per-server endpoint on both class and version " +
+  "(" + xMismatch + " class mismatches, " + xVerMismatch + " version mismatches). So the claim was not merely unsupported by the field",
+  "that was measured - it was wrong for most of those records. Retracted on " + date + " in place.",
+  "",
+  "The same comparison run bucketing on the **first** list row for each name instead of the `isLatest` row -",
+  "the mistake upstream issue modelcontextprotocol/registry#1676 describes - agrees on only " + xOldest.agree + " of " + xOldest.names + " names:",
+  xOldest.versionMismatch + " report a different version and " + xOldest.classMismatch + " lands in a different reachability class",
+  "altogether. That gap is why \"" + xAgree + " of " + xNames + " agree\" above is a reading rather than a tautology: the same",
+  "instrument does report disagreement when it buckets on the wrong row.",
+  "",
+  "## What this does not support",
+  "",
+  "- That a declared address works. \"The record names an endpoint\" and \"the endpoint answers an MCP request\"",
+  "  are different claims; whether servers answer at all is measured on the nine-question hub,",
+  "  [`mcp-ecosystem-measurements.html`](mcp-ecosystem-measurements.html).",
+  "- That " + reach.neither.toLocaleString("en-US") + " unreachable records are abandoned, low quality, or a defect of their authors. Some publish through",
+  "  their own installer, and a registry record is a catalogue entry, not a deployment.",
+  "- That the population is stable. It grew from 25,125 servers reported on 2026-08-27",
+  "  (upstream issue modelcontextprotocol/registry#1579) to " + d.distinct_names.toLocaleString("en-US") + " on " + date + ", so any share quoted from this",
+  "  page has a shelf life measured in weeks.",
+  "- That the `status` field filters anything. `?status=active`, `?status[]=active` and `?state=active` each",
+  "  returned the same first page as no filter at all on " + date + ", including `deprecated` rows, so the split",
+  "  above is done client-side from the whole walk.",
+  "",
+  "## Our own record, as a control",
+  "",
+  "The instrument requires `" + c.name + "` to appear as an active latest record with a package - otherwise",
+  "\"439 records declare nothing\" and \"my probe read nothing\" are the same shape. It reports " + c.registry_types.join("/") +
+  " over `" + (c.package_transports[0] || "absent") + "`, version " + c.version + ", `has_remotes: " + c.has_remotes + "`: installable as a container image,",
+  "not hosted, which is the `package_only` row above.",
+  "",
+  "## Reproduce",
+  "",
+  "```bash",
+  "node tools/survey-mcp-registry-census.mjs /tmp/census.json   # ~30 minutes, anonymous GETs, no credentials",
+  "node tools/render-mcp-census-doc.mjs --artifact /tmp/census.json --out /tmp/census.md",
+  "```",
+  "",
+  "The artifact is published at [`data/mcp-registry-census." + date + ".json`](data/mcp-registry-census." + date + ".json).",
+  "",
+];
+
+const text = lines.join("\n") + "\n";
+if (text.includes("undefined") || text.includes("NaN")) throw new Error("REFUSED: output contains an undefined or NaN value");
+writeFileSync(OUT, text, "utf8");
+console.log("rendered " + OUT + " from " + IN + ": active=" + denom + " neither=" + reach.neither + " with_package=" + withPackage);

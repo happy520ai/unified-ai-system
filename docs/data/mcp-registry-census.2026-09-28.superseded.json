@@ -1,0 +1,84 @@
+{
+  "schema": "mcp-registry-installability-census-v1",
+  "started_at": "2026-09-28T16:44:31.096Z",
+  "finished_at": "2026-09-28T17:13:17.582Z",
+  "source": "https://registry.modelcontextprotocol.io/v0/servers",
+  "limit_per_page": 100,
+  "pages_walked": 1238,
+  "list_retry_events": 10,
+  "worst_attempts_for_one_page": 6,
+  "walk_complete": true,
+  "rows_seen": 123802,
+  "distinct_names": 37007,
+  "latest_records": 37007,
+  "names_without_latest_row": 0,
+  "server_status_counts": {
+    "active": 36606,
+    "deprecated": 401
+  },
+  "active_latest_records": 36606,
+  "active_reachability": {
+    "remote_only": 20848,
+    "package_only": 13508,
+    "both": 1811,
+    "neither": 439
+  },
+  "active_reachability_sum": 36606,
+  "active_sum_matches_denominator": true,
+  "all_latest_reachability": {
+    "remote_only": 20959,
+    "package_only": 13771,
+    "both": 1826,
+    "neither": 451
+  },
+  "package_registry_types": {
+    "npm": 9867,
+    "oci": 986,
+    "pypi": 3982,
+    "mcpb": 920,
+    "cargo": 62,
+    "nuget": 129
+  },
+  "package_transport_types": {
+    "[object Object]": 16597
+  },
+  "remote_transport_types": {
+    "streamable-http": 21923,
+    "sse": 1072
+  },
+  "control_record": {
+    "name": "io.github.happy520ai/unified-ai-system",
+    "version": "0.8.0",
+    "status": "active",
+    "is_latest": true,
+    "has_packages": true,
+    "package_count": 1,
+    "registry_types": [
+      "oci"
+    ],
+    "package_transports": [
+      {
+        "type": "stdio"
+      }
+    ],
+    "has_remotes": false,
+    "remote_count": 0,
+    "remote_types": []
+  },
+  "first_twelve_names_in_walk_order": [
+    "ac.inference.sh/mcp",
+    "ac.snag/snag",
+    "ac.tandem/docs-mcp",
+    "ad.getle/leads",
+    "ad.inside/inside-ads",
+    "ae.propick/propick",
+    "ag.hood/name-service",
+    "agency.goji/goji",
+    "agency.justidea/justidea-agency",
+    "agency.kesey/pretrip",
+    "agency.lona/trading",
+    "agency.ottobot/business-contact-finder"
+  ],
+  "problem_count": 0,
+  "problems": []
+}
