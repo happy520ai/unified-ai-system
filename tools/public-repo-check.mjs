@@ -1194,6 +1194,31 @@ for (const url of sitemapLocSet) {
   }
 }
 
+// A page can be written, published, linked from the hub and from llms.txt, and still never be
+// declared: the two loops above only compare the sitemap against the submit list, so both can agree
+// while omitting a page nobody added to either. Deriving the requirement from the hub's own outbound
+// .md links means the next measurement article cannot be published undeclared, and the list is not a
+// second place someone has to remember to update.
+const hubPagePath = "docs/mcp-ecosystem-measurements.html";
+const hubPage = readFileSync(resolve(repoRoot, hubPagePath), "utf8");
+const hubArticleLinks = [...new Set(
+  [...hubPage.matchAll(/href="([\w.-]+\.md)"/g)].map((match) => match[1]),
+)];
+for (const article of hubArticleLinks) {
+  if (!existsSync(resolve(repoRoot, "docs", article))) {
+    addError("hub_article_file_missing", hubPagePath, article);
+  }
+  if (!sitemap.includes(`<loc>${expectedIndexNowPrefix}${article}</loc>`)) {
+    addError("measurement_article_not_declared", "docs/sitemap.xml", article);
+  }
+}
+
+for (const article of hubArticleLinks) {
+  if (!indexNowConfig.urlList.includes(`${expectedIndexNowPrefix}${article}`)) {
+    addError("measurement_article_not_pingable", indexNowConfigPath, article);
+  }
+}
+
 if (indexNowWorkflow.includes("workflow_run:")) {
   addError("indexnow_privileged_workflow_chain", indexNowWorkflowPath);
 }
