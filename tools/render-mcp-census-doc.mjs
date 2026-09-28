@@ -132,6 +132,12 @@ const classDelta = CLASSES.reduce((a, k) => a + (wideAll[k] - d.all_latest_reach
 if (classDelta !== nameDelta) throw new Error("REFUSED: the two walks do not reconcile - " + nameDelta + " more servers but the classes moved by " + classDelta);
 if (!Number.isSafeInteger(wideDeleted)) throw new Error("REFUSED: no deleted status count in the wider walk");
 
+// Whether the declared side resolves is a different instrument's finding, quoted here rather than restated.
+const npmSample = JSON.parse(readFileSync(arg("--npm", "docs/data/mcp-npm-installability-sample.2026-09-28.json"), "utf8"));
+for (const k of ["sample_size", "verdict_tally", "unusable_rate"]) if (npmSample[k] === undefined) throw new Error("REFUSED: npm sample artifact is missing " + k);
+const npmOk = npmSample.verdict_tally.listed_version_published;
+if (!Number.isSafeInteger(npmOk)) throw new Error("REFUSED: the npm sample has no published-count to cite");
+
 const denom = d.active_latest_records;
 const pct = (n) => ((n / denom) * 100).toFixed(n === denom || n === 0 ? 1 : 2) + "%";
 const tallyLines = (obj) => Object.entries(obj).sort((a, b) => b[1] - a[1]).map(([k, v]) => "`" + k + "` " + v.toLocaleString("en-US")).join(", ");
@@ -270,7 +276,11 @@ const lines = [
   "",
   "- That a declared address works. \"The record names an endpoint\" and \"the endpoint answers an MCP request\"",
   "  are different claims; whether servers answer at all is measured on the nine-question hub,",
-  "  [`mcp-ecosystem-measurements.html`](mcp-ecosystem-measurements.html).",
+  "  [`mcp-ecosystem-measurements.html`](mcp-ecosystem-measurements.html). The other half has been sampled",
+  "  separately, and came back well: " + npmOk + " of " + npmSample.sample_size + " npm listings resolve on npm at exactly the",
+  "  version the registry gives ([the draw, its seed and its controls](mcp-npm-installability.html)). So the",
+  "  records counted above as declaring nothing are the gap; the records that declare an npm package mostly",
+  "  declare a real one.",
   "- That " + reach.neither.toLocaleString("en-US") + " unreachable records are abandoned, low quality, or a defect of their authors. Some publish through",
   "  their own installer, and a registry record is a catalogue entry, not a deployment.",
   "- That the population is stable. It grew from 25,125 servers reported on 2026-08-27",

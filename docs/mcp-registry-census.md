@@ -113,7 +113,11 @@ instrument does report disagreement when it buckets on the wrong row.
 
 - That a declared address works. "The record names an endpoint" and "the endpoint answers an MCP request"
   are different claims; whether servers answer at all is measured on the nine-question hub,
-  [`mcp-ecosystem-measurements.html`](mcp-ecosystem-measurements.html).
+  [`mcp-ecosystem-measurements.html`](mcp-ecosystem-measurements.html). The other half has been sampled
+  separately, and came back well: 196 of 200 npm listings resolve on npm at exactly the
+  version the registry gives ([the draw, its seed and its controls](mcp-npm-installability.html)). So the
+  records counted above as declaring nothing are the gap; the records that declare an npm package mostly
+  declare a real one.
 - That 439 unreachable records are abandoned, low quality, or a defect of their authors. Some publish through
   their own installer, and a registry record is a catalogue entry, not a deployment.
 - That the population is stable. It grew from 25,125 servers reported on 2026-08-27

@@ -30,7 +30,7 @@
   "headline": "How many MCP servers are there? 37,013, and what can a client do with them",
   "description": "Short answer: there are 37,013 servers in the official MCP registry's default view as of 2026-09-28, and 439 of them (1.20%) declare nothing a client can...",
   "datePublished": "2026-09-28T17:57:04Z",
-  "dateModified": "2026-09-28T18:13:58Z",
+  "dateModified": "2026-09-28T18:47:45Z",
   "author": {
     "@type": "Organization",
     "name": "Unified AI System",
@@ -85,7 +85,7 @@
     <p>The same comparison run bucketing on the <strong>first</strong> list row for each name instead of the <code>isLatest</code> row - the mistake upstream issue modelcontextprotocol/registry#1676 describes - agrees on only 29 of 54 names: 24 report a different version and 1 lands in a different reachability class altogether. That gap is why &quot;54 of 54 agree&quot; above is a reading rather than a tautology: the same instrument does report disagreement when it buckets on the wrong row.</p>
     <h2>What this does not support</h2>
     <ul><li>That a declared address works. &quot;The record names an endpoint&quot; and &quot;the endpoint answers an MCP request&quot;</li></ul>
-    <p>  are different claims; whether servers answer at all is measured on the nine-question hub,   <a href="https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.html"><code>mcp-ecosystem-measurements.html</code></a>.</p>
+    <p>  are different claims; whether servers answer at all is measured on the nine-question hub,   <a href="https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.html"><code>mcp-ecosystem-measurements.html</code></a>. The other half has been sampled   separately, and came back well: 196 of 200 npm listings resolve on npm at exactly the   version the registry gives (<a href="https://happy520ai.github.io/unified-ai-system/mcp-npm-installability.html">the draw, its seed and its controls</a>). So the   records counted above as declaring nothing are the gap; the records that declare an npm package mostly   declare a real one.</p>
     <ul><li>That 439 unreachable records are abandoned, low quality, or a defect of their authors. Some publish through</li></ul>
     <p>  their own installer, and a registry record is a catalogue entry, not a deployment.</p>
     <ul><li>That the population is stable. It grew from 25,125 servers reported on 2026-08-27</li></ul>
