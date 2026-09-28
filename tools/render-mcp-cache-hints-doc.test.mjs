@@ -34,16 +34,64 @@ const own = (over = {}) => ({
   },
 });
 
-function run(sDoc, oDoc) {
+// The two same-day legs the page pairs. They share a URL set on purpose: the renderer refuses when they
+// do not, because then the legs differ by more than the revision.
+const legUrls = ["https://q/mcp", "https://g/mcp", "https://l/mcp"];
+const legShape = (over = {}) => ({
+  toolCount: 2, result_ttlMs_type: "absent", result_ttlMs_value: null, result_cacheScope: "absent",
+  result_has_meta: false, result_keys: ["tools"], tools_with_ttlMs: 0, tools_with_cacheScope: 0,
+  tools_with_meta: 0, min_tool_ttlMs: null, max_tool_ttlMs: null, ...over,
+});
+const leg = (revision, declared) => ({
+  attempted: legUrls.length,
+  tally: { auth_required: 1, no_cache_hint_declared: declared ? 1 : 2, RESULT_LEVEL_HINT: declared ? 1 : 0 },
+  rows: [
+    { name: "one", url: legUrls[0], verdict: "no_cache_hint_declared", revision_requested: revision, revision_answered: revision, shape: legShape() },
+    {
+      name: "two", url: legUrls[1], revision_requested: revision, revision_answered: revision,
+      verdict: declared ? "RESULT_LEVEL_HINT" : "no_cache_hint_declared",
+      shape: declared
+        ? legShape({ result_ttlMs_type: "number", result_ttlMs_value: 300000, result_cacheScope: "private", result_keys: ["tools", "ttlMs", "cacheScope"] })
+        : legShape(),
+    },
+    { name: "three", url: legUrls[2], verdict: "auth_required" },
+  ],
+});
+
+function run(sDoc, oDoc, over = {}) {
   const dir = mkdtempSync(join(tmpdir(), "uai-cache-render-"));
   const sPath = join(dir, "survey.json");
   const oPath = join(dir, "own.json");
+  const mPath = join(dir, "modern.json");
+  const cPath = join(dir, "control.json");
   const outPath = join(dir, "out.md");
   writeFileSync(sPath, JSON.stringify(sDoc));
   writeFileSync(oPath, JSON.stringify(oDoc));
-  const r = spawnSync(process.execPath, [RENDERER, "--survey", sPath, "--own", oPath, "--out", outPath], { encoding: "utf8" });
-  return { r, outPath };
+  writeFileSync(mPath, JSON.stringify(over.modern ?? leg("2026-07-28", false)));
+  writeFileSync(cPath, JSON.stringify(over.control ?? leg("2025-06-18", true)));
+  // Both legs are passed explicitly: defaulting them to a scratch path would make the suite green only
+  // on a machine that happens to have that ignored file.
+  const r = spawnSync(process.execPath, [
+    RENDERER, "--survey", sPath, "--own", oPath, "--modern", mPath, "--control", cPath, "--out", outPath,
+  ], { encoding: "utf8" });
+  return { r, outPath, dir };
 }
+
+test("a control leg that cannot show what revision it answered is refused, not paired", () => {
+  const bad = leg("2025-06-18", true);
+  for (const row of bad.rows) delete row.revision_answered;
+  const { r } = run(survey(), own(), { control: bad });
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr + r.stdout, /revision_answered/);
+});
+
+test("legs covering different endpoints are refused, because then they differ by more than the revision", () => {
+  const shifted = leg("2025-06-18", true);
+  shifted.rows = shifted.rows.slice(0, 2);
+  const { r } = run(survey(), own(), { control: shifted });
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr + r.stdout, /not the same endpoint set/);
+});
 
 test("a reconciling pair renders, and the page counts what the artifact counted", () => {
   const { r, outPath } = run(survey(), own());
