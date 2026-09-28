@@ -4,6 +4,7 @@ import { dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CURRENT_RELEASE, PINNED_ROSTER, pinnedCorrectReadings, pinnedCountMismatches, pinnedIdentityReadings } from "./check-pinned-count.mjs";
 import { CACHE_CLAIM_CARRIERS, findUnqualifiedCacheClaims } from "./launch-preflight.mjs";
+import { auditArticlePages } from "./article-registration.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const errors = [];
@@ -1223,6 +1224,30 @@ for (const article of hubArticles.keys()) {
   if (!indexNowConfig.urlList.includes(`${expectedIndexNowPrefix}${article}`)) {
     addError("measurement_article_not_pingable", indexNowConfigPath, article);
   }
+}
+
+// A page can be written, rendered and declared in the sitemap and still be unreachable in
+// practice: nothing inside our own domain links to it, or only one language can get to it, or
+// llms.txt - the file an assistant reads before it reads anything else - never mentions it, or
+// it points at the markdown on our own host, which Pages serves as raw text/markdown because
+// docs/.nojekyll turns the renderer off. All four happened at once to the measurement articles
+// and every existing marker stayed green, because each existing rule compares one pair of
+// registries and none of them asked whether a reader has a path.
+// The audit itself is tools/article-registration.mjs, kept pure so every arm has a fixture
+// that can actually fire - a guard that can only say "clean" is not a guard.
+const docsHtmlNames = tracked
+  .filter((f) => f.startsWith("docs/") && f.endsWith(".html"))
+  .map((f) => f.slice("docs/".length));
+const articleAudit = auditArticlePages({
+  sitemapText: sitemap,
+  llmsText: readFileSync(resolve(repoRoot, "docs/llms.txt"), "utf8"),
+  pages: Object.fromEntries(docsHtmlNames.map((name) => [name, readFileSync(resolve(repoRoot, "docs", name), "utf8")])),
+  mdStems: tracked
+    .filter((f) => f.startsWith("docs/") && f.endsWith(".md"))
+    .map((f) => f.slice("docs/".length, -3)),
+});
+for (const problem of articleAudit) {
+  addError(problem.code, "docs/" + problem.page, problem.detail);
 }
 
 if (indexNowWorkflow.includes("workflow_run:")) {
