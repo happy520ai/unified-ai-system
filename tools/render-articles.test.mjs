@@ -21,6 +21,26 @@ test("a page without the marker is never touched, whatever else is true about it
   assert.deepEqual(handAuthored, ["prompt-enhancement.html"]);
 });
 
+test("a declared page that does not exist yet is rendered, not called hand-authored", () => {
+  // This is the ordering the command exists for: register a page in the sitemap, then run it. The
+  // first version threw ENOENT here, which is the worst possible moment to fail.
+  const missing = () => {
+    const e = new Error("ENOENT");
+    e.code = "ENOENT";
+    throw e;
+  };
+  const { generated, handAuthored } = selectGenerated(["new-article.html"], missing);
+  assert.deepEqual(generated, ["new-article.html"]);
+  assert.deepEqual(handAuthored, []);
+});
+
+test("a read error that is not a missing file still propagates", () => {
+  assert.throws(
+    () => selectGenerated(["x.html"], () => { throw Object.assign(new Error("EACCES"), { code: "EACCES" }); }),
+    /EACCES/,
+  );
+});
+
 test("boundary: a marker past the first 400 characters is not treated as a claim of ownership", () => {
   const buried = "<!doctype html>\n" + "x".repeat(500) + "\n<!-- " + MARKER + " -->";
   const { generated, handAuthored } = selectGenerated(["y.html"], () => buried);

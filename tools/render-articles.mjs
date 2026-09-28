@@ -21,7 +21,21 @@ export function selectGenerated(names, readHead) {
   const generated = [];
   const handAuthored = [];
   for (const name of names) {
-    if (readHead(name).slice(0, 400).includes(MARKER)) generated.push(name);
+    // A page that is declared in the sitemap but not on disk yet is not hand-authored - it is a page
+    // waiting to be rendered. The first version of this script read every declared page blindly and
+    // crashed with ENOENT on the one that had just been registered, which is the exact moment the
+    // command is most useful.
+    let head = "";
+    try {
+      head = readHead(name);
+    } catch (e) {
+      if (e && e.code === "ENOENT") {
+        generated.push(name);
+        continue;
+      }
+      throw e;
+    }
+    if (head.slice(0, 400).includes(MARKER)) generated.push(name);
     else handAuthored.push(name);
   }
   return { generated, handAuthored };
