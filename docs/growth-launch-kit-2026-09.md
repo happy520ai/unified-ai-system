@@ -1244,6 +1244,10 @@ curl -s "https://registry.modelcontextprotocol.io/v0/servers/io.github.happy520a
 curl -s -X POST -H "content-type: application/json" --data-binary @server.json \
   https://registry.modelcontextprotocol.io/v0/validate
 # -> {"valid":true,"issues":[]}
+
+# "active" is not the same as "current" - the same route, two older records
+curl -s ".../versions/latest" # -> version 0.8.0, active, isLatest true
+curl -s ".../versions/0.4.8"  # -> active, isLatest FALSE, publishedAt 2026-08-10T05:33:32Z
 ```
 
 The current record's description is *"Self-hosted MCP gateway for Codex, Cursor, and Cline with
@@ -1260,3 +1264,17 @@ records for us, ending at 0.4.3), and reading "the newest entry" off it produces
 a confidently wrong statement about our own listing. Ask the per-version route, or read
 `_meta["io.modelcontextprotocol.registry/official"].isLatest`. This section was written after that mistake
 was caught mid-check, which is the only reason it is short.
+
+**A second trap, which I fell into on 2026-09-28 while re-checking this very section.** The name segment has
+to stay percent-encoded. `.../servers/io.github.happy520ai%2Funified-ai-system/versions/0.8.0` answers 200;
+the identical route with a literal slash answers
+
+```json
+{"status":404,"title":"Not Found","detail":"Endpoint not found. See /docs for the API documentation."}
+```
+
+That body is a statement about route matching and nothing about our listing, but it is shaped exactly like
+"we vanished from the registry," and reading it as that would mean filing a retraction against ourselves on
+a claim that is true. Two rules come out of it: a 404 from an API path is only evidence about the path, so
+re-run it in the other spelling before believing anything about the record; and cite `isLatest`, not
+`status`, since 0.4.8 is `active` too.
