@@ -1327,3 +1327,47 @@ proving it absent: that index covers public repositories it has crawled, not all
 **The method lesson, which is why this section exists.** I nearly wrote "the `latest` tag is stale" from the
 observation that both manifests are 1,611 bytes and not byte-identical. The direction was the opposite - it
 is four days *newer*. Equal-size-different-bytes is a question, not an answer; the labels answer it.
+
+## 0l. A profile and an About that survive a stranger checking (2026-09-28)
+
+The temptation in a bio is to state pedigree. Do not. Pedigree cannot be re-read from the repository, so
+a reader who wants to check it can only check it against you - and a launch post that gets caught out on
+one invented line loses every measured line with it. What this project can carry is the opposite kind of
+sentence: a claim with a command behind it. These are written from readings taken in this file, and each
+one is re-checkable by the reader.
+
+**One line (repo About, 144 chars):**
+
+> Self-hosted AI gateway + MCP server you can evaluate with zero API keys: 15 governed tools, budgets,
+> cache, HMAC audit chain. Apache-2.0.
+
+**Profile bio, maintainer voice - facts only, no pedigree:**
+
+> I build infrastructure you can check before you trust it. Currently maintaining Unified AI System, an
+> Apache-2.0 self-hosted AI gateway and MCP server whose default provider is a deterministic local fake,
+> so the whole surface - tool discovery, budgets, streaming, the audit chain - runs on your machine with
+> no key and nothing leaving it. I publish measurements rather than adjectives: protocol behaviour sampled
+> across 40 public MCP endpoints, image contents read out of the published layer, startup timing recorded
+> run by run, and every retraction kept in the open. If a number in this project is wrong, the issue that
+> says so is already filed.
+
+**What that bio deliberately does not say:** no employer, no years of experience, no "ex-", no "expert in",
+no audience numbers, no claim of being first or best. Every one of those is either unverifiable from the
+repository or a claim a stranger can falsify with one search.
+
+**If you want to add real background, add only lines you can point at.** A public talk, a named project you
+maintained, a company you worked for that will confirm it - those are worth more than five adjectives, and
+they belong in the second sentence, after the project has already made the first one. Fill them in here and
+delete whatever stays blank; a blank is better than a stretch:
+
+```
+Previously: ______________________  (only if a stranger could verify it)
+Talks/writing: ____________________
+Domain I actually work in daily: ____________
+```
+
+**Paste-able rebuttal for "who is this person?"** - the honest answer is a strength here, and it is the
+answer that fits a 7-star repository:
+
+> Solo maintainer, public preview. That is the reason the README links measurements instead of badges: there
+> is no team and no track record to lean on, so the artifact has to lean on the commands you can run.
