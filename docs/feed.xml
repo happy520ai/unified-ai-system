@@ -5,8 +5,48 @@
   <subtitle>Every claim in these pages is reproducible: measured tool rosters, credential-free runs, and verbatim quotations from the projects compared.</subtitle>
   <link rel="self" type="application/atom+xml" href="https://happy520ai.github.io/unified-ai-system/feed.xml"/>
   <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/"/>
-  <updated>2026-09-28T18:51:34.692Z</updated>
+  <updated>2026-09-28T20:11:29.238Z</updated>
   <rights>Apache-2.0, Unified AI System contributors</rights>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/mcp-npm-installability.html</id>
+    <title type="html">Can you actually install what the MCP registry lists? 196 of 200 sampled npm packages could</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-npm-installability.html"/>
+    <updated>2026-09-29T04:10:48+08:00</updated>
+    <summary type="html">Short answer: the npm listings in the official MCP registry are in good shape. 98% of the sampled records point at a package that exists on npm and...</summary>
+    <category term="mcp-npm-installability"/>
+  </entry>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.zh-CN.html</id>
+    <title type="html">对公开 MCP 生态的测量（中文索引）</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.zh-CN.html"/>
+    <updated>2026-09-29T04:10:48+08:00</updated>
+    <summary type="html">向官方注册表登记的 40 个服务端匿名提问：9 个问题、10 次测量。每个数字都从机器可读数据集生成，页面自己声明分母与所请求的协议修订。</summary>
+    <category term="mcp-ecosystem-measurements.zh-CN"/>
+  </entry>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.html</id>
+    <title type="html">Nine measurements of the public MCP ecosystem</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.html"/>
+    <updated>2026-09-29T04:10:48+08:00</updated>
+    <summary type="html">We asked 40 servers advertised in the official MCP registry five anonymous questions: does tools/list paginate (0 of 16 responders), will a server agree to a protocol version that does not exist (2 did), and does an issued session id have to come back (2 of 16 issue one, and both require it), and does anyone implement server/discover yet (1 of 16 does, and 9 of 16 already send server-written instructions into the prompt). Scripts included.</summary>
+    <category term="mcp-ecosystem-measurements"/>
+  </entry>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/index.zh-CN.html</id>
+    <title type="html">Unified AI System｜面向 Codex、Cursor、Cline 的开源 MCP AI 网关</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/index.zh-CN.html"/>
+    <updated>2026-09-29T02:57:16+08:00</updated>
+    <summary type="html">加固后的 Public Preview：面向 Codex、Cursor 和 Cline 的开源、自托管 MCP 与 AI 网关，提供无需 Provider 的提示增强与 12 个 MCP 工具。</summary>
+    <category term="index.zh-CN"/>
+  </entry>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/</id>
+    <title type="html">Unified AI System</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/"/>
+    <updated>2026-09-29T02:57:16+08:00</updated>
+    <summary type="html">Hardened Public Preview: an open-source, self-hosted MCP and AI gateway for Codex, Cursor, and Cline with provider-free prompt enhancement and reproducible verification.</summary>
+    <category term="index"/>
+  </entry>
   <entry>
     <id>https://happy520ai.github.io/unified-ai-system/mcp-registry-census.html</id>
     <title type="html">How many MCP servers are there? 37,013, and what can a client do with them</title>
@@ -22,14 +62,6 @@
     <updated>2026-09-29T01:59:00+08:00</updated>
     <summary type="html">Of the 6 that do carry a package: transports stdio 6; registry types npm 6. The sample is the registry's own default order over the first pages, which...</summary>
     <category term="mcp-registry-installability"/>
-  </entry>
-  <entry>
-    <id>https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.zh-CN.html</id>
-    <title type="html">对公开 MCP 生态的测量（中文索引）</title>
-    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.zh-CN.html"/>
-    <updated>2026-09-29T01:59:00+08:00</updated>
-    <summary type="html">向官方注册表登记的 40 个服务端匿名提问：9 个问题、10 次测量。每个数字都从机器可读数据集生成，页面自己声明分母与所请求的协议修订。</summary>
-    <category term="mcp-ecosystem-measurements.zh-CN"/>
   </entry>
   <entry>
     <id>https://happy520ai.github.io/unified-ai-system/mcp-list-cache-hints.html</id>
@@ -80,22 +112,6 @@
     <category term="mcp-tools-list-pagination-survey"/>
   </entry>
   <entry>
-    <id>https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.html</id>
-    <title type="html">Nine measurements of the public MCP ecosystem</title>
-    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.html"/>
-    <updated>2026-09-29T01:59:00+08:00</updated>
-    <summary type="html">We asked 40 servers advertised in the official MCP registry five anonymous questions: does tools/list paginate (0 of 16 responders), will a server agree to a protocol version that does not exist (2 did), and does an issued session id have to come back (2 of 16 issue one, and both require it), and does anyone implement server/discover yet (1 of 16 does, and 9 of 16 already send server-written instructions into the prompt). Scripts included.</summary>
-    <category term="mcp-ecosystem-measurements"/>
-  </entry>
-  <entry>
-    <id>https://happy520ai.github.io/unified-ai-system/index.zh-CN.html</id>
-    <title type="html">Unified AI System｜面向 Codex、Cursor、Cline 的开源 MCP AI 网关</title>
-    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/index.zh-CN.html"/>
-    <updated>2026-09-28T11:09:50+08:00</updated>
-    <summary type="html">加固后的 Public Preview：面向 Codex、Cursor 和 Cline 的开源、自托管 MCP 与 AI 网关，提供无需 Provider 的提示增强与 12 个 MCP 工具。</summary>
-    <category term="index.zh-CN"/>
-  </entry>
-  <entry>
     <id>https://happy520ai.github.io/unified-ai-system/mcp-startup-timeouts.zh-CN.html</id>
     <title type="html">MCP 客户端为什么在服务端应答之前就超时</title>
     <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-startup-timeouts.zh-CN.html"/>
@@ -110,14 +126,6 @@
     <updated>2026-09-28T08:39:29+08:00</updated>
     <summary type="html">A stdio MCP server can spend its whole connect budget before it answers the first handshake. We measured where that time goes - three batches in one day, no API key, one command - and found tool enumeration costs 3 to 7 milliseconds while process boot costs seven seconds.</summary>
     <category term="mcp-startup-timeouts"/>
-  </entry>
-  <entry>
-    <id>https://happy520ai.github.io/unified-ai-system/</id>
-    <title type="html">Unified AI System</title>
-    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/"/>
-    <updated>2026-09-28T00:20:46+08:00</updated>
-    <summary type="html">Hardened Public Preview: an open-source, self-hosted MCP and AI gateway for Codex, Cursor, and Cline with provider-free prompt enhancement and reproducible verification.</summary>
-    <category term="index"/>
   </entry>
   <entry>
     <id>https://happy520ai.github.io/unified-ai-system/openapi-to-mcp.zh-CN.html</id>
