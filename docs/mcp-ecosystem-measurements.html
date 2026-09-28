@@ -135,7 +135,7 @@
         reach the policy. A truncated enumeration that looks complete is worse than one that looks
         truncated, and nothing in the response shape lets a client tell the difference.
       </p>
-      <p><a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/mcp-tools-list-pagination-survey.md">Full table and limits: pagination survey</a></p>
+      <p><a href="mcp-tools-list-pagination-survey.html">Full table and limits: pagination survey</a> - the same write-up served as a page, or read the <a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/mcp-tools-list-pagination-survey.md">markdown source</a>.</p>
 
       <h2>2. Will a server agree to a protocol version that does not exist?</h2>
       <p>
@@ -160,7 +160,7 @@
         one an hour earlier. The fallback is disclosing the revision the server would have preferred -
         the one a client never learns by asking politely.
       </p>
-      <p><a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/mcp-protocol-revision-tolerance.md">Full table and limits: revision-tolerance survey</a></p>
+      <p><a href="mcp-protocol-revision-tolerance.html">Full table and limits: revision-tolerance survey</a> - also as a <a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/mcp-protocol-revision-tolerance.md">markdown source</a>.</p>
 
       <h2>3. If a server issues a session id, does it require it back?</h2>
       <p>
@@ -175,7 +175,7 @@
         session id" as a per-upstream property discovered at connect time rather than a global assumption
         about the protocol.
       </p>
-      <p><a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/mcp-session-enforcement.md">Full table and limits: session-enforcement survey</a></p>
+      <p><a href="mcp-session-enforcement.html">Full table and limits: session-enforcement survey</a> - also as a <a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/mcp-session-enforcement.md">markdown source</a>.</p>
 
       <h2>4. Does anyone implement <code>server/discover</code> yet?</h2>
       <p>
@@ -293,7 +293,8 @@
         no repeat leg and classified both as a header effect - a difference between two requests sent
         seconds apart, mistaken for a difference caused by one header. Ten servers rejected the GET
         identically either way; three answered GET with <code>application/json</code> and no stream at
-        all, again identically.
+        all, again identically. The write-up, including the false positive the repeat leg caught, is
+        <a href="mcp-route-headers.html">Can a header redirect a server to a method the body never asked for?</a>
       </p>
       <h2>8. Does a server ever say how long its tool list may be cached?</h2>
       <p>
