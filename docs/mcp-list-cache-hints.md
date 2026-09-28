@@ -124,7 +124,10 @@ mostly omit what it then requires, and our server is in the minority that fills 
 ## Reproduce
 
 ```bash
-node tools/survey-mcp-list-cache-hints.mjs 40
+node tools/survey-mcp-list-cache-hints.mjs 40 --revision 2025-06-18   # the leg above
+node tools/survey-mcp-list-cache-hints.mjs 40 --revision 2026-07-28   # the modern leg
+node tools/compare-mcp-revision-legs.mjs modern.json legacy.json      # refuses unless the two legs
+                                                                      # cover the same endpoints
 node tools/probe-own-mcp-header-behavior.mjs
 node tools/render-mcp-cache-hints-doc.mjs
 ```

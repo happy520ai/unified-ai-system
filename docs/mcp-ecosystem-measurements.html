@@ -445,7 +445,9 @@ node tools/survey-mcp-list-cache-hints.mjs 40</code></pre>
         <li><strong>The sample is not random.</strong> It is the registry's default order at one timestamp, which over-represents server names beginning with <code>a</code>.</li>
         <li><strong><code>initialize</code> and <code>tools/list</code> only.</strong> Going further would mean invoking tools on services that are not ours.</li>
         <li><strong>No stdio coverage.</strong> That population is larger and unreachable by this method.</li>
-        <li><strong>One timestamp each, 2026-09-27.</strong> Servers deploy; a re-run is a new measurement, not a regression test. All nine scripts are deliberately outside our CI for that reason.</li>
+        <li><strong>One timestamp each, 2026-09-27.</strong> Servers deploy; a re-run is a new measurement, not a regression test. All nine <em>survey</em> scripts are deliberately outside our CI for that reason; a tenth tool,
+        <code>tools/compare-mcp-revision-legs.mjs</code>, only joins two saved legs and does run under
+        <code>node --test</code>.</li>
       </ul>
 
       <footer>
