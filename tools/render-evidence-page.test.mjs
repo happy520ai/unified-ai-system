@@ -81,6 +81,36 @@ test("the shell carries the identity a search result needs", () => {
   assert.match(html, /rel="canonical" href="https:\/\/happy520ai\.github\.io\/unified-ai-system\/page\.html"/);
 });
 
+test("the meta description carries the finding, not the provenance line", () => {
+  // The provenance line is deliberately longer than the length filter, so this can only
+  // pass by matching the provenance rule itself - a short line would have been dropped by
+  // the size filter and proved nothing.
+  const md = [
+    "# Does anyone paginate the tool list?",
+    "",
+    "**Run:** 2026-09-27 15:11 UTC · **Sample:** 40 servers · **Servers that answered:** 16 · **Servers that paginated:** 0",
+    "",
+    "A gateway has to decide how long to keep a cached tool list, and this asks the servers themselves what they say about it.",
+    "",
+  ].join("\n");
+  const { outPath } = run(md);
+  const html = readFileSync(outPath, "utf8");
+  const description = (html.match(/<meta name="description" content="([^"]*)"/) || [])[1] || "";
+  const provenanceLength = md.split("\n")[2].replace(/\*/g, "").trim().length;
+  assert.ok(provenanceLength >= 80, "fixture provenance line is too short to test the rule: " + provenanceLength);
+  assert.ok(!/^(Run:|Sample|Servers that)/.test(description), "description is still provenance: " + description.slice(0, 48));
+  assert.match(description, /cached tool list/);
+  assert.ok(description.length >= 80 && description.length <= 160, "bad snippet length: " + description.length);
+});
+
+test("a document whose only text is provenance still gets a description", () => {
+  const md = "# Short title\n\n**Run:** yesterday · **Sample:** 3 servers\n";
+  const { outPath } = run(md);
+  const html = readFileSync(outPath, "utf8");
+  const description = (html.match(/<meta name="description" content="([^"]*)"/) || [])[1] || "";
+  assert.ok(description.length > 0, "empty description shipped");
+});
+
 test("a document cannot inject markup", () => {
   const { outPath } = run("# Title\n\n<script>alert(1)</script> and <img src=x onerror=boom>\n");
   const html = readFileSync(outPath, "utf8");

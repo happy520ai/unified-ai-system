@@ -49,8 +49,8 @@ function inline(md) {
 function renderMarkdown(md) {
   const lines = md.replace(/\r\n/g, "\n").split("\n");
   const body = [];
+  const paragraphs = [];
   let h1 = null;
-  let firstParagraph = "";
   let i = 0;
   const bump = () => {
     i += 1;
@@ -141,10 +141,36 @@ function renderMarkdown(md) {
     }
     const html = inline(para.join(" "));
     body.push("<p>" + html + "</p>");
-    if (!firstParagraph) firstParagraph = para.join(" ").replace(/`([^`\n]+)`/g, "$1").replace(/\*\*([^*]+)\*\*/g, "$1");
+    paragraphs.push(para.join(" "));
   }
   if (h1 === null) throw new Error("no h1 in " + basename(IN));
-  return { html: body.join("\n    "), h1, firstParagraph };
+  return { html: body.join("\n    "), h1, paragraphs };
+}
+
+// A search snippet built from the first paragraph turned out to be a provenance line on
+// every one of the six articles ("Run: ... · Sample: 40 servers", "Measured 2026-09-27 by
+// tools/..."), which tells a reader how we worked and nothing about what we found. The
+// summary is therefore the first block that actually states something.
+// Tested against plainText() output, so the markers appear without their markdown
+// emphasis - matching the raw "**Run:**" form would let the provenance line through.
+const PROVENANCE = /^(Run|Sample|Measured|Window|Reproduce)\b[: ]|^(Sample taken|Measured |Reproduce\b|This page is generated)/;
+
+function plainText(md) {
+  return md
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/[*`]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function pickSummary(paragraphs) {
+  const candidates = paragraphs
+    .map(plainText)
+    .filter((t) => t.length >= 80 && !PROVENANCE.test(t));
+  const chosen = candidates[0] || plainText(paragraphs[0] || "");
+  if (chosen.length <= 160) return chosen;
+  const cut = chosen.slice(0, 157);
+  return cut.slice(0, cut.lastIndexOf(" ")) + "...";
 }
 
 export { inline, escapeHtml, renderMarkdown };
@@ -213,7 +239,7 @@ function shell({ title, description, slug, lang, body, twin }) {
 
 function main() {
   const markdown = readFileSync(IN, "utf8");
-  const { html, h1, firstParagraph } = renderMarkdown(markdown);
+  const { html, h1, paragraphs } = renderMarkdown(markdown);
   // The slug comes from the input name, never from the output path: a page must not
   // describe a different URL than the one it is served at, and a scratch render to a
   // temporary filename still has to carry its real canonical.
@@ -221,8 +247,7 @@ function main() {
   if (!basename(OUT).endsWith(slug)) {
     throw new Error("output name must end with " + slug + ", got " + basename(OUT));
   }
-  const description =
-    (firstParagraph.length > 300 ? firstParagraph.slice(0, 297).trimEnd() + "..." : firstParagraph) || h1;
+  const description = pickSummary(paragraphs) || h1;
   const twin = arg("--twin", "");
   writeFileSync(OUT, shell({ title: h1, description, slug, lang: arg("--lang", "en"), body: html, twin }));
   console.log(
