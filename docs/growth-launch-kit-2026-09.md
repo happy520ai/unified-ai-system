@@ -31,7 +31,7 @@ branding step cannot spend the first two minutes of fifteen.
 | 1 | Post Show HN (§1) | `https://news.ycombinator.com/submit` | Largest single-event ceiling available. Needs your login; the copy is ready and its reads expire fast, so re-run `## Verify before posting` first. Read §5 before you submit - the replies in the first two hours are the part that was missing. |
 | 2 | Post to one subreddit (§2) | r/LocalLLaMA (or r/selfhosted with the §2 wording swap) | Same shape as HN, slower burn, and the self-hosters there are the audience that actually installs. One post, not a cross-post sweep. |
 | 3 | Sign up and file the news item (§0d) | `https://changelog.com/news/submit` | Three fields. Their page says submitting your own work is encouraged, so this is a legitimate door rather than a favour. |
-| 4 | Set the Glama build target so a grade exists (§0h) | `https://glama.ai/mcp/servers/happy520ai/unified-ai-system/admin` → Docker builds | Different in kind from the fourteen carried listings above: the maintainer of the biggest MCP list has already reviewed our entry and named exactly one remaining condition ("any grade is fine"), so this is a queued merge rather than a cold submission. ~5 minutes, and only you can reach that dashboard. |
+| 4 | Set the Glama build target so a grade exists (§0h; updated 2026-09-28 - introspection is now observed never to have run, and public ticket glama-ai/tool-definition-quality-score#7 asks which artifact they build) | `https://glama.ai/mcp/servers/happy520ai/unified-ai-system/admin` → Docker builds | Different in kind from the fourteen carried listings above: the maintainer of the biggest MCP list has already reviewed our entry and named exactly one remaining condition ("any grade is fine"), so this is a queued merge rather than a cold submission. ~5 minutes, and only you can reach that dashboard. |
 | 5 | Send one message to selfh.st (§0e) | `selfhst@fosstodon.org` | The closest audience of the whole list. No form exists; it is a message. |
 | 6 | Click the checkbox and fill the form (§0f) | `https://openalternative.co/submit` | I am not solving a machine-refusal challenge for you; their GitHub list (6,747★) is generated from this one submission. |
 | 7 | Paste one of the five data articles (§4b, §4c, §4d, §4e or §4f) | dev.to draft → publish | Lowest cost per unit of reach in this file, and the only one that does not ask a reader to evaluate our product. §4e and §4f are the newest (the whole-registry census and the npm draw, both measured 2026-09-28); §4e answers "how many MCP servers are there", a question people type into search engines, and §4f is the rarer shape - a post whose news is that a problem I went looking for mostly was not there. §4c and §4d follow (both written 2026-09-27, after the header and cache-hint measurements). All five already carry the agent disclosure and none asks for a star. Re-run `## Verify before posting` first: the numbers are dated readings, and a stale one in a data post is worse than no post. |
@@ -1195,6 +1195,37 @@ that means "build this stage". (The schema does not set `additionalProperties: f
 invented key would be *accepted* rather than rejected - which is worse: it would look configured
 while being read by nobody.) Their own admin page describes the build spec as a dashboard
 control, so this has to be clicked; it cannot be committed.
+
+### 0h-update, 2026-09-28 22:00Z: the introspection has now been *observed* not to happen, and there is a public ticket
+
+The reading above was written as a check to perform. Three things moved since then, and they change
+what is worth doing:
+
+1. **Confirmed, from the rendered DOM rather than a curl body**: `glama.ai/mcp/servers/happy520ai/unified-ai-system/schema`
+   says "Server capabilities have not been inspected yet", "No tools", and "This server publishes no instructions".
+   All three are false of the running server - it answers `tools/list` with 15 tools and returns a non-empty
+   `instructions` string from `initialize` (measured today, twice: in-process over HTTP and as a stdio subprocess,
+   `tools/audit-tool-definition-quality.mjs` and `tools/tdqs-precheck.mjs`). So this is not a grade we are waiting
+   on; it is an introspection that has never completed.
+2. **There is a public route, so the dashboard is no longer the only path.** We filed
+   [glama-ai/tool-definition-quality-score#7](https://github.com/glama-ai/tool-definition-quality-score/issues/7)
+   asking which artifact their builder consumes - the repository's default Dockerfile target or the registry's
+   OCI coordinates - and requesting a re-crawl. It follows the shape of their issue #1, which was the same
+   blocker for a different server. If the answer is "default target", the fix is the two-line change in
+   [our own #188](https://github.com/happy520ai/unified-ai-system/issues/188) and needs no login at all.
+3. **One wording correction against ourselves.** §0 of this file recorded that Glama's page "contains
+   `tools 15`" and concluded the entry "describes our surface correctly today". What the page contains is
+   our README rendered as text - including the line where our own README tells a reader what to expect from
+   `server/discover`. Glama's *introspection* of the server is a different table, and that table is empty.
+   "Renders our prose" and "knows our tools" are not the same claim, and the earlier sentence let them read
+   as one. The tool count in the README is still right; the inference drawn from Glama's copy of it was not.
+
+Nothing here needs a new decision from you today. It does change the ask from "click, then wait" to
+"click, or wait for #7 - and either way the answer tells us whether our default build target is costing us
+a door". The self-audit that came out of reading their spec is published at
+[mcp-tool-definition-quality.html](https://happy520ai.github.io/unified-ai-system/mcp-tool-definition-quality.html),
+and it is worth a read on its own account: 0 of our 15 tools declare an `outputSchema`, and three `*_health`
+tools never name each other in their descriptions.
 
 ---
 
