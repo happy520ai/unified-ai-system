@@ -1241,6 +1241,7 @@ const docsHtmlNames = tracked
 const articleAudit = auditArticlePages({
   sitemapText: sitemap,
   llmsText: readFileSync(resolve(repoRoot, "docs/llms.txt"), "utf8"),
+  feedText: readFileSync(resolve(repoRoot, "docs/feed.xml"), "utf8"),
   pages: Object.fromEntries(docsHtmlNames.map((name) => [name, readFileSync(resolve(repoRoot, "docs", name), "utf8")])),
   mdStems: tracked
     .filter((f) => f.startsWith("docs/") && f.endsWith(".md"))

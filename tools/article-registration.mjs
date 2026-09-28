@@ -24,11 +24,36 @@ function inboundLinks(pages, name) {
     .map(([other]) => other);
 }
 
-export function auditArticlePages({ sitemapText, llmsText, pages, mdStems, siteHost = "happy520ai.github.io" }) {
+export function auditArticlePages({ sitemapText, llmsText, pages, mdStems, feedText, siteHost = "happy520ai.github.io" }) {
   const problems = [];
   const declared = [...sitemapText.matchAll(SITEMAP_LOC)]
     .map((m) => pageName(m[1]))
     .filter((name) => name.endsWith(".html"));
+
+  // The feed is generated from the sitemap by tools/render-site-feed.mjs, which nothing
+  // runs: no script, no workflow. It was two days stale and held none of the measurement
+  // articles, which is the same failure as an undeclared page - the fresh content is the
+  // part a subscriber never sees. Compared as sets in both directions, so it cannot rot
+  // quietly again. feedText is optional so a caller can audit links alone.
+  if (feedText !== undefined) {
+    const siteUrls = [...sitemapText.matchAll(SITEMAP_LOC)].map((m) => m[1]).filter((u) => !u.endsWith("/feed.xml"));
+    const feedIds = [...feedText.matchAll(/<(?:id|url|href)>([^<]+)<\/(?:id|url|href)>/g)]
+      .map((m) => m[1].trim())
+      .filter((u) => u.startsWith("http"));
+    for (const url of siteUrls) {
+      const bare = url.replace(/\/$/, "");
+      if (!feedIds.some((f) => f.replace(/\/$/, "") === bare)) {
+        problems.push({ code: "sitemap_page_absent_from_feed", page: pageName(url) || "site root", detail: url + " is declared in sitemap.xml but has no feed entry - run: node tools/render-site-feed.mjs" });
+      }
+    }
+    for (const feedUrl of feedIds) {
+      const bare = feedUrl.replace(/\/$/, "");
+      if (bare.endsWith(".xml") || bare.endsWith(".txt") || bare.endsWith(".json")) continue; // the feed's own and the hub's self links
+      if (!siteUrls.some((u) => u.replace(/\/$/, "") === bare)) {
+        problems.push({ code: "feed_entry_not_declared", page: pageName(feedUrl), detail: feedUrl + " appears in the feed but is not in sitemap.xml" });
+      }
+    }
+  }
 
   for (const name of declared) {
     const stem = name.replace(/\.html$/, "");

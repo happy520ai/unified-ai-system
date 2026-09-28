@@ -80,13 +80,51 @@ test("a sitemap page with no markdown source is not held to the article rules", 
   assert.deepEqual(problems, []);
 });
 
+test("a declared page missing from the feed is reported, and so is an undeclared feed entry", () => {
+  const feed = (urls) =>
+    '<feed>' + urls.map((u) => `<entry><id>${u}</id><updated>2026-01-01T00:00:00Z</updated></entry>`).join("") + "</feed>";
+  const articleUrl = "https://example.test/article-one.html";
+  const indexUrl = "https://example.test/index.html";
+
+  // The fixture declares two pages, so an empty feed legitimately reports both. Naming the
+  // page is the point of the arm, so the assertion checks which page is called out rather
+  // than only how many problems came back.
+  const stale = auditArticlePages({ ...base, feedText: feed([]) });
+  assert.deepEqual(codes(stale).sort(), ["sitemap_page_absent_from_feed", "sitemap_page_absent_from_feed"]);
+  assert.deepEqual(stale.map((p) => p.page).sort(), ["article-one.html", "index.html"]);
+
+  const extra = auditArticlePages({ ...base, feedText: feed([indexUrl, articleUrl, "https://example.test/ghost.html"]) });
+  assert.deepEqual(codes(extra), ["feed_entry_not_declared"], JSON.stringify(extra));
+  assert.equal(extra[0].page, "ghost.html");
+
+  const matched = auditArticlePages({ ...base, feedText: feed([articleUrl, indexUrl]) });
+  assert.deepEqual(matched, [], "a feed that agrees with the sitemap must produce nothing");
+});
+
+test("boundary: the feed does not have to list itself, and a caller may audit links only", () => {
+  const withSelf = auditArticlePages({
+    sitemapText: sitemap("article-one.html", "feed.xml"),
+    llmsText: base.llmsText,
+    mdStems: ["article-one"],
+    pages: base.pages,
+    feedText: '<feed><entry><id>https://example.test/article-one.html</id></entry></feed>',
+  });
+  assert.deepEqual(withSelf, [], "feed.xml must not be demanded as a feed entry: " + JSON.stringify(withSelf));
+  // The arms are skipped rather than guessed at when the caller has no feed to compare.
+  assert.deepEqual(auditArticlePages({ ...base, feedText: undefined }), []);
+});
+
 test("the real repository passes the audit it is about to enforce", () => {
   const sitemapText = readFileSync("docs/sitemap.xml", "utf8");
   const llmsText = readFileSync("docs/llms.txt", "utf8");
+  const feedText = readFileSync("docs/feed.xml", "utf8");
   const names = readdirSync("docs").filter((f) => f.endsWith(".html"));
   const pages = Object.fromEntries(names.map((f) => [f, readFileSync("docs/" + f, "utf8")]));
   const mdStems = names.filter((f) => existsSync("docs/" + f.replace(/\.html$/, ".md"))).map((f) => f.replace(/\.html$/, ""));
-  const problems = auditArticlePages({ sitemapText, llmsText, pages, mdStems });
+  const problems = auditArticlePages({ sitemapText, llmsText, feedText, pages, mdStems });
   assert.deepEqual(problems, [], "registered article pages drifted: " + JSON.stringify(problems));
   assert.ok(mdStems.length >= 6, "expected the six evidence articles plus any other sourced page, got " + mdStems.length);
+  const entries = (feedText.match(/<entry>/g) || []).length;
+  const declared = [...sitemapText.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]).filter((u) => !u.endsWith("/feed.xml"));
+  assert.equal(entries, declared.length, "feed entries must equal declared pages, saw " + entries + " vs " + declared.length);
 });
