@@ -5,13 +5,29 @@
   <subtitle>Every claim in these pages is reproducible: measured tool rosters, credential-free runs, and verbatim quotations from the projects compared.</subtitle>
   <link rel="self" type="application/atom+xml" href="https://happy520ai.github.io/unified-ai-system/feed.xml"/>
   <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/"/>
-  <updated>2026-09-28T20:11:29.238Z</updated>
+  <updated>2026-09-28T21:21:02.201Z</updated>
   <rights>Apache-2.0, Unified AI System contributors</rights>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/mcp-package-resolve.html</id>
+    <title type="html">Do the MCP registry's non-npm listings resolve? Measured across pypi, OCI, mcpb, cargo and NuGet</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-package-resolve.html"/>
+    <updated>2026-09-29T05:20:24+08:00</updated>
+    <summary type="html">15 of 785 listings across 791 entries could not be resolved at the version the registry declares. The per-family numbers differ a lot, and two of these...</summary>
+    <category term="mcp-package-resolve"/>
+  </entry>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/mcp-registry-census.html</id>
+    <title type="html">How many MCP servers are there? 37,013, and what can a client do with them</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-registry-census.html"/>
+    <updated>2026-09-29T04:13:14+08:00</updated>
+    <summary type="html">Short answer: there are 37,013 servers in the official MCP registry's default view as of 2026-09-28, and 439 of them (1.20%) declare nothing a client can...</summary>
+    <category term="mcp-registry-census"/>
+  </entry>
   <entry>
     <id>https://happy520ai.github.io/unified-ai-system/mcp-npm-installability.html</id>
     <title type="html">Can you actually install what the MCP registry lists? 196 of 200 sampled npm packages could</title>
     <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-npm-installability.html"/>
-    <updated>2026-09-29T04:10:48+08:00</updated>
+    <updated>2026-09-29T04:12:00+08:00</updated>
     <summary type="html">Short answer: the npm listings in the official MCP registry are in good shape. 98% of the sampled records point at a package that exists on npm and...</summary>
     <category term="mcp-npm-installability"/>
   </entry>
@@ -46,14 +62,6 @@
     <updated>2026-09-29T02:57:16+08:00</updated>
     <summary type="html">Hardened Public Preview: an open-source, self-hosted MCP and AI gateway for Codex, Cursor, and Cline with provider-free prompt enhancement and reproducible verification.</summary>
     <category term="index"/>
-  </entry>
-  <entry>
-    <id>https://happy520ai.github.io/unified-ai-system/mcp-registry-census.html</id>
-    <title type="html">How many MCP servers are there? 37,013, and what can a client do with them</title>
-    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-registry-census.html"/>
-    <updated>2026-09-29T02:47:45+08:00</updated>
-    <summary type="html">Short answer: there are 37,013 servers in the official MCP registry's default view as of 2026-09-28, and 439 of them (1.20%) declare nothing a client can...</summary>
-    <category term="mcp-registry-census"/>
   </entry>
   <entry>
     <id>https://happy520ai.github.io/unified-ai-system/mcp-registry-installability.html</id>

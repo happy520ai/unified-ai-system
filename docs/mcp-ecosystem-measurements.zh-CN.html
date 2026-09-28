@@ -111,6 +111,8 @@
         普查页记录了这句撤回与推翻它的读数。另有一次带种子的抽查：从 9,896 条 npm 记录里抽 200 条，
         <a href="mcp-npm-installability.html">196 条能按注册表所列版本在 npm 上装到</a>，3 条版本已不存在、1 条包名已消失，
         不可用率 2.00%（95% 置信区间 0.06%–3.94%）——这把问题从「声明过期」收窄到「什么都没声明」那一批。
+        其余五类工件随后按同样方式逐个探测：<a href="mcp-package-resolve.html">785 条里 15 条解析不了</a>（cargo 与 NuGet 是全体清点），
+        六类合计不可用率 1.93%（Wilson 1.24%–2.99%）。
         英文原文与可重跑脚本：<a href="mcp-ecosystem-measurements.html">Nine measurements of the public MCP ecosystem</a>。
         每份调查都是双次采样同一窗口：把 <code>ttlMs</code> 与 <code>cacheScope</code> 那题在两个协议修订下各问一遍，
         所以「没人声明」这句话必须配上「问的是哪个修订」才有意义。
