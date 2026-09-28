@@ -30,7 +30,7 @@
   "headline": "Is a registry-listed MCP server actually installable from the registry?",
   "description": "Of the 6 that do carry a package: transports stdio 6; registry types npm 6. The sample is the registry's own default order over the first pages, which...",
   "datePublished": "2026-09-28T16:18:26Z",
-  "dateModified": "2026-09-28T16:18:26Z",
+  "dateModified": "2026-09-28T16:19:17Z",
   "author": {
     "@type": "Organization",
     "name": "Unified AI System",
@@ -63,18 +63,21 @@
     <h2>What we counted</h2>
     <table><thead><tr><th></th><th>count</th><th>share of servers read</th></tr></thead><tbody><tr><td>distinct servers collected</td><td>54</td><td>-</td></tr><tr><td>latest record readable</td><td>54</td><td>100%</td></tr><tr><td><strong>record carries a <code>packages</code> entry</strong></td><td><strong>6</strong></td><td>11%</td></tr><tr><td>record carries none</td><td>48</td><td>89%</td></tr><tr><td>record names a repository URL</td><td>21</td><td>39%</td></tr></tbody></table>
     <p>Of the 6 that do carry a package: transports <code>stdio</code> 6; registry types <code>npm</code> 6. The sample is the registry's own default order over the first pages, which groups toward the front of the alphabet, so read the type breakdown as one sample's shape rather than the population's.</p>
-    <h2>The distinction the numbers exist to draw</h2>
-    <p><code>published in the official registry</code> and <code>installable from the official registry</code> are two claims, and only the second is what an install button needs. In this sample the second held for 6 of 54 records: the rest tell you a server exists without telling a client how to run it.</p>
+    <h2>What this field does and does not tell you</h2>
+    <p><code>published in the official registry</code> and <code>this record carries an artifact an installer can consume</code> are two claims, and only the second is what an install button needs. In this sample the second held for 6 of 54 records.</p>
+    <p>What this page does <strong>not</strong> measure is the other way a record can be actionable: a <code>remotes</code> entry, which points a client at a hosted endpoint instead of at a package. The instrument that produced these rows read <code>packages</code> and nothing else, so the 48 package-less records here are <em>unclassified as to reachability</em>: this reading cannot say whether any of them carries a remote, and a reader must not conclude that it does not. Sentence corrected 2026-09-28 - an earlier version of this page asserted that those records told a client nothing at all, which the field that was actually measured cannot support either way.</p>
     <p>That is not a judgement about the servers. A record can be complete as a catalogue item and still carry no package, because the package is the part an installer consumes and the repository is the part a human reads.</p>
     <h2>Two ways to read the same field and get different numbers</h2>
-    <p>Reading the list endpoint's first row for a server counts packages on its <strong>oldest published</strong> version, because that endpoint returns one row per version, oldest first. That gives 5; reading each server's latest record gives</p>
+    <p>Reading the list endpoint's first row for a server counts packages on its <strong>oldest published</strong> version: the list comes grouped by server name with each name's versions oldest-first, so the first row carrying a name is that name's earliest record. That gives 5; reading each server's latest record gives</p>
     <ol><li>Neither is a typo for the other: they are different questions, and only the</li></ol>
     <p>second is about what someone installing today would receive.</p>
     <p>The same endpoint also does not treat a limit as a sample size - 1 pages were read to reach 54 distinct servers, because <code>limit</code> counts rows and rows are versions.</p>
     <h2>Our own record, read as a control and not as a sample member</h2>
     <p>The instrument reads <code>io.github.happy520ai/unified-ai-system</code> the same way every run and refuses to publish if it comes back without a package - otherwise a low count is indistinguishable from a broken probe. It reports package present, registry type <code>oci</code>, transport <code>stdio</code>, version 0.8.0. It is <strong>not</strong> a member of the sample above (<code>in_sample: false</code>): the alphabetical prefix this sample draws from stops before it. So the honest reading is that every sampled package was npm-over-<code>stdio</code> 6, and the container-image case here is ours, observed outside the sample.</p>
     <h2>Deliberately not claimed</h2>
-    <ul><li>That the ratio holds across the whole registry: 54 servers, one ordering, one day.</li><li>That a record without a package is unmaintained or low quality. 21 of 54 name a repository, which</li></ul>
+    <ul><li>That the ratio holds across the whole registry: 54 servers, one ordering, one day.</li><li>That a record without a package is unreachable. Only <code>packages</code> was read in this window, so whether</li></ul>
+    <p>  these records carry a <code>remotes</code> entry is a question this page cannot answer in either direction.</p>
+    <ul><li>That a record without a package is unmaintained or low quality. 21 of 54 name a repository, which</li></ul>
     <p>  is still somewhere a reader can go.</p>
     <ul><li>That any particular directory shows or hides these servers in any particular way. No directory was</li></ul>
     <p>  asked anything here; this is a reading of the registry's own API.</p>
