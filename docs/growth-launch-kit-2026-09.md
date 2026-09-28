@@ -192,7 +192,7 @@ disagree, so it cannot quietly become an un-notified orphan.
 
 ## 1. Show HN (news.ycombinator.com)
 
-**Title (73 chars):**
+**Title (69 chars, measured 2026-09-28 as codepoints and bytes - the label used to say 73):**
 `Show HN: A self-hosted AI gateway you can evaluate with zero API keys`
 
 **URL:** `https://github.com/happy520ai/unified-ai-system`
