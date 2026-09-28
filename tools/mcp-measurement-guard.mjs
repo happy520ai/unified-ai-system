@@ -70,4 +70,11 @@ export const MEASUREMENT_QUESTIONS = [
   },
   { id: "server-discover-support", title: "Does anyone implement server/discover?", script: "tools/survey-mcp-server-discover.mjs" },
   { id: "instructions-field", title: "How much server-written instructions prose reaches a client?", script: "tools/survey-mcp-instructions-field.mjs" },
+  { id: "protocol-version-header", title: "Does a server require MCP-Protocol-Version on posts after initialize?", script: "tools/survey-mcp-protocol-version-header.mjs" },
+  { id: "route-headers", title: "Do Mcp-Method/Mcp-Name headers route anything, or is the body authoritative?", script: "tools/survey-mcp-route-headers.mjs" },
+  { id: "get-stream-headers", title: "Does a body-less GET event stream behave the same with and without the header?", script: "tools/survey-mcp-get-stream-headers.mjs" },
+  // The cache-hint survey is published as a pair, so the dataset carries both legs: a single entry would
+  // let a reader apply a legacy-revision count to a claim about the revision that requires the fields.
+  { id: "cache-hints-legacy-leg", title: "At the revision that does not require cache hints, does anyone send them?", script: "tools/survey-mcp-list-cache-hints.mjs", args: ["--revision", "2025-06-18"] },
+  { id: "cache-hints-modern-leg", title: "At the revision that requires them, do the servers that accept it send them?", script: "tools/survey-mcp-list-cache-hints.mjs", args: ["--revision", "2026-07-28"] },
 ];

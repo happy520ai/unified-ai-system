@@ -1,4 +1,6 @@
-// Build one machine-readable dataset from the five MCP ecosystem surveys.
+// Build one machine-readable dataset from the MCP ecosystem surveys in MEASUREMENT_QUESTIONS.
+// The list is the source of truth for how many questions there are; nothing here pins a count, so a
+// published survey that is missing from the list shows up as coverage, not as a stale comment.
 //
 // Rationale: the numbers in docs/mcp-ecosystem-measurements.html are prose over tables, and prose has
 // already drifted from its own table once (#180). This artifact is generated, not written, and every
@@ -26,7 +28,7 @@ const failures = [];
 
 for (const q of MEASUREMENT_QUESTIONS) {
   process.stderr.write(`running ${q.script} ${LIMIT}\n`);
-  const r = spawnSync("node", [q.script, String(LIMIT)], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  const r = spawnSync("node", [q.script, String(LIMIT), ...(q.args ?? [])], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
   const out = `${r.stdout ?? ""}`.trim();
   if (r.status !== 0 || !out) {
     failures.push({ id: q.id, status: "script_failed", stderr: `exit=${r.status} ${String(r.stderr ?? "").slice(0, 160)}` });
