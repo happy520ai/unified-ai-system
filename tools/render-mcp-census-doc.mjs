@@ -101,14 +101,25 @@ if (!Number.isSafeInteger(priorBadKey)) throw new Error("REFUSED: the superseded
 // The visibility instrument, because the scope sentence above is a live claim about someone else's API and
 // must fail rather than age quietly if that API changes.
 const vis = JSON.parse(readFileSync(arg("--visibility", "docs/data/mcp-registry-visibility-params.2026-09-28.json"), "utf8"));
-for (const k of ["documented_get_parameters", "pages", "status_param_documented", "status_param_matches_no_filter_sha", "deleted_status_seen_only_with_include_deleted", "problem_count"]) {
+for (const k of ["documented_get_parameters", "pages", "status_param_documented", "status_param_matches_no_filter_sha", "deleted_status_seen_only_with_include_deleted", "version_param_documented", "version_latest_returns_only_current", "version_latest_page", "default_page_latest_mix", "version_bogus_returns_zero_rows", "problem_count"]) {
   if (vis[k] === undefined) throw new Error("REFUSED: visibility artifact is missing " + k);
 }
 if (vis.problem_count !== 0) throw new Error("REFUSED: the visibility instrument reported " + vis.problem_count + " problems");
 if (vis.status_param_documented !== false) throw new Error("REFUSED: `status` is documented now, so the bullet about it being ignored is wrong");
 if (vis.status_param_matches_no_filter_sha !== true) throw new Error("REFUSED: `?status=active` no longer returns the unfiltered page, so it is not ignored");
 if (vis.deleted_status_seen_only_with_include_deleted !== true) throw new Error("REFUSED: `deleted` records are no longer gated behind include_deleted, so the scope caveat is wrong");
+if (vis.version_param_documented !== true) throw new Error("REFUSED: `version` is not a documented parameter of GET /v0/servers any more, so the bullet that calls it documented is wrong");
+if (vis.version_latest_returns_only_current !== true) throw new Error("REFUSED: `?version=latest` no longer returns only current rows, so the bullet that calls it a filter the server honours is wrong");
+if (vis.version_bogus_returns_zero_rows !== true) throw new Error("REFUSED: `?version=not-a-real-value` returns rows again, so the sentence saying it returned none is wrong");
+const visLatestOnly = vis.version_latest_page;
+const visMix = vis.default_page_latest_mix;
+for (const [label, tally] of [["version_latest_page", visLatestOnly], ["default_page_latest_mix", visMix]]) {
+  if (!Number.isSafeInteger(tally.latest) || !Number.isSafeInteger(tally.not_latest)) throw new Error("REFUSED: " + label + " carries no latest/not_latest pair to quote");
+}
 const visParams = vis.documented_get_parameters.map((p) => "`" + p + "`").join(", ");
+const visLatestDeprecated = ((vis.pages.version_latest || {}).statuses || {}).deprecated;
+if (!Number.isSafeInteger(visLatestDeprecated)) throw new Error("REFUSED: the ?version=latest page reports no deprecated count, so the note separating version currency from status cannot be quoted");
+if (visLatestDeprecated === 0) throw new Error("REFUSED: ?version=latest now excludes deprecated rows, so the sentence saying the filtered page still held them is wrong");
 const visDeletedTrue = (vis.pages.include_deleted_true.statuses || {}).deleted;
 const visDeletedDefault = (vis.pages.default.statuses || {}).deleted || 0;
 if (!Number.isSafeInteger(visDeletedTrue)) throw new Error("REFUSED: the include_deleted=true page has no deleted count to compare");
@@ -290,6 +301,15 @@ const lines = [
   "  `GET /v0/servers` (" + visParams + "), and `?status=active` answered with a first page whose sha256 equalled",
   "  the unfiltered one on " + date + ", `deprecated` rows included - no error, no effect. So the active split above",
   "  is computed client-side from the whole walk.",
+  "- That no server-side option exists for this. `?version=latest` is documented and the server honours it: on " + date + " the",
+  "  unfiltered first page carried " + visMix.latest + " rows marked latest against " + visMix.not_latest + " that a newer version had",
+  "  already superseded, while `?version=latest` returned " + visLatestOnly.latest + " latest and " + visLatestOnly.not_latest + " superseded, and",
+  "  `?version=not-a-real-value` returned no rows at all. Note what that filter is about: version currency, not status",
+  "  - the filtered page still held " + visLatestDeprecated + (visLatestDeprecated === 1 ? " deprecated row." : " deprecated rows."),
+  "  This walk did not use it, because the census is",
+  "  meant to report what a consumer sees when they do not know to ask; but a reader who wants only the newest version",
+  "  of each server can ask for it in one query parameter, and an earlier comment of ours on upstream #1676 said",
+  "  otherwise and has been corrected there.",
   "- That this census is every record the registry holds. The documented visibility switch is `include_deleted`",
   "  and this walk used its default: asking `?include_deleted=true` surfaced rows whose status is `deleted` - " +
   visDeletedTrue + " of the first 100, against " + visDeletedDefault + " unfiltered - which the walk therefore never sees.",

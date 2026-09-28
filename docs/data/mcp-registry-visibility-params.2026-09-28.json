@@ -1,6 +1,6 @@
 {
   "schema": "mcp-registry-visibility-params-v1",
-  "run_at": "2026-09-28T18:06:50.461Z",
+  "run_at": "2026-09-28T23:45:34.265Z",
   "source": "https://registry.modelcontextprotocol.io/openapi.json",
   "documented_get_parameters": [
     "cursor",
@@ -18,10 +18,14 @@
         "active": 98,
         "deprecated": 2
       },
+      "latest": {
+        "latest": 53,
+        "not_latest": 47
+      },
       "cursor": true,
-      "sha256": "86e0f062f91894015f7680ee1d8cd755505c2e8ee8b195b083d00597049e9b11",
-      "utf8_bytes": 73733,
-      "code_units": 73687
+      "sha256": "eb69655548f4f7b56c6219448748f67537326e6fb4dddf4019f3110bad4f4044",
+      "utf8_bytes": 73600,
+      "code_units": 73554
     },
     "include_deleted_false": {
       "http": 200,
@@ -30,10 +34,14 @@
         "active": 98,
         "deprecated": 2
       },
+      "latest": {
+        "latest": 53,
+        "not_latest": 47
+      },
       "cursor": true,
-      "sha256": "86e0f062f91894015f7680ee1d8cd755505c2e8ee8b195b083d00597049e9b11",
-      "utf8_bytes": 73733,
-      "code_units": 73687
+      "sha256": "eb69655548f4f7b56c6219448748f67537326e6fb4dddf4019f3110bad4f4044",
+      "utf8_bytes": 73600,
+      "code_units": 73554
     },
     "include_deleted_true": {
       "http": 200,
@@ -43,10 +51,14 @@
         "active": 93,
         "deprecated": 2
       },
+      "latest": {
+        "latest": 53,
+        "not_latest": 47
+      },
       "cursor": true,
-      "sha256": "a099b1731042f976aa7588a7c3f65eb49d27db6db5e190959841182a4bae2840",
-      "utf8_bytes": 74263,
-      "code_units": 74207
+      "sha256": "a310f54e54f7161d1537b491d148f3138a27f6ca4360ccc737ac3efa399bdffa",
+      "utf8_bytes": 74399,
+      "code_units": 74343
     },
     "status_active": {
       "http": 200,
@@ -55,25 +67,73 @@
         "active": 98,
         "deprecated": 2
       },
+      "latest": {
+        "latest": 53,
+        "not_latest": 47
+      },
       "cursor": true,
-      "sha256": "86e0f062f91894015f7680ee1d8cd755505c2e8ee8b195b083d00597049e9b11",
-      "utf8_bytes": 73733,
-      "code_units": 73687
+      "sha256": "eb69655548f4f7b56c6219448748f67537326e6fb4dddf4019f3110bad4f4044",
+      "utf8_bytes": 73600,
+      "code_units": 73554
     },
     "include_deleted_bogus": {
       "http": 422,
       "rows": 0,
       "statuses": {},
+      "latest": {
+        "latest": 0,
+        "not_latest": 0
+      },
       "cursor": false,
       "sha256": "f91b43a81dda581366ce0dd8e93212af26c3e3220eb48672524a57cf32bd7f8e",
       "utf8_bytes": 166,
       "code_units": 166
+    },
+    "version_latest": {
+      "http": 200,
+      "rows": 100,
+      "statuses": {
+        "active": 99,
+        "deprecated": 1
+      },
+      "latest": {
+        "latest": 100,
+        "not_latest": 0
+      },
+      "cursor": true,
+      "sha256": "66a04fb274d864d710acf487139e32f2706ffea6bb794858f317fb6796160006",
+      "utf8_bytes": 82312,
+      "code_units": 82166
+    },
+    "version_bogus": {
+      "http": 200,
+      "rows": 0,
+      "statuses": {},
+      "latest": {
+        "latest": 0,
+        "not_latest": 0
+      },
+      "cursor": false,
+      "sha256": "bd77acb780201187e66256677f13e4145d6839a056c477181355b19589b40f23",
+      "utf8_bytes": 38,
+      "code_units": 38
     }
   },
   "default_and_include_deleted_false_sha_equal": true,
   "default_and_include_deleted_true_sha_equal": false,
   "status_param_matches_no_filter_sha": true,
   "status_param_documented": false,
+  "version_param_documented": true,
+  "version_latest_returns_only_current": true,
+  "version_latest_page": {
+    "latest": 100,
+    "not_latest": 0
+  },
+  "default_page_latest_mix": {
+    "latest": 53,
+    "not_latest": 47
+  },
+  "version_bogus_returns_zero_rows": true,
   "deleted_status_seen_only_with_include_deleted": true,
   "problems": [],
   "problem_count": 0

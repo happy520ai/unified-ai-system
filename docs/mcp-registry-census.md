@@ -127,6 +127,15 @@ instrument does report disagreement when it buckets on the wrong row.
   `GET /v0/servers` (`cursor`, `limit`, `updated_since`, `search`, `version`, `include_deleted`), and `?status=active` answered with a first page whose sha256 equalled
   the unfiltered one on 2026-09-28, `deprecated` rows included - no error, no effect. So the active split above
   is computed client-side from the whole walk.
+- That no server-side option exists for this. `?version=latest` is documented and the server honours it: on 2026-09-28 the
+  unfiltered first page carried 53 rows marked latest against 47 that a newer version had
+  already superseded, while `?version=latest` returned 100 latest and 0 superseded, and
+  `?version=not-a-real-value` returned no rows at all. Note what that filter is about: version currency, not status
+  - the filtered page still held 1 deprecated row.
+  This walk did not use it, because the census is
+  meant to report what a consumer sees when they do not know to ask; but a reader who wants only the newest version
+  of each server can ask for it in one query parameter, and an earlier comment of ours on upstream #1676 said
+  otherwise and has been corrected there.
 - That this census is every record the registry holds. The documented visibility switch is `include_deleted`
   and this walk used its default: asking `?include_deleted=true` surfaced rows whose status is `deleted` - 5 of the first 100, against 0 unfiltered - which the walk therefore never sees.
   37,013 is the population of the default view, not of the store. An earlier draft of this

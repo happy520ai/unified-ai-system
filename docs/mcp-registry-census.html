@@ -30,7 +30,7 @@
   "headline": "How many MCP servers are there? 37,013, and what can a client do with them",
   "description": "Short answer: there are 37,013 servers in the official MCP registry's default view as of 2026-09-28, and 439 of them (1.20%) declare nothing a client can...",
   "datePublished": "2026-09-28T17:57:04Z",
-  "dateModified": "2026-09-28T20:13:14Z",
+  "dateModified": "2026-09-28T21:54:19Z",
   "author": {
     "@type": "Organization",
     "name": "Unified AI System",
@@ -92,6 +92,10 @@
     <p>  (upstream issue modelcontextprotocol/registry#1579) to 37,013 on 2026-09-28, so any share quoted from this   page has a shelf life measured in weeks.</p>
     <ul><li>That the <code>status</code> query parameter filters anything. It is not among the documented parameters of</li></ul>
     <p>  <code>GET /v0/servers</code> (<code>cursor</code>, <code>limit</code>, <code>updated_since</code>, <code>search</code>, <code>version</code>, <code>include_deleted</code>), and <code>?status=active</code> answered with a first page whose sha256 equalled   the unfiltered one on 2026-09-28, <code>deprecated</code> rows included - no error, no effect. So the active split above   is computed client-side from the whole walk.</p>
+    <ul><li>That no server-side option exists for this. <code>?version=latest</code> is documented and the server honours it: on 2026-09-28 the</li></ul>
+    <p>  unfiltered first page carried 53 rows marked latest against 47 that a newer version had   already superseded, while <code>?version=latest</code> returned 100 latest and 0 superseded, and   <code>?version=not-a-real-value</code> returned no rows at all. Note what that filter is about: version currency, not status</p>
+    <ul><li>the filtered page still held 1 deprecated row.</li></ul>
+    <p>  This walk did not use it, because the census is   meant to report what a consumer sees when they do not know to ask; but a reader who wants only the newest version   of each server can ask for it in one query parameter, and an earlier comment of ours on upstream #1676 said   otherwise and has been corrected there.</p>
     <ul><li>That this census is every record the registry holds. The documented visibility switch is <code>include_deleted</code></li></ul>
     <p>  and this walk used its default: asking <code>?include_deleted=true</code> surfaced rows whose status is <code>deleted</code> - 5 of the first 100, against 0 unfiltered - which the walk therefore never sees.   37,013 is the population of the default view, not of the store. An earlier draft of this   page and of the comment posted on upstream #1579 said the server cannot be asked for a status-restricted   count at all; the published OpenAPI documents <code>include_deleted</code> and <code>updated_since</code>, so that sentence was   written before the spec was read and is corrected here.</p>
     <h2>Our own record, as a control</h2>

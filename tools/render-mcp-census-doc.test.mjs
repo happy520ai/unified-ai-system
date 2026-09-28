@@ -131,6 +131,28 @@ test("the page states its scope, and refuses when the visibility facts stop back
   assert.match(run({ vis: c, out: join(dir, "s3.md") }).stderr, /no longer gated behind include_deleted/);
   const d = copyVis("prob", (br) => { br.problem_count = 1; });
   assert.match(run({ vis: d, out: join(dir, "s4.md") }).stderr, /visibility instrument reported 1 problems/);
+
+  // The version=latest bullet. Its numbers are read out of the artifact rather than restated from memory,
+  // so a re-run that measures a different mix updates the page instead of contradicting it.
+  const measured = readJson(VIS);
+  assert.match(text, new RegExp("carried " + measured.default_page_latest_mix.latest + " rows marked latest against " +
+    measured.default_page_latest_mix.not_latest + " that"));
+  assert.match(text, new RegExp("returned " + measured.version_latest_page.latest + " latest and " +
+    measured.version_latest_page.not_latest + " superseded"));
+  assert.match(text, /version currency, not status/);
+
+  const v1 = copyVis("vdoc", (br) => { br.version_param_documented = false; });
+  assert.match(run({ vis: v1, out: join(dir, "s5.md") }).stderr, /`version` is not a documented parameter/);
+  const v2 = copyVis("vnoonly", (br) => { br.version_latest_returns_only_current = false; });
+  assert.match(run({ vis: v2, out: join(dir, "s6.md") }).stderr, /no longer returns only current rows/);
+  const v3 = copyVis("vbogus", (br) => { br.version_bogus_returns_zero_rows = false; });
+  assert.match(run({ vis: v3, out: join(dir, "s7.md") }).stderr, /returns rows again/);
+  const v4 = copyVis("vtally", (br) => { br.version_latest_page.not_latest = "0"; });
+  assert.match(run({ vis: v4, out: join(dir, "s8.md") }).stderr, /carries no latest\/not_latest pair/);
+  const v5 = copyVis("vdep0", (br) => { br.pages.version_latest.statuses.deprecated = 0; });
+  assert.match(run({ vis: v5, out: join(dir, "s9.md") }).stderr, /now excludes deprecated rows/);
+  const v6 = copyVis("vdepgone", (br) => { delete br.pages.version_latest.statuses.deprecated; });
+  assert.match(run({ vis: v6, out: join(dir, "s10.md") }).stderr, /reports no deprecated count/);
 });
 
 test("the wider walk is bounded, and the page only claims what the two walks reconcile to", () => {
