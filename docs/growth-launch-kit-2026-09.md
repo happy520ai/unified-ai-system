@@ -1684,6 +1684,15 @@ orders it:
 | `typescript` | 452,428 | outside the top 100 | unreachable at any realistic star count |
 | `llm` | 141,253 | outside the top 100 | unreachable at any realistic star count |
 
+A first pass of this table listed only `agent-governance` as reachable. It was wrong to stop there: a topic
+we are tagged on but ranked deeper than the page fetched still has a valid threshold, and two of those are
+| `model-routing` | 1,012 | tagged, deeper than the 100 fetched | 22 for the top 50; 46 reaches page one |
+| `a2a-protocol` | 585 | tagged, deeper than the 100 fetched | 32 for the top 50; 78 reaches page one |
+within reach - `model-routing` at 46 stars for its page one and `a2a-protocol` at 78. So there are three
+winnable pages we already appear on, before the swap below adds two that are immediate rather than earned.
+The instrument (`tools/check-topic-rank.mjs`) now prints that summary line itself, which is how the miss
+was caught.
+
 **The concrete ask.** Swap the two topics we can never rank on for the two small ones we belong in:
 drop `typescript` and `llm`, add `agent-control-plane` and `tool-governance`. Both new terms come from our
 own description and docs ("agent control plane", "governed tools"), so this is labelling, not tag-squatting -
