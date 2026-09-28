@@ -79,3 +79,4 @@ authorized path.
 - [Does anyone's tools/list actually paginate? (0 of 16 servers sent a nextCursor; our client walked it anyway)](https://happy520ai.github.io/unified-ai-system/mcp-tools-list-pagination-survey.html)
 - [Will an MCP server agree to a protocol version that does not exist? (7 of 14 answered 2025-11-25 to a nonsense request)](https://happy520ai.github.io/unified-ai-system/mcp-protocol-revision-tolerance.html)
 - [If an MCP server hands you a session id, does it require it back? (measured per server, with the counter-examples named)](https://happy520ai.github.io/unified-ai-system/mcp-session-enforcement.html)
+- [We ran Glama's open tool-definition rubric against our own MCP server (15 of 15 tools declare no outputSchema)](https://happy520ai.github.io/unified-ai-system/mcp-tool-definition-quality.html)
