@@ -33,6 +33,10 @@ const baseRows = () => ([
 
 test("a server that 400s the new revision after answering the old one is counted, and one that failed both ways is not", () => {
   const modern = leg(baseRows());
+  // the declarant of the old revision goes quiet once the new one is negotiated, which is what
+  // the real legs did; leaving it declaring would assert a number the tool cannot produce.
+  modern.rows[3].verdict = "no_cache_hint_declared";
+  modern.rows[3].shape = shape;
   const legacyRows = baseRows().map((r) => ({ ...r }));
   legacyRows[0].verdict = "no_cache_hint_declared"; legacyRows[0].shape = shape; // answered fine at the old revision
   legacyRows[1].verdict = "init_failed_400"; // failed in both legs
