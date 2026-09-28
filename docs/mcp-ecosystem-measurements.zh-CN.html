@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>对公开 MCP 生态的测量（中文索引） | Unified AI System</title>
+    <meta name="description" content="向官方注册表登记的 40 个服务端匿名提问，共 10 个问题。每个数字都从机器可读数据集生成，页面自己声明分母与所请求的协议修订。" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <link rel="canonical" href="https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.zh-CN.html" />
+    <link rel="alternate" hreflang="en" href="https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.html" />
+    <link rel="alternate" hreflang="zh-CN" href="https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.zh-CN.html" />
+    <link rel="alternate" hreflang="x-default" href="https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.html" />
+    <link rel="stylesheet" href="site.css" />
+    <meta property="og:type" content="article" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:title" content="对公开 MCP 生态的测量（中文索引）" />
+    <meta property="og:description" content="同一个问题清单的中文索引：10 个条目、每题一行，数字全部来自数据集。" />
+  </head>
+  <body>
+    <main>
+      <h1>对公开 MCP 生态的测量（中文索引）</h1>
+      <p class="lede">
+        这一页是英文测量 hub <a href="mcp-ecosystem-measurements.html">Nine measurements of the public MCP ecosystem</a> 的中文索引。
+        它不新增任何数字：下面每一行都由机器可读数据集生成，
+        因此「正文与表格各自漂移」这个我们已经在自己身上犯过多次的错，在这页上不可能发生。
+      </p>
+      <p>
+        采样：官方 MCP Registry 默认顺序的前 40 个 streamable-http 端点，匿名提问，
+        运行窗口 2026-09-28。注册表默认顺序按标识符排序，因此样本偏向以 a 开头的名字；
+        多少端点直接不接受匿名客户端，写在下面每一行的分母里。
+      </p>
+      <table class="numbers-table">
+        <thead>
+          <tr>
+            <th scope="col">问题（点开看英文原文与脚本）</th>
+            <th scope="col">请求的协议修订</th>
+            <th scope="col">最多数的判据（/ 该题样本）</th>
+            <th scope="col">尝试端点数</th>
+          </tr>
+        </thead>
+        <tbody>
+        <tr>
+          <td><a href="mcp-tools-list-pagination-survey.md">tools/list 会不会分页？</a></td>
+          <td><code>2025-06-18</code></td>
+          <td>single_page = 17，另有 auth_required = 21（共 40）</td>
+          <td><code>40</code></td>
+        </tr>
+        <tr>
+          <td><a href="mcp-protocol-revision-tolerance.md">服务端会不会答应一个根本不存在的协议版本？</a></td>
+          <td><code>9999-99-99</code></td>
+          <td>substituted_supported_version = 7，另有 auth_required = 20（共 40）</td>
+          <td><code>40</code></td>
+        </tr>
+        <tr>
+          <td><a href="mcp-session-enforcement.md">发出 session id 的服务端，会不会要求客户端带回来？</a></td>
+          <td><code>2025-06-18</code></td>
+          <td>no_session_issued = 15，另有 auth_required = 21（共 40）</td>
+          <td><code>40</code></td>
+        </tr>
+        <tr>
+          <td><a href="mcp-server-discover-survey.md">有人实现 server/discover 吗？</a></td>
+          <td><code>2025-06-18</code></td>
+          <td>method_not_found = 13，另有 auth_required = 21（共 40）</td>
+          <td><code>40</code></td>
+        </tr>
+        <tr>
+          <td><a href="mcp-instructions-field-survey.md">服务端写的 instructions 长文本会送到匿名客户端吗？</a></td>
+          <td><code>2025-06-18</code></td>
+          <td>answered = 17，另有 auth_required = 21（共 40）</td>
+          <td><code>40</code></td>
+        </tr>
+        <tr>
+          <td><a href="mcp-protocol-version-header.md">有人真的强制 MCP-Protocol-Version 头吗？</a></td>
+          <td><code>2025-06-18</code></td>
+          <td>accepts_anything_we_tried = 17，另有 auth_required = 21（共 40）</td>
+          <td><code>40</code></td>
+        </tr>
+        <tr>
+          <td><a href="mcp-route-headers.md">Mcp-Method / Mcp-Name 头能把请求改道到正文没写的方法吗？</a></td>
+          <td><code>2025-06-18</code></td>
+          <td>body_wins = 17，另有 auth_required = 21（共 40）</td>
+          <td><code>40</code></td>
+        </tr>
+        <tr>
+          <td><a href="mcp-get-stream-headers.md">没有正文的 GET 事件流，带不带这个头有区别吗？</a></td>
+          <td><code>2025-06-18</code></td>
+          <td>get_rejected_alike = 11，另有 auth_required = 21（共 40）</td>
+          <td><code>40</code></td>
+        </tr>
+        <tr>
+          <td><a href="mcp-list-cache-hints.md">在【不要求】缓存提示的那个修订下，有人声明吗？</a></td>
+          <td><code>2025-06-18</code></td>
+          <td>no_cache_hint_declared = 16，另有 auth_required = 21（共 40）</td>
+          <td><code>40</code></td>
+        </tr>
+        <tr>
+          <td><a href="mcp-list-cache-hints.md">在【要求】缓存提示的那个修订下，接受了该修订的服务端声明了吗？</a></td>
+          <td><code>2026-07-28</code></td>
+          <td>no_cache_hint_declared = 12，另有 auth_required = 20（共 40）</td>
+          <td><code>40</code></td>
+        </tr>
+        </tbody>
+      </table>
+      <p>
+        机器可读数据（含逐端点判据行）：<a href="data/mcp-ecosystem-measurements.2026-09-28.json">十题重跑，2026-09-28</a>；
+        英文原文与可重跑脚本：<a href="mcp-ecosystem-measurements.html">Nine measurements of the public MCP ecosystem</a>。
+        每份调查都是双次采样同一窗口：把 <code>ttlMs</code> 与 <code>cacheScope</code> 那题在两个协议修订下各问一遍，
+        所以「没人声明」这句话必须配上「问的是哪个修订」才有意义。
+      </p>
+      <p>
+        本页由 <code>tools/render-mcp-hub-zh.mjs</code> 生成；它在任一题的 tally 与行数不等、或缺少所请求修订时
+        直接拒绝写出。
+      </p>
+    </main>
+  </body>
+</html>
