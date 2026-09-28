@@ -602,21 +602,23 @@ Two dated readings, both outside our repository, both checkable by clicking:
 
 ### "It sat there for eight seconds before it answered."
 
-Yes, and it is filed publicly: issue #168 measures `initialize` at 6.4-8.5 s across three batches on 2026-09-27 and lists every run.
+Yes, and it is filed publicly: issue #168 measures `initialize` at 6.4-8.9 s across 23 cold boots on one machine and lists every run.
 The measurement itself is a page now, not a claim - five consecutive runs on 2026-09-27 answered
 between 7,630 ms and 8,461 ms, the complete tool list arrived 3-7 ms after that, and the first run
 was the slowest, so there is no cold-cache excuse to reach for. Paste the reply, not a defence:
 
-> Yes, and we measured it instead of waiting for someone to report it: three batches on one day answered
-> `initialize` between 6.4 and 8.5 seconds (we have not attributed the gap between batches, and we are not
-> claiming it got faster), with the full tool list arriving 3-7 ms after that - so the wait is process boot,
+> Yes, and we measured it instead of waiting for someone to report it: 23 cold boots on one machine
+> answered `initialize` between 6.4 and 8.9 seconds. We restored the pre-cut commit and re-timed it to
+> check whether a code change explained the spread between batches - it did not, and we are not claiming
+> startup got faster - with the full tool list arriving 3-7 ms after that, so the wait is process boot,
 > not tool work. It is open as #168, with the method and the limits of the
 > measurement on https://happy520ai.github.io/unified-ai-system/mcp-startup-timeouts.html
 
 For a Chinese venue, the same reply in Chinese, with the same numbers and the same page's Chinese twin:
 
-> 是的，而且我们是自己先量了，而不是等别人来报告：同一天三批实测，`initialize` 在 6.4 到 8.5 秒之间应答
-> （批次之间的差距我们还没有归因，也不声称它变快了），完整工具清单只在其后 3-7 毫秒到达——所以这段等待是进程启动，不是工具枚举。问题公开记在 #168，测量方法
+> 是的，而且我们是自己先量了，而不是等别人来报告：同一台机器 23 次冷启动实测，`initialize` 在 6.4 到 8.9 秒之间应答
+> （我们把削减前的提交还原回去重跑，想确认批次之间的差距是不是代码变动造成的——不是，所以本页不声称启动变快了），
+> 完整工具清单只在其后 3-7 毫秒到达——所以这段等待是进程启动，不是工具枚举。问题公开记在 #168，测量方法
 > 和这条测量的边界都在 https://happy520ai.github.io/unified-ai-system/mcp-startup-timeouts.zh-CN.html
 
 If the visitor's version of this is "it never answered at all", do not treat that as a
