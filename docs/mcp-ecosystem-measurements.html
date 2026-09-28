@@ -447,7 +447,7 @@ node tools/survey-mcp-list-cache-hints.mjs 40</code></pre>
         <li><strong>No stdio coverage.</strong> That population is larger and unreachable by this method.</li>
         <li><strong>One timestamp each, 2026-09-27.</strong> Servers deploy; a re-run is a new measurement, not a regression test. All nine <em>survey</em> scripts are deliberately outside our CI for that reason; a tenth tool,
         <code>tools/compare-mcp-revision-legs.mjs</code>, only joins two saved legs and does run under
-        <code>node --test</code>.</li>
+        <code>pnpm test:verification-tools</code>, which is the list CI actually runs.</li>
       </ul>
 
       <footer>
