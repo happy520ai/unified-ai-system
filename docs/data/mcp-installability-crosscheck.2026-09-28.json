@@ -1,7 +1,7 @@
 {
   "schema": "mcp-installability-crosscheck-v1",
   "run_at": "2026-09-28T17:03:29.981Z",
-  "sample_artifact": ".tmp/wt-080/docs/data/mcp-registry-installability.2026-09-28.json",
+  "sample_artifact": "docs/data/mcp-registry-installability.2026-09-28.json",
   "names_checked": 54,
   "paths_agree": 54,
   "class_mismatch": 0,

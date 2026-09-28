@@ -11,7 +11,20 @@
 import { readFileSync, writeFileSync } from "node:fs";
 
 const REG = "https://registry.modelcontextprotocol.io";
-const SAMPLE = process.argv[2] || "docs/data/mcp-registry-installability.2026-09-28.json";
+const RAW_SAMPLE = process.argv[2] || "docs/data/mcp-registry-installability.2026-09-28.json";
+// Published artifacts carry this value as provenance, so it must resolve for a reader and not only
+// for the shell that produced it: a run from a linked worktree passes .tmp/wt-080/docs/data/...
+// which is a path on one machine. Keep the repo-relative tail, and refuse anything still scratch.
+const SAMPLE = (() => {
+  const s = String(RAW_SAMPLE);
+  const tail = s.split("docs/data/").pop();
+  const out = tail === s ? s : "docs/data/" + tail;
+  if (out.startsWith(".tmp") || out.includes("wt-") || out.includes("docs/data/docs/data")) {
+    console.error(`REFUSED: provenance pointer would not resolve for a reader (${out}); pass a repo-relative path`);
+    process.exit(2);
+  }
+  return out;
+})();
 const OUT = process.argv[3] || ".pm/mcp-installability-crosscheck.json";
 
 const sample = JSON.parse(readFileSync(SAMPLE, "utf8"));
