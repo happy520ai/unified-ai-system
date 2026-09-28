@@ -1278,3 +1278,52 @@ That body is a statement about route matching and nothing about our listing, but
 a claim that is true. Two rules come out of it: a 404 from an API path is only evidence about the path, so
 re-run it in the other spelling before believing anything about the record; and cite `isLatest`, not
 `status`, since 0.4.8 is `active` too.
+
+## 0k. The mutable tag is a `master` build, and nothing on our paths points at it (2026-09-28)
+
+A URL sweep of this kit flagged two links as broken that are not broken, and led to a third question that
+turned out to be fine. All three are worth writing down because a launch post carries these claims.
+
+**`/v0/validate` is POST-only.** A plain GET returns `404 Not Found`, which is what a sweep reports. The
+documented call still answers `{"valid":true,"issues":[]}`:
+
+```bash
+curl -s -X POST -H "content-type: application/json" --data-binary @server.json \
+  https://registry.modelcontextprotocol.io/v0/validate
+```
+
+**A 401 from `ghcr.io/v2/.../manifests/0.8.0` is the design, not a failure.** The registry token route has to
+be called first with `scope=repository:happy520ai/unified-ai-system/mcp-server:pull`, and the bearer token
+goes in an `Authorization` header plus an `Accept` listing the OCI index media types. With that, `0.8.0`
+answers 200 with a four-platform index (`linux/amd64`, `linux/arm64`, and two attestation-style entries with
+no `os`/`architecture`), pulled anonymously. `/settings` under a repository also 404s to an anonymous
+curl - it is an owner-only page, and it appears in this kit as an instruction, not as a link to carry.
+
+**`latest` is not `0.8.0`, and that is the correct behaviour.** Read from the image labels rather than from
+tags, which is the only place provenance actually lives:
+
+| tag | image created | `org.opencontainers.image.version` | revision | amd64 child |
+|---|---|---|---|---|
+| `0.8.0` | 2026-09-25T16:43:09Z | `0.8.0` | `6e436ad601` | `626b0a0c9c50` |
+| `latest` | 2026-09-28T03:33:24Z | `master` | `738898e7a6` | `f1d8927e0387` |
+
+`latest` is a build of `master` that moves on every push, and it says so in its own version label. It is not
+a release artifact, so do not paste it into a post, and do not treat "the two tags differ" as an incident -
+the difference is the release pipeline working. Our own rule in the vendored skill file is not to substitute
+a mutable tag for a pinned digest, and the check here held it to: zero occurrences of `mcp-server:latest` in
+`README.md`, `README.zh-CN.md`, `docs/` or `skills/`.
+
+**And the install path a visitor actually follows is pinned.** The live official-registry record for
+`io.github.happy520ai/unified-ai-system` 0.8.0 carries one package:
+
+```json
+[{"registryType":"oci","identifier":"ghcr.io/happy520ai/unified-ai-system/mcp-server:0.8.0","transport":{"type":"stdio"}}]
+```
+
+so an install from the registry gets `0.8.0`, not `latest`. A GitHub code search for the exact string
+`happy520ai/unified-ai-system/mcp-server:latest` returns zero hits, which bounds the exposure rather than
+proving it absent: that index covers public repositories it has crawled, not all text anywhere.
+
+**The method lesson, which is why this section exists.** I nearly wrote "the `latest` tag is stale" from the
+observation that both manifests are 1,611 bytes and not byte-identical. The direction was the opposite - it
+is four days *newer*. Equal-size-different-bytes is a question, not an answer; the labels answer it.
