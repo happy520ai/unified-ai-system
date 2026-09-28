@@ -54,6 +54,29 @@ A separate status: 36,612 servers are `active` and 401 are `deprecated`. Countin
 active ones gives: remote only 20,963, package only 13,773, both 1,826, neither 451 - reported so the choice of denominator
 is visible rather than baked in.
 
+## Every record, including the ones the default view hides
+
+The same instrument walked the list again with the documented `include_deleted=true` switch, so the two
+reads differ by what the view shows and by nothing else. That view resolves to **37,854 servers** in 125,783 rows, against 37,013 on the default view - 841 more names, of which 830 carry a latest record whose status is `deleted`.
+
+Where the extra 841 land, class by class, relative to the same read of the default view:
+
+| | default view | with deleted records | difference |
+| --- | --- | --- | --- |
+| remote only | 20,963 | 21,595 | +632 |
+| package only | 13,773 | 13,916 | +143 |
+| both | 1,826 | 1,878 | +52 |
+| neither | 451 | 465 | +14 |
+
+The four differences add to 841, which is exactly the 841 extra names - the two walks
+reconcile, so neither is quietly dropping or double-counting a server. Read across both views, 465 records declare neither a package nor an endpoint: 439 of them are `active`, 12 more are `deprecated` and still sit in the
+default view, and 14 are only visible once `include_deleted` is switched on.
+
+So the honest headline is three numbers, not one: 37,854 servers are retrievable from the API when
+asked including removed records, 37,013 of those are in the view a browser of the registry
+actually gets, and 36,612 are `active` within it. Anyone quoting "how many MCP servers are there" should
+say which of the three they mean.
+
 ## How those artifacts are distributed
 
 Registry types among active records with a package: `npm` 9,868, `pypi` 3,982, `oci` 986, `mcpb` 921, `nuget` 129, `cargo` 62.
@@ -69,7 +92,9 @@ The earlier reading on this site, [`mcp-registry-installability.html`](mcp-regis
 counted package presence across the first 54 servers in the registry's own list order and got 6 of 54.
 That list is grouped by server name ascending, so those 54 are the alphabetically-first servers, and the
 population reads differently: 15,321 of 36,612 active records carry a package (41.85% against the sample's 11%). One number is a prefix of an alphabetical ordering and the
-other is the whole registry; both are true, and only the second can be quoted as a population figure.
+other is the whole default view of the registry; both are true, and only the second can be quoted as a
+population figure, and only for the view the registry serves by default - the wider view is counted in
+"Every record, including the ones the default view hides" below.
 
 That page also carried a sentence this reading disproves. It asserted that records without a package
 "tell you a server exists without telling a client how to run it". A second instrument re-read the same
@@ -116,7 +141,8 @@ not hosted, which is the `package_only` row above.
 ```bash
 node tools/survey-mcp-registry-census.mjs /tmp/census.json   # ~30 minutes, anonymous GETs, no credentials
 node tools/probe-mcp-registry-visibility-params.mjs /tmp/visibility.json   # the scope caveat above, ~6 GETs
-node tools/render-mcp-census-doc.mjs --artifact /tmp/census.json --out /tmp/census.md
+CENSUS_INCLUDE_DELETED=true node tools/survey-mcp-registry-census.mjs /tmp/census-wide.json
+node tools/render-mcp-census-doc.mjs --artifact /tmp/census.json --deleted /tmp/census-wide.json --out /tmp/census.md
 ```
 
 The artifact is published at [`data/mcp-registry-census.2026-09-28.json`](data/mcp-registry-census.2026-09-28.json).

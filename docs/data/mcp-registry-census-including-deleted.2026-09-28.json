@@ -1,0 +1,89 @@
+{
+  "schema": "mcp-registry-installability-census-v1",
+  "started_at": "2026-09-28T18:16:52.266Z",
+  "finished_at": "2026-09-28T18:37:33.327Z",
+  "source": "https://registry.modelcontextprotocol.io/v0/servers",
+  "include_deleted_view": true,
+  "limit_per_page": 100,
+  "pages_walked": 1257,
+  "list_retry_events": 1,
+  "worst_attempts_for_one_page": 2,
+  "walk_complete": true,
+  "rows_seen": 125783,
+  "distinct_names": 37854,
+  "latest_records": 37854,
+  "names_without_latest_row": 0,
+  "server_status_counts": {
+    "deleted": 830,
+    "active": 36623,
+    "deprecated": 401
+  },
+  "active_latest_records": 36623,
+  "active_reachability": {
+    "remote_only": 20857,
+    "package_only": 13514,
+    "both": 1813,
+    "neither": 439
+  },
+  "active_reachability_sum": 36623,
+  "active_sum_matches_denominator": true,
+  "all_latest_reachability": {
+    "remote_only": 21595,
+    "package_only": 13916,
+    "both": 1878,
+    "neither": 465
+  },
+  "package_registry_types": {
+    "npm": 9871,
+    "oci": 986,
+    "pypi": 3985,
+    "mcpb": 921,
+    "cargo": 62,
+    "nuget": 129
+  },
+  "package_transport_types": {
+    "stdio": 15108,
+    "streamable-http": 429,
+    "sse": 28
+  },
+  "remote_transport_types": {
+    "streamable-http": 21934,
+    "sse": 1072
+  },
+  "active_records_with_a_package": 15327,
+  "active_records_with_a_remote": 22670,
+  "tally_counts_records_not_entries": true,
+  "control_record": {
+    "name": "io.github.happy520ai/unified-ai-system",
+    "version": "0.8.0",
+    "status": "active",
+    "is_latest": true,
+    "has_packages": true,
+    "package_count": 1,
+    "registry_types": [
+      "oci"
+    ],
+    "package_transports": [
+      "stdio"
+    ],
+    "has_remotes": false,
+    "remote_count": 0,
+    "remote_types": []
+  },
+  "first_twelve_names_in_walk_order": [
+    "ac.inference.sh/inference",
+    "ac.inference.sh/mcp",
+    "ac.snag/snag",
+    "ac.tandem/docs-mcp",
+    "ad.getle/leads",
+    "ad.inside/inside-ads",
+    "ae.propick/propick",
+    "ag.hood/name-service",
+    "agency.goji/goji",
+    "agency.justidea/justidea-agency",
+    "agency.kesey/pretrip",
+    "agency.lona/trading"
+  ],
+  "problem_count": 0,
+  "problems": []
+}

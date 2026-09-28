@@ -113,6 +113,25 @@ const visDeletedTrue = (vis.pages.include_deleted_true.statuses || {}).deleted;
 const visDeletedDefault = (vis.pages.default.statuses || {}).deleted || 0;
 if (!Number.isSafeInteger(visDeletedTrue)) throw new Error("REFUSED: the include_deleted=true page has no deleted count to compare");
 
+// The wider walk, taken with the documented `include_deleted` switch on. Two walks of the same registry
+// thirty minutes apart must reconcile, or the arithmetic in the section they feed is fiction.
+const wide = JSON.parse(readFileSync(arg("--deleted", "docs/data/mcp-registry-census-including-deleted.2026-09-28.json"), "utf8"));
+for (const k of ["include_deleted_view", "distinct_names", "rows_seen", "server_status_counts", "all_latest_reachability", "active_reachability", "problem_count", "control_record"]) {
+  if (wide[k] === undefined) throw new Error("REFUSED: wider-view artifact is missing " + k);
+}
+if (wide.include_deleted_view !== true) throw new Error("REFUSED: the wider artifact was not taken with include_deleted on, so it is not the wider view");
+if (wide.problem_count !== 0) throw new Error("REFUSED: the wider walk reported " + wide.problem_count + " problems");
+if (!wide.control_record || wide.control_record.has_packages !== true) throw new Error("REFUSED: the wider walk's control record has no package, so it is blind");
+const wideNames = wide.distinct_names;
+const nameDelta = wideNames - d.distinct_names;
+const wideStatuses = wide.server_status_counts;
+const wideDeleted = wideStatuses.deleted;
+const wideAll = wide.all_latest_reachability;
+const CLASSES = ["remote_only", "package_only", "both", "neither"];
+const classDelta = CLASSES.reduce((a, k) => a + (wideAll[k] - d.all_latest_reachability[k]), 0);
+if (classDelta !== nameDelta) throw new Error("REFUSED: the two walks do not reconcile - " + nameDelta + " more servers but the classes moved by " + classDelta);
+if (!Number.isSafeInteger(wideDeleted)) throw new Error("REFUSED: no deleted status count in the wider walk");
+
 const denom = d.active_latest_records;
 const pct = (n) => ((n / denom) * 100).toFixed(n === denom || n === 0 ? 1 : 2) + "%";
 const tallyLines = (obj) => Object.entries(obj).sort((a, b) => b[1] - a[1]).map(([k, v]) => "`" + k + "` " + v.toLocaleString("en-US")).join(", ");
@@ -187,6 +206,32 @@ const lines = [
   " - reported so the choice of denominator",
   "is visible rather than baked in.",
   "",
+  "## Every record, including the ones the default view hides",
+  "",
+  "The same instrument walked the list again with the documented `include_deleted=true` switch, so the two",
+  "reads differ by what the view shows and by nothing else. That view resolves to **" +
+  wideNames.toLocaleString("en-US") + " servers** in " + wide.rows_seen.toLocaleString("en-US") + " rows, against " +
+  d.distinct_names.toLocaleString("en-US") + " on the default view - " + nameDelta + " more names, of which " +
+  wideDeleted + " carry a latest record whose status is `deleted`.",
+  "",
+  "Where the extra " + nameDelta + " land, class by class, relative to the same read of the default view:",
+  "",
+  "| | default view | with deleted records | difference |",
+  "| --- | --- | --- | --- |",
+  ...CLASSES.map((k) => "| " + k.replace(/_/g, " ") + " | " + d.all_latest_reachability[k].toLocaleString("en-US") +
+    " | " + wideAll[k].toLocaleString("en-US") + " | +" + (wideAll[k] - d.all_latest_reachability[k]) + " |"),
+  "",
+  "The four differences add to " + classDelta + ", which is exactly the " + nameDelta + " extra names - the two walks",
+  "reconcile, so neither is quietly dropping or double-counting a server. Read across both views, " +
+  wideAll.neither.toLocaleString("en-US") + " records declare neither a package nor an endpoint: " + reach.neither +
+  " of them are `active`, " + (d.all_latest_reachability.neither - reach.neither) + " more are `deprecated` and still sit in the",
+  "default view, and " + (wideAll.neither - d.all_latest_reachability.neither) + " are only visible once `include_deleted` is switched on.",
+  "",
+  "So the honest headline is three numbers, not one: " + wideNames.toLocaleString("en-US") + " servers are retrievable from the API when",
+  "asked including removed records, " + d.distinct_names.toLocaleString("en-US") + " of those are in the view a browser of the registry",
+  "actually gets, and " + denom.toLocaleString("en-US") + " are `active` within it. Anyone quoting \"how many MCP servers are there\" should",
+  "say which of the three they mean.",
+  "",
   "## How those artifacts are distributed",
   "",
   "Registry types among active records with a package: " + tallyLines(d.package_registry_types) + ".",
@@ -203,7 +248,9 @@ const lines = [
   "That list is grouped by server name ascending, so those " + sRead + " are the alphabetically-first servers, and the",
   "population reads differently: " + withPackage.toLocaleString("en-US") + " of " + denom.toLocaleString("en-US") + " active records carry a package (" +
   pct(withPackage) + " against the sample's " + sPkgPct + "%). One number is a prefix of an alphabetical ordering and the",
-  "other is the whole registry; both are true, and only the second can be quoted as a population figure.",
+  "other is the whole default view of the registry; both are true, and only the second can be quoted as a",
+  "population figure, and only for the view the registry serves by default - the wider view is counted in",
+  "\"Every record, including the ones the default view hides\" below.",
   "",
   "That page also carried a sentence this reading disproves. It asserted that records without a package",
   "\"tell you a server exists without telling a client how to run it\". A second instrument re-read the same",
@@ -253,7 +300,8 @@ const lines = [
   "```bash",
   "node tools/survey-mcp-registry-census.mjs /tmp/census.json   # ~30 minutes, anonymous GETs, no credentials",
   "node tools/probe-mcp-registry-visibility-params.mjs /tmp/visibility.json   # the scope caveat above, ~6 GETs",
-  "node tools/render-mcp-census-doc.mjs --artifact /tmp/census.json --out /tmp/census.md",
+  "CENSUS_INCLUDE_DELETED=true node tools/survey-mcp-registry-census.mjs /tmp/census-wide.json",
+  "node tools/render-mcp-census-doc.mjs --artifact /tmp/census.json --deleted /tmp/census-wide.json --out /tmp/census.md",
   "```",
   "",
   "The artifact is published at [`data/mcp-registry-census." + date + ".json`](data/mcp-registry-census." + date + ".json).",

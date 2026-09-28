@@ -61,6 +61,7 @@ let pages = 0, rows = 0, listErrors = 0, retryEvents = 0, worstRetryStreak = 0, 
 for (; pages < MAX_PAGES; pages += 1) {
   const url = new URL(REG + "/v0/servers");
   url.searchParams.set("limit", String(LIMIT));
+  if (process.env.CENSUS_INCLUDE_DELETED === "true") url.searchParams.set("include_deleted", "true");
   if (cursor) url.searchParams.set("cursor", cursor);
   const r = await getListPage(url.toString());
   retryEvents += Math.max(0, r.attempts - 1);
@@ -164,6 +165,7 @@ const result = {
   started_at: started,
   finished_at: new Date().toISOString(),
   source: `${REG}/v0/servers`,
+  include_deleted_view: process.env.CENSUS_INCLUDE_DELETED === "true",
   limit_per_page: LIMIT,
   pages_walked: pages,
   list_retry_events: retryEvents,

@@ -11,17 +11,26 @@ const CENSUS = "docs/data/mcp-registry-census.2026-09-28.json";
 const SAMPLE = "docs/data/mcp-registry-installability.2026-09-28.json";
 const CROSS = "docs/data/mcp-installability-crosscheck.2026-09-28.json";
 const VIS = "docs/data/mcp-registry-visibility-params.2026-09-28.json";
+const WIDE = "docs/data/mcp-registry-census-including-deleted.2026-09-28.json";
 const dir = mkdtempSync(join(tmpdir(), "census-render-"));
 const readJson = (p) => JSON.parse(readFileSync(join(ROOT, p), "utf8"));
 
-function run({ census = join(ROOT, CENSUS), sample = join(ROOT, SAMPLE), cross = join(ROOT, CROSS), vis = join(ROOT, VIS), out = join(dir, "a.md") } = {}) {
-  return spawnSync(process.execPath, [GEN, "--artifact", census, "--sample", sample, "--crosscheck", cross, "--visibility", vis, "--out", out], {
+function run({ census = join(ROOT, CENSUS), sample = join(ROOT, SAMPLE), cross = join(ROOT, CROSS), vis = join(ROOT, VIS), wide = join(ROOT, WIDE), out = join(dir, "a.md") } = {}) {
+  return spawnSync(process.execPath, [GEN, "--artifact", census, "--sample", sample, "--crosscheck", cross, "--visibility", vis, "--deleted", wide, "--out", out], {
     cwd: ROOT, encoding: "utf8",
   });
 }
 
 function copyVis(name, edit) {
   const base = readJson(VIS);
+  edit(base);
+  const p = join(dir, name + ".json");
+  writeFileSync(p, JSON.stringify(base), "utf8");
+  return p;
+}
+
+function copyWide(name, edit) {
+  const base = readJson(WIDE);
   edit(base);
   const p = join(dir, name + ".json");
   writeFileSync(p, JSON.stringify(base), "utf8");
@@ -122,6 +131,34 @@ test("the page states its scope, and refuses when the visibility facts stop back
   assert.match(run({ vis: c, out: join(dir, "s3.md") }).stderr, /no longer gated behind include_deleted/);
   const d = copyVis("prob", (br) => { br.problem_count = 1; });
   assert.match(run({ vis: d, out: join(dir, "s4.md") }).stderr, /visibility instrument reported 1 problems/);
+});
+
+test("the wider walk is bounded, and the page only claims what the two walks reconcile to", () => {
+  const out = join(dir, "wide.md");
+  assert.equal(run({ out }).status, 0);
+  const text = readFileSync(out, "utf8");
+  const wide = readJson(WIDE);
+  const cen = readJson(CENSUS);
+  assert.match(text, new RegExp("\\*\\*" + wide.distinct_names.toLocaleString("en-US") + " servers\\*\\*"));
+  assert.match(text, new RegExp("The four differences add to " + (wide.distinct_names - cen.distinct_names)));
+  // Pin the three-way split of the unreachable records to the artifacts, so a sign error in the prose
+  // (451-439 vs 439-451) fails rather than reading fine.
+  const depSplit = cen.all_latest_reachability.neither - cen.active_reachability.neither;
+  const delSplit = wide.all_latest_reachability.neither - cen.all_latest_reachability.neither;
+  assert.ok(depSplit >= 0 && delSplit >= 0, "fixture arithmetic itself must be non-negative");
+  assert.match(text, new RegExp(" " + depSplit + " more are `deprecated`"));
+  assert.match(text, new RegExp("and " + delSplit + " are only visible once"));
+  assert.match(text, new RegExp(wide.all_latest_reachability.neither + " records declare neither"));
+
+  const notWide = copyWide("notwide", (b) => { b.include_deleted_view = false; });
+  assert.match(run({ wide: notWide, out: join(dir, "w1.md") }).stderr, /not taken with include_deleted on/);
+
+  // The reconciliation guard: one extra name in the wider artifact and the class deltas no longer add up,
+  // which is exactly the failure a silently dropped or double-counted server would produce.
+  const drift = copyWide("drift", (b) => { b.distinct_names += 1; });
+  const r = run({ wide: drift, out: join(dir, "w2.md") });
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /the two walks do not reconcile/);
 });
 
 test("the shipped page on disk equals a fresh render of its artifacts", () => {
