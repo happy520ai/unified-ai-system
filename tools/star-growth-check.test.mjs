@@ -21,6 +21,7 @@ import {
   isListedInReadme,
   needsRecarry,
   publishedToolCount,
+  readSnapshotMetrics,
   replyRequestFrom,
   queueHealth,
   ticketQueueHealth,
@@ -29,6 +30,12 @@ import {
   staleToolCounts,
   unreadableCarriers,
 } from './star-growth-check.mjs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
+const SCRATCH = mkdtempSync(path.join(tmpdir(), 'sgc-delta-'));
+
 
 // An open door on a fast-moving list can silently become unmergeable, which is why
 // needsRecarry exists. These cases pin both directions: it must name the doors a
@@ -1011,4 +1018,34 @@ test("an empty response and an unreadable one print different sentences", () => 
 
 test("the GitHub row is refused as credit for any single door", () => {
   assert.match(summariseReferrers(referrerRows).lines[2], /evidence for nothing in particular/);
+});
+
+// The scheduled job writes star-growth-latest.md in its own earlier step and then reads it
+// back as "the previous reading", so every delta it printed was zero by construction - the
+// series reader (tools/star-growth-history.mjs) found three runs where the printed 0 was
+// actually +1 or +2. These pin the suppression: a same-day snapshot is not a previous reading.
+
+test("a snapshot dated the same day is not treated as a previous reading", () => {
+  const file = path.join(SCRATCH, "same-day.md");
+  writeFileSync(file, "# Growth\n\nDate: 2026-09-28\n\n- Stars: 7\n- Forks: 2\n- Watchers: 0\n- Open issues: 32\n");
+  const m = readSnapshotMetrics(file, "2026-09-28");
+  assert.equal(m.snapshotDate, "2026-09-28");
+  assert.equal(m.sameDayAsCurrent, true);
+  assert.equal(m.stars, 7, "the metrics still parse; only the comparison is suppressed");
+});
+
+test("an older snapshot is still a valid previous reading", () => {
+  const file = path.join(SCRATCH, "older.md");
+  writeFileSync(file, "# Growth\n\nDate: 2026-09-20\n\n- Stars: 6\n- Forks: 2\n");
+  const m = readSnapshotMetrics(file, "2026-09-28");
+  assert.equal(m.sameDayAsCurrent, false);
+  assert.equal(m.stars, 6);
+});
+
+test("a snapshot with no date is not silently treated as today", () => {
+  const file = path.join(SCRATCH, "undated.md");
+  writeFileSync(file, "# Growth\n\n- Stars: 5\n");
+  const m = readSnapshotMetrics(file, "2026-09-28");
+  assert.equal(m.snapshotDate, null);
+  assert.equal(m.sameDayAsCurrent, false, "no date means we cannot prove it is today, so the delta stays");
 });

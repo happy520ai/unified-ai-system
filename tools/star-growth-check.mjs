@@ -294,16 +294,23 @@ function safeParseMetric(lines, ...metricNames) {
   return null;
 }
 
-function readSnapshotMetrics(path) {
+export function readSnapshotMetrics(path, todayDate) {
   try {
     if (!existsSync(path)) return null;
     const raw = readFileSync(path, "utf8");
+    const snapshotDate = (raw.match(/\d{4}-\d{2}-\d{2}/) || [null])[0];
     return {
       stars: safeParseMetric(raw, "Stars"),
       forks: safeParseMetric(raw, "Forks"),
       watchers: safeParseMetric(raw, "Subscribers", "Watchers"),
       openIssues: safeParseMetric(raw, "Open issues"),
       openPullRequests: safeParseMetric(raw, "Open pull requests"),
+      snapshotDate,
+      // The scheduled job runs `evidence` first, which writes star-growth-latest.md, and then
+      // `daily`, which reads that same file back as "the previous reading". Same-day comparison
+      // therefore always yields zero, and the report has been printing a delta that means
+      // "nothing happened today" while meaning "we compared against ourselves".
+      sameDayAsCurrent: Boolean(todayDate) && snapshotDate === todayDate,
     };
   } catch (_error) {
     return null;
@@ -2325,7 +2332,13 @@ async function run() {
     ? null
     : findUntrackedDoors(rows, denominatorItems, repo);
 
-  const previous = readSnapshotMetrics(defaultLatestSnapshotFile);
+  const previousSnapshot = readSnapshotMetrics(defaultLatestSnapshotFile, date);
+  const previous = previousSnapshot && !previousSnapshot.sameDayAsCurrent ? previousSnapshot : null;
+  if (previousSnapshot?.sameDayAsCurrent) {
+    console.error(
+      `NOTE: ${defaultLatestSnapshotFile} is dated ${previousSnapshot.snapshotDate}, the same day as this run, so it is not a previous reading and no delta is printed. The scheduled job writes that file in its own earlier step.`,
+    );
+  }
 
   if (action === "check") {
     const claimSweep = scanPublicClaims();
