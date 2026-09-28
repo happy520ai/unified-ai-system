@@ -1338,8 +1338,8 @@ one is re-checkable by the reader.
 
 **One line (repo About, 144 chars):**
 
-> Self-hosted AI gateway + MCP server you can evaluate with zero API keys: 15 governed tools, budgets,
-> cache, HMAC audit chain. Apache-2.0.
+> Self-hosted AI gateway + MCP server you can evaluate with zero API keys: governed tools,
+> budgets and rate limits, exact and lexical response caching, an HMAC-chained audit log. Apache-2.0.
 
 **Profile bio, maintainer voice - facts only, no pedigree:**
 
