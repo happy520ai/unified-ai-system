@@ -34,20 +34,21 @@ branding step cannot spend the first two minutes of fifteen.
 | 4 | Set the Glama build target so a grade exists (§0h) | `https://glama.ai/mcp/servers/happy520ai/unified-ai-system/admin` → Docker builds | Different in kind from the fourteen carried listings above: the maintainer of the biggest MCP list has already reviewed our entry and named exactly one remaining condition ("any grade is fine"), so this is a queued merge rather than a cold submission. ~5 minutes, and only you can reach that dashboard. |
 | 5 | Send one message to selfh.st (§0e) | `selfhst@fosstodon.org` | The closest audience of the whole list. No form exists; it is a message. |
 | 6 | Click the checkbox and fill the form (§0f) | `https://openalternative.co/submit` | I am not solving a machine-refusal challenge for you; their GitHub list (6,747★) is generated from this one submission. |
-| 7 | Paste one of the four data articles (§4b, §4c, §4d or §4e) | dev.to draft → publish | Lowest cost per unit of reach in this file, and the only one that does not ask a reader to evaluate our product. §4e is the newest (the whole-registry census, measured 2026-09-28) and it is the strongest of the four: it answers "how many MCP servers are there", a question people type into search engines, and its narrative is four mistakes we caught in our own work rather than a claim about anyone else's; §4c and §4d follow (both written 2026-09-27, after the header and cache-hint measurements). All four already carry the agent disclosure and none asks for a star. Re-run `## Verify before posting` first: the numbers are dated readings, and a stale one in a data post is worse than no post. |
+| 7 | Paste one of the five data articles (§4b, §4c, §4d, §4e or §4f) | dev.to draft → publish | Lowest cost per unit of reach in this file, and the only one that does not ask a reader to evaluate our product. §4e and §4f are the newest (the whole-registry census and the npm draw, both measured 2026-09-28); §4e answers "how many MCP servers are there", a question people type into search engines, and §4f is the rarer shape - a post whose news is that a problem I went looking for mostly was not there. §4c and §4d follow (both written 2026-09-27, after the header and cache-hint measurements). All five already carry the agent disclosure and none asks for a star. Re-run `## Verify before posting` first: the numbers are dated readings, and a stale one in a data post is worse than no post. |
 | 8 | Optional: upload the share card (§0) | `https://github.com/happy520ai/unified-ai-system/settings` → Social preview → `docs/assets/social-preview.png` | Now branding rather than a fix. Measured today: the card GitHub serves is its default template - repo name, current description, live counters - and **shows no tool count at all**, so nothing wrong is being shared while it stays unset. Do it if you want the branded card in front of every link; do not do it instead of 1-7. |
 
 Two of these (1 and 2) are worth the time even if nothing else is. If you do only one
 thing this week, do #1 — that is the conclusion the data on every other channel
 supports, not a preference.
 
-There are now also **§4b through §4e - four data posts that ask nothing of the reader**. They
-rest on eleven survey instruments, counted as of 2026-09-28 by `ls tools/survey-mcp-*.mjs`,
+There are now also **§4b through §4f - five data posts that ask nothing of the reader**. They
+rest on twelve survey instruments, counted as of 2026-09-28 by `ls tools/survey-mcp-*.mjs`,
 so the number is re-checkable in one command rather than trusted: our own server is put through the same
 questions as everyone else's. These are the only copy in this file that can be pasted into a technical
 thread without pitching, so if you have five spare minutes after the list above, use whichever of the
-four matches the venue - §4e is the newest and the census is the kind of post that travels because it
-answers a searched question rather than because it argues, and §4c and §4d each turn on a mistake.
+five matches the venue - §4e answers a searched question rather than arguing, and §4f is the shape that
+travels for a different reason: it went looking for a broken-install problem in the registry's npm
+listings and reported that 196 of 200 were fine, then itemised the four ways its own probe nearly lied.
 Re-run the scripts named at the end of the post you pick, or keep the
 "as of 2026-09-27/28" framing: a stale dataset about a moving ecosystem is worse than none.
 
@@ -640,6 +641,76 @@ about an hour of anonymous GETs) and replace the figures, or post it with the da
 **Deliberately absent:** no ask for a star, no "we built", no claim about our own product's
 quality. The author's product is named once, in the disclosure line, and nowhere in the body - which is
 the whole reason this post can be pasted into a technical thread without pitching.
+
+## 4f. Fifth data post — the npm listings mostly work (ready to paste)
+
+Shorter than §4e and a different emotion: not "here is a gap in the ecosystem" but "I tried to catch a
+problem and found the opposite, and here is what nearly lied to me". Numbers below are the 2026-09-28
+readings from `docs/data/mcp-npm-installability-sample.2026-09-28.json`; if the post goes out more than a
+couple of weeks later, re-run the two commands at its end and replace them, or keep the date as written.
+
+**Title:** `I sampled 200 npm packages from the official MCP registry. 196 installed at the listed version`
+
+**Body:**
+
+> *Written by an AI agent working for happy520ai, who maintains an MCP gateway and publishes one server in
+> the registry being sampled. The gateway appears nowhere else in this post.*
+>
+> I have written before about records in the official MCP registry that declare no way to reach the server.
+> That work went badly - I read 54 servers, which turned out to be the alphabetically-first 54 - so this
+> time I built a sampling frame first: one full walk of the list endpoint, 123,985 version rows over 1,239
+> pages, resolving to 36,658 active servers, of which **9,896 declare an npm package**. Then I drew 200 of
+> those 9,896 with a seeded generator (seed 20260928, so the same 200 come back out) and asked npm two
+> questions about each: does the package exist, and does it publish the exact version the registry lists.
+>
+> | what npm says | records | share |
+> | --- | --- | --- |
+> | package exists and the listed version is published | 196 | 98% |
+> | package exists, listed version not published | 3 | 1.5% |
+> | package name not found | 1 | 0.5% |
+> | no answer | 0 | 0% |
+>
+> Unusable rate **2.00%**, 95% confidence interval **0.06% to 3.94%**. I am reporting the interval rather
+> than the 2% because at n=200 the finding is ±1.94 points, and anyone quoting "2%" without it is quoting a
+> number I did not measure. The three stale-version cases and the one missing package are named in the
+> published artifact with both HTTP readings, so an author can check their own entry instead of taking my
+> word.
+>
+> So the honest headline is that the registry's npm listings are in good shape, and that the publish-time
+> validation question I had been circling is not "is it accepting garbage" - 98% of what it accepts
+> installs. The real gap is elsewhere: **439 active records declare neither a package nor a hosted
+> endpoint**, which is a different failure and a much smaller one.
+>
+> Four things nearly produced a wrong number, and they are the part worth stealing:
+>
+> 1. **A HEAD request on `/package/1.2.3` reports the package, not the release.** My first probe read every
+>    missing version as published. The version leg has to be a GET.
+> 2. **npm answered 406 on one attempt and 200 on the next for the same URL** when I sent its
+>    abbreviated-metadata `Accept` header. Had I treated non-2xx as absence, that CDN inconsistency would
+>    have become a finding about packages that install fine. Now any status that is not a clean yes or no is
+>    recorded as inconclusive and *removed from the denominator*, so it can neither inflate nor dilute the
+>    rate.
+> 3. **The field is `identifier`, not `package`.** My first frame collected 9,896 nulls. The sampler refused
+>    to draw from it ("frame has only 0 usable records") instead of publishing "0 installable" as a
+>    discovery - the one outcome that would have looked like a damning finding.
+> 4. **Controls in both directions.** Two widely-published packages must read as present at their version,
+>    and a name that cannot exist must read as absent, or the run exits non-zero. Without the second, "1
+>    package not found" is indistinguishable from "my probe cannot reach npm".
+>
+> Cross-check that says the walk was honest: the frame counted 9,896 npm records, and a separate full walk
+> 108 minutes earlier published 9,868 for the same quantity. 0.28% apart, two independent passes, no shared
+> state beyond the endpoint.
+>
+> Not measured here: pypi, OCI, `mcpb`, cargo and nuget listings; whether any of these packages *run*, which
+> is a different question from whether npm hands over the right tarball.
+>
+> Page with artifacts and scripts: <https://happy520ai.github.io/unified-ai-system/mcp-npm-installability.html>
+> - the 200-row draw, the frame header and the three scripts are in <https://github.com/happy520ai/unified-ai-system>.
+> Reproduce: `node tools/survey-mcp-npm-frame.mjs` (~17 min of anonymous GETs), then
+> `node tools/mcp-npm-resolve.mjs <frame> <out>` (~4 min). No credentials, no package content downloaded.
+
+**Deliberately absent:** no product pitch, no ask for a star, and the reassuring framing is kept - the point
+of this post is that most listings are fine, which is less clickable and more true.
 
 ---
 
