@@ -83,6 +83,21 @@ rejects an absent hint is not enforcing a widely-implemented rule; on this sampl
 that the few servers advertising support for it almost universally fail. Small n, one window, one
 ordering, and 20 endpoints sat behind OAuth where behaviour is unknown rather than absent.
 
+## The shape of the refusal, which is the part no client can work around
+
+Joining the two same-day legs by endpoint, 5 of the servers that answered the older
+revision return HTTP 400 to the newer one instead of replying with their latest supported revision.
+A further 1 failed with 400 in both legs, so they are not a negotiation story and are
+counted separately rather than folded in.
+
+A 400 leaves a client nothing to downgrade from, so the endpoint does not fall back to an older era - it
+simply disappears for a newer-era client. That is what bounds every declaration statistic on this page:
+only 3 of 40 endpoints could be asked whether they send the new fields at
+all, and among those the answer was that none of them do.
+
+Individual endpoints are deliberately not named here. The argument is the failure shape and the rate; a
+list of small servers would be the less useful and less fair way to make it.
+
 ## Our own server, measured at both revisions
 
 At the revision this repo's own probe negotiates, our result keys are `tools`,

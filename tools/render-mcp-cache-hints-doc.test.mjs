@@ -93,6 +93,31 @@ test("legs covering different endpoints are refused, because then they differ by
   assert.match(r.stderr + r.stdout, /not the same endpoint set/);
 });
 
+// Both directions, because "we counted the 400s" is only meaningful if the counter can also say zero and
+// can tell a refusal-to-negotiate apart from a server that was failing anyway.
+test("a server that answers the old revision and 400s the new one is counted as a refusal, and both-leg failures are counted separately", () => {
+  const modern = leg("2026-07-28", false);
+  modern.rows[0].verdict = "init_failed_400";
+  modern.rows[1].verdict = "init_failed_400";
+  modern.tally = { auth_required: 1, init_failed_400: 2 };
+  const control = leg("2025-06-18", true);
+  control.rows[1].verdict = "init_failed_400"; // failed in both legs -> not a negotiation story
+  control.tally = { auth_required: 1, init_failed_400: 1, RESULT_LEVEL_HINT: 1 };
+  const { r, outPath } = run(survey(), own(), { modern, control });
+  assert.equal(r.status, 0, r.stderr.slice(0, 300));
+  const doc = readFileSync(outPath, "utf8");
+  assert.match(doc, /by endpoint, 1 of the servers that answered the older/);
+  assert.match(doc, /A further 1 failed with 400 in both legs/);
+});
+
+test("when no endpoint changes side, the refusal count is zero and is printed as zero", () => {
+  const { r, outPath } = run(survey(), own());
+  assert.equal(r.status, 0, r.stderr.slice(0, 300));
+  const doc = readFileSync(outPath, "utf8");
+  assert.match(doc, /by endpoint, 0 of the servers that answered the older/);
+  assert.match(doc, /A further 0 failed with 400 in both legs/);
+});
+
 test("a reconciling pair renders, and the page counts what the artifact counted", () => {
   const { r, outPath } = run(survey(), own());
   assert.equal(r.status, 0, r.stderr.slice(0, 400));

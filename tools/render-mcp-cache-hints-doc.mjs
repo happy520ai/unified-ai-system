@@ -58,6 +58,16 @@ if (overlap !== modSet.size || overlap !== ctlSet.size) {
   throw new Error(`the two legs are not the same endpoint set (overlap ${overlap} of ${modSet.size}/${ctlSet.size})`);
 }
 const ctlDeclared = ctlRows.filter((r) => r.verdict === "RESULT_LEVEL_HINT" || r.verdict === "TOOL_LEVEL_HINT").length;
+// The shape of the refusal matters more than the tally: a server that answers the older revision and
+// rejects the newer one with a transport-level 400 is not negotiable down by any client.
+const ctlByUrl = new Map((ctl.rows || []).map((r) => [r.url, r]));
+const answeredLegacy = (r) => r && !/^init_failed/.test(r.verdict) && !/^error/.test(r.verdict);
+const flipped = (mod.rows || [])
+  .filter((r) => /^init_failed_400/.test(r.verdict))
+  .map((r) => ({ url: r.url, name: r.name, legacy: ctlByUrl.get(r.url)?.verdict ?? null }))
+  .filter((x) => answeredLegacy(ctlByUrl.get(x.url)));
+const alreadyFailing = (mod.rows || [])
+  .filter((r) => /^init_failed_400/.test(r.verdict) && !answeredLegacy(ctlByUrl.get(r.url))).length;
 for (const key of ["our_tool_field_names", "our_result_ttlMs_present", "our_result_cacheScope_present", "baseline_result_keys"]) {
   if (!(key in route)) throw new Error(`own artifact missing route_headers.${key}`);
 }
@@ -156,6 +166,21 @@ lines.push(
   "rejects an absent hint is not enforcing a widely-implemented rule; on this sample it is enforcing one",
   "that the few servers advertising support for it almost universally fail. Small n, one window, one",
   "ordering, and 20 endpoints sat behind OAuth where behaviour is unknown rather than absent.",
+  "",
+  "## The shape of the refusal, which is the part no client can work around",
+  "",
+  `Joining the two same-day legs by endpoint, ${flipped.length} of the servers that answered the older`,
+  "revision return HTTP 400 to the newer one instead of replying with their latest supported revision.",
+  `A further ${alreadyFailing} failed with 400 in both legs, so they are not a negotiation story and are`,
+  "counted separately rather than folded in.",
+  "",
+  "A 400 leaves a client nothing to downgrade from, so the endpoint does not fall back to an older era - it",
+  `simply disappears for a newer-era client. That is what bounds every declaration statistic on this page:`,
+  `only ${modNegotiated.length} of ${mod.attempted} endpoints could be asked whether they send the new fields at`,
+  "all, and among those the answer was that none of them do.",
+  "",
+  "Individual endpoints are deliberately not named here. The argument is the failure shape and the rate; a",
+  "list of small servers would be the less useful and less fair way to make it.",
   "",
   "## Our own server, measured at both revisions",
   "",
