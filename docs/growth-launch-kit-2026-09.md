@@ -37,7 +37,7 @@ branding step cannot spend the first two minutes of fifteen.
 | 7 | Paste one of the six data articles (§4b through §4g) | dev.to draft → publish | Lowest cost per unit of reach in this file, and the only one that does not ask a reader to evaluate our product. §4e, §4f and §4g are the newest (the whole-registry census, the npm draw and the self-grading, all measured 2026-09-28); §4e answers "how many MCP servers are there", a question people type into search engines, and §4f is the rarer shape - a post whose news is that a problem I went looking for mostly was not there. §4c and §4d follow (both written 2026-09-27, after the header and cache-hint measurements). All five already carry the agent disclosure and none asks for a star. Re-run `## Verify before posting` first: the numbers are dated readings, and a stale one in a data post is worse than no post. |
 | 8 | Optional: upload the share card (§0) | `https://github.com/happy520ai/unified-ai-system/settings` → Social preview → `docs/assets/social-preview.png` | Now branding rather than a fix. Measured today: the card GitHub serves is its default template - repo name, current description, live counters - and **shows no tool count at all**, so nothing wrong is being shared while it stays unset. Do it if you want the branded card in front of every link; do not do it instead of 1-7. |
 
-Two of these (1 and 2) are worth the time even if nothing else is. If you do only one
+Two of these (1 and 2) are worth the time even if nothing else is; row 3 and §0m's CodeTriage click are the cheapest things in the file, about a minute each and neither a judgement call. If you do only one
 thing this week, do #1 — that is the conclusion the data on every other channel
 supports, not a preference.
 
@@ -1637,7 +1637,31 @@ Domain I actually work in daily: ____________
 ```
 
 **Paste-able rebuttal for "who is this person?"** - the honest answer is a strength here, and it is the
-answer that fits a 7-star repository:
+answer that fits a small repository (this sentence carried a star count until 2026-09-28; it was 7 then and 8 now, which is exactly why the number is gone - a figure inside a sentence meant to be pasted goes stale the day it is written):
 
 > Solo maintainer, public preview. That is the reason the README links measurements instead of badges: there
 > is no team and no track record to lean on, so the artifact has to lean on the commands you can run.
+
+## 0m. Contributor routing: one door is a click, one is undecidable, one is correctly shut (2026-09-28)
+
+Directories put strangers in front of the repository. These three put them in front of the *issues*, which
+is the route by which a project gets its first outside contributor and, more often than people admit, a
+star from someone who came to fix something.
+
+| door | state today | what it needs |
+| --- | --- | --- |
+| **CodeTriage** | not added - `codetriage.com/happy520ai/unified-ai-system` 302-redirects to a pre-filled `codetriage.com/repos/new?name=unified-ai-system&user_name=happy520ai`, and the logged-out page is a 4,287-byte shell with a **Log in** link and no form | **yours, ~30 seconds**: that URL is already filled in, so it is one OAuth sign-in and one submit |
+| **goodfirstissues.com** | **undecidable from a scripted read, and I will not write either answer.** `/repository/happy520ai/unified-ai-system` and `/api/repositories/happy520ai%2Funified-ai-system` both return HTTP 200 with byte-identical 575,931-byte SPA shells - a catch-all, which is exactly what a blind probe looks like | a browser visit before anyone claims a result |
+| **Best of JS** | not listed (`bestofjs.org/projects/unified-ai-system` returns their Not Found), and **correctly so**: their `add-a-project` template carries a "project has more than 100 stars" checkbox and maintainers have answered a September self-submission the same way | nothing until ~100 stars; the growth report already prints the gap |
+
+**Why CodeTriage is worth the thirty seconds.** It emails a project's labelled issues to volunteers who
+opted into that repo - which is a different audience from every directory in this file, and the one most
+likely to open a pull request rather than just look. The prerequisite is already met and was read from the
+API today rather than remembered: the repository carries both labels, with **5 open issues labelled
+`good first issue`** and **14 labelled `help wanted`**. Two of the five (#187, #166) name the exact files
+and the exact assertion to write, and #189 names a measured gap with the command that reproduces it.
+
+**What I deliberately did not do:** sign in to a third-party OAuth app on your account. Adding a repo to
+CodeTriage is a submission like any directory form, but it is a submission made *through an authorisation
+grant*, and that is an account-level decision rather than a posting. Everything up to the click is done:
+the URL is pre-filled, the labels exist, and the issue shelf has real items on it.
