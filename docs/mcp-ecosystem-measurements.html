@@ -306,6 +306,15 @@
         does send both.
       </p>
       <p>
+        Joining the two same-day legs by endpoint explains why the denominator collapsed: <strong>5 servers
+        answer a <code>2025-06-18</code> initialize - several with a full tool list - and return HTTP
+        <code>400</code> to a <code>2026-07-28</code> one</strong> instead of replying with their latest
+        supported revision. A 400 gives a client nothing to downgrade from, so those endpoints are not
+        legacy-era to a newer client, they are simply absent. That is why only 3 of the 40 could be asked
+        about the new fields at all, and it is a shape worth knowing before any client ships a validator
+        that treats absence as invalid.
+      </p>
+      <p>
         The timing half is small: one declarant in sixteen, and honouring it meant clamping to
         1&nbsp;s..10&nbsp;min so that a declared <code>0</code> cannot turn a read into a fresh handshake
         and a declared decade cannot freeze a list. The sharing half is the one worth the change, and it
