@@ -51,14 +51,17 @@ function main(argv) {
   }
 
   const block = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/u.exec(before);
-  if (!block) return fail("no JSON-LD block to date");
-  let object;
-  try {
-    object = JSON.parse(block[1]);
-  } catch (e) {
-    return fail("the JSON-LD block is not parseable: " + e.message);
+  let object = null;
+  if (block) {
+    try {
+      object = JSON.parse(block[1]);
+    } catch (e) {
+      return fail("the JSON-LD block is not parseable: " + e.message);
+    }
   }
-  if (!object.datePublished || !object.dateModified) return fail("the block has no date fields to correct; add them by hand or generate the page");
+  const hasStructuredDates = Boolean(object && object.datePublished && object.dateModified);
+  const hasMetaDates = /<meta property="article:(published|modified)_time" content="/u.test(before);
+  if (!hasStructuredDates && !hasMetaDates) return fail("nothing to date: no JSON-LD dates and no article:*_time meta on this page");
 
   const name = target.split("/").pop();
   const stem = name.replace(/\.html$/, "");
@@ -78,28 +81,39 @@ function main(argv) {
   if (!modified) return fail("git could not report a last commit for " + htmlPath);
   if (published > modified) return fail("published " + published + " is after modified " + modified + "; the history is inconsistent");
 
-  let after = before.replace(/("datePublished": *)"[^"]*"/u, "$1\"" + published + "\"");
-  after = after.replace(/("dateModified": *)"[^"]*"/u, "$1\"" + modified + "\"");
+  let after = before;
+  if (hasStructuredDates) {
+    after = after.replace(/("datePublished": *)"[^"]*"/u, "$1\"" + published + "\"");
+    after = after.replace(/("dateModified": *)"[^"]*"/u, "$1\"" + modified + "\"");
+  }
+  // The Open Graph timestamps say the same fact a third and fourth time, and hand-authored pages carried
+  // values like 2026-09-25T00:00:00+00:00 - a midnight no commit happened at. Same reading, all four.
+  after = after.replace(/(<meta property="article:published_time" content=")[^"]*"/gu, "$1" + published + "\"");
+  after = after.replace(/(<meta property="article:modified_time" content=")[^"]*"/gu, "$1" + modified + "\"");
 
-  // Byte-level proof that only the two intended values moved.
+  // Byte-level proof that only the intended date values moved.
   const beforeLines = before.split("\n");
   const afterLines = after.split("\n");
   if (beforeLines.length !== afterLines.length) return fail("line count changed (" + beforeLines.length + " -> " + afterLines.length + ")");
   const changed = [];
   for (let i = 0; i < beforeLines.length; i += 1) if (beforeLines[i] !== afterLines[i]) changed.push(i + 1);
-  if (changed.length > 2) return fail("more than two lines changed: " + changed.join(","));
+  if (changed.length > 4) return fail("more than four lines changed: " + changed.join(","));
   for (const lineNo of changed) {
-    if (!/datePublished|dateModified/.test(afterLines[lineNo - 1])) return fail("line " + lineNo + " changed without being a date line");
+    if (!/datePublished|dateModified|article:(published|modified)_time/u.test(afterLines[lineNo - 1])) {
+      return fail("line " + lineNo + " changed without being a date line");
+    }
   }
-  const reparsed = JSON.parse(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/u.exec(after)[1]);
-  for (const key of Object.keys(object)) {
-    if (key === "datePublished" || key === "dateModified") continue;
-    if (JSON.stringify(reparsed[key]) !== JSON.stringify(object[key])) return fail("the block lost or changed " + key);
+  if (hasStructuredDates) {
+    const reparsed = JSON.parse(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/u.exec(after)[1]);
+    for (const key of Object.keys(object)) {
+      if (key === "datePublished" || key === "dateModified") continue;
+      if (JSON.stringify(reparsed[key]) !== JSON.stringify(object[key])) return fail("the block lost or changed " + key);
+    }
+    if (reparsed.datePublished !== published || reparsed.dateModified !== modified) return fail("the written dates are not the ones git reported");
   }
-  if (reparsed.datePublished !== published || reparsed.dateModified !== modified) return fail("the written dates are not the ones git reported");
 
-  console.log("datePublished " + object.datePublished + " -> " + published);
-  console.log("dateModified  " + object.dateModified + " -> " + modified);
+  console.log("datePublished " + (object && object.datePublished ? object.datePublished : "(no structured value)") + " -> " + published);
+  console.log("dateModified  " + (object && object.dateModified ? object.dateModified : "(no structured value)") + " -> " + modified);
   console.log("lines_changed " + (changed.join(",") || "none") + "  html_first_commit=" + gitDate(htmlPath, "first") + "  modified_from=max(" + (htmlLast || "n/a") + ", " + (mdLast || "no .md") + ")");
   if (dry) {
     console.log("DRY RUN: nothing written");

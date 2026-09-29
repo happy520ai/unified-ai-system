@@ -1311,7 +1311,11 @@ for (const [path, page, codePrefix] of [
     /<meta property="article:modified_time" content="([^"]+)"/,
   )?.[1];
   const structuredModifiedDate = page.match(
-    /"dateModified":\s*"(\d{4}-\d{2}-\d{2})"/,
+    // The day part, not the whole value: a page may declare 2026-09-25 or the fuller
+    // 2026-09-25T07:15:26Z that tools/render-evidence-page.mjs writes. Requiring the closing quote here
+    // made the gate demand the short form, which then contradicted article_page_jsonld_date_not_utc -
+    // two checks, one page, no value either could accept.
+    /"dateModified":\s*"(\d{4}-\d{2}-\d{2})/,
   )?.[1];
   if (!articleModifiedTime) {
     addError(`${codePrefix}_modified_time_missing`, path);
