@@ -151,6 +151,9 @@ jobs:
       - name: Workspace checks
         run: pnpm check
 
+      - name: Action pins resolve upstream
+        run: node tools/check-action-pins.mjs
+
       - name: Maintained tests (collects coverage)
         run: pnpm test:coverage
 
