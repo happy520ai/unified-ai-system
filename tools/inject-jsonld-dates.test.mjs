@@ -72,10 +72,15 @@ test("every hand-authored page with a JSON-LD block carries git-shaped UTC dates
   }
   assert.deepEqual(malformed, [], "every hand-authored page must publish exactly one usable block");
   assert.ok(checked.length >= 16, "expected at least 16 dated hand-authored pages, saw " + checked.length + ": " + checked.join(","));
-  // Boundary target: these two pages describe a software object rather than an article, so they owe no dates.
-  // Naming them is the point - an arm that silently skips a category cannot tell a landing page apart from a
-  // hub page that someone forgot to date.
-  assert.deepEqual(undated.sort(), ["index.html (@SoftwareSourceCode)", "index.zh-CN.html (@SoftwareSourceCode)"], "unexpected page publishing no dates: " + undated.join(","));
+  // Boundary target: these pages legitimately publish no dates. The two landing pages describe a software
+  // object; the 404 handler is marked noindex and kept out of the sitemap, so a publication date on it would be
+  // a claim about ranking a page that claims not to be a document. Naming all three is the point - an arm that
+  // skipped unexplained pages could not tell a deliberate exception from someone forgetting to date a hub.
+  assert.deepEqual(
+    undated.sort(),
+    ["404.html (@WebPage)", "index.html (@SoftwareSourceCode)", "index.zh-CN.html (@SoftwareSourceCode)"],
+    "unexpected page publishing no dates: " + undated.join(","),
+  );
 
   // The same instant is published four times on these pages - twice in JSON-LD and twice as Open Graph
   // article:*_time. A page whose structured date is right but whose meta still claims a midnight that never
