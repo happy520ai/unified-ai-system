@@ -1849,3 +1849,47 @@ task. Their own sitemap links do not resolve: `/docs/use/registry` redirects int
 `/docs/build/project-config` answers 404 directly, so there is nothing to file anonymously even if the decision
 were yes. The daily `DOOR_STATE` line
 carries `directories_not_found`, and it moved from 1 to 2 when this leg was added.
+
+### 2026-09-29 18:54Z（UTC）— 描述行确实动了一次，而且这次知道机制了
+
+本节是对上面那条「就此收手，不把描述行堆成关键词袋」的补充，不是推翻它。今天重跑这件事的正当之处只有一
+条：终于把机制量清楚了，而且是用别人的仓库当控制件量的（零写入、零对外触达）：
+
+| 控制件（第三方仓库） | `q=<词> repo:<仓>` | `in:topics` | `in:description` | `in:readme` |
+| --- | --- | --- | --- | --- |
+| `sipyourdrink-ltd/bernstein` | 1 | 0 | 1 | 1 |
+| `CopilotKit/OpenBot` | 0 | 0 | 0 | **1** |
+| `omnigent-ai/omnigent` | 0 | **0** | 0 | 0 |
+
+⇒ 默认查询要的是**每个词都出现在 name／description／topics 里**（README 不参与默认匹配，必须 `in:readme`
+才会被读到；带连字符的 topic 不会被拆成两个词）。这一条把我昨天读到的两处「互相矛盾」全解释了：
+`llm gateway` 之所以默认命中，是因为 `llm` 是独立 topic、`gateway` 在描述里；`agent governance` 之所以不
+命中，是因为 `governance` 只在 README 和 `agent-governance` 这个不可拆的 topic 里。
+
+改动（两次 PATCH，最终值 328 字符，上限 350）：
+
+- 现值（live，`gh api repos/happy520ai/unified-ai-system --jq .description` 可核）：
+  `Self-hosted model routing gateway and agent control plane for OpenAI, Anthropic, Gemini and A2A agents behind one OpenAI-compatible API, protocol-first. MCP server security, governed tools, prompt enhancement, virtual-key budgets, cache, observability, audit chain and agent governance. Zero-key local first run; public preview.`
+- 回滚＝一次 PATCH，旧值逐字是（含 `prompt enhancement`，与上面历史段落里那条更早的旧值不同，那条不含）：
+  `Public Preview: self-hosted, protocol-first AI gateway and agent control plane for OpenAI, Anthropic, Gemini, MCP and A2A — governed tools, prompt enhancement, virtual-key budgets, cache and audit; zero-key first run.`
+- 第一次 PATCH 是 300 字符但**丢了 `A2A` 与 `protocol-first` 两个词**——我原本可能靠它们匹配若干查询。发现后
+  立刻补回（→328），并把原来 15 个词全部复测：改动前可读 15 项里 8 项匹配，改动后 16/16 匹配、无回退。
+
+前 100 名次（这才是真正决定能不能被看到的东西，逐词实测）：
+
+- `api key budget gateway`（池 50）：改前不匹配 → 改后 **第 6 名**。
+- 其余六个新匹配上的词，池子分别是 2,156／3,812／6,853／7,942／8,561／15,672 —— 全部**仍在前 100 之外**。
+  也就是说：昨天的结论一点没变，8 颗星在几千项的池子里靠措辞挤不进前 100。今天的增益只有一个小池名次和
+  「在按 topic／描述过滤的检索里我们终于出现在候选集里」。
+- 参照物：`virtual key budget`（池 58）我们排第 3，而 113★ 的仓库排第 2、24★ 的排第 5 ⇒ 小池里排序不是纯按
+  星数，这行字的措辞真的会起作用；大池里不会。
+
+连带必须一起改的两处：`docs/self-hosted-ai-gateways-compared.html:187` 与
+`docs/self-hosted-ai-gateways-compared.zh-CN.html:181` 里那段引用我们自己 About 的 blockquote——它们是**引用**，
+源是仓库描述本身。`tools/check-comparison-quotes.mjs` 在我改完描述后立刻判红两条（exit 4，
+`drift=2`，并要求「改页面而不是改引文」），两页同步重引后 `checked=18 match=18 drift=0`（exit 0）。这正是
+该守卫存在的全部理由：如果描述行改了而引用没跟上，页面上就留着一句假的「我们自己的原话」。
+
+**收手条件（写下来，免得下次又重来一遍）**：这是本轮最后一次为检索措辞改描述行。下一次动它必须满足两条
+之一——① 有一条真实存在、池子小到前 100 可达、而我们连匹配都不满足的查询；② 产品定位本身变了。把
+description 堆成关键词袋会让读到的人第一个印象变成 SEO 稿，这条判断与昨天相同，仍然有效。
