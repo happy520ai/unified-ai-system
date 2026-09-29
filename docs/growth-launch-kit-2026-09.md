@@ -1893,3 +1893,22 @@ carries `directories_not_found`, and it moved from 1 to 2 when this leg was adde
 **收手条件（写下来，免得下次又重来一遍）**：这是本轮最后一次为检索措辞改描述行。下一次动它必须满足两条
 之一——① 有一条真实存在、池子小到前 100 可达、而我们连匹配都不满足的查询；② 产品定位本身变了。把
 description 堆成关键词袋会让读到的人第一个印象变成 SEO 稿，这条判断与昨天相同，仍然有效。
+
+### 19:19Z 补记：上面那句「未验证」现在有机器答案了 —— 注册表把 0.8.0 标成 isLatest
+
+0g 结尾留了一个问题：人看的那一页显示的是最新版本的描述，还是最早存进去的那句。今天用 API 直接答了，
+读的是 `https://registry.modelcontextprotocol.io/v0/servers?search=unified-ai-system`（200，17,371 字节）：
+
+- 该搜索返回**每个版本一行**，共 17 行（0.3.1 → 0.8.0），逐行 `server.version` 与 `server.description`
+  各自对应：**0.3.1–0.3.3 写 "eight governed MCP tools"、0.4.0–0.4.3 写 "nine"、0.4.4 起不再写工具数**。
+  也就是说那几句不是「过期」，它们是各自版本的事实——一行不该承载两个版本窗口。
+- 每行的 `_meta["io.modelcontextprotocol.registry/official"]` 里有 `isLatest`。**恰好 1 行为真，就是 0.8.0**，
+  `status=active`，描述是不带数字的那句。⇒ 按名字解析「最新」的客户端拿到的是修正后的文案；
+  0g 里担心的「第一条存进去的描述会一直挂着」在 API 层面不成立。
+- 同一条读数顺带证实 README 上那枚 `Official_MCP_Registry-active` 徽章是真的（`status=active`，
+  `statusChangedAt=2026-07-30T13:12Z`），不需要动。
+- 公平性读数照旧：`GET /v0/servers/{id}` 对我们也 404，两个对照 id（`io.github.den-workshops/opconnet`、
+  `io.github.modelcontextprotocol/servers`）同样 404 ⇒ 那条 404 说的是「这个路由没实现」，不是「我们这条被下架」。
+- **一个结论要更正**：本文件此前把「重发注册表描述」列为下一次发版的顺带好处之一。现在证据说明它已经自愈
+  （0.8.0 那次发布就是「下一次」）。所以 **v0.8.1 该不该切，与注册表文案无关**——剩下真正的理由是镜像与
+  文档在 15 个工具这件事上的一致性（#190/#32 的原由），别把这条当成发布动机。
