@@ -1,6 +1,8 @@
-# Why our linux/arm64 image could not load better-sqlite3: the wrong-architecture node_modules trap
+# "invalid ELF header" from better-sqlite3 on linux/arm64: the wrong-architecture node_modules trap
 
-Read from four published releases on 2026-09-29, with no Docker engine and nothing executed.
+A Node image published as multi-platform can carry x86-64 native modules inside its `linux/arm64` tag, and the
+first `require()` of the package fails with `invalid ELF header`. Measured on 2026-09-29 from four published
+releases of our own image, with no Docker engine and nothing executed.
 
 ## The symptom you probably arrived with
 

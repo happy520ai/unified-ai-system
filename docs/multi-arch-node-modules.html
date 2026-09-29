@@ -4,8 +4,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Why our linux/arm64 image could not load better-sqlite3: the wrong-architecture node_modules trap | Unified AI System</title>
-    <meta name="description" content="Read from four published releases on 2026-09-29, with no Docker engine and nothing executed." />
+    <title>&quot;invalid ELF header&quot; from better-sqlite3 on linux/arm64: the wrong-architecture node_modules trap | Unified AI System</title>
+    <meta name="description" content="A Node image published as multi-platform can carry x86-64 native modules inside its linux/arm64 tag, and the first require() of the package fails with..." />
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <meta name="theme-color" content="#081011" />
     <link rel="canonical" href="https://happy520ai.github.io/unified-ai-system/multi-arch-node-modules.html" />
@@ -17,22 +17,22 @@
     <link rel="icon" type="image/png" href="assets/mcp-icon.png" />
     <link rel="stylesheet" href="site.css" />
     <meta property="og:type" content="article" />
-    <meta property="og:title" content="Why our linux/arm64 image could not load better-sqlite3: the wrong-architecture node_modules trap" />
-    <meta property="og:description" content="Read from four published releases on 2026-09-29, with no Docker engine and nothing executed." />
+    <meta property="og:title" content="&quot;invalid ELF header&quot; from better-sqlite3 on linux/arm64: the wrong-architecture node_modules trap" />
+    <meta property="og:description" content="A Node image published as multi-platform can carry x86-64 native modules inside its linux/arm64 tag, and the first require() of the package fails with..." />
     <meta property="og:url" content="https://happy520ai.github.io/unified-ai-system/multi-arch-node-modules.html" />
     <meta property="og:image" content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Why our linux/arm64 image could not load better-sqlite3: the wrong-architecture node_modules trap" />
-    <meta name="twitter:description" content="Read from four published releases on 2026-09-29, with no Docker engine and nothing executed." />
+    <meta name="twitter:title" content="&quot;invalid ELF header&quot; from better-sqlite3 on linux/arm64: the wrong-architecture node_modules trap" />
+    <meta name="twitter:description" content="A Node image published as multi-platform can carry x86-64 native modules inside its linux/arm64 tag, and the first require() of the package fails with..." />
     <meta name="twitter:image" content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png" />
       <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "TechArticle",
-  "headline": "Why our linux/arm64 image could not load better-sqlite3: the wrong-architecture node_modules trap",
-  "description": "Read from four published releases on 2026-09-29, with no Docker engine and nothing executed.",
+  "headline": "\"invalid ELF header\" from better-sqlite3 on linux/arm64: the wrong-architecture node_modules trap",
+  "description": "A Node image published as multi-platform can carry x86-64 native modules inside its linux/arm64 tag, and the first require() of the package fails with...",
   "datePublished": "2026-09-29T03:43:56Z",
-  "dateModified": "2026-09-29T03:50:37Z",
+  "dateModified": "2026-09-29T04:08:04Z",
   "author": {
     "@type": "Organization",
     "name": "Unified AI System",
@@ -60,8 +60,8 @@
         Measured and written in the open: this page is generated from
         <a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/multi-arch-node-modules.md">multi-arch-node-modules.md</a>.
       </nav>
-      <h1>Why our linux/arm64 image could not load better-sqlite3: the wrong-architecture node_modules trap</h1>
-    <p>Read from four published releases on 2026-09-29, with no Docker engine and nothing executed.</p>
+      <h1>&quot;invalid ELF header&quot; from better-sqlite3 on linux/arm64: the wrong-architecture node_modules trap</h1>
+    <p>A Node image published as multi-platform can carry x86-64 native modules inside its <code>linux/arm64</code> tag, and the first <code>require()</code> of the package fails with <code>invalid ELF header</code>. Measured on 2026-09-29 from four published releases of our own image, with no Docker engine and nothing executed.</p>
     <h2>The symptom you probably arrived with</h2>
     <p>A Node image is published as multi-platform. On an Apple Silicon Mac, or any arm64 host, the container starts and then fails the first time it touches a native module:</p>
     <pre><code>Error: /app/node_modules/better-sqlite3/build/Release/better_sqlite3.node: invalid ELF header

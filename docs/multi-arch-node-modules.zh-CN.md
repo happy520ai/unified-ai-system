@@ -1,6 +1,8 @@
-# 为什么我们的 linux/arm64 镜像加载不了 better-sqlite3：错误的 CPU 架构 node_modules 陷阱
+# linux/arm64 上 better-sqlite3 抛出 "invalid ELF header"：错误的 CPU 架构 node_modules 陷阱
 
-2026-09-29 从四个已发布版本读取；不需要 Docker 引擎，也没有执行镜像里的任何代码。
+以多平台方式发布的 Node 镜像，它的 `linux/arm64` 标签里可能装着 x86-64 原生模块，于是第一次
+`require()` 该包就会失败并抛出 `invalid ELF header`。2026-09-29 从我们自己镜像的四个已发布版本实测；
+不需要 Docker 引擎，也没有执行任何代码。
 
 ## 你大概就是带着这个报错来的
 
