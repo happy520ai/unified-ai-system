@@ -167,6 +167,7 @@ Useful in a real workflow? [Star the repository](https://github.com/happy520ai/u
 | Your goal | Start here | What you get |
 | --- | --- | --- |
 | Try it before installing | [Browser Prompt Lab](https://happy520ai.github.io/unified-ai-system/#enhance) | A local, deterministic preview with no account or API key. |
+| See who has accepted it | [Where this project is listed](https://happy520ai.github.io/unified-ai-system/listing-census.html) | Curated catalogues and public MCP directories that carry an entry today, each with the URL that proves it, re-probed nightly. |
 | Verify the published runtime | [60-second Docker demo](#try-it-in-60-seconds) | A disposable fake-provider run with visible evidence and cleanup. |
 | Connect an agent client | [Codex and MCP quickstart](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.html) | A pinned MCP container with an inspectable tool list. |
 | Choose a client path | [MCP compatibility matrix](docs/mcp-client-compatibility.md) | Install commands, first checks, and honest evidence boundaries. |

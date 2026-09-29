@@ -159,6 +159,7 @@ Cursor、Cline、Continue 和通用 stdio 客户端都可以通过同一个网�
 | 你的目标 | 从这里开始 | 你会得到什么 |
 | --- | --- | --- |
 | 安装前先体验 | [在线 Prompt Lab](https://happy520ai.github.io/unified-ai-system/#enhance) | 无需账号或 API Key 的本地确定性预览。 |
+| 看看谁已经接受它 | [本项目被收录在哪里（英文版）](https://happy520ai.github.io/unified-ai-system/listing-census.html) | 当前收录我们的精选目录与公开 MCP 目录，每一行都附可核对的 URL，每日重新探测。 |
 | 验证已发布运行时 | [60 秒 Docker 体验](README.zh-CN.md#60-秒体验) | 可见证据、自动清理的 fake provider 一次性运行。 |
 | 接入智能体客户端 | [Codex 与 MCP 快速开始](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html) | 固定版本 MCP 容器，连接后检查其工具清单。 |
 | 选择客户端路径 | [MCP 客户端兼容性矩阵](docs/mcp-client-compatibility.zh-CN.md) | 安装命令、首次检查和明确的证据边界。 |
