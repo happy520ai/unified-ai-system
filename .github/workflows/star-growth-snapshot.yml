@@ -183,6 +183,20 @@ jobs:
             exit "$code"
           fi
 
+      - name: Check that each article's summaries still quote its own headline figure
+        # Head metadata and the llms.txt bullet are written at different times, so a re-measurement
+        # can leave one surface quoting the superseded number. The pages' body tables legitimately
+        # keep batch-local endpoints, so containment cannot see this; the tool compares each
+        # surface's widest range to the page's own og:description. Both non-zero states are red:
+        # 2 means a summary disagrees, 3 means it compared nothing - a check that has gone blind is
+        # not a passing check.
+        run: |
+          mkdir -p .tmp/growth
+          code=0
+          node tools/check-summary-ranges.mjs > .tmp/growth/summary-ranges.json 2>&1 || code=$?
+          cat .tmp/growth/summary-ranges.json
+          exit "$code"
+
       - name: Upload growth snapshot artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -200,3 +214,4 @@ jobs:
             .tmp/growth/skill-index.json
             .tmp/growth/registry-sync.txt
             .tmp/growth/registry-sync.json
+            .tmp/growth/summary-ranges.json
