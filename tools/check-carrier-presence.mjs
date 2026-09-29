@@ -166,4 +166,6 @@ async function run() {
 }
 
 const isMain = process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url;
-if (isMain) process.exit(await run());
+// exitCode rather than process.exit(): on Windows a hard exit while fetch handles are still draining aborts in
+// libuv and the shell reports 127 instead of this tool's own verdict.
+if (isMain) process.exitCode = await run();

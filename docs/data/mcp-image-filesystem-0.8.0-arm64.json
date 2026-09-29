@@ -1,0 +1,359 @@
+{
+  "read_at_utc": "2026-09-29T03:20:24.422Z",
+  "facts": {
+    "tag": "0.8.0",
+    "repository": "happy520ai/unified-ai-system/mcp-server",
+    "arch": "arm64",
+    "index_digest": "sha256:17888ad0efdc145f0010142c043d3a67b699e08cff6c47e42c13d6bc8a7ad909",
+    "manifest_digest": "sha256:67ff6d0f1f108af0b428325ae36a0938a78a6e5b89da86137986980d72413028",
+    "config_digest": "sha256:e46e4769a21447c2a943d94b13bdc74de34ca731b8a60b25f2a6bcd4b2628f87",
+    "layers_scanned": 21,
+    "layers": [
+      {
+        "digest": "sha256:039e6f9f9752f74a3ff4a6a224f64c7c864da16ed98f882107704328f41b9c42",
+        "digest_verified": true,
+        "compressed_bytes": 28232590,
+        "uncompressed_bytes": 77895680,
+        "entries": 4225
+      },
+      {
+        "digest": "sha256:5404bc2cc13c8aefe11c6d1d4bc40a30e07879b45d93b485c1d72317488d3b04",
+        "digest_verified": true,
+        "compressed_bytes": 3311,
+        "uncompressed_bytes": 21504,
+        "entries": 18
+      },
+      {
+        "digest": "sha256:555d3507458376894ba4e9c5ea63da2b3d9dd3e9765e756483d94438eb840440",
+        "digest_verified": true,
+        "compressed_bytes": 49937716,
+        "uncompressed_bytes": 147570176,
+        "entries": 3074
+      },
+      {
+        "digest": "sha256:8f99eb9866f3244aac3800fb9f992ecc69aef9894d3d0c29be5b09c4ae0e40e5",
+        "digest_verified": true,
+        "compressed_bytes": 1712643,
+        "uncompressed_bytes": 7214592,
+        "entries": 48
+      },
+      {
+        "digest": "sha256:c0ed9f2d0e0e040af91270b0d33de349f4769825f106751ed52d7105fd1870bf",
+        "digest_verified": true,
+        "compressed_bytes": 445,
+        "uncompressed_bytes": 3584,
+        "entries": 4
+      },
+      {
+        "digest": "sha256:1c587cbfd547536456c40f353b3eeaab9f1262443237b23b796a1834bdb1a547",
+        "digest_verified": true,
+        "compressed_bytes": 93,
+        "uncompressed_bytes": 1536,
+        "entries": 1
+      },
+      {
+        "digest": "sha256:18fd2cda9817d639d00accd295754bbf9c8cb7ae21118afe98b9e4767a2af788",
+        "digest_verified": true,
+        "compressed_bytes": 18836158,
+        "uncompressed_bytes": 53667328,
+        "entries": 1683
+      },
+      {
+        "digest": "sha256:fe608436131588894d44b0c4d63e82a49e95568898f526a2ff9092d6f3f2e3b4",
+        "digest_verified": true,
+        "compressed_bytes": 33326,
+        "uncompressed_bytes": 101888,
+        "entries": 4
+      },
+      {
+        "digest": "sha256:59654b5d2145cd7e890160a34a1196274f0584d43736619fc536d57d766a91ee",
+        "digest_verified": true,
+        "compressed_bytes": 1008,
+        "uncompressed_bytes": 6144,
+        "entries": 4
+      },
+      {
+        "digest": "sha256:9282eb53e4edb6355717b66c28bb09496b1656f7378aa276df7c1f78099d1792",
+        "digest_verified": true,
+        "compressed_bytes": 633,
+        "uncompressed_bytes": 5120,
+        "entries": 4
+      },
+      {
+        "digest": "sha256:c585f08ef7de5b8682599839204bc87d0b1b89f23f774cdee4a981c3d88ba408",
+        "digest_verified": true,
+        "compressed_bytes": 1282144,
+        "uncompressed_bytes": 6510080,
+        "entries": 930
+      },
+      {
+        "digest": "sha256:c8ce4bbb8e4d649df9051624416806416eb0ea590e6d3166157c63d208b3266f",
+        "digest_verified": true,
+        "compressed_bytes": 97806889,
+        "uncompressed_bytes": 383803904,
+        "entries": 30578
+      },
+      {
+        "digest": "sha256:478819df46bd78ea663c68097d6453a8e45a3589c5d6a2e5b22db39cfbfb00c3",
+        "digest_verified": true,
+        "compressed_bytes": 3000448,
+        "uncompressed_bytes": 14633472,
+        "entries": 1297
+      },
+      {
+        "digest": "sha256:69f5aa54d26286f834878b2d6889fcd494021410954fd0954149cdc1f734e4c7",
+        "digest_verified": true,
+        "compressed_bytes": 167611,
+        "uncompressed_bytes": 770560,
+        "entries": 42
+      },
+      {
+        "digest": "sha256:8d450e76b7b6c8d4851b6cf5009ceb1d467467626526ab242b02bb45874788ff",
+        "digest_verified": true,
+        "compressed_bytes": 3861,
+        "uncompressed_bytes": 14336,
+        "entries": 3
+      },
+      {
+        "digest": "sha256:8761fa6b3ee8dbbbda2b5d6716a0b9934a795398809404df1f03bd6285b11d76",
+        "digest_verified": true,
+        "compressed_bytes": 4236,
+        "uncompressed_bytes": 16896,
+        "entries": 3
+      },
+      {
+        "digest": "sha256:ff1430a956673b67770ee01bda191aaddc299047f85a70407801672a1e834150",
+        "digest_verified": true,
+        "compressed_bytes": 1572,
+        "uncompressed_bytes": 6144,
+        "entries": 3
+      },
+      {
+        "digest": "sha256:e5f54fb161af8b1e7e7e56bf5537069278663a688c073b5333a871f5b5507dc4",
+        "digest_verified": true,
+        "compressed_bytes": 5018,
+        "uncompressed_bytes": 71680,
+        "entries": 19
+      },
+      {
+        "digest": "sha256:ac52f901e7fdd54c3cdfe925bb8ccf6d80353037540e2776f13f87d23eecc15c",
+        "digest_verified": true,
+        "compressed_bytes": 392,
+        "uncompressed_bytes": 3072,
+        "entries": 3
+      },
+      {
+        "digest": "sha256:90edc875cc7ee952bcf5ddb319bc629bb16ca1f1ffec8ca9695f41d5ba8d42f1",
+        "digest_verified": true,
+        "compressed_bytes": 369,
+        "uncompressed_bytes": 7168,
+        "entries": 11
+      },
+      {
+        "digest": "sha256:0928a1860d2d17fa87ce41b680187c0a56c6447dc3681a4f6f3a29276499d8f5",
+        "digest_verified": true,
+        "compressed_bytes": 160,
+        "uncompressed_bytes": 2560,
+        "entries": 2
+      }
+    ],
+    "layer_digests_all_verified": true,
+    "package_manifests_read": 279,
+    "lifecycle_hooks": [
+      {
+        "name": "@unified-ai-system/forge-core",
+        "hook": "postinstall",
+        "command": "node ./scripts/rebuild-native.mjs"
+      },
+      {
+        "name": "better-sqlite3",
+        "hook": "install",
+        "command": "prebuild-install || node-gyp rebuild --release"
+      }
+    ],
+    "findings": {
+      "entries": 41811,
+      "files": 21864,
+      "directories": 3903,
+      "total_bytes": 646739707,
+      "setuid": [
+        "usr/bin/chfn",
+        "usr/bin/chsh",
+        "usr/bin/gpasswd",
+        "usr/bin/mount",
+        "usr/bin/newgrp",
+        "usr/bin/passwd",
+        "usr/bin/su",
+        "usr/bin/umount"
+      ],
+      "setgid": [
+        "usr/bin/chage",
+        "usr/bin/expiry",
+        "usr/sbin/unix_chkpwd"
+      ],
+      "world_writable": [],
+      "executables": 661,
+      "executable_sample": [
+        "app/apps/ai-gateway-service/node_modules/.bin/mammoth",
+        "app/apps/ai-gateway-service/node_modules/.bin/pdf-parse",
+        "app/apps/ai-gateway-service/node_modules/.bin/pino",
+        "app/apps/ai-gateway-service/node_modules/.bin/xlsx",
+        "app/apps/ai-gateway-service/node_modules/.bin/yaml",
+        "app/node_modules/.bin/anthropic-ai-sdk",
+        "app/node_modules/.bin/tsc",
+        "app/node_modules/.bin/tsserver",
+        "app/node_modules/.bin/vitest",
+        "app/node_modules/.pnpm/@a2a-js+sdk@1.0.1/node_modules/@a2a-js/sdk/node_modules/.bin/uuid",
+        "app/node_modules/.pnpm/@anthropic-ai+sdk@0.120.0_zod@4.4.3/node_modules/@anthropic-ai/sdk/bin/cli",
+        "app/node_modules/.pnpm/@vitest+mocker@4.1.11_vite@8.0.16_@types+node@26.4.1_yaml@2.9.0_/node_modules/@vitest/mocker/node_modules/.bin/vite"
+      ],
+      "native_modules": [
+        "app/node_modules/.pnpm/@napi-rs+canvas-linux-x64-gnu@0.1.80/node_modules/@napi-rs/canvas-linux-x64-gnu/skia.linux-x64-gnu.node",
+        "app/node_modules/.pnpm/@rolldown+binding-linux-x64-gnu@1.0.3/node_modules/@rolldown/binding-linux-x64-gnu/rolldown-binding.linux-x64-gnu.node",
+        "app/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/build/Release/better_sqlite3.node",
+        "app/node_modules/.pnpm/lightningcss-linux-x64-gnu@1.33.0/node_modules/lightningcss-linux-x64-gnu/lightningcss.linux-x64-gnu.node",
+        "usr/local/lib/node_modules/pnpm/dist/node_modules/@reflink/reflink-darwin-arm64/reflink.darwin-arm64.node",
+        "usr/local/lib/node_modules/pnpm/dist/node_modules/@reflink/reflink-darwin-x64/reflink.darwin-x64.node",
+        "usr/local/lib/node_modules/pnpm/dist/node_modules/@reflink/reflink-win32-arm64-msvc/reflink.win32-arm64-msvc.node",
+        "usr/local/lib/node_modules/pnpm/dist/node_modules/@reflink/reflink-win32-x64-msvc/reflink.win32-x64-msvc.node"
+      ],
+      "device_files": [],
+      "symlinks": 1160,
+      "symlinks_escaping_root": [],
+      "hardlinks": 14884,
+      "app_files": 14322,
+      "app_bytes": 277037069,
+      "app_scripts": [
+        "app/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/deps/download.sh",
+        "app/node_modules/.pnpm/pino@10.3.1/node_modules/pino/inc-version.sh",
+        "app/node_modules/.pnpm/playwright-core@1.62.1/node_modules/playwright-core/bin/reinstall_chrome_beta_linux.sh",
+        "app/node_modules/.pnpm/playwright-core@1.62.1/node_modules/playwright-core/bin/reinstall_chrome_beta_mac.sh",
+        "app/node_modules/.pnpm/playwright-core@1.62.1/node_modules/playwright-core/bin/reinstall_chrome_stable_linux.sh",
+        "app/node_modules/.pnpm/playwright-core@1.62.1/node_modules/playwright-core/bin/reinstall_chrome_stable_mac.sh",
+        "app/node_modules/.pnpm/playwright-core@1.62.1/node_modules/playwright-core/bin/reinstall_msedge_beta_linux.sh",
+        "app/node_modules/.pnpm/playwright-core@1.62.1/node_modules/playwright-core/bin/reinstall_msedge_beta_mac.sh",
+        "app/node_modules/.pnpm/playwright-core@1.62.1/node_modules/playwright-core/bin/reinstall_msedge_dev_linux.sh",
+        "app/node_modules/.pnpm/playwright-core@1.62.1/node_modules/playwright-core/bin/reinstall_msedge_dev_mac.sh",
+        "app/node_modules/.pnpm/playwright-core@1.62.1/node_modules/playwright-core/bin/reinstall_msedge_stable_linux.sh",
+        "app/node_modules/.pnpm/playwright-core@1.62.1/node_modules/playwright-core/bin/reinstall_msedge_stable_mac.sh",
+        "app/node_modules/.pnpm/thread-stream@4.2.0/node_modules/thread-stream/test/ts/transpile.sh"
+      ],
+      "root_owned_only": 15
+    },
+    "native_modules": [
+      {
+        "name": "usr/local/lib/node_modules/pnpm/dist/node_modules/@reflink/reflink-darwin-arm64/reflink.darwin-arm64.node",
+        "size": 404184,
+        "header": {
+          "flavor": "mach-o",
+          "detail": "mach-o 64"
+        }
+      },
+      {
+        "name": "usr/local/lib/node_modules/pnpm/dist/node_modules/@reflink/reflink-darwin-x64/reflink.darwin-x64.node",
+        "size": 417392,
+        "header": {
+          "flavor": "mach-o",
+          "detail": "mach-o 64"
+        }
+      },
+      {
+        "name": "usr/local/lib/node_modules/pnpm/dist/node_modules/@reflink/reflink-win32-arm64-msvc/reflink.win32-arm64-msvc.node",
+        "size": 332800,
+        "header": {
+          "flavor": "pe",
+          "detail": "MZ header (Windows)"
+        }
+      },
+      {
+        "name": "usr/local/lib/node_modules/pnpm/dist/node_modules/@reflink/reflink-win32-x64-msvc/reflink.win32-x64-msvc.node",
+        "size": 361472,
+        "header": {
+          "flavor": "pe",
+          "detail": "MZ header (Windows)"
+        }
+      },
+      {
+        "name": "app/node_modules/.pnpm/@napi-rs+canvas-linux-x64-gnu@0.1.80/node_modules/@napi-rs/canvas-linux-x64-gnu/skia.linux-x64-gnu.node",
+        "size": 31201192,
+        "header": {
+          "flavor": "elf",
+          "detail": "64-bit LSB x86-64",
+          "machine": 62,
+          "bits": "64-bit"
+        }
+      },
+      {
+        "name": "app/node_modules/.pnpm/@rolldown+binding-linux-x64-gnu@1.0.3/node_modules/@rolldown/binding-linux-x64-gnu/rolldown-binding.linux-x64-gnu.node",
+        "size": 21949232,
+        "header": {
+          "flavor": "elf",
+          "detail": "64-bit LSB x86-64",
+          "machine": 62,
+          "bits": "64-bit"
+        }
+      },
+      {
+        "name": "app/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/build/Release/better_sqlite3.node",
+        "size": 2072760,
+        "header": {
+          "flavor": "elf",
+          "detail": "64-bit LSB x86-64",
+          "machine": 62,
+          "bits": "64-bit"
+        }
+      },
+      {
+        "name": "app/node_modules/.pnpm/lightningcss-linux-x64-gnu@1.33.0/node_modules/lightningcss-linux-x64-gnu/lightningcss.linux-x64-gnu.node",
+        "size": 10032264,
+        "header": {
+          "flavor": "elf",
+          "detail": "64-bit LSB x86-64",
+          "machine": 62,
+          "bits": "64-bit"
+        }
+      }
+    ],
+    "expected_elf_machine": "0xb7",
+    "elf_arch_mismatch": [
+      "app/node_modules/.pnpm/@napi-rs+canvas-linux-x64-gnu@0.1.80/node_modules/@napi-rs/canvas-linux-x64-gnu/skia.linux-x64-gnu.node (64-bit LSB x86-64)",
+      "app/node_modules/.pnpm/@rolldown+binding-linux-x64-gnu@1.0.3/node_modules/@rolldown/binding-linux-x64-gnu/rolldown-binding.linux-x64-gnu.node (64-bit LSB x86-64)",
+      "app/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/build/Release/better_sqlite3.node (64-bit LSB x86-64)",
+      "app/node_modules/.pnpm/lightningcss-linux-x64-gnu@1.33.0/node_modules/lightningcss-linux-x64-gnu/lightningcss.linux-x64-gnu.node (64-bit LSB x86-64)"
+    ],
+    "foreign_platform_modules": [
+      "usr/local/lib/node_modules/pnpm/dist/node_modules/@reflink/reflink-darwin-arm64/reflink.darwin-arm64.node (mach-o)",
+      "usr/local/lib/node_modules/pnpm/dist/node_modules/@reflink/reflink-darwin-x64/reflink.darwin-x64.node (mach-o)",
+      "usr/local/lib/node_modules/pnpm/dist/node_modules/@reflink/reflink-win32-arm64-msvc/reflink.win32-arm64-msvc.node (pe)",
+      "usr/local/lib/node_modules/pnpm/dist/node_modules/@reflink/reflink-win32-x64-msvc/reflink.win32-x64-msvc.node (pe)"
+    ],
+    "config": {
+      "architecture": "arm64",
+      "os": "linux",
+      "created": "2026-09-25T16:43:15.4929215Z",
+      "user": "node",
+      "entrypoint": [
+        "docker-entrypoint.sh"
+      ],
+      "cmd": [
+        "node",
+        "packages/mcp-server/src/index.js"
+      ],
+      "working_dir": "/app",
+      "env_names": [
+        "NODE_ENV",
+        "NODE_VERSION",
+        "PATH",
+        "YARN_VERSION",
+        "npm_config_verify_deps_before_run"
+      ],
+      "exposed_ports": [],
+      "volumes": [
+        "/app/.data",
+        "/app/apps/ai-gateway-service/.data"
+      ],
+      "history_entries": 35
+    }
+  },
+  "problems": []
+}
