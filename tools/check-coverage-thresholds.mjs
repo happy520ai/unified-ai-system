@@ -10,17 +10,19 @@ import { fileURLToPath } from "node:url";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const summaryPath = join(repoRoot, "coverage", "coverage-summary.json");
 
-// Floors are the measured baseline of the converged tree (2026-09-30, all seven
-// vitest groups plus the per-package suites: lines 47.01%, functions 47.13%,
-// statements 45.09%, branches 43.86%), each with about two points of slack so a
-// small refactor does not fail the build on noise. The originally intended
-// 50/50/50/40 target is recorded here rather than dropped: closing the
-// remaining two-to-five points is coverage work, not a threshold decision.
+// Floors are the lower of the two platform baselines, each with about a point
+// and a half of slack so a small refactor does not fail the build on noise:
+//   ubuntu (CI): lines 44.78, functions 44.30, statements 42.92, branches 41.57
+//   windows    : lines 47.01, functions 47.13, statements 45.09, branches 43.86
+// The gap is real, not drift: the Windows-only suites run on Windows and skip
+// on the Linux runner, so Linux is the floor that has to hold. The originally
+// intended 50/50/50/40 target is recorded here rather than dropped: closing
+// the remaining five-to-eight points is coverage work, not a threshold decision.
 export const THRESHOLDS = Object.freeze({
-  lines: 45,
-  functions: 45,
-  statements: 43,
-  branches: 42,
+  lines: 43,
+  functions: 43,
+  statements: 42,
+  branches: 40,
 });
 
 const METRICS = Object.freeze(["lines", "functions", "statements", "branches"]);

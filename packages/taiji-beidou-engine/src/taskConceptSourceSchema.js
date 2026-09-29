@@ -119,7 +119,11 @@ export function buildTaskConceptSourceSchema(input = {}) {
     safetyClassification,
     trace: {
       generatedAt: "synthetic-dry-run-fixed-timestamp",
-      evidenceRef: "apps/ai-gateway-service/evidence/phase1202-task-concept-source-schema/task-concept-source-schema-result.json",
+      // Names the retired evidence set this dry-run read from. It is named, not
+      // pointed at: generated evidence stays gitignored, so a resolvable-looking
+      // repo path would read as a contract dependency on the gateway module and
+      // close a module cycle between two packages with no code dependency.
+      evidenceRef: "retired:phase1202-task-concept-source-schema",
       syntheticOnly: true,
     },
   };
