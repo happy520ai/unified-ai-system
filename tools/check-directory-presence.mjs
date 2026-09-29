@@ -12,7 +12,7 @@
 // Calibration (2026-09-27, known truth): mcpservers.org and mcpmarket.com both list us. If this
 // script says otherwise about either, the script is wrong, not the world.
 //
-// Usage: node tools/check-directory-presence.mjs [--slug unified-ai-system] [--handle happy520ai] <site>...
+// Usage: node tools/check-directory-presence.mjs [--slug unified-ai-system] [--handle happy520ai] [--github-mcp] <site>...
 import { pathToFileURL } from "node:url";
 
 const UA =
@@ -169,6 +169,68 @@ export async function checkSite(site, { slug, handle }) {
   };
 }
 
+// github.com/mcp is not a sitemap-shaped catalogue: it is a React directory whose server pages live at
+// `/mcp/<namespace>/<slug>`, and whose search is `/mcp?q=<term>`. Measured on 2026-09-29, another small
+// registry record (`io.github.amansingh63/dbhub-analytics`) is absent exactly like ours while
+// `bytebase/dbhub` answers 200 - so this directory curates rather than mirrors, and a 404 for us only
+// means absence when the control legs demonstrably answer. Same rule as everywhere else in this file:
+// absence and blindness must not share a sentence.
+export const GITHUB_MCP_CONTROL_ID = "io.github.bytebase/dbhub";
+// The directory emits the GitHub owner/repo shape in its hrefs (measured 2026-09-29: `?q=dbhub` returned
+// exactly one href, "/mcp/bytebase/dbhub"), so the control is counted by that tail. Both shapes resolve
+// for the control server, and both are probed for us, so a 404 on one path cannot fake an absence.
+export const GITHUB_MCP_CONTROL_SLUG = "bytebase/dbhub";
+export const GITHUB_MCP_CONTROL_QUERY = "dbhub";
+
+// Two URL shapes are live for listed servers, so absence has to survive both.
+export function combineOursStatuses(a, b) {
+  if (a === 200 || b === 200) return 200;
+  if (isBlocked(a) || isBlocked(b)) return 0;
+  if (a === 404 && b === 404) return 404;
+  return a === b ? a : `${a}/${b}`;
+}
+
+export function githubMcpVerdict({ oursStatus, controlStatus, controlHits }) {
+  if (isBlocked(oursStatus)) return { verdict: "UNDECIDABLE", why: `our entry leg is unreadable (${oursStatus})` };
+  if (controlStatus !== 200) return { verdict: "UNDECIDABLE", why: `control server page is not 200 (${controlStatus}), so the probe has no positive control` };
+  if (!(controlHits >= 1)) return { verdict: "UNDECIDABLE", why: `directory search for "${GITHUB_MCP_CONTROL_QUERY}" surfaced ${controlHits} control card(s), so a zero for us proves nothing` };
+  if (oursStatus === 200) return { verdict: "LISTED", why: `entry page 200 with ${controlHits} control card(s) in search` };
+  if (oursStatus === 404) return { verdict: "NOT_FOUND", why: `both entry shapes 404 while the control page is 200 and its search card is present (${controlHits})` };
+  return { verdict: "UNDECIDABLE", why: `unexpected status for our entry: ${oursStatus}` };
+}
+
+async function statusNoRedirect(url) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { headers: { "user-agent": UA, accept: "*/*" }, redirect: "manual", signal: controller.signal });
+    return res.status;
+  } catch {
+    return 0;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function checkGithubMcp({ slug, handle }) {
+  const registryId = `io.github.${handle}/${slug}`;
+  const repoId = `${handle}/${slug}`;
+  const oursUrls = [`https://github.com/mcp/${registryId}`, `https://github.com/mcp/${repoId}`];
+  const controlUrl = `https://github.com/mcp/${GITHUB_MCP_CONTROL_ID}`;
+  const searchUrl = `https://github.com/mcp?q=${GITHUB_MCP_CONTROL_QUERY}`;
+  const [first, second] = [await statusNoRedirect(oursUrls[0]), await statusNoRedirect(oursUrls[1])];
+  const oursStatus = combineOursStatuses(first, second);
+  const [controlStatus, search] = [await statusNoRedirect(controlUrl), await get(searchUrl)];
+  const controlHits = (search.body.match(new RegExp(`/mcp/[^"]*${escapeRe(GITHUB_MCP_CONTROL_SLUG)}`, "g")) || []).length;
+  return {
+    site: "https://github.com/mcp",
+    ...githubMcpVerdict({ oursStatus, controlStatus, controlHits }),
+    evidence: oursStatus === 200 ? oursUrls[0] : null,
+    legs: { ours_registry: first, ours_repo: second, control: controlStatus, search: search.status, controlHits },
+    urls: { oursUrls, controlUrl, searchUrl },
+  };
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const opt = (name, dflt) => {
@@ -180,11 +242,15 @@ async function main() {
   };
   const slug = opt("--slug", "unified-ai-system");
   const handle = opt("--handle", "happy520ai");
+  // A valueless flag, so it must be removed before the remaining positional args are read as sites.
+  const withGithubMcp = args.includes("--github-mcp");
+  if (withGithubMcp) args.splice(args.indexOf("--github-mcp"), 1);
   const sites = args.length > 0 ? args : ["https://mcpservers.org", "https://mcpmarket.com", "https://glama.ai/"];
   const report = [];
   for (const site of sites) {
     report.push(await checkSite(site.replace(/\/+$/, ""), { slug, handle }));
   }
+  if (withGithubMcp) report.push(await checkGithubMcp({ slug, handle }));
   const count = (v) => report.filter((r) => r.verdict === v).length;
   console.log(JSON.stringify({ checked_at_utc: new Date().toISOString(), slug, handle, report }, null, 1));
   console.log(`SUMMARY listed=${count("LISTED")} not_found=${count("NOT_FOUND")} undecidable=${count("UNDECIDABLE")}`);

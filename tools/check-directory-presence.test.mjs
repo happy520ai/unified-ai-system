@@ -10,6 +10,9 @@ import {
   isBlocked,
   matchOurs,
   slugUrls,
+  githubMcpVerdict,
+  combineOursStatuses,
+  GITHUB_MCP_CONTROL_ID,
 } from "./check-directory-presence.mjs";
 
 const ID = { slug: "unified-ai-system", handle: "happy520ai" };
@@ -96,4 +99,57 @@ test("matching the word without matching us is not absence either", () => {
   const crowded = decide({ childrenRead: 4, urlsSeen: 900, matched: null, genericOnly: 2 });
   assert.equal(crowded.verdict, "UNDECIDABLE");
   assert.match(crowded.why, /other listings/);
+});
+
+test("the github.com/mcp leg claims absence only with both controls answering", () => {
+  const cases = [
+    [{ oursStatus: 404, controlStatus: 200, controlHits: 2 }, "NOT_FOUND"],
+    [{ oursStatus: 200, controlStatus: 200, controlHits: 2 }, "LISTED"],
+    [{ oursStatus: 404, controlStatus: 200, controlHits: 0 }, "UNDECIDABLE"],
+    [{ oursStatus: 404, controlStatus: 404, controlHits: 2 }, "UNDECIDABLE"],
+    [{ oursStatus: 403, controlStatus: 200, controlHits: 2 }, "UNDECIDABLE"],
+    [{ oursStatus: 0, controlStatus: 200, controlHits: 2 }, "UNDECIDABLE"],
+    [{ oursStatus: 301, controlStatus: 200, controlHits: 2 }, "UNDECIDABLE"],
+  ];
+  for (const [input, want] of cases) {
+    const got = githubMcpVerdict(input);
+    assert.equal(got.verdict, want, JSON.stringify(input));
+    if (want === "NOT_FOUND") assert.match(got.why, /control page is 200/);
+    if (input.controlHits === 0 && input.controlStatus === 200 && got.verdict === "UNDECIDABLE") {
+      assert.match(got.why, /proves nothing/);
+    }
+    if (input.controlStatus !== 200 && got.verdict === "UNDECIDABLE") assert.match(got.why, /no positive control/);
+    if ((input.oursStatus === 403 || input.oursStatus === 0) && got.verdict === "UNDECIDABLE") {
+      assert.match(got.why, /unreadable/);
+    }
+  }
+});
+
+test("a blocked read of our own entry never becomes a confident absence", () => {
+  // Paired with the arm above: this instrument exists because four "we are not listed" readings were
+  // wrong, and three of them were a blocked or blind leg dressed as absence.
+  for (const blocked of [401, 403, 429, 500, 0]) {
+    const got = githubMcpVerdict({ oursStatus: blocked, controlStatus: 200, controlHits: 3 });
+    assert.equal(got.verdict, "UNDECIDABLE", `status ${blocked} must not read as NOT_FOUND`);
+    assert.match(got.why, /unreadable/);
+  }
+});
+
+test("the github control id is the pinned registry name, not a rebuilt slug", () => {
+  // Load-bearing: without a second server that demonstrably answers 200 at the same URL shape, our own
+  // 404 is indistinguishable from a wrong slug.
+  assert.equal(GITHUB_MCP_CONTROL_ID, "io.github.bytebase/dbhub");
+});
+
+test("one live URL shape is enough to read as listed; one blind leg is enough to refuse", () => {
+  // Measured 2026-09-29: the directory answers 200 for BOTH `/mcp/bytebase/dbhub` and
+  // `/mcp/io.github.bytebase/dbhub`, while both shapes of our own entry answer 404. Probing one shape
+  // would let a path-format change masquerade as removal from the catalogue.
+  assert.equal(combineOursStatuses(404, 404), 404);
+  assert.equal(combineOursStatuses(200, 404), 200);
+  assert.equal(combineOursStatuses(404, 200), 200);
+  assert.equal(combineOursStatuses(0, 404), 0);
+  assert.equal(combineOursStatuses(403, 404), 0);
+  assert.equal(combineOursStatuses(404, 301), "404/301");
+  assert.equal(githubMcpVerdict({ oursStatus: combineOursStatuses(404, 301), controlStatus: 200, controlHits: 1 }).verdict, "UNDECIDABLE");
 });

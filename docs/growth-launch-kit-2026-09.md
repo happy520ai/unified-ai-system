@@ -146,6 +146,38 @@ Verification after they act: open the page and confirm the word "eight" is gone 
 
 ---
 
+### 0o. GitHub's own MCP directory does not list us, and there is no public submission path
+
+`https://github.com/mcp` is the highest-traffic MCP surface that is not a third-party site: GitHub's own
+directory, rendering a server page at `/mcp/<id>`, with a search box labelled "Search MCP registry".
+Measured 2026-09-29 with positive controls, we are not in it:
+
+| leg | result |
+| --- | --- |
+| `/mcp/io.github.happy520ai/unified-ai-system` | 404 |
+| `/mcp/happy520ai/unified-ai-system` (repo shape) | 404 |
+| controls `/mcp/io.github.bytebase/dbhub`, `/mcp/bytebase/dbhub` | 200, 200 |
+| control search `/mcp?q=dbhub` | 200, one `/mcp/bytebase/dbhub` card |
+| another small registry record `io.github.amansingh63/dbhub-analytics` | 404, same as us |
+
+So this directory curates rather than mirrors the official registry: our record is structurally the
+control's shape (`repository.source: github`, one package, `status: active`, current under
+`version=latest`), yet only theirs resolves. Re-measure with
+`node tools/check-directory-presence.mjs --github-mcp`, which refuses NOT_FOUND unless the control page
+answers 200 **and** the control's search card is present. That leg is calibrated and tested, because
+four earlier "we are not listed" readings in this project were blindness dressed as absence.
+
+What I could not find, and am not inventing a step for: no public submission path is visible from the
+page. The front-page HTML links no "get listed" document (the only "Submit" control is the search-field
+button), and three plausible catalog repos under the `github` org 404 through the API
+(`github/mcp-registry`, `github/github-mcp-registry`, `github/mcp`), so there is no PR route either.
+Two doors remain, and both are yours:
+
+1. If a signed-in session shows a submit/claim affordance that anonymous HTML does not, take it - the
+   entry data is already in `server.json`.
+2. Otherwise it is GitHub curation, which follows adoption. What moves that is the listings and posts
+   further down this kit, not another probe from us.
+
 ## Demo links a post can carry
 
 Every post below links the repository. A link that shows the product in one
