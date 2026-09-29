@@ -12,6 +12,8 @@ import {
   countListingKinds,
   deferredDoorStatus,
   findUntrackedDoors,
+  generateEvidenceReport,
+  generateSummaryReport,
   GITHUB_MCP_CONTROLS,
   githubMcpUrl,
   githubMcpVerdict,
@@ -1103,4 +1105,91 @@ test("the report itself carries the lag clause", () => {
   const fresh = renderRepoSection(stats("2026-09-28"), "2026-09-29", "-").join("\n");
   assert.doesNotMatch(fresh, /WINDOW-LAG/u, "a healthy window must not print the clause");
   assert.match(fresh, /GitHub traffic snapshot through 2026-09-28/u);
+});
+
+// The payload can also arrive with counts and no dated rows at all - what the live endpoint did on
+// 2026-09-29, where /traffic/views returned only count, uniques and views. That case used to print
+// "through N/A" and nothing else, which reads like a current number with an unfilled field.
+test("a window that does not exist is named as absent, not left blank", () => {
+  const stats = (through) => ({
+    stars: 8,
+    forks: 2,
+    watchers: 0,
+    openIssues: 34,
+    updated: "2026-09-29T17:16:37Z",
+    traffic: {
+      available: true,
+      views: { count: 66, uniques: 21, through },
+      clones: { count: 726, uniques: 198, through },
+      referrers: [{ referrer: "happy520ai.github.io", count: 7, uniques: 3 }],
+    },
+  });
+  const absent = renderRepoSection(stats(null), "2026-09-29", "-").join("\n");
+  assert.match(absent, /WINDOW-ABSENT: the traffic payload returned no dated rows/u);
+  assert.match(absent, /not a measurement of arrival today/u);
+  assert.match(absent, /GitHub traffic snapshot through N\/A: 66 views \/ 21 uniques/u);
+  // Boundary arm: the two clauses must not bleed into each other's cases.
+  assert.doesNotMatch(absent, /WINDOW-LAG/u, "an absent window has no lag to report");
+  const named = renderRepoSection(stats("2026-09-23"), "2026-09-29", "-").join("\n");
+  assert.doesNotMatch(named, /WINDOW-ABSENT/u, "a readable window must not claim there is none");
+});
+
+// The summary report is the file a person reads. Until now it printed traffic counts with no statement
+// about the period they cover, in either the stale case or the case where the payload returns counts and
+// no dated rows at all. Both are asserted through the real function, not through the section renderer.
+test("the summary report names the traffic window state in both forms", () => {
+  const stats = (through) => ({
+    stars: 8,
+    forks: 2,
+    watchers: 0,
+    openIssues: 34,
+    openPullRequests: 18,
+    updated: "2026-09-29T17:16:37Z",
+    traffic: {
+      available: true,
+      views: { count: 66, uniques: 21, through },
+      clones: { count: 726, uniques: 198, through },
+      referrers: [{ referrer: "Google", count: 3, uniques: 3 }],
+    },
+  });
+  const absent = generateSummaryReport(stats(null), [], "2026-09-29");
+  assert.match(absent, /WINDOW-ABSENT: the traffic payload returned counts with no dated rows/u);
+  const stale = generateSummaryReport(stats("2026-09-23"), [], "2026-09-29");
+  assert.match(stale, /WINDOW-LAG: this payload stops at 2026-09-23, 6 days/u);
+  // Boundary arm: a current window must print no alarm at all.
+  const current = generateSummaryReport(stats("2026-09-28"), [], "2026-09-29");
+  assert.doesNotMatch(current, /WINDOW-/u);
+});
+
+// The evidence report is the artifact CI uploads, and it renders the same counts as a table. A cell
+// reading "N/A" beside a number invites the reader to supply the period themselves, so the period is
+// stated as a verdict row instead.
+test("the evidence report states traffic-window currency as a row", () => {
+  const stats = (through) => ({
+    stars: 8,
+    forks: 2,
+    watchers: 0,
+    openIssues: 34,
+    openPullRequests: 18,
+    updated: "2026-09-29T17:16:37Z",
+    traffic: {
+      available: true,
+      views: { count: 66, uniques: 21, through },
+      clones: { count: 726, uniques: 198, through },
+      referrers: [{ referrer: "Google", count: 3, uniques: 3 }],
+    },
+  });
+  assert.match(
+    generateEvidenceReport(stats(null), [], "2026-09-29"),
+    /\| Traffic window currency \| WINDOW-ABSENT - the payload had no dated rows, so these counts have no period \|/u
+  );
+  assert.match(
+    generateEvidenceReport(stats("2026-09-23"), [], "2026-09-29"),
+    /\| Traffic window currency \| WINDOW-LAG - stops at 2026-09-23, 6 days before 2026-09-29/u
+  );
+  // Boundary arm: the healthy case must read as a plain verdict, not as an alarm.
+  assert.match(
+    generateEvidenceReport(stats("2026-09-28"), [], "2026-09-29"),
+    /\| Traffic window currency \| current \|/u
+  );
 });

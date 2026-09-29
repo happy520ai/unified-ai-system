@@ -803,6 +803,12 @@ export function renderRepoSection(repoStats, date, prefix, previousStats = null)
           `${prefix} WINDOW-LAG: GitHub's traffic payload stops at ${through}, ${lag.days} days before this report (${date}). The counts above are an old window re-read, not a measurement of arrival today, and "unchanged since the last run" here means the payload did not advance.`
         );
       }
+    } else {
+      // The counts arrived without any dated rows, which is a different blind spot from a lagging window:
+      // there is no period to name, so "66 views" must not be read as "in the last 14 days" either.
+      lines.push(
+        `${prefix} WINDOW-ABSENT: the traffic payload returned no dated rows, so these counts carry no period at all. They are not a 14-day measurement, not a measurement of arrival today, and a run that prints the same numbers as the previous run proves only that the payload did not change.`
+      );
     }
   }
   // Read outside the `available` guard on purpose: referrers can answer even on a day when the
@@ -1939,7 +1945,7 @@ function countMergeState(rows, state) {
   return rows.filter((row) => row.mergeState === state).length;
 }
 
-function generateSummaryReport(repoStats, rows, date) {
+export function generateSummaryReport(repoStats, rows, date) {
   const clean = countMergeState(rows, "CLEAN");
   const blocked = countMergeState(rows, "BLOCKED");
   const dirty = countMergeState(rows, "DIRTY");
@@ -1974,6 +1980,20 @@ function generateSummaryReport(repoStats, rows, date) {
       lines.push(
         `- What "${through}" is not: the last visit. It is the newest date among the top referrer rows returned, so traffic after it may simply rank below what GitHub sends back.`
       );
+      const lag = trafficWindowLag({ reportDate: date, through });
+      if (lag.unknown) {
+        lines.push(
+          `- WINDOW-UNREADABLE: report date "${date}" or window end "${through}" is not a parseable day, so no claim is made about how current this payload is.`
+        );
+      } else if (lag.stale) {
+        lines.push(
+          `- WINDOW-LAG: this payload stops at ${through}, ${lag.days} days before the report date (${date}). The counts are an old window re-read, not a measurement of arrival today.`
+        );
+      }
+    } else {
+      lines.push(
+        "- WINDOW-ABSENT: the traffic payload returned counts with no dated rows, so these figures carry no period at all and must not be read as a 14-day window."
+      );
     }
   }
   lines.push("");
@@ -2005,7 +2025,7 @@ function generateSummaryReport(repoStats, rows, date) {
   return `${lines.join("\n")}\n`;
 }
 
-function generateEvidenceReport(repoStats, rows, date, previousStats = null) {
+export function generateEvidenceReport(repoStats, rows, date, previousStats = null) {
   const lines = [];
   lines.push("# Star Growth Check Report");
   lines.push("");
@@ -2026,6 +2046,18 @@ function generateEvidenceReport(repoStats, rows, date, previousStats = null) {
     const through =
       repoStats.traffic.views?.through ?? repoStats.traffic.clones?.through ?? "N/A";
     lines.push(`| GitHub traffic snapshot through | ${through} |`);
+    // A table row that says "N/A" next to a count invites the reader to supply the period themselves,
+    // so the period is stated as a verdict instead of left blank.
+    const tableLag = trafficWindowLag({ reportDate: date, through });
+    const tableVerdict =
+      through === "N/A"
+        ? "WINDOW-ABSENT - the payload had no dated rows, so these counts have no period"
+        : tableLag.unknown
+          ? "WINDOW-UNREADABLE - no claim made about how current this is"
+          : tableLag.stale
+            ? `WINDOW-LAG - stops at ${through}, ${tableLag.days} days before ${date}; not a measurement of arrival today`
+            : "current";
+    lines.push(`| Traffic window currency | ${tableVerdict} |`);
     lines.push(
       `| Views / unique viewers | ${repoStats.traffic.views?.count ?? "N/A"} / ${repoStats.traffic.views?.uniques ?? "N/A"} |`
     );

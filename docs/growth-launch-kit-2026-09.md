@@ -2010,10 +2010,52 @@ because "25th row" and "rank 30" are not the same line. Quote the instrument wit
 not a bare number.
 
 **The honest limit.** This is placement, not arrival. GitHub's traffic window for this repository
-is still frozen at 2026-09-23 (six days), so no claim that these pages sent anybody here is
+is still frozen at 2026-09-23 (six days) — *superseded at 22:55Z below: the endpoint no longer returns a
+dated window at all* — so no claim that these pages sent anybody here is
 supported yet - and the instrument that would notice, `check-topic-rank`, runs only when a person
 runs it: it is wired into `test:verification-tools` as a test, not into any workflow, so its
-nightly coverage is zero. Search-index propagation was also not assumed: the new topics appeared in
+nightly coverage is zero — *also superseded below: it has run nightly since the same day this was written*.
+Search-index propagation was also not assumed: the new topics appeared in
 star-sorted search within about two minutes, on two reads 20 s apart.
 
 Nothing here moves the number that matters: **8 stars of 1,000**.
+
+### 22:55Z — the traffic endpoint stopped returning a window, and two sentences above are superseded
+
+Read live with a push-capable token (`gh api repos/…/traffic/views` and `/traffic/clones`):
+
+| Endpoint | Keys returned today | Totals today | Totals read on 2026-09-23 |
+| --- | --- | --- | --- |
+| `/traffic/views` | `count`, `uniques`, `views` | 66 views / 21 uniques | 66 views / 21 uniques |
+| `/traffic/clones` | `count`, `uniques`, `clones` | 726 clones / 198 uniques | 726 / 198 |
+
+There is no `dates` array any more, so the 20:56Z section's phrase "frozen at 2026-09-23 (six days)"
+is no longer a reading anybody can take — it describes a field the endpoint does not return. And the
+identical totals tell us more than "flat traffic" would: a rolling 14-day window that saw no new
+activity for a week would have **dropped** 09-10 through 09-16 and reported smaller numbers. Totals
+that do not move while the dated rows disappear are evidence that this payload is not a fresh rolling
+window, so arrival from this endpoint stays unmeasurable — the honest change is that we can no longer
+even name its period.
+
+The referrer rows do still answer, and they are the same four as on 2026-09-23: our own site `7/3`,
+GitHub `6/3`, Google `3/3`, `search.brave.com` `1/1`. Third-party listings and directories: **zero
+referred visitors**, unchanged, with the same caveat as before — a click on a GitHub-hosted list page
+lands inside the GitHub row, so that zero cannot be read as "the merged entries did nothing".
+
+**What was fixed, not just observed.** `tools/star-growth-check.mjs` had the window guard in only one of
+its three render paths. `renderRepoSection` called `trafficWindowLag`; the summary body and the evidence
+table printed `through N/A` beside the counts and said nothing about the period in **either** the stale
+case or the absent case — the branch that skips the check is the branch where the data is missing. Both
+paths now emit a named verdict (`WINDOW-ABSENT` / `WINDOW-UNREADABLE` / `WINDOW-LAG` / `current`), with
+arms proving the alarm fires on an undated payload, fires with the right day count on a stale one, and
+stays quiet on a current one. 85 tests pass in `tools/star-growth-check.test.mjs`.
+
+**One published sentence here was wrong about our own coverage.** The 20:56Z section says
+`check-topic-rank` "is wired into `test:verification-tools` as a test, not into any workflow, so its
+nightly coverage is zero". That stopped being true the same day it was written: it is a nightly step in
+`.github/workflows/star-growth-snapshot.yml` ("Rank our topics on their pages"), and tonight's artifact
+for run `36637774348` contains `topic-rank.txt` and `topic-rank.json`. Current readings, from that
+artifact rather than from memory: ranked on page one — `model-gateway` 4th of 27, `prompt-enhancement`
+7th of 20, `token-budget` 9th of 116; `mcp-gateway` ranked 88 of 331; `llm-proxy`, `ai-gateway`,
+`mcp-server`, `self-hosted`, `mcp` all `below_page`. Topic slots: **20 of 20 used**, so any new topic
+requires naming a weak existing one to drop.
