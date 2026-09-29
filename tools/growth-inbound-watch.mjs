@@ -65,6 +65,13 @@ export function doorVerdict({ detail, issue, comments = [], reviews = [], inline
   const own = [];
   let botEvents = 0;
   let edits = 0;
+  // The time a human last rewrote their own words. Read on 2026-09-29: on nodejs/docker-node#2636 a
+  // maintainer wrote "I would tend to decline this contribution", our reply landed at 07:16Z, and at 09:43Z
+  // they struck that sentence through and added "there has been a response, so this warrants a new review".
+  // Every one of those events is older than nothing on our side - the door stayed "waiting-on-them" all day,
+  // correctly by its own definition, while the position on the door had flipped underneath it. An edit is not
+  // a question, so it must not become reply-due; it has to be named so it gets read.
+  let latestForeignEdit = null;
   for (const c of comments) {
     if (mine(c.user)) { own.push(c.created_at); continue; }
     if (isBotUser(c.user)) {
@@ -75,7 +82,10 @@ export function doorVerdict({ detail, issue, comments = [], reviews = [], inline
     }
     foreign.push({ at: c.created_at, kind: "speech" });
     // An edit is the maintainer changing their own words; it may matter but it is not a reply owed.
-    if (typeof c.updated_at === "string" && typeof c.created_at === "string" && c.updated_at > c.created_at) edits += 1;
+    if (typeof c.updated_at === "string" && typeof c.created_at === "string" && c.updated_at > c.created_at) {
+      edits += 1;
+      if (!latestForeignEdit || c.updated_at > latestForeignEdit) latestForeignEdit = c.updated_at;
+    }
   }
   for (const r of reviews) {
     if (mine(r.user)) { own.push(r.submitted_at); continue; }
@@ -107,6 +117,10 @@ export function doorVerdict({ detail, issue, comments = [], reviews = [], inline
   // Newer than anything we did, so it may be an open question - or an answered one whose thread this endpoint
   // cannot see. Named as its own category rather than folded into reply-due for that reason.
   const inlineNewer = Boolean(newestInline && (!newestMine || String(newestInline) > String(newestMine)));
+  // Same shape, different stream: a rewrite by a human that is newer than anything we did. Named, never folded
+  // into the verdict - an edit asks nothing of us, and treating it as reply-due would page us on every
+  // maintainer fixing a typo, which is how a watch gets muted.
+  const editNewer = Boolean(latestForeignEdit && (!newestMine || String(latestForeignEdit) > String(newestMine)));
   // A reviewer can ask for changes, we can push the changes, and then nothing in the reply-due reading is
   // left: our own commit is the newest thing on the door, so the verdict says "waiting on them" while the
   // human's request has still not been re-reviewed. Measured 2026-09-29 on Jenqyang/Awesome-AI-Agents#521,
@@ -132,6 +146,8 @@ export function doorVerdict({ detail, issue, comments = [], reviews = [], inline
     newestInline,
     inlineNewer,
     changeRequested,
+    latestForeignEdit,
+    editNewer,
     botEvents,
     edits,
     state: String(detail.mergeable_state ?? detail.state ?? "?"),
@@ -148,7 +164,7 @@ export function stateLine(rows, searchReadable = true) {
   // directory that has none are different statements and only the second one is news.
   if (!searchReadable || rows.length === 0) {
     return "INBOUND_STATE doors=unreadable reply_due=unreadable owner_gate=unreadable waiting=unreadable " +
-      "private_review=unreadable inline_newer=unreadable change_requested=unreadable conflicts=unreadable unreadable=" + unreadable + " bot_events_excluded=" + botEvents +
+      "private_review=unreadable inline_newer=unreadable change_requested=unreadable conflicts=unreadable edits_to_read=unreadable unreadable=" + unreadable + " bot_events_excluded=" + botEvents +
       " foreign_edits_seen=" + edits + " verdict=SEARCH-UNREADABLE";
   }
   return "INBOUND_STATE doors=" + rows.length +
@@ -161,6 +177,9 @@ export function stateLine(rows, searchReadable = true) {
     // A door becomes unmergeable silently: nobody writes a comment, the branch just falls behind. That is the one
     // queue state a person can always fix, so it is counted here rather than left to someone walking the list.
     " conflicts=" + rows.filter((r) => r.state === "dirty").length +
+    // Rewritten by a human after anything we did: not a question, but the position behind the words may have
+    // moved, so it is a thing to read rather than a thing to answer.
+    " edits_to_read=" + rows.filter((r) => r.editNewer).length +
     " unreadable=" + unreadable +
     " bot_events_excluded=" + botEvents +
     " foreign_edits_seen=" + edits +
@@ -279,6 +298,47 @@ export function selftest() {
     { verdict: "waiting-on-them", state: "clean", botEvents: 0, edits: 0 },
   ]).includes("conflicts=1");
   arms.an_unreadable_queue_does_not_claim_zero_conflicts = stateLine([], false).includes("conflicts=unreadable");
+  // The docker-node case, as it actually happened on 2026-09-29: a maintainer wrote at 05:55Z that they would
+  // tend to decline, we answered at 07:16Z, and at 09:43Z they struck the sentence through and added that the
+  // response warrants a new review. By the reply-due reading the door was quiet all day; the position had moved.
+  arms.a_human_edit_newer_than_our_reply_is_flagged_to_read = doorVerdict({
+    detail: { mergeable_state: "clean" }, issue: { pushed_at: null },
+    comments: [
+      { user: human, created_at: "2026-09-29T05:55:05Z", updated_at: "2026-09-29T09:43:07Z", body: "decline? then: warrants a new review" },
+      { user: { login: ME }, created_at: "2026-09-29T07:16:05Z", body: "our answer" },
+    ],
+    reviews: [],
+  }).editNewer === true;
+  // and it must not become reply-due: an edit asks nothing, and paging us on every typo fix is how this watch
+  // would earn being switched off.
+  arms.an_edit_is_never_a_reply_owed = doorVerdict({
+    detail: { mergeable_state: "clean" }, issue: { pushed_at: null },
+    comments: [
+      { user: human, created_at: "2026-09-29T05:55:05Z", updated_at: "2026-09-29T09:43:07Z", body: "x" },
+      { user: { login: ME }, created_at: "2026-09-29T07:16:05Z", body: "y" },
+    ],
+    reviews: [],
+  }).verdict === "waiting-on-them";
+  arms.an_edit_we_already_answered_is_quiet = doorVerdict({
+    detail: { mergeable_state: "clean" }, issue: { pushed_at: null },
+    comments: [
+      { user: human, created_at: "2026-09-29T05:55:05Z", updated_at: "2026-09-29T06:30:00Z", body: "x" },
+      { user: { login: ME }, created_at: "2026-09-29T07:16:05Z", body: "y" },
+    ],
+    reviews: [],
+  }).editNewer === false;
+  // Boundary arm: the bot that re-reviews every push edits its own summary constantly. Counting those as human
+  // rewrites would make edits_to_read nonzero on most doors and get the field ignored.
+  arms.a_bot_edit_is_not_a_human_rewrite = doorVerdict({
+    detail: { mergeable_state: "clean" }, issue: { pushed_at: null },
+    comments: [{ user: bot, created_at: "2026-08-01T20:36:31Z", updated_at: "2026-09-29T17:06:08Z", body: "auto-generated" }],
+    reviews: [],
+  }).editNewer === false;
+  arms.edits_to_read_are_counted_in_the_state_line = stateLine([
+    { verdict: "waiting-on-them", state: "clean", botEvents: 0, edits: 1, editNewer: true },
+    { verdict: "waiting-on-them", state: "clean", botEvents: 0, edits: 1, editNewer: false },
+  ]).includes("edits_to_read=1");
+  arms.an_unreadable_queue_does_not_claim_zero_edits_to_read = stateLine([], false).includes("edits_to_read=unreadable");
   arms.change_requested_is_counted_in_the_state_line = stateLine([
     { verdict: "waiting-on-them", changeRequested: true, botEvents: 0, edits: 0 },
     { verdict: "waiting-on-them", changeRequested: false, botEvents: 0, edits: 0 },
@@ -325,11 +385,15 @@ function main() {
   const ourRepo = arg("--repo", "happy520ai/unified-ai-system");
   const { rows, readable, why } = sweep(ourRepo);
   for (const r of rows) {
-    if (r.verdict === "waiting-on-them") continue;
+    // Quiet unless something actually needs a look: a maintainer rewriting their own words after our last
+    // action is the one case where "waiting-on-them" hides a change of position, so that row is printed even
+    // though nothing is owed.
+    if (r.verdict === "waiting-on-them" && !r.editNewer) continue;
     console.log(r.verdict.toUpperCase().padEnd(14) + String(r.door).padEnd(46) + " " + String(r.state).padEnd(10) +
-      " " + r.why + (r.title ? "  | " + r.title : ""));
+      " " + r.why + (r.title ? "  | " + r.title : "") +
+      (r.editNewer ? "  | EDIT-TO-READ at " + r.latestForeignEdit : ""));
   }
-  const quiet = rows.filter((r) => r.verdict === "waiting-on-them").length;
+  const quiet = rows.filter((r) => r.verdict === "waiting-on-them" && !r.editNewer).length;
   console.log("(not printed individually: " + quiet + " doors waiting on the other side)");
   console.log(stateLine(rows, readable));
   const code = exitCodeFor({ readable, rows, allowUnreadable: argv.includes("--allow-unreadable") });

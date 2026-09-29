@@ -48,7 +48,7 @@ const CARRIERS_OK = [
 const INBOUND_OK = [
   "OWNER-GATE     e2b-dev/awesome-ai-agents#1401                blocked    gate: CLA  | Add Unified AI System",
   "(not printed individually: 29 doors waiting on the other side)",
-  "INBOUND_STATE doors=31 reply_due=0 owner_gate=1 waiting=29 private_review=1 inline_newer=0 change_requested=0 conflicts=0 unreadable=0 bot_events_excluded=19 foreign_edits_seen=1 verdict=SWEEP-COMPLETE",
+  "INBOUND_STATE doors=31 reply_due=0 owner_gate=1 waiting=29 private_review=1 inline_newer=0 change_requested=0 conflicts=0 edits_to_read=0 unreadable=0 bot_events_excluded=19 foreign_edits_seen=1 verdict=SWEEP-COMPLETE",
 ].join("\n");
 
 const ALL_OK = { presence: PRESENCE_OK, topic: TOPIC_OK, carriers: CARRIERS_OK, inbound: INBOUND_OK, presenceStatus: 0, topicStatus: 0, carriersStatus: 0, inboundStatus: 0 };
@@ -63,7 +63,7 @@ test("a healthy set of instruments parses into every door field", () => {
   const parsed = parseDoorText(ALL_OK);
   assert.deepEqual(parsed.directories, { listed: 3, not_found: 1, undecidable: 0 });
   assert.deepEqual(parsed.carriers, { listed: 6, watchlisted: 1, absent: 0, unreadable: 0 });
-  assert.deepEqual(parsed.inbound, { doors: "31", replyDue: "0", ownerGate: "1", waiting: "29", privateReview: "1", inlineNewer: "0", changeRequested: "0", conflicts: "0", unreadable: "0" });
+  assert.deepEqual(parsed.inbound, { doors: "31", replyDue: "0", ownerGate: "1", waiting: "29", privateReview: "1", inlineNewer: "0", changeRequested: "0", conflicts: "0", editsToRead: "0", unreadable: "0" });
   assert.equal(parsed.github, "NOT_FOUND");
   assert.equal(parsed.stars, 8);
   assert.equal(parsed.slots, "20/20");
@@ -72,7 +72,7 @@ test("a healthy set of instruments parses into every door field", () => {
   const line = doorLine(parsed);
   assert.match(line, /^DOOR_STATE stars=8 topic_slots=20\/20 topic_pages_ranked=2 /);
   assert.match(line, /carriers_listed=6 carriers_watchlisted=1 carriers_absent=0 carriers_unreadable=0/);
-  assert.match(line, /inbound_doors=31 inbound_reply_due=0 inbound_owner_gate=1 inbound_inline_newer=0 inbound_change_requested=0 inbound_conflicts=0 inbound_unreadable=0/);
+  assert.match(line, /inbound_doors=31 inbound_reply_due=0 inbound_owner_gate=1 inbound_inline_newer=0 inbound_change_requested=0 inbound_conflicts=0 inbound_edits_to_read=0 inbound_unreadable=0/);
   assert.match(line, /github_mcp=NOT_FOUND/);
   assert.match(line, /page_one_within_reach="agent-governance\(31\), mcp\(47042\)"/);
 });
@@ -213,4 +213,36 @@ test("an older watch build reports the conflict count as unreadable rather than 
   const older = parseDoorText({ ...ALL_OK, inbound: INBOUND_OK.replace(" conflicts=0", "") });
   assert.equal(older.inbound.conflicts, "unreadable");
   assert.match(doorLine(older), /inbound_conflicts=unreadable/);
+});
+
+// A maintainer rewriting their own comment after our answer is invisible to the reply-due reading on purpose
+// (an edit asks nothing), so the field has to survive parsing, the machine line, AND the human sentence -
+// otherwise the one place a person reads is the one place it does not appear.
+test("a rewritten human comment is named in the count line and in the sentence", () => {
+  const presence = stub("presence-edits1", "console.log(" + JSON.stringify(PRESENCE_OK) + ");");
+  const topic = stub("topic-edits1", "console.log(" + JSON.stringify(TOPIC_OK) + ");");
+  const carriers = stub("carriers-edits1", "console.log(" + JSON.stringify(CARRIERS_OK) + ");");
+  const inbound = stub("inbound-edits1", "console.log(" + JSON.stringify(INBOUND_OK.replace("edits_to_read=0", "edits_to_read=1")) + ");");
+  const out = join(dir, "door-state-edits1.md");
+  const r = spawnSync(process.execPath, [GEN, "--presence", presence, "--topic", topic, "--carriers", carriers, "--inbound", inbound, "--output", out], { cwd: ROOT, encoding: "utf8" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /inbound_edits_to_read=1/);
+  const md = readFileSync(out, "utf8");
+  assert.ok(md.includes("1 whose own words were rewritten after our last action"),
+    "the sentence must name the rewrites: " + md.split("\n").filter((l) => l.includes("Open pull requests")).join("|"));
+});
+
+// Boundary arm: a watch build that never emitted the field must not be read as "no rewrites". This is the same
+// shape as the conflicts arm, and it is the reason the field is parsed by name.
+test("an older watch build reports the rewrite count as unreadable rather than zero", () => {
+  const presence = stub("presence-edits2", "console.log(" + JSON.stringify(PRESENCE_OK) + ");");
+  const topic = stub("topic-edits2", "console.log(" + JSON.stringify(TOPIC_OK) + ");");
+  const carriers = stub("carriers-edits2", "console.log(" + JSON.stringify(CARRIERS_OK) + ");");
+  const inbound = stub("inbound-edits2", "console.log(" + JSON.stringify(INBOUND_OK.replace(" edits_to_read=0", "")) + ");");
+  const out2 = join(dir, "door-state-edits2.md");
+  const r = spawnSync(process.execPath, [GEN, "--presence", presence, "--topic", topic, "--carriers", carriers, "--inbound", inbound, "--output", out2], { cwd: ROOT, encoding: "utf8" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /inbound_edits_to_read=unreadable/);
+  assert.ok(readFileSync(out2, "utf8").includes("rewrite count unreadable"),
+    "the sentence must say it could not look, not imply there were no rewrites");
 });
