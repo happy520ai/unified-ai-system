@@ -9,12 +9,16 @@ const { CARRIERS, decide, pickVerdict, entryFacts, toolCountMentions, OUR_MARKER
 // The instrument's whole purpose is that "merged" and "listed in front of a visitor" are different facts,
 // so the carrier table is itself pinned: dropping a carrier would shrink a count without any assertion
 // noticing.
-test("the carrier table covers every repository that merged our work", () => {
-  assert.ok(CARRIERS.length >= 9, "nine listings had merged something from us by 2026-09-29, got " + CARRIERS.length);
+test("the carrier table covers every repository that shows us to a visitor", () => {
+  assert.ok(CARRIERS.length >= 12, "twelve listings carried an entry for us by 2026-09-29, got " + CARRIERS.length);
   assert.equal(new Set(CARRIERS.map((c) => c.repo)).size, CARRIERS.length, "duplicate repo rows");
-  // A floor on the count does not protect a specific row, and this one was not found by watching a pull
-  // request - it was found by searching for our own name, six weeks after it merged. Pin it by name.
-  assert.ok(CARRIERS.some((c) => c.repo === "yzfly/Awesome-MCP-ZH"), "the catalogue found by search, not by a live PR, must stay monitored");
+  // A floor on the count does not protect a specific row, and these rows were not found by watching a pull
+  // request - they were found by searching for our own name. One of them hid for six weeks, which is why the
+  // names are pinned and not just the number.
+  for (const repo of ["yzfly/Awesome-MCP-ZH", "MobinX/awesome-mcp-list",
+    "Sami-Uysal/awesome-open-ai-developer-tools", "rootsongjc/ai-native-landscape"]) {
+    assert.ok(CARRIERS.some((c) => c.repo === repo), "listing found by search, not by a live door, must stay monitored: " + repo);
+  }
   for (const c of CARRIERS) {
     assert.match(c.repo, /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/, c.repo);
     assert.ok(c.paths.length > 0, c.repo + " needs at least one candidate file");

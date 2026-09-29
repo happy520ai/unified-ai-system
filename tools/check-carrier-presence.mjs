@@ -1,5 +1,8 @@
-// Are the carriers that already merged us still showing us, and are they showing us in the catalogue or
-// in a holding file?
+// Are the carriers that show us to a visitor still showing us, and are they showing us in the catalogue or
+// in a holding file? "Carriers" is not "repositories where we have an open pull request": four of the rows
+// below arrived without one, found by searching for our own repository name. A table keyed to our own inbox
+// cannot see a listing that nobody had to wait on, and that is how a 7,699-star catalogue stayed unmonitored
+// for six weeks.
 //
 // Why this exists: three things went wrong when this was answered by hand. A merged pull request was read as
 // a published listing (in one carrier the maintainer routed our entry into `WATCHLIST.md`, not the
@@ -18,6 +21,14 @@
 //   UNREADABLE   a fetch failed or a list looked empty, so nothing is being claimed
 const { pathToFileURL } = await import("node:url");
 const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
+// The api.github.com leg is capped by source IP when anonymous: 60 reads an hour, and a twelve-row carrier
+// table shares that budget with every other probe the same machine runs. Measured 2026-09-29 - the last three
+// of twelve came back "default branch could not be read", which is blindness being reported as a verdict. A
+// token is sent when the environment already carries one (the nightly exports GH_TOKEN for its own read-only
+// job token, and growth-inbound-watch already spends it the same way). Raw file reads stay anonymous because
+// they go to a different host with no such cap, so the content of a listing is never fetched as a credentialed
+// identity. Nothing here prints the token; the run prints only which identity it used.
+const TOKEN = String(process.env.GH_TOKEN || process.env.GITHUB_TOKEN || "").trim();
 const TIMEOUT_MS = 30000;
 // A list file with fewer than this many GitHub links is treated as empty-for-the-purpose-of-absence, because
 // an empty or truncated file would otherwise let "we are not in it" be read out of a page that holds nothing.
@@ -43,6 +54,15 @@ export const CARRIERS = [
   // is exactly the failure this probe exists to make impossible. Found on 2026-09-29 by asking a web search
   // for our own repository name and reading what came back.
   { repo: "yzfly/Awesome-MCP-ZH", paths: [{ path: "README.md", kind: "catalog" }] },
+  // Found the same way, in the same sweep, none of them filed by us: each was re-read on 2026-09-29 and the
+  // entry text was checked against what this project actually does before being called a listing.
+  // MobinX/awesome-mcp-list: a linked list item under a section heading. Sami-Uysal: an entry with its own
+  // description, backends and "replaces" line, plus a maturity light we do not control. rootsongjc: bilingual
+  // project files (this row's path decides nothing about the other one - the first hit is enough) that link
+  // our Pages homepage, which is the only carrier here that sends a reader somewhere other than the repo.
+  { repo: "MobinX/awesome-mcp-list", paths: [{ path: "README.md", kind: "catalog" }] },
+  { repo: "Sami-Uysal/awesome-open-ai-developer-tools", paths: [{ path: "README.md", kind: "catalog" }] },
+  { repo: "rootsongjc/ai-native-landscape", paths: [{ path: "data/projects/unified-ai-system.en.md", kind: "catalog" }, { path: "data/projects/unified-ai-system.zh.md", kind: "catalog" }] },
 ];
 
 export const OUR_MARKER = /happy520ai\/unified-ai-system|Unified AI System/i;
@@ -60,7 +80,11 @@ async function getText(url) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(url, { headers: { "user-agent": UA, accept: "*/*" }, redirect: "follow", signal: controller.signal });
+    const api = url.startsWith("https://api.github.com/");
+    const res = await fetch(url, {
+      headers: { "user-agent": UA, accept: "*/*", ...(api && TOKEN ? { authorization: "Bearer " + TOKEN } : {}) },
+      redirect: "follow", signal: controller.signal,
+    });
     return { status: res.status, body: res.status === 200 ? await res.text() : "" };
   } catch {
     return { status: 0, body: "" };
@@ -167,6 +191,10 @@ async function run() {
       console.log(`${"  versions".padEnd(45)}${JSON.stringify(hit.facts.pinned_versions)} ${"tool counts"} ${JSON.stringify(hit.facts.tool_count_mentions)}`);
     }
   }
+  // An UNREADABLE row means two different things depending on this line: "the host would not answer us" if the
+  // api leg ran anonymous and exhausted its per-IP budget, or "that repository really could not be read" if it
+  // ran with a token. Print it adjacent to the count, so a blind night is not filed as a finding about a carrier.
+  console.log("NOTE api.github.com leg ran " + (TOKEN ? "authenticated (job token present)" : "anonymous (60 reads/hour per IP; set GH_TOKEN)"));
   console.log(`CARRIER_SUMMARY listed=${s.listed} watchlisted=${s.watchlisted} absent=${s.absent} unreadable=${s.unreadable}`);
   if (process.argv.includes("--require-clean") && (s.absent || s.unreadable)) {
     console.error("REFUSED: " + rows.filter((r) => r.verdict === "ABSENT" || r.verdict === "UNREADABLE").map((r) => r.repo + "=" + r.verdict).join(", "));

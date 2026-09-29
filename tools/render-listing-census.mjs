@@ -184,6 +184,19 @@ export function diffRows(committedRows, freshRows) {
   };
 }
 
+// A probe that *ran* is not a probe that *read*: check-carrier-presence.mjs exits 0 whether or not any
+// listing answered, so the write path has to ask its own question. ABSENT is allowed through, because that
+// is a real finding about a listing that left. UNREADABLE is this tool being blind, and publishing from it
+// would quietly un-claim rows the page already carries. Measured 2026-09-29: a generator run without
+// GH_TOKEN hit the anonymous api.github.com per-IP cap and produced a page whose catalogue table was empty
+// and whose machine block said unreadable=12 - strictly worse than the page it replaced.
+export function publishBlocker(census) {
+  const s = census?.carriers?.summary;
+  if (!s) return "carrier probe returned no CARRIER_SUMMARY line";
+  if (s.unreadable > 0) return s.unreadable + " listing(s) were read as UNREADABLE";
+  return null;
+}
+
 function main() {
   const argv = process.argv.slice(2);
   const census = collect();
@@ -226,6 +239,12 @@ function main() {
     }
     console.error("OK (--check): " + fresh.rows.length + " rows still confirmed by a fresh probe, none missing");
     return 0;
+  }
+  const blocker = publishBlocker(census);
+  if (blocker) {
+    console.error("REFUSED (write): " + blocker + " - the committed page is left as it was. The api.github.com "
+      + "leg is capped per IP when anonymous, so set GH_TOKEN (the nightly exports it) or re-run once the hosts answer.");
+    return 5;
   }
   writeFileSync(OUT, text, "utf8");
   console.log("WROTE " + OUT + " (" + census.carriers.rows.length + " catalogue rows, " + census.directories.rows.length + " directory rows)");

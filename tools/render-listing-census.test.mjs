@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { classifyDiff, diffRows, machineBlock, parseCarriers, parseDirectories, readMachine } from "./render-listing-census.mjs";
+import { classifyDiff, diffRows, machineBlock, parseCarriers, parseDirectories, publishBlocker, readMachine } from "./render-listing-census.mjs";
 
 const ROOT = resolve(import.meta.dirname, "..");
 
@@ -126,4 +126,31 @@ test("the nightly job re-probes the page, so a removed listing is a red step", (
     "the census must be re-checked on a schedule, with blindness distinguished from drift");
   assert.match(yml, /fetch-depth: 0/u, "the same job must carry full history, which the sitemap check needs");
   assert.equal((yml.match(/render-listing-census\.mjs/gu) || []).length, 1, "exactly one census invocation - a duplicated step would double the probes");
+});
+
+// The write path, not the classification: check-carrier-presence.mjs exits 0 for "I ran", so a probe that
+// read nothing would otherwise publish a page that silently un-claims every listing it used to carry.
+test("a blind carrier probe cannot overwrite the published page", () => {
+  const blind = { carriers: { summary: { listed: 0, watchlisted: 0, absent: 0, unreadable: 12 } } };
+  assert.equal(typeof publishBlocker(blind), "string", "unreadable=12 must block the write");
+  assert.match(publishBlocker(blind), /12 listing/u);
+});
+
+test("a listing that really left still publishes, because absence is a finding and not a blind spot", () => {
+  const honest = { carriers: { summary: { listed: 10, watchlisted: 1, absent: 1, unreadable: 0 } } };
+  assert.equal(publishBlocker(honest), null, "absent=1 must not be folded into blindness");
+});
+
+test("a missing summary line is the third failure shape and is refused too", () => {
+  assert.equal(typeof publishBlocker({ carriers: { summary: null } }), "string");
+  assert.equal(typeof publishBlocker({}), "string");
+});
+
+test("the guard sits on the write path, not only in the prose", () => {
+  const src = readFileSync(join(ROOT, "tools/render-listing-census.mjs"), "utf8");
+  const guard = src.indexOf("publishBlocker(census)");
+  const write = src.indexOf('writeFileSync(OUT, text, "utf8")');
+  assert.ok(guard > 0, "the guard must exist in the generator");
+  assert.ok(write > guard, "and must be evaluated before the file is written");
+  assert.equal(src.split("writeFileSync(OUT").length - 1, 1, "exactly one writer, so no second path bypasses it");
 });

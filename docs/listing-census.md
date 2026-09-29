@@ -24,6 +24,9 @@ regenerated rather than typed.
 | [TensorBlock/awesome-mcp-servers](https://github.com/TensorBlock/awesome-mcp-servers) | `docs/ai--llm-integration.md` | listed |
 | [up-for-grabs/up-for-grabs.net](https://github.com/up-for-grabs/up-for-grabs.net) | `_data/projects/unified-ai-system.yml` | listed |
 | [yzfly/Awesome-MCP-ZH](https://github.com/yzfly/Awesome-MCP-ZH) | `README.md` | listed |
+| [MobinX/awesome-mcp-list](https://github.com/MobinX/awesome-mcp-list) | `README.md` | listed |
+| [Sami-Uysal/awesome-open-ai-developer-tools](https://github.com/Sami-Uysal/awesome-open-ai-developer-tools) | `README.md` | listed |
+| [rootsongjc/ai-native-landscape](https://github.com/rootsongjc/ai-native-landscape) | `data/projects/unified-ai-system.en.md` | listed |
 | [scadastrangelove/awesome-ai-security-tools](https://github.com/scadastrangelove/awesome-ai-security-tools) | `WATCHLIST.md` | in a watchlist file, not the catalogue |
 
 The distinction in the last row matters: a merged pull request and a merged pull request that
@@ -37,7 +40,7 @@ landed in a staging file are different facts, and this page does not fold them t
 | [mcpmarket.com](https://mcpmarket.com) | listed | [mcpmarket.com/server/unified-ai-system](https://mcpmarket.com/server/unified-ai-system) - entry found in a sitemap child over 11 pages and 42,223 URLs |
 | [glama.ai](https://glama.ai) | listed | [glama.ai/mcp/servers/happy520ai/unified-ai-system](https://glama.ai/mcp/servers/happy520ai/unified-ai-system) - entry found in a sitemap child over 17 pages and 114,362 URLs |
 | [github.com/mcp](https://github.com/mcp) | no entry found | (none) - both entry shapes 404 while the control page is 200 and its search card is present (1) |
-| [smithery.ai](https://smithery.ai) | no entry found | (none) - both exact routes 404 while github and brave answer 200; the search leg is not citable, because the nonsense query returned 173 rows against 144 for a server that exists, so ?q= re-ranks a sample instead of filtering |
+| [smithery.ai](https://smithery.ai) | no entry found | (none) - both exact routes 404 while github and brave answer 200; the search leg is not citable, because the nonsense query returned 173 rows against 141 for a server that exists, so ?q= re-ranks a sample instead of filtering |
 
 A `no entry found` row is a reading, not a verdict about the directory: it means our slug was
 absent from the sitemaps that probe could read, and the blocked-leg count says how much of the
@@ -79,6 +82,24 @@ list is information a reader can use; being inside one is information we would r
    "repo": "hashgraph-online/awesome-codex-plugins",
    "verdict": "LISTED",
    "path": "plugins/happy520ai/unified-ai-system/skills/unified-ai-gateway"
+  },
+  {
+   "kind": "catalogue",
+   "repo": "MobinX/awesome-mcp-list",
+   "verdict": "LISTED",
+   "path": "README.md"
+  },
+  {
+   "kind": "catalogue",
+   "repo": "rootsongjc/ai-native-landscape",
+   "verdict": "LISTED",
+   "path": "data/projects/unified-ai-system.en.md"
+  },
+  {
+   "kind": "catalogue",
+   "repo": "Sami-Uysal/awesome-open-ai-developer-tools",
+   "verdict": "LISTED",
+   "path": "README.md"
   },
   {
    "kind": "catalogue",
@@ -142,7 +163,7 @@ list is information a reader can use; being inside one is information we would r
   }
  ],
  "carriers": {
-  "listed": 8,
+  "listed": 11,
   "watchlisted": 1,
   "absent": 0,
   "unreadable": 0
