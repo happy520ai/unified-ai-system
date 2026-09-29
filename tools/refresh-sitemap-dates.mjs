@@ -114,6 +114,7 @@ export function refresh(xml, reader = lastChange) {
 
 function main() {
   const dry = process.argv.includes("--dry");
+  const check = process.argv.includes("--check");
   // --sitemap is the test seam: a fixture file exercises the refusal paths without touching the shipped one.
   const si = process.argv.indexOf("--sitemap");
   const target = si > 0 && typeof process.argv[si + 1] === "string" ? process.argv[si + 1] : SITEMAP;
@@ -149,10 +150,29 @@ function main() {
     process.exitCode = 2;
     return;
   }
-  console.log(JSON.stringify({ dry, depth: historyDepth(), changed: changes.length, pages: count(xml, /<loc>/gu),
+  console.log(JSON.stringify({ dry, check, depth: historyDepth(), changed: changes.length, pages: count(xml, /<loc>/gu),
     url_blocks: blocks, stamped_or_current: accounted - unchecked.length, unchecked: unchecked.length, unchecked_detail: unchecked,
     changes }, null, 2));
   if (unchecked.length > 0) console.error("NOT CHECKED (history truncated): " + unchecked.join("; "));
+  if (check) {
+    // --check is the scheduled defense. It never writes: its only job is to say whether the committed sitemap
+    // already agrees with git. A deep checkout is required for that claim to mean anything, and the nightly
+    // workflow fetches full history for exactly this reason - measured 2026-09-29, 22 of 31 pages sit more than
+    // 50 commits back from the tip, so a shallow fetch would leave the majority unverifiable.
+    if (unchecked.length > 0) {
+      console.error("REFUSED (--check): " + unchecked.length + " page(s) could not be dated, so freshness is not proven");
+      process.exitCode = 5;
+      return;
+    }
+    if (changes.length > 0) {
+      for (const c of changes) console.error("STALE " + c.file + ": published " + c.from + ", git says " + c.to);
+      console.error("REFUSED (--check): " + changes.length + " page(s) carry a lastmod older than the commit that changed them");
+      process.exitCode = 4;
+      return;
+    }
+    console.error("OK (--check): " + blocks + " url blocks dated against git, none stale, none unreadable");
+    return;
+  }
   if (!dry && changes.length > 0) writeFileSync(target, next, "utf8");
   if (!dry && changes.length === 0) console.log("already current: no lastmod moved");
 }

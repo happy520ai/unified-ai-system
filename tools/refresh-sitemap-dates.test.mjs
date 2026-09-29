@@ -154,6 +154,44 @@ test("the site root is a page with a date, not a loc that does not match", () =>
   assert.deepEqual(refresh(staled).changes.map((c) => c.file), ["index.html"], "a stale root must be caught, not skipped");
 });
 
+test("--check refuses a stale page and accepts the shipped tree, writing nothing", () => {
+  // The scheduled defense. Both halves are needed: a check that only ever passes on the current tree is
+  // indistinguishable from a check that looks at nothing.
+  const depth = Number(spawnSync("git", ["rev-list", "--count", "HEAD"], { encoding: "utf8" }).stdout.trim());
+  if (depth < 5) {
+    console.log("SKIPPED --check arms: this checkout dates too few pages to require freshness of all of them");
+    return;
+  }
+  const clean = spawnSync(process.execPath, ["tools/refresh-sitemap-dates.mjs", "--check"], { encoding: "utf8" });
+  assert.equal(clean.status, 0, clean.stdout + clean.stderr);
+  assert.match(clean.stderr, /OK \(--check\): \d+ url blocks dated against git/u);
+
+  const dir = mkdtempSync(join(tmpdir(), "sitemap-check-"));
+  const fixture = join(dir, "stale.xml");
+  const shipped = readFileSync("docs/sitemap.xml", "utf8");
+  const staled = shipped.replace("<loc>https://happy520ai.github.io/unified-ai-system/</loc>\n    <lastmod>2026-09-29</lastmod>",
+    "<loc>https://happy520ai.github.io/unified-ai-system/</loc>\n    <lastmod>2026-01-01</lastmod>");
+  assert.notEqual(staled, shipped, "fixture precondition: the shipped root must be dated 2026-09-29");
+  writeFileSync(fixture, staled, "utf8");
+  const before = readFileSync(fixture, "utf8");
+  const bad = spawnSync(process.execPath, ["tools/refresh-sitemap-dates.mjs", "--check", "--sitemap", fixture], { encoding: "utf8" });
+  assert.equal(bad.status, 4, bad.stdout + bad.stderr);
+  assert.match(bad.stderr, /STALE index\.html: published 2026-01-01/u);
+  assert.equal(readFileSync(fixture, "utf8"), before, "--check must never write the fix it is reporting");
+});
+
+test("the nightly job actually runs the freshness check, on full history", () => {
+  // Wiring asserted from the workflow file, because a step that was deleted in a later edit would otherwise
+  // take the only deep-history run of this guard with it silently.
+  const yml = readFileSync(".github/workflows/star-growth-snapshot.yml", "utf8");
+  assert.match(yml, /fetch-depth: 0/u, "the snapshot job must fetch full history, or the check dates almost nothing");
+  assert.match(yml, /node tools\/refresh-sitemap-dates\.mjs --check/u, "the job must run the freshness check");
+  const stepIndex = yml.indexOf("refresh-sitemap-dates.mjs --check");
+  const checkoutIndex = yml.indexOf("fetch-depth: 0");
+  assert.ok(checkoutIndex >= 0 && checkoutIndex < stepIndex, "the fetch-depth must be on the checkout that precedes the check");
+  assert.equal((yml.match(/fetch-depth: 0/gu) || []).length, 1, "exactly one full-history fetch, and it must be the one this step uses");
+});
+
 test("an unmappable loc stops the CLI instead of passing quietly", () => {
   const dir = mkdtempSync(join(tmpdir(), "sitemap-map-"));
   const fixture = join(dir, "sitemap.xml");

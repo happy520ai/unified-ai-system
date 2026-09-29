@@ -21,6 +21,12 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        # Full history, deliberately: the sitemap freshness check below dates every page from its own last
+        # commit, and measured 2026-09-29 22 of the 31 declared pages sit more than 50 commits behind the tip.
+        # A shallow fetch would report those as unverifiable, which makes the check a green tick instead of a
+        # defense. The repository is 46 MiB packed, so this costs seconds once a day.
+        with:
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
@@ -55,6 +61,15 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "## Door State" >> "$GITHUB_STEP_SUMMARY"
           cat .tmp/growth/door-state.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check the published page dates against git
+        # The freshness signal Google reads. tools/refresh-sitemap-dates.mjs stamps docs/sitemap.xml from git
+        # when a page changes, but that only holds while someone remembers to run it - and the CI test for it
+        # runs in a two-commit checkout, where most pages cannot be dated at all. This job has full history, so
+        # this is where the claim is actually tested: exit 4 names a page whose lastmod is older than the commit
+        # that changed it, exit 5 names one this clone could not read.
+        run: |
+          node tools/refresh-sitemap-dates.mjs --check
 
       - name: Upload growth snapshot artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
