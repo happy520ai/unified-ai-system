@@ -843,6 +843,29 @@ Two dated readings, both outside our repository, both checkable by clicking:
 > merged; the other is claimed by their maintainer and still open. Nobody should read that as
 > two out of two, and this line says which is which.
 
+### "Why is the CI badge red when nothing changed?"
+
+It happens for load reasons on this repo, twice on 2026-09-29 within an hour, both on `master`, both on
+commits that touched only Markdown. The two gates are single-shot timing assertions:
+
+- `Gateway SLO and fault-isolation benchmark`, check `p95_within_limit` (threshold 750 ms): 789.21 ms on
+  attempt 1 of `a04ee315`, then 37.05 ms on `gh run rerun --failed` of the identical bytes. The two prior
+  green master runs read 36.91 and 35.36, so the quiet-runner margin is about 20x and a contended window
+  is enough to flip it. The min stays normal while the distribution shifts (26.94 / 249.03 vs
+  10.47 / 32.76), which is contention rather than a slower code path.
+- `Gateway open-loop soak and backpressure benchmark` on the two-README commit `009d2316`: the sustained
+  phase recorded `{"200": 457, "503": 43}`, so an 8.6% shed-request rate against an expectation of zero,
+  with `transportErrors` 0 and `timeouts` 0, and `managed_fake_only` failing for the reason issue #167
+  already describes.
+
+Both readings, with the job-log provenance, are filed as comments on #132 (5881175383) and #167
+(5881539747). What to do with a red badge: read `steps[].conclusion` and the check's own `actual` value
+before believing the colour, and prefer one push over four - four pushes in fifteen minutes put three CI
+runs on shared runner capacity concurrently, which plausibly fed both failures above. What not to do:
+relax `maxP95Ms` or the zero-error expectation. Both are published SLO claims on this site, so changing
+them to silence a flake would be trading a badge for a number we no longer mean. If a repeat policy is
+wanted, that is a deliberate decision to make, not a fix to apply in passing.
+
 ### "It sat there for eight seconds before it answered."
 
 Yes, and it is filed publicly: issue #168 measures `initialize` at 6.4-8.9 s across 23 cold boots on one machine and lists every run.
