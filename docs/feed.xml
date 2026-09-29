@@ -5,13 +5,13 @@
   <subtitle>Every claim in these pages is reproducible: measured tool rosters, credential-free runs, and verbatim quotations from the projects compared.</subtitle>
   <link rel="self" type="application/atom+xml" href="https://happy520ai.github.io/unified-ai-system/feed.xml"/>
   <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/"/>
-  <updated>2026-09-29T09:00:49.425Z</updated>
+  <updated>2026-09-29T09:57:09.772Z</updated>
   <rights>Apache-2.0, Unified AI System contributors</rights>
   <entry>
     <id>https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.zh-CN.html</id>
     <title type="html">对公开 MCP 生态的测量（中文索引）</title>
     <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.zh-CN.html"/>
-    <updated>2026-09-29T16:58:49+08:00</updated>
+    <updated>2026-09-29T17:01:34+08:00</updated>
     <summary type="html">向官方注册表登记的 40 个服务端匿名提问：9 个问题、10 次测量。每个数字都从机器可读数据集生成，页面自己声明分母与所请求的协议修订。</summary>
     <category term="mcp-ecosystem-measurements.zh-CN"/>
   </entry>
@@ -19,7 +19,7 @@
     <id>https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.html</id>
     <title type="html">Nine measurements of the public MCP ecosystem</title>
     <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.html"/>
-    <updated>2026-09-29T16:58:49+08:00</updated>
+    <updated>2026-09-29T17:01:34+08:00</updated>
     <summary type="html">9 questions put to 40 servers in the official MCP registry. 2 agreed to a protocol revision that does not exist. Scripts and three published datasets alongside.</summary>
     <category term="mcp-ecosystem-measurements"/>
   </entry>
@@ -27,7 +27,7 @@
     <id>https://happy520ai.github.io/unified-ai-system/mcp-startup-timeouts.zh-CN.html</id>
     <title type="html">MCP 客户端为什么在服务端应答之前就超时</title>
     <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-startup-timeouts.zh-CN.html"/>
-    <updated>2026-09-29T16:58:49+08:00</updated>
+    <updated>2026-09-29T17:01:34+08:00</updated>
     <summary type="html">实测：stdio MCP 服务端从进程启动到回答 initialize 落在 6,391 到 8,461 毫秒之间（同日三批），而完整的 15 个工具清单只在其后 3 到 7 毫秒就给出。连接预算几乎全部花在进程启动与模块加载，不是 MCP 工作本身。一条命令即可复现，无需 API Key。</summary>
     <category term="mcp-startup-timeouts.zh-CN"/>
   </entry>
@@ -35,7 +35,7 @@
     <id>https://happy520ai.github.io/unified-ai-system/mcp-startup-timeouts.html</id>
     <title type="html">Why an MCP client times out before the server answers</title>
     <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-startup-timeouts.html"/>
-    <updated>2026-09-29T16:58:49+08:00</updated>
+    <updated>2026-09-29T17:01:34+08:00</updated>
     <summary type="html">A stdio MCP server can spend its whole connect budget before it answers the first handshake. We measured where that time goes - three batches in one day, no API key, one command - and found tool enumeration costs 3 to 7 milliseconds while process boot costs seven seconds.</summary>
     <category term="mcp-startup-timeouts"/>
   </entry>

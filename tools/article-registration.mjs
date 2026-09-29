@@ -27,6 +27,42 @@ function inboundLinks(pages, name) {
     .map(([other]) => other);
 }
 
+// Head-declared language alternates keyed by hreflang value. Scoped to <link> tags deliberately: a page's
+// body carries inline <a hreflang="zh-CN"> links to its twin, and counting those would make a correct head look
+// like it declared the pair twice.
+function hreflangLinks(html) {
+  const out = {};
+  for (const m of (html || "").matchAll(/<link\b[^>]*>/gu)) {
+    const tag = m[0].replace(/\s+/gu, " ");
+    if (!/rel="alternate"/u.test(tag) || !/hreflang="/u.test(tag)) continue;
+    const href = /href="([^"]+)"/u.exec(tag);
+    if (href) out[/hreflang="([^"]+)"/u.exec(tag)[1]] = href[1];
+  }
+  return out;
+}
+
+// Judged by file name, not URL, so the rule does not depend on the host or the site base path. The bare site
+// root counts as index.html because that is the address sitemap.xml declares for it.
+function namesFile(href, file) {
+  if (!href) return false;
+  const clean = href.replace(/\/+$/u, "");
+  if (file === "index.html" && !clean.endsWith(".html")) return true;
+  return clean.endsWith("/" + file);
+}
+
+function hreflangPairProblems(enFile, zhFile, enLinks, zhLinks) {
+  const out = [];
+  for (const [lang, want] of [["en", enFile], ["zh-CN", zhFile]]) {
+    if (!enLinks[lang]) out.push(`english page declares no hreflang="${lang}"`);
+    else if (!namesFile(enLinks[lang], want)) out.push(`english hreflang="${lang}" points at ${enLinks[lang]}`);
+    if (!zhLinks[lang]) out.push(`chinese page declares no hreflang="${lang}"`);
+    else if (!namesFile(zhLinks[lang], want)) out.push(`chinese hreflang="${lang}" points at ${zhLinks[lang]}`);
+  }
+  if (!enLinks["x-default"]) out.push("english page declares no x-default");
+  if (enLinks["x-default"] !== zhLinks["x-default"]) out.push("the two pages disagree about x-default");
+  return out;
+}
+
 export function auditArticlePages({ sitemapText, llmsText, pages, mdStems, feedText, siteHost = "happy520ai.github.io" }) {
   const problems = [];
   const declared = [...sitemapText.matchAll(SITEMAP_LOC)]
@@ -143,6 +179,25 @@ export function auditArticlePages({ sitemapText, llmsText, pages, mdStems, feedT
     );
     if (rawOnOurHost.test(llmsText)) {
       problems.push({ code: "llms_links_markdown_instead_of_page", page: name, detail: "llms.txt points at " + stem + ".md on our own host, which GitHub Pages serves as raw text/markdown" });
+    }
+  }
+  // A language pair has to be annotated in both directions or a crawler may discard the whole set. Two real
+  // shapes reached this repo: the English measurement hub declared no hreflang at all while its Chinese twin
+  // pointed back at it (so the annotation the Chinese page paid for was wasted), and one Chinese page declared
+  // hreflang="en" pointing at *itself*, which tells a crawler the Chinese page is the English one - worse than
+  // saying nothing. Compared over whatever corpus the caller passes, so a page without a twin is never judged.
+  for (const enFile of Object.keys(pages).sort()) {
+    if (!enFile.endsWith(".html") || enFile.endsWith(".zh-CN.html")) continue;
+    const zhFile = enFile.replace(/\.html$/u, ".zh-CN.html");
+    if (!(zhFile in pages)) continue;
+    const enLinks = hreflangLinks(pages[enFile]);
+    const zhLinks = hreflangLinks(pages[zhFile]);
+    // The obligation comes from a declaration, not from a twin file existing. A pair that annotates nothing is
+    // not making a claim a crawler could act on; a pair where one side annotates is claiming a relationship and
+    // the other side denying it, which is the shape that gets the whole set discarded.
+    if (Object.keys(enLinks).length === 0 && Object.keys(zhLinks).length === 0) continue;
+    for (const detail of hreflangPairProblems(enFile, zhFile, enLinks, zhLinks)) {
+      problems.push({ code: "hreflang_pair_inconsistent", page: enFile, detail });
     }
   }
   return problems;

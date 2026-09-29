@@ -36,6 +36,19 @@ const base = {
 
 const codes = (problems) => problems.map((p) => p.code);
 
+const BASE_URL = "https://happy520ai.github.io/unified-ai-system/";
+const langLink = (lang, file) => `<link rel="alternate" hreflang="${lang}" href="${BASE_URL}${file}" />`;
+const goodPair = {
+  en: [langLink("en", "a.html"), langLink("zh-CN", "a.zh-CN.html"), langLink("x-default", "a.html")].join("\n"),
+  zh: [langLink("en", "a.html"), langLink("zh-CN", "a.zh-CN.html"), langLink("x-default", "a.html")].join("\n"),
+};
+const pairAudit = (en, zh) => auditArticlePages({
+  sitemapText: `<url><loc>${BASE_URL}a.html</loc></url><url><loc>${BASE_URL}a.zh-CN.html</loc></url>`,
+  llmsText: "a.html a.zh-CN.html",
+  mdStems: [],
+  pages: { "a.html": en, "a.zh-CN.html": zh },
+}).filter((p) => p.code === "hreflang_pair_inconsistent");
+
 test("a correctly registered article produces nothing", () => {
   assert.deepEqual(auditArticlePages(base), []);
 });
@@ -235,4 +248,71 @@ test("required keys depend on what the block claims to be", () => {
   const missing = auditArticlePages({ ...base, pages: { ...base.pages, "article-one.html": "<main>x</main>" + howTo({ step: undefined }) } });
   assert.deepEqual(codes(missing), ["article_page_jsonld_incomplete"], JSON.stringify(missing));
   assert.equal(missing[0].detail, "HowTo missing step", missing[0].detail);
+});
+
+test("a language pair is required to be annotated in both directions", () => {
+  // Boundary target first: the correct shape must produce nothing, or the arm would just be loud.
+  assert.deepEqual(pairAudit(goodPair.en, goodPair.zh), []);
+
+  // The English hub's actual defect: no hreflang at all while the Chinese twin points back at it.
+  const oneSided = pairAudit("<main>x</main>", goodPair.zh);
+  const details = oneSided.map((p) => p.detail);
+  assert.ok(details.some((d) => d.includes('english page declares no hreflang="en"')), JSON.stringify(details));
+  assert.ok(details.some((d) => d.includes('english page declares no hreflang="zh-CN"')), JSON.stringify(details));
+  assert.ok(details.some((d) => d.includes("english page declares no x-default")), JSON.stringify(details));
+
+  // The multi-arch page's defect: the Chinese page claims to be the English one.
+  const selfPointing = [langLink("en", "a.zh-CN.html"), langLink("zh-CN", "a.zh-CN.html"), langLink("x-default", "a.html")].join("\n");
+  const selfWays = pairAudit(goodPair.en, selfPointing);
+  assert.equal(selfWays.length, 1, JSON.stringify(selfWays));
+  assert.match(selfWays[0].detail, /chinese hreflang="en" points at .+a\.zh-CN\.html/u);
+
+  // A pair that disagrees only about x-default is still caught, because a crawler takes the set as one unit.
+  const skewed = [langLink("en", "a.html"), langLink("zh-CN", "a.zh-CN.html"), langLink("x-default", "a.zh-CN.html")].join("\n");
+  const skew = pairAudit(goodPair.en, skewed);
+  assert.equal(skew.length, 1, JSON.stringify(skew));
+  assert.match(skew[0].detail, /disagree about x-default/u);
+});
+
+test("no page pair in the shipped docs is left one-sided", () => {
+  const pages = {};
+  for (const f of readdirSync("docs").filter((x) => x.endsWith(".html"))) pages[f] = readFileSync("docs/" + f, "utf8");
+  const sitemapText = readFileSync("docs/sitemap.xml", "utf8");
+  const found = auditArticlePages({
+    sitemapText,
+    llmsText: readFileSync("docs/llms.txt", "utf8"),
+    mdStems: readdirSync("docs").filter((f) => f.endsWith(".md")).map((f) => f.replace(/\.md$/u, "")),
+    pages,
+  }).filter((p) => p.code === "hreflang_pair_inconsistent");
+  assert.deepEqual(found, [], "twin pages must annotate each other both ways: " + JSON.stringify(found));
+  // The floor keeps this from passing because the corpus stopped having pairs at all.
+  const pairs = Object.keys(pages).filter((f) => !f.endsWith(".zh-CN.html") && (f.replace(/\.html$/u, ".zh-CN.html") in pages)).length;
+  assert.ok(pairs >= 8, "expected at least 8 twin pairs in docs/, saw " + pairs);
+});
+
+test("every shipped language pair carries a full hreflang set, not just a reciprocal one", () => {
+  // The arm above only owes reciprocity once one side declares, so a pair where nobody declares anything passes
+  // it by silence. That is a real gap: a future twin page added without alternation would be invisible to it.
+  // This test closes it against the shipped corpus, where annotating both ways is the site's own convention.
+  const pages = {};
+  for (const f of readdirSync("docs").filter((x) => x.endsWith(".html"))) pages[f] = readFileSync("docs/" + f, "utf8");
+  const linksOf = (f) => {
+    const out = {};
+    for (const m of pages[f].matchAll(/<link\b[^>]*>/gu)) {
+      const t = m[0].replace(/\s+/gu, " ");
+      if (!/rel="alternate"/u.test(t) || !/hreflang="/u.test(t)) continue;
+      const href = /href="([^"]+)"/u.exec(t);
+      if (href) out[/hreflang="([^"]+)"/u.exec(t)[1]] = href[1];
+    }
+    return out;
+  };
+  const pairs = Object.keys(pages).filter((f) => !f.endsWith(".zh-CN.html") && f.replace(/\.html$/u, ".zh-CN.html") in pages);
+  assert.ok(pairs.length >= 8, "expected at least 8 twin pairs, saw " + pairs.length);
+  for (const en of pairs) {
+    const zh = en.replace(/\.html$/u, ".zh-CN.html");
+    for (const [file, want] of [[en, ["en", "zh-CN", "x-default"]], [zh, ["en", "zh-CN", "x-default"]]]) {
+      const got = Object.keys(linksOf(file)).sort();
+      assert.deepEqual(got, [...want].sort(), file + " must declare en, zh-CN and x-default; silence is not annotation");
+    }
+  }
 });
