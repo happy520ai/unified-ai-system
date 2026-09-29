@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { test } from "node:test";
-import { auditArticlePages } from "./article-registration.mjs";
+import { auditArticlePages, pagesWithoutRepoRoute } from "./article-registration.mjs";
 
 const sitemap = (...urls) =>
   "<urlset>" + urls.map((u) => `<url><loc>https://example.test/${u}</loc></url>`).join("") + "</urlset>";
@@ -361,4 +361,21 @@ test("every shipped page carries a social card with alt text and a resolvable im
   assert.deepEqual(cardGaps({ "a.html": '<meta property="og:image" content="https://x/a.png" /><meta property="og:image:alt" content="an alt" />' }), ["a.html: og:image but no twitter:card, so the card renders small"]);
   assert.deepEqual(cardGaps({ "a.html": good }, () => false), ["a.html: og:image https://x/a.png is not published in docs/"]);
   assert.deepEqual(cardGaps({ "a.html": good }, () => true), [], "the complete fixture must not fire, or the arm only knows how to complain");
+});
+
+test("every shipped page offers a reader a route to the repository", () => {
+  const pages = {};
+  for (const f of readdirSync("docs").filter((x) => x.endsWith(".html"))) pages[f] = readFileSync("docs/" + f, "utf8");
+  assert.ok(Object.keys(pages).length >= 31, "the corpus shrank to " + Object.keys(pages).length + " pages");
+  assert.deepEqual(pagesWithoutRepoRoute(pages), []);
+
+  // The clean result above means nothing unless the matcher can also refuse. A relative sibling
+  // link keeps the reader inside the site; a link to somebody else's repository is not ours;
+  // and an issue link does land on the repository, so it must not be reported as a dead end.
+  assert.deepEqual(pagesWithoutRepoRoute({ "dead.html": '<main><a href="index.html">home</a></main>' }), ["dead.html"]);
+  assert.deepEqual(pagesWithoutRepoRoute({ "other.html": '<a href="https://github.com/other/thing">x</a>' }), ["other.html"]);
+  assert.deepEqual(pagesWithoutRepoRoute({ "issue.html": '<a href="https://github.com/happy520ai/unified-ai-system/issues/168">#168</a>' }), []);
+  assert.deepEqual(pagesWithoutRepoRoute({ "root.html": '<a href="https://github.com/happy520ai/unified-ai-system">repo</a>' }), []);
+  assert.deepEqual(pagesWithoutRepoRoute({ "blob.html": '<a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/a.md">md</a>' }), []);
+  assert.deepEqual(pagesWithoutRepoRoute({ "asset.json": '{"href":"https://github.com/happy520ai/unified-ai-system"}' }), [], "this audits pages, not assets");
 });

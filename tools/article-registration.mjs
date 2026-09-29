@@ -202,3 +202,19 @@ export function auditArticlePages({ sitemapText, llmsText, pages, mdStems, feedT
   }
   return problems;
 }
+
+// Every published page is an entry point: a reader can arrive on any of them from a search
+// result, a mirror, or a referrer, and the traffic report names our own Pages site as the
+// largest referrer of this repository. A page that never anchors to the repository is a dead
+// end for the one action a visitor came to take. Kept separate from auditArticlePages because
+// that audit's obligations are per-article and its fixtures are deliberately minimal pages;
+// this one is per-page and applies to the whole published set.
+export const REPO_ANCHOR = /href=["']https?:\/\/github\.com\/happy520ai\/unified-ai-system\/?[^\s"']*["']/i;
+
+/** Pages that publish a route to nobody's repository but ours. Pure: takes a name -> html map. */
+export function pagesWithoutRepoRoute(pages) {
+  return Object.keys(pages ?? {})
+    .filter((name) => name.endsWith(".html"))
+    .filter((name) => !REPO_ANCHOR.test(String(pages[name] ?? "")))
+    .sort();
+}

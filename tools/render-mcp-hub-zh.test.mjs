@@ -170,3 +170,19 @@ test("the shipped Chinese hub publishes git dates in full UTC", () => {
     assert.ok(page.includes(Date.parse(object.dateModified)) || dataset.includes(Date.parse(object.dateModified)), "dateModified must come from the page or its dataset, not elsewhere");
   }
 });
+
+test("the rendered head keeps its social card and names the repository", () => {
+  const { r, outPath } = run(dataset([block()]));
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const page = readFileSync(outPath, "utf8");
+  // The published copy of this page carried four social-card metas that the renderer never
+  // emitted, so the next render deleted them: the fix had landed on the artifact instead of on
+  // the thing that writes it, and no gate compared the two. Each key is named on its own,
+  // because a template that emits og:image but drops its alt text would pass a joint check.
+  for (const key of ["og:image", "og:image:alt", "twitter:card", "twitter:image"]) {
+    const shape = key.startsWith("og:") ? "property" : "name";
+    assert.ok(new RegExp('<meta[^>]+' + shape + '="' + key + '"').test(page), '<meta ' + shape + '="' + key + '"> must come from the renderer, not from a hand-patch of the page');
+  }
+  assert.ok(/content="https:[^"]*assets\/social-preview\.png"/.test(page), "the card must point at the published image");
+  assert.ok(/href="https:\/\/github\.com\/happy520ai\/unified-ai-system"/.test(page), "a reader must be able to reach the project from this page");
+});

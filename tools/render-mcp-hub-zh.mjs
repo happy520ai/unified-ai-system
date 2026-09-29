@@ -131,6 +131,10 @@ const out = `<!doctype html>
     <meta property="og:locale" content="zh_CN" />
     <meta property="og:title" content="对公开 MCP 生态的测量（中文索引）" />
     <meta property="og:description" content="同一个问题清单的中文索引：${questionNames.size} 个问题、${blocks.length} 次测量，每次测量一行，数字全部来自数据集。" />
+    <meta property="og:image" content="${BASE}assets/social-preview.png" />
+    <meta property="og:image:alt" content="Unified AI System MCP 网关与提示词增强预览" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="${BASE}assets/social-preview.png" />
 ${jsonLd}
   </head>
   <body>
@@ -178,7 +182,9 @@ ${rows}
       </p>
       <p>
         本页由 <code>tools/render-mcp-hub-zh.mjs</code> 生成；它在任一题的 tally 与行数不等、或缺少所请求修订时
-        直接拒绝写出。
+        直接拒绝写出。本页、全部调查脚本，以及被测的网关本身，都在
+        <a href="https://github.com/happy520ai/unified-ai-system">unified-ai-system 仓库</a>里：
+        克隆下来不需要任何密钥，就能按 README 的第一步在本地跑起来。
       </p>
     </main>
   </body>
