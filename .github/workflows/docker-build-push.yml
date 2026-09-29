@@ -544,3 +544,57 @@ jobs:
       - name: Publish to MCP Registry
         if: startsWith(github.ref, 'refs/tags/v') && (github.event.inputs.push != 'false')
         run: ./mcp-publisher publish server.json
+
+  container-image-scan:
+    name: Trivy container image vulnerability scan
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Log in to Container Registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Scan gateway image with Trivy
+        uses: aquasecurity/trivy-action@780c3b34475b235b00d9aca30d1d4aaab6e6dc52 # v0.32.0
+        with:
+          image-ref: "ghcr.io/${{ github.repository }}/ai-gateway-service:sha-${{ github.sha }}"
+          format: "sarif"
+          output: "trivy-gateway-results.sarif"
+          severity: "HIGH,CRITICAL"
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: "os,library"
+
+      - name: Scan MCP image with Trivy
+        uses: aquasecurity/trivy-action@780c3b34475b235b00d9aca30d1d4aaab6e6dc52 # v0.32.0
+        with:
+          image-ref: "ghcr.io/${{ github.repository }}/mcp-server:sha-${{ github.sha }}"
+          format: "sarif"
+          output: "trivy-mcp-results.sarif"
+          severity: "HIGH,CRITICAL"
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: "os,library"
+
+      - name: Upload Trivy scan results to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@51f27fe426459f2ba98e0f5cddb852c2b3354c8a # v3
+        with:
+          sarif_file: "trivy-gateway-results.sarif"
+
+      - name: Upload Trivy scan artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: trivy-container-scan-results
+          path: |
+            trivy-gateway-results.sarif
+            trivy-mcp-results.sarif

@@ -19,5 +19,27 @@ export default defineConfig({
     testTimeout: 15000,
     hookTimeout: 10000,
     maxWorkers,
+    coverage: {
+      provider: "v8",
+      // json-summary is what check-coverage-thresholds.mjs reads; the merge run
+      // in tools/run-tests-with-coverage.mjs is the only run that writes it.
+      // Thresholds deliberately live in that tool, not here: each collecting
+      // group run would otherwise fail mid-suite before the merge exists.
+      reporter: ["text", "text-summary", "json-summary", "lcov", "html"],
+      reportsDirectory: "coverage",
+      include: [
+        "apps/*/src/**/*.{js,mjs,ts,mts}",
+        "packages/*/src/**/*.{js,mjs,ts,mts}",
+      ],
+      exclude: [
+        "**/node_modules/**",
+        "**/evidence/**",
+        "**/*.test.*",
+        "**/*.d.ts",
+        "**/fixtures/**",
+        "**/*.config.*",
+        "apps/*/src/entrypoints/**",
+      ],
+    },
   },
 });

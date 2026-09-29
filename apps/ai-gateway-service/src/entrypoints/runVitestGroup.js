@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, mkdirSync, renameSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
@@ -46,8 +46,28 @@ if (files.length === 0) {
 const requireFromRoot = createRequire(join(repoRoot, "package.json"));
 const vitestPackage = requireFromRoot.resolve("vitest/package.json");
 const vitest = join(resolve(vitestPackage, ".."), "vitest.mjs");
-const args = [vitest, "run", "--maxWorkers=1", ...files.map((file) => relative(repoRoot, file).replaceAll("\\", "/"))];
-console.log(`Vitest group ${group}: ${files.length} files`);
+const collectCoverage = process.env.UAI_COVERAGE_COLLECT === "1";
+// Coverage is collected as a vitest blob, one per group, and merged once the
+// whole suite has run. The blob reporter is a test reporter, and its coverage
+// reporter is switched off: no report and no threshold may be produced before
+// the merge, or every group after the first would fail the suite mid-run.
+const coverageArgs = collectCoverage
+  ? ["--reporter=blob", "--coverage", "--coverage.reporter=none"]
+  : [];
+const args = [vitest, "run", "--maxWorkers=1", ...coverageArgs, ...files.map((file) => relative(repoRoot, file).replaceAll("\\", "/"))];
+console.log(`Vitest group ${group}: ${files.length} files${collectCoverage ? " (collecting coverage)" : ""}`);
 const result = spawnSync(process.execPath, args, { cwd: repoRoot, stdio: "inherit", env: { ...process.env, UAI_SUITE_PARALLEL_WORKERS: "1" } });
 if (result.error) { console.error(result.error); process.exit(1); }
+if (collectCoverage && result.status === 0) {
+  const blobDir = process.env.UAI_COVERAGE_BLOBS;
+  const produced = join(repoRoot, ".vitest-reports", "blob.json");
+  if (!blobDir) {
+    console.error("UAI_COVERAGE_COLLECT=1 requires UAI_COVERAGE_BLOBS to name the blob directory.");
+    process.exit(1);
+  }
+  // The blob reporter always writes the same file name, so each group's result
+  // is moved aside before the next group overwrites it.
+  mkdirSync(blobDir, { recursive: true });
+  renameSync(produced, join(blobDir, `blob-${group}.json`));
+}
 process.exit(result.status ?? 1);

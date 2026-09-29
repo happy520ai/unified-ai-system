@@ -102,3 +102,6 @@ docs/star-growth-publish-output.md
 /.zcodeignore
 /.workbuddy-ai/
 /Microsoft/Windows/PowerShell/ModuleAnalysisCache
+
+# Vitest coverage blobs from a collection run, merged by --merge-reports.
+/.vitest-reports/
