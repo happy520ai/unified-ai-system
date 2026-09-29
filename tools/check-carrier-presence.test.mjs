@@ -10,8 +10,11 @@ const { CARRIERS, decide, pickVerdict, entryFacts, toolCountMentions, OUR_MARKER
 // so the carrier table is itself pinned: dropping a carrier would shrink a count without any assertion
 // noticing.
 test("the carrier table covers every repository that merged our work", () => {
-  assert.ok(CARRIERS.length >= 8, "eight listings had merged something from us by 2026-09-29, got " + CARRIERS.length);
+  assert.ok(CARRIERS.length >= 9, "nine listings had merged something from us by 2026-09-29, got " + CARRIERS.length);
   assert.equal(new Set(CARRIERS.map((c) => c.repo)).size, CARRIERS.length, "duplicate repo rows");
+  // A floor on the count does not protect a specific row, and this one was not found by watching a pull
+  // request - it was found by searching for our own name, six weeks after it merged. Pin it by name.
+  assert.ok(CARRIERS.some((c) => c.repo === "yzfly/Awesome-MCP-ZH"), "the catalogue found by search, not by a live PR, must stay monitored");
   for (const c of CARRIERS) {
     assert.match(c.repo, /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/, c.repo);
     assert.ok(c.paths.length > 0, c.repo + " needs at least one candidate file");

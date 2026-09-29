@@ -37,6 +37,12 @@ export const CARRIERS = [
   // declares the TypeScript good-first issues. A listing that landed is only evidence while it is still there,
   // so it joins the probe set on the day it merges rather than being remembered by hand.
   { repo: "up-for-grabs/up-for-grabs.net", paths: [{ path: "_data/projects/unified-ai-system.yml", kind: "catalog" }] },
+  // Merged 2026-08-19T02:42:56Z (yzfly/Awesome-MCP-ZH#442, after #422 was closed): a 7,699-star Chinese MCP
+  // catalogue carrying our row in its README. It sat unnoticed for six weeks because the carrier set was
+  // assembled from the pull requests anyone was still watching, and this one had already closed out - which
+  // is exactly the failure this probe exists to make impossible. Found on 2026-09-29 by asking a web search
+  // for our own repository name and reading what came back.
+  { repo: "yzfly/Awesome-MCP-ZH", paths: [{ path: "README.md", kind: "catalog" }] },
 ];
 
 export const OUR_MARKER = /happy520ai\/unified-ai-system|Unified AI System/i;
