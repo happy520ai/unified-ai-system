@@ -23,11 +23,12 @@ const arg = (name, dflt) => {
 
 const DEFAULT_PRESENCE = "tools/check-directory-presence.mjs";
 const DEFAULT_TOPIC = "tools/check-topic-rank.mjs";
+const DEFAULT_CARRIERS = "tools/check-carrier-presence.mjs";
 
 // Pure over the two tools' stdout, so the parsing is testable without touching the network.
-export function parseDoorText({ presence, topic, presenceStatus, topicStatus }) {
+export function parseDoorText({ presence, topic, carriers, presenceStatus, topicStatus, carriersStatus }) {
   const text = (s) => (typeof s === "string" ? s : "");
-  const out = { legs: {}, github: null, directories: null, stars: null, slots: null, topicRanked: null, winnable: null };
+  const out = { legs: {}, github: null, directories: null, stars: null, slots: null, topicRanked: null, winnable: null, carriers: null };
   const sum = /SUMMARY listed=(\d+) not_found=(\d+) undecidable=(\d+)/.exec(text(presence));
   if (sum) out.directories = { listed: Number(sum[1]), not_found: Number(sum[2]), undecidable: Number(sum[3]) };
   const gh = /"site": "https:\/\/github\.com\/mcp",\s*"verdict": "([A-Z_]+)"/.exec(text(presence));
@@ -41,8 +42,13 @@ export function parseDoorText({ presence, topic, presenceStatus, topicStatus }) 
   if (text(topic).includes("state")) out.topicRanked = ranked;
   const win = /Page one within reach \(rank-30 needs <=100 stars\): ([^\n]*)/.exec(text(topic));
   if (win) out.winnable = win[1].trim();
+  // "merged" and "in front of a visitor" are different facts, so the carrier leg is reported separately from
+  // the directory leg and never folded into it.
+  const car = /CARRIER_SUMMARY listed=(\d+) watchlisted=(\d+) absent=(\d+) unreadable=(\d+)/.exec(text(carriers));
+  if (car) out.carriers = { listed: Number(car[1]), watchlisted: Number(car[2]), absent: Number(car[3]), unreadable: Number(car[4]) };
   out.legs.presence = { status: presenceStatus, parsed: Boolean(out.directories && out.github) };
   out.legs.topic = { status: topicStatus, parsed: Boolean(out.stars !== null && out.topicRanked !== null && out.winnable !== null) };
+  out.legs.carriers = { status: carriersStatus, parsed: Boolean(out.carriers) };
   return out;
 }
 
@@ -52,12 +58,17 @@ function value(v) {
 
 export function doorLine(parsed) {
   const d = parsed.directories;
+  const c = parsed.carriers;
   return "DOOR_STATE stars=" + value(parsed.stars) +
     " topic_slots=" + value(parsed.slots) +
     " topic_pages_ranked=" + value(parsed.topicRanked) +
     " directories_listed=" + (d ? d.listed : "unreadable") +
     " directories_not_found=" + (d ? d.not_found : "unreadable") +
     " directories_undecidable=" + (d ? d.undecidable : "unreadable") +
+    " carriers_listed=" + (c ? c.listed : "unreadable") +
+    " carriers_watchlisted=" + (c ? c.watchlisted : "unreadable") +
+    " carriers_absent=" + (c ? c.absent : "unreadable") +
+    " carriers_unreadable=" + (c ? c.unreadable : "unreadable") +
     " github_mcp=" + value(parsed.github) +
     " page_one_within_reach=" + (parsed.winnable === null ? "unreadable" : JSON.stringify(parsed.winnable || "none"));
 }
@@ -78,6 +89,9 @@ function markdown(parsed, line) {
     "- GitHub's own MCP directory entry: **" + value(parsed.github) + "** (absence here is measured against two controls; see the census page).",
     "- Directory listings found by the sitemap probes: " + (d ? "**" + d.listed + " listed**, " + d.not_found + " not found, " + d.undecidable + " undecidable" : "unreadable") + ".",
     "- Topic pages we appear on at all: " + value(parsed.topicRanked) + ". Stars needed for page one: " + (parsed.winnable === null ? "unreadable" : "`" + (parsed.winnable || "none") + "`") + ".",
+    "- Carriers that merged us and still show it: " + (parsed.carriers
+      ? "**" + parsed.carriers.listed + " in a catalogue**, " + parsed.carriers.watchlisted + " only in a staging file, " + parsed.carriers.absent + " absent, " + parsed.carriers.unreadable + " unreadable"
+      : "unreadable") + ".",
     "",
   ].join("\n");
 }
@@ -92,10 +106,11 @@ function run(cmd, args) {
 function main() {
   const presence = run(arg("--presence", DEFAULT_PRESENCE), ["--github-mcp"]);
   const topic = run(arg("--topic", DEFAULT_TOPIC), []);
-  const parsed = parseDoorText({ presence: presence.stdout, topic: topic.stdout, presenceStatus: presence.status, topicStatus: topic.status });
+  const carriers = run(arg("--carriers", DEFAULT_CARRIERS), []);
+  const parsed = parseDoorText({ presence: presence.stdout, topic: topic.stdout, carriers: carriers.stdout, presenceStatus: presence.status, topicStatus: topic.status, carriersStatus: carriers.status });
   const line = doorLine(parsed);
   console.log(line);
-  const unreadable = !parsed.legs.presence.parsed || !parsed.legs.topic.parsed;
+  const unreadable = !parsed.legs.presence.parsed || !parsed.legs.topic.parsed || !parsed.legs.carriers.parsed;
   const out = arg("--output", null);
   if (out) {
     mkdirSync(dirname(out), { recursive: true });
@@ -103,7 +118,7 @@ function main() {
     console.log("WROTE " + out);
   }
   if (unreadable) {
-    console.error("NOTE: at least one leg was unreadable (presence exit " + presence.status + ", topic exit " + topic.status + "). Nothing is being claimed about those doors.");
+    console.error("NOTE: at least one leg was unreadable (presence exit " + presence.status + ", topic exit " + topic.status + ", carriers exit " + carriers.status + "). Nothing is being claimed about those doors.");
     if (!process.argv.includes("--allow-unreadable")) return 5;
   }
   return 0;
