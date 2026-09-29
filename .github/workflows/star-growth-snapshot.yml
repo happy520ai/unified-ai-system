@@ -165,6 +165,24 @@ jobs:
             exit "$code"
           fi
 
+      - name: Check the MCP Registry listing against server.json
+        # The registry is the channel where an MCP client finds a server like us, and its search
+        # matches the name field (issue #207), so the row is the whole listing. Red is reserved for
+        # things about us - no row at all, no row flagged latest, or the newest one not active.
+        # Version and description drift is printed and NOT red: publishing a new record is
+        # version-gated, so a red every night would push the v0.8.1 decision through CI noise, which
+        # is how a real alarm gets learned to be ignored.
+        run: |
+          mkdir -p .tmp/growth
+          code=0
+          node tools/check-registry-listing-sync.mjs --output .tmp/growth/registry-sync.json > .tmp/growth/registry-sync.txt 2>&1 || code=$?
+          cat .tmp/growth/registry-sync.txt
+          if [ "$code" -eq 2 ]; then
+            echo "registry-sync exit=2 - the registry was unreadable, which is not a statement about our listing" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$code" -ne 0 ]; then
+            exit "$code"
+          fi
+
       - name: Upload growth snapshot artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -180,3 +198,5 @@ jobs:
             .tmp/growth/topic-rank.json
             .tmp/growth/skill-index.txt
             .tmp/growth/skill-index.json
+            .tmp/growth/registry-sync.txt
+            .tmp/growth/registry-sync.json
