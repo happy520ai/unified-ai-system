@@ -11,6 +11,11 @@ import {
   matchOurs,
   slugUrls,
   githubMcpVerdict,
+  smitheryVerdict,
+  smitherySearchIsFilter,
+  parseSmitheryTotal,
+  SMITHERY_CONTROL_SLUGS,
+  SMITHERY_NONSENSE_QUERY,
   combineOursStatuses,
   GITHUB_MCP_CONTROL_ID,
 } from "./check-directory-presence.mjs";
@@ -152,4 +157,65 @@ test("one live URL shape is enough to read as listed; one blind leg is enough to
   assert.equal(combineOursStatuses(403, 404), 0);
   assert.equal(combineOursStatuses(404, 301), "404/301");
   assert.equal(githubMcpVerdict({ oursStatus: combineOursStatuses(404, 301), controlStatus: 200, controlHits: 1 }).verdict, "UNDECIDABLE");
+});
+
+// The Smithery leg. Its live calibration on 2026-09-29 was: our two exact routes 404, `github` and `brave`
+// 200, and `?q=` returning 190/177/107/194 rows for four unrelated queries. The fixtures below are those
+// readings, so an arm that passes here is an arm that would have read the world correctly that day.
+const smSearchNotFiltering = { filtering: false, why: "the nonsense query returned 194 rows against 144 for a server that exists, so ?q= re-ranks a sample instead of filtering", controlTotal: 144, nonsenseTotal: 194, oursTotal: 190 };
+
+test("smithery absence rests on the routes and says so when the search cannot be cited", () => {
+  const absent = smitheryVerdict({ oursNamespace: 404, oursBare: 404, controlStatuses: [200, 200], search: smSearchNotFiltering });
+  assert.equal(absent.verdict, "NOT_FOUND");
+  assert.match(absent.why, /both exact routes 404/);
+  assert.match(absent.why, /not citable/);
+  // The claim must name the carrier of the negative: routes, not "Smithery has no record of you anywhere".
+  assert.equal(/search (?:confirms|proves)/.test(absent.why), false, "a non-filtering search must never be quoted as evidence");
+
+  const present = smitheryVerdict({ oursNamespace: 200, oursBare: 404, controlStatuses: [200, 200], search: smSearchNotFiltering });
+  assert.equal(present.verdict, "LISTED");
+  assert.match(present.why, /namespace leg 200/);
+});
+
+test("smithery refuses to call absence when its positive control is not answering", () => {
+  const blocked = smitheryVerdict({ oursNamespace: 404, oursBare: 404, controlStatuses: [403, 200], search: smSearchNotFiltering });
+  assert.equal(blocked.verdict, "UNDECIDABLE");
+  assert.match(blocked.why, /control record\(s\) github did not answer 200/);
+
+  const oursBlind = smitheryVerdict({ oursNamespace: 0, oursBare: 404, controlStatuses: [200, 200], search: smSearchNotFiltering });
+  assert.equal(oursBlind.verdict, "UNDECIDABLE");
+  assert.match(oursBlind.why, /our route leg is unreadable/);
+
+  const oddShape = smitheryVerdict({ oursNamespace: 404, oursBare: 301, controlStatuses: [200, 200], search: smSearchNotFiltering });
+  assert.equal(oddShape.verdict, "UNDECIDABLE", "a 301 on one shape is not a 404 on both");
+});
+
+test("a filtering search still cannot turn a non-zero row count into a clean absence sentence", () => {
+  const filteringZero = { filtering: true, why: "the nonsense query returned 0 rows against 144 for a server that exists", controlTotal: 144, nonsenseTotal: 0, oursTotal: 0 };
+  assert.match(smitheryVerdict({ oursNamespace: 404, oursBare: 404, controlStatuses: [200, 200], search: filteringZero }).why, /returned 0 rows for our slug/);
+  const filteringNoise = { ...filteringZero, oursTotal: 5 };
+  assert.match(smitheryVerdict({ oursNamespace: 404, oursBare: 404, controlStatuses: [200, 200], search: filteringNoise }).why, /not interpreted here/);
+});
+
+test("the filter test on ?q= is bidirectional, and an unparsed leg is not a refusal to filter", () => {
+  assert.equal(smitherySearchIsFilter({ controlTotal: 144, nonsenseTotal: 194 }).filtering, false);
+  assert.equal(smitherySearchIsFilter({ controlTotal: 107, nonsenseTotal: 190 }).filtering, false);
+  assert.equal(smitherySearchIsFilter({ controlTotal: 144, nonsenseTotal: 0 }).filtering, true);
+  assert.equal(smitherySearchIsFilter({ controlTotal: 144, nonsenseTotal: 20 }).filtering, true);
+  // Boundary: "could not read" must not be folded into "does not filter", or a dead leg would silently
+  // change which sentence the verdict is allowed to print.
+  assert.equal(smitherySearchIsFilter({ controlTotal: null, nonsenseTotal: 194 }).filtering, null);
+  assert.equal(smitherySearchIsFilter({ controlTotal: 144, nonsenseTotal: null }).filtering, null);
+  assert.equal(SMITHERY_CONTROL_SLUGS.length, 2);
+  assert.equal(smitherySearchIsFilter({ controlTotal: 144, nonsenseTotal: 144 }).filtering, false);
+});
+
+test("the totals parser only accepts what it was built for", () => {
+  assert.equal(parseSmitheryTotal('{"servers":[],"pagination":{"currentPage":1,"totalCount":17677}}'), 17677);
+  assert.equal(parseSmitheryTotal('{"servers":[]}'), null);
+  assert.equal(parseSmitheryTotal("<html>502 gateway</html>"), null);
+  assert.equal(parseSmitheryTotal('{"pagination":{"totalCount":-3}}'), null);
+  assert.equal(parseSmitheryTotal('{"pagination":{"totalCount":1.5}}'), null);
+  // The nonsense token must stay nonsense: if it ever becomes a substring of a real slug the control is gone.
+  assert.equal(SMITHERY_NONSENSE_QUERY.includes("unified"), false);
 });

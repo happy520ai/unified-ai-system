@@ -1817,3 +1817,35 @@ the newest image with a completed content review is `0.4.9`, which ships nine of
 the explanation is in the same file, so `check-carrier-presence.mjs` reports the pair and draws no conclusion.
 The missing piece is a content review for the newer images, which needs a Docker daemon; that is booked as
 T-145, and it is exactly the kind of gap that must stay a gap instead of being closed with prose.
+
+## 0q. Smithery: absent, and the probe that would have said so wrongly (2026-09-29)
+
+Smithery's public registry holds 17,677 servers across 50 pages, so it is the largest MCP client directory we
+are not in. Two ways to ask the question, and only one of them can answer:
+
+```bash
+curl -s https://api.smithery.ai/servers/happy520ai/unified-ai-system   # 404 {"error":"Server not found"}
+curl -s https://api.smithery.ai/servers/github                          # 200, 67 KB of record  <- control
+node tools/check-directory-presence.mjs --smithery                      # both legs plus the refusal arms
+```
+
+The tempting probe is their search: `?q=<term>`. Measured 2026-09-29 it returned `pagination.totalCount` of
+190 for our slug, 177 for `unified`, 144 for `github`, and 194 for a token constructed so that it cannot name
+anything. Four unrelated queries landing inside ~2% of each other means `?q=` re-ranks a sample instead of
+filtering it. Anyone who ran `?q=unified-ai-system`, saw no match in the first 20 rows and wrote "Smithery does
+not list us" would have been right by accident - the same accident that made the official registry's ignored
+`status` parameter a trap worth a whole census page.
+
+So the instrument's absence claim rests on the two exact routes (`<handle>/<slug>` and the bare slug), and it
+prints the search leg's numbers as a diagnostic it explicitly refuses to cite. If a control record stops
+answering 200, the leg becomes `UNDECIDABLE` rather than a confident zero, and an entry hidden by their
+`unlisted` or `inactive` flags is indistinguishable from a missing one from outside - which is why the verdict
+sentence names the routes and not "Smithery has never heard of you".
+
+**Getting in is not a directory ticket.** Smithery's model is that they build and host your server, so listing
+there means a third party runs our image behind an endpoint they control. That is a deployment and provider
+decision - base URL, which provider answers, whose credentials - and it belongs to the owner, not to a promotion
+task. Their own sitemap links do not resolve: `/docs/use/registry` redirects into a 404 and
+`/docs/build/project-config` answers 404 directly, so there is nothing to file anonymously even if the decision
+were yes. The daily `DOOR_STATE` line
+carries `directories_not_found`, and it moved from 1 to 2 when this leg was added.

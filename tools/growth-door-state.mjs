@@ -78,9 +78,10 @@ function markdown(parsed, line) {
   return [
     "# Door state",
     "",
-    "Read by `tools/growth-door-state.mjs`, which shells out to `tools/check-directory-presence.mjs --github-mcp`",
-    "and `tools/check-topic-rank.mjs` and parses their stdout. Anything it could not read says `unreadable`",
-    "rather than being left out, because a missing field would read as a smaller number of doors.",
+    "Read by `tools/growth-door-state.mjs`, which shells out to `tools/check-directory-presence.mjs --github-mcp --smithery`,",
+    "`tools/check-topic-rank.mjs` and `tools/check-carrier-presence.mjs`, and parses their stdout. Anything it could",
+    "not read says `unreadable` rather than being left out, because a missing field would read as a smaller number",
+    "of doors.",
     "",
     "```",
     line,
@@ -104,7 +105,7 @@ function run(cmd, args) {
 }
 
 function main() {
-  const presence = run(arg("--presence", DEFAULT_PRESENCE), ["--github-mcp"]);
+  const presence = run(arg("--presence", DEFAULT_PRESENCE), ["--github-mcp", "--smithery"]);
   const topic = run(arg("--topic", DEFAULT_TOPIC), []);
   const carriers = run(arg("--carriers", DEFAULT_CARRIERS), []);
   const parsed = parseDoorText({ presence: presence.stdout, topic: topic.stdout, carriers: carriers.stdout, presenceStatus: presence.status, topicStatus: topic.status, carriersStatus: carriers.status });

@@ -12,7 +12,7 @@
 // Calibration (2026-09-27, known truth): mcpservers.org and mcpmarket.com both list us. If this
 // script says otherwise about either, the script is wrong, not the world.
 //
-// Usage: node tools/check-directory-presence.mjs [--slug unified-ai-system] [--handle happy520ai] [--github-mcp] <site>...
+// Usage: node tools/check-directory-presence.mjs [--slug unified-ai-system] [--handle happy520ai] [--github-mcp] [--smithery] <site>...
 import { pathToFileURL } from "node:url";
 
 const UA =
@@ -231,6 +231,90 @@ export async function checkGithubMcp({ slug, handle }) {
   };
 }
 
+// Smithery's registry answers presence by exact route and does NOT answer it by search. Measured 2026-09-29:
+// `/servers/happy520ai/unified-ai-system` returns 404 {"error":"Server not found"} while `/servers/github`
+// (67 KB of record) and `/servers/brave` (14 KB) return 200, so the route shape is live and nothing answers
+// for us. The search parameter is the trap: `?q=` reported pagination.totalCount 190 for our slug, 177 for
+// "unified", 107 for "brave" and 194 for a token that cannot name any server. Four unrelated queries landing
+// near 180 is a re-ranked sample, not a filter, so a zero from it would be blindness wearing a measurement's
+// clothes - the same shape as the official registry's silently ignored `status` parameter. This leg measures
+// whether the search behaved like a filter and refuses to cite it when it did not.
+//
+// Scope of the negative claim: their rows carry `unlisted` and `inactive`, and an entry hidden by either is
+// indistinguishable from a missing one from outside. NOT_FOUND here means "no record answers at either exact
+// route", which is what a visitor gets, and nothing beyond that.
+export const SMITHERY_CONTROL_SLUGS = ["github", "brave"];
+export const SMITHERY_NONSENSE_QUERY = "zzzq-not-a-real-server-token";
+
+export function parseSmitheryTotal(text) {
+  try {
+    const j = JSON.parse(text);
+    const total = j && j.pagination ? j.pagination.totalCount : null;
+    return Number.isSafeInteger(total) && total >= 0 ? total : null;
+  } catch {
+    return null;
+  }
+}
+
+// A query that cannot name anything must come back near-empty for `?q=` to be a filter. The bar is set against
+// the row count a real server's query returns, so their ranking getting noisier cannot quietly re-earn the
+// search leg the right to prove absence.
+export function smitherySearchIsFilter({ controlTotal, nonsenseTotal }) {
+  if (controlTotal === null || nonsenseTotal === null) return { filtering: null, why: "the search legs did not parse, so the search is not being cited either way" };
+  if (nonsenseTotal === 0) return { filtering: true, why: `the nonsense query returned 0 rows against ${controlTotal} for a server that exists` };
+  if (nonsenseTotal * 4 <= controlTotal) return { filtering: true, why: `the nonsense query returned ${nonsenseTotal} rows against ${controlTotal}, small enough to be a filter` };
+  return { filtering: false, why: `the nonsense query returned ${nonsenseTotal} rows against ${controlTotal} for a server that exists, so ?q= re-ranks a sample instead of filtering` };
+}
+
+export function smitheryVerdict({ oursNamespace, oursBare, controlStatuses, search }) {
+  const ours = combineOursStatuses(oursNamespace, oursBare);
+  if (isBlocked(ours)) return { verdict: "UNDECIDABLE", why: `our route leg is unreadable (${ours})` };
+  const deadControls = SMITHERY_CONTROL_SLUGS.filter((_, i) => controlStatuses[i] !== 200);
+  if (deadControls.length) return { verdict: "UNDECIDABLE", why: `control record(s) ${deadControls.join(", ")} did not answer 200 (got ${controlStatuses.join("/")}), so the route shape is not proven live` };
+  if (ours === 200) return { verdict: "LISTED", why: `a record answers at our exact route (namespace leg ${oursNamespace}, bare leg ${oursBare})` };
+  if (ours === 404) {
+    // Only a search leg proven to filter may be quoted, and even then a non-zero row count for our own slug is
+    // reported rather than interpreted - this leg's claim rests on the two exact routes either way.
+    const via = search.filtering === true
+      ? (search.oursTotal === 0 ? "and the filtered search returned 0 rows for our slug" : `and the filtered search still returned ${search.oursTotal} row(s) for our slug, which is not interpreted here`)
+      : "; the search leg is not citable, because " + search.why;
+    return { verdict: "NOT_FOUND", why: `both exact routes 404 while ${SMITHERY_CONTROL_SLUGS.join(" and ")} answer 200${via}` };
+  }
+  return { verdict: "UNDECIDABLE", why: `unexpected combined status for our two route shapes: ${ours}` };
+}
+
+export async function checkSmithery({ slug, handle }) {
+  const api = "https://api.smithery.ai/servers";
+  const urls = {
+    ours_namespace: `${api}/${handle}/${slug}`,
+    ours_bare: `${api}/${slug}`,
+    controls: SMITHERY_CONTROL_SLUGS.map((s) => `${api}/${s}`),
+    q_control: `${api}?q=${encodeURIComponent(SMITHERY_CONTROL_SLUGS[0])}&pageSize=20`,
+    q_nonsense: `${api}?q=${encodeURIComponent(SMITHERY_NONSENSE_QUERY)}&pageSize=20`,
+    q_ours: `${api}?q=${encodeURIComponent(slug)}&pageSize=20`,
+  };
+  const [oursNamespace, oursBare, controlStatuses, qControl, qNonsense, qOurs] = await Promise.all([
+    get(urls.ours_namespace),
+    get(urls.ours_bare),
+    Promise.all(urls.controls.map((u) => get(u).then((r) => r.status))),
+    get(urls.q_control),
+    get(urls.q_nonsense),
+    get(urls.q_ours),
+  ]);
+  const controlTotal = parseSmitheryTotal(qControl.body);
+  const nonsenseTotal = parseSmitheryTotal(qNonsense.body);
+  const oursTotal = parseSmitheryTotal(qOurs.body);
+  const search = { ...smitherySearchIsFilter({ controlTotal, nonsenseTotal }), controlTotal, nonsenseTotal, oursTotal, http: [qControl.status, qNonsense.status, qOurs.status] };
+  const verdict = smitheryVerdict({ oursNamespace: oursNamespace.status, oursBare: oursBare.status, controlStatuses, search });
+  return {
+    site: "https://smithery.ai",
+    ...verdict,
+    evidence: verdict.verdict === "LISTED" ? (oursNamespace.status === 200 ? urls.ours_namespace : urls.ours_bare) : null,
+    legs: { ours_namespace: oursNamespace.status, ours_bare: oursBare.status, controls: controlStatuses, search },
+    urls,
+  };
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const opt = (name, dflt) => {
@@ -245,12 +329,15 @@ async function main() {
   // A valueless flag, so it must be removed before the remaining positional args are read as sites.
   const withGithubMcp = args.includes("--github-mcp");
   if (withGithubMcp) args.splice(args.indexOf("--github-mcp"), 1);
+  const withSmithery = args.includes("--smithery");
+  if (withSmithery) args.splice(args.indexOf("--smithery"), 1);
   const sites = args.length > 0 ? args : ["https://mcpservers.org", "https://mcpmarket.com", "https://glama.ai/"];
   const report = [];
   for (const site of sites) {
     report.push(await checkSite(site.replace(/\/+$/, ""), { slug, handle }));
   }
   if (withGithubMcp) report.push(await checkGithubMcp({ slug, handle }));
+  if (withSmithery) report.push(await checkSmithery({ slug, handle }));
   const count = (v) => report.filter((r) => r.verdict === v).length;
   console.log(JSON.stringify({ checked_at_utc: new Date().toISOString(), slug, handle, report }, null, 1));
   console.log(`SUMMARY listed=${count("LISTED")} not_found=${count("NOT_FOUND")} undecidable=${count("UNDECIDABLE")}`);
