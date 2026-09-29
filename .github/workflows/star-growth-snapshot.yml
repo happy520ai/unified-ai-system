@@ -77,6 +77,13 @@ jobs:
         # worse than no page: it would be a claim about someone else that nobody can check. So the nightly
         # re-probes and fails on drift in either direction - a listing that vanished, or one that appeared and
         # is not yet on the page.
+        # The token is declared here rather than trusted to the runner's implicit GITHUB_TOKEN: twelve carriers
+        # means twelve api.github.com reads before a single listing file is fetched, and the anonymous budget is
+        # 60 per hour per IP shared with everything else the machine does. Measured 2026-09-29 - the last three
+        # of twelve came back UNREADABLE when this leg ran without a token, and the probe prints which identity
+        # it used so a blind night cannot be filed as news about a carrier.
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           node tools/render-listing-census.mjs --check --allow-unreadable
 
