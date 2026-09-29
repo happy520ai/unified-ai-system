@@ -215,3 +215,69 @@ test("an unreadable llms.txt refuses instead of reporting the datasets as absent
   assert.equal(r.status, 3, r.stdout + r.stderr);
   assert.match(r.stderr, /cannot read/);
 });
+
+// The CollectionPage each hub publishes is a claim about what the collection contains, and until 2026-09-29
+// nothing read it: the English hub listed the site's own landing page as member 13, while the Chinese twin -
+// whose list is derived from the dataset, not typed - never would. Membership, ordering and the declared count
+// are the three things a hand-typed list gets wrong, and all three are checkable against files that exist.
+const BASE_URL = "https://happy520ai.github.io/unified-ai-system/";
+const LANDING_PAGE = /^index(?:\.[a-z-]+)?\.html$/iu;
+const pageOf = (url) => String(url).replace(BASE_URL, "");
+const ldBlock = (path) => {
+  const m = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/u.exec(readFileSync(join(ROOT, path), "utf8"));
+  assert.ok(m, path + ": no JSON-LD block to read, so the membership claim cannot be checked");
+  return JSON.parse(m[1]);
+};
+const sitemapLocs = () => [...readFileSync(join(ROOT, "docs/sitemap.xml"), "utf8")
+  .matchAll(/<loc>https:\/\/happy520ai\.github\.io\/unified-ai-system\/([^<]*)<\/loc>/gu)].map((x) => x[1]);
+
+function collectionIssues(itemList, locs) {
+  const issues = [];
+  const members = (itemList.itemListElement ?? []).map((x) => pageOf(x.url));
+  if (itemList.numberOfItems !== members.length) issues.push("declared numberOfItems " + itemList.numberOfItems + " but " + members.length + " elements");
+  const landings = members.filter((m) => LANDING_PAGE.test(m));
+  if (landings.length > 0) issues.push("landing page listed as a member: " + landings.join(", "));
+  const unlisted = members.filter((m) => !locs.includes(m));
+  if (unlisted.length > 0) issues.push("member is not a URL this site publishes: " + unlisted.join(", "));
+  const badOrder = (itemList.itemListElement ?? []).filter((x, i) => x.position !== i + 1);
+  if (badOrder.length > 0) issues.push("positions are not 1..n");
+  return issues;
+}
+
+test("each hub's collection lists real content pages, in order, and counts them correctly", () => {
+  const locs = sitemapLocs();
+  for (const [label, path] of [["en", EN], ["zh", ZH]]) {
+    const page = ldBlock(path);
+    assert.equal(page["@type"], "CollectionPage", label + ": the hub stopped being a CollectionPage, so this guard reads the wrong thing");
+    assert.deepEqual(collectionIssues(page.mainEntity, locs), [], label + ": " + collectionIssues(page.mainEntity, locs).join("; "));
+  }
+});
+
+test("the predicate bites on the reading that actually shipped, and on a count that lies", () => {
+  const locs = sitemapLocs();
+  assert.ok(locs.includes("mcp-route-headers.html"), "the fixture needs a page the sitemap really publishes");
+  const asShipped = {
+    numberOfItems: 3,
+    itemListElement: [
+      { "@type": "ListItem", position: 1, url: BASE_URL + "index.html" },
+      { "@type": "ListItem", position: 2, url: BASE_URL + "ghost-page-that-does-not-exist.html" },
+      { "@type": "ListItem", position: 3, url: BASE_URL + "mcp-route-headers.html" },
+    ],
+  };
+  const issues = collectionIssues(asShipped, locs);
+  assert.ok(issues.some((i) => /landing page/.test(i)), "the landing page must be refused: " + issues.join(" | "));
+  assert.ok(issues.some((i) => /not a URL this site publishes/.test(i)), "and so must a member that no longer resolves");
+  const lyingCount = { numberOfItems: 13, itemListElement: asShipped.itemListElement.slice(0, 12 - 9) };
+  assert.ok(collectionIssues(lyingCount, locs).some((i) => /numberOfItems/.test(i)), "a declared count that disagrees with the elements must be refused");
+});
+
+test("a re-ordered collection is refused rather than quietly accepted", () => {
+  const shuffled = {
+    numberOfItems: 2,
+    itemListElement: [
+      { "@type": "ListItem", position: 2, url: BASE_URL + "mcp-route-headers.html" },
+      { "@type": "ListItem", position: 1, url: BASE_URL + "mcp-list-cache-hints.html" },
+    ],
+  };
+  assert.ok(collectionIssues(shuffled, sitemapLocs()).some((i) => /positions/.test(i)));
+});
