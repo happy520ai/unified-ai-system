@@ -1939,3 +1939,21 @@ and our skill name; it does not show the CLI's current release installs it on Wi
 somebody wants that end-to-end proof, it needs a sandbox - a throwaway `HOME`/`CODEX_HOME`, not this machine's
 real agent configuration - and that is an owner-level "yes, execute third-party code" decision, not a box I tick
 by myself.
+
+### 19:28Z — the skills index is a crawl, not a submission, and it counts installs
+
+Reading `src/find.ts` of the CLI behind the README line: search goes to `https://skills.sh/api/search?q=…&limit=20`,
+and each row carries `installs`. Two consequences for this campaign:
+
+1. **No door to knock on.** Our repository is already indexed (`happy520ai/unified-ai-system/unified-ai-gateway`)
+   without any submission, because the index reads `skills/*/SKILL.md` from public repositories. The deferred
+   idea of "publish to a skill hub" is therefore about the *curated* hubs, not about visibility in this one -
+   that distinction matters when deciding which of them is worth an owner's attention.
+2. **The channel's multiplier is the aggregator, measured not assumed.** At 19:28Z our direct row reported 3
+   installs and `sickn33/agentic-awesome-skills`, which mirrors the same file, reported 8. Same content, one
+   hosted by us and one inside a large collection - so the lever is being mirrored, which is already happening
+   organically (12 repositories hold a copy per the census page).
+
+Scale, so nobody reads the numbers as progress on its own: `anthropics/skills/pdf` reports 202,784 installs on
+the same endpoint and `microsoft/azure-skills/azure-aigateway` 607,530. Ours is 3+8. This is a working channel
+with a tiny share of it, and installs are not stars.
