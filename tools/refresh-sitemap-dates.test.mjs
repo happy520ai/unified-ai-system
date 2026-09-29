@@ -1,8 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { refresh, dateOnlyProof } from "./refresh-sitemap-dates.mjs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { dateOnlyProof, fileForLoc, refresh } from "./refresh-sitemap-dates.mjs";
 
 // The tool's logic is tested with an injected reader, so these arms behave identically in a deep clone and in
 // the single-commit checkout the Windows job uses. Only the last arm touches git, and it says so when it cannot.
@@ -77,10 +79,78 @@ test("the shipped sitemap carries no page whose lastmod lags its own commit", ()
     return;
   }
   const shipped = readFileSync("docs/sitemap.xml", "utf8");
-  const { changes, unchecked } = refresh(shipped);
+  const { changes, unchecked, unmapped, blocks, accounted } = refresh(shipped);
   assert.deepEqual(changes, [], "these pages need their lastmod refreshed: " + JSON.stringify(changes));
+  // The coverage identity is what makes "no changes" mean "nothing is stale" rather than "nothing was read".
+  assert.deepEqual(unmapped, [], "a <url> block this tool cannot map would be silently undated");
+  assert.equal(accounted, blocks, "every url block must land in stamped, current, or unchecked");
+  assert.ok(blocks >= 31, "the shipped sitemap should still declare the whole site, saw " + blocks);
   if (unchecked.length > 0) console.log("NOT CHECKED (truncated history): " + unchecked.join("; "));
-  assert.ok(unchecked.length <= 31, "the unchecked list is reported, not absorbed");
+  assert.ok(unchecked.length <= blocks, "the unchecked list is reported, not absorbed");
+});
+
+test("the site root is a page with a date, not a loc that does not match", () => {
+  // The defect this arm exists for: the root is written <loc>https://…/unified-ai-system/</loc>, which has no
+  // filename, and the first version of the tool required one. The homepage's own lastmod therefore froze at
+  // 2026-09-26 while every run reported "already current" - the most-crawled URL on the site, undated, silent.
+  assert.equal(fileForLoc("https://happy520ai.github.io/unified-ai-system/"), "index.html");
+  assert.equal(fileForLoc("https://happy520ai.github.io/unified-ai-system/index.zh-CN.html"), "index.zh-CN.html");
+  assert.equal(fileForLoc("https://happy520ai.github.io/unified-ai-system/docs/a.html"), "a.html");
+  // A loc that names no file under docs/ is not skipped; it is reported and stops the run.
+  assert.equal(fileForLoc("https://happy520ai.github.io/unified-ai-system/feed.xml"), null);
+  assert.equal(fileForLoc(""), null);
+
+  const rooted = `<urlset>
+  <url>
+    <loc>https://example.test/</loc>
+    <lastmod>2026-01-01</lastmod>
+  </url>
+</urlset>`;
+  const seen = [];
+  const { changes, blocks, accounted } = refresh(rooted, (p) => { seen.push(p); return { day: "2026-05-05", sha: "abc12345" }; });
+  assert.deepEqual(seen, ["docs/index.html"], "the bare root must be read as docs/index.html");
+  assert.deepEqual(changes.map((c) => [c.file, c.to]), [["index.html", "2026-05-05"]]);
+  assert.equal(accounted, blocks, "one block in, one block accounted for");
+
+  // And against the real sitemap: a root entry deliberately wound back must produce a change. Without this,
+  // a passing shipped-sitemap test could still be a passing test that never looked at the root.
+  const shipped = readFileSync("docs/sitemap.xml", "utf8");
+  const staled = shipped.replace("<loc>https://happy520ai.github.io/unified-ai-system/</loc>\n    <lastmod>2026-09-29</lastmod>",
+    "<loc>https://happy520ai.github.io/unified-ai-system/</loc>\n    <lastmod>2026-01-01</lastmod>");
+  assert.notEqual(staled, shipped, "fixture precondition: the shipped root must currently be dated 2026-09-29");
+  assert.deepEqual(refresh(staled).changes.map((c) => c.file), ["index.html"], "a stale root must be caught, not skipped");
+});
+
+test("an unmappable loc stops the CLI instead of passing quietly", () => {
+  const dir = mkdtempSync(join(tmpdir(), "sitemap-map-"));
+  const fixture = join(dir, "sitemap.xml");
+  const unmappable = `<urlset>
+  <url>
+    <loc>https://happy520ai.github.io/unified-ai-system/</loc>
+  </url>
+  <url>
+    <loc>https://happy520ai.github.io/unified-ai-system/feed.xml</loc>
+  </url>
+</urlset>`;
+  writeFileSync(fixture, unmappable, "utf8");
+  const depth = Number(spawnSync("git", ["rev-list", "--count", "HEAD"], { encoding: "utf8" }).stdout.trim());
+  if (depth <= 1) {
+    console.log("SKIPPED CLI refusal arm: a one-commit clone cannot date anything, so it would fail for the wrong reason");
+    return;
+  }
+  const r = spawnSync(process.execPath, ["tools/refresh-sitemap-dates.mjs", "--dry", "--sitemap", fixture], { encoding: "utf8" });
+  assert.equal(r.status, 3, r.stdout + r.stderr);
+  assert.match(r.stderr, /cannot map to a file in docs\//u);
+  assert.match(r.stderr, /feed\.xml/u, "the refusal has to name the entry it could not read: " + r.stderr);
+
+  // Boundary arm: the same fixture with the unmappable block removed must succeed, so the refusal above is
+  // about the loc and not about the tool always failing on a file it did not write.
+  const mappable = unmappable.replace(/  <url>\s*<loc>[^<]*feed\.xml<\/loc>\s*<\/url>\n/u, "");
+  const ok = join(dir, "ok.xml");
+  writeFileSync(ok, mappable, "utf8");
+  const good = spawnSync(process.execPath, ["tools/refresh-sitemap-dates.mjs", "--dry", "--sitemap", ok], { encoding: "utf8" });
+  assert.equal(good.status, 0, good.stdout + good.stderr);
+  assert.match(good.stdout, /"url_blocks": 1/u);
 });
 
 test("the date-only proof accepts a refresh and rejects a structural edit", () => {
