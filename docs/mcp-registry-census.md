@@ -147,6 +147,27 @@ registry total. A reader who wants either widened re-runs the commands under Rep
 This says nothing about whether the search is *good* - only what it matches. Ranking, relevance and the
 `updated_since` parameter were not measured here.
 
+## What a value the endpoint does not accept does to you
+
+Four parameters, four different answers, all read on 2026-09-29 by `tools/probe-mcp-registry-visibility-params.mjs`.
+The failure modes are not uniform, and two of the four look like success, which is why this is a table
+rather than a sentence.
+
+| leg | HTTP | rows on the first page | what it means |
+| --- | --- | --- | --- |
+| `?status=active` (not a documented parameter) | 200 | 100 | ignored outright - that page's sha256 equals the unfiltered one, so a client that guessed this spelling gets 200 and no warning |
+| `?include_deleted=nope` | 422 | 0 | rejected as a bad enum value |
+| `?version=not-a-real-value` | 200 | 0 | accepted, and matched nothing, which is what a filter the server honours looks like |
+| `?updated_since=not-a-date` | 400 | 0 | rejected before it is parsed |
+
+`updated_since` needs one more sentence, because it narrows on a field a caller would not guess. Asked for
+records updated since `2026-09-22T01:40:51.737Z`, the leg returned 100 rows whose earliest
+`updatedAt` is `2026-09-22T02:50:39.762334Z` - on the right side of the parameter. Its earliest `publishedAt` is
+`2026-09-01T10:54:13.681499Z`, which is earlier, because a server updated last week can still hold a version
+published months ago. So this parameter filters by record update time, not by release time, and a caller that assumed release time would be shown rows it did not ask for.
+A date thirty days ahead returns nothing at all - `2026-10-29` gave 0 rows - which is the
+shape of a working filter, and the opposite of the silent `status` leg above.
+
 ## What this does not support
 
 - That a declared address works. "The record names an endpoint" and "the endpoint answers an MCP request"
@@ -163,9 +184,9 @@ This says nothing about whether the search is *good* - only what it matches. Ran
   page has a shelf life measured in weeks.
 - That the `status` query parameter filters anything. It is not among the documented parameters of
   `GET /v0/servers` (`cursor`, `limit`, `updated_since`, `search`, `version`, `include_deleted`), and `?status=active` answered with a first page whose sha256 equalled
-  the unfiltered one on 2026-09-28, `deprecated` rows included - no error, no effect. So the active split above
+  the unfiltered one on 2026-09-29, `deprecated` rows included - no error, no effect. So the active split above
   is computed client-side from the whole walk.
-- That no server-side option exists for this. `?version=latest` is documented and the server honours it: on 2026-09-28 the
+- That no server-side option exists for this. `?version=latest` is documented and the server honours it: on 2026-09-29 the
   unfiltered first page carried 53 rows marked latest against 47 that a newer version had
   already superseded, while `?version=latest` returned 100 latest and 0 superseded, and
   `?version=not-a-real-value` returned no rows at all. Note what that filter is about: version currency, not status

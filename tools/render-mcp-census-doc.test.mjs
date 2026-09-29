@@ -10,7 +10,7 @@ const GEN = "tools/render-mcp-census-doc.mjs";
 const CENSUS = "docs/data/mcp-registry-census.2026-09-28.json";
 const SAMPLE = "docs/data/mcp-registry-installability.2026-09-28.json";
 const CROSS = "docs/data/mcp-installability-crosscheck.2026-09-28.json";
-const VIS = "docs/data/mcp-registry-visibility-params.2026-09-28.json";
+const VIS = "docs/data/mcp-registry-visibility-params.2026-09-29.json";
 const WIDE = "docs/data/mcp-registry-census-including-deleted.2026-09-28.json";
 const SEARCH = "docs/data/mcp-registry-search.2026-09-29.json";
 const dir = mkdtempSync(join(tmpdir(), "census-render-"));
@@ -247,4 +247,39 @@ test("the search section quotes the artifact, and refuses when the artifact stop
   const r6 = run({ search: t6, out: join(dir, "r6.md") });
   assert.notEqual(r6.status, 0);
   assert.match(r6.stderr, /its rows add to/);
+});
+
+test("the updated_since table is derived from its artifact, and each guard fires on its own", () => {
+  const out = join(dir, "updated.md");
+  assert.equal(run({ out }).status, 0);
+  const text = readFileSync(out, "utf8");
+  const v = readJson(VIS);
+  const visDay = String(v.run_at).slice(0, 10);
+
+  assert.ok(text.includes("| `?updated_since=not-a-date` | " + v.updated_since_bogus_status + " | "), "the bogus-status cell must come from the artifact");
+  assert.ok(text.includes("records updated since `" + v.params.updated_since_week + "`"), "the parameter value is quoted from the artifact");
+  assert.ok(text.includes("`" + v.updated_since_week_page.min_updated_at + "`"), "the earliest updatedAt is quoted");
+  assert.ok(text.includes("`" + v.updated_since_week_page.min_published_at + "`"), "the earliest publishedAt is quoted");
+  // The visibility sentences carry the day the visibility legs were read, not the census day.
+  assert.ok(text.includes("the unfiltered one on " + visDay), "the status leg must date itself by its own run");
+  assert.ok(text.includes("is documented and the server honours it: on " + visDay), "the version leg likewise");
+
+  const u1 = copyVis("u-leak", (b) => { b.updated_since_filters_by_updated_at = false; });
+  assert.match(run({ vis: u1, out: join(dir, "u1.md") }).stderr, /let through a row whose updatedAt precedes/);
+  const u2 = copyVis("u-future", (b) => { b.updated_since_future_returns_zero_rows = false; });
+  assert.match(run({ vis: u2, out: join(dir, "u2.md") }).stderr, /30 days ahead returned rows/);
+  const u3 = copyVis("u-rows", (b) => { b.updated_since_week_page.rows = 0; });
+  assert.match(run({ vis: u3, out: join(dir, "u3.md") }).stderr, /reports no rows, so nothing can be said/);
+  const u4 = copyVis("u-contradict", (b) => { b.updated_since_matches_published_at = true; });
+  assert.match(run({ vis: u4, out: join(dir, "u4.md") }).stderr, /contradicts the timestamps the artifact carries/);
+  const u5 = copyVis("u-params", (b) => { delete b.params; });
+  assert.match(run({ vis: u5, out: join(dir, "u5.md") }).stderr, /visibility artifact is missing params/);
+
+  // A different status from the wire is rendered, not refused: the table follows the measurement, so an
+  // upstream change cannot leave a stale row behind. This is the arm that proves it is not pinned text.
+  const u6 = copyVis("u-bogus422", (b) => { b.updated_since_bogus_status = 422; });
+  const u6out = join(dir, "u6.md");
+  const r6 = run({ vis: u6, out: u6out });
+  assert.equal(r6.status, 0, r6.stdout + r6.stderr);
+  assert.ok(readFileSync(u6out, "utf8").includes("| `?updated_since=not-a-date` | 422 | "), "the 422 must be rendered in place of the measured 400");
 });

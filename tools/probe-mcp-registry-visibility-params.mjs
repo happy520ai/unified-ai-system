@@ -62,7 +62,7 @@ export function statusTally(body) {
 
 // Every claim the census page makes about this endpoint is derived here, so the instrument and the page can
 // be checked against each other without a network.
-export function evaluate({ documented, pages, specStatus }) {
+export function evaluate({ documented, pages, specStatus, params = {} }) {
   const problems = [];
   if (specStatus !== 200 || documented.length === 0) problems.push("openapi.json unreadable, so the documented-parameter claim has no source");
   if (!documented.includes("include_deleted")) problems.push("include_deleted is not in the documented parameters - the paragraph this instrument supports would be false");
@@ -73,6 +73,20 @@ export function evaluate({ documented, pages, specStatus }) {
   if (pages.version_latest.rows === 0) problems.push("?version=latest returned an empty first page, so nothing can be concluded from it");
   if (pages.version_bogus.rows > 0) problems.push("?version=not-a-real-value returned rows, so version is NOT a real filter and the comparison with ?status= would be wrong");
   if (!documented.includes("version")) problems.push("version is not in the documented parameters, so calling it documented would be false");
+  // `updated_since` legs. The filter is judged against the record's `updatedAt`, which is what the readings
+  // showed it uses; comparing `publishedAt` instead would report a leak where there is none, because a
+  // server updated last week can hold a version published months ago.
+  for (const leg of ["updated_since_week", "updated_since_future", "updated_since_bogus"]) {
+    if (!pages[leg]) throw new Error(`REFUSED: pages.${leg} is missing, so this artifact predates the updated_since legs and cannot be judged`);
+  }
+  const week = pages.updated_since_week;
+  if (!documented.includes("updated_since")) problems.push("updated_since is not in the documented parameters, so calling it documented would be false");
+  if (week.rows === 0) problems.push("?updated_since=<7 days ago> returned an empty first page, so nothing can be concluded about the filter");
+  if (params.updated_since_week && week.min_updated_at && week.min_updated_at < params.updated_since_week) {
+    problems.push(`?updated_since leaked: a row carries updatedAt ${week.min_updated_at} before the requested ${params.updated_since_week}, so it is not filtering as the page says`);
+  }
+  if (pages.updated_since_future.rows > 0) problems.push("?updated_since=<30 days in the future> returned rows, so the parameter is not restricting as claimed");
+  if (pages.updated_since_bogus.http !== 400) problems.push(`?updated_since=not-a-date answered ${pages.updated_since_bogus.http}, not the 400 the page reports - the bad-input comparison changes`);
 
   const facts = {
     default_and_include_deleted_false_sha_equal: pages.default.sha256 === pages.include_deleted_false.sha256,
@@ -85,21 +99,36 @@ export function evaluate({ documented, pages, specStatus }) {
     default_page_latest_mix: pages.default.latest,
     version_bogus_returns_zero_rows: pages.version_bogus.rows === 0,
     deleted_status_seen_only_with_include_deleted: (pages.include_deleted_true.statuses.deleted || 0) > 0 && (pages.default.statuses.deleted || 0) === 0,
+    updated_since_param_documented: documented.includes("updated_since"),
+    updated_since_week_page: { rows: week.rows, min_updated_at: week.min_updated_at ?? null, min_published_at: week.min_published_at ?? null },
+    // Two separate readings, because they answer different questions: does the parameter restrict at all,
+    // and which field does it restrict on. The second is reported, not asserted - the page quotes whatever
+    // it is, so a future change upstream shows up as a changed sentence rather than a stale one.
+    updated_since_filters_by_updated_at: Boolean(params.updated_since_week) && week.rows > 0 && (!week.min_updated_at || week.min_updated_at >= params.updated_since_week),
+    updated_since_matches_published_at: Boolean(params.updated_since_week) && Boolean(week.min_published_at) && week.min_published_at >= params.updated_since_week,
+    updated_since_future_returns_zero_rows: pages.updated_since_future.rows === 0,
+    updated_since_bogus_status: pages.updated_since_bogus.http,
   };
   return { problems, facts };
 }
 
-function pageRecord(r) {
+function pageRecord(r, filterParam) {
   const sha = createHash("sha256").update(r.text).digest("hex");
+  const rows = (r.body || {}).servers || [];
+  const times = (field) => {
+    const got = rows.map((e) => ((e._meta || {})[OFFICIAL] || {})[field]).filter((t) => typeof t === "string");
+    return got.length ? got.slice().sort()[0] : null;
+  };
   return {
     http: r.status,
-    rows: ((r.body || {}).servers || []).length,
+    rows: rows.length,
     statuses: statusTally(r.body),
     latest: latestTally(r.body),
     cursor: Boolean(((r.body || {}).metadata || {}).nextCursor),
     sha256: sha,
     utf8_bytes: Buffer.byteLength(r.text),
     code_units: r.text.length,
+    ...(filterParam ? { filter_param: filterParam, min_updated_at: times("updatedAt"), min_published_at: times("publishedAt") } : {}),
   };
 }
 
@@ -112,7 +141,7 @@ function flagValue(argv, name) {
 // its own inputs, which is what a silently edited or half-regenerated artifact looks like.
 function replay(path) {
   const saved = JSON.parse(readFileSync(path, "utf8"));
-  const { problems, facts } = evaluate({ documented: saved.documented_get_parameters, pages: saved.pages, specStatus: 200 });
+  const { problems, facts } = evaluate({ documented: saved.documented_get_parameters, pages: saved.pages, specStatus: 200, params: saved.params || {} });
   const drift = [];
   for (const [k, v] of Object.entries(facts)) {
     if (JSON.stringify(saved[k]) !== JSON.stringify(v)) drift.push(k + ": stored " + JSON.stringify(saved[k]) + ", recomputed " + JSON.stringify(v));
@@ -132,13 +161,27 @@ async function run(argv) {
   const pages = {};
   for (const [label, q] of READINGS) pages[label] = pageRecord(await json(`${REG}/v0/servers?limit=100${q}`));
 
-  const { problems, facts } = evaluate({ documented, pages, specStatus: spec.status });
+  // Three legs for `updated_since`. The values are relative to the run, so they are stored in the artifact:
+  // a reader has to be able to see which instant the filter was tested against, and `--replay` has to be
+  // able to re-derive the verdict from the same numbers rather than from a date it invents now.
+  const params = {
+    updated_since_week: new Date(Date.now() - 7 * 864e5).toISOString(),
+    updated_since_future: new Date(Date.now() + 30 * 864e5).toISOString(),
+    updated_since_bogus: "not-a-date",
+  };
+  for (const label of ["week", "future", "bogus"]) {
+    const value = params[`updated_since_${label}`];
+    pages[`updated_since_${label}`] = pageRecord(await json(`${REG}/v0/servers?limit=100&updated_since=${encodeURIComponent(value)}`), value);
+  }
+
+  const { problems, facts } = evaluate({ documented, pages, specStatus: spec.status, params });
   const result = {
     schema: "mcp-registry-visibility-params-v1",
     run_at: new Date().toISOString(),
     source: REG + "/openapi.json",
     documented_get_parameters: documented,
     pages,
+    params,
     ...facts,
     problems,
     problem_count: problems.length,

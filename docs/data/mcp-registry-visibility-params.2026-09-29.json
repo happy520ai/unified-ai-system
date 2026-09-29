@@ -1,0 +1,205 @@
+{
+  "schema": "mcp-registry-visibility-params-v1",
+  "run_at": "2026-09-29T01:40:53.859Z",
+  "source": "https://registry.modelcontextprotocol.io/openapi.json",
+  "documented_get_parameters": [
+    "cursor",
+    "limit",
+    "updated_since",
+    "search",
+    "version",
+    "include_deleted"
+  ],
+  "pages": {
+    "default": {
+      "http": 200,
+      "rows": 100,
+      "statuses": {
+        "active": 98,
+        "deprecated": 2
+      },
+      "latest": {
+        "latest": 53,
+        "not_latest": 47
+      },
+      "cursor": true,
+      "sha256": "eb69655548f4f7b56c6219448748f67537326e6fb4dddf4019f3110bad4f4044",
+      "utf8_bytes": 73600,
+      "code_units": 73554
+    },
+    "include_deleted_false": {
+      "http": 200,
+      "rows": 100,
+      "statuses": {
+        "active": 98,
+        "deprecated": 2
+      },
+      "latest": {
+        "latest": 53,
+        "not_latest": 47
+      },
+      "cursor": true,
+      "sha256": "eb69655548f4f7b56c6219448748f67537326e6fb4dddf4019f3110bad4f4044",
+      "utf8_bytes": 73600,
+      "code_units": 73554
+    },
+    "include_deleted_true": {
+      "http": 200,
+      "rows": 100,
+      "statuses": {
+        "deleted": 5,
+        "active": 93,
+        "deprecated": 2
+      },
+      "latest": {
+        "latest": 53,
+        "not_latest": 47
+      },
+      "cursor": true,
+      "sha256": "a310f54e54f7161d1537b491d148f3138a27f6ca4360ccc737ac3efa399bdffa",
+      "utf8_bytes": 74399,
+      "code_units": 74343
+    },
+    "status_active": {
+      "http": 200,
+      "rows": 100,
+      "statuses": {
+        "active": 98,
+        "deprecated": 2
+      },
+      "latest": {
+        "latest": 53,
+        "not_latest": 47
+      },
+      "cursor": true,
+      "sha256": "eb69655548f4f7b56c6219448748f67537326e6fb4dddf4019f3110bad4f4044",
+      "utf8_bytes": 73600,
+      "code_units": 73554
+    },
+    "include_deleted_bogus": {
+      "http": 422,
+      "rows": 0,
+      "statuses": {},
+      "latest": {
+        "latest": 0,
+        "not_latest": 0
+      },
+      "cursor": false,
+      "sha256": "f91b43a81dda581366ce0dd8e93212af26c3e3220eb48672524a57cf32bd7f8e",
+      "utf8_bytes": 166,
+      "code_units": 166
+    },
+    "version_latest": {
+      "http": 200,
+      "rows": 100,
+      "statuses": {
+        "active": 99,
+        "deprecated": 1
+      },
+      "latest": {
+        "latest": 100,
+        "not_latest": 0
+      },
+      "cursor": true,
+      "sha256": "66a04fb274d864d710acf487139e32f2706ffea6bb794858f317fb6796160006",
+      "utf8_bytes": 82312,
+      "code_units": 82166
+    },
+    "version_bogus": {
+      "http": 200,
+      "rows": 0,
+      "statuses": {},
+      "latest": {
+        "latest": 0,
+        "not_latest": 0
+      },
+      "cursor": false,
+      "sha256": "bd77acb780201187e66256677f13e4145d6839a056c477181355b19589b40f23",
+      "utf8_bytes": 38,
+      "code_units": 38
+    },
+    "updated_since_week": {
+      "http": 200,
+      "rows": 100,
+      "statuses": {
+        "active": 100
+      },
+      "latest": {
+        "latest": 51,
+        "not_latest": 49
+      },
+      "cursor": true,
+      "sha256": "6d6e59b5b37d5a4ae4bdb9290837a3996592777879c285590eb5de8dad8bb416",
+      "utf8_bytes": 119765,
+      "code_units": 119741,
+      "filter_param": "2026-09-22T01:40:51.737Z",
+      "min_updated_at": "2026-09-22T02:50:39.762334Z",
+      "min_published_at": "2026-09-01T10:54:13.681499Z"
+    },
+    "updated_since_future": {
+      "http": 200,
+      "rows": 0,
+      "statuses": {},
+      "latest": {
+        "latest": 0,
+        "not_latest": 0
+      },
+      "cursor": false,
+      "sha256": "bd77acb780201187e66256677f13e4145d6839a056c477181355b19589b40f23",
+      "utf8_bytes": 38,
+      "code_units": 38,
+      "filter_param": "2026-10-29T01:40:51.739Z",
+      "min_updated_at": null,
+      "min_published_at": null
+    },
+    "updated_since_bogus": {
+      "http": 400,
+      "rows": 0,
+      "statuses": {},
+      "latest": {
+        "latest": 0,
+        "not_latest": 0
+      },
+      "cursor": false,
+      "sha256": "ba4ba5004d7416bcadabda4726b4a0f39f60b8dd3b7e528e5c343c5b808c0d4f",
+      "utf8_bytes": 138,
+      "code_units": 138,
+      "filter_param": "not-a-date",
+      "min_updated_at": null,
+      "min_published_at": null
+    }
+  },
+  "params": {
+    "updated_since_week": "2026-09-22T01:40:51.737Z",
+    "updated_since_future": "2026-10-29T01:40:51.739Z",
+    "updated_since_bogus": "not-a-date"
+  },
+  "default_and_include_deleted_false_sha_equal": true,
+  "default_and_include_deleted_true_sha_equal": false,
+  "status_param_matches_no_filter_sha": true,
+  "status_param_documented": false,
+  "version_param_documented": true,
+  "version_latest_returns_only_current": true,
+  "version_latest_page": {
+    "latest": 100,
+    "not_latest": 0
+  },
+  "default_page_latest_mix": {
+    "latest": 53,
+    "not_latest": 47
+  },
+  "version_bogus_returns_zero_rows": true,
+  "deleted_status_seen_only_with_include_deleted": true,
+  "updated_since_param_documented": true,
+  "updated_since_week_page": {
+    "rows": 100,
+    "min_updated_at": "2026-09-22T02:50:39.762334Z",
+    "min_published_at": "2026-09-01T10:54:13.681499Z"
+  },
+  "updated_since_filters_by_updated_at": true,
+  "updated_since_matches_published_at": false,
+  "updated_since_future_returns_zero_rows": true,
+  "updated_since_bogus_status": 400,
+  "problems": [],
+  "problem_count": 0
+}

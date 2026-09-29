@@ -100,8 +100,8 @@ const priorBadKey = (prior.package_transport_types || {})["[object Object]"];
 if (!Number.isSafeInteger(priorBadKey)) throw new Error("REFUSED: the superseded reading no longer carries the coerced-key tally the page describes");
 // The visibility instrument, because the scope sentence above is a live claim about someone else's API and
 // must fail rather than age quietly if that API changes.
-const vis = JSON.parse(readFileSync(arg("--visibility", "docs/data/mcp-registry-visibility-params.2026-09-28.json"), "utf8"));
-for (const k of ["documented_get_parameters", "pages", "status_param_documented", "status_param_matches_no_filter_sha", "deleted_status_seen_only_with_include_deleted", "version_param_documented", "version_latest_returns_only_current", "version_latest_page", "default_page_latest_mix", "version_bogus_returns_zero_rows", "problem_count"]) {
+const vis = JSON.parse(readFileSync(arg("--visibility", "docs/data/mcp-registry-visibility-params.2026-09-29.json"), "utf8"));
+for (const k of ["documented_get_parameters", "pages", "status_param_documented", "status_param_matches_no_filter_sha", "deleted_status_seen_only_with_include_deleted", "version_param_documented", "version_latest_returns_only_current", "version_latest_page", "default_page_latest_mix", "version_bogus_returns_zero_rows", "updated_since_param_documented", "updated_since_filters_by_updated_at", "updated_since_matches_published_at", "updated_since_week_page", "updated_since_future_returns_zero_rows", "updated_since_bogus_status", "params", "problem_count"]) {
   if (vis[k] === undefined) throw new Error("REFUSED: visibility artifact is missing " + k);
 }
 if (vis.problem_count !== 0) throw new Error("REFUSED: the visibility instrument reported " + vis.problem_count + " problems");
@@ -120,6 +120,21 @@ const visParams = vis.documented_get_parameters.map((p) => "`" + p + "`").join("
 const visLatestDeprecated = ((vis.pages.version_latest || {}).statuses || {}).deprecated;
 if (!Number.isSafeInteger(visLatestDeprecated)) throw new Error("REFUSED: the ?version=latest page reports no deprecated count, so the note separating version currency from status cannot be quoted");
 if (visLatestDeprecated === 0) throw new Error("REFUSED: ?version=latest now excludes deprecated rows, so the sentence saying the filtered page still held them is wrong");
+// The `updated_since` legs, same convention: each is a live claim about someone else's API and must fail
+// rather than age quietly.
+const visWeek = vis.updated_since_week_page;
+if (vis.updated_since_param_documented !== true) throw new Error("REFUSED: `updated_since` is no longer a documented parameter, so the table that lists it as documented is wrong");
+if (vis.updated_since_filters_by_updated_at !== true) throw new Error("REFUSED: ?updated_since let through a row whose updatedAt precedes the parameter, so the claim that it filters is wrong");
+if (vis.updated_since_future_returns_zero_rows !== true) throw new Error("REFUSED: ?updated_since with a date 30 days ahead returned rows, so the sentence saying it returned none is wrong");
+if (!Number.isSafeInteger(visWeek.rows) || visWeek.rows === 0) throw new Error("REFUSED: the updated_since week leg reports no rows, so nothing can be said about the filter");
+if (typeof visWeek.min_updated_at !== "string" || typeof (vis.params || {}).updated_since_week !== "string") throw new Error("REFUSED: the updated_since leg carries no timestamps to quote");
+if (!Number.isSafeInteger(vis.updated_since_bogus_status)) throw new Error("REFUSED: the updated_since bogus leg has no status to report");
+// Which field the filter reads is re-derived here rather than trusted from the stored verdict, so the page
+// cannot print a verdict its own timestamps contradict.
+const publishedBeforeParam = visWeek.min_published_at !== null && visWeek.min_published_at < vis.params.updated_since_week;
+if (vis.updated_since_matches_published_at === publishedBeforeParam) throw new Error("REFUSED: the stored published_at verdict contradicts the timestamps the artifact carries");
+const visDate = String(vis.run_at || "").slice(0, 10);
+if (!/^\d{4}-\d{2}-\d{2}$/.test(visDate)) throw new Error("REFUSED: the visibility artifact has no run_at date, so the page cannot say when these readings were taken");
 const visDeletedTrue = (vis.pages.include_deleted_true.statuses || {}).deleted;
 const visDeletedDefault = (vis.pages.default.statuses || {}).deleted || 0;
 if (!Number.isSafeInteger(visDeletedTrue)) throw new Error("REFUSED: the include_deleted=true page has no deleted count to compare");
@@ -345,6 +360,29 @@ const lines = [
   "This says nothing about whether the search is *good* - only what it matches. Ranking, relevance and the",
   "`updated_since` parameter were not measured here.",
   "",
+  "## What a value the endpoint does not accept does to you",
+  "",
+  "Four parameters, four different answers, all read on " + visDate + " by `tools/probe-mcp-registry-visibility-params.mjs`.",
+  "The failure modes are not uniform, and two of the four look like success, which is why this is a table",
+  "rather than a sentence.",
+  "",
+  "| leg | HTTP | rows on the first page | what it means |",
+  "| --- | --- | --- | --- |",
+  "| `?status=active` (not a documented parameter) | " + vis.pages.status_active.http + " | " + vis.pages.status_active.rows + " | ignored outright - that page's sha256 equals the unfiltered one, so a client that guessed this spelling gets 200 and no warning |",
+  "| `?include_deleted=nope` | " + vis.pages.include_deleted_bogus.http + " | " + vis.pages.include_deleted_bogus.rows + " | rejected as a bad enum value |",
+  "| `?version=not-a-real-value` | " + vis.pages.version_bogus.http + " | " + vis.pages.version_bogus.rows + " | accepted, and matched nothing, which is what a filter the server honours looks like |",
+  "| `?updated_since=not-a-date` | " + vis.updated_since_bogus_status + " | " + vis.pages.updated_since_bogus.rows + " | rejected before it is parsed |",
+  "",
+  "`updated_since` needs one more sentence, because it narrows on a field a caller would not guess. Asked for",
+  "records updated since `" + vis.params.updated_since_week + "`, the leg returned " + visWeek.rows + " rows whose earliest",
+  "`updatedAt` is `" + visWeek.min_updated_at + "` - on the right side of the parameter. Its earliest `publishedAt` is",
+  "`" + visWeek.min_published_at + "`, " + (publishedBeforeParam ? "which is earlier" : "which is not earlier") + ", because a server updated last week can still hold a version",
+  "published months ago. " + (publishedBeforeParam
+    ? "So this parameter filters by record update time, not by release time, and a caller that assumed release time would be shown rows it did not ask for."
+    : "So on this run both fields happen to satisfy the parameter, and the release-time reading cannot be separated from the update-time reading with one leg - the instrument reports the two timestamps rather than picking a story."),
+  "A date thirty days ahead returns nothing at all - `" + vis.params.updated_since_future.slice(0, 10) + "` gave " + vis.pages.updated_since_future.rows + " rows - which is the",
+  "shape of a working filter, and the opposite of the silent `status` leg above.",
+  "",
   "## What this does not support",
   "",
   "- That a declared address works. \"The record names an endpoint\" and \"the endpoint answers an MCP request\"",
@@ -361,9 +399,9 @@ const lines = [
   "  page has a shelf life measured in weeks.",
   "- That the `status` query parameter filters anything. It is not among the documented parameters of",
   "  `GET /v0/servers` (" + visParams + "), and `?status=active` answered with a first page whose sha256 equalled",
-  "  the unfiltered one on " + date + ", `deprecated` rows included - no error, no effect. So the active split above",
+  "  the unfiltered one on " + visDate + ", `deprecated` rows included - no error, no effect. So the active split above",
   "  is computed client-side from the whole walk.",
-  "- That no server-side option exists for this. `?version=latest` is documented and the server honours it: on " + date + " the",
+  "- That no server-side option exists for this. `?version=latest` is documented and the server honours it: on " + visDate + " the",
   "  unfiltered first page carried " + visMix.latest + " rows marked latest against " + visMix.not_latest + " that a newer version had",
   "  already superseded, while `?version=latest` returned " + visLatestOnly.latest + " latest and " + visLatestOnly.not_latest + " superseded, and",
   "  `?version=not-a-real-value` returned no rows at all. Note what that filter is about: version currency, not status",
