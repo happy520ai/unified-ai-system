@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MCP security boundaries: what we have actually checked, and what is still unproven | Unified AI System</title>
+    <meta
+      name="description"
+      content="Twenty-three attack probes against a real gateway process, two published-image content reviews done by different methods, and the line where neither of them reaches. Bounded evidence with the command to re-run each claim."
+    />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="theme-color" content="#081011" />
+    <link
+      rel="canonical"
+      href="https://happy520ai.github.io/unified-ai-system/mcp-security-boundaries.html"
+    />
+
+    <link rel="sitemap" type="application/xml" href="sitemap.xml" />
+    <link rel="alternate" type="text/plain" href="llms.txt" title="LLM-readable project summary" />
+    <link rel="icon" type="image/png" href="assets/mcp-icon.png" />
+
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Unified AI System" />
+    <meta property="og:locale" content="en_US" />
+    <meta
+      property="og:title"
+      content="MCP security boundaries: what we have actually checked"
+    />
+    <meta
+      property="og:description"
+      content="23 attack probes all defended, two image reviews by two different methods, and an explicit list of what neither one establishes."
+    />
+    <meta
+      property="og:url"
+      content="https://happy520ai.github.io/unified-ai-system/mcp-security-boundaries.html"
+    />
+    <meta
+      property="og:image"
+      content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png"
+    />
+    <meta
+      property="og:image:secure_url"
+      content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png"
+    />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="640" />
+    <meta property="og:image:alt" content="Unified AI System MCP gateway and prompt enhancement preview" />
+    <meta property="article:published_time" content="2026-09-29T23:45:00Z" />
+    <meta property="article:modified_time" content="2026-09-29T23:45:00Z" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="MCP security boundaries: what we have actually checked" />
+    <meta
+      name="twitter:description"
+      content="23 probes, two review methods, and the boundary each one stops at - with the command to re-run it."
+    />
+    <meta
+      name="twitter:image"
+      content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png"
+    />
+    <meta name="twitter:image:alt" content="Unified AI System MCP gateway and prompt enhancement preview" />
+
+    <link rel="stylesheet" href="site.css" />
+    <script type="application/ld+json">
+      {
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "MCP security boundaries: what we have actually checked, and what is still unproven",
+  "description": "The attack regression, the two published-image content reviews, and the explicit boundary of what neither one establishes.",
+  "datePublished": "2026-09-29T23:45:00Z",
+  "dateModified": "2026-09-29T23:45:00Z",
+  "author": {
+    "@type": "Organization",
+    "name": "Unified AI System contributors",
+    "url": "https://github.com/happy520ai/unified-ai-system"
+  },
+  "mainEntityOfPage": "https://happy520ai.github.io/unified-ai-system/mcp-security-boundaries.html",
+  "image": "https://happy520ai.github.io/unified-ai-system/assets/social-preview.png",
+  "keywords": "MCP security, self-hosted AI gateway, attack regression, container image review, published digest, residual risk"
+}
+    </script>
+    <script src="site.js" defer></script>
+  </head>
+  <body class="article-page">
+    <a class="skip-link" href="#article">Skip to article</a>
+
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="Unified AI System home">
+        <img src="assets/mcp-icon.png" alt="" width="32" height="32" />
+        <span>Unified AI System</span>
+      </a>
+      <nav aria-label="Primary navigation">
+        <a href="./">Project</a>
+        <a href="#attack">Attack probes</a>
+        <a href="#images">Image reviews</a>
+        <a href="#boundary">What this does not prove</a>
+      </nav>
+    </header>
+
+    <main id="article">
+      <p class="eyebrow dark">EVIDENCE &middot; SELF-ASSESSED, BOUNDED, RE-RUNNABLE</p>
+      <h1>MCP security boundaries: what we have actually checked.</h1>
+      <p>
+        This page exists because the security evidence in this repository lived only as a GitHub file
+        directory, where a search result cannot land on it. Every number below is produced by a command
+        in this repository, and the first thing each section states is where that method stops. Nothing
+        here is a production certification, and none of it is a claim of universal safety.
+      </p>
+      <p>
+        <a href="credential-free-evidence.html">Credential-free evidence: what one run proves about provider calls</a>
+        &middot;
+        <a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/security/README.md">Security evidence directory</a>
+        &middot;
+        <a href="verify-mcp-docker-image.html">What a published MCP image exposes</a>
+      </p>
+
+      <h2 id="attack">The attack regression: twenty-three probes, all defended</h2>
+      <p>
+        <code>tools/security-attack-regression.mjs</code> starts a real gateway process and drives
+        twenty-three attack cases at it: cross-tenant isolation, header and identity forgery, role
+        checks, quota and rate behaviour, revocation, information leaks, and the MCP boundary. Each case
+        prints <code>DEFENDED</code> or <code>BREACH</code>, and any breach exits non-zero.
+      </p>
+      <p>
+        Run it yourself:
+      </p>
+      <pre><code>node tools/security-attack-regression.mjs</code></pre>
+      <p>
+        The committed page <a href="security-drill-evidence.html">Security drill evidence</a> is generated
+        by executing that script and parsing its output. It is written only if exactly twenty-three
+        verdicts are parsed and none is a breach, and it prints the count from the parsed verdicts rather
+        than from a number typed into a template. If you add a twenty-fourth case and forget to update
+        anything, the generator refuses to write instead of publishing a stale count.
+      </p>
+      <p class="callout">
+        <strong>Where this method stops.</strong> It is a self-assessed regression written by the people
+        who wrote the code. It is not a penetration test by an independent party, and it is not an audit.
+        It runs against the source build, so a green run does not certify the container image published to
+        the registry - that is a separate question, handled below.
+      </p>
+
+      <h2 id="images">Two published-image reviews, by two different methods</h2>
+      <p>
+        These are not the same check and they do not cover the same ground. Reading them as one number is
+        the mistake this section exists to prevent.
+      </p>
+      <table>
+        <caption>Reviews on file, by the method that produced them</caption>
+        <thead>
+          <tr><th>Image</th><th>Method</th><th>What it required</th><th>What it concluded</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>0.8.0</code></td>
+            <td>Read the layer tarballs straight out of the registry</td>
+            <td>No Docker engine; nothing is executed</td>
+            <td>Non-root <code>node</code> user, 8 setuid and 3 setgid files - and four of the eight
+              native modules in the <code>linux/arm64</code> tag are x86-64, so the paths that load them
+              fail on that architecture</td>
+          </tr>
+          <tr>
+            <td><code>0.4.9</code></td>
+            <td>Export a container filesystem with Docker</td>
+            <td>A working Docker engine</td>
+            <td>Default root user, 11 base-image SUID/SGID files; arm64 modules genuinely AArch64.
+              This is the review the agent skill's pinned digest rests on</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Re-read either one without Docker:
+      </p>
+      <pre><code>node tools/inspect-image-filesystem.mjs 0.8.0
+node tools/verify-image-roster.mjs 0.8.0</code></pre>
+      <p>
+        The second command answers a different question - which tool names the published image actually
+        exposes. It reports <strong>15</strong> for <code>0.8.0</code> and <strong>9</strong> for
+        <code>0.4.9</code>, read out of the image bytes rather than from any document, which is why the
+        pinned digest in the install instructions matters: nine of the fifteen names do not exist in that
+        older image.
+      </p>
+      <p class="callout">
+        <strong>Why the newest review is not reassurance.</strong> The <code>0.8.0</code> review is the one
+        that <em>found</em> the architecture regression. A newer document here means more was checked, not
+        that less is wrong.
+      </p>
+      <p>
+        Versions <code>0.5.0</code>, <code>0.6.0</code> and <code>0.7.0</code> have no content review on
+        file. <code>0.4.8</code>, <code>0.4.0</code> and <code>0.3.2</code> do, and are linked from the
+        <a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/security/README.md">security index</a>.
+      </p>
+
+      <h2 id="boundary">What this page does not prove</h2>
+      <ul>
+        <li>
+          <strong>Not independent verification.</strong> Both the attack regression and the image reviews
+          are ours. No third party has audited this project.
+        </li>
+        <li>
+          <strong>Not a runtime audit of the published container.</strong> The tarball review reads
+          bytes; it never starts the image. The <code>arm64</code> finding is an ELF-header reading, so
+          the failure mode is inferred from the binaries inside the tag, not observed in a running
+          container on that architecture.
+        </li>
+        <li>
+          <strong>Not a population claim.</strong> Twenty-three cases are what we thought to write. They
+          do not bound what an attacker will try.
+        </li>
+        <li>
+          <strong>No production readiness, no recovery objectives.</strong> Nothing here is RTO or RPO
+          evidence, and nothing here says the gateway is safe under your workload, your provider, or
+          your network.
+        </li>
+        <li>
+          <strong>Digest trust is delegated.</strong> Reading an image by digest assumes the registry
+          serves the object it advertised. The review recomputes every blob digest it downloads, which
+          catches corruption and substitution in transit, not a malicious registry that was never honest
+          about the tag in the first place.
+        </li>
+      </ul>
+
+      <h2 id="report">If you find something</h2>
+      <p>
+        Report privately through
+        <a href="https://github.com/happy520ai/unified-ai-system/security/policy">the security policy</a>
+        rather than an issue. If you re-run a command above and it disagrees with this page, that is
+        itself worth reporting: the numbers here are derived, so a mismatch means either the artifact or
+        the derivation moved, and we would rather find that out than defend a stale figure.
+      </p>
+
+      <aside>
+        <p>
+          <a href="credential-free-evidence.html">Next: what one credential-free run proves about provider calls</a>
+        </p>
+      </aside>
+    </main>
+
+    <footer class="site-footer">
+      <a href="./">Project</a>
+      <a href="https://github.com/happy520ai/unified-ai-system">Repository</a>
+      <a href="https://github.com/happy520ai/unified-ai-system/security/policy">Security policy</a>
+      <a href="llms.txt">LLM-readable summary</a>
+    </footer>
+  </body>
+</html>

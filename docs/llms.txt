@@ -13,6 +13,7 @@ Unified AI System provides one governed boundary for models, agents, knowledge, 
 - [Why an AI gateway should be terminal-first](https://happy520ai.github.io/unified-ai-system/terminal-first-ai-gateway.html)
 - [Turn a REST API into governed MCP tools](https://happy520ai.github.io/unified-ai-system/openapi-to-mcp.html)
 - [How a credential-free run proves no provider was called](https://happy520ai.github.io/unified-ai-system/credential-free-evidence.html)
+- [MCP security boundaries: 23 attack probes, two image reviews, and what neither proves](https://happy520ai.github.io/unified-ai-system/mcp-security-boundaries.html)
 - [What a published MCP image actually exposes (9, 12, then 15 tools)](https://happy520ai.github.io/unified-ai-system/verify-mcp-docker-image.html)
 - [Where this project is listed, with the URL that proves it](https://happy520ai.github.io/unified-ai-system/listing-census.html)
 - [Nine measurements of the public MCP ecosystem (pagination, revision tolerance, session ids, server/discover, instructions, protocol-version header, header routing, body-less GET, cache hints)](https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.html)
