@@ -18,12 +18,10 @@ const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
 const SCRIPT = "test:verification-tools";
 
 // Files that exist, are not in the list, and why - each one is a debt, not a decision to leave behind.
-export const EXCEPTIONS = {
-  "tools/local-client-native-pop-replay.test.mjs":
-    "its target is the windows-native local-client authority CLI; it passes on Windows and has never been " +
-    "read on the Linux runner this suite uses, so registering it would be a guess about a platform we have not " +
-    "measured. Debt: take that reading, then move it into the list and delete this entry.",
-};
+// Empty since 2026-09-30: the only entry (local-client-native-pop-replay) was read on the Linux
+// runner and moved into the list. The equality assertion below pins this to a deliberate edit, so
+// a new exception cannot appear without a reason written next to it.
+export const EXCEPTIONS = {};
 
 export function registeredTests() {
   return new Set(String(pkg.scripts[SCRIPT] ?? "").match(/tools\/[\w.-]+\.test\.mjs/gu) ?? []);
@@ -50,7 +48,7 @@ test("the exceptions are declared with a reason and a repair, not a shrug", () =
   }
   // The set itself is pinned by equality: the cheap way to silence this guard is to add the missing file to
   // the exception map, and that has to show up here as a deliberate edit rather than as a passing run.
-  assert.deepEqual(Object.keys(EXCEPTIONS).sort(), ["tools/local-client-native-pop-replay.test.mjs"]);
+  assert.deepEqual(Object.keys(EXCEPTIONS).sort(), [], "every exception must be a deliberate edit");
   // A planted unregistered file must be reported by the guard rather than absorbed by the exception map.
   const withNew = unregistered({
     onDisk: [...testsOnDisk(), "tools/brand-new-guard.test.mjs"],
