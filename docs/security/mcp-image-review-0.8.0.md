@@ -63,13 +63,27 @@ The architecture is read from `e_machine` in each file's own header (`0x3e` = x8
 inferred from the file name, so the finding does not depend on pnpm's naming convention being honest. No
 `linux-arm64` or `aarch64` module path exists anywhere in that tag's merged filesystem.
 
-**This is a regression, not how the build has always worked.** [0.4.9's review](mcp-image-review-0.4.9.md)
-records a separate arm64 set with its own digests - `skia.linux-arm64-gnu.node`, the `linux-arm64-musl` variant,
-and an arm64 `better_sqlite3.node` whose hash differs from the amd64 one. So the arm64 tag used to carry arm64
-binaries, and somewhere between 0.4.9 and 0.8.0 it stopped. 12 of the 21 layers are shared between today's two
-tags, which is *consistent* with one `/app` tree being installed on an x86-64 runner and published to both; that
-is a hypothesis about the build, and this page does not establish it. What it does establish is the before and
-after, both from file contents.
+**This is a regression, not how the build has always worked - and it can be pinned to a release.** The same
+command against the arm64 tag of each release in question (`0.4.9` was read on 2026-09-29, the rest likewise;
+earlier tags were not re-read here):
+
+```
+IMAGE_REVIEW version=0.4.9 arch=arm64 layers=16 files=11101 native_modules=4 elf_arch_mismatch=0
+IMAGE_REVIEW version=0.5.0 arch=arm64                REFUSED: carries no linux/arm64 child
+IMAGE_REVIEW version=0.6.0 arch=arm64 layers=18 files=21129 native_modules=8 elf_arch_mismatch=4
+IMAGE_REVIEW version=0.7.0 arch=arm64 layers=18 files=21101 native_modules=8 elf_arch_mismatch=4
+IMAGE_REVIEW version=0.8.0 arch=arm64 layers=21 files=21864 native_modules=8 elf_arch_mismatch=4
+IMAGE_REVIEW version=0.8.0 arch=amd64 layers=21 files=21864 native_modules=8 elf_arch_mismatch=0
+```
+
+0.4.9's arm64 tag is clean, so the modules there really are AArch64 - which is also what
+[0.4.9's review](mcp-image-review-0.4.9.md) recorded in its per-platform table (`skia.linux-arm64-gnu.node`,
+the `linux-arm64-musl` variant, and an arm64 `better_sqlite3.node` whose digest differs from the amd64 one).
+0.5.0 published no arm64 child at all. From 0.6.0 on, the arm64 tag exists and carries x86-64 modules. So the
+change landed between 0.4.9 (2026-08-10) and 0.6.0 (2026-08-28), and 12 of the 21 layers are shared between
+today's two tags - consistent with one `/app` tree being installed on an x86-64 runner and published to both.
+That last part is a hypothesis about the build; this page does not establish it. What it establishes is the
+before and after, both read from file contents.
 
 What a reader should conclude: on an arm64 host, the paths that load these modules will fail to load them -
 `better-sqlite3` is the one that matters, because it backs the stores the governed features use. Nothing in

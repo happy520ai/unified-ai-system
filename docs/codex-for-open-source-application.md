@@ -24,7 +24,7 @@ do not inflate usage, Stars, or production readiness.
 
 ## 3) Why this repository qualifies? (<=500 chars)
 
-Unified AI System is an Apache-2.0, self-hosted OpenAI-compatible AI gateway and MCP server for Codex, Cursor, and Cline. v0.8.0 ships anonymous multi-architecture containers for both the gateway and the MCP server, passes public CI including a clean-clone runtime check, and is published in the official MCP Registry; the repository pins the official OpenAI JS SDK at 7.4.0. Its ecosystem value is lowering the barrier to inspectable, credential-free AI tooling.
+Unified AI System is an Apache-2.0, self-hosted OpenAI-compatible AI gateway and MCP server for Codex, Cursor, and Cline. v0.8.0 ships anonymous linux/amd64 containers for both the gateway and the MCP server, passes public CI including a clean-clone runtime check, and is published in the official MCP Registry; the repository pins the official OpenAI JS SDK at 7.4.0. Its ecosystem value is lowering the barrier to inspectable, credential-free AI tooling.
 
 ## 4) I'm interested in (select all options shown by the form)
 
@@ -45,7 +45,7 @@ API credits will fund bounded, reproducible interoperability and regression test
 
 ## 7) Anything else we should know? (<=500 chars)
 
-I am an independent primary maintainer building this project in public. The repository has Apache-2.0 licensing, bilingual docs, reproducible clean-clone checks, multi-architecture images, a reviewed immutable MCP plugin image, and an official MCP Registry release. Support would be used only for public maintenance and measurable security/quality milestones, not private workloads or unsupported AGI/production claims.
+I am an independent primary maintainer building this project in public. The repository has Apache-2.0 licensing, bilingual docs, reproducible clean-clone checks, published linux/amd64 images, a reviewed immutable MCP plugin image, and an official MCP Registry release. Support would be used only for public maintenance and measurable security/quality milestones, not private workloads or unsupported AGI/production claims.
 
 ## 8) Fast submit tips
 
