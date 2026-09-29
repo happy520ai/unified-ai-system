@@ -300,6 +300,10 @@ Python 示例、支持字段、鉴权方式和明确限制见
 codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.8.0
 ```
 
+在 Apple Silicon 机器上，请把 `--platform linux/amd64` 写在镜像名之前：已发布的 `linux/arm64` 标签目前带的是
+x86-64 原生模块（含 `better-sqlite3`），受治理工具在该架构上会加载失败 ——
+[issue #190](https://github.com/happy520ai/unified-ai-system/issues/190) 记录了读数与复现命令。
+
 重启 Codex 后运行 `/mcp` 检查连接，再参考 [Codex MCP 60 秒快速开始](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html)。
 当前源码提供 15 个工具，包括健康检查、Agent 治理查询、自然语言增强、聊天、知识、工作流和 workforce 能力。镜像标签与工作树是不同对象，安装后应检查实际工具清单。
 

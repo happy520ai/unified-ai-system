@@ -364,6 +364,11 @@ Published MCP command:
 codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.8.0
 ```
 
+On Apple Silicon, put `--platform linux/amd64` before the image name. The published `linux/arm64` tag
+currently ships x86-64 native modules, including `better-sqlite3`, so the governed tools fail to load there -
+[issue #190](https://github.com/happy520ai/unified-ai-system/issues/190) carries the reading and the one command
+that reproduces it.
+
 Restart Codex, run `/mcp verbose` to inspect the installed tool list, then follow the
 [60-second Codex MCP quickstart](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.html) for a safe first
 prompt-enhancement call and removal command.
