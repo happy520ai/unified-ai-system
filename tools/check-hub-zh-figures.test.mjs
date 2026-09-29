@@ -9,6 +9,7 @@ const ROOT = resolve(import.meta.dirname, "..");
 const GEN = "tools/check-hub-zh-figures.mjs";
 const PAGE = "docs/mcp-ecosystem-measurements.zh-CN.html";
 const CENSUS = "docs/data/mcp-registry-census.2026-09-28.json";
+const RESOLVE = "docs/data/mcp-package-resolve.2026-09-28.json";
 const dir = mkdtempSync(join(tmpdir(), "hubzh-"));
 
 function run(args) {
@@ -25,11 +26,14 @@ test("every figure the Chinese hub quotes is checked, and the one gap is declare
   const out = parse(r.stdout);
   assert.equal(out.missing.length, 0, "published page must match its artifacts: " + JSON.stringify(out.missing));
   assert.equal(out.checked, out.expected_total);
-  // The not_checked list is itself pinned: silent growth (someone adds a phrase rule without noticing the
-  // gap list changed) and silent shrinkage (a figure quietly dropped from coverage) both read here first.
+  // Pinned as a number as well as a ratio: if a phrase rule is dropped, checked and expected_total shrink
+  // together and the equality above still holds.
+  assert.equal(out.expected_total, 12);
+  // The not_checked list is itself pinned, so both silent growth (a rule added without noticing the gap
+  // list changed) and silent shrinkage (a figure quietly dropped from coverage) read here first.
   assert.equal(out.not_checked.length, 1);
-  assert.match(out.not_checked[0].label, /785 条里 15 条/);
-  assert.match(out.not_checked[0].reason, /render-mcp-package-resolve-doc/);
+  assert.match(out.not_checked[0].label, /Wilson/);
+  assert.match(out.not_checked[0].reason, /unusable, definite/);
 });
 
 test("--require-present passes on the shipped page and artifacts", () => {
@@ -86,4 +90,28 @@ test("an unreadable page refuses rather than reporting the figures as absent", (
   const r = run(["--page", join(dir, "no-such-page.html"), "--require-present"]);
   assert.equal(r.status, 3, r.stdout + r.stderr);
   assert.match(r.stderr, /cannot read the published page/);
+});
+
+test("a family losing one decided reading breaks the count phrase but not the rounded rate", () => {
+  const resolve = JSON.parse(readFileSync(join(ROOT, RESOLVE), "utf8"));
+  resolve.by_type.pypi.definite = resolve.by_type.pypi.definite - 1;
+  const p = join(dir, "resolve-pypi-minus-one.json");
+  writeFileSync(p, JSON.stringify(resolve), "utf8");
+  const r = run(["--resolve", p, "--require-present"]);
+  assert.equal(r.status, 2, r.stdout + r.stderr);
+  assert.match(r.stderr, /resolve decided\/failed counts/);
+  assert.doesNotMatch(r.stderr, /resolve pooled rate/);
+  // Why this arm is worth its lines: 19/985 and 19/984 both render as 1.93%, so the published rate cannot
+  // see a one-row change while the published count can. Pinning only percentages would not be a guard.
+});
+
+test("a family field renamed to something else refuses with the family named", () => {
+  const resolve = JSON.parse(readFileSync(join(ROOT, RESOLVE), "utf8"));
+  resolve.by_type.cargo.unusable = undefined;
+  delete resolve.by_type.cargo.unusable;
+  const p = join(dir, "resolve-cargo-renamed.json");
+  writeFileSync(p, JSON.stringify(resolve), "utf8");
+  const r = run(["--resolve", p, "--require-present"]);
+  assert.equal(r.status, 3, r.stdout + r.stderr);
+  assert.match(r.stderr, /family cargo has no number at unusable/);
 });

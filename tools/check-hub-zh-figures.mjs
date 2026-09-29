@@ -12,9 +12,15 @@
 //   node tools/check-hub-zh-figures.mjs --selftest        # proves a moved number and a stale page both bite
 //
 // What this cannot do: it compares the published page to the published artifacts. It cannot tell you whether
-// an artifact still describes the live registry - that is the survey instrument's job. The figures whose
-// denominator rule lives inside another renderer are reported under `not_checked` with the reason, rather
-// than silently dropped, because a guard that hides its own gaps certifies less than it appears to.
+// an artifact still describes the live registry - that is the survey instrument's job. What is not covered
+// is reported under `not_checked` with its reason, rather than silently dropped, because a guard that hides
+// its own gaps certifies less than it appears to.
+//
+// Corrected in the follow-up commit, and the correction stays in the file: the first version put the
+// "785 条里 15 条" figures on the not_checked list on a guess that 785 came from excluding unsupported-host
+// rows. It did not - 785 is sum(by_type.*.definite) while 791 is sum(.measured), two books of one draw, and
+// both are plain field reads. They are checked now, because a guard's stated limitation is itself a claim
+// about the source, and a wrong one of those is how a gap gets blessed permanently.
 import { readFileSync, writeFileSync, rmSync, mkdtempSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -32,6 +38,7 @@ const FILES = {
   census: arg("--census", "docs/data/mcp-registry-census.2026-09-28.json"),
   wide: arg("--wide", "docs/data/mcp-registry-census-including-deleted.2026-09-28.json"),
   npm: arg("--npm", "docs/data/mcp-npm-installability-sample.2026-09-28.json"),
+  resolve: arg("--resolve", "docs/data/mcp-package-resolve.2026-09-28.json"),
   tdqs: arg("--tdqs", "docs/data/mcp-tool-definition-quality.2026-09-28.json"),
 };
 
@@ -80,6 +87,28 @@ function expectations() {
   const ci = npm.ci95;
   if (!Array.isArray(ci) || ci.length !== 2) throw new Error("REFUSED: npm sample has no two-sided ci95 to quote");
 
+  // Checked per family, then summed: an aggregate that happens to land on the right total after a renamed
+  // field would still be wrong, and the page would not say which family moved.
+  const resolve = readJson(FILES.resolve);
+  if (!resolve.by_type || typeof resolve.by_type !== "object") throw new Error("REFUSED: package-resolve artifact has no by_type to sum");
+  let definiteSum = 0;
+  let unusableSum = 0;
+  let measuredSum = 0;
+  for (const [family, t] of Object.entries(resolve.by_type)) {
+    for (const field of ["definite", "unusable", "measured"]) {
+      if (typeof t[field] !== "number" || !Number.isFinite(t[field])) throw new Error(`REFUSED: package-resolve family ${family} has no number at ${field}`);
+    }
+    definiteSum += t.definite;
+    unusableSum += t.unusable;
+    measuredSum += t.measured;
+  }
+  // The pooled sentence spans six artifact families - these five plus npm. npm's decided readings are its
+  // draw minus whatever that probe could not decide at all.
+  const npmDefinite = sampleSize - num(npm, "unresolvable", "npm sample");
+  const npmUnusable = num(npm, "listed_package_unusable", "npm sample");
+  const poolDefinite = definiteSum + npmDefinite;
+  const poolUnusable = unusableSum + npmUnusable;
+
   return [
     { label: "installability 54/6 (first mention)", phrase: `字母序最靠前的 ${distinctServers} 个记录里只有 ${withPackage} 个带`, from: "installability.sample.distinct_servers_collected + tally.package_present" },
     { label: "installability 54/6 (link text)", phrase: `${distinctServers} 个去重后的记录里只有 ${withPackage} 个带 package`, from: "same two fields" },
@@ -91,11 +120,13 @@ function expectations() {
     { label: "npm failure split", phrase: `${versionMissing} 条版本已不存在、${packageMissing} 条包名已消失`, from: "npm.verdict_tally.package_exists_version_missing + package_missing" },
     { label: "npm rate and interval", phrase: `不可用率 ${pct(rate)}%（95% 置信区间 ${pct(ci[0])}%–${pct(ci[1])}%）`, from: "npm.unusable_rate + ci95" },
     { label: "tdqs outputSchema self-audit", phrase: `我们的 ${toolCount} 个工具里，${outputSchema} 个声明 outputSchema`, from: "tdqs.tool_count + totals.output_schema_present" },
+    { label: "resolve decided/failed counts", phrase: `${fmt(definiteSum)} 条里 ${unusableSum} 条解析不了`, from: "sum of package-resolve by_type.*.definite and .unusable; the same artifact's .measured sums to " + fmt(measuredSum) + " entries, which is a different book and is why the page says both" },
+    { label: "resolve pooled rate over six families", phrase: `六类合计不可用率 ${pct(poolUnusable / poolDefinite)}%`, from: `(${unusableSum} + npm ${npmUnusable}) over (${fmt(definiteSum)} + npm ${npmDefinite}) = ${poolUnusable}/${poolDefinite}` },
   ];
 }
 
 const NOT_CHECKED = [
-  { label: "785 条里 15 条解析不了 / 1.93% / Wilson 1.24%–2.99%", reason: "the package-resolve page's denominator is derived inside tools/render-mcp-package-resolve-doc.mjs (the artifact's own by_type rows sum to 791 measured and 15 unusable, so 785 is that renderer's exclusion of unsupported-host rows, not a field); re-deriving it here would invent a second rule and let the two disagree" },
+  { label: "the Wilson brackets quoted next to these rates (pooled 1.24%–2.99%, and each family's bracket)", reason: "each interval is recomputed from (unusable, definite) by that page's own renderer. Putting a second Wilson implementation here would create two formulas that can disagree, and the guard would then be arguing arithmetic instead of reporting drift. The counts every interval is built from are checked." },
 ];
 
 function report(page, expects) {
