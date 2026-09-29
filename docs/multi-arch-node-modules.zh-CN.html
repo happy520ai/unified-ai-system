@@ -30,6 +30,7 @@
   "headline": "为什么我们的 linux/arm64 镜像加载不了 better-sqlite3：错误的 CPU 架构 node_modules 陷阱",
   "description": "路径是对的，文件在，权限也没问题。问题在于：arm64 镜像里装的是一个 x86-64 共享对象，动态加载器拒绝它。 Dockerfile 看上去没有任何一处写错，因为安装动作大概率并不是在目标架构的机器上发生的 —— 它只跑了一次， 产出的 node_modules 被同时复制进了两个平台的镜像。",
   "datePublished": "2026-09-29T03:50:10Z",
+  "dateModified": "2026-09-29T03:50:37Z",
   "author": {
     "@type": "Organization",
     "name": "Unified AI System",
