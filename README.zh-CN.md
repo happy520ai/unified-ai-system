@@ -333,7 +333,9 @@ npx skills add happy520ai/unified-ai-system --skill unified-ai-gateway --agent c
 ```
 
 插件固定使用[已审查的 v0.4.9 不可变 MCP 镜像](docs/security/mcp-image-review-0.4.9.md)，
-启动时禁用容器网络并移除 Linux capabilities。
+启动时禁用容器网络并移除 Linux capabilities。当前发布版另有自己的
+[镜像内容审查](docs/security/mcp-image-review-0.8.0.md)，直接读取已发布的 layer tarball 而非 Docker 导出，
+`linux/arm64` 的架构注意事项就记录在该页。
 
 Skill 主页：<https://skills.sh/happy520ai/unified-ai-system/unified-ai-gateway>
 

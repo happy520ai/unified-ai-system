@@ -402,7 +402,9 @@ npx skills add happy520ai/unified-ai-system --skill unified-ai-gateway --agent c
 ```
 
 The plugin pins the [reviewed immutable v0.4.9 MCP image](docs/security/mcp-image-review-0.4.9.md)
-and starts it without container networking or Linux capabilities.
+and starts it without container networking or Linux capabilities. The current release has its own
+[content review](docs/security/mcp-image-review-0.8.0.md), read from the published layer tarballs rather than a
+Docker export - that page is where the `linux/arm64` architecture caveat is written down.
 
 Skill hub: https://skills.sh/happy520ai/unified-ai-system/unified-ai-gateway
 
