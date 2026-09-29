@@ -71,6 +71,15 @@ jobs:
         run: |
           node tools/refresh-sitemap-dates.mjs --check
 
+      - name: Check the listing census against a fresh probe
+        # docs/listing-census.md advertises places outside this repository that carry an entry for us. Those
+        # listings can be removed by their maintainer on any day, and a page that quietly went stale would be
+        # worse than no page: it would be a claim about someone else that nobody can check. So the nightly
+        # re-probes and fails on drift in either direction - a listing that vanished, or one that appeared and
+        # is not yet on the page.
+        run: |
+          node tools/render-listing-census.mjs --check
+
       - name: Upload growth snapshot artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

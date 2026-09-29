@@ -57,8 +57,14 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, "
   let failed = 0;
   for (const name of generated) {
     const stem = name.replace(/\.html$/, "");
-    const twin = existsSync("docs/" + stem + ".zh-CN.html") ? stem + ".zh-CN.html" : "";
-    const args = ["tools/render-evidence-page.mjs", "--in", "docs/" + stem + ".md", "--out", "docs/" + name];
+    // The twin of a Chinese page is the English one. Asking only "does <stem>.zh-CN.html exist" gave the
+    // Chinese side no twin (it looked for a doubled suffix), which is how a page ended up declaring no
+    // hreflang for its own language and pointing x-default at itself.
+    const isZh = stem.endsWith(".zh-CN");
+    const other = isZh ? stem.slice(0, -".zh-CN".length) : stem + ".zh-CN";
+    const twin = existsSync("docs/" + other + ".html") ? other + ".html" : "";
+    const args = ["tools/render-evidence-page.mjs", "--in", "docs/" + stem + ".md", "--out", "docs/" + name,
+      "--lang", isZh ? "zh-CN" : "en"];
     if (twin) args.push("--twin", twin);
     const r = spawnSync(process.execPath, args, { encoding: "utf8" });
     if (r.status !== 0) {

@@ -394,3 +394,59 @@ test("a depth-2 clone - what CI checks out - reports boundary dates, and the gat
   assert.equal(here(["cat-file", "-e", trueLine.split(" ")[0] + "^"]).status, 0, "a deep clone's source commit must read as knowable");
   rmSync(dir, { force: true, recursive: true });
 });
+
+const { hreflangBlock, IMAGE_ALT } = await import("./render-evidence-page.mjs");
+const NL = String.fromCharCode(10);
+const ROOT_URL = "https://happy520ai.github.io/unified-ai-system/";
+
+test("a language twin is annotated from both sides and x-default names the English page", () => {
+  // The renderer wrote these lines, so this is where the pair has to be right. The shipped defect was that
+  // the Chinese page emitted a single self-link labelled hreflang="en" and pointed its x-default at itself -
+  // a page claiming to be English while its own canonical said otherwise.
+  const en = hreflangBlock({ slug: "pair.html", lang: "en", twin: "pair.zh-CN.html" });
+  const zh = hreflangBlock({ slug: "pair.zh-CN.html", lang: "zh-CN", twin: "pair.html" });
+  assert.equal(en.split(NL).length, 3, "an EN twin page declares three alternates");
+  assert.equal(zh.split(NL).length, 3, "the ZH twin declares the same three, not one");
+  assert.match(zh, new RegExp('hreflang="zh-CN" href="' + ROOT_URL.replace(/[/.]/gu, (c) => "\\" + c) + 'pair\.zh-CN\.html"'), zh);
+  assert.match(zh, new RegExp('hreflang="en" href="' + ROOT_URL.replace(/[/.]/gu, (c) => "\\" + c) + 'pair\.html"'), zh);
+  assert.match(en, /hreflang="x-default" href="https:\/\/happy520ai\.github\.io\/unified-ai-system\/pair\.html"/u);
+  assert.match(zh, /hreflang="x-default" href="https:\/\/happy520ai\.github\.io\/unified-ai-system\/pair\.html"/u,
+    "both sides must agree that the English page is the default; the old code named the page's own URL");
+  assert.doesNotMatch(zh, /hreflang="en" href="[^"]*zh-CN\.html"/u, "the English alternate may not point at the Chinese file");
+  // Boundary: a page with no twin declares exactly one alternate, in its own language.
+  assert.equal(hreflangBlock({ slug: "solo.html", lang: "en", twin: "" }),
+    '<link rel="alternate" hreflang="en" href="' + ROOT_URL + 'solo.html" />');
+});
+
+test("the generated head carries a card description, in the language of the page", () => {
+  // A hand-added og:image:alt is erased by the next render - which is how 14 pages lost it after they had
+  // been fixed. So the attribute has to come out of the generator, and that is only provable by rendering.
+  assert.notEqual(IMAGE_ALT.en, IMAGE_ALT["zh-CN"], "the two languages need different descriptions");
+  for (const lang of ["en", "zh-CN"]) {
+    assert.ok(IMAGE_ALT[lang].includes("Unified AI System"), lang + " card alt must name the project");
+    assert.ok(IMAGE_ALT[lang].length > 20, lang + " card alt is too short to describe the image");
+  }
+  const dir = mkdtempSync(join(tmpdir(), "renderhead-"));
+  const mk = (stem) => {
+    const inPath = join(dir, stem + ".md");
+    const outPath = join(dir, stem + ".html");
+    writeFileSync(inPath, full, "utf8");
+    const r = spawnSync(process.execPath, [RENDERER, "--in", inPath, "--out", outPath], { encoding: "utf8" });
+    assert.equal(r.status, 0, r.stderr);
+    return readFileSync(outPath, "utf8");
+  };
+  const en = mk("probe");
+  assert.ok(en.includes('<meta property="og:image:alt" content="' + IMAGE_ALT.en + '" />'), "EN render lost the card alt");
+  // Same file rendered as a Chinese page without --lang: the name has to decide the language, because a
+  // caller that forgot the flag used to emit an English-labelled Chinese page.
+  const zhInferred = mk("probe2.zh-CN");
+  assert.ok(zhInferred.includes('<html lang="zh-CN">'), "a .zh-CN source must render as Chinese with no --lang");
+  assert.ok(zhInferred.includes('<meta property="og:image:alt" content="' + IMAGE_ALT["zh-CN"] + '" />'),
+    "ZH render lost the Chinese card alt");
+  // A page rendered with no twin declares only itself: no x-default, because there is no alternate to choose
+  // a default between. Asserting one here would demand a declaration the pair rule forbids.
+  assert.equal((zhInferred.match(/hreflang="x-default"/gu) || []).length, 0, "a lone page may not claim a default");
+  assert.equal((zhInferred.match(/rel="alternate" hreflang=/gu) || []).length, 1, "one self declaration, in its own language");
+  assert.match(zhInferred, /hreflang="zh-CN" href="https:\/\/happy520ai\.github\.io\/unified-ai-system\/probe2\.zh-CN\.html"/u);
+  rmSync(dir, { recursive: true, force: true });
+});
