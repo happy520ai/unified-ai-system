@@ -48,7 +48,7 @@ const CARRIERS_OK = [
 const INBOUND_OK = [
   "OWNER-GATE     e2b-dev/awesome-ai-agents#1401                blocked    gate: CLA  | Add Unified AI System",
   "(not printed individually: 29 doors waiting on the other side)",
-  "INBOUND_STATE doors=31 reply_due=0 owner_gate=1 waiting=29 private_review=1 inline_newer=0 change_requested=0 unreadable=0 bot_events_excluded=19 foreign_edits_seen=1 verdict=SWEEP-COMPLETE",
+  "INBOUND_STATE doors=31 reply_due=0 owner_gate=1 waiting=29 private_review=1 inline_newer=0 change_requested=0 conflicts=0 unreadable=0 bot_events_excluded=19 foreign_edits_seen=1 verdict=SWEEP-COMPLETE",
 ].join("\n");
 
 const ALL_OK = { presence: PRESENCE_OK, topic: TOPIC_OK, carriers: CARRIERS_OK, inbound: INBOUND_OK, presenceStatus: 0, topicStatus: 0, carriersStatus: 0, inboundStatus: 0 };
@@ -63,7 +63,7 @@ test("a healthy set of instruments parses into every door field", () => {
   const parsed = parseDoorText(ALL_OK);
   assert.deepEqual(parsed.directories, { listed: 3, not_found: 1, undecidable: 0 });
   assert.deepEqual(parsed.carriers, { listed: 6, watchlisted: 1, absent: 0, unreadable: 0 });
-  assert.deepEqual(parsed.inbound, { doors: "31", replyDue: "0", ownerGate: "1", waiting: "29", privateReview: "1", inlineNewer: "0", changeRequested: "0", unreadable: "0" });
+  assert.deepEqual(parsed.inbound, { doors: "31", replyDue: "0", ownerGate: "1", waiting: "29", privateReview: "1", inlineNewer: "0", changeRequested: "0", conflicts: "0", unreadable: "0" });
   assert.equal(parsed.github, "NOT_FOUND");
   assert.equal(parsed.stars, 8);
   assert.equal(parsed.slots, "20/20");
@@ -72,7 +72,7 @@ test("a healthy set of instruments parses into every door field", () => {
   const line = doorLine(parsed);
   assert.match(line, /^DOOR_STATE stars=8 topic_slots=20\/20 topic_pages_ranked=2 /);
   assert.match(line, /carriers_listed=6 carriers_watchlisted=1 carriers_absent=0 carriers_unreadable=0/);
-  assert.match(line, /inbound_doors=31 inbound_reply_due=0 inbound_owner_gate=1 inbound_inline_newer=0 inbound_change_requested=0 inbound_unreadable=0/);
+  assert.match(line, /inbound_doors=31 inbound_reply_due=0 inbound_owner_gate=1 inbound_inline_newer=0 inbound_change_requested=0 inbound_conflicts=0 inbound_unreadable=0/);
   assert.match(line, /github_mcp=NOT_FOUND/);
   assert.match(line, /page_one_within_reach="agent-governance\(31\), mcp\(47042\)"/);
 });
@@ -199,4 +199,18 @@ test("a watch build that never emitted the field reads as unreadable, not as an 
   assert.equal(older.inbound.changeRequested, "unreadable");
   assert.match(doorLine(older), /inbound_change_requested=unreadable/);
   assert.equal(older.legs.inbound.parsed, true, "the rest of the leg is still readable");
+});
+
+test("a door that has quietly fallen behind is counted, not narrated", () => {
+  // Nobody comments when a branch goes stale: GitHub just stops calling it mergeable. The count comes from
+  // mergeable_state, which is the only place that fact is recorded.
+  const parsed = parseDoorText({ ...ALL_OK, inbound: INBOUND_OK.replace("conflicts=0", "conflicts=2") });
+  assert.equal(parsed.inbound.conflicts, "2");
+  assert.match(doorLine(parsed), /inbound_conflicts=2/);
+});
+
+test("an older watch build reports the conflict count as unreadable rather than zero", () => {
+  const older = parseDoorText({ ...ALL_OK, inbound: INBOUND_OK.replace(" conflicts=0", "") });
+  assert.equal(older.inbound.conflicts, "unreadable");
+  assert.match(doorLine(older), /inbound_conflicts=unreadable/);
 });

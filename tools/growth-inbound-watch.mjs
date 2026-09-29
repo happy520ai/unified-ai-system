@@ -148,7 +148,7 @@ export function stateLine(rows, searchReadable = true) {
   // directory that has none are different statements and only the second one is news.
   if (!searchReadable || rows.length === 0) {
     return "INBOUND_STATE doors=unreadable reply_due=unreadable owner_gate=unreadable waiting=unreadable " +
-      "private_review=unreadable inline_newer=unreadable change_requested=unreadable unreadable=" + unreadable + " bot_events_excluded=" + botEvents +
+      "private_review=unreadable inline_newer=unreadable change_requested=unreadable conflicts=unreadable unreadable=" + unreadable + " bot_events_excluded=" + botEvents +
       " foreign_edits_seen=" + edits + " verdict=SEARCH-UNREADABLE";
   }
   return "INBOUND_STATE doors=" + rows.length +
@@ -158,6 +158,9 @@ export function stateLine(rows, searchReadable = true) {
     " private_review=" + count("private-review") +
     " inline_newer=" + count("inline-newer") +
     " change_requested=" + rows.filter((r) => r.changeRequested).length +
+    // A door becomes unmergeable silently: nobody writes a comment, the branch just falls behind. That is the one
+    // queue state a person can always fix, so it is counted here rather than left to someone walking the list.
+    " conflicts=" + rows.filter((r) => r.state === "dirty").length +
     " unreadable=" + unreadable +
     " bot_events_excluded=" + botEvents +
     " foreign_edits_seen=" + edits +
@@ -271,6 +274,11 @@ export function selftest() {
     detail: { mergeable_state: "clean" }, issue: { pushed_at: null }, comments: [],
     reviews: [{ user: { login: "glama-bot[bot]", type: "Bot" }, submitted_at: "2026-01-04T00:00:00Z", state: "CHANGES_REQUESTED" }],
   }).changeRequested === false;
+  arms.conflicts_are_counted_from_githubs_own_mergeable_state = stateLine([
+    { verdict: "waiting-on-them", state: "dirty", botEvents: 0, edits: 0 },
+    { verdict: "waiting-on-them", state: "clean", botEvents: 0, edits: 0 },
+  ]).includes("conflicts=1");
+  arms.an_unreadable_queue_does_not_claim_zero_conflicts = stateLine([], false).includes("conflicts=unreadable");
   arms.change_requested_is_counted_in_the_state_line = stateLine([
     { verdict: "waiting-on-them", changeRequested: true, botEvents: 0, edits: 0 },
     { verdict: "waiting-on-them", changeRequested: false, botEvents: 0, edits: 0 },

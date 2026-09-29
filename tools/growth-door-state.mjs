@@ -60,7 +60,7 @@ export function parseDoorText({ presence, topic, carriers, inbound, presenceStat
   if (inbLine && inbField("doors")) {
     out.inbound = { doors: inbField("doors"), replyDue: inbField("reply_due"), ownerGate: inbField("owner_gate"),
       waiting: inbField("waiting"), privateReview: inbField("private_review"), inlineNewer: inbField("inline_newer"),
-      changeRequested: inbField("change_requested"),
+      changeRequested: inbField("change_requested"), conflicts: inbField("conflicts"),
       unreadable: inbField("unreadable") };
     for (const [key, value2] of Object.entries(out.inbound)) if (value2 === null) out.inbound[key] = "unreadable";
   }
@@ -94,6 +94,7 @@ export function doorLine(parsed) {
     " inbound_owner_gate=" + (i ? i.ownerGate : "unreadable") +
     " inbound_inline_newer=" + (i ? i.inlineNewer : "unreadable") +
     " inbound_change_requested=" + (i && i.changeRequested != null ? i.changeRequested : "unreadable") +
+    " inbound_conflicts=" + (i && i.conflicts != null ? i.conflicts : "unreadable") +
     " inbound_unreadable=" + (i ? i.unreadable : "unreadable") +
     " github_mcp=" + value(parsed.github) +
     " page_one_within_reach=" + (parsed.winnable === null ? "unreadable" : JSON.stringify(parsed.winnable || "none"));
@@ -122,7 +123,7 @@ function markdown(parsed, line) {
     // A door someone has spoken to us about is a different kind of news than a door that is merely waiting,
     // so it is its own sentence and is never folded into the directory counts above.
     "- Open pull requests in other people's repositories: " + (parsed.inbound
-      ? "**" + parsed.inbound.replyDue + " awaiting a reply from us**, " + parsed.inbound.waiting + " waiting on the other side, " + parsed.inbound.ownerGate + " blocked on something only the account owner can do, " + parsed.inbound.inlineNewer + " with a reviewer's line comment newer than anything we did" + (parsed.inbound.changeRequested === "unreadable" ? "" : ", " + parsed.inbound.changeRequested + " whose most recent human review still asks for changes") + ", " + parsed.inbound.privateReview + " private security review, " + parsed.inbound.unreadable + " unreadable"
+      ? "**" + parsed.inbound.replyDue + " awaiting a reply from us**, " + parsed.inbound.waiting + " waiting on the other side, " + parsed.inbound.ownerGate + " blocked on something only the account owner can do, " + parsed.inbound.inlineNewer + " with a reviewer's line comment newer than anything we did" + (parsed.inbound.changeRequested === "unreadable" ? "" : ", " + parsed.inbound.changeRequested + " whose most recent human review still asks for changes") + ", " + parsed.inbound.privateReview + " private security review, " + (parsed.inbound.conflicts === "unreadable" ? "conflict count unreadable, " : parsed.inbound.conflicts + " carrying a merge conflict, ") + parsed.inbound.unreadable + " unreadable"
       : "unreadable") + ".",
     "",
   ].join("\n");
