@@ -1912,3 +1912,30 @@ description 堆成关键词袋会让读到的人第一个印象变成 SEO 稿，
 - **一个结论要更正**：本文件此前把「重发注册表描述」列为下一次发版的顺带好处之一。现在证据说明它已经自愈
   （0.8.0 那次发布就是「下一次」）。所以 **v0.8.1 该不该切，与注册表文案无关**——剩下真正的理由是镜像与
   文档在 15 个工具这件事上的一致性（#190/#32 的原由），别把这条当成发布动机。
+
+### 19:25Z — the `npx skills add …` line in the README, checked against the CLI's own source instead of run
+
+`README.md:427` tells a visitor:
+
+```bash
+npx skills add happy520ai/unified-ai-system --skill unified-ai-gateway --agent codex --copy --yes
+```
+
+That is our lowest-friction adoption path - one line, no clone, no build - so it is worth more than a passing
+"looks right". Verified statically, because running a third-party CLI that writes into a Codex configuration with
+`--yes` is not something to do in somebody's environment to satisfy my own curiosity:
+
+| link in the chain | evidence, read from upstream |
+| --- | --- |
+| the CLI exists | npm `skills@1.7.0`, `bin.skills = bin/cli.mjs`, homepage `github.com/vercel-labs/skills` |
+| `owner/repo` is an accepted source form | `src/source-parser.ts:71` `parseOwnerRepo` matches `^owner/repo$`; `:84` `isRepoPrivate` fetches `api.github.com/repos/...` and our repository is public |
+| our file is found where it lives | `src/skills.ts:253-258` searches `skills/` as a priority directory, and `:263` walks known container dirs up to three levels deep; ours is at depth one (`skills/unified-ai-gateway/SKILL.md`) |
+| `--skill` matches the name we publish | `src/skills.ts:332` resolves the name as `skill.name \|\| basename(path)`, and our frontmatter declares `name: unified-ai-gateway` |
+| `--agent codex` is real | `src/agents.ts` references `codex` five times; their own README uses `codex` three times |
+| `--copy` / `--yes` exist | their README documents both (1 and 3 occurrences respectively) |
+
+What this is **not**: a successful run. The chain above shows the command can resolve our repository, our path
+and our skill name; it does not show the CLI's current release installs it on Windows without prompting. If
+somebody wants that end-to-end proof, it needs a sandbox - a throwaway `HOME`/`CODEX_HOME`, not this machine's
+real agent configuration - and that is an owner-level "yes, execute third-party code" decision, not a box I tick
+by myself.
