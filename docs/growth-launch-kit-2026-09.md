@@ -1957,3 +1957,63 @@ and each row carries `installs`. Two consequences for this campaign:
 Scale, so nobody reads the numbers as progress on its own: `anthropics/skills/pdf` reports 202,784 installs on
 the same endpoint and `microsoft/azure-skills/azure-aigateway` 607,530. Ours is 3+8. This is a working channel
 with a tiny share of it, and installs are not stars.
+
+### 20:56Z — the topic write was never blocked: my earlier "I could not do it" is withdrawn, and three swaps landed
+
+Two entries above (the 09-28 topic row, and the section that ended with "PATCH /repos/... with a
+`topics` array returns HTTP 200 and ... I could not do it") are **wrong about the mechanism**, and
+the concrete ask they put to the owner - paste the topics into About -> topics in the web UI - is
+**withdrawn**. The endpoint is not `PATCH /repos/{owner}/{repo}` with a `topics` field; that call
+does answer 200 while ignoring the array, which is what I read as a permission problem. The real
+one is:
+
+```
+PUT /repos/{owner}/{repo}/topics      Accept: application/vnd.github.mercy-preview+json
+body: {"names":[ ... ]}
+```
+
+With the credential this campaign already has, that writes. Proof it was never a scope problem:
+sending back the *identical* 20 names returned 200 and read back as the same set, and the cap is a
+documented product limit - "Add no more than 20 topics" - which a 21st name hits with
+`422 Validation Failed`. A failed PUT left the list untouched (fresh GET: still 20, new name
+absent), so there was no half-applied state to clean up.
+
+**What I changed, and the reading that justified each one.** Topics were measured per page with
+`search/repositories?q=topic:X&sort=stars` (the 25th row's star count as the page-one boundary);
+30 legs, all answered. None of the previous 20 put us on page one - `agent-governance` needs 40
+stars, `model-routing` 62, `llm-proxy` 157, `mcp-security` 162, `llm-observability` 393, and the
+three that went were `typescript` 55,494, `llm` 77,810, `llmops` 7,460. The two dropped words were
+also checked for what they were actually carrying in plain search: `typescript mcp server` (7,536
+repos), `typescript llm gateway` (389), `llm gateway self-hosted` (677) and
+`openai compatible llm gateway` (2,619) all leave us outside the first 100 *while we hold the
+topic*, so those slots were paying nothing; the instrument's own positive control
+(`unified-ai-system`, rank 8 of 1,815) shows the method can find us when it says it can.
+
+Three slots went to topics that are both true of the product and page-one reachable:
+
+| added | why it is true | measured placement |
+| --- | --- | --- |
+| `model-gateway` | the repository description already says "model routing gateway" | 3rd of 27 |
+| `prompt-enhancement` | prompt enhancement is shipped: routes in `httpServer.js` / `openAiCompatibilityRoutes.js`, and an MCP tool | 7th of 20 |
+| `token-budget` | virtual keys carry `{limitTokens, window}` and a denial code `VIRTUAL_KEY_BUDGET_EXHAUSTED` | 9th of 116 |
+
+Verified from a fresh GET rather than the write's echo: 20 names, lost exactly
+`llm, llmops, typescript`, added exactly those three, 17 kept. The previous 20 are saved verbatim
+in `.pm/topics-before-2026-09-28.txt` and this morning's 20 in `.tmp/topics-before-rollback.json`,
+so one PUT reverts it.
+
+**Two readings of the same fact, both kept.** `tools/check-topic-rank.mjs` - which reads the live
+topic list, so it needed no update - reports reachability by a different boundary ("rank-30 needs
+<=100 stars") and calls `token-budget(2)`, `agent-governance(31)`, `model-routing(46)`,
+`a2a-protocol(78)`. That agrees with the table above in direction while disagreeing in the number,
+because "25th row" and "rank 30" are not the same line. Quote the instrument with its boundary,
+not a bare number.
+
+**The honest limit.** This is placement, not arrival. GitHub's traffic window for this repository
+is still frozen at 2026-09-23 (six days), so no claim that these pages sent anybody here is
+supported yet - and the instrument that would notice, `check-topic-rank`, runs only when a person
+runs it: it is wired into `test:verification-tools` as a test, not into any workflow, so its
+nightly coverage is zero. Search-index propagation was also not assumed: the new topics appeared in
+star-sorted search within about two minutes, on two reads 20 s apart.
+
+Nothing here moves the number that matters: **8 stars of 1,000**.
