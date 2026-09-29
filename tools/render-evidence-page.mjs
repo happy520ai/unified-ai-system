@@ -198,6 +198,14 @@ function gitDate(path, mode) {
   return new Date(raw).toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 
+// Pure so the selection rule is testable without a repository: both inputs are either an ISO string from
+// git or null, and a date nobody can source stays absent rather than becoming "now".
+export function pickModified({ mdDate, htmlDate }) {
+  if (!mdDate) return htmlDate || null;
+  if (!htmlDate) return mdDate;
+  return mdDate > htmlDate ? mdDate : htmlDate;
+}
+
 function jsonLd({ title, description, slug, image, url }) {
   const object = {
     "@context": "https://schema.org",
@@ -207,8 +215,12 @@ function jsonLd({ title, description, slug, image, url }) {
     headline: plainText(title),
     description,
   };
-  const published = gitDate("docs/" + slug.replace(/\.html$/, ".md"), "first");
-  const modified = gitDate("docs/" + slug, "last");
+  const sourcePath = "docs/" + slug.replace(/\.html$/, ".md");
+  const published = gitDate(sourcePath, "first");
+  // Whichever of the two moved later is when the served content last changed. Reading only the rendered
+  // page's own history made dateModified lag by exactly one render cycle: at render time the artifact's
+  // newest commit is still the previous render, so the date could never describe the change in hand.
+  const modified = pickModified({ mdDate: gitDate(sourcePath, "last"), htmlDate: gitDate("docs/" + slug, "last") });
   if (published) object.datePublished = published;
   if (modified) object.dateModified = modified;
   Object.assign(object, {
