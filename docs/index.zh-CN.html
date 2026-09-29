@@ -125,6 +125,14 @@
             <button type="button" data-copy-target="demo-command-zh" data-copy-success="已复制" data-copy-unavailable="不可用">复制</button>
           </div>
           <p class="safety-note">
+            没有 Docker，或在使用 Apple Silicon？同一个证明可以从源码跑，约十二秒——本机未安装 Docker 实测：
+            exit 0、<code>"executionMode": "fake"</code>、<code>"providerCalled": false</code>。
+            已发布的 arm64 镜像无法运行上面的命令
+            （<a href="https://github.com/happy520ai/unified-ai-system/issues/190">#190</a>），源码命令见
+            <a href="https://github.com/happy520ai/unified-ai-system#try-it-in-60-seconds">README 的 60 秒体验</a>。
+          </p>
+
+          <p class="safety-note">
             当前为加固后的 Public Preview。首次验证只使用 Fake Provider；
             生产部署仍需要独立环境证据。
           </p>
