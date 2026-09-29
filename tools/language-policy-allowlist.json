@@ -253,6 +253,19 @@
       "migrationPlan": "Before the v0.8.0 milestone, happy520ai will convert roleExecutorMap.js together with roleExecutors.js and roleExecutorsLlm.js to TypeScript in dependency order, as part of the workforce module TS migration.",
       "pr": "T-094 (M2 maintenance-shrink; single commit, local-only)",
       "notes": "Registry holds role-id to local-executor bindings only; no LLM logic."
+    },
+    {
+      "type": "fileSet",
+      "value": "t177-mcp-client-test-js",
+      "files": [
+        "apps/ai-gateway-service/src/claude-code-patterns/mcpClient.test.js"
+      ],
+      "justification": "mcpClient.test.js is the colocated node:test suite for the JavaScript runtime module mcpClient.js, added by PR #177. Converting the test alone would break the direct-source import chain before mcpClient.js itself is migrated; the test follows its runtime module, as its sibling toolResultCache.test.js does in the same directory.",
+      "owner": "happy520ai",
+      "removalBy": "2026-11-13",
+      "migrationPlan": "Convert together with mcpClient.js when the claude-code-patterns Node-ESM modules are migrated to TypeScript, on the same schedule as the pr-111 node-esm compatibility set that already covers this directory.",
+      "pr": "#177",
+      "notes": "Registered at convergence: the local gate diffs HEAD~1...HEAD, so the file only became visible as newly added once the v0.8.0 line was merged in."
     }
   ]
 }
