@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { classifyDiff, diffRows, machineBlock, parseCarriers, parseDirectories, publishBlocker, readMachine } from "./render-listing-census.mjs";
+import { classifyDiff, diffRows, machineBlock, parseCarriers, parseDirectories, parseSweep, publishBlocker, readMachine, render } from "./render-listing-census.mjs";
 
 const ROOT = resolve(import.meta.dirname, "..");
 
@@ -153,4 +153,69 @@ test("the guard sits on the write path, not only in the prose", () => {
   assert.ok(guard > 0, "the guard must exist in the generator");
   assert.ok(write > guard, "and must be evaluated before the file is written");
   assert.equal(src.split("writeFileSync(OUT").length - 1, 1, "exactly one writer, so no second path bypasses it");
+});
+
+// The organic leg: other people's copies of our skill file. Shape of the fixture is the real --json output of
+// tools/growth-mention-sweep.mjs, trailing summary line included, because that trailing line is what would
+// otherwise make the whole stream unparseable.
+const SWEEP_FIXTURE = JSON.stringify({
+  total_count: 303, rows_returned: 291, pages: 4, exhausted: true, truncated: false,
+  tally: { SELF: 1, MONITORED: 12, CANDIDATE_CATALOGUE: 6, REDISTRIBUTION: 2, MIRROR: 2, AGGREGATOR: 6, PERSONAL: 4 },
+  repos: [
+    { repo: "zed/collection", group: "REDISTRIBUTION", files: 1, paths: ["skills/unified-ai-gateway/SKILL.md"] },
+    { repo: "alpha/skills", group: "REDISTRIBUTION", files: 3, paths: ["mirrored/unified-ai-gateway/SKILL.md", "README.md"] },
+    { repo: "someone/list", group: "CANDIDATE_CATALOGUE", files: 1, paths: ["README.md"] },
+    { repo: "happy520ai/unified-ai-system", group: "SELF", files: 5, paths: ["skills/unified-ai-gateway/SKILL.md"] },
+  ],
+}, null, 1) + "\nMENTION_SUMMARY repos=4 monitored=0 candidates=1 redistribution=2 mirror=0 aggregator=0 personal=0 self=1";
+
+const CURATED_ROW = { kind: "catalogue", repo: "a/b", verdict: "LISTED", path: "README.md" };
+const SURFACE_ROW = { kind: "surface", repo: "x/y", group: "redistribution", files: 1, path: "skills/unified-ai-gateway/SKILL.md" };
+
+test("the sweep's redistribution rows become surface rows, and nothing else does", () => {
+  const parsed = parseSweep(SWEEP_FIXTURE);
+  assert.equal(parsed.error, null, SWEEP_FIXTURE.slice(-80));
+  assert.equal(parsed.rows.length, 2, "redistribution only: candidates and our own repo are not copies of the file");
+  assert.deepEqual(parsed.rows.map((r) => r.repo), ["alpha/skills", "zed/collection"], "sorted, so the block is byte-stable");
+  assert.deepEqual(parsed.rows[0], { kind: "surface", repo: "alpha/skills", group: "redistribution", files: 3, path: "mirrored/unified-ai-gateway/SKILL.md" });
+  assert.equal(parsed.truncated, false);
+  assert.equal(parseSweep("this was never json").error !== null, true, "an unreadable leg is named as one");
+  const cut = parseSweep(SWEEP_FIXTURE.replace('"truncated": false', '"truncated": true'));
+  assert.equal(cut.truncated, true, "a subset reading has to reach the page, not just the console");
+});
+
+test("a surface row moving is reported and never adjudicated; a curated row moving is still drift", () => {
+  const dropped = classifyDiff([CURATED_ROW, SURFACE_ROW], [CURATED_ROW]);
+  assert.equal(dropped.gone.length, 0, "an organic copy that vanished must not be called a lost listing");
+  assert.equal(dropped.unproven.length, 0, "nor an unconfirmed curated row");
+  assert.equal(dropped.appeared.length, 0);
+  assert.equal(dropped.surfaceChanged, 1, "but the change is counted, so it is not silently absorbed");
+
+  const refuted = classifyDiff([CURATED_ROW, SURFACE_ROW], [SURFACE_ROW]);
+  assert.equal(refuted.unproven.length, 1, "a curated row the fresh probe no longer reports is still a claim at risk");
+  assert.equal(refuted.surfaceChanged, 0);
+
+  const contradicted = classifyDiff([CURATED_ROW], [{ ...CURATED_ROW, verdict: "ABSENT" }]);
+  assert.equal(contradicted.gone.length, 1, "and a curated row positively read as absent is drift");
+});
+
+test("the page states the organic count it was given, and says nothing when the leg did not read", () => {
+  const census = {
+    carriers: { rows: [CURATED_ROW], summary: { listed: 1, watchlisted: 0, absent: 0, unreadable: 0 } },
+    directories: { rows: [], summary: { listed: 0, not_found: 0, undecidable: 0 } },
+    surfaces: parseSweep(SWEEP_FIXTURE),
+  };
+  const page = render(census, "2026-09-29");
+  const stated = Number(/(\d+) repositories carry /u.exec(page)[1]);
+  const block = readMachine(page);
+  assert.equal(stated, 2, "the sentence in the prose");
+  assert.equal(block.rows.filter((r) => r.kind === "surface").length, stated, "must equal the rows in the machine block");
+  assert.equal(block.surface_leg, "read");
+  assert.equal(page.includes("## Curated catalogues that carry an entry"), true, "the curated table is unaffected");
+
+  const blind = render({ ...census, surfaces: parseSweep("garbage") }, "2026-09-29");
+  assert.equal(readMachine(blind).surface_leg, "unreadable");
+  assert.equal(readMachine(blind).rows.filter((r) => r.kind === "surface").length, 0);
+  assert.match(blind, /Nothing is claimed here on this run/u, "and the page says so in words, not by leaving a blank table");
+  assert.equal(blind.includes("repositories carry "), false, "no count is printed for a leg that did not read");
 });

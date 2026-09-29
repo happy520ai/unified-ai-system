@@ -57,17 +57,46 @@ export function parseDirectories(text) {
   return { rows, summary: summary ? { listed: +summary[1], not_found: +summary[2], undecidable: +summary[3] } : null };
 }
 
+// The third leg is the organic one: repositories that carry a copy of our skills/unified-ai-gateway/SKILL.md
+// without us filing anything. Measured 2026-09-29: fourteen of them, found by searching for our own name. They
+// are kept in a separate kind because they are not listings a person curated for us and they move between
+// runs - the sweep counted 44 repositories locally and 45 in CI fifteen minutes later, which is the code
+// search index settling, not the world changing twice. Classifying them with the curated rows would either
+// red the nightly over an index hiccup or force the page to stop claiming anything about them.
+export function parseSweep(text) {
+  // The sweep prints its report and then a one-line summary, the same shape the directory probe uses. Cut at
+  // the summary rather than trusting the whole stream to be one JSON value.
+  const raw = String(text ?? "");
+  const cut = raw.indexOf("\nMENTION_SUMMARY ");
+  const body = cut >= 0 ? raw.slice(0, cut) : raw;
+  let report;
+  try {
+    report = JSON.parse(body);
+  } catch {
+    return { rows: [], error: "sweep output was not parseable JSON" };
+  }
+  const rows = (report.repos ?? [])
+    .filter((r) => r.group === "REDISTRIBUTION" && typeof r.repo === "string")
+    .map((r) => ({ kind: "surface", repo: r.repo, group: "redistribution", files: r.files ?? 0, path: (r.paths ?? [])[0] ?? "" }))
+    .sort((a, b) => a.repo.localeCompare(b.repo));
+  return { rows, error: null, truncated: report.truncated === true, total: report.total_count ?? null };
+}
+
 export function collect() {
   const carrier = spawnSync(process.execPath, ["tools/check-carrier-presence.mjs"], { encoding: "utf8", timeout: 10 * 60 * 1000 });
   const directory = spawnSync(process.execPath, ["tools/check-directory-presence.mjs", "--github-mcp", "--smithery"], { encoding: "utf8", timeout: 20 * 60 * 1000 });
   const carriers = parseCarriers(carrier.stdout);
   const directories = parseDirectories(directory.stdout);
+  // Optional leg: a failed sweep costs the organic section, not the page. It is never pushed into
+  // `unreadable`, because that list is the refusal condition and the curated rows are what the page claims.
+  const sweep = spawnSync(process.execPath, ["tools/growth-mention-sweep.mjs", "--json"], { encoding: "utf8", timeout: 10 * 60 * 1000 });
+  const surfaces = parseSweep(sweep.stdout);
   const unreadable = [];
   if (typeof carrier.status !== "number" || carrier.status > 1) unreadable.push("carriers: exit " + carrier.status);
   if (typeof directory.status !== "number" || directory.status > 1) unreadable.push("directories: exit " + directory.status);
   if (!carriers.summary) unreadable.push("carriers: no CARRIER_SUMMARY line");
   if (!directories.summary) unreadable.push("directories: " + (directories.error ?? "no SUMMARY line"));
-  return { carriers, directories, unreadable, carrierStatus: carrier.status, directoryStatus: directory.status };
+  return { carriers, directories, surfaces, unreadable, carrierStatus: carrier.status, directoryStatus: directory.status, sweepStatus: sweep.status };
 }
 
 // The machine block is what --check compares, so it must not contain a timestamp: a page that is otherwise
@@ -76,8 +105,14 @@ export function machineBlock(census, measured) {
   const rows = [
     ...census.carriers.rows.map((r) => ({ kind: r.kind, repo: r.repo, verdict: r.verdict, path: r.path })),
     ...census.directories.rows.map((r) => ({ kind: r.kind, site: r.site, verdict: r.verdict, evidence: r.evidence })),
+    ...(census.surfaces?.rows ?? []).map((r) => ({ kind: r.kind, repo: r.repo, group: r.group, files: r.files, path: r.path })),
   ].sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
-  return "```json listing-census\n" + JSON.stringify({ measured, rows, carriers: census.carriers.summary, directories: census.directories.summary }, null, 1) + "\n```";
+  const payload = { measured, rows, carriers: census.carriers.summary, directories: census.directories.summary };
+  // Fourteen rows and zero rows are different statements from "the leg did not run", and --check compares rows
+  // rather than prose, so the block has to carry which of the three it is.
+  payload.surface_leg = census.surfaces && !census.surfaces.error ? "read" : "unreadable";
+  if (census.surfaces?.truncated) payload.surface_truncated = true;
+  return "```json listing-census\n" + JSON.stringify(payload, null, 1) + "\n```";
 }
 
 export function render(census, measured) {
@@ -134,6 +169,26 @@ export function render(census, measured) {
   lines.push("- This repository's own published [measurement datasets](data/mcp-ecosystem-measurements.2026-09-28.json),");
   lines.push("  which several of the catalogues above link back to.");
   lines.push("");
+  const surfaces = census.surfaces?.rows ?? [];
+  lines.push("## Copies of our skill file in other repositories");
+  lines.push("");
+  if (surfaces.length === 0) {
+    lines.push("Nothing is claimed here on this run: the mention sweep produced no reading, and an absent table is not an");
+    lines.push("empty one. The curated catalogue and directory tables above are unaffected.");
+  } else {
+    lines.push(surfaces.length + " repositories carry `skills/unified-ai-gateway/SKILL.md` inside their own collections as of " + measured + ".");
+    lines.push("Nobody on our side filed any of these, and a count like this one moves: the same search returned 44 repositories");
+    lines.push("locally and 45 in CI fifteen minutes later, because the code-search index settles rather than because the world");
+    lines.push("changed twice. So this is a dated snapshot, and the nightly treats it as informational - a repository dropping");
+    lines.push("its copy is reported, never a build failure, because that repository is not ours to keep.");
+    lines.push("");
+    lines.push("| Repository | The file there | Files matching |");
+    lines.push("| --- | --- | --- |");
+    for (const s of surfaces) {
+      lines.push("| [" + s.repo + "](https://github.com/" + s.repo + ") | `" + s.path + "` | " + s.files + " |");
+    }
+  }
+  lines.push("");
   lines.push(machineBlock(census, measured));
   lines.push("");
   return lines.join(String.fromCharCode(10));
@@ -155,13 +210,23 @@ export function readMachine(md) {
 // already uses decides whether "we could not look" fails the job.
 export const UNPROVEN = ["UNREADABLE", "UNDECIDABLE", "BLOCKED"];
 
-export function classifyDiff(committedRows, freshRows) {
+export function classifyDiff(committedRows, freshRowsAll) {
+  // Surface rows are reported, not adjudicated: they describe other people's repositories, they legitimately
+  // move between runs, and a guard that goes red over an index settling is a guard that gets muted. The
+  // curated and directory rows keep their drift contract below.
+  const isSurface = (r) => r.kind === "surface";
+  const surfaceKey = (r) => JSON.stringify(r);
+  const cSurfaces = new Set(committedRows.filter(isSurface).map(surfaceKey));
+  const fSurfaces = new Set(freshRowsAll.filter(isSurface).map(surfaceKey));
+  const surfaceChanged = [...new Set([...cSurfaces, ...fSurfaces])].filter((k) => cSurfaces.has(k) !== fSurfaces.has(k)).length;
+  const committedRows2 = committedRows.filter((r) => !isSurface(r));
+  const freshRows = freshRowsAll.filter((r) => !isSurface(r));
   const key = (r) => JSON.stringify(r);
   const freshByKey = new Map(freshRows.map((r) => [key(r), r]));
-  const committedKeys = new Set(committedRows.map(key));
+  const committedKeys = new Set(committedRows2.map(key));
   const gone = [];
   const unproven = [];
-  for (const row of committedRows) {
+  for (const row of committedRows2) {
     if (freshByKey.has(key(row))) continue;
     // The row is no longer confirmed. Was it positively refuted, or merely not read this time?
     const same = freshRows.find((f) => (f.repo ?? f.site) === (row.repo ?? row.site));
@@ -170,7 +235,7 @@ export function classifyDiff(committedRows, freshRows) {
   }
   const appeared = freshRows.filter((r) => !committedKeys.has(key(r)) && !UNPROVEN.includes(r.verdict));
   const appearedUnproven = freshRows.filter((r) => !committedKeys.has(key(r)) && UNPROVEN.includes(r.verdict));
-  return { gone, appeared, unproven, appearedUnproven };
+  return { gone, appeared, unproven, appearedUnproven, surfaceChanged };
 }
 
 // Kept for the pure both-directions test: the raw set difference, before verdict classification.
@@ -215,12 +280,16 @@ function main() {
     const committed = readMachine(readFileSync(OUT, "utf8"));
     if (!committed) { console.error("REFUSED (--check): the committed page has no parseable machine block"); return 4; }
     const fresh = readMachine(text);
-    const { gone, appeared, unproven } = classifyDiff(committed.rows ?? [], fresh.rows ?? []);
+    const { gone, appeared, unproven, surfaceChanged } = classifyDiff(committed.rows ?? [], fresh.rows ?? []);
     console.log(JSON.stringify({ committed_rows: (committed.rows ?? []).length, fresh_rows: (fresh.rows ?? []).length,
+      surface_changed: surfaceChanged,
       gone: gone.map((g) => (g.row.repo ?? g.row.site) + ": " + g.row.verdict + " -> " + g.fresh.verdict),
       appeared: appeared.map((a) => (a.repo ?? a.site) + "=" + a.verdict),
       unproven: unproven.map((u) => (u.row.repo ?? u.row.site) + " -> " + (u.fresh ? u.fresh.verdict : "not reported")),
       measured_committed: committed.measured, measured_fresh: fresh.measured }, null, 1));
+    if (surfaceChanged > 0) {
+      console.error("SURFACE (informational): " + surfaceChanged + " organic row(s) differ from the committed page. This leg describes other people's repositories and never decides the build - the curated and directory rows above still do.");
+    }
     if (gone.length > 0 || appeared.length > 0) {
       for (const g of gone) console.error("GONE " + (g.row.repo ?? g.row.site) + ": page says " + g.row.verdict + ", a fresh probe reads " + g.fresh.verdict);
       for (const a of appeared) console.error("NEW " + (a.repo ?? a.site) + " = " + a.verdict + " is confirmed and not on the page - re-run the generator to publish it");
