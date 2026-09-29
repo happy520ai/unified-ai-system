@@ -45,6 +45,26 @@ The same trap has a second, quieter face: `optionalDependencies` with platform-s
 pick those by the *installing* machine's platform, so an install on an x86-64 runner records and materialises
 the x64 set, and an arm64 image gets x64 binaries plus a lockfile that will not admit the arm64 ones.
 
+## The same trap without containers
+
+Containers are one route here. So is any packaging step that reuses one `node_modules` directory across targets: a desktop build that produces Linux x64 and then macOS universal artifacts sequentially against the same tree can ship the *previous* target's native binary, because the native rebuild gets skipped while a stale "already built for this platform" marker is still sitting in the tree.
+
+Where a cross-check does exist, you get a build-time error instead of a runtime one:
+
+```text
+Expected all non-binary files to have identical SHAs when creating a universal build
+  but "Contents/Resources/app.asar.unpacked/node_modules/better-sqlite3/build/Release/better_sqlite3.node" did not
+```
+
+Where it does not, the failure is silent at build time and surfaces only when the app starts - `invalid ELF header` on Linux, `not a valid Win32 application` on Windows. Reported upstream at [electron-userland/electron-builder#10031](https://github.com/electron-userland/electron-builder/issues/10031), whose reporter traced the cause to a rebuild-skip marker in the rebuild path rather than to anything container-shaped.
+
+The two shapes need two different checks, and it matters which one is available when:
+
+- **Shared `node_modules` across sequential target builds** - the pre-packaging signal is the rebuild marker still naming the *first* target. You can see it before you ship anything, which is where the fix belongs.
+- **An artifact that already exists** (published image, tarball, `.asar`) - the signal is `e_machine` at offset 18 of each `.node` file, described below. It cannot tell you *why* the wrong binary is there, and it only fires after publication.
+
+The byte-level read in the next section is the second kind. We measured it against our own container images only; nothing in this section is a measurement of any other project's behaviour.
+
 ## How to check an image without a Docker engine
 
 The registry hands out the layer tarballs to an anonymous pull token. Our reader is

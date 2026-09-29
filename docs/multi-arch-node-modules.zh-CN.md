@@ -41,6 +41,26 @@ Dockerfile 看上去没有任何一处写错，因为安装动作大概率并不
 于是在 x86-64 runner 上的一次安装会记录并落地 x64 那一组，arm64 镜像拿到的就是 x64 二进制，
 外加一个不会承认 arm64 版本存在的 lockfile。
 
+## 不用容器也会踩到同一个陷阱
+
+容器只是其中一条路。任何「跨多个目标复用同一个 `node_modules` 目录」的打包步骤都会走到这里：先打 Linux x64、再对着同一棵树打 macOS universal 的桌面构建，可能把**上一个目标**的原生二进制装进包里，因为树上还留着「这个平台已经构建过了」的过期标记，原生模块重建就被跳过了。
+
+有交叉校验时，你会在构建期就拿到报错：
+
+```text
+Expected all non-binary files to have identical SHAs when creating a universal build
+  but "Contents/Resources/app.asar.unpacked/node_modules/better-sqlite3/build/Release/better_sqlite3.node" did not
+```
+
+没有校验时，构建期完全安静，要等应用启动才炸——Linux 上是 `invalid ELF header`，Windows 上是 `not a valid Win32 application`。上游记录见 [electron-userland/electron-builder#10031](https://github.com/electron-userland/electron-builder/issues/10031)，该 issue 的作者把成因定位到重建路径里的「跳过重建标记」，而不是任何容器相关的形状。
+
+两种形状要配两种不同的检查，而且「什么时候能看到」这一点很关键：
+
+- **跨顺序目标构建共享同一个 `node_modules`**——打包前的信号是那个重建标记仍然写着**第一个**目标的名字。你在发布任何东西之前就能看到它，修的位置也应该在这里。
+- **已经存在的产物**（已发布的镜像、tarball、`.asar`）——信号是每个 `.node` 文件偏移 18 处的 `e_machine`，下一节就是它。它说不出「为什么装错了」，而且要等到发布之后才会开火。
+
+下一节那个按字节读的做法属于第二种。我们只在自己的容器镜像上量过它；本节内容不构成对任何其他项目行为的测量。
+
 ## 不用 Docker 引擎怎么检查一个镜像
 
 registry 会用匿名 pull token 把 layer tarball 交出来。我们的读取器是
