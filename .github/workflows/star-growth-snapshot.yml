@@ -128,6 +128,10 @@ jobs:
           mkdir -p .tmp/growth
           code=0
           node tools/check-topic-rank.mjs --output .tmp/growth/topic-rank.json > .tmp/growth/topic-rank.txt 2>&1 || code=$?
+          # Printed to the log as well as the summary and the artifact: when this step takes the
+          # NOT-MEASURED branch, the reason is the whole point, and a reader of the run log should
+          # not have to download an artifact to find out which search leg failed.
+          cat .tmp/growth/topic-rank.txt
           if [ "$code" -eq 1 ] || [ "$code" -eq 3 ]; then
             {
               echo ""
