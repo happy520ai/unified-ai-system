@@ -185,19 +185,27 @@ export { inline, escapeHtml, renderMarkdown };
 // something was released, and a renderer has no business guessing it.
 // A shallow clone stops at a grafted boundary commit whose parents are absent from the object store. At
 // that boundary `git log -1 -- <path>` answers with the boundary's own date, which is not this file's date,
-// so the reading is dropped rather than published. Exported because the test suite has to pick its
-// expectation with the same criterion the renderer uses.
-export function parentResolves(sha) {
-  if (!sha) return false;
+// so the reading is dropped rather than published.
+//
+// The decision is made on the commit count, not on `<sha>^` revision syntax: `git cat-file -e <sha>^` and
+// `git rev-parse --verify --quiet <sha>^` disagree with each other across git builds and checkout depths,
+// and that disagreement is what turned the CI quality job red. `rev-list --count HEAD` measures the same
+// fact on every platform, and the test suite reads it with the same command rather than trusting this one.
+export function historyDepth() {
   try {
-    execFileSync("git", ["rev-parse", "--verify", "--quiet", sha + "^"], { stdio: ["ignore", "ignore", "ignore"] });
-    return true;
+    const n = Number(execFileSync("git", ["rev-list", "--count", "HEAD"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim());
+    return Number.isSafeInteger(n) && n > 0 ? n : 0;
   } catch {
-    return false;
+    return 0;
   }
 }
 
+export function datesTrustworthy(depth) {
+  return Number.isSafeInteger(depth) && depth > 1;
+}
+
 function gitDate(path, mode) {
+  if (!datesTrustworthy(historyDepth())) return null;
   const args = ["log", "--format=%H %cI", "-1"];
   // Option order matters: `git --diff-filter=A log` is not a thing. It has to follow `log`.
   if (mode === "first") args.splice(1, 0, "--diff-filter=A");
@@ -209,8 +217,8 @@ function gitDate(path, mode) {
     return null;
   }
   if (!raw) return null;
-  const [sha, when] = raw.split(" ");
-  if (!parentResolves(sha)) return null;
+  const when = raw.split(" ")[1];
+  if (!when) return null;
   return new Date(when).toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 

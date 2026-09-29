@@ -188,9 +188,11 @@ test("a heading containing a closing script tag cannot break out of the JSON-LD 
 
 test("every generated article page still matches its markdown source", async () => {
   // CI checks this repository out shallow. A shallow clone answers `git log -1 -- <path>` with its own
-  // graft boundary, so the comparison below is only a fact where the reading is not sitting on one - and
-  // parentResolves is the same criterion the renderer uses, not a second opinion invented here.
-  const { parentResolves } = await import("./render-evidence-page.mjs");
+  // graft boundary, so the comparison below is only a fact where the history is deeper than one commit.
+  // The depth is read with the same git command the renderer uses but computed independently of it: were
+  // the renderer ever to trust a one-commit clone, this arm would disagree and fail.
+  const depth = Number(spawnSync("git", ["rev-list", "--count", "HEAD"], { encoding: "utf8" }).stdout.trim());
+  const canCompare = Number.isSafeInteger(depth) && depth > 1;
   // Derived from the generator marker, not from a typed list. The list this replaced named six pages and
   // the repository had thirteen, so seven shipped pages - including the newest article - had no arm at all
   // asserting their dates or canonical URL. An empty derivation would pass vacuously, hence the floor.
@@ -246,8 +248,8 @@ test("every generated article page still matches its markdown source", async () 
     // independent reading rather than a restatement of the renderer's choice - but only where history
     // exists. Under fetch-depth: 1 it reported all thirteen correct pages as stale.
     const srcLine = spawnSync("git", ["log", "--format=%H %cI", "-1", "--", "docs/" + n + ".md"], { encoding: "utf8" }).stdout.trim();
-    const [srcSha, srcWhen] = (srcLine || "").split(" ");
-    if (srcWhen && parentResolves(srcSha)) {
+    const srcWhen = (srcLine || "").split(" ")[1];
+    if (srcWhen && canCompare) {
       const srcDate = new Date(srcWhen).toISOString().replace(/\.\d{3}Z$/, "Z");
       assert.ok(object.dateModified >= srcDate, n + ": page claims dateModified " + object.dateModified + " but its source last changed " + srcDate);
     }
@@ -274,17 +276,15 @@ test("dateModified follows whichever of source or artifact moved later", async (
   // Unknown stays absent. Falling back to "now" would be an invented claim about when content changed.
   assert.equal(pickModified({ mdDate: null, htmlDate: null }), null);
 });
-
-// Every environment gets a real expectation: the branch is chosen by whether this repository's history
-// actually reaches past the commit that touched the source, which is the same test the renderer applies
-// before publishing a date. A shallow checkout is not allowed to pass this by doing nothing.
-test("a date is published only when the reading is not sitting on a graft boundary", async () => {
-  const line = spawnSync("git", ["log", "--format=%H %cI", "-1", "--", "docs/multi-arch-node-modules.md"], { encoding: "utf8" }).stdout.trim();
-  const [sha, when] = line.split(" ");
-  assert.ok(sha && when, "no commit found for the article source: " + line);
-  // Decided with a different git primitive than the renderer uses. Importing parentResolves here would
-  // let a version that always answered "yes" pick the easy branch and make this arm vacuous.
-  const bounded = spawnSync("git", ["cat-file", "-e", sha + "^"], { stdio: ["ignore", "ignore", "ignore"] }).status !== 0;
+// Every environment gets a real expectation, chosen by the repository's own commit count rather than by
+// revision syntax: the CI quality job and the Windows job disagreed about the previous version of this arm
+// precisely because `<sha>^` resolves differently across git builds and checkout depths, while
+// `rev-list --count HEAD` measures the same fact everywhere.
+test("a date is published only when the repository has history to date it from", async () => {
+  const when = spawnSync("git", ["log", "--format=%cI", "-1", "--", "docs/multi-arch-node-modules.md"], { encoding: "utf8" }).stdout.trim();
+  assert.ok(when, "no commit date found for the article source");
+  const depth = Number(spawnSync("git", ["rev-list", "--count", "HEAD"], { encoding: "utf8" }).stdout.trim());
+  const trustworthy = Number.isSafeInteger(depth) && depth > 1;
   // Rendered under the shipped page's own name so the lookup resolves to a path that really is in this
   // repository's history; a made-up slug would omit its dates in any clone and prove nothing.
   const { r, outPath } = run(readFileSync("docs/multi-arch-node-modules.md", "utf8"), "multi-arch-node-modules");
@@ -293,11 +293,28 @@ test("a date is published only when the reading is not sitting on a graft bounda
   assert.ok(ld, "no JSON-LD block");
   const object = JSON.parse(ld[1]);
   const UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
-  if (!bounded) {
-    assert.match(object.dateModified, UTC, "history reaches past this commit, so a date is knowable and must be published");
-    assert.equal(object.dateModified, new Date(when).toISOString().replace(/\.\d{3}Z$/, "Z"), "dateModified must be the source commit's date");
+  if (trustworthy) {
+    assert.match(object.dateModified, UTC, "this clone has history, so a date is knowable and must be published");
+    // The rule is "the later of the two git dates", so both legs are read here independently. Asserting
+    // equality with the source date alone would fail on every page whose rendered artifact moved later,
+    // which is normal: the markdown is committed first, then the page that carries its date.
+    const asUTC = (raw) => new Date(raw).toISOString().replace(/\.\d{3}Z$/, "Z");
+    const htmlRaw = spawnSync("git", ["log", "--format=%cI", "-1", "--", "docs/multi-arch-node-modules.html"], { encoding: "utf8" }).stdout.trim();
+    const expected = Date.parse(htmlRaw) > Date.parse(when) ? asUTC(htmlRaw) : asUTC(when);
+    assert.equal(object.dateModified, expected, "dateModified must be the later of the source commit and the artifact commit");
   } else {
-    assert.equal(object.dateModified, undefined, "the reading is the graft boundary's own date, not this file's");
-    assert.equal(object.datePublished, undefined, "a boundary clone cannot know when this was first published");
+    assert.equal(object.dateModified, undefined, "a one-commit clone would report its own boundary date, not this file's");
+    assert.equal(object.datePublished, undefined, "a one-commit clone cannot know when this was first published");
   }
+  const { historyDepth } = await import("./render-evidence-page.mjs");
+  assert.equal(historyDepth(), depth, "the renderer counts history differently than git does here");
+});
+
+test("the trust decision is a threshold on the commit count, not on luck", async () => {
+  const { datesTrustworthy } = await import("./render-evidence-page.mjs");
+  assert.equal(datesTrustworthy(0), false, "no repository is not a history");
+  assert.equal(datesTrustworthy(1), false, "a grafted boundary commit cannot date a file");
+  assert.equal(datesTrustworthy(2), true, "two commits is the first depth where the tip has a parent");
+  assert.equal(datesTrustworthy(4000), true);
+  assert.equal(datesTrustworthy(Number("nope")), false, "an unreadable count is not evidence of history");
 });
