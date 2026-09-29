@@ -125,17 +125,24 @@ test("the generated page carries a CollectionPage whose members are the articles
 });
 
 test("the shipped Chinese hub publishes git dates in full UTC", () => {
-  const page = readFileSync("docs/mcp-ecosystem-measurements.zh-CN.html", "utf8");
-  const object = JSON.parse(page.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]);
+  const html = readFileSync("docs/mcp-ecosystem-measurements.zh-CN.html", "utf8");
+  const object = JSON.parse(html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]);
   const UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
   assert.match(object.datePublished, UTC, "datePublished must be full UTC, not a date or a midnight offset");
   assert.match(object.dateModified, UTC, "dateModified must be full UTC");
   assert.ok(Date.parse(object.datePublished) <= Date.parse(object.dateModified), "published cannot follow modified");
-  // Checked against a different git primitive than the generator uses, so a generator that always answered
-  // with today's date cannot satisfy this arm.
-  const last = (p) => spawnSync("git", ["log", "--format=%cI", "-1", "--", p], { encoding: "utf8" }).stdout.trim();
-  const fromPage = Date.parse(last("docs/mcp-ecosystem-measurements.zh-CN.html"));
-  const fromDataset = Date.parse(last("docs/data/mcp-ecosystem-measurements.2026-09-28.json"));
-  assert.ok(Number.isFinite(fromPage) && Number.isFinite(fromDataset), "no commit found for the page or its dataset");
-  assert.equal(Date.parse(object.dateModified), Math.max(fromPage, fromDataset), "dateModified must be whichever input moved later");
+  // Membership, not equality with "the newest commit". An equality pin here would be a timer: the commit that
+  // refreshes this page's dates is itself newer than the date it writes, so the next push would have gone red
+  // for doing the right thing. What must be impossible is a typed instant that no commit produced.
+  const instants = (p) => {
+    const out = spawnSync("git", ["log", "--format=%cI", "--", p], { encoding: "utf8" }).stdout;
+    return out.split(String.fromCharCode(10)).map((l) => Date.parse(l.trim())).filter(Number.isFinite);
+  };
+  const page = instants("docs/mcp-ecosystem-measurements.zh-CN.html");
+  const dataset = instants("docs/data/mcp-ecosystem-measurements.2026-09-28.json");
+  assert.ok(page.length > 0 && dataset.length > 0, "no commit history for the page or the dataset");
+  const produced = new Set([...page, ...dataset]);
+  assert.ok(produced.has(Date.parse(object.datePublished)), "datePublished " + object.datePublished + " is not an instant any commit produced");
+  assert.ok(produced.has(Date.parse(object.dateModified)), "dateModified " + object.dateModified + " is not an instant any commit produced");
+  assert.ok(page.includes(Date.parse(object.dateModified)) || dataset.includes(Date.parse(object.dateModified)), "dateModified must come from the page or its dataset, not elsewhere");
 });
