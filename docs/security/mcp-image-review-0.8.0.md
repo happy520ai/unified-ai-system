@@ -60,9 +60,16 @@ app/node_modules/.pnpm/lightningcss-linux-x64-gnu@1.33.0/...node                
 ```
 
 The architecture is read from `e_machine` in each file's own header (`0x3e` = x86-64, `0xb7` = AArch64), not
-inferred from the file name, so the finding does not depend on pnpm's naming convention being honest. The
-mechanism is ordinary: the build ran `pnpm install` once on an x86-64 runner and both tags ship the resulting
-`/app` layer.
+inferred from the file name, so the finding does not depend on pnpm's naming convention being honest. No
+`linux-arm64` or `aarch64` module path exists anywhere in that tag's merged filesystem.
+
+**This is a regression, not how the build has always worked.** [0.4.9's review](mcp-image-review-0.4.9.md)
+records a separate arm64 set with its own digests - `skia.linux-arm64-gnu.node`, the `linux-arm64-musl` variant,
+and an arm64 `better_sqlite3.node` whose hash differs from the amd64 one. So the arm64 tag used to carry arm64
+binaries, and somewhere between 0.4.9 and 0.8.0 it stopped. 12 of the 21 layers are shared between today's two
+tags, which is *consistent* with one `/app` tree being installed on an x86-64 runner and published to both; that
+is a hypothesis about the build, and this page does not establish it. What it does establish is the before and
+after, both from file contents.
 
 What a reader should conclude: on an arm64 host, the paths that load these modules will fail to load them -
 `better-sqlite3` is the one that matters, because it backs the stores the governed features use. Nothing in
@@ -142,7 +149,8 @@ rather than wondering which subset mattered.
 
 - **The `linux/arm64` tag carries x86-64 native modules**, including `better_sqlite3.node`. Anyone on an arm64
   host should expect the SQLite-backed paths to fail to load, and should not read "multi-platform image" as
-  "works on my architecture" until a second build produces the `/app` layer on an arm64 runner.
+  "works on my architecture" until the arm64 tag carries arm64 binaries again - which is what 0.4.9's review
+  recorded, so the fix is restoring behaviour the build once had, not inventing new capability.
 - Content only. Nothing here shows what the code does, that it resists exploitation, or that a running
   container is confined. The compose and hardening evidence lives elsewhere and is separately scoped.
 - Dev and test tooling ships in the runtime image (above), which enlarges the code present but never invoked.
