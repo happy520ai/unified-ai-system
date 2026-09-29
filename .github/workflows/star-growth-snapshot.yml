@@ -78,7 +78,7 @@ jobs:
         # re-probes and fails on drift in either direction - a listing that vanished, or one that appeared and
         # is not yet on the page.
         run: |
-          node tools/render-listing-census.mjs --check
+          node tools/render-listing-census.mjs --check --allow-unreadable
 
       - name: Upload growth snapshot artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

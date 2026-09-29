@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { diffRows, machineBlock, parseCarriers, parseDirectories, readMachine } from "./render-listing-census.mjs";
+import { classifyDiff, diffRows, machineBlock, parseCarriers, parseDirectories, readMachine } from "./render-listing-census.mjs";
 
 const ROOT = resolve(import.meta.dirname, "..");
 
@@ -92,9 +92,38 @@ test("the shipped census page cites a checkable target for every row it advertis
   assert.match(md, /tools\/check-directory-presence\.mjs/u);
 });
 
+test("a listing that cannot be re-read tonight is not reported as a listing that left", () => {
+  // The difference between drift and blindness decides whether this guard gets acted on or muted. A third-party
+  // sitemap that answers 403 for one night must not be able to say "we are no longer listed anywhere".
+  const listed = { kind: "directory", site: "https://a.test", verdict: "LISTED", evidence: "https://a.test/servers/x" };
+  const refuted = { kind: "directory", site: "https://a.test", verdict: "NOT_FOUND", evidence: null };
+  const unreadable = { kind: "directory", site: "https://a.test", verdict: "UNDECIDABLE", evidence: null };
+  const dropped = { kind: "directory", site: "https://b.test", verdict: "UNREADABLE", evidence: null };
+
+  const gone = classifyDiff([listed], [refuted]);
+  assert.deepEqual(gone.gone.map((g) => g.fresh.verdict), ["NOT_FOUND"], "a positive reading of absence is drift");
+  assert.deepEqual(gone.unproven, []);
+
+  const blind = classifyDiff([listed], [unreadable]);
+  assert.deepEqual(blind.gone, [], "an inconclusive probe may not be written up as a deletion");
+  assert.deepEqual(blind.unproven.map((u) => u.fresh.verdict), ["UNDECIDABLE"]);
+
+  const vanishedRow = classifyDiff([listed], [dropped]);
+  assert.deepEqual(vanishedRow.unproven.map((u) => (u.fresh ? "row" : "absent")), ["absent"],
+    "a site missing from the report is blindness, not drift");
+
+  // An appearance is only publishable news when the fresh verdict is itself a reading.
+  const freshListing = { kind: "catalogue", repo: "new/awesome", verdict: "LISTED", path: "README.md" };
+  const unconfirmed = { kind: "catalogue", repo: "other/awesome", verdict: "BLOCKED", path: "" };
+  const added = classifyDiff([], [freshListing, unconfirmed]);
+  assert.deepEqual(added.appeared.map((r) => r.repo), ["new/awesome"]);
+  assert.deepEqual(added.appearedUnproven.map((r) => r.repo), ["other/awesome"]);
+});
+
 test("the nightly job re-probes the page, so a removed listing is a red step", () => {
   const yml = readFileSync(join(ROOT, ".github/workflows/star-growth-snapshot.yml"), "utf8");
-  assert.match(yml, /node tools\/render-listing-census\.mjs --check/u, "the census must be re-checked on a schedule");
+  assert.match(yml, /node tools\/render-listing-census\.mjs --check --allow-unreadable/u,
+    "the census must be re-checked on a schedule, with blindness distinguished from drift");
   assert.match(yml, /fetch-depth: 0/u, "the same job must carry full history, which the sitemap check needs");
   assert.equal((yml.match(/render-listing-census\.mjs/gu) || []).length, 1, "exactly one census invocation - a duplicated step would double the probes");
 });

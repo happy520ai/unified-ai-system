@@ -149,9 +149,31 @@ export function readMachine(md) {
   }
 }
 
-// The drift comparison, as a function, so the two directions of "the page and a fresh probe disagree" are both
-// testable without reaching the network: a listing that vanished and a listing that appeared are different
-// actions, and only one of them is fixed by re-running the generator.
+// A listing we can no longer reach is not the same fact as a listing that is gone. Without this split the
+// nightly would go red because a third-party sitemap had a bad afternoon, which is how a guard gets muted - so
+// the classification is by the fresh verdict, and the same --allow-unreadable convention the door-state step
+// already uses decides whether "we could not look" fails the job.
+export const UNPROVEN = ["UNREADABLE", "UNDECIDABLE", "BLOCKED"];
+
+export function classifyDiff(committedRows, freshRows) {
+  const key = (r) => JSON.stringify(r);
+  const freshByKey = new Map(freshRows.map((r) => [key(r), r]));
+  const committedKeys = new Set(committedRows.map(key));
+  const gone = [];
+  const unproven = [];
+  for (const row of committedRows) {
+    if (freshByKey.has(key(row))) continue;
+    // The row is no longer confirmed. Was it positively refuted, or merely not read this time?
+    const same = freshRows.find((f) => (f.repo ?? f.site) === (row.repo ?? row.site));
+    if (!same || UNPROVEN.includes(same.verdict)) unproven.push({ row, fresh: same ?? null });
+    else gone.push({ row, fresh: same });
+  }
+  const appeared = freshRows.filter((r) => !committedKeys.has(key(r)) && !UNPROVEN.includes(r.verdict));
+  const appearedUnproven = freshRows.filter((r) => !committedKeys.has(key(r)) && UNPROVEN.includes(r.verdict));
+  return { gone, appeared, unproven, appearedUnproven };
+}
+
+// Kept for the pure both-directions test: the raw set difference, before verdict classification.
 export function diffRows(committedRows, freshRows) {
   const key = (r) => JSON.stringify(r);
   const fresh = new Set(freshRows.map(key));
@@ -180,21 +202,27 @@ function main() {
     const committed = readMachine(readFileSync(OUT, "utf8"));
     if (!committed) { console.error("REFUSED (--check): the committed page has no parseable machine block"); return 4; }
     const fresh = readMachine(text);
-    const { disappeared, appeared } = diffRows(committed.rows ?? [], fresh.rows ?? []);
-    const missing = disappeared;
-    const added = appeared;
-    console.log(JSON.stringify({ committed_rows: committed.rows.length, fresh_rows: fresh.rows.length,
-      disappeared: missing.map((r) => r.repo ?? r.site), appeared: added.map((r) => r.repo ?? r.site),
+    const { gone, appeared, unproven } = classifyDiff(committed.rows ?? [], fresh.rows ?? []);
+    console.log(JSON.stringify({ committed_rows: (committed.rows ?? []).length, fresh_rows: (fresh.rows ?? []).length,
+      gone: gone.map((g) => (g.row.repo ?? g.row.site) + ": " + g.row.verdict + " -> " + g.fresh.verdict),
+      appeared: appeared.map((a) => (a.repo ?? a.site) + "=" + a.verdict),
+      unproven: unproven.map((u) => (u.row.repo ?? u.row.site) + " -> " + (u.fresh ? u.fresh.verdict : "not reported")),
       measured_committed: committed.measured, measured_fresh: fresh.measured }, null, 1));
-    if (missing.length > 0) {
-      console.error("DRIFT (--check): " + missing.length + " listing(s) the page still advertises are no longer confirmed by a fresh probe: " +
-        missing.map((r) => (r.repo ?? r.site) + "=" + r.verdict).join(", "));
+    if (gone.length > 0 || appeared.length > 0) {
+      for (const g of gone) console.error("GONE " + (g.row.repo ?? g.row.site) + ": page says " + g.row.verdict + ", a fresh probe reads " + g.fresh.verdict);
+      for (const a of appeared) console.error("NEW " + (a.repo ?? a.site) + " = " + a.verdict + " is confirmed and not on the page - re-run the generator to publish it");
+      console.error("DRIFT (--check): the page and a fresh probe disagree on " + (gone.length + appeared.length) + " listing(s)");
       return 4;
     }
-    if (added.length > 0) {
-      console.error("DRIFT (--check): " + added.length + " listing(s) now confirmed are not on the page: " +
-        added.map((r) => (r.repo ?? r.site) + "=" + r.verdict).join(", ") + " - re-run the generator to publish them");
-      return 4;
+    if (unproven.length > 0) {
+      for (const u of unproven) console.error("NOT PROVEN (--check): " + (u.row.repo ?? u.row.site) +
+        " is on the page but this probe could not confirm it (" + (u.fresh ? u.fresh.verdict : "absent from the report") + ")");
+      if (!argv.includes("--allow-unreadable")) {
+        console.error("REFUSED (--check): " + unproven.length + " listing(s) could not be re-confirmed; this is not drift, and re-running would only re-probe");
+        return 5;
+      }
+      console.error("PARTIAL (--allow-unreadable): " + unproven.length + " listing(s) not re-confirmed tonight, nothing claimed about them");
+      return 0;
     }
     console.error("OK (--check): " + fresh.rows.length + " rows still confirmed by a fresh probe, none missing");
     return 0;
