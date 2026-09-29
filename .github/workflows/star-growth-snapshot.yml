@@ -101,6 +101,17 @@ jobs:
             || echo "sweep exit=$? - printed, not raised: a third-party search outage is not a build failure" >> .tmp/growth/mention-sweep.txt
           cat .tmp/growth/mention-sweep.txt >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Re-read the quotations on the comparison page
+        # That page quotes three other projects word for word and invites the reader to check it, so the check
+        # belongs in the nightly rather than in someone's memory. --allow-unreadable is for other people's
+        # outages; a quotation that no longer matches its source exits 4 and reddens the job, because at that
+        # point the page is misquoting a named company. The coverage row inside the tool refuses a run that
+        # parsed fewer quotations than the page contains, so a narrowing parser cannot report success.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node tools/check-comparison-quotes.mjs --allow-unreadable
+
       - name: Upload growth snapshot artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
