@@ -24,11 +24,12 @@ const arg = (name, dflt) => {
 const DEFAULT_PRESENCE = "tools/check-directory-presence.mjs";
 const DEFAULT_TOPIC = "tools/check-topic-rank.mjs";
 const DEFAULT_CARRIERS = "tools/check-carrier-presence.mjs";
+const DEFAULT_INBOUND = "tools/growth-inbound-watch.mjs";
 
 // Pure over the two tools' stdout, so the parsing is testable without touching the network.
-export function parseDoorText({ presence, topic, carriers, presenceStatus, topicStatus, carriersStatus }) {
+export function parseDoorText({ presence, topic, carriers, inbound, presenceStatus, topicStatus, carriersStatus, inboundStatus }) {
   const text = (s) => (typeof s === "string" ? s : "");
-  const out = { legs: {}, github: null, directories: null, stars: null, slots: null, topicRanked: null, winnable: null, carriers: null };
+  const out = { legs: {}, github: null, directories: null, stars: null, slots: null, topicRanked: null, winnable: null, carriers: null, inbound: null };
   const sum = /SUMMARY listed=(\d+) not_found=(\d+) undecidable=(\d+)/.exec(text(presence));
   if (sum) out.directories = { listed: Number(sum[1]), not_found: Number(sum[2]), undecidable: Number(sum[3]) };
   const gh = /"site": "https:\/\/github\.com\/mcp",\s*"verdict": "([A-Z_]+)"/.exec(text(presence));
@@ -46,9 +47,14 @@ export function parseDoorText({ presence, topic, carriers, presenceStatus, topic
   // the directory leg and never folded into it.
   const car = /CARRIER_SUMMARY listed=(\d+) watchlisted=(\d+) absent=(\d+) unreadable=(\d+)/.exec(text(carriers));
   if (car) out.carriers = { listed: Number(car[1]), watchlisted: Number(car[2]), absent: Number(car[3]), unreadable: Number(car[4]) };
+  // The inbound leg keeps its fields as strings, because "unreadable" is one of its legitimate values and
+  // Number("unreadable") would turn a blind read into a NaN that looks like a zero.
+  const inb = /INBOUND_STATE doors=(\S+) reply_due=(\S+) owner_gate=(\S+) waiting=(\S+) private_review=(\S+) unreadable=(\S+)/.exec(text(inbound));
+  if (inb) out.inbound = { doors: inb[1], replyDue: inb[2], ownerGate: inb[3], waiting: inb[4], privateReview: inb[5], unreadable: inb[6] };
   out.legs.presence = { status: presenceStatus, parsed: Boolean(out.directories && out.github) };
   out.legs.topic = { status: topicStatus, parsed: Boolean(out.stars !== null && out.topicRanked !== null && out.winnable !== null) };
   out.legs.carriers = { status: carriersStatus, parsed: Boolean(out.carriers) };
+  out.legs.inbound = { status: inboundStatus, parsed: Boolean(out.inbound) && out.inbound?.doors !== "unreadable" };
   return out;
 }
 
@@ -59,6 +65,7 @@ function value(v) {
 export function doorLine(parsed) {
   const d = parsed.directories;
   const c = parsed.carriers;
+  const i = parsed.inbound;
   return "DOOR_STATE stars=" + value(parsed.stars) +
     " topic_slots=" + value(parsed.slots) +
     " topic_pages_ranked=" + value(parsed.topicRanked) +
@@ -69,6 +76,10 @@ export function doorLine(parsed) {
     " carriers_watchlisted=" + (c ? c.watchlisted : "unreadable") +
     " carriers_absent=" + (c ? c.absent : "unreadable") +
     " carriers_unreadable=" + (c ? c.unreadable : "unreadable") +
+    " inbound_doors=" + (i ? i.doors : "unreadable") +
+    " inbound_reply_due=" + (i ? i.replyDue : "unreadable") +
+    " inbound_owner_gate=" + (i ? i.ownerGate : "unreadable") +
+    " inbound_unreadable=" + (i ? i.unreadable : "unreadable") +
     " github_mcp=" + value(parsed.github) +
     " page_one_within_reach=" + (parsed.winnable === null ? "unreadable" : JSON.stringify(parsed.winnable || "none"));
 }
@@ -79,9 +90,9 @@ function markdown(parsed, line) {
     "# Door state",
     "",
     "Read by `tools/growth-door-state.mjs`, which shells out to `tools/check-directory-presence.mjs --github-mcp --smithery`,",
-    "`tools/check-topic-rank.mjs` and `tools/check-carrier-presence.mjs`, and parses their stdout. Anything it could",
-    "not read says `unreadable` rather than being left out, because a missing field would read as a smaller number",
-    "of doors.",
+    "`tools/check-topic-rank.mjs`, `tools/check-carrier-presence.mjs` and `tools/growth-inbound-watch.mjs`, and",
+    "parses their stdout. Anything it could not read says `unreadable` rather than being left out, because a",
+    "missing field would read as a smaller number of doors.",
     "",
     "```",
     line,
@@ -92,6 +103,11 @@ function markdown(parsed, line) {
     "- Topic pages we appear on at all: " + value(parsed.topicRanked) + ". Stars needed for page one: " + (parsed.winnable === null ? "unreadable" : "`" + (parsed.winnable || "none") + "`") + ".",
     "- Carriers that merged us and still show it: " + (parsed.carriers
       ? "**" + parsed.carriers.listed + " in a catalogue**, " + parsed.carriers.watchlisted + " only in a staging file, " + parsed.carriers.absent + " absent, " + parsed.carriers.unreadable + " unreadable"
+      : "unreadable") + ".",
+    // A door someone has spoken to us about is a different kind of news than a door that is merely waiting,
+    // so it is its own sentence and is never folded into the directory counts above.
+    "- Open pull requests in other people's repositories: " + (parsed.inbound
+      ? "**" + parsed.inbound.replyDue + " awaiting a reply from us**, " + parsed.inbound.waiting + " waiting on the other side, " + parsed.inbound.ownerGate + " blocked on something only the account owner can do, " + parsed.inbound.privateReview + " private security review, " + parsed.inbound.unreadable + " unreadable"
       : "unreadable") + ".",
     "",
   ].join("\n");
@@ -108,10 +124,17 @@ function main() {
   const presence = run(arg("--presence", DEFAULT_PRESENCE), ["--github-mcp", "--smithery"]);
   const topic = run(arg("--topic", DEFAULT_TOPIC), []);
   const carriers = run(arg("--carriers", DEFAULT_CARRIERS), []);
-  const parsed = parseDoorText({ presence: presence.stdout, topic: topic.stdout, carriers: carriers.stdout, presenceStatus: presence.status, topicStatus: topic.status, carriersStatus: carriers.status });
+  // The child runs with its own partial tolerance: one door whose comments this token cannot read is not a
+  // failed night, but the number still reaches the line, so the blindness is on the record.
+  const inbound = run(arg("--inbound", DEFAULT_INBOUND), ["--allow-unreadable"]);
+  const parsed = parseDoorText({ presence: presence.stdout, topic: topic.stdout, carriers: carriers.stdout, inbound: inbound.stdout, presenceStatus: presence.status, topicStatus: topic.status, carriersStatus: carriers.status, inboundStatus: inbound.status });
   const line = doorLine(parsed);
   console.log(line);
-  const unreadable = !parsed.legs.presence.parsed || !parsed.legs.topic.parsed || !parsed.legs.carriers.parsed;
+  if (parsed.inbound && parsed.inbound.replyDue !== "0") {
+    console.log("INBOUND: " + parsed.inbound.replyDue + " door(s) have a person speaking to us that we have not answered. " +
+      "That is the one growth number that decays if nobody acts on it.");
+  }
+  const unreadable = !parsed.legs.presence.parsed || !parsed.legs.topic.parsed || !parsed.legs.carriers.parsed || !parsed.legs.inbound.parsed;
   const out = arg("--output", null);
   if (out) {
     mkdirSync(dirname(out), { recursive: true });
@@ -119,7 +142,8 @@ function main() {
     console.log("WROTE " + out);
   }
   if (unreadable) {
-    console.error("NOTE: at least one leg was unreadable (presence exit " + presence.status + ", topic exit " + topic.status + ", carriers exit " + carriers.status + "). Nothing is being claimed about those doors.");
+    console.error("NOTE: at least one leg was unreadable (presence exit " + presence.status + ", topic exit " + topic.status +
+      ", carriers exit " + carriers.status + ", inbound exit " + inbound.status + "). Nothing is being claimed about those doors.");
     if (!process.argv.includes("--allow-unreadable")) return 5;
   }
   return 0;
