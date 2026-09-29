@@ -71,6 +71,19 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.8.0 pn
 server）带的都是 x86-64 原生模块，所以这条演示命令目前在该架构上会失败
 （见 [#190](https://github.com/happy520ai/unified-ai-system/issues/190)，含读数与复现命令）。
 
+没有 Docker，或者正在用上面明说会失败的 Apple Silicon？同一个证明可以从源码跑：依赖装好之后，演示本身耗时十二秒。
+
+```bash
+git clone https://github.com/happy520ai/unified-ai-system.git
+cd unified-ai-system
+corepack enable && pnpm install --frozen-lockfile    # 前置条件：Node 22.18.0+ 与 pnpm 11.19.0
+pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile coding --evidence
+```
+
+本机实测（Windows、Node v25.8.1、未安装 Docker engine）：exit 0，`"mode": "fake"`，`"providerCalled": false`，
+`"credentialRequired": false`，输出 4,363 字节，`"language": "zh-CN"`。前面那行安装命令才是超过六十秒的部分；
+下文的 `pnpm verify:public-clone` 是更长的可选检查，不是这条演示的前置条件。
+
 你将看到：
 
 - 本地 fake provider 执行

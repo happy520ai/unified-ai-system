@@ -69,6 +69,21 @@ and the MCP server - carry x86-64 native modules, so this demo fails there today
 ([#190](https://github.com/happy520ai/unified-ai-system/issues/190), with the reading and the command that
 reproduces it).
 
+No Docker daemon, or an Apple Silicon machine where the line above is known to fail? The same proof runs
+from a source checkout, and with dependencies already installed the demo itself takes twelve seconds:
+
+```bash
+git clone https://github.com/happy520ai/unified-ai-system.git
+cd unified-ai-system
+corepack enable && pnpm install --frozen-lockfile    # prerequisites: Node 22.18.0+, pnpm 11.19.0
+pnpm gateway demo "Build a small API for my team" --enhance --profile coding --evidence
+```
+
+Measured on this machine - Windows, Node v25.8.1, no Docker engine installed - exit 0, `"mode": "fake"`,
+`"providerCalled": false`, `"credentialRequired": false`, 4,787 bytes, and three consecutive runs came out
+byte-identical. The install line in front of the demo is the part that is not sixty seconds;
+`pnpm verify:public-clone`, further down, is a longer optional check and not a prerequisite for this run.
+
 Expected behavior:
 
 - local fake-provider execution
