@@ -93,6 +93,21 @@ export function auditArticlePages({ sitemapText, llmsText, pages, mdStems, feedT
         if (missing.length) {
           problems.push({ code: "article_page_jsonld_incomplete", page: name, detail: "missing " + missing.join(",") });
         }
+        // A date-only value is legal schema.org but worthless as a freshness signal, and it is exactly what
+        // a hand-authored page drifts into: docs/prompt-enhancement.html advertised 2026-08-09 while the
+        // committed page had last changed on 2026-09-28. The arm above asked whether the keys existed; none
+        // of them asked what the value said. Generated pages always emit full UTC, so this is a statement
+        // about our own pipeline, not about what schema.org tolerates.
+        const UTC_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u;
+        for (const key of ["datePublished", "dateModified"]) {
+          if (parsed[key] && !UTC_DATE.test(String(parsed[key]))) {
+            problems.push({
+              code: "article_page_jsonld_date_not_utc",
+              page: name,
+              detail: key + " says " + parsed[key] + "; run: node tools/inject-jsonld-dates.mjs docs/" + name,
+            });
+          }
+        }
         const canonical = parsed.mainEntityOfPage && parsed.mainEntityOfPage["@id"];
         if (canonical && !canonical.endsWith("/" + name)) {
           problems.push({ code: "article_page_jsonld_wrong_url", page: name, detail: "mainEntityOfPage says " + canonical });

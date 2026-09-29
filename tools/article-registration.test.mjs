@@ -149,6 +149,16 @@ test("structured data is required per article page, by parsing rather than by gr
   const wrong = auditArticlePages(withPage("<main></main>" + LD("https://example.test/other.html")));
   assert.deepEqual(codes(wrong), ["article_page_jsonld_wrong_url"], JSON.stringify(wrong));
 
+  // The shape a hand-authored page actually drifts into: the keys are all present but one date has gone
+  // date-only. Both directions are pinned, because an arm that fires on everything is noise.
+  const typed = LD("https://example.test/article-one.html").replace(/"dateModified":\s*"[^"]*"/u, '"dateModified": "2026-01-01"');
+  const drift = auditArticlePages(withPage("<main></main>" + typed));
+  assert.deepEqual(codes(drift), ["article_page_jsonld_date_not_utc"], JSON.stringify(drift));
+  assert.match(drift[0].detail, /inject-jsonld-dates/, "the printed remedy must be the command that fixes it");
+
+  const clean = auditArticlePages(withPage("<main></main>" + LD("https://example.test/article-one.html")));
+  assert.deepEqual(codes(clean), [], "a well-formed UTC pair must produce nothing: " + JSON.stringify(clean));
+
   assert.deepEqual(auditArticlePages(withPage("<main></main>" + LD("https://example.test/article-one.html"))), []);
 });
 
