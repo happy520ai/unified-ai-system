@@ -1,7 +1,7 @@
 // The evidence-page renderer must be regenerable, must refuse a source it cannot
 // represent, and must not let a document inject markup.
 import assert from "node:assert/strict";
-import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -215,6 +215,8 @@ test("every generated article page still matches its markdown source", async () 
     }
     return out;
   };
+  const boundaryLimited = [];
+  const compared = [];
   let fencedHashCommentPages = 0;
   for (const n of names) {
     const md = readFileSync("docs/" + n + ".md", "utf8");
@@ -249,7 +251,16 @@ test("every generated article page still matches its markdown source", async () 
     // exists. Under fetch-depth: 1 it reported all thirteen correct pages as stale.
     const srcLine = spawnSync("git", ["log", "--format=%H %cI", "-1", "--", "docs/" + n + ".md"], { encoding: "utf8" }).stdout.trim();
     const srcWhen = (srcLine || "").split(" ")[1];
-    if (srcWhen && canCompare) {
+    const srcSha = (srcLine || "").split(" ")[0];
+    // Knowability is a property of the reading, not of the clone's overall depth. Under the CI checkout
+    // (fetch-depth: 2) this command answers with the graft boundary commit and reports that commit's own date,
+    // which is later than the file's real last change - so thirteen correct pages looked stale. `rev-list
+    // --count HEAD > 1` cannot see that: two commits passes it while every path reading stays boundary-bound.
+    // The question that actually matters is whether the commit this reading returned has a parent here.
+    const srcKnowable = Boolean(srcSha) && spawnSync("git", ["cat-file", "-e", srcSha + "^"], { stdio: ["ignore", "ignore", "ignore"] }).status === 0;
+    if (!srcKnowable) boundaryLimited.push(n + ".md@" + (srcSha || "no-commit").slice(0, 8));
+    if (srcWhen && canCompare && srcKnowable) {
+      compared.push(n);
       const srcDate = new Date(srcWhen).toISOString().replace(/\.\d{3}Z$/, "Z");
       assert.ok(object.dateModified >= srcDate, n + ": page claims dateModified " + object.dateModified + " but its source last changed " + srcDate);
     }
@@ -259,6 +270,23 @@ test("every generated article page still matches its markdown source", async () 
   // If no shipped page carried a fenced "# " line, the fence-awareness above could be deleted without any
   // arm failing, and the next article with a shell comment would report phantom drift.
   assert.ok(fencedHashCommentPages >= 1, "no page exercises the code-fence rule, so that arm proves nothing");
+  // A skip has to be a reported fact, not an absorbed one: this repository's own history is deep, so a
+  // non-empty list here means the comparison silently did not run in an environment that claimed it could.
+  // The rule has to hold in both environments, or CI's depth-2 checkout just moves the red instead of
+  // explaining it. So: account for every page, and allow a skip only when the reading returned the oldest
+  // commit this clone can see - which is what a graft boundary is. In a full-history clone nothing qualifies,
+  // so the comparison is required to run, and a silently vacuous arm is not available as an escape route.
+  const oldestVisible = spawnSync("git", ["rev-list", "--max-parents=0", "HEAD"], { encoding: "utf8" }).stdout.trim().split(String.fromCharCode(10)).pop();
+  for (const entry of boundaryLimited) {
+    const sha = entry.split("@")[1];
+    assert.equal(oldestVisible.slice(0, 8), sha, entry + " was skipped, but the oldest commit this clone can see is " + oldestVisible.slice(0, 8) + " - this is not a shallow-clone reading");
+  }
+  assert.equal(compared.length + boundaryLimited.length, names.length, "every generated page must be either compared or accounted for as boundary-limited");
+  if (boundaryLimited.length > 0) {
+    console.log("SKIPPED source-date comparison for " + boundaryLimited.length + " readings bounded by commit " + oldestVisible.slice(0, 8) + " (shallow checkout); " + compared.length + " pages were compared for real");
+  } else {
+    console.log("compared source dates for all " + compared.length + " generated pages");
+  }
 });
 
 test("dateModified follows whichever of source or artifact moved later", async () => {
@@ -317,4 +345,52 @@ test("the trust decision is a threshold on the commit count, not on luck", async
   assert.equal(datesTrustworthy(2), true, "two commits is the first depth where the tip has a parent");
   assert.equal(datesTrustworthy(4000), true);
   assert.equal(datesTrustworthy(Number("nope")), false, "an unreadable count is not evidence of history");
+});
+
+test("a depth-2 clone - what CI checks out - reports boundary dates, and the gate notices", async () => {
+  // The calibration needs a deep parent: inside a shallow checkout every path already reads as the boundary,
+  // so "the shallow clone disagrees with full history" cannot be shown and the arm would be vacuous.
+  const here = (args) => spawnSync("git", args, { encoding: "utf8" });
+  const depth = Number(here(["rev-list", "--count", "HEAD"]).stdout.trim());
+  if (depth <= 3) {
+    console.log("SKIPPED calibration: this clone has " + depth + " commits, so a nested depth-2 clone cannot be distinguished from full history");
+    return;
+  }
+  const { pathToFileURL } = await import("node:url");
+  const commonDir = here(["rev-parse", "--path-format=absolute", "--git-common-dir"]).stdout.trim();
+  assert.ok(commonDir, "could not locate the repository's common git dir");
+  // Cloning the default ref would grab a different branch: this work sits on a branch whose tip is not the
+  // repository's master, and a fixture built from the wrong commit proves nothing about the pages under test.
+  const branch = here(["branch", "--show-current"]).stdout.trim();
+  assert.ok(branch, "detached HEAD, so the calibration cannot name a ref to clone");
+
+  // Pick a file whose real last change is older than the two commits a depth-2 clone can see.
+  const visible = new Set(here(["rev-list", "--max-count=2", "HEAD"]).stdout.trim().split(String.fromCharCode(10)));
+  const candidates = readdirSync("docs").filter((f) => f.endsWith(".md"));
+  const pick = candidates.find((f) => {
+    const sha = here(["log", "--format=%H", "-1", "--", "docs/" + f]).stdout.trim();
+    return sha && !visible.has(sha);
+  });
+  assert.ok(pick, "every docs source was changed within the last two commits, so no boundary is demonstrable");
+  const trueLine = here(["log", "--format=%H %cI", "-1", "--", "docs/" + pick]).stdout.trim();
+
+  const dir = mkdtempSync(join(tmpdir(), "uai-depth2-"));
+  const target = join(dir, "clone");
+  const clone = spawnSync("git", ["clone", "--depth", "2", "--branch", branch, "--no-checkout", pathToFileURL(commonDir).href, target], { encoding: "utf8" });
+  assert.equal(clone.status, 0, clone.stderr.slice(0, 300));
+  const inClone = (args) => spawnSync("git", args, { cwd: target, encoding: "utf8" });
+  assert.equal(Number(inClone(["rev-list", "--count", "HEAD"]).stdout.trim()), 2, "the fixture must reproduce CI's fetch-depth: 2");
+
+  const boundaryLine = inClone(["log", "--format=%H %cI", "-1", "--", "docs/" + pick]).stdout.trim();
+  const [bSha, bWhen] = boundaryLine.split(" ");
+  assert.ok(bSha && bWhen, "no reading for " + pick + " inside the shallow clone");
+  // The misreading, pinned: the boundary commit's own date is returned for a file it never touched, and it is
+  // later than the file's real change - which is the direction that makes a fresh page look stale.
+  assert.notEqual(bSha, trueLine.split(" ")[0], "the shallow clone returned the same commit as full history, so the fixture proves nothing");
+  assert.ok(Date.parse(bWhen) > Date.parse(trueLine.split(" ")[1]), `expected the boundary reading (${bWhen}) to be later than the real one (${trueLine.split(" ")[1]})`);
+  assert.notEqual(inClone(["cat-file", "-e", bSha + "^"]).status, 0, "the predicate must report a graft boundary as unknowable");
+  // And the same predicate on the real reading in this clone says the opposite, so it is not simply always
+  // answering "unknowable".
+  assert.equal(here(["cat-file", "-e", trueLine.split(" ")[0] + "^"]).status, 0, "a deep clone's source commit must read as knowable");
+  rmSync(dir, { force: true, recursive: true });
 });
