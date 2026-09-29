@@ -5,15 +5,119 @@
   <subtitle>Every claim in these pages is reproducible: measured tool rosters, credential-free runs, and verbatim quotations from the projects compared.</subtitle>
   <link rel="self" type="application/atom+xml" href="https://happy520ai.github.io/unified-ai-system/feed.xml"/>
   <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/"/>
-  <updated>2026-09-28T21:53:03.508Z</updated>
+  <updated>2026-09-29T03:43:56.647Z</updated>
   <rights>Apache-2.0, Unified AI System contributors</rights>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/multi-arch-node-modules.html</id>
+    <title type="html">Why our linux/arm64 image could not load better-sqlite3: the wrong-architecture node_modules trap</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/multi-arch-node-modules.html"/>
+    <updated>2026-09-29T11:43:56+08:00</updated>
+    <summary type="html">Read from four published releases on 2026-09-29, with no Docker engine and nothing executed.</summary>
+    <category term="multi-arch-node-modules"/>
+  </entry>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html</id>
+    <title type="html">Codex 接入 MCP Server：Docker 60 秒中文教程</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html"/>
+    <updated>2026-09-29T11:41:32+08:00</updated>
+    <summary type="html">使用一条 Docker 命令把 Codex 接入自托管 MCP Server，检查 15 个工具，本地增强提示词并完成无需 API Key 的安全测试。</summary>
+    <category term="codex-mcp-docker-quickstart.zh-CN"/>
+  </entry>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.html</id>
+    <title type="html">Run an MCP server in Codex with Docker</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.html"/>
+    <updated>2026-09-29T11:41:32+08:00</updated>
+    <summary type="html">Connect Codex to a self-hosted MCP server with one Docker command, verify fifteen tools, enhance a prompt locally, and make a credential-free test call.</summary>
+    <category term="codex-mcp-docker-quickstart"/>
+  </entry>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/mcp-registry-census.html</id>
+    <title type="html">How many MCP servers are there? 37,013, and what can a client do with them</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-registry-census.html"/>
+    <updated>2026-09-29T09:49:46+08:00</updated>
+    <summary type="html">Short answer: there are 37,013 servers in the official MCP registry's default view as of 2026-09-28, and 439 of them (1.20%) declare nothing a client can...</summary>
+    <category term="mcp-registry-census"/>
+  </entry>
   <entry>
     <id>https://happy520ai.github.io/unified-ai-system/mcp-tool-definition-quality.html</id>
     <title type="html">We ran Glama's open tool-definition rubric against our own MCP server. Here is the part that needs no judge.</title>
     <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-tool-definition-quality.html"/>
-    <updated>2026-09-29T05:52:55+08:00</updated>
+    <updated>2026-09-29T05:54:19+08:00</updated>
     <summary type="html">Glama's Tool Definition Quality Score is an open specification: four stages, of which three are deterministic code and one - stage 3 - is an LLM rubric...</summary>
     <category term="mcp-tool-definition-quality"/>
+  </entry>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/mcp-package-resolve.html</id>
+    <title type="html">Do the MCP registry's non-npm listings resolve? Measured across pypi, OCI, mcpb, cargo and NuGet</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-package-resolve.html"/>
+    <updated>2026-09-29T05:54:19+08:00</updated>
+    <summary type="html">15 of 785 listings across 791 entries could not be resolved at the version the registry declares. The per-family numbers differ a lot, and two of these...</summary>
+    <category term="mcp-package-resolve"/>
+  </entry>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/mcp-npm-installability.html</id>
+    <title type="html">Can you actually install what the MCP registry lists? 196 of 200 sampled npm packages could</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-npm-installability.html"/>
+    <updated>2026-09-29T05:54:19+08:00</updated>
+    <summary type="html">Short answer: the npm listings in the official MCP registry are in good shape. 98% of the sampled records point at a package that exists on npm and...</summary>
+    <category term="mcp-npm-installability"/>
+  </entry>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/mcp-registry-installability.html</id>
+    <title type="html">Is a registry-listed MCP server actually installable from the registry?</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-registry-installability.html"/>
+    <updated>2026-09-29T05:54:19+08:00</updated>
+    <summary type="html">Of the 6 that do carry a package: transports stdio 6; registry types npm 6. The sample is the registry's own default order over the first pages, which...</summary>
+    <category term="mcp-registry-installability"/>
+  </entry>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/mcp-list-cache-hints.html</id>
+    <title type="html">Do MCP servers say how long their tool list may be cached?</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-list-cache-hints.html"/>
+    <updated>2026-09-29T05:54:19+08:00</updated>
+    <summary type="html">A gateway has to decide how long to keep a cached tool list. The spec gives servers a way to answer that: ttlMs and cacheScope on a list result. So the...</summary>
+    <category term="mcp-list-cache-hints"/>
+  </entry>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/mcp-route-headers.html</id>
+    <title type="html">Does an MCP server route by the `Mcp-Method` header?</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-route-headers.html"/>
+    <updated>2026-09-29T05:54:19+08:00</updated>
+    <summary type="html">The spec puts Mcp-Method and Mcp-Name on requests so a server can route a body-less GET stream. A POST that already carries a JSON-RPC body does not need...</summary>
+    <category term="mcp-route-headers"/>
+  </entry>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/mcp-protocol-version-header.html</id>
+    <title type="html">Does an MCP server check the protocol-version header?</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-protocol-version-header.html"/>
+    <updated>2026-09-29T05:54:19+08:00</updated>
+    <summary type="html">The 2025-06-18 revision of MCP says a client MUST put MCP-Protocol-Version on every HTTP request after initialize, and that a server SHOULD reject a request...</summary>
+    <category term="mcp-protocol-version-header"/>
+  </entry>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/mcp-session-enforcement.html</id>
+    <title type="html">If an MCP server hands you a session id, does it require it back?</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-session-enforcement.html"/>
+    <updated>2026-09-29T05:54:19+08:00</updated>
+    <summary type="html">The 2026-07-28 revision moves MCP from a stateful initialize handshake toward per-request state, and a lot of gateway work right now is deciding what to do...</summary>
+    <category term="mcp-session-enforcement"/>
+  </entry>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/mcp-protocol-revision-tolerance.html</id>
+    <title type="html">Will an MCP server agree to a protocol version that does not exist?</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-protocol-revision-tolerance.html"/>
+    <updated>2026-09-29T05:54:19+08:00</updated>
+    <summary type="html">The Model Context Protocol says a server must answer initialize with a revision it supports, and the revision is not decoration: it decides whether...</summary>
+    <category term="mcp-protocol-revision-tolerance"/>
+  </entry>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/mcp-tools-list-pagination-survey.html</id>
+    <title type="html">Does anyone's `tools/list` actually paginate? A measurement.</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-tools-list-pagination-survey.html"/>
+    <updated>2026-09-29T05:54:19+08:00</updated>
+    <summary type="html">This exists because issue #177 was closed with an honest caveat: the fix walks a paginated tools/list to the end and refuses to present a truncated...</summary>
+    <category term="mcp-tools-list-pagination-survey"/>
   </entry>
   <entry>
     <id>https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.zh-CN.html</id>
@@ -56,108 +160,12 @@
     <category term="prompt-enhancement"/>
   </entry>
   <entry>
-    <id>https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html</id>
-    <title type="html">Codex 接入 MCP Server：Docker 60 秒中文教程</title>
-    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html"/>
-    <updated>2026-09-29T05:38:22+08:00</updated>
-    <summary type="html">使用一条 Docker 命令把 Codex 接入自托管 MCP Server，检查 15 个工具，本地增强提示词并完成无需 API Key 的安全测试。</summary>
-    <category term="codex-mcp-docker-quickstart.zh-CN"/>
-  </entry>
-  <entry>
-    <id>https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.html</id>
-    <title type="html">Run an MCP server in Codex with Docker</title>
-    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.html"/>
-    <updated>2026-09-29T05:38:22+08:00</updated>
-    <summary type="html">Connect Codex to a self-hosted MCP server with one Docker command, verify fifteen tools, enhance a prompt locally, and make a credential-free test call.</summary>
-    <category term="codex-mcp-docker-quickstart"/>
-  </entry>
-  <entry>
     <id>https://happy520ai.github.io/unified-ai-system/terminal-first-ai-gateway.html</id>
     <title type="html">Why an AI gateway should be terminal-first</title>
     <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/terminal-first-ai-gateway.html"/>
     <updated>2026-09-29T05:38:22+08:00</updated>
     <summary type="html">A practical design case for terminal-first AI gateways: stable automation, explicit authority, observable execution, and an optional enterprise console.</summary>
     <category term="terminal-first-ai-gateway"/>
-  </entry>
-  <entry>
-    <id>https://happy520ai.github.io/unified-ai-system/mcp-package-resolve.html</id>
-    <title type="html">Do the MCP registry's non-npm listings resolve? Measured across pypi, OCI, mcpb, cargo and NuGet</title>
-    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-package-resolve.html"/>
-    <updated>2026-09-29T05:21:27+08:00</updated>
-    <summary type="html">15 of 785 listings across 791 entries could not be resolved at the version the registry declares. The per-family numbers differ a lot, and two of these...</summary>
-    <category term="mcp-package-resolve"/>
-  </entry>
-  <entry>
-    <id>https://happy520ai.github.io/unified-ai-system/mcp-registry-census.html</id>
-    <title type="html">How many MCP servers are there? 37,013, and what can a client do with them</title>
-    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-registry-census.html"/>
-    <updated>2026-09-29T04:13:14+08:00</updated>
-    <summary type="html">Short answer: there are 37,013 servers in the official MCP registry's default view as of 2026-09-28, and 439 of them (1.20%) declare nothing a client can...</summary>
-    <category term="mcp-registry-census"/>
-  </entry>
-  <entry>
-    <id>https://happy520ai.github.io/unified-ai-system/mcp-npm-installability.html</id>
-    <title type="html">Can you actually install what the MCP registry lists? 196 of 200 sampled npm packages could</title>
-    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-npm-installability.html"/>
-    <updated>2026-09-29T04:12:00+08:00</updated>
-    <summary type="html">Short answer: the npm listings in the official MCP registry are in good shape. 98% of the sampled records point at a package that exists on npm and...</summary>
-    <category term="mcp-npm-installability"/>
-  </entry>
-  <entry>
-    <id>https://happy520ai.github.io/unified-ai-system/mcp-registry-installability.html</id>
-    <title type="html">Is a registry-listed MCP server actually installable from the registry?</title>
-    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-registry-installability.html"/>
-    <updated>2026-09-29T01:59:00+08:00</updated>
-    <summary type="html">Of the 6 that do carry a package: transports stdio 6; registry types npm 6. The sample is the registry's own default order over the first pages, which...</summary>
-    <category term="mcp-registry-installability"/>
-  </entry>
-  <entry>
-    <id>https://happy520ai.github.io/unified-ai-system/mcp-list-cache-hints.html</id>
-    <title type="html">Do MCP servers say how long their tool list may be cached?</title>
-    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-list-cache-hints.html"/>
-    <updated>2026-09-29T01:59:00+08:00</updated>
-    <summary type="html">A gateway has to decide how long to keep a cached tool list. The spec gives servers a way to answer that: ttlMs and cacheScope on a list result. So the...</summary>
-    <category term="mcp-list-cache-hints"/>
-  </entry>
-  <entry>
-    <id>https://happy520ai.github.io/unified-ai-system/mcp-route-headers.html</id>
-    <title type="html">Does an MCP server route by the `Mcp-Method` header?</title>
-    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-route-headers.html"/>
-    <updated>2026-09-29T01:59:00+08:00</updated>
-    <summary type="html">The spec puts Mcp-Method and Mcp-Name on requests so a server can route a body-less GET stream. A POST that already carries a JSON-RPC body does not need...</summary>
-    <category term="mcp-route-headers"/>
-  </entry>
-  <entry>
-    <id>https://happy520ai.github.io/unified-ai-system/mcp-protocol-version-header.html</id>
-    <title type="html">Does an MCP server check the protocol-version header?</title>
-    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-protocol-version-header.html"/>
-    <updated>2026-09-29T01:59:00+08:00</updated>
-    <summary type="html">The 2025-06-18 revision of MCP says a client MUST put MCP-Protocol-Version on every HTTP request after initialize, and that a server SHOULD reject a request...</summary>
-    <category term="mcp-protocol-version-header"/>
-  </entry>
-  <entry>
-    <id>https://happy520ai.github.io/unified-ai-system/mcp-session-enforcement.html</id>
-    <title type="html">If an MCP server hands you a session id, does it require it back?</title>
-    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-session-enforcement.html"/>
-    <updated>2026-09-29T01:59:00+08:00</updated>
-    <summary type="html">The 2026-07-28 revision moves MCP from a stateful initialize handshake toward per-request state, and a lot of gateway work right now is deciding what to do...</summary>
-    <category term="mcp-session-enforcement"/>
-  </entry>
-  <entry>
-    <id>https://happy520ai.github.io/unified-ai-system/mcp-protocol-revision-tolerance.html</id>
-    <title type="html">Will an MCP server agree to a protocol version that does not exist?</title>
-    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-protocol-revision-tolerance.html"/>
-    <updated>2026-09-29T01:59:00+08:00</updated>
-    <summary type="html">The Model Context Protocol says a server must answer initialize with a revision it supports, and the revision is not decoration: it decides whether...</summary>
-    <category term="mcp-protocol-revision-tolerance"/>
-  </entry>
-  <entry>
-    <id>https://happy520ai.github.io/unified-ai-system/mcp-tools-list-pagination-survey.html</id>
-    <title type="html">Does anyone's `tools/list` actually paginate? A measurement.</title>
-    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-tools-list-pagination-survey.html"/>
-    <updated>2026-09-29T01:59:00+08:00</updated>
-    <summary type="html">This exists because issue #177 was closed with an honest caveat: the fix walks a paginated tools/list to the end and refuses to present a truncated...</summary>
-    <category term="mcp-tools-list-pagination-survey"/>
   </entry>
   <entry>
     <id>https://happy520ai.github.io/unified-ai-system/mcp-startup-timeouts.zh-CN.html</id>
