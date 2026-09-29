@@ -46,6 +46,7 @@ const FILES = {
   npm: arg("--npm", "docs/data/mcp-npm-installability-sample.2026-09-28.json"),
   resolve: arg("--resolve", "docs/data/mcp-package-resolve.2026-09-28.json"),
   tdqs: arg("--tdqs", "docs/data/mcp-tool-definition-quality.2026-09-28.json"),
+  llms: arg("--llms", "docs/llms.txt"),
   measure: arg("--measure", "docs/data/mcp-ecosystem-measurements.json"),
   measureDated: arg("--measure-dated", "docs/data/mcp-ecosystem-measurements.2026-09-28.json"),
 };
@@ -99,6 +100,13 @@ function headTags(html, where) {
   return { description: found.description[0], "og:description": found["og:description"][0] };
 }
 
+function llmsCoverage(llmsText, datasets) {
+  const hrefs = [...llmsText.matchAll(/\((?:https?:\/\/)[^)\s]+\)/gu)].map((m) => m[0].slice(1, -1));
+  const linked = datasets.filter((f) => hrefs.some((h) => h.endsWith("/data/" + f)));
+  const missing = datasets.filter((f) => !linked.includes(f));
+  return { linked, missing, hrefs: hrefs.length };
+}
+
 function measurementValues() {
   const first = readJson(FILES.measure);
   const dated = readJson(FILES.measureDated);
@@ -129,7 +137,7 @@ function measurementValues() {
   const agreed = first.questions.find((q) => q.id === "protocol-revision-tolerance")?.verdicts?.AGREED_TO_THE_IMPOSSIBLE;
   if (!Number.isSafeInteger(questions) || questions <= 0) throw new Error("REFUSED: cannot count distinct questions in the dated artifact");
   if (!Number.isSafeInteger(agreed) || agreed <= 0) throw new Error("REFUSED: the protocol-revision-tolerance verdict AGREED_TO_THE_IMPOSSIBLE is not a positive safe integer");
-  return { questions, legs: dated.questions.length, limit: dated.sample.limit, datasetCount, datasetWord, agreed, firstCount: first.questions.length };
+  return { questions, legs: dated.questions.length, limit: dated.sample.limit, datasetCount, datasetWord, agreed, firstCount: first.questions.length, siblings };
 }
 
 function values() {
@@ -344,7 +352,29 @@ function selftest() {
   }
   if (existsSync(tmp3)) problems.push("arm 3 left its scratch artifact behind");
 
-  console.log(JSON.stringify({ selftest: problems.length === 0, arms: 3, languages: langs(), census_phrase_flips: flipped, problems }, null, 2));
+  {
+    const datasets = values().measure.siblings;
+    const lines = readFileSync(FILES.llms, "utf8").split("\n");
+    const drop = datasets[0];
+    const kept = lines.filter((l) => !l.includes("/data/" + drop + ")"));
+    if (kept.length === lines.length) problems.push(`arm 4: no llms.txt bullet links ${drop}, so the fixture removes nothing`);
+    const dir4 = mkdtempSync(join(tmpdir(), "hubfig-llms-"));
+    const tmp4 = join(dir4, "llms.txt");
+    writeFileSync(tmp4, kept.join("\n"), "utf8");
+    const savedLlms = FILES.llms;
+    FILES.llms = tmp4;
+    try {
+      const cov = llmsCoverage(readFileSync(tmp4, "utf8"), datasets);
+      if (cov.missing.length !== 1 || cov.missing[0] !== drop) problems.push(`arm 4: expected exactly ${drop} missing, got ${JSON.stringify(cov)}`);
+      if (cov.linked.length !== datasets.length - 1) problems.push(`arm 4: the other ${datasets.length - 1} datasets must still read as linked, got ${JSON.stringify(cov.linked)}`);
+    } finally {
+      FILES.llms = savedLlms;
+      rmSync(tmp4, { force: true });
+      rmSync(dir4, { force: true, recursive: true });
+    }
+  }
+
+  console.log(JSON.stringify({ selftest: problems.length === 0, arms: 4, languages: langs(), census_phrase_flips: flipped, problems }, null, 2));
   return problems.length === 0 ? 0 : 7;
 }
 
@@ -375,17 +405,27 @@ function main() {
       return 3;
     }
   }
+  let llmsText;
+  try {
+    llmsText = readFileSync(FILES.llms, "utf8");
+  } catch (e) {
+    console.error(`REFUSED: cannot read ${FILES.llms}: ${e.message}`);
+    return 3;
+  }
+  const llms = llmsCoverage(llmsText, v.measure.siblings);
   const out = {
+    llms,
     runs,
     checked: runs.reduce((a, r) => a + r.checked, 0),
     expected_total: runs.reduce((a, r) => a + r.expected_total, 0),
     missing: runs.flatMap((r) => r.missing.map((m) => r.lang + ": " + m)),
     not_checked: NOT_CHECKED,
-    verdict: runs.every((r) => r.missing.length === 0) ? "consistent" : "a page disagrees with its artifacts",
+    verdict: runs.every((r) => r.missing.length === 0) && llms.missing.length === 0 ? "consistent" : "a page disagrees with its artifacts",
   };
   console.log(JSON.stringify(out, null, 2));
-  if (out.missing.length && REQUIRE) {
-    console.error("REFUSED: " + out.missing.join("\n  - "));
+  const gaps = [...out.missing, ...llms.missing.map((f) => `dataset is not linked from ${FILES.llms}: ${f}`)];
+  if (gaps.length && REQUIRE) {
+    console.error("REFUSED: " + gaps.join("\n  - "));
     return 2;
   }
   return 0;

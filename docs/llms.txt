@@ -76,6 +76,14 @@ authorized path.
 - Real-provider execution requires explicit, scoped authorization.
 - Production readiness, L5 autonomy, and AGI require independent evidence.
 - License: Apache-2.0.
+
+## Measured articles and datasets
+
+The dataset bullets are the machine-readable rows behind the measurements hub, and the article bullets that follow them are the write-ups computed from those rows. A re-run is a new measurement, not a regression test, because these servers deploy.
+
+- [mcp-ecosystem-measurements.2026-09-28.json: 9 questions (10 measurement legs) against a 40-record draw from the official MCP registry, run 2026-09-28](https://happy520ai.github.io/unified-ai-system/data/mcp-ecosystem-measurements.2026-09-28.json)
+- [mcp-ecosystem-measurements.json: 5 questions against a 40-record draw from the official MCP registry, run 2026-09-27](https://happy520ai.github.io/unified-ai-system/data/mcp-ecosystem-measurements.json)
+- [mcp-ecosystem-measurements.wide.json: 5 questions against a 200-record draw from the official MCP registry, run 2026-09-27](https://happy520ai.github.io/unified-ai-system/data/mcp-ecosystem-measurements.wide.json)
 - [Does anyone's tools/list actually paginate? (0 of 16 servers sent a nextCursor; our client walked it anyway)](https://happy520ai.github.io/unified-ai-system/mcp-tools-list-pagination-survey.html)
 - [Will an MCP server agree to a protocol version that does not exist? (7 of 14 answered 2025-11-25 to a nonsense request)](https://happy520ai.github.io/unified-ai-system/mcp-protocol-revision-tolerance.html)
 - [If an MCP server hands you a session id, does it require it back? (measured per server, with the counter-examples named)](https://happy520ai.github.io/unified-ai-system/mcp-session-enforcement.html)

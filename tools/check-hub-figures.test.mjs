@@ -49,7 +49,7 @@ test("--selftest fires both arms in both languages and leaves nothing behind", (
   const j = out(r.stdout);
   assert.equal(j.selftest, true);
   assert.deepEqual(j.languages, ["en", "zh"]);
-  assert.equal(j.arms, 3, "the selftest must run the head arm alongside the two census arms");
+  assert.equal(j.arms, 4, "the selftest must run both head arms and the two census arms");
   assert.equal(j.census_phrase_flips, 2, "the stale-page arm must bite once per language, not once overall");
   assert.deepEqual(j.problems, []);
 });
@@ -185,4 +185,33 @@ test("a head description wrapped across lines is read, not counted as absent", (
   writeFileSync(p, reflowed, "utf8");
   const r = run(["--lang", "en", "--page-en", p, "--require-present"]);
   assert.equal(r.status, 0, r.stdout + r.stderr);
+});
+
+test("every measurement dataset on disk is linked from llms.txt", () => {
+  const r = run(["--require-present"]);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const j = out(r.stdout);
+  assert.deepEqual(j.llms.missing, []);
+  assert.equal(j.llms.linked.length, 3, "three measurement datasets are published, so three must be linked");
+});
+
+test("removing one dataset link from llms.txt names that dataset and leaves the others covered", () => {
+  const llmsPath = resolve(ROOT, "docs/llms.txt");
+  const lines = readFileSync(llmsPath, "utf8").split("\n");
+  const drop = "mcp-ecosystem-measurements.wide.json";
+  const kept = lines.filter((l) => !l.includes(`/data/${drop})`));
+  assert.equal(kept.length, lines.length - 1, "fixture precondition: exactly one bullet links the wide dataset");
+  const p = join(dir, "llms-dropped.txt");
+  writeFileSync(p, kept.join("\n"), "utf8");
+  const r = run(["--llms", p, "--require-present"]);
+  assert.equal(r.status, 2, r.stdout + r.stderr);
+  assert.match(r.stderr, new RegExp(drop.replace(/\./g, "\."), "u"));
+  const j = out(r.stdout);
+  assert.deepEqual(j.llms.missing, [drop], "the other two must still read as linked");
+});
+
+test("an unreadable llms.txt refuses instead of reporting the datasets as absent", () => {
+  const r = run(["--llms", join(dir, "no-such-llms.txt")]);
+  assert.equal(r.status, 3, r.stdout + r.stderr);
+  assert.match(r.stderr, /cannot read/);
 });
