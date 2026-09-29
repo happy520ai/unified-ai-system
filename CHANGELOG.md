@@ -7,7 +7,25 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-- Nothing yet.
+### Fixed
+
+- `/v1/responses` no longer rejects an OpenAI-compatible request that carries
+  `reasoning.summary: "none"`. The compatibility route treated the explicit
+  "none" value as an unset field and returned a validation error, so clients
+  that intentionally disable reasoning summaries could not use the Responses
+  API at all (T-064).
+
+### Security
+
+- Local-client proof-of-possession now binds the native addon's SHA-256 into
+  the combined binding, so a replaced or rebuilt native authority addon cannot
+  satisfy a previously issued possession challenge (T-043).
+
+### Changed
+
+- Broke the remaining file cycles in the agent-governance module by extracting
+  type-only leaf modules. Internal structure only; no behaviour or public
+  interface changed (T-094).
 
 ## [0.8.0] - 2026-09-25
 
