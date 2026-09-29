@@ -316,3 +316,49 @@ test("every shipped language pair carries a full hreflang set, not just a recipr
     }
   }
 });
+
+// Social cards are what makes a shared link render as anything at all, and the two measurements hubs - the
+// pages someone is most likely to paste into a chat - carried no og:image while 15 other pages carried an image
+// with no alt text. Checked here rather than in auditArticlePages because the audit's fixtures deliberately
+// omit cards, and an arm that reddened every fixture would be loosened instead of fixed.
+const cardGaps = (pages, exists) => {
+  const gaps = [];
+  for (const [file, html] of Object.entries(pages)) {
+    const meta = (attr) => {
+      for (const m of html.matchAll(/<meta\b[^>]*>/gu)) {
+        const tag = m[0].replace(/\s+/gu, " ");
+        if (tag.includes(attr)) return (/content="([^"]*)"/u.exec(tag) || [, ""])[1];
+      }
+      return null;
+    };
+    const img = meta('property="og:image"');
+    const alt = meta('property="og:image:alt"');
+    const card = meta('name="twitter:card"');
+    if (!img) gaps.push(file + ": no og:image, so the link previews as text only");
+    else if (!alt) gaps.push(file + ": og:image without og:image:alt");
+    else if (exists && !exists(img.split("/").pop())) gaps.push(file + ": og:image " + img + " is not published in docs/");
+    if (img && !card) gaps.push(file + ": og:image but no twitter:card, so the card renders small");
+  }
+  return gaps;
+};
+
+test("every shipped page carries a social card with alt text and a resolvable image", () => {
+  const pages = {};
+  for (const f of readdirSync("docs").filter((x) => x.endsWith(".html"))) pages[f] = readFileSync("docs/" + f, "utf8");
+  const exists = (name) => existsSync("docs/" + name) || existsSync("docs/assets/" + name);
+  assert.ok(Object.keys(pages).length >= 31, "the corpus shrank to " + Object.keys(pages).length + " pages");
+  assert.deepEqual(cardGaps(pages, exists), []);
+
+  // Each failure mode has to be able to fire, or the clean result above means nothing.
+  const good = '<meta property="og:image" content="https://x/a.png" /><meta property="og:image:alt" content="an alt" /><meta name="twitter:card" content="summary_large_image" />';
+  assert.deepEqual(cardGaps({ "a.html": "<main>x</main>" }), ["a.html: no og:image, so the link previews as text only"]);
+  // An image with neither alt nor a card is two separate gaps, and the fixture says so: collapsing them into
+  // one message would hide which of the two a page still has to fix.
+  assert.deepEqual(cardGaps({ "a.html": '<meta property="og:image" content="https://x/a.png" />' }), [
+    "a.html: og:image without og:image:alt",
+    "a.html: og:image but no twitter:card, so the card renders small",
+  ]);
+  assert.deepEqual(cardGaps({ "a.html": '<meta property="og:image" content="https://x/a.png" /><meta property="og:image:alt" content="an alt" />' }), ["a.html: og:image but no twitter:card, so the card renders small"]);
+  assert.deepEqual(cardGaps({ "a.html": good }, () => false), ["a.html: og:image https://x/a.png is not published in docs/"]);
+  assert.deepEqual(cardGaps({ "a.html": good }, () => true), [], "the complete fixture must not fire, or the arm only knows how to complain");
+});

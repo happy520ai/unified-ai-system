@@ -5,8 +5,24 @@
   <subtitle>Every claim in these pages is reproducible: measured tool rosters, credential-free runs, and verbatim quotations from the projects compared.</subtitle>
   <link rel="self" type="application/atom+xml" href="https://happy520ai.github.io/unified-ai-system/feed.xml"/>
   <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/"/>
-  <updated>2026-09-29T09:57:09.772Z</updated>
+  <updated>2026-09-29T10:09:09.671Z</updated>
   <rights>Apache-2.0, Unified AI System contributors</rights>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/multi-arch-node-modules.zh-CN.html</id>
+    <title type="html">linux/arm64 上 better-sqlite3 抛出 &amp;quot;invalid ELF header&amp;quot;：错误的 CPU 架构 node_modules 陷阱</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/multi-arch-node-modules.zh-CN.html"/>
+    <updated>2026-09-29T17:58:06+08:00</updated>
+    <summary type="html">以多平台方式发布的 Node 镜像，它的 linux/arm64 标签里可能装着 x86-64 原生模块，于是第一次 require() 该包就会失败并抛出 invalid ELF header。2026-09-29 从我们自己镜像的四个已发布版本实测； 不需要 Docker 引擎，也没有执行任何代码。</summary>
+    <category term="multi-arch-node-modules.zh-CN"/>
+  </entry>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.html</id>
+    <title type="html">Nine measurements of the public MCP ecosystem</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.html"/>
+    <updated>2026-09-29T17:58:06+08:00</updated>
+    <summary type="html">9 questions put to 40 servers in the official MCP registry. 2 agreed to a protocol revision that does not exist. Scripts and three published datasets alongside.</summary>
+    <category term="mcp-ecosystem-measurements"/>
+  </entry>
   <entry>
     <id>https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.zh-CN.html</id>
     <title type="html">对公开 MCP 生态的测量（中文索引）</title>
@@ -14,14 +30,6 @@
     <updated>2026-09-29T17:01:34+08:00</updated>
     <summary type="html">向官方注册表登记的 40 个服务端匿名提问：9 个问题、10 次测量。每个数字都从机器可读数据集生成，页面自己声明分母与所请求的协议修订。</summary>
     <category term="mcp-ecosystem-measurements.zh-CN"/>
-  </entry>
-  <entry>
-    <id>https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.html</id>
-    <title type="html">Nine measurements of the public MCP ecosystem</title>
-    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-ecosystem-measurements.html"/>
-    <updated>2026-09-29T17:01:34+08:00</updated>
-    <summary type="html">9 questions put to 40 servers in the official MCP registry. 2 agreed to a protocol revision that does not exist. Scripts and three published datasets alongside.</summary>
-    <category term="mcp-ecosystem-measurements"/>
   </entry>
   <entry>
     <id>https://happy520ai.github.io/unified-ai-system/mcp-startup-timeouts.zh-CN.html</id>
@@ -134,14 +142,6 @@
     <updated>2026-09-29T16:03:44+08:00</updated>
     <summary type="html">A practical design case for terminal-first AI gateways: stable automation, explicit authority, observable execution, and an optional enterprise console.</summary>
     <category term="terminal-first-ai-gateway"/>
-  </entry>
-  <entry>
-    <id>https://happy520ai.github.io/unified-ai-system/multi-arch-node-modules.zh-CN.html</id>
-    <title type="html">linux/arm64 上 better-sqlite3 抛出 &amp;quot;invalid ELF header&amp;quot;：错误的 CPU 架构 node_modules 陷阱</title>
-    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/multi-arch-node-modules.zh-CN.html"/>
-    <updated>2026-09-29T15:41:45+08:00</updated>
-    <summary type="html">以多平台方式发布的 Node 镜像，它的 linux/arm64 标签里可能装着 x86-64 原生模块，于是第一次 require() 该包就会失败并抛出 invalid ELF header。2026-09-29 从我们自己镜像的四个已发布版本实测； 不需要 Docker 引擎，也没有执行任何代码。</summary>
-    <category term="multi-arch-node-modules.zh-CN"/>
   </entry>
   <entry>
     <id>https://happy520ai.github.io/unified-ai-system/multi-arch-node-modules.html</id>
