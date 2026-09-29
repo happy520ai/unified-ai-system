@@ -142,7 +142,7 @@ test("zero doors is a broken read, never an empty queue", () => {
   assert.match(empty, /SEARCH-UNREADABLE/u);
   assert.doesNotMatch(empty, /doors=0/u, "an instrument must not print a count it did not observe");
   const ok = stateLine([{ verdict: "waiting-on-them", botEvents: 1, edits: 0 }, { verdict: "reply-due", botEvents: 0, edits: 2 }], true);
-  assert.match(ok, /doors=2 reply_due=1 owner_gate=0 waiting=1 private_review=0 inline_newer=0 unreadable=0 bot_events_excluded=1 foreign_edits_seen=2 verdict=SWEEP-COMPLETE/u);
+  assert.match(ok, /doors=2 reply_due=1 owner_gate=0 waiting=1 private_review=0 inline_newer=0 change_requested=0 unreadable=0 bot_events_excluded=1 foreign_edits_seen=2 verdict=SWEEP-COMPLETE/u);
 });
 
 test("the exit codes separate a lost queue from a partial one", () => {

@@ -48,7 +48,7 @@ const CARRIERS_OK = [
 const INBOUND_OK = [
   "OWNER-GATE     e2b-dev/awesome-ai-agents#1401                blocked    gate: CLA  | Add Unified AI System",
   "(not printed individually: 29 doors waiting on the other side)",
-  "INBOUND_STATE doors=31 reply_due=0 owner_gate=1 waiting=29 private_review=1 inline_newer=0 unreadable=0 bot_events_excluded=19 foreign_edits_seen=1 verdict=SWEEP-COMPLETE",
+  "INBOUND_STATE doors=31 reply_due=0 owner_gate=1 waiting=29 private_review=1 inline_newer=0 change_requested=0 unreadable=0 bot_events_excluded=19 foreign_edits_seen=1 verdict=SWEEP-COMPLETE",
 ].join("\n");
 
 const ALL_OK = { presence: PRESENCE_OK, topic: TOPIC_OK, carriers: CARRIERS_OK, inbound: INBOUND_OK, presenceStatus: 0, topicStatus: 0, carriersStatus: 0, inboundStatus: 0 };
@@ -63,7 +63,7 @@ test("a healthy set of instruments parses into every door field", () => {
   const parsed = parseDoorText(ALL_OK);
   assert.deepEqual(parsed.directories, { listed: 3, not_found: 1, undecidable: 0 });
   assert.deepEqual(parsed.carriers, { listed: 6, watchlisted: 1, absent: 0, unreadable: 0 });
-  assert.deepEqual(parsed.inbound, { doors: "31", replyDue: "0", ownerGate: "1", waiting: "29", privateReview: "1", inlineNewer: "0", unreadable: "0" });
+  assert.deepEqual(parsed.inbound, { doors: "31", replyDue: "0", ownerGate: "1", waiting: "29", privateReview: "1", inlineNewer: "0", changeRequested: "0", unreadable: "0" });
   assert.equal(parsed.github, "NOT_FOUND");
   assert.equal(parsed.stars, 8);
   assert.equal(parsed.slots, "20/20");
@@ -72,7 +72,7 @@ test("a healthy set of instruments parses into every door field", () => {
   const line = doorLine(parsed);
   assert.match(line, /^DOOR_STATE stars=8 topic_slots=20\/20 topic_pages_ranked=2 /);
   assert.match(line, /carriers_listed=6 carriers_watchlisted=1 carriers_absent=0 carriers_unreadable=0/);
-  assert.match(line, /inbound_doors=31 inbound_reply_due=0 inbound_owner_gate=1 inbound_inline_newer=0 inbound_unreadable=0/);
+  assert.match(line, /inbound_doors=31 inbound_reply_due=0 inbound_owner_gate=1 inbound_inline_newer=0 inbound_change_requested=0 inbound_unreadable=0/);
   assert.match(line, /github_mcp=NOT_FOUND/);
   assert.match(line, /page_one_within_reach="agent-governance\(31\), mcp\(47042\)"/);
 });
@@ -181,4 +181,22 @@ test("a scheduled job that stopped running the doors is caught here, not in the 
   assert.ok(yml.includes("tools/growth-door-state.mjs"), "the snapshot workflow must run the door summary");
   assert.ok(yml.includes("--allow-unreadable"), "and must not fail the night because a third-party site was down");
   assert.ok(yml.includes("door-state.md"), "the snapshot file must be uploaded, not just printed");
+});
+
+test("an outstanding change request travels by name and is not coerced to zero", () => {
+  // Found the hard way on 2026-09-29: a reviewer asked for changes at 05:10Z, we pushed the changes at 14:51Z,
+  // and reply-due correctly went quiet - which left the standing request invisible to the nightly. The field
+  // is a category of its own so the two readings can be true at once.
+  const parsed = parseDoorText({ ...ALL_OK, inbound: INBOUND_OK.replace("change_requested=0", "change_requested=2") });
+  assert.equal(parsed.inbound.changeRequested, "2");
+  assert.match(doorLine(parsed), /inbound_change_requested=2/);
+});
+
+test("a watch build that never emitted the field reads as unreadable, not as an empty queue", () => {
+  // The aggregator may run against an older child than this test fixture. A missing category must surface as
+  // "we do not know", because "zero doors have a change request" is a claim about the world we cannot make.
+  const older = parseDoorText({ ...ALL_OK, inbound: INBOUND_OK.replace(" change_requested=0", "") });
+  assert.equal(older.inbound.changeRequested, "unreadable");
+  assert.match(doorLine(older), /inbound_change_requested=unreadable/);
+  assert.equal(older.legs.inbound.parsed, true, "the rest of the leg is still readable");
 });

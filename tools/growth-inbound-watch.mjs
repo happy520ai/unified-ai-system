@@ -107,6 +107,19 @@ export function doorVerdict({ detail, issue, comments = [], reviews = [], inline
   // Newer than anything we did, so it may be an open question - or an answered one whose thread this endpoint
   // cannot see. Named as its own category rather than folded into reply-due for that reason.
   const inlineNewer = Boolean(newestInline && (!newestMine || String(newestInline) > String(newestMine)));
+  // A reviewer can ask for changes, we can push the changes, and then nothing in the reply-due reading is
+  // left: our own commit is the newest thing on the door, so the verdict says "waiting on them" while the
+  // human's request has still not been re-reviewed. Measured 2026-09-29 on Jenqyang/Awesome-AI-Agents#521,
+  // found only because a separate probe walked every door's last human comment - the watch reported
+  // reply_due=0 and that was, by its own definition, true. So the outstanding state of a human review is
+  // reported as its own fact and never folded into the verdict. It is read from the review stream rather than
+  // from pull review_decision, because that field came back null on a door whose latest human review is
+  // CHANGES_REQUESTED - a null here is the endpoint declining to answer, not an absence of requests.
+  const humanReviews = reviews
+    .filter((r) => !mine(r.user) && !isBotUser(r.user) && typeof r.submitted_at === "string")
+    .sort((a, b) => String(a.submitted_at).localeCompare(String(b.submitted_at)));
+  const latestHumanReview = humanReviews[humanReviews.length - 1] || null;
+  const changeRequested = Boolean(latestHumanReview && String(latestHumanReview.state ?? "").toUpperCase() === "CHANGES_REQUESTED");
   return {
     verdict: replyDue ? "reply-due" : gateStanding ? "owner-gate" : inlineNewer ? "inline-newer" : "waiting-on-them",
     why: replyDue ? "a person spoke at " + newestSpeech
@@ -118,6 +131,7 @@ export function doorVerdict({ detail, issue, comments = [], reviews = [], inline
     newestSpeech,
     newestInline,
     inlineNewer,
+    changeRequested,
     botEvents,
     edits,
     state: String(detail.mergeable_state ?? detail.state ?? "?"),
@@ -134,7 +148,7 @@ export function stateLine(rows, searchReadable = true) {
   // directory that has none are different statements and only the second one is news.
   if (!searchReadable || rows.length === 0) {
     return "INBOUND_STATE doors=unreadable reply_due=unreadable owner_gate=unreadable waiting=unreadable " +
-      "private_review=unreadable inline_newer=unreadable unreadable=" + unreadable + " bot_events_excluded=" + botEvents +
+      "private_review=unreadable inline_newer=unreadable change_requested=unreadable unreadable=" + unreadable + " bot_events_excluded=" + botEvents +
       " foreign_edits_seen=" + edits + " verdict=SEARCH-UNREADABLE";
   }
   return "INBOUND_STATE doors=" + rows.length +
@@ -143,6 +157,7 @@ export function stateLine(rows, searchReadable = true) {
     " waiting=" + count("waiting-on-them") +
     " private_review=" + count("private-review") +
     " inline_newer=" + count("inline-newer") +
+    " change_requested=" + rows.filter((r) => r.changeRequested).length +
     " unreadable=" + unreadable +
     " bot_events_excluded=" + botEvents +
     " foreign_edits_seen=" + edits +
@@ -240,6 +255,26 @@ export function selftest() {
   arms.read_failure_is_unreadable = doorVerdict({
     detail: null, issue: null, comments: [], reviews: [], readFailures: ["comments"],
   }).verdict === "unreadable";
+  // The same door as the push arm above, but reporting the human's outstanding review state rather than who
+  // spoke last: verdict waiting-on-them AND a request still standing is a true pair, and folding one into the
+  // other is what hid a change request for eleven hours today.
+  arms.change_requested_survives_our_push = doorVerdict({
+    detail: { mergeable_state: "clean" }, issue: { pushed_at: "2026-01-09T00:00:00Z" },
+    comments: [], reviews: [{ user: human, submitted_at: "2026-01-04T00:00:00Z", state: "CHANGES_REQUESTED" }],
+  }).changeRequested === true;
+  arms.a_later_human_approval_clears_the_request = doorVerdict({
+    detail: { mergeable_state: "clean" }, issue: { pushed_at: "2026-01-09T00:00:00Z" }, comments: [],
+    reviews: [{ user: human, submitted_at: "2026-01-04T00:00:00Z", state: "CHANGES_REQUESTED" },
+      { user: human, submitted_at: "2026-01-06T00:00:00Z", state: "APPROVED" }],
+  }).changeRequested === false;
+  arms.a_bots_change_request_is_not_ours_to_answer = doorVerdict({
+    detail: { mergeable_state: "clean" }, issue: { pushed_at: null }, comments: [],
+    reviews: [{ user: { login: "glama-bot[bot]", type: "Bot" }, submitted_at: "2026-01-04T00:00:00Z", state: "CHANGES_REQUESTED" }],
+  }).changeRequested === false;
+  arms.change_requested_is_counted_in_the_state_line = stateLine([
+    { verdict: "waiting-on-them", changeRequested: true, botEvents: 0, edits: 0 },
+    { verdict: "waiting-on-them", changeRequested: false, botEvents: 0, edits: 0 },
+  ]).includes("change_requested=1");
   arms.empty_search_is_not_zero_doors = stateLine([], false).includes("SEARCH-UNREADABLE") && stateLine([], true).includes("SEARCH-UNREADABLE");
   arms.unreadable_door_keeps_its_name = stateLine([{ verdict: "unreadable", botEvents: 0, edits: 0 }, { verdict: "waiting-on-them", botEvents: 2, edits: 1 }]).match(/doors=2 .*unreadable=1 .*bot_events_excluded=2 .*foreign_edits_seen=1/) !== null;
   // The inline leg: a reviewer's comment on one line is named as its own category, because the REST endpoint
