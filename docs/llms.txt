@@ -81,3 +81,4 @@ authorized path.
 - [If an MCP server hands you a session id, does it require it back? (measured per server, with the counter-examples named)](https://happy520ai.github.io/unified-ai-system/mcp-session-enforcement.html)
 - [We ran Glama's open tool-definition rubric against our own MCP server (15 of 15 tools declare no outputSchema)](https://happy520ai.github.io/unified-ai-system/mcp-tool-definition-quality.html)
 - [Why our linux/arm64 image could not load better-sqlite3: the wrong-architecture node_modules trap (read from four releases, no Docker needed)](https://happy520ai.github.io/unified-ai-system/multi-arch-node-modules.html)
+- [为什么我们的 linux/arm64 镜像加载不了 better-sqlite3：错误的 CPU 架构 node_modules 陷阱（中文版）](https://happy520ai.github.io/unified-ai-system/multi-arch-node-modules.zh-CN.html)
