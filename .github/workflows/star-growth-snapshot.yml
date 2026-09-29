@@ -87,6 +87,20 @@ jobs:
         run: |
           node tools/render-listing-census.mjs --check --allow-unreadable
 
+      - name: Sweep for repositories that mention us
+        # Discovery rather than an invariant. GitHub code search for our own repository name, grouped by the
+        # shape of the file that mentions us, so a catalogue that began carrying us without a pull request of
+        # ours shows up here rather than six weeks later - which is exactly how four live listings were found
+        # on 2026-09-29. Two things this deliberately does not do: it never calls "no search identity" a reading
+        # of zero mentions, and it never adds a repository to the monitored set by itself. That edit belongs in
+        # tools/check-carrier-presence.mjs, made by a person who has read the entry.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node tools/growth-mention-sweep.mjs > .tmp/growth/mention-sweep.txt 2>&1 \
+            || echo "sweep exit=$? - printed, not raised: a third-party search outage is not a build failure" >> .tmp/growth/mention-sweep.txt
+          cat .tmp/growth/mention-sweep.txt >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload growth snapshot artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -97,3 +111,4 @@ jobs:
             .tmp/growth/star-growth-check.md
             .tmp/growth/star-growth-feedback.md
             .tmp/growth/door-state.md
+            .tmp/growth/mention-sweep.txt
