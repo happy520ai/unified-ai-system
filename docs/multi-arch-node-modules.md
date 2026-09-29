@@ -43,7 +43,10 @@ platform". Only the file bytes say otherwise.
 The same trap has a second, quieter face: `optionalDependencies` with platform-specific packages
 (`@napi-rs/canvas-linux-x64-gnu`, `lightningcss-linux-x64-gnu`, `@rollup/rollup-linux-arm64-gnu`). npm and pnpm
 pick those by the *installing* machine's platform, so an install on an x86-64 runner records and materialises
-the x64 set, and an arm64 image gets x64 binaries plus a lockfile that will not admit the arm64 ones.
+the x64 set, and an arm64 image gets x64 binaries. The lockfile is not the culprit, and this is checked rather
+than assumed: ours lists both variants side by side - `@napi-rs/canvas-linux-arm64-gnu@0.1.80` with
+`cpu: [arm64]` and `optional: true` - so an install on the target architecture resolves the right one. That is
+why the fix is to install per platform, not to edit a lockfile or copy an installed tree.
 
 ## The same trap without containers
 
@@ -142,8 +145,9 @@ ours, not hypothetical.
 3. Verify by reading bytes, not by trusting the tag. The check costs one anonymous token request per
    repository and a few hundred megabytes of GETs; `docker buildx` completing without error proves the manifest
    was written, not that the contents match.
-4. Check the `optionalDependencies` story for your native packages. If your lockfile pins only one platform's
-   optional set, per-arch installs will not fix it.
+4. Check the `optionalDependencies` story for your native packages by reading the lockfile for the target
+   platform's variant and its `cpu` / `os` constraint. If only the build host's variant is listed, per-arch
+   installs cannot fix it; if both are listed, the fix is to install on the target rather than copy a tree.
 5. Put the platform flag in front of the reader where the command is. We tell Apple Silicon users to pass
    `--platform linux/amd64` in the README and in the 60-second quickstart, because a caveat buried on a review
    page is a caveat nobody reads before the failure.

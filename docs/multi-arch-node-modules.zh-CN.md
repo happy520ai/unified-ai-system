@@ -38,8 +38,11 @@ Dockerfile 看上去没有任何一处写错，因为安装动作大概率并不
 
 同一陷阱还有一个更安静的形态：带平台后缀的 `optionalDependencies`（`@napi-rs/canvas-linux-x64-gnu`、
 `lightningcss-linux-x64-gnu`、`@rollup/rollup-linux-arm64-gnu`）。npm 与 pnpm 按 **安装机** 的平台挑选它们，
-于是在 x86-64 runner 上的一次安装会记录并落地 x64 那一组，arm64 镜像拿到的就是 x64 二进制，
-外加一个不会承认 arm64 版本存在的 lockfile。
+于是在 x86-64 runner 上的一次安装会记录并落地 x64 那一组，arm64 镜像拿到的就是 x64 二进制。
+锅不在 lockfile——这句是查过才写的，不是推测：我们那份把两个变体并列记着，
+`@napi-rs/canvas-linux-arm64-gnu@0.1.80` 带着 `cpu: [arm64]` 与 `optional: true`，
+所以在目标架构上安装就能解析出正确的那一个。这也是为什么修法是「按平台各自安装」，
+而不是去改 lockfile，或者把一棵已经装好的树拷过去。
 
 ## 不用容器也会踩到同一个陷阱
 
@@ -133,8 +136,9 @@ Docker 导出审查已经按名列出了它们（`skia.linux-arm64-gnu.node`、`
    双架构的标签，而且需要维护的声明严格更小。
 3. 用字节验证，不要相信标签。这项检查的成本是每仓库一次匿名 token 请求加几百 MB 的 GET；
    `docker buildx` 无错完成只证明 manifest 写对了，不证明内容对得上。
-4. 检查你原生包的 `optionalDependencies` 逻辑。如果 lockfile 只钉住一个平台的可选集合，
-   单纯改成按架构安装并不会修好它。
+4. 检查你原生包的 `optionalDependencies` 逻辑：到 lockfile 里找目标平台那个变体，以及它的 `cpu` / `os` 约束。
+   如果只列了构建机平台的变体，单纯改成按架构安装并不会修好它；如果两个都在，修法就是「在目标平台上安装」，
+   而不是把一棵已经装好的树拷过去。
 5. 把平台参数写在读者真正执行命令的地方。我们在 README 和 60 秒快速开始里都告诉 Apple Silicon 用户加
    `--platform linux/amd64`，因为藏在审查页里的注意事项，等于在失败之后才被他读到的注意事项。
 
