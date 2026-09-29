@@ -176,16 +176,27 @@ export function render(census, measured) {
     lines.push("Nothing is claimed here on this run: the mention sweep produced no reading, and an absent table is not an");
     lines.push("empty one. The curated catalogue and directory tables above are unaffected.");
   } else {
-    lines.push(surfaces.length + " repositories carry `skills/unified-ai-gateway/SKILL.md` inside their own collections as of " + measured + ".");
+    // A row whose matched path ends in our file name holds a copy; one that matched a README, or a bundle's own
+    // SKILL.md, only names it. Measured 2026-09-29: 12 of 14 rows are copies, and the two that are not were read
+    // from their own files to confirm it - one is a 2,478-skill registry index, the other declares
+    // `name: agentic-awesome-skills`. Saying "14 repositories carry our skill file" covered both kinds and was
+    // wrong about two of them, on a page whose whole argument is that its claims are checkable.
+    const isCopy = (s) => /unified-ai-gateway\/SKILL\.md$/u.test(String(s.path ?? ""));
+    const copies = surfaces.filter(isCopy);
+    const indexMentions = surfaces.filter((s) => !isCopy(s));
+    lines.push(surfaces.length + " repositories matched a code search for our skill file as of " + measured + ".");
+    lines.push("Of them, " + copies.length + " carry a copy of the file - the matched path ends in");
+    lines.push("`unified-ai-gateway/SKILL.md`, which includes one directory renamed with a vendor prefix - and " + indexMentions.length + " name it from an index");
+    lines.push("they generate, holding a README or their own bundle rather than our file.");
     lines.push("Nobody on our side filed any of these, and a count like this one moves: the same search returned 44 repositories");
     lines.push("locally and 45 in CI fifteen minutes later, because the code-search index settles rather than because the world");
     lines.push("changed twice. So this is a dated snapshot, and the nightly treats it as informational - a repository dropping");
     lines.push("its copy is reported, never a build failure, because that repository is not ours to keep.");
     lines.push("");
-    lines.push("| Repository | The file there | Files matching |");
-    lines.push("| --- | --- | --- |");
+    lines.push("| Repository | The file there | Files matching | Holds a copy |");
+    lines.push("| --- | --- | --- | --- |");
     for (const s of surfaces) {
-      lines.push("| [" + s.repo + "](https://github.com/" + s.repo + ") | `" + s.path + "` | " + s.files + " |");
+      lines.push("| [" + s.repo + "](https://github.com/" + s.repo + ") | `" + s.path + "` | " + s.files + " | " + (isCopy(s) ? "yes" : "no - index") + " |");
     }
   }
   lines.push("");

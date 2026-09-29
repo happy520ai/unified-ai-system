@@ -36,9 +36,9 @@ landed in a staging file are different facts, and this page does not fold them t
 
 | Directory | Status | Evidence read |
 | --- | --- | --- |
-| [mcpservers.org](https://mcpservers.org) | listed | [mcpservers.org/servers/happy520ai/unified-ai-system](https://mcpservers.org/servers/happy520ai/unified-ai-system) - entry found in a sitemap child over 8 pages and 41,502 URLs, 1 leg(s) blocked |
+| [mcpservers.org](https://mcpservers.org) | listed | [mcpservers.org/servers/happy520ai/unified-ai-system](https://mcpservers.org/servers/happy520ai/unified-ai-system) - entry found in a sitemap child over 8 pages and 41,504 URLs, 1 leg(s) blocked |
 | [mcpmarket.com](https://mcpmarket.com) | listed | [mcpmarket.com/server/unified-ai-system](https://mcpmarket.com/server/unified-ai-system) - entry found in a sitemap child over 11 pages and 42,223 URLs |
-| [glama.ai](https://glama.ai) | listed | [glama.ai/mcp/servers/happy520ai/unified-ai-system](https://glama.ai/mcp/servers/happy520ai/unified-ai-system) - entry found in a sitemap child over 17 pages and 114,383 URLs |
+| [glama.ai](https://glama.ai) | listed | [glama.ai/mcp/servers/happy520ai/unified-ai-system](https://glama.ai/mcp/servers/happy520ai/unified-ai-system) - entry found in a sitemap child over 17 pages and 114,432 URLs |
 | [github.com/mcp](https://github.com/mcp) | no entry found | (none) - both entry shapes 404 while the control page is 200 and its search card is present (1) |
 | [smithery.ai](https://smithery.ai) | no entry found | (none) - both exact routes 404 while github and brave answer 200; the search leg is not citable, because the nonsense query returned 173 rows against 144 for a server that exists, so ?q= re-ranks a sample instead of filtering |
 
@@ -57,28 +57,31 @@ list is information a reader can use; being inside one is information we would r
 
 ## Copies of our skill file in other repositories
 
-14 repositories carry `skills/unified-ai-gateway/SKILL.md` inside their own collections as of 2026-09-29.
+14 repositories matched a code search for our skill file as of 2026-09-29.
+Of them, 12 carry a copy of the file - the matched path ends in
+`unified-ai-gateway/SKILL.md`, which includes one directory renamed with a vendor prefix - and 2 name it from an index
+they generate, holding a README or their own bundle rather than our file.
 Nobody on our side filed any of these, and a count like this one moves: the same search returned 44 repositories
 locally and 45 in CI fifteen minutes later, because the code-search index settles rather than because the world
 changed twice. So this is a dated snapshot, and the nightly treats it as informational - a repository dropping
 its copy is reported, never a build failure, because that repository is not ours to keep.
 
-| Repository | The file there | Files matching |
-| --- | --- | --- |
-| [Atul-Chahar/Scripto_-Wemakedevs-hack-](https://github.com/Atul-Chahar/Scripto_-Wemakedevs-hack-) | `.agent/skills/unified-ai-gateway/SKILL.md` | 1 |
-| [Barath1018/skills](https://github.com/Barath1018/skills) | `skills/unified-ai-gateway/SKILL.md` | 1 |
-| [boisenoise/skills-collections](https://github.com/boisenoise/skills-collections) | `skills/antigravity-unified-ai-gateway/SKILL.md` | 1 |
-| [duc-duy-1612/Online-Delivery-Systems-Web](https://github.com/duc-duy-1612/Online-Delivery-Systems-Web) | `.agents/skills_archive/unified-ai-gateway/SKILL.md` | 1 |
-| [FrancoStino/opencode-skills-collection](https://github.com/FrancoStino/opencode-skills-collection) | `bundled-skills/unified-ai-gateway/SKILL.md` | 1 |
-| [gabrielmoreira/agent-skills-mirror](https://github.com/gabrielmoreira/agent-skills-mirror) | `mirrors/repos/sickn33@agentic-awesome-skills/README.md` | 8 |
-| [Jamibhel/skimapp](https://github.com/Jamibhel/skimapp) | `.agent/skills/unified-ai-gateway/SKILL.md` | 1 |
-| [JantonioFC/skillsbank](https://github.com/JantonioFC/skillsbank) | `skills/unified-ai-gateway/SKILL.md` | 1 |
-| [jupa-02/omnienglish](https://github.com/jupa-02/omnienglish) | `.agents/skills/unified-ai-gateway/SKILL.md` | 1 |
-| [MHassan0000/Skills](https://github.com/MHassan0000/Skills) | `Claude/antigravity skills/agentic-awesome-skills/skills/unified-ai-gateway/SKILL.md` | 1 |
-| [Mot7km/mot7km-landing](https://github.com/Mot7km/mot7km-landing) | `.agents/unified-ai-gateway/SKILL.md` | 1 |
-| [Mr-Nobody-Anonymous/All-skills](https://github.com/Mr-Nobody-Anonymous/All-skills) | `awesome_skills/ai-ml/unified-ai-gateway/SKILL.md` | 1 |
-| [n2g7/agent-skills](https://github.com/n2g7/agent-skills) | `unified-ai-gateway/SKILL.md` | 1 |
-| [suphiozdedee/projenicdesign.com](https://github.com/suphiozdedee/projenicdesign.com) | `.agents/skills/agentic-awesome-skills/SKILL.md` | 2 |
+| Repository | The file there | Files matching | Holds a copy |
+| --- | --- | --- | --- |
+| [Atul-Chahar/Scripto_-Wemakedevs-hack-](https://github.com/Atul-Chahar/Scripto_-Wemakedevs-hack-) | `.agent/skills/unified-ai-gateway/SKILL.md` | 1 | yes |
+| [Barath1018/skills](https://github.com/Barath1018/skills) | `skills/unified-ai-gateway/SKILL.md` | 1 | yes |
+| [boisenoise/skills-collections](https://github.com/boisenoise/skills-collections) | `skills/antigravity-unified-ai-gateway/SKILL.md` | 1 | yes |
+| [duc-duy-1612/Online-Delivery-Systems-Web](https://github.com/duc-duy-1612/Online-Delivery-Systems-Web) | `.agents/skills_archive/unified-ai-gateway/SKILL.md` | 1 | yes |
+| [FrancoStino/opencode-skills-collection](https://github.com/FrancoStino/opencode-skills-collection) | `bundled-skills/unified-ai-gateway/SKILL.md` | 1 | yes |
+| [gabrielmoreira/agent-skills-mirror](https://github.com/gabrielmoreira/agent-skills-mirror) | `mirrors/repos/sickn33@agentic-awesome-skills/README.md` | 8 | no - index |
+| [Jamibhel/skimapp](https://github.com/Jamibhel/skimapp) | `.agent/skills/unified-ai-gateway/SKILL.md` | 1 | yes |
+| [JantonioFC/skillsbank](https://github.com/JantonioFC/skillsbank) | `skills/unified-ai-gateway/SKILL.md` | 1 | yes |
+| [jupa-02/omnienglish](https://github.com/jupa-02/omnienglish) | `.agents/skills/unified-ai-gateway/SKILL.md` | 1 | yes |
+| [MHassan0000/Skills](https://github.com/MHassan0000/Skills) | `Claude/antigravity skills/agentic-awesome-skills/skills/unified-ai-gateway/SKILL.md` | 1 | yes |
+| [Mot7km/mot7km-landing](https://github.com/Mot7km/mot7km-landing) | `.agents/unified-ai-gateway/SKILL.md` | 1 | yes |
+| [Mr-Nobody-Anonymous/All-skills](https://github.com/Mr-Nobody-Anonymous/All-skills) | `awesome_skills/ai-ml/unified-ai-gateway/SKILL.md` | 1 | yes |
+| [n2g7/agent-skills](https://github.com/n2g7/agent-skills) | `unified-ai-gateway/SKILL.md` | 1 | yes |
+| [suphiozdedee/projenicdesign.com](https://github.com/suphiozdedee/projenicdesign.com) | `.agents/skills/agentic-awesome-skills/SKILL.md` | 2 | no - index |
 
 ```json listing-census
 {

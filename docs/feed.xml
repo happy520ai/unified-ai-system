@@ -5,13 +5,13 @@
   <subtitle>Every claim in these pages is reproducible: measured tool rosters, credential-free runs, and verbatim quotations from the projects compared.</subtitle>
   <link rel="self" type="application/atom+xml" href="https://happy520ai.github.io/unified-ai-system/feed.xml"/>
   <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/"/>
-  <updated>2026-09-29T18:53:53.536Z</updated>
+  <updated>2026-09-29T19:10:58.875Z</updated>
   <rights>Apache-2.0, Unified AI System contributors</rights>
   <entry>
     <id>https://happy520ai.github.io/unified-ai-system/self-hosted-ai-gateways-compared.zh-CN.html</id>
     <title type="html">自托管 AI 网关对照：LiteLLM、Portkey、Agent Router 与 Unified AI System</title>
     <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/self-hosted-ai-gateways-compared.zh-CN.html"/>
-    <updated>2026-09-30T00:24:25+08:00</updated>
+    <updated>2026-09-30T02:56:45+08:00</updated>
     <summary type="html">四个可自托管的 AI 网关，只用各项目自己 README 里的原文来描述：附链接、标注阅读日期，不替别人说它缺什么。</summary>
     <category term="self-hosted-ai-gateways-compared.zh-CN"/>
   </entry>
@@ -19,7 +19,7 @@
     <id>https://happy520ai.github.io/unified-ai-system/self-hosted-ai-gateways-compared.html</id>
     <title type="html">Self-hosted AI gateways compared: LiteLLM, Portkey, Agent Router and Unified AI System</title>
     <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/self-hosted-ai-gateways-compared.html"/>
-    <updated>2026-09-30T00:24:25+08:00</updated>
+    <updated>2026-09-30T02:56:45+08:00</updated>
     <summary type="html">Four self-hostable AI gateways described in their own words: verbatim README lines, licenses and links, read on 2026-09-26, plus the three questions to ask any of them before handing over agent traffic.</summary>
     <category term="self-hosted-ai-gateways-compared"/>
   </entry>

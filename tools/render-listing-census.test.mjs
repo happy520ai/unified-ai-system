@@ -164,10 +164,12 @@ const SWEEP_FIXTURE = JSON.stringify({
   repos: [
     { repo: "zed/collection", group: "REDISTRIBUTION", files: 1, paths: ["skills/unified-ai-gateway/SKILL.md"] },
     { repo: "alpha/skills", group: "REDISTRIBUTION", files: 3, paths: ["mirrored/unified-ai-gateway/SKILL.md", "README.md"] },
+    // A row that matched inside someone else's generated index: same file name in the search, not our file.
+    { repo: "beta/mirror", group: "REDISTRIBUTION", files: 2, paths: ["mirrors/repos/zed-cursor/SKILL.md"] },
     { repo: "someone/list", group: "CANDIDATE_CATALOGUE", files: 1, paths: ["README.md"] },
     { repo: "happy520ai/unified-ai-system", group: "SELF", files: 5, paths: ["skills/unified-ai-gateway/SKILL.md"] },
   ],
-}, null, 1) + "\nMENTION_SUMMARY repos=4 monitored=0 candidates=1 redistribution=2 mirror=0 aggregator=0 personal=0 self=1";
+}, null, 1) + "\nMENTION_SUMMARY repos=5 monitored=0 candidates=1 redistribution=3 mirror=0 aggregator=0 personal=0 self=1";
 
 const CURATED_ROW = { kind: "catalogue", repo: "a/b", verdict: "LISTED", path: "README.md" };
 const SURFACE_ROW = { kind: "surface", repo: "x/y", group: "redistribution", files: 1, path: "skills/unified-ai-gateway/SKILL.md" };
@@ -175,8 +177,8 @@ const SURFACE_ROW = { kind: "surface", repo: "x/y", group: "redistribution", fil
 test("the sweep's redistribution rows become surface rows, and nothing else does", () => {
   const parsed = parseSweep(SWEEP_FIXTURE);
   assert.equal(parsed.error, null, SWEEP_FIXTURE.slice(-80));
-  assert.equal(parsed.rows.length, 2, "redistribution only: candidates and our own repo are not copies of the file");
-  assert.deepEqual(parsed.rows.map((r) => r.repo), ["alpha/skills", "zed/collection"], "sorted, so the block is byte-stable");
+  assert.equal(parsed.rows.length, 3, "redistribution only: candidate catalogues and our own repo are not listed here");
+  assert.deepEqual(parsed.rows.map((r) => r.repo), ["alpha/skills", "beta/mirror", "zed/collection"], "sorted, so the block is byte-stable");
   assert.deepEqual(parsed.rows[0], { kind: "surface", repo: "alpha/skills", group: "redistribution", files: 3, path: "mirrored/unified-ai-gateway/SKILL.md" });
   assert.equal(parsed.truncated, false);
   assert.equal(parseSweep("this was never json").error !== null, true, "an unreadable leg is named as one");
@@ -206,10 +208,17 @@ test("the page states the organic count it was given, and says nothing when the 
     surfaces: parseSweep(SWEEP_FIXTURE),
   };
   const page = render(census, "2026-09-29");
-  const stated = Number(/(\d+) repositories carry /u.exec(page)[1]);
+  const matched = Number(/(\d+) repositories matched a code search/u.exec(page)[1]);
+  const copies = Number(/Of them, (\d+) carry a copy of the file/u.exec(page)[1]);
+  const mentions = Number(/and (\d+) name it from an index/u.exec(page)[1]);
   const block = readMachine(page);
-  assert.equal(stated, 2, "the sentence in the prose");
-  assert.equal(block.rows.filter((r) => r.kind === "surface").length, stated, "must equal the rows in the machine block");
+  assert.equal(matched, 3, "the sentence in the prose counts every matched row");
+  assert.equal(copies, 2, "and separates the rows that hold our file from the ones that only name it");
+  assert.equal(mentions, 1, "the index row is named as such rather than counted as a copy");
+  assert.equal(copies + mentions, matched, "the split must add up to the matched count");
+  assert.equal(block.rows.filter((r) => r.kind === "surface").length, matched, "both counts come from the machine block");
+  assert.equal(page.includes("| yes |"), true, "the table says which kind each row is");
+  assert.equal(page.includes("| no - index |"), true, "and does not hide the index rows");
   assert.equal(block.surface_leg, "read");
   assert.equal(page.includes("## Curated catalogues that carry an entry"), true, "the curated table is unaffected");
 
@@ -217,5 +226,5 @@ test("the page states the organic count it was given, and says nothing when the 
   assert.equal(readMachine(blind).surface_leg, "unreadable");
   assert.equal(readMachine(blind).rows.filter((r) => r.kind === "surface").length, 0);
   assert.match(blind, /Nothing is claimed here on this run/u, "and the page says so in words, not by leaving a blank table");
-  assert.equal(blind.includes("repositories carry "), false, "no count is printed for a leg that did not read");
+  assert.equal(blind.includes("repositories matched a code search"), false, "no count is printed for a leg that did not read");
 });
