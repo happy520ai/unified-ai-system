@@ -114,6 +114,15 @@
         <a href="verify-mcp-docker-image.html">What a published MCP image exposes</a>
       </p>
 
+      <p>
+        Every figure on this page is derived rather than typed: 23 probes counted from
+        <code>tools/security-attack-regression.mjs</code>, and 15 tool names counted from
+        <code>packages/mcp-server/src/server.js</code>. <code>tools/public-repo-check.mjs</code> asserts
+        both counts against those two files, so adding an attack case or a tool without updating this page
+        turns the build red instead of leaving the copy quietly wrong. If the sentence above ever stops
+        matching the code, the code is the authority.
+      </p>
+
       <h2 id="attack">The attack regression: twenty-three probes, all defended</h2>
       <p>
         <code>tools/security-attack-regression.mjs</code> starts a real gateway process and drives

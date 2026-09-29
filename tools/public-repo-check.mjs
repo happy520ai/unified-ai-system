@@ -620,6 +620,16 @@ if (attackCaseCount < 1) {
 
 const marketingAssetContracts = [
   [
+    // The security-boundaries page opens by promising its numbers are derived, so this is what makes
+    // that promise enforced rather than aspirational: change the roster or the attack suite without
+    // updating the page and this fails.
+    "docs/mcp-security-boundaries.html",
+    [
+      `${attackCaseCount} probes counted from`,
+      `${publishedToolCount} tool names counted from`,
+    ],
+  ],
+  [
     "docs/assets/readme-hero.html",
     [
       "first path needs <strong>zero credentials</strong>",
