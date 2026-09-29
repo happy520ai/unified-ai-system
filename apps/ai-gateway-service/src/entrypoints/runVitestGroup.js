@@ -7,7 +7,7 @@ const serviceRoot = resolve(process.cwd());
 const repoRoot = resolve(serviceRoot, "../..");
 const sourceRoot = join(serviceRoot, "src");
 const group = process.argv[2];
-const groups = new Map([
+const NAMED_GROUPS = new Map([
   ["agentic", ["agentic"]],
   ["agent-governance", ["agent-governance"]],
   ["capabilities", ["capabilities"]],
@@ -16,6 +16,29 @@ const groups = new Map([
   ["forge-workforce", ["forge", "workforce"]],
   ["remaining", ["application", "core", "routing", "security", "real-capabilities"]],
 ]);
+
+// The named roots above are a subset of src/. Any directory they do not name was
+// silently outside the suite - 32 directories, 151 test files - because a file that
+// no group reaches never runs in CI while its author sees it green locally. So
+// "remaining" is not a fixed list: it is everything the OTHER groups do not
+// claim, computed at run time. A new source directory is covered the day it is
+// created, and the only way to exclude one is to say so here.
+//
+// The group being computed is excluded from "claimed": counting its own roots
+// would drop them, which is how 35 files under application/core/routing/security
+// /real-capabilities fell out of the suite the first time this was written.
+function groupRoots(name) {
+  if (name !== "remaining") return NAMED_GROUPS.get(name);
+  const claimed = new Set(
+    [...NAMED_GROUPS.entries()].filter(([groupName]) => groupName !== name).flatMap(([, roots]) => roots),
+  );
+  return readdirSync(sourceRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && !claimed.has(entry.name))
+    .map((entry) => entry.name)
+    .sort();
+}
+
+const groups = new Map([...NAMED_GROUPS.keys()].map((name) => [name, groupRoots(name)]));
 if (!groups.has(group)) {
   console.error(`Unknown Vitest group: ${group ?? "(missing)"}`);
   process.exit(2);
