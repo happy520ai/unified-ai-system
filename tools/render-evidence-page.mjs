@@ -183,7 +183,25 @@ export { inline, escapeHtml, renderMarkdown };
 // off by a day half the time. %cI is absolute; the offset is then normalised here.
 // An unknown date is omitted rather than invented - a published date is a claim about when
 // something was released, and a renderer has no business guessing it.
+// Exported so the test suite can tell "this page has no dates because the renderer could not know them"
+// apart from "this page has no dates because nobody added them".
+let shallowCache;
+export function historyIsShallow() {
+  if (shallowCache !== undefined) return shallowCache;
+  try {
+    shallowCache = execFileSync("git", ["rev-parse", "--is-shallow-repository"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() === "true";
+  } catch {
+    // No readable repository at all is the same situation: there is no history to date anything from.
+    shallowCache = true;
+  }
+  return shallowCache;
+}
+
 function gitDate(path, mode) {
+  // A shallow clone has no history to read: `git log -1 -- <path>` returns the grafted HEAD commit for
+  // every path, which would publish a date that never described this content. Omitting is the same choice
+  // the rest of this file makes about unknown dates. Depth is asked once per process, not per page.
+  if (historyIsShallow()) return null;
   const args = ["log", "--format=%cI", "-1"];
   // Option order matters: `git --diff-filter=A log` is not a thing. It has to follow `log`.
   if (mode === "first") args.splice(1, 0, "--diff-filter=A");
