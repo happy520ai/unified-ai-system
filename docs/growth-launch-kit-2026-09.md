@@ -1774,3 +1774,46 @@ back byte-identical to what the API had returned, so the visible effect is nil a
 are on its first page. That is the smallest number of stars in this entire file that buys a permanent
 position on a page people browse looking for exactly this category of thing. Every other channel here has
 to be re-earned each week.
+
+## 0p. Carriers: a merged pull request is not a listing, and there is a command for that now (2026-09-29)
+
+Seven repositories have merged something from us. Answering "are they still showing us, and where did they put
+us" by hand produced three wrong statements inside one week, so it is a command:
+
+```bash
+node tools/check-carrier-presence.mjs                # one row per carrier, then a CARRIER_SUMMARY line
+node tools/growth-door-state.mjs --allow-unreadable  # the same answer, as one line, plus the other doors
+```
+
+The three errors the command replaces:
+
+1. **A merge read as a listing.** One maintainer accepted our pull request into `WATCHLIST.md`, not the
+   catalogue. The merge was real and the placement was not, and "they merged us" flattened that difference.
+2. **A guessed branch read as absence.** A default branch assumed to be `main` returns 404 for a repo whose
+   branch is `master`, and a 404 on a URL that never resolves is blindness, not absence.
+3. **A count nobody re-read.** Our own FAQ said "two carriers" while seven PRs merged, because the number lived
+   in prose.
+
+Verdict vocabulary, with the rule attached to each: `LISTED` (our marker found in a file whose kind is
+catalogue), `WATCHLISTED` (found only in a maintainer's holding file), `ABSENT` (every candidate file was read
+successfully **and** held a populated link list, and none has us), `UNREADABLE` (a fetch failed, or the list
+looked empty, so nothing is being claimed). A carrier that stores us as its own file - a vendored `SKILL.md`
+under `plugins/happy520ai/...` - is a listing even though it contains no link list, because the file *is* the
+entry. `--require-clean` exits 2 if any row is `ABSENT` or `UNREADABLE`, so a blind sweep cannot pass as clean.
+
+**The one holding file, and why we are not asking about it.** `scadastrangelove/awesome-ai-security-tools`
+routed us to `WATCHLIST.md`, and their `CONTRIBUTING.md` says why in one line: very new repositories, zero-star
+projects, and projects without a clear root license are tracked there first, and "can graduate once license,
+adoption, and maintenance signals are clearer". Two of those three we can show - GitHub reports a root
+`Apache-2.0` license, and commit activity and a public CI history are the maintenance record - and the third is
+star count, which is the subject of this whole file rather than a claim we can write. Their README carries
+entries at 14 and 24 stars, so the bar is not "hundreds"; it is "not zero". Asking them to promote us now would
+be nagging, and would ask them to delete the sentence that makes their own rule correct. The action is: none,
+and the carrier leg of `DOOR_STATE` tells us if the entry disappears.
+
+**A pinned `0.4.9` next to "fifteen tools" is not a contradiction, and the instrument does not judge it.** Three
+carriers vendored our `SKILL.md`, and that file says the current release declares fifteen tool names *and* that
+the newest image with a completed content review is `0.4.9`, which ships nine of them. Both numbers are true and
+the explanation is in the same file, so `check-carrier-presence.mjs` reports the pair and draws no conclusion.
+The missing piece is a content review for the newer images, which needs a Docker daemon; that is booked as
+T-145, and it is exactly the kind of gap that must stay a gap instead of being closed with prose.
