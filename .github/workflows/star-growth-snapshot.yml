@@ -43,6 +43,19 @@ jobs:
           echo "### Feedback Snapshot" >> "$GITHUB_STEP_SUMMARY"
           cat .tmp/growth/star-growth-feedback.md >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Summarise the growth doors
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # Read-only: the directory-presence probe walks public sitemaps and the topic probe reads the
+        # GitHub API with the job's own read token. --allow-unreadable means a third-party site being
+        # down is not a job failure - but the printed line says `unreadable` for that leg instead of
+        # quietly reporting one fewer door, so a blind night cannot be misread as progress.
+        run: |
+          node tools/growth-door-state.mjs --allow-unreadable --output .tmp/growth/door-state.md
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Door State" >> "$GITHUB_STEP_SUMMARY"
+          cat .tmp/growth/door-state.md >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload growth snapshot artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -52,3 +65,4 @@ jobs:
             .tmp/growth/star-growth-daily.md
             .tmp/growth/star-growth-check.md
             .tmp/growth/star-growth-feedback.md
+            .tmp/growth/door-state.md
