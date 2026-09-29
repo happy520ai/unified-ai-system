@@ -74,19 +74,21 @@ test("refreshing changes only lastmod lines and never the URL set", () => {
 
 test("the shipped sitemap carries no page whose lastmod lags its own commit", () => {
   const depth = Number(spawnSync("git", ["rev-list", "--count", "HEAD"], { encoding: "utf8" }).stdout.trim());
-  if (depth <= 1) {
-    console.log("SKIPPED sitemap currency check: this checkout has " + depth + " commit and cannot date any file");
-    return;
-  }
   const shipped = readFileSync("docs/sitemap.xml", "utf8");
   const { changes, unchecked, unmapped, blocks, accounted } = refresh(shipped);
+  const dated = blocks - unchecked.length;
+  // Print what this checkout could actually see. "changes is empty" only means "nothing is stale" if some page
+  // was datable; without this line a blind run and a clean run read the same in the log.
+  console.log(`DATED ${dated} of ${blocks} url blocks (clone depth ${depth})`);
   assert.deepEqual(changes, [], "these pages need their lastmod refreshed: " + JSON.stringify(changes));
   // The coverage identity is what makes "no changes" mean "nothing is stale" rather than "nothing was read".
   assert.deepEqual(unmapped, [], "a <url> block this tool cannot map would be silently undated");
   assert.equal(accounted, blocks, "every url block must land in stamped, current, or unchecked");
   assert.ok(blocks >= 31, "the shipped sitemap should still declare the whole site, saw " + blocks);
-  if (unchecked.length > 0) console.log("NOT CHECKED (truncated history): " + unchecked.join("; "));
-  assert.ok(unchecked.length <= blocks, "the unchecked list is reported, not absorbed");
+  // The floor is gated on depth, not on faith: a two-commit CI checkout genuinely cannot date most files,
+  // while a deep checkout that dates almost nothing is the tool failing and must say so.
+  if (depth >= 5) assert.ok(dated >= 20, "a deep checkout should date most of the site, saw " + dated + " of " + blocks);
+  if (unchecked.length > 0) console.log("NOT CHECKED (truncated history): " + unchecked.slice(0, 3).join("; ") + (unchecked.length > 3 ? ` … (${unchecked.length} total)` : ""));
 });
 
 test("the site root is a page with a date, not a loc that does not match", () => {
@@ -122,7 +124,6 @@ test("the site root is a page with a date, not a loc that does not match", () =>
   assert.equal(scope.accounted, scope.blocks,
     "every url block must be stamped, current or unchecked - never skipped: " + JSON.stringify(scope.unchecked));
 
-  const depth = Number(spawnSync("git", ["rev-list", "--count", "HEAD"], { encoding: "utf8" }).stdout.trim());
   // The accounting itself, proved without git: a block that is neither stamped, current, nor unchecked has to
   // leave `accounted` short of `blocks`. Without this pair the invariant above is only ever observed to be true.
   const mixed = `<urlset>
@@ -138,8 +139,13 @@ test("the site root is a page with a date, not a loc that does not match", () =>
   assert.equal(counted.blocks, 2);
   assert.equal(counted.accounted, 1, "the unmappable block is not accounted, which is what makes the skip visible");
   assert.deepEqual(counted.unmapped, ["https://example.test/feed.xml"]);
-  if (depth <= 1) {
-    console.log("SKIPPED root staleness arm: a one-commit clone cannot date any file, so no change can be required");
+  if (scope.unchecked.some((u) => u.startsWith("index.html:"))) {
+    // Gated on the tool's own verdict for THIS file, not on a commit count. The first guard said "more than one
+    // commit", which is true of the two-commit checkout CI uses while docs/index.html's own last change still
+    // falls outside the graft - so the arm ran there and could only fail. If the page cannot be dated, no
+    // staleness can be required of it, and that is a skip rather than a pass.
+    console.log("SKIPPED root staleness arm: this checkout cannot date docs/index.html - " +
+      scope.unchecked.find((u) => u.startsWith("index.html:")));
     return;
   }
   const staled = shipped.replace("<loc>https://happy520ai.github.io/unified-ai-system/</loc>\n    <lastmod>2026-09-29</lastmod>",
