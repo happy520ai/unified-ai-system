@@ -184,7 +184,10 @@
               只需要 Codex CLI 和正在运行的 Docker Engine。首次验证不需要其他依赖。
             </p>
             <p>
-              公开容器同时支持 <code>linux/amd64</code> 与 <code>linux/arm64</code>。
+              公开容器已发布 <code>linux/amd64</code> 与 <code>linux/arm64</code> 两个平台。
+              在 Apple Silicon 上，请在下方命令的镜像名前加 <code>--platform linux/amd64</code>：
+              <code>arm64</code> 标签目前带的是 x86-64 原生模块，受治理工具在该架构上会加载失败
+              （见 <a href="https://github.com/happy520ai/unified-ai-system/issues/190">#190</a>）。
               默认路径不会读取 Provider Key；除非另行提供明确、受限的真实 Provider 授权，
               Chat 始终使用确定性的本地 Fake Provider。
             </p>

@@ -186,8 +186,13 @@
               integration needs nothing else for its first verified request.
             </p>
             <p>
-              The container is public and available for <code>linux/amd64</code>
-              and <code>linux/arm64</code>. It does not read a provider key for
+              The container is public and published for <code>linux/amd64</code>
+              and <code>linux/arm64</code>. On Apple Silicon, put
+              <code>--platform linux/amd64</code> before the image name in the command
+              below: the <code>arm64</code> tag currently ships x86-64 native modules, so
+              the governed tools fail to load there
+              (<a href="https://github.com/happy520ai/unified-ai-system/issues/190">#190</a>).
+              It does not read a provider key for
               the default path. Chat stays on a deterministic local fake provider
               unless a separate, explicit real-provider authorization is supplied.
             </p>
