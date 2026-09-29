@@ -25,13 +25,13 @@ test("both languages are fully covered and the one gap is declared", () => {
   assert.equal(r.status, 0, r.stderr);
   const j = out(r.stdout);
   assert.deepEqual(j.runs.map((x) => x.lang), ["en", "zh"]);
-  assert.equal(j.checked, 24);
-  assert.equal(j.expected_total, 24);
+  assert.equal(j.checked, 28);
+  assert.equal(j.expected_total, 28);
   // Pinned as a number and not only as checked == expected_total: dropping a phrase rule shrinks both sides
   // of that equality, and a guard that quietly covers less is worse than one that fails.
   for (const x of j.runs) {
     assert.equal(x.missing.length, 0, x.lang + ": " + JSON.stringify(x.missing));
-    assert.equal(x.expected_total, 12);
+    assert.equal(x.expected_total, 14);
   }
   assert.equal(j.not_checked.length, 1);
   assert.match(j.not_checked[0].label, /Wilson/);
@@ -49,6 +49,7 @@ test("--selftest fires both arms in both languages and leaves nothing behind", (
   const j = out(r.stdout);
   assert.equal(j.selftest, true);
   assert.deepEqual(j.languages, ["en", "zh"]);
+  assert.equal(j.arms, 3, "the selftest must run the head arm alongside the two census arms");
   assert.equal(j.census_phrase_flips, 2, "the stale-page arm must bite once per language, not once overall");
   assert.deepEqual(j.problems, []);
 });
@@ -137,4 +138,51 @@ test("an unreadable page refuses rather than reporting the figures as absent", (
   const r = run(["--lang", "zh", "--page", join(dir, "nope.html"), "--require-present"]);
   assert.equal(r.status, 3, r.stdout + r.stderr);
   assert.match(r.stderr, /cannot read the published page/);
+});
+
+test("a leg dropped from the dated artifact breaks the leg-counting head phrases only", () => {
+  const dated = read("docs/data/mcp-ecosystem-measurements.2026-09-28.json");
+  const idx = dated.questions.findIndex((q) => /-leg$/u.test(String(q.id)));
+  assert.ok(idx >= 0, "fixture precondition: the dated artifact is expected to carry paired legs");
+  dated.questions.splice(idx, 1);
+  const r = run(["--measure-dated", copy("dated-minus-leg", dated), "--require-present"]);
+  assert.equal(r.status, 2, r.stdout + r.stderr);
+  const j = out(r.stdout);
+  const en = j.runs.find((x) => x.lang === "en");
+  const zh = j.runs.find((x) => x.lang === "zh");
+  // The two languages state the leg count in different tags, so exactly those two go red and nothing else does.
+  assert.deepEqual(en.missing.map((m) => m.slice(0, m.indexOf(": expected"))), ["EN head og:description"]);
+  assert.deepEqual(zh.missing.map((m) => m.slice(0, m.indexOf(": expected"))), ["zh head description", "zh head og:description"]);
+  assert.equal(en.checked, 13, "the twelve prose phrases and the head description must still match: " + JSON.stringify(en.missing));
+  assert.equal(zh.checked, 12, JSON.stringify(zh.missing));
+});
+
+test("a page that declares the head description twice refuses instead of letting a crawler pick one", () => {
+  const en = readFileSync(join(ROOT, EN), "utf8");
+  const m = /<meta name="description" content="[^"]*" \/>/u.exec(en);
+  assert.ok(m, "fixture precondition: the shipped page carries a one-line head description");
+  const dup = en.replace(m[0], m[0] + "\n    " + m[0]);
+  assert.notEqual(dup, en, "the fixture must actually add a second tag");
+  const p = join(dir, "en-dup.html");
+  writeFileSync(p, dup, "utf8");
+  const r = run(["--lang", "en", "--page-en", p]);
+  assert.equal(r.status, 3, r.stdout + r.stderr);
+  assert.match(r.stderr, /declares <meta name="description"> 2 times/);
+});
+
+test("a head description wrapped across lines is read, not counted as absent", () => {
+  // Why this arm exists: the first version of the head reader matched one-line tags only, so a page whose
+  // <meta> was wrapped by the formatter read as "no description", and the remedy that suggested itself was to
+  // insert a second one. Reflowing the shipped tag has to leave the page green.
+  const en = readFileSync(join(ROOT, EN), "utf8");
+  const flat = /<meta name="description" content="([^"]*)" \/>/u.exec(en);
+  assert.ok(flat, "fixture precondition: the shipped page carries a one-line head description");
+  const wrapped = `<meta\n      name="description"\n      content="${flat[1]}"\n    />`;
+  const reflowed = en.replace(flat[0], wrapped);
+  assert.notEqual(reflowed, en, "the fixture must actually reflow the tag");
+  assert.ok(/\n\s+name="description"\n/u.test(reflowed), "the fixture must really be multi-line");
+  const p = join(dir, "en-wrapped.html");
+  writeFileSync(p, reflowed, "utf8");
+  const r = run(["--lang", "en", "--page-en", p, "--require-present"]);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
 });

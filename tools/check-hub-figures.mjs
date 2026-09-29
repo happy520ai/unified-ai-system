@@ -25,7 +25,7 @@
 // on the not_checked list on a guess that 785 came from excluding unsupported-host rows. It did not - 785 is
 // sum(by_type.*.definite) while 791 is sum(.measured), two books of one draw, both plain field reads. A
 // guard's stated limitation is itself a claim about the source, and a wrong one is how a gap gets blessed.
-import { readFileSync, writeFileSync, rmSync, mkdtempSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, rmSync, mkdtempSync, existsSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -46,6 +46,8 @@ const FILES = {
   npm: arg("--npm", "docs/data/mcp-npm-installability-sample.2026-09-28.json"),
   resolve: arg("--resolve", "docs/data/mcp-package-resolve.2026-09-28.json"),
   tdqs: arg("--tdqs", "docs/data/mcp-tool-definition-quality.2026-09-28.json"),
+  measure: arg("--measure", "docs/data/mcp-ecosystem-measurements.json"),
+  measureDated: arg("--measure-dated", "docs/data/mcp-ecosystem-measurements.2026-09-28.json"),
 };
 
 function readJson(path) {
@@ -69,6 +71,67 @@ const fmt = (n) => n.toLocaleString("en-US");
 const pct = (n) => (n * 100).toFixed(2);
 const strip = (html) => html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
 
+// Head figures need their own reader: `strip` deletes tags, and a <meta> carries its sentence inside the
+// tag, so every head description on these pages is invisible to the prose matcher above.
+const HEAD_KEYS = { description: 'name="description"', "og:description": 'property="og:description"' };
+
+function headTags(html, where) {
+  const found = { description: [], "og:description": [] };
+  for (const m of html.matchAll(/<meta\b[^>]*>/gu)) {
+    const tag = m[0].replace(/\s+/gu, " ");
+    for (const [key, attr] of Object.entries(HEAD_KEYS)) {
+      if (!tag.includes(attr)) continue;
+      const c = /content="([^"]*)"/u.exec(tag);
+      if (!c) throw new Error(`REFUSED: ${where} has a <meta ${attr}> with no content attribute`);
+      found[key].push(c[1].replace(/&amp;/gu, "&").replace(/&quot;/gu, '"').replace(/&#39;/gu, "'"));
+    }
+  }
+  for (const [key, attr] of Object.entries(HEAD_KEYS)) {
+    // Read as an error rather than a missing phrase: a page with two descriptions is not stale, it is
+    // ambiguous, and a crawler picks one of them without telling anyone which.
+    if (found[key].length !== 1) {
+      throw new Error(`REFUSED: ${where} declares <meta ${attr}> ${found[key].length} times; exactly one is required`);
+    }
+  }
+  // Returned as strings, not the collected arrays: `Array.prototype.includes` compares whole elements, so an
+  // array here would satisfy a phrase only by coincidence (this tool's first version passed the English head
+  // description exactly that way, on a phrase that happened to equal the entire attribute).
+  return { description: found.description[0], "og:description": found["og:description"][0] };
+}
+
+function measurementValues() {
+  const first = readJson(FILES.measure);
+  const dated = readJson(FILES.measureDated);
+  for (const [name, art] of [["first run", first], ["dated run", dated]]) {
+    if (!Array.isArray(art.questions) || art.questions.length === 0) throw new Error(`REFUSED: ${name} artifact has no questions array to count`);
+    for (const q of art.questions) {
+      if (typeof q.id !== "string" || q.id.length === 0) throw new Error(`REFUSED: ${name} artifact has a question with no id`);
+    }
+    if (typeof art.sample?.limit !== "number" || !Number.isSafeInteger(art.sample.limit)) throw new Error(`REFUSED: ${name} artifact has no number at sample.limit`);
+  }
+  // The two runs have to share a sample size or "40 servers" in the head copy is half true.
+  if (first.sample.limit !== dated.sample.limit) throw new Error(`REFUSED: the two measurement runs sampled different limits (${first.sample.limit} vs ${dated.sample.limit}) - the head copy cannot name one number`);
+  // The head copy states how many datasets are published, so the denominator is the directory rather than the
+  // two files this tool happens to read. A fourth artifact with the copy unchanged has to go red.
+  const siblings = readdirSync("docs/data")
+    .filter((f) => /^mcp-ecosystem-measurements[^/]*\.json$/u.test(f) && !f.endsWith(".partial.json"))
+    .sort();
+  const WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
+  const datasetWord = WORDS[siblings.length];
+  if (!datasetWord) throw new Error(`REFUSED: ${siblings.length} measurement datasets is past the word table - extend WORDS deliberately`);
+  // Counted from the directory, never from the --measure flags: an overridden artifact path must not be able to
+  // change what the published copy claims about how many datasets exist.
+  const datasetCount = siblings.length;
+  // Collapsed exactly the way docs/render-mcp-hub-zh.mjs collapses it, so the two languages cannot drift into
+  // two different definitions of "question".
+  const collapse = (id) => String(id).replace(/-(legacy|modern)-leg$/u, "");
+  const questions = new Set(dated.questions.map((q) => collapse(q.id))).size;
+  const agreed = first.questions.find((q) => q.id === "protocol-revision-tolerance")?.verdicts?.AGREED_TO_THE_IMPOSSIBLE;
+  if (!Number.isSafeInteger(questions) || questions <= 0) throw new Error("REFUSED: cannot count distinct questions in the dated artifact");
+  if (!Number.isSafeInteger(agreed) || agreed <= 0) throw new Error("REFUSED: the protocol-revision-tolerance verdict AGREED_TO_THE_IMPOSSIBLE is not a positive safe integer");
+  return { questions, legs: dated.questions.length, limit: dated.sample.limit, datasetCount, datasetWord, agreed, firstCount: first.questions.length };
+}
+
 function values() {
   const install = readJson(FILES.install);
   const census = readJson(FILES.census);
@@ -76,6 +139,7 @@ function values() {
   const npm = readJson(FILES.npm);
   const resolve = readJson(FILES.resolve);
   const tdqs = readJson(FILES.tdqs);
+  const m = measurementValues();
 
   const ci = npm.ci95;
   if (!Array.isArray(ci) || ci.length !== 2) throw new Error("REFUSED: npm sample has no two-sided ci95 to quote");
@@ -116,6 +180,7 @@ function values() {
     definiteSum,
     unusableSum,
     measuredSum,
+    measure: m,
   };
   // The pooled sentence spans six artifact families - the five probed here plus npm. npm's decided readings
   // are its draw minus whatever that probe could not decide at all.
@@ -157,6 +222,18 @@ const enPhrases = (v) => [
   { label: "EN tdqs outputSchema self-audit", phrase: `${v.toolCount} of ${v.toolCount} of our tools declare no outputSchema`, requiresZero: v.outputSchema === 0 },
 ];
 
+const headEnPhrases = (v) => [
+  { in: "description", label: "EN head description", phrase: `${v.measure.questions} questions put to ${v.measure.limit} servers in the official MCP registry. ${v.measure.agreed} agreed to a protocol revision that does not exist. Scripts and ${v.measure.datasetWord} published datasets alongside.` },
+  { in: "og:description", label: "EN head og:description", phrase: `${v.measure.questions} questions in ${v.measure.legs} measurement legs put to ${v.measure.limit} servers in the official MCP registry, plus a wider re-ask of the same ${v.measure.firstCount} questions.` },
+];
+
+const headZhPhrases = (v) => [
+  { in: "description", label: "zh head description", phrase: `${v.measure.limit} 个服务端匿名提问：${v.measure.questions} 个问题、${v.measure.legs} 次测量` },
+  { in: "og:description", label: "zh head og:description", phrase: `${v.measure.questions} 个问题、${v.measure.legs} 次测量` },
+];
+
+const HEAD_TABLES = { en: headEnPhrases, zh: headZhPhrases };
+
 const NOT_CHECKED = [
   { label: "the per-family Wilson brackets inside the resolve table", reason: "each interval is recomputed from (unusable, definite) by that page's own renderer. A second Wilson implementation here would give the page and its guard two formulas to disagree over. The counts every interval is built from ARE checked, in both languages." },
 ];
@@ -174,7 +251,19 @@ function report(lang, text, v) {
     }
     if (!flat.includes(e.phrase)) missing.push(`${e.label}: expected \`${e.phrase}\``);
   }
-  return { lang, page: FILES[lang], checked: list.length - missing.length, expected_total: list.length, missing };
+  const head = headTags(text, FILES[lang]);
+  const headList = HEAD_TABLES[lang](v);
+  for (const e of headList) {
+    const hay = e.in === "description" ? head.description : head["og:description"];
+    if (!hay.includes(e.phrase)) missing.push(`${e.label}: expected \`${e.phrase}\` inside <meta ${HEAD_KEYS[e.in]}>`);
+  }
+  return {
+    lang,
+    page: FILES[lang],
+    checked: list.length + headList.length - missing.length,
+    expected_total: list.length + headList.length,
+    missing,
+  };
 }
 
 function langs() {
@@ -229,7 +318,33 @@ function selftest() {
   }
   if (existsSync(tmp)) problems.push("arm 2 left its scratch artifact behind");
 
-  console.log(JSON.stringify({ selftest: problems.length === 0, arms: 2, languages: langs(), census_phrase_flips: flipped, problems }, null, 2));
+  // Arm 3: the figure only the English head copy quotes. en must lose exactly the head phrase; zh must lose
+  // nothing, because the Chinese head copy states question and leg counts rather than per-question verdicts.
+  const firstRaw = JSON.parse(readFileSync(FILES.measure, "utf8"));
+  const rev = firstRaw.questions.find((q) => q.id === "protocol-revision-tolerance");
+  rev.verdicts.AGREED_TO_THE_IMPOSSIBLE = rev.verdicts.AGREED_TO_THE_IMPOSSIBLE + 1;
+  const dir3 = mkdtempSync(join(tmpdir(), "hubfig-measure-"));
+  const tmp3 = join(dir3, "measure-plus-one.json");
+  writeFileSync(tmp3, JSON.stringify(firstRaw), "utf8");
+  const savedMeasure = FILES.measure;
+  FILES.measure = tmp3;
+  let r3;
+  try {
+    const v3 = values();
+    r3 = langs().map((l) => ({ l, ...report(l, readFileSync(FILES[l], "utf8"), v3) }));
+  } finally {
+    FILES.measure = savedMeasure;
+    rmSync(tmp3, { force: true });
+    rmSync(dir3, { force: true, recursive: true });
+  }
+  for (const r of r3) {
+    const headOnly = r.missing.length === 1 && /head description/.test(r.missing[0]);
+    if (r.l === "en" && !headOnly) problems.push(`arm 3 (en): a moved AGREED_TO_THE_IMPOSSIBLE must break exactly the head description, got ${JSON.stringify(r.missing)}`);
+    if (r.l === "zh" && r.missing.length !== 0) problems.push(`arm 3 (zh): the Chinese head copy does not quote that verdict, so it must stay green, got ${JSON.stringify(r.missing)}`);
+  }
+  if (existsSync(tmp3)) problems.push("arm 3 left its scratch artifact behind");
+
+  console.log(JSON.stringify({ selftest: problems.length === 0, arms: 3, languages: langs(), census_phrase_flips: flipped, problems }, null, 2));
   return problems.length === 0 ? 0 : 7;
 }
 
@@ -250,7 +365,15 @@ function main() {
       console.error(`REFUSED: cannot read the published page ${FILES[l]}: ${e.message}`);
       return 3;
     }
-    runs.push(report(l, text, v));
+    try {
+      runs.push(report(l, text, v));
+    } catch (e) {
+      // report() refuses for reasons that are not staleness - a head tag declared twice, a content
+      // attribute that is missing - and each has to leave the documented exit 3 with its own message.
+      const message = String(e && e.message ? e.message : e);
+      console.error(message.startsWith("REFUSED:") ? message : `REFUSED: ${FILES[l]}: ${message}`);
+      return 3;
+    }
   }
   const out = {
     runs,
