@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CURRENT_RELEASE, PINNED_ROSTER, pinnedCorrectReadings, pinnedCountMismatches, pinnedIdentityReadings } from "./check-pinned-count.mjs";
@@ -535,6 +535,27 @@ for (const [marker, code] of [
 ]) {
   if (!currentImageReview.includes(marker)) {
     addError(code, currentImageReviewPath);
+  }
+}
+
+// A review that exists on disk but is not linked from the security index is invisible to everyone who
+// arrives through that index. That is exactly how "the newest image content review on file is 0.4.9"
+// stayed published for a day after docs/security/mcp-image-review-0.8.0.md landed: the gate above
+// hardcodes one path and the index hardcodes the same one, so nothing looked at the directory. Derive
+// the set from the filesystem so the next review cannot be forgotten the same way.
+{
+  const securityDir = resolve(repoRoot, "docs/security");
+  const securityIndex = readFileSync(resolve(securityDir, "README.md"), "utf8");
+  const reviewFiles = readdirSync(securityDir).filter((name) =>
+    /^mcp-image-review-\d+\.\d+\.\d+\.md$/.test(name),
+  );
+  if (reviewFiles.length === 0) {
+    addError("security_review_directory_unreadable", "docs/security");
+  }
+  for (const name of reviewFiles.sort()) {
+    if (!securityIndex.includes(`(${name})`)) {
+      addError("security_review_missing_from_index", `docs/security/${name}`);
+    }
   }
 }
 

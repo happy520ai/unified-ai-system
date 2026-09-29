@@ -55,7 +55,7 @@ auditor can use as a starting harness rather than starting from zero.
    the PostgreSQL variant. Known boundary: full-chain rollback replacement
    requires an external checkpoint; assess whether that boundary is stated
    accurately everywhere it is relied on.
-4. **MCP boundary** — the 12 governed MCP tools in `packages/mcp-server`
+4. **MCP boundary** — the fifteen governed MCP tools in `packages/mcp-server`
    (fake-provider fail-closed chat), reverse MCP upstream aggregation, and
    REST→MCP generation (`src/mcpGateway/`). Start from attack cases A8–A9.
 
