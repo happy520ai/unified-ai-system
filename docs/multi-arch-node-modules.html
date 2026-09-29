@@ -32,7 +32,7 @@
   "headline": "\"invalid ELF header\" from better-sqlite3 on linux/arm64: the wrong-architecture node_modules trap",
   "description": "A Node image published as multi-platform can carry x86-64 native modules inside its linux/arm64 tag, and the first require() of the package fails with...",
   "datePublished": "2026-09-29T03:43:56Z",
-  "dateModified": "2026-09-29T04:33:22Z",
+  "dateModified": "2026-09-29T05:01:42Z",
   "author": {
     "@type": "Organization",
     "name": "Unified AI System",
@@ -76,6 +76,15 @@
     <p>  install<code> / </code>npm ci<code> runs in a builder stage on whichever runner built it, and </code>better-sqlite3<code>'s </code>install<code>   hook (</code>prebuild-install || node-gyp rebuild --release<code>) then resolves **the prebuild for the runner's   architecture**, not the target's. The finished </code>/app` is copied into both images.</p>
     <p>So the tag advertises <code>linux/arm64</code>, the manifest really has an arm64 child, <code>docker manifest inspect</code> looks correct - and the native modules inside are x86-64. Everything a registry-level check can see says &quot;multi platform&quot;. Only the file bytes say otherwise.</p>
     <p>The same trap has a second, quieter face: <code>optionalDependencies</code> with platform-specific packages (<code>@napi-rs/canvas-linux-x64-gnu</code>, <code>lightningcss-linux-x64-gnu</code>, <code>@rollup/rollup-linux-arm64-gnu</code>). npm and pnpm pick those by the <em>installing</em> machine's platform, so an install on an x86-64 runner records and materialises the x64 set, and an arm64 image gets x64 binaries plus a lockfile that will not admit the arm64 ones.</p>
+    <h2>The same trap without containers</h2>
+    <p>Containers are one route here. So is any packaging step that reuses one <code>node_modules</code> directory across targets: a desktop build that produces Linux x64 and then macOS universal artifacts sequentially against the same tree can ship the <em>previous</em> target's native binary, because the native rebuild gets skipped while a stale &quot;already built for this platform&quot; marker is still sitting in the tree.</p>
+    <p>Where a cross-check does exist, you get a build-time error instead of a runtime one:</p>
+    <pre class="language-text"><code>Expected all non-binary files to have identical SHAs when creating a universal build
+  but &quot;Contents/Resources/app.asar.unpacked/node_modules/better-sqlite3/build/Release/better_sqlite3.node&quot; did not</code></pre>
+    <p>Where it does not, the failure is silent at build time and surfaces only when the app starts - <code>invalid ELF header</code> on Linux, <code>not a valid Win32 application</code> on Windows. Reported upstream at <a href="https://github.com/electron-userland/electron-builder/issues/10031">electron-userland/electron-builder#10031</a>, whose reporter traced the cause to a rebuild-skip marker in the rebuild path rather than to anything container-shaped.</p>
+    <p>The two shapes need two different checks, and it matters which one is available when:</p>
+    <ul><li><strong>Shared <code>node_modules</code> across sequential target builds</strong> - the pre-packaging signal is the rebuild marker still naming the <em>first</em> target. You can see it before you ship anything, which is where the fix belongs.</li><li><strong>An artifact that already exists</strong> (published image, tarball, <code>.asar</code>) - the signal is <code>e_machine</code> at offset 18 of each <code>.node</code> file, described below. It cannot tell you <em>why</em> the wrong binary is there, and it only fires after publication.</li></ul>
+    <p>The byte-level read in the next section is the second kind. We measured it against our own container images only; nothing in this section is a measurement of any other project's behaviour.</p>
     <h2>How to check an image without a Docker engine</h2>
     <p>The registry hands out the layer tarballs to an anonymous pull token. Our reader is <code>tools/inspect-image-filesystem.mjs</code> (zero dependencies: <code>node:crypto</code>, <code>node:zlib</code>, global <code>fetch</code>), and it never creates or runs a container:</p>
     <pre class="language-bash"><code>node tools/inspect-image-filesystem.mjs 0.8.0 --arch arm64</code></pre>

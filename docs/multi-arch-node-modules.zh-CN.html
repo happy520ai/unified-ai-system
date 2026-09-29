@@ -30,7 +30,7 @@
   "headline": "linux/arm64 上 better-sqlite3 抛出 \"invalid ELF header\"：错误的 CPU 架构 node_modules 陷阱",
   "description": "以多平台方式发布的 Node 镜像，它的 linux/arm64 标签里可能装着 x86-64 原生模块，于是第一次 require() 该包就会失败并抛出 invalid ELF header。2026-09-29 从我们自己镜像的四个已发布版本实测； 不需要 Docker 引擎，也没有执行任何代码。",
   "datePublished": "2026-09-29T03:50:10Z",
-  "dateModified": "2026-09-29T04:33:22Z",
+  "dateModified": "2026-09-29T05:01:42Z",
   "author": {
     "@type": "Organization",
     "name": "Unified AI System",
@@ -74,6 +74,15 @@
     <p>  跑在某个 runner 上，<code>better-sqlite3</code> 的 <code>install</code> 钩子（<code>prebuild-install || node-gyp rebuild --release</code>）   于是解析出 <strong>runner 架构</strong> 的预编译包，而不是目标架构的。做完的 <code>/app</code> 被复制进两个镜像。</p>
     <p>所以标签声明 <code>linux/arm64</code>，manifest 里也确实有 arm64 child，<code>docker manifest inspect</code> 看起来完全正常 —— 而里面的原生模块是 x86-64。registry 层面能检查的东西全部通过，只有文件字节会说不一致。</p>
     <p>同一陷阱还有一个更安静的形态：带平台后缀的 <code>optionalDependencies</code>（<code>@napi-rs/canvas-linux-x64-gnu</code>、 <code>lightningcss-linux-x64-gnu</code>、<code>@rollup/rollup-linux-arm64-gnu</code>）。npm 与 pnpm 按 <strong>安装机</strong> 的平台挑选它们， 于是在 x86-64 runner 上的一次安装会记录并落地 x64 那一组，arm64 镜像拿到的就是 x64 二进制， 外加一个不会承认 arm64 版本存在的 lockfile。</p>
+    <h2>不用容器也会踩到同一个陷阱</h2>
+    <p>容器只是其中一条路。任何「跨多个目标复用同一个 <code>node_modules</code> 目录」的打包步骤都会走到这里：先打 Linux x64、再对着同一棵树打 macOS universal 的桌面构建，可能把<strong>上一个目标</strong>的原生二进制装进包里，因为树上还留着「这个平台已经构建过了」的过期标记，原生模块重建就被跳过了。</p>
+    <p>有交叉校验时，你会在构建期就拿到报错：</p>
+    <pre class="language-text"><code>Expected all non-binary files to have identical SHAs when creating a universal build
+  but &quot;Contents/Resources/app.asar.unpacked/node_modules/better-sqlite3/build/Release/better_sqlite3.node&quot; did not</code></pre>
+    <p>没有校验时，构建期完全安静，要等应用启动才炸——Linux 上是 <code>invalid ELF header</code>，Windows 上是 <code>not a valid Win32 application</code>。上游记录见 <a href="https://github.com/electron-userland/electron-builder/issues/10031">electron-userland/electron-builder#10031</a>，该 issue 的作者把成因定位到重建路径里的「跳过重建标记」，而不是任何容器相关的形状。</p>
+    <p>两种形状要配两种不同的检查，而且「什么时候能看到」这一点很关键：</p>
+    <ul><li><strong>跨顺序目标构建共享同一个 <code>node_modules</code></strong>——打包前的信号是那个重建标记仍然写着<strong>第一个</strong>目标的名字。你在发布任何东西之前就能看到它，修的位置也应该在这里。</li><li><strong>已经存在的产物</strong>（已发布的镜像、tarball、<code>.asar</code>）——信号是每个 <code>.node</code> 文件偏移 18 处的 <code>e_machine</code>，下一节就是它。它说不出「为什么装错了」，而且要等到发布之后才会开火。</li></ul>
+    <p>下一节那个按字节读的做法属于第二种。我们只在自己的容器镜像上量过它；本节内容不构成对任何其他项目行为的测量。</p>
     <h2>不用 Docker 引擎怎么检查一个镜像</h2>
     <p>registry 会用匿名 pull token 把 layer tarball 交出来。我们的读取器是 <code>tools/inspect-image-filesystem.mjs</code>（零依赖：<code>node:crypto</code>、<code>node:zlib</code>、全局 <code>fetch</code>）， 它不会创建也不会运行容器：</p>
     <pre class="language-bash"><code>node tools/inspect-image-filesystem.mjs 0.8.0 --arch arm64</code></pre>
