@@ -368,6 +368,21 @@ Restart Codex, run `/mcp verbose` to inspect the installed tool list, then follo
 [60-second Codex MCP quickstart](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.html) for a safe first
 prompt-enhancement call and removal command.
 
+Building from the repository takes one extra flag. The root `Dockerfile` declares two publishable
+stages, `mcp` and `gateway`, and `gateway` is the last one, so a plain `docker build .` produces the
+HTTP gateway - which never answers on stdio:
+
+```bash
+docker build --target mcp -t unified-ai-system-mcp .
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"probe","version":"0"}}}' \
+  | docker run --rm -i unified-ai-system-mcp
+```
+
+`--target mcp` and `--target gateway` are the two targets the release workflow builds, so this is the
+same build that publishes the image above rather than an instruction that only exists in the docs.
+Anything that introspects our `Dockerfile` - a directory checking tool definitions, or your own CI -
+has to select `mcp`; without it it finds a gateway that answers HTTP and no MCP server at all.
+
 For MCP clients that connect by URL, the source build provides a loopback-only
 Streamable HTTP endpoint:
 

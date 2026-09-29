@@ -303,6 +303,19 @@ codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified
 重启 Codex 后运行 `/mcp` 检查连接，再参考 [Codex MCP 60 秒快速开始](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html)。
 当前源码提供 15 个工具，包括健康检查、Agent 治理查询、自然语言增强、聊天、知识、工作流和 workforce 能力。镜像标签与工作树是不同对象，安装后应检查实际工具清单。
 
+从仓库自行构建要多一个参数：根目录 `Dockerfile` 定义了两个可发布阶段 `mcp` 与 `gateway`，而 `gateway` 排在最后，
+所以不加参数的 `docker build .` 得到的是 HTTP 网关，它不会在 stdio 上应答：
+
+```bash
+docker build --target mcp -t unified-ai-system-mcp .
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"probe","version":"0"}}}' \
+  | docker run --rm -i unified-ai-system-mcp
+```
+
+`--target mcp` 与 `--target gateway` 正是发布工作流实际构建的两个目标，所以这不是只写在文档里的说法。
+任何通过构建我们的 `Dockerfile` 做 introspection 的系统，无论目录站检查工具定义还是你自己的 CI，都必须选 `mcp`；
+否则它只会看到一个应答 HTTP 的网关，看不到 MCP 服务。
+
 需要通过 URL 接入的 MCP 客户端，可以使用源码提供的仅本机监听 Streamable HTTP 入口：
 
 ```bash
