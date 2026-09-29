@@ -563,7 +563,7 @@ jobs:
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: Scan gateway image with Trivy
-        uses: aquasecurity/trivy-action@780c3b34475b235b00d9aca30d1d4aaab6e6dc52 # v0.32.0
+        uses: aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4 # v0.32.0
         with:
           image-ref: "ghcr.io/${{ github.repository }}/ai-gateway-service:sha-${{ github.sha }}"
           format: "sarif"
@@ -574,7 +574,7 @@ jobs:
           vuln-type: "os,library"
 
       - name: Scan MCP image with Trivy
-        uses: aquasecurity/trivy-action@780c3b34475b235b00d9aca30d1d4aaab6e6dc52 # v0.32.0
+        uses: aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4 # v0.32.0
         with:
           image-ref: "ghcr.io/${{ github.repository }}/mcp-server:sha-${{ github.sha }}"
           format: "sarif"
@@ -586,7 +586,7 @@ jobs:
 
       - name: Upload Trivy scan results to GitHub Security
         if: always()
-        uses: github/codeql-action/upload-sarif@51f27fe426459f2ba98e0f5cddb852c2b3354c8a # v3
+        uses: github/codeql-action/upload-sarif@1190a975f95ce23525efb6a3fc21ea29567c1b52 # v3
         with:
           sarif_file: "trivy-gateway-results.sarif"
 
