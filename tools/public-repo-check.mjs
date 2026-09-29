@@ -630,6 +630,15 @@ const marketingAssetContracts = [
     ],
   ],
   [
+    // The Chinese twin carries the same promise in its own wording, so it is held to the same two
+    // derivations rather than allowed to drift into a translation of an old number.
+    "docs/mcp-security-boundaries.zh-CN.html",
+    [
+      `${attackCaseCount} 次攻击探测由`,
+      `${publishedToolCount} 个工具名由`,
+    ],
+  ],
+  [
     "docs/assets/readme-hero.html",
     [
       "first path needs <strong>zero credentials</strong>",

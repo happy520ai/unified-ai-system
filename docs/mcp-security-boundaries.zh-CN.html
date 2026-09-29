@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MCP 安全边界：我们实际检查了什么，哪些仍未被证明 | Unified AI System</title>
+    <meta
+      name="description"
+      content="对真实网关进程运行的 23 次攻击探测、用两种不同方法完成的已发布镜像内容审查，以及这两种方法各自止步的界线。每个数字都附上可以重跑的命令。"
+    />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="theme-color" content="#081011" />
+    <link
+      rel="canonical"
+      href="https://happy520ai.github.io/unified-ai-system/mcp-security-boundaries.zh-CN.html"
+    />
+
+    <link rel="alternate" hreflang="en" href="https://happy520ai.github.io/unified-ai-system/mcp-security-boundaries.html" />
+    <link rel="alternate" hreflang="zh-CN" href="https://happy520ai.github.io/unified-ai-system/mcp-security-boundaries.zh-CN.html" />
+    <link rel="alternate" hreflang="x-default" href="https://happy520ai.github.io/unified-ai-system/mcp-security-boundaries.html" />
+
+    <link rel="sitemap" type="application/xml" href="sitemap.xml" />
+    <link rel="alternate" type="text/plain" href="llms.txt" title="LLM-readable project summary" />
+    <link rel="icon" type="image/png" href="assets/mcp-icon.png" />
+
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Unified AI System" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta
+      property="og:title"
+      content="MCP 安全边界：我们实际检查了什么"
+    />
+    <meta
+      property="og:description"
+      content="23 次攻击探测全部拦住，两次用不同方法完成的镜像审查，以及两者都没有覆盖的范围——附重跑命令。"
+    />
+    <meta
+      property="og:url"
+      content="https://happy520ai.github.io/unified-ai-system/mcp-security-boundaries.zh-CN.html"
+    />
+    <meta
+      property="og:image"
+      content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png"
+    />
+    <meta
+      property="og:image:secure_url"
+      content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png"
+    />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="640" />
+    <meta property="og:image:alt" content="Unified AI System MCP 网关与提示词增强预览" />
+    <meta property="article:published_time" content="2026-09-29T23:56:00Z" />
+    <meta property="article:modified_time" content="2026-09-29T23:56:00Z" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="MCP 安全边界：我们实际检查了什么" />
+    <meta
+      name="twitter:description"
+      content="23 次攻击探测、两种审查方法，以及各自止步的地方——都附可重跑的命令。"
+    />
+    <meta
+      name="twitter:image"
+      content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png"
+    />
+    <meta name="twitter:image:alt" content="Unified AI System MCP 网关与提示词增强预览" />
+
+    <link rel="stylesheet" href="site.css" />
+    <script type="application/ld+json">
+      {
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "MCP 安全边界：我们实际检查了什么，哪些仍未被证明",
+  "description": "攻击回归、两次已发布镜像内容审查，以及这两者都没有建立的结论。",
+  "datePublished": "2026-09-29T23:56:00Z",
+  "dateModified": "2026-09-29T23:56:00Z",
+  "inLanguage": "zh-CN",
+  "author": {
+    "@type": "Organization",
+    "name": "Unified AI System contributors",
+    "url": "https://github.com/happy520ai/unified-ai-system"
+  },
+  "mainEntityOfPage": "https://happy520ai.github.io/unified-ai-system/mcp-security-boundaries.zh-CN.html",
+  "image": "https://happy520ai.github.io/unified-ai-system/assets/social-preview.png",
+  "keywords": "MCP 安全, 自托管 AI 网关, 攻击回归, 容器镜像审查, 已发布摘要, 残余风险"
+}
+    </script>
+    <script src="site.js" defer></script>
+  </head>
+  <body class="article-page">
+    <a class="skip-link" href="#article">跳到正文</a>
+
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="Unified AI System 首页">
+        <img src="assets/mcp-icon.png" alt="" width="32" height="32" />
+        <span>Unified AI System</span>
+      </a>
+      <nav aria-label="主导航">
+        <a href="index.zh-CN.html">项目</a>
+        <a href="#attack">攻击探测</a>
+        <a href="#images">镜像审查</a>
+        <a href="#boundary">本页不能证明什么</a>
+      </nav>
+    </header>
+
+    <main id="article">
+      <p class="eyebrow dark">证据 · 自评 · 有边界 · 可重跑</p>
+      <h1>MCP 安全边界：我们实际检查了什么。</h1>
+      <p>
+    这个页面的存在，是因为仓库里的安全证据此前只以 GitHub 文件目录的形式存在，搜索结果无法落在上面。
+    下面的每个数字都由本仓库的某个命令产出，而每一节最先说明的，是那个方法的止步之处。
+    这里没有任何内容构成生产就绪认证，也没有任何内容声称绝对安全。
+      </p>
+      <p>
+        本页开头的说法是可核对的：23 次攻击探测由
+        <code>tools/security-attack-regression.mjs</code> 数出来，15 个工具名由
+        <code>packages/mcp-server/src/server.js</code> 数出来。<code>tools/public-repo-check.mjs</code>
+        会拿这两个派生值来校验本页，所以如果新增了攻击用例或工具而没有同步本页，构建会直接变红，
+        而不是让这段文字悄悄失真。假如这句话与代码不一致，以代码为准。
+      </p>
+      <p>
+        <a href="credential-free-evidence.html">免凭据证据：一次运行如何证明没有调用 provider（英文）</a>
+        ·
+        <a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/security/README.md">安全证据目录</a>
+        ·
+        <a href="verify-mcp-docker-image.html">已发布 MCP 镜像实际暴露什么（英文）</a>
+      </p>
+
+      <h2 id="attack">攻击回归：23 次探测，全部拦住</h2>
+      <p>
+        <code>tools/security-attack-regression.mjs</code> 会启动一个真实的网关进程，并向它发起 23 次攻击
+        用例：跨租户隔离、请求头伪造、越权创建与过滤、viewer 角色越界访问对话与管理接口、预算耗尽与限速
+        （都返回 429）、跨租户密钥吊销、已吊销密钥即时失效、疑似机密文本不入缓存、匿名与低权限访问
+        <code>/mcp/tools</code>、未知上游被拒绝、超大的 MCP 参数被拒绝，以及 <code>/metrics</code> 需要
+        鉴权且不包含任何机密。每个用例打印 <code>DEFENDED</code> 或 <code>BREACH</code>，任何一次突破都会
+        让进程以非零退出。
+      </p>
+      <pre><code>node tools/security-attack-regression.mjs</code></pre>
+      <p>
+        已提交的 <a href="security-drill-evidence.html">安全演练证据页（英文）</a>是执行上面的脚本并解析其
+        输出生成的。只有在恰好解析出 23 条判定、且没有任何一条是突破时，它才允许落盘；而页面上的数字取自
+        解析结果，不是模板里手写的常量。换句话说，新增第 24 个用例却忘了改别的东西时，生成器会拒绝写出，
+        而不是继续发布一个失真的计数。
+      </p>
+      <p class="callout">
+        <strong>这个方法的止步之处。</strong>这是一套由写代码的人自己编写的回归。它不是第三方渗透测试，
+        也不是审计。它跑的是源码构建，所以一次绿色运行并不能认证已经推到 registry 的那个容器镜像——
+        那是下面单独处理的问题。
+      </p>
+
+      <h2 id="images">两次已发布镜像审查，用了两种不同方法</h2>
+      <p>
+        它们不是同一种检查，覆盖的也不是同一片范围。把两者读成同一个数字，正是这一节要避免的错误。
+      </p>
+      <table>
+        <caption>按产出方法区分的在册审查</caption>
+        <thead>
+          <tr><th>镜像</th><th>方法</th><th>需要什么</th><th>结论</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>0.8.0</code></td>
+            <td>直接从 registry 读取分层 tarball</td>
+            <td>不需要 Docker 引擎；不执行任何东西</td>
+            <td>非 root 的 <code>node</code> 用户，8 个 setuid 文件与 3 个 setgid 文件；而
+              <code>linux/arm64</code> 标签里的 8 个原生模块有 4 个是 x86-64，因此在 arm64 主机上加载它们的
+              那条路径会失败</td>
+          </tr>
+          <tr>
+            <td><code>0.4.9</code></td>
+            <td>用 Docker 导出容器文件系统</td>
+            <td>一个可用的 Docker 引擎</td>
+            <td>默认 root 用户，11 个来自基础镜像的 SUID/SGID 文件；arm64 模块确实是 AArch64。
+              agent skill 里按摘要固定的那一份，依据的正是这次审查</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        不用 Docker 也可以自己重读：
+      </p>
+      <pre><code>node tools/inspect-image-filesystem.mjs 0.8.0
+node tools/verify-image-roster.mjs 0.8.0</code></pre>
+      <p>
+        第二条命令回答的是另一个问题——已发布镜像实际暴露了哪些工具名。它从镜像字节里读出
+        <code>0.8.0</code> 是 15 个、<code>0.4.9</code> 是 9 个，依据不是任何文档。正因如此，安装说明里
+        那个被固定的摘要才重要：那 15 个名字里有 6 个在这个较旧的镜像里并不存在。arm64 那条发现展开在
+        <a href="multi-arch-node-modules.zh-CN.html">《容器里装着另一种架构的原生模块》</a>。
+      </p>
+      <p class="callout">
+        <strong>为什么最新的一次审查并不是定心丸。</strong><code>0.8.0</code> 的审查正是<em>发现</em>了
+        架构错配的那一次。这里出现更新的文档，意味着检查得更多，而不是问题更少。
+      </p>
+      <p>
+        <code>0.5.0</code>、<code>0.6.0</code> 和 <code>0.7.0</code> 没有内容审查在册。<code>0.4.8</code>、
+        <code>0.4.0</code> 和 <code>0.3.2</code> 有，链接见
+        <a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/security/README.md">安全索引</a>。
+      </p>
+
+      <h2 id="boundary">这个页面不能证明什么</h2>
+      <ul>
+        <li>
+          <strong>不是独立核验。</strong>攻击回归和镜像审查都出自我们自己的手。没有第三方审计过这个项目。
+        </li>
+        <li>
+          <strong>不是对已发布容器的运行时审计。</strong>tarball 审查读的是字节，从未启动过镜像。
+          arm64 那条结论是对标签内二进制的 ELF 头读取，所以它描述的是加载路径会失败，而不是在一台
+          arm64 机器上跑起来观察到的结果。
+        </li>
+        <li>
+          <strong>不是总体性结论。</strong>23 个用例只是我们想到的那些，它们不能界定攻击者会尝试什么。
+        </li>
+        <li>
+          <strong>没有生产就绪，也没有恢复目标。</strong>这里没有任何 RTO 或 RPO 证据，也没有任何内容
+          声称网关在你的工作负载、你的 provider、你的网络下是安全的。
+        </li>
+        <li>
+          <strong>摘要信任是外包出去的。</strong>按摘要读取镜像，前提是 registry 提供它自己声明过的那个对象。
+          审查会重新计算每个下载到的 blob 摘要，这能发现传输中的损坏或替换，但发现不了从一开始就对标签
+          不诚实的 registry。
+        </li>
+      </ul>
+
+      <h2 id="report">如果你发现了问题</h2>
+      <p>
+        请通过<a href="https://github.com/happy520ai/unified-ai-system/security/policy">安全政策</a>私下报告，
+        不要开公开 issue。如果你重跑上面的命令后得到的结果与本页不一致，那本身就值得报告：这里的数字都是
+        派生的，所以对不上就说明要么产物变了、要么推导变了，我们宁愿早知道，也不守着一个失真的说法。
+      </p>
+
+      <aside>
+        <p>
+          英文原文：<a href="mcp-security-boundaries.html">MCP security boundaries</a>
+        </p>
+      </aside>
+    </main>
+
+    <footer class="site-footer">
+      <a href="index.zh-CN.html">项目</a>
+      <a href="https://github.com/happy520ai/unified-ai-system">代码仓库</a>
+      <a href="https://github.com/happy520ai/unified-ai-system/security/policy">安全政策</a>
+      <a href="llms.txt">LLM 可读摘要</a>
+    </footer>
+  </body>
+</html>
