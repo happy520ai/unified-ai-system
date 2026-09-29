@@ -204,7 +204,7 @@ export function datesTrustworthy(depth) {
   return Number.isSafeInteger(depth) && depth > 1;
 }
 
-function gitDate(path, mode) {
+export function gitDate(path, mode) {
   if (!datesTrustworthy(historyDepth())) return null;
   const args = ["log", "--format=%H %cI", "-1"];
   // Option order matters: `git --diff-filter=A log` is not a thing. It has to follow `log`.

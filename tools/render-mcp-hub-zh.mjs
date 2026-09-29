@@ -6,12 +6,14 @@
 // block cannot say which protocol revision it asked with.
 //
 // Usage: node tools/render-mcp-hub-zh.mjs [--dataset <file>] [--out <file>]
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
 
 const arg = (name, dflt) => {
   const i = process.argv.indexOf(name);
   return i > 0 && typeof process.argv[i + 1] === "string" ? process.argv[i + 1] : dflt;
 };
+import { gitDate, pickModified } from "./render-evidence-page.mjs";
+
 const DATASET = arg("--dataset", "docs/data/mcp-ecosystem-measurements.2026-09-28.json");
 const OUT = arg("--out", "docs/mcp-ecosystem-measurements.zh-CN.html");
 const BASE = "https://happy520ai.github.io/unified-ai-system/";
@@ -82,13 +84,43 @@ const rows = blocks.map((b) => {
 }).join("\n");
 
 const window = String(doc.generated_at_start_utc ?? "").slice(0, 10);
+const headDescription = `向官方注册表登记的 ${blocks[0].attempted} 个服务端匿名提问：${questionNames.size} 个问题、${blocks.length} 次测量。每个数字都从机器可读数据集生成，页面自己声明分母与所请求的协议修订。`;
+
+// The collection members are the article pages this index actually links, kept only while the file exists, so
+// a renamed article cannot be advertised as a member of something that still renders.
+const collectionHrefs = [...new Set(blocks.map((b) => LABELS[String(b.id)]?.art).filter(Boolean))]
+  .filter((h) => h !== "mcp-ecosystem-measurements.zh-CN.html" && existsSync("docs/" + h));
+// A CollectionPage with no members would be a false claim, so the block is only a refusal at zero.
+if (collectionHrefs.length === 0) throw new Error(`REFUSED to render: none of the linked article pages resolve in docs/`);
+const collection = {
+  "@context": "https://schema.org",
+  "@type": "CollectionPage",
+  inLanguage: "zh-CN",
+  name: "对公开 MCP 生态的测量（中文索引）",
+  url: BASE + "mcp-ecosystem-measurements.zh-CN.html",
+  description: headDescription,
+  mainEntity: {
+    "@type": "ItemList",
+    numberOfItems: collectionHrefs.length,
+    itemListElement: collectionHrefs.map((h, i) => ({ "@type": "ListItem", position: i + 1, url: BASE + h })),
+  },
+};
+// Same policy the evidence renderer uses: an unreadable history publishes no date rather than today's.
+const collected = gitDate(OUT, "last");
+const sourced = gitDate(DATASET, "last");
+const modified = pickModified({ mdDate: sourced, htmlDate: collected });
+const published = gitDate(OUT, "first");
+if (modified) collection.dateModified = modified;
+if (published) collection.datePublished = published;
+const jsonLd = `    <script type="application/ld+json">\n${JSON.stringify(collection, null, 2).replace(/</gu, "\\u003c")}\n    </script>`;
+
 const out = `<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>对公开 MCP 生态的测量（中文索引） | Unified AI System</title>
-    <meta name="description" content="向官方注册表登记的 ${blocks[0].attempted} 个服务端匿名提问：${questionNames.size} 个问题、${blocks.length} 次测量。每个数字都从机器可读数据集生成，页面自己声明分母与所请求的协议修订。" />
+    <meta name="description" content="${headDescription}" />
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <link rel="canonical" href="${BASE}mcp-ecosystem-measurements.zh-CN.html" />
     <link rel="alternate" hreflang="en" href="${BASE}mcp-ecosystem-measurements.html" />
@@ -99,6 +131,7 @@ const out = `<!doctype html>
     <meta property="og:locale" content="zh_CN" />
     <meta property="og:title" content="对公开 MCP 生态的测量（中文索引）" />
     <meta property="og:description" content="同一个问题清单的中文索引：${questionNames.size} 个问题、${blocks.length} 次测量，每次测量一行，数字全部来自数据集。" />
+${jsonLd}
   </head>
   <body>
     <main>

@@ -95,3 +95,47 @@ test("a question asked at two protocol revisions counts as one question and two 
   assert.match(page, /2 个问题、3 次测量/, "the page must separate questions from measurement legs");
   assert.ok(!/3 个问题/.test(page), "three blocks are not three questions");
 });
+
+test("the generated page carries a CollectionPage whose members are the articles it links", () => {
+  const { r, outPath } = run(dataset([
+    block(),
+    block({ id: "session-enforcement", verdicts: { enforced: 2, auth_required: 1 }, rows: [
+      { name: "x", url: "https://x/mcp", verdict: "enforced" },
+      { name: "y", url: "https://y/mcp", verdict: "enforced" },
+      { name: "z", url: "https://z/mcp", verdict: "auth_required" },
+    ] }),
+  ]));
+  assert.equal(r.status, 0, r.stderr.slice(0, 300));
+  const page = readFileSync(outPath, "utf8");
+  const raw = page.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
+  assert.ok(raw, "no structured data block was emitted");
+  const object = JSON.parse(raw[1]);
+  assert.equal(object["@type"], "CollectionPage");
+  assert.equal(object.inLanguage, "zh-CN");
+  assert.equal(object.mainEntity["@type"], "ItemList");
+  assert.equal(object.mainEntity.numberOfItems, 2, "both fixture questions resolve to real article pages");
+  assert.deepEqual(object.mainEntity.itemListElement.map((e) => e.position), [1, 2]);
+  assert.ok(object.mainEntity.itemListElement.every((e) => e.url.endsWith(".html")), JSON.stringify(object.mainEntity));
+  // Boundary target, and the reason this arm is worth its lines: the render went to a scratch path with no
+  // history, so git cannot date it. A generator that published today's date here would be inventing a
+  // freshness signal for a page nobody committed.
+  assert.equal(object.datePublished, undefined, "a page outside git history must not publish a publication date");
+  assert.equal(object.dateModified, undefined, "a page outside git history must not publish a modification date");
+  assert.equal(object.description, page.match(/<meta name="description" content="([^"]*)"/)[1], "head and structured data must not tell two stories");
+});
+
+test("the shipped Chinese hub publishes git dates in full UTC", () => {
+  const page = readFileSync("docs/mcp-ecosystem-measurements.zh-CN.html", "utf8");
+  const object = JSON.parse(page.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]);
+  const UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
+  assert.match(object.datePublished, UTC, "datePublished must be full UTC, not a date or a midnight offset");
+  assert.match(object.dateModified, UTC, "dateModified must be full UTC");
+  assert.ok(Date.parse(object.datePublished) <= Date.parse(object.dateModified), "published cannot follow modified");
+  // Checked against a different git primitive than the generator uses, so a generator that always answered
+  // with today's date cannot satisfy this arm.
+  const last = (p) => spawnSync("git", ["log", "--format=%cI", "-1", "--", p], { encoding: "utf8" }).stdout.trim();
+  const fromPage = Date.parse(last("docs/mcp-ecosystem-measurements.zh-CN.html"));
+  const fromDataset = Date.parse(last("docs/data/mcp-ecosystem-measurements.2026-09-28.json"));
+  assert.ok(Number.isFinite(fromPage) && Number.isFinite(fromDataset), "no commit found for the page or its dataset");
+  assert.equal(Date.parse(object.dateModified), Math.max(fromPage, fromDataset), "dateModified must be whichever input moved later");
+});
