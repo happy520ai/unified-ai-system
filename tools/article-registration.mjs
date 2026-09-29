@@ -17,10 +17,13 @@ function pageName(url) {
 }
 
 function inboundLinks(pages, name) {
-  const needle = '"' + name + '"';
-  const singles = "'" + name + "'";
+  // The reference must be the whole path segment, so it can arrive as href="page.html",
+  // href="/unified-ai-system/page.html" or href="https://host/unified-ai-system/page.html".
+  // Matching only '"name"' saw the first two and missed every absolute URL, which made several
+  // pages look unreachable from the other language when their twin link was in fact present.
+  const pattern = new RegExp("[\"'/]" + name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&") + "[\"']" , "u");
   return Object.entries(pages)
-    .filter(([other, text]) => other !== name && (text.includes(needle) || text.includes(singles)))
+    .filter(([other, text]) => other !== name && pattern.test(text))
     .map(([other]) => other);
 }
 
@@ -88,10 +91,22 @@ export function auditArticlePages({ sitemapText, llmsText, pages, mdStems, feedT
         problems.push({ code: "article_page_jsonld_unparseable", page: name, detail: "the ld+json block is not valid JSON" });
       }
       if (parsed) {
-        const required = ["headline", "description", "datePublished", "dateModified", "author", "mainEntityOfPage"];
+        // Which keys are required depends on what the block claims to be. The list this replaced assumed
+        // TechArticle for everything, so two HowTo pages were reported as "missing headline,author,
+        // mainEntityOfPage" while carrying exactly the keys a HowTo needs - and an unnamed type still gets
+        // the one key every schema.org page should have.
+        const REQUIRED_BY_TYPE = {
+          TechArticle: ["headline", "description", "datePublished", "dateModified", "author", "mainEntityOfPage"],
+          HowTo: ["name", "description", "totalTime", "step"],
+          Dataset: ["name", "description", "distribution"],
+          CollectionPage: ["name", "description", "mainEntity"],
+          SoftwareApplication: ["name", "description"],
+        };
+        const type = String(parsed["@type"] || "");
+        const required = REQUIRED_BY_TYPE[type] || ["description"];
         const missing = required.filter((k) => !parsed[k]);
         if (missing.length) {
-          problems.push({ code: "article_page_jsonld_incomplete", page: name, detail: "missing " + missing.join(",") });
+          problems.push({ code: "article_page_jsonld_incomplete", page: name, detail: type + " missing " + missing.join(",") });
         }
         // A date-only value is legal schema.org but worthless as a freshness signal, and it is exactly what
         // a hand-authored page drifts into: docs/prompt-enhancement.html advertised 2026-08-09 while the

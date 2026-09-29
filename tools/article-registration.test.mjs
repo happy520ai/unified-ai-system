@@ -57,6 +57,32 @@ test("a page reachable only in one language is reported for the other language",
   assert.ok(codes(chineseOnly).includes("article_page_missing_english_navigation"), JSON.stringify(chineseOnly));
 });
 
+test("a link written as a full URL still counts, and a longer filename sharing the suffix does not", () => {
+  // The shipped pages cross-link with absolute hrefs. The earlier matcher demanded the name immediately
+  // after a quote, so it could not see those and reported several pages as unreachable from the other
+  // language while the twin link was in the file all along - which is how I nearly "fixed" links that
+  // already existed.
+  const absolute = auditArticlePages({
+    ...base,
+    pages: {
+      ...base.pages,
+      "index.html": '<a href="https://example.test/unified-ai-system/article-one.html">one</a>',
+      "index.zh-CN.html": '<a href="https://example.test/unified-ai-system/article-one.html">一</a>',
+    },
+  });
+  assert.deepEqual(codes(absolute), [], JSON.stringify(absolute));
+
+  const colliding = auditArticlePages({
+    ...base,
+    pages: {
+      "index.html": '<a href="https://example.test/unified-ai-system/other-article-one.html">not ours</a>',
+      "index.zh-CN.html": '<a href="x/other-article-one.html">not ours</a>',
+      "article-one.html": base.pages["article-one.html"],
+    },
+  });
+  assert.ok(codes(colliding).includes("article_page_unreachable"), JSON.stringify(colliding));
+});
+
 test("an article missing from llms.txt is reported", () => {
   const problems = auditArticlePages({ ...base, llmsText: "# summary\n\nno articles listed\n" });
   assert.deepEqual(codes(problems), ["article_page_absent_from_llms"]);
@@ -188,4 +214,25 @@ test("the real repository passes the audit it is about to enforce", () => {
   const entries = (feedText.match(/<entry>/g) || []).length;
   const declared = [...sitemapText.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]).filter((u) => !u.endsWith("/feed.xml"));
   assert.equal(entries, declared.length, "feed entries must equal declared pages, saw " + entries + " vs " + declared.length);
+});
+
+test("required keys depend on what the block claims to be", () => {
+  // Two HowTo pages were reported as incomplete because the arm asked every block for TechArticle's keys.
+  const howTo = (extra) => '<script type="application/ld+json">' + JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    name: "Run an MCP server in Codex with Docker",
+    description: "Connect Codex to a pinned MCP server and verify its tools.",
+    totalTime: "PT1M",
+    datePublished: "2026-01-01T00:00:00Z",
+    dateModified: "2026-01-02T00:00:00Z",
+    step: [{ "@type": "HowToStep", name: "run" }],
+    ...extra,
+  }) + "</script>";
+  const good = { ...base, pages: { ...base.pages, "article-one.html": "<main>x</main>" + howTo({}) } };
+  assert.deepEqual(auditArticlePages(good), [], JSON.stringify(auditArticlePages(good)));
+
+  const missing = auditArticlePages({ ...base, pages: { ...base.pages, "article-one.html": "<main>x</main>" + howTo({ step: undefined }) } });
+  assert.deepEqual(codes(missing), ["article_page_jsonld_incomplete"], JSON.stringify(missing));
+  assert.equal(missing[0].detail, "HowTo missing step", missing[0].detail);
 });
