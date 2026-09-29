@@ -12,9 +12,10 @@ they are not production certification or a claim of universal safety.
 - [Provider-free public-clone verification](../getting-started.md#verify)
 
 Use the current release workflow and the latest applicable image review when
-evaluating the gateway. The latest project release is `0.5.0`; the Codex plugin
-deliberately remains pinned by digest to the separately reviewed immutable
-`0.4.9` image until a newer plugin image review replaces it.
+evaluating the gateway. The latest project release is `0.8.0`; the newest image
+content review on file is `0.4.9`, which is why the Codex plugin deliberately
+remains pinned by digest to that immutable image until a newer plugin image
+review replaces it.
 
 ## Current review
 
