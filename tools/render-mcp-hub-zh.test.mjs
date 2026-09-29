@@ -131,18 +131,42 @@ test("the shipped Chinese hub publishes git dates in full UTC", () => {
   assert.match(object.datePublished, UTC, "datePublished must be full UTC, not a date or a midnight offset");
   assert.match(object.dateModified, UTC, "dateModified must be full UTC");
   assert.ok(Date.parse(object.datePublished) <= Date.parse(object.dateModified), "published cannot follow modified");
-  // Membership, not equality with "the newest commit". An equality pin here would be a timer: the commit that
-  // refreshes this page's dates is itself newer than the date it writes, so the next push would have gone red
-  // for doing the right thing. What must be impossible is a typed instant that no commit produced.
-  const instants = (p) => {
-    const out = spawnSync("git", ["log", "--format=%cI", "--", p], { encoding: "utf8" }).stdout;
-    return out.split(String.fromCharCode(10)).map((l) => Date.parse(l.trim())).filter(Number.isFinite);
+  // Membership, not equality with "the newest commit": the commit that refreshes a page's dates is itself newer
+  // than the date it writes, so an equality pin is a timer that goes red on the next correct action. What has to
+  // be impossible is a typed instant that no commit produced.
+  const PAGE = "docs/mcp-ecosystem-measurements.zh-CN.html";
+  const DATASET = "docs/data/mcp-ecosystem-measurements.2026-09-28.json";
+  const lines = (text) => text.split(String.fromCharCode(10)).map((l) => l.trim()).filter(Boolean);
+  const instants = (p) => lines(spawnSync("git", ["log", "--format=%cI", "--", p], { encoding: "utf8" }).stdout).map(Date.parse).filter(Number.isFinite);
+  const oldestPathCommit = (p) => {
+    const all = lines(spawnSync("git", ["log", "--format=%H", "--", p], { encoding: "utf8" }).stdout);
+    return all.length > 0 ? all[all.length - 1] : null;
   };
-  const page = instants("docs/mcp-ecosystem-measurements.zh-CN.html");
-  const dataset = instants("docs/data/mcp-ecosystem-measurements.2026-09-28.json");
+  const hasParent = (sha) => Boolean(sha) && spawnSync("git", ["cat-file", "-e", sha + "^"], { stdio: ["ignore", "ignore", "ignore"] }).status === 0;
+
+  // This half is true in every checkout, shallow or not, so it never gets skipped: a published instant cannot
+  // postdate the newest commit this repository has. The shape this catches is a date typed forward.
+  const tipDate = Date.parse(spawnSync("git", ["log", "--format=%cI", "-1"], { encoding: "utf8" }).stdout.trim());
+  assert.ok(Number.isFinite(tipDate), "no commit date for HEAD");
+  assert.ok(Date.parse(object.dateModified) <= tipDate, "dateModified " + object.dateModified + " is later than this clone's newest commit " + new Date(tipDate).toISOString());
+
+  // Membership needs a clone that can actually see the commits involved. A shallow checkout holds a subset, so
+  // a legitimately generated date is simply absent there - the Windows job failed exactly this way on the first
+  // version of this arm. Knowability is per path: the commit where the file first appears is a real commit with
+  // a parent, so if the oldest commit git reports has no parent, history is truncated at a graft and no
+  // membership claim can be made.
+  const page = instants(PAGE);
+  const dataset = instants(DATASET);
   assert.ok(page.length > 0 && dataset.length > 0, "no commit history for the page or the dataset");
-  const produced = new Set([...page, ...dataset]);
-  assert.ok(produced.has(Date.parse(object.datePublished)), "datePublished " + object.datePublished + " is not an instant any commit produced");
-  assert.ok(produced.has(Date.parse(object.dateModified)), "dateModified " + object.dateModified + " is not an instant any commit produced");
-  assert.ok(page.includes(Date.parse(object.dateModified)) || dataset.includes(Date.parse(object.dateModified)), "dateModified must come from the page or its dataset, not elsewhere");
+  const pageFirst = oldestPathCommit(PAGE);
+  const datasetFirst = oldestPathCommit(DATASET);
+  const knowable = hasParent(pageFirst) && hasParent(datasetFirst);
+  if (!knowable) {
+    console.log("SKIPPED commit-membership check for the Chinese hub: this checkout truncates history for page@" + String(pageFirst).slice(0, 8) + " or dataset@" + String(datasetFirst).slice(0, 8) + "; format and not-after-tip were still checked");
+  } else {
+    const produced = new Set([...page, ...dataset]);
+    assert.ok(produced.has(Date.parse(object.datePublished)), "datePublished " + object.datePublished + " is not an instant any commit produced");
+    assert.ok(produced.has(Date.parse(object.dateModified)), "dateModified " + object.dateModified + " is not an instant any commit produced");
+    assert.ok(page.includes(Date.parse(object.dateModified)) || dataset.includes(Date.parse(object.dateModified)), "dateModified must come from the page or its dataset, not elsewhere");
+  }
 });
