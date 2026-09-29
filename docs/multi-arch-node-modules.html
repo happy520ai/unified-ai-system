@@ -32,7 +32,7 @@
   "headline": "\"invalid ELF header\" from better-sqlite3 on linux/arm64: the wrong-architecture node_modules trap",
   "description": "A Node image published as multi-platform can carry x86-64 native modules inside its linux/arm64 tag, and the first require() of the package fails with...",
   "datePublished": "2026-09-29T03:43:56Z",
-  "dateModified": "2026-09-29T06:20:02Z",
+  "dateModified": "2026-09-29T06:58:39Z",
   "author": {
     "@type": "Organization",
     "name": "Unified AI System",
@@ -75,7 +75,7 @@
     <ul><li><strong>Copied layers</strong>, produced once and <code>COPY</code>'d into every stage: most often the dependency tree. `pnpm</li></ul>
     <p>  install<code> / </code>npm ci<code> runs in a builder stage on whichever runner built it, and </code>better-sqlite3<code>'s </code>install<code>   hook (</code>prebuild-install || node-gyp rebuild --release<code>) then resolves **the prebuild for the runner's   architecture**, not the target's. The finished </code>/app` is copied into both images.</p>
     <p>So the tag advertises <code>linux/arm64</code>, the manifest really has an arm64 child, <code>docker manifest inspect</code> looks correct - and the native modules inside are x86-64. Everything a registry-level check can see says &quot;multi platform&quot;. Only the file bytes say otherwise.</p>
-    <p>The same trap has a second, quieter face: <code>optionalDependencies</code> with platform-specific packages (<code>@napi-rs/canvas-linux-x64-gnu</code>, <code>lightningcss-linux-x64-gnu</code>, <code>@rollup/rollup-linux-arm64-gnu</code>). npm and pnpm pick those by the <em>installing</em> machine's platform, so an install on an x86-64 runner records and materialises the x64 set, and an arm64 image gets x64 binaries plus a lockfile that will not admit the arm64 ones.</p>
+    <p>The same trap has a second, quieter face: <code>optionalDependencies</code> with platform-specific packages (<code>@napi-rs/canvas-linux-x64-gnu</code>, <code>lightningcss-linux-x64-gnu</code>, <code>@rollup/rollup-linux-arm64-gnu</code>). npm and pnpm pick those by the <em>installing</em> machine's platform, so an install on an x86-64 runner records and materialises the x64 set, and an arm64 image gets x64 binaries. The lockfile is not the culprit, and this is checked rather than assumed: ours lists both variants side by side - <code>@napi-rs/canvas-linux-arm64-gnu@0.1.80</code> with <code>cpu: [arm64]</code> and <code>optional: true</code> - so an install on the target architecture resolves the right one. That is why the fix is to install per platform, not to edit a lockfile or copy an installed tree.</p>
     <h2>The same trap without containers</h2>
     <p>Containers are one route here. So is any packaging step that reuses one <code>node_modules</code> directory across targets: a desktop build that produces Linux x64 and then macOS universal artifacts sequentially against the same tree can ship the <em>previous</em> target's native binary, because the native rebuild gets skipped while a stale &quot;already built for this platform&quot; marker is still sitting in the tree.</p>
     <p>Where a cross-check does exist, you get a build-time error instead of a runtime one:</p>
@@ -116,8 +116,8 @@ curl -s -H &quot;Authorization: Bearer $tok&quot; -H &quot;Accept: application/v
     <p>   better than a two-arch tag that half-works, and it is a strictly smaller claim to maintain.</p>
     <ol><li>Verify by reading bytes, not by trusting the tag. The check costs one anonymous token request per</li></ol>
     <p>   repository and a few hundred megabytes of GETs; <code>docker buildx</code> completing without error proves the manifest    was written, not that the contents match.</p>
-    <ol><li>Check the <code>optionalDependencies</code> story for your native packages. If your lockfile pins only one platform's</li></ol>
-    <p>   optional set, per-arch installs will not fix it.</p>
+    <ol><li>Check the <code>optionalDependencies</code> story for your native packages by reading the lockfile for the target</li></ol>
+    <p>   platform's variant and its <code>cpu</code> / <code>os</code> constraint. If only the build host's variant is listed, per-arch    installs cannot fix it; if both are listed, the fix is to install on the target rather than copy a tree.</p>
     <ol><li>Put the platform flag in front of the reader where the command is. We tell Apple Silicon users to pass</li></ol>
     <p>   <code>--platform linux/amd64</code> in the README and in the 60-second quickstart, because a caveat buried on a review    page is a caveat nobody reads before the failure.</p>
     <h2>What these readings do not prove</h2>

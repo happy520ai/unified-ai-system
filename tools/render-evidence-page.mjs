@@ -183,26 +183,22 @@ export { inline, escapeHtml, renderMarkdown };
 // off by a day half the time. %cI is absolute; the offset is then normalised here.
 // An unknown date is omitted rather than invented - a published date is a claim about when
 // something was released, and a renderer has no business guessing it.
-// Exported so the test suite can tell "this page has no dates because the renderer could not know them"
-// apart from "this page has no dates because nobody added them".
-let shallowCache;
-export function historyIsShallow() {
-  if (shallowCache !== undefined) return shallowCache;
+// A shallow clone stops at a grafted boundary commit whose parents are absent from the object store. At
+// that boundary `git log -1 -- <path>` answers with the boundary's own date, which is not this file's date,
+// so the reading is dropped rather than published. Exported because the test suite has to pick its
+// expectation with the same criterion the renderer uses.
+export function parentResolves(sha) {
+  if (!sha) return false;
   try {
-    shallowCache = execFileSync("git", ["rev-parse", "--is-shallow-repository"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() === "true";
+    execFileSync("git", ["rev-parse", "--verify", "--quiet", sha + "^"], { stdio: ["ignore", "ignore", "ignore"] });
+    return true;
   } catch {
-    // No readable repository at all is the same situation: there is no history to date anything from.
-    shallowCache = true;
+    return false;
   }
-  return shallowCache;
 }
 
 function gitDate(path, mode) {
-  // A shallow clone has no history to read: `git log -1 -- <path>` returns the grafted HEAD commit for
-  // every path, which would publish a date that never described this content. Omitting is the same choice
-  // the rest of this file makes about unknown dates. Depth is asked once per process, not per page.
-  if (historyIsShallow()) return null;
-  const args = ["log", "--format=%cI", "-1"];
+  const args = ["log", "--format=%H %cI", "-1"];
   // Option order matters: `git --diff-filter=A log` is not a thing. It has to follow `log`.
   if (mode === "first") args.splice(1, 0, "--diff-filter=A");
   args.push("--", path);
@@ -213,7 +209,9 @@ function gitDate(path, mode) {
     return null;
   }
   if (!raw) return null;
-  return new Date(raw).toISOString().replace(/\.\d{3}Z$/, "Z");
+  const [sha, when] = raw.split(" ");
+  if (!parentResolves(sha)) return null;
+  return new Date(when).toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 
 // Pure so the selection rule is testable without a repository: both inputs are either an ISO string from
