@@ -20,7 +20,7 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
-    "@modelcontextprotocol/client": "2.0.0"
+    "@modelcontextprotocol/client": "2.1.0"
   },
   "scripts": {
     "start": "node ./src/index.js",
