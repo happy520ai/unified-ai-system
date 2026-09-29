@@ -146,6 +146,25 @@ jobs:
             fi
           fi
 
+      - name: Read our installs from the public skills index
+        # The index is a crawl of skills/*/SKILL.md in public repositories, so its row for us is the
+        # one adoption number this campaign can read without a submission door. The counter is the
+        # index's own, for a skill row: not stars, not distinct people, not our image pulls.
+        # Exit 2 means the index could not be read, which says nothing about us, so it prints; exit 4
+        # means the call answered and our row is gone or its counter is not a number, which is about
+        # us, so it reddens. The mapping lives in tools/check-skill-index-installs.mjs (exitCodeFor)
+        # and its test reaches all three codes.
+        run: |
+          mkdir -p .tmp/growth
+          code=0
+          node tools/check-skill-index-installs.mjs --output .tmp/growth/skill-index.json > .tmp/growth/skill-index.txt 2>&1 || code=$?
+          cat .tmp/growth/skill-index.txt
+          if [ "$code" -eq 2 ]; then
+            echo "skill-index exit=2 - the index was unreadable; installs are NOT written as zero" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$code" -ne 0 ]; then
+            exit "$code"
+          fi
+
       - name: Upload growth snapshot artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -159,3 +178,5 @@ jobs:
             .tmp/growth/mention-sweep.txt
             .tmp/growth/topic-rank.txt
             .tmp/growth/topic-rank.json
+            .tmp/growth/skill-index.txt
+            .tmp/growth/skill-index.json
