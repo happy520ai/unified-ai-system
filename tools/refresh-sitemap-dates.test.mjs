@@ -112,9 +112,36 @@ test("the site root is a page with a date, not a loc that does not match", () =>
   assert.deepEqual(changes.map((c) => [c.file, c.to]), [["index.html", "2026-05-05"]]);
   assert.equal(accounted, blocks, "one block in, one block accounted for");
 
-  // And against the real sitemap: a root entry deliberately wound back must produce a change. Without this,
-  // a passing shipped-sitemap test could still be a passing test that never looked at the root.
+  // Always decidable, at any clone depth: the root block is inside the tool's scope, so it must land in one
+  // of stamped / current / unchecked. This is the arm the Windows job (which checks out a single commit and so
+  // can date nothing) actually runs. The first version of this test forgot it and asked for a changed date
+  // instead, which is a reading no one-deep clone can produce - it failed there on the commit that shipped it.
   const shipped = readFileSync("docs/sitemap.xml", "utf8");
+  const scope = refresh(shipped);
+  assert.deepEqual(scope.unmapped, [], "the shipped sitemap must contain no loc the tool cannot map");
+  assert.equal(scope.accounted, scope.blocks,
+    "every url block must be stamped, current or unchecked - never skipped: " + JSON.stringify(scope.unchecked));
+
+  const depth = Number(spawnSync("git", ["rev-list", "--count", "HEAD"], { encoding: "utf8" }).stdout.trim());
+  // The accounting itself, proved without git: a block that is neither stamped, current, nor unchecked has to
+  // leave `accounted` short of `blocks`. Without this pair the invariant above is only ever observed to be true.
+  const mixed = `<urlset>
+  <url>
+    <loc>https://example.test/a.html</loc>
+    <lastmod>2026-01-01</lastmod>
+  </url>
+  <url>
+    <loc>https://example.test/feed.xml</loc>
+  </url>
+</urlset>`;
+  const counted = refresh(mixed, reader);
+  assert.equal(counted.blocks, 2);
+  assert.equal(counted.accounted, 1, "the unmappable block is not accounted, which is what makes the skip visible");
+  assert.deepEqual(counted.unmapped, ["https://example.test/feed.xml"]);
+  if (depth <= 1) {
+    console.log("SKIPPED root staleness arm: a one-commit clone cannot date any file, so no change can be required");
+    return;
+  }
   const staled = shipped.replace("<loc>https://happy520ai.github.io/unified-ai-system/</loc>\n    <lastmod>2026-09-29</lastmod>",
     "<loc>https://happy520ai.github.io/unified-ai-system/</loc>\n    <lastmod>2026-01-01</lastmod>");
   assert.notEqual(staled, shipped, "fixture precondition: the shipped root must currently be dated 2026-09-29");
