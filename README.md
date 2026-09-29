@@ -64,6 +64,11 @@ Verify the project without signing in:
 docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.8.0 pnpm gateway demo
 ```
 
+On Apple Silicon, put `--platform linux/amd64` before the image name. Both published `arm64` tags - the gateway
+and the MCP server - carry x86-64 native modules, so this demo fails there today
+([#190](https://github.com/happy520ai/unified-ai-system/issues/190), with the reading and the command that
+reproduces it).
+
 Expected behavior:
 
 - local fake-provider execution

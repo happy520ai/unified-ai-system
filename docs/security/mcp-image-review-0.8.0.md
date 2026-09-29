@@ -91,6 +91,15 @@ this review executed the image, so "fails to load" is a reading of the ELF machi
 declared architecture, and the direct test is one `docker run --platform linux/arm64` away for anyone with a
 daemon. The `amd64` tag is self-consistent: 0 architecture mismatches there.
 
+**The gateway image has it too.** Same command, `ghcr.io/happy520ai/unified-ai-system/ai-gateway-service` at
+`0.8.0`, arm64 leg: `native_modules=8 elf_arch_mismatch=4 foreign_platform_modules=4`, `21` layers, `21,864`
+files, `14,322` under `/app`, and `/app` totalling `277,037,069` bytes - the same counts the MCP image's arm64
+leg reports. So this is not one mis-tagged artifact: both images this repository publishes at `0.8.0` ship that
+tree on arm64, and the first command on the README is `docker run … ai-gateway-service:0.8.0 pnpm gateway demo`,
+which is exactly where a visitor on Apple Silicon meets it. Both READMEs now say to pass
+`--platform linux/amd64`; the fix belongs to the build, and it is
+[issue #190](https://github.com/happy520ai/unified-ai-system/issues/190).
+
 Artifacts: [`docs/data/mcp-image-filesystem-0.8.0-amd64.json`](../data/mcp-image-filesystem-0.8.0-amd64.json),
 [`docs/data/mcp-image-filesystem-0.8.0-arm64.json`](../data/mcp-image-filesystem-0.8.0-arm64.json).
 

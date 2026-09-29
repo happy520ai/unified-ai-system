@@ -99,7 +99,11 @@ Docker 导出审查已经按名列出了它们（`skia.linux-arm64-gnu.node`、`
 要修的人应该去看那个窗口里镜像 job 改了什么，而不是回头翻整段构建史。
 
 第三，今天两个架构之间有 **12 个 layer 是共享的**，那就是被复制的 `/app` 留下的指纹。关于构建机制的这一句
-只是推断；读数指的是 `e_machine` 的值。
+只是推断；读数指的是 `e_machine` 的值。同样属于读数的还有一条：网关镜像 `ai-gateway-service:0.8.0` 的 arm64
+一腿报出同样的 `elf_arch_mismatch=4`、同样的 21,864 个文件、`/app` 下同样的 277,037,069 字节。
+这个仓库发布的两个镜像都带着它，而我们在首屏让访客跑的那条命令正是
+`docker run … ai-gateway-service:0.8.0 pnpm gateway demo` —— 也就是说，Apple Silicon 用户撞上的失败是我们自己的，
+不是假设出来的。
 
 ## 如果你也发布多平台 Node 镜像，便宜的检查清单
 

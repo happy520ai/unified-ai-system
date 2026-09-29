@@ -67,6 +67,10 @@ Unified AI System 会在执行前，把一句自然语言需求整理成结构�
 docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.8.0 pnpm gateway demo
 ```
 
+在 Apple Silicon 上，请把 `--platform linux/amd64` 写在镜像名之前。已发布的两个 `arm64` 标签（网关与 MCP
+server）带的都是 x86-64 原生模块，所以这条演示命令目前在该架构上会失败
+（见 [#190](https://github.com/happy520ai/unified-ai-system/issues/190)，含读数与复现命令）。
+
 你将看到：
 
 - 本地 fake provider 执行

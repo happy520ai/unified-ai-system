@@ -30,7 +30,7 @@
   "headline": "linux/arm64 上 better-sqlite3 抛出 \"invalid ELF header\"：错误的 CPU 架构 node_modules 陷阱",
   "description": "以多平台方式发布的 Node 镜像，它的 linux/arm64 标签里可能装着 x86-64 原生模块，于是第一次 require() 该包就会失败并抛出 invalid ELF header。2026-09-29 从我们自己镜像的四个已发布版本实测； 不需要 Docker 引擎，也没有执行任何代码。",
   "datePublished": "2026-09-29T03:50:10Z",
-  "dateModified": "2026-09-29T04:08:04Z",
+  "dateModified": "2026-09-29T04:33:22Z",
   "author": {
     "@type": "Organization",
     "name": "Unified AI System",
@@ -97,7 +97,7 @@ curl -s -H &quot;Authorization: Bearer $tok&quot; -H &quot;Accept: application/v
     <p>这张表里有三点值得注意。</p>
     <p>第一，这是一次<strong>回退</strong>，不是我们一直以来的限制：0.4.9 的 arm64 标签带的是 arm64 二进制，而那个版本的 Docker 导出审查已经按名列出了它们（<code>skia.linux-arm64-gnu.node</code>、<code>linux-arm64-musl</code> 变体，以及一个与 amd64 摘要不同的 arm64 <code>better_sqlite3.node</code>）。字节读数与那张表一致 —— 这正是我们敢相信其中任意一方的唯一理由。</p>
     <p>第二，<strong>时间窗可以收窄到 0.5.0 到 0.6.0</strong>。0.5.0 没发布 arm64 child；0.6.0 发布了，而它带的已经是错的树。 要修的人应该去看那个窗口里镜像 job 改了什么，而不是回头翻整段构建史。</p>
-    <p>第三，今天两个架构之间有 <strong>12 个 layer 是共享的</strong>，那就是被复制的 <code>/app</code> 留下的指纹。关于构建机制的这一句 只是推断；读数指的是 <code>e_machine</code> 的值。</p>
+    <p>第三，今天两个架构之间有 <strong>12 个 layer 是共享的</strong>，那就是被复制的 <code>/app</code> 留下的指纹。关于构建机制的这一句 只是推断；读数指的是 <code>e_machine</code> 的值。同样属于读数的还有一条：网关镜像 <code>ai-gateway-service:0.8.0</code> 的 arm64 一腿报出同样的 <code>elf_arch_mismatch=4</code>、同样的 21,864 个文件、<code>/app</code> 下同样的 277,037,069 字节。 这个仓库发布的两个镜像都带着它，而我们在首屏让访客跑的那条命令正是 <code>docker run … ai-gateway-service:0.8.0 pnpm gateway demo</code> —— 也就是说，Apple Silicon 用户撞上的失败是我们自己的， 不是假设出来的。</p>
     <h2>如果你也发布多平台 Node 镜像，便宜的检查清单</h2>
     <ol><li>不要让依赖树只安装一次然后复制给每个平台。在<strong>每个平台的构建阶段内部</strong>安装，或至少</li></ol>
     <p>   <code>pnpm rebuild better-sqlite3</code>。</p>

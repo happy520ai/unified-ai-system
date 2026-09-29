@@ -107,6 +107,11 @@ history.
 
 And 12 of 21 layers are **shared between the two architectures today**, which is the fingerprint of the copied
 `/app`. That part is an inference about the build, not a reading - the readings are the `e_machine` values.
+What is also a reading: the gateway image, `ai-gateway-service:0.8.0`, arm64 leg, reports the same
+`elf_arch_mismatch=4`, the same 21,864 files and the same 277,037,069 bytes under `/app`. Both images this
+repository publishes carry it, and the command on our own first screen is
+`docker run … ai-gateway-service:0.8.0 pnpm gateway demo` - so the failure an Apple Silicon visitor meets is
+ours, not hypothetical.
 
 ## If you publish a multi-arch Node image, the cheap checklist
 

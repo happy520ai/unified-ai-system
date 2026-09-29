@@ -32,7 +32,7 @@
   "headline": "\"invalid ELF header\" from better-sqlite3 on linux/arm64: the wrong-architecture node_modules trap",
   "description": "A Node image published as multi-platform can carry x86-64 native modules inside its linux/arm64 tag, and the first require() of the package fails with...",
   "datePublished": "2026-09-29T03:43:56Z",
-  "dateModified": "2026-09-29T04:08:04Z",
+  "dateModified": "2026-09-29T04:33:22Z",
   "author": {
     "@type": "Organization",
     "name": "Unified AI System",
@@ -99,7 +99,7 @@ curl -s -H &quot;Authorization: Bearer $tok&quot; -H &quot;Accept: application/v
     <p>Three things worth noticing in that table.</p>
     <p>It is a <strong>regression</strong>, not a limitation we always had: 0.4.9's arm64 tag carried arm64 binaries, and the older Docker-export review of that release recorded them by name (<code>skia.linux-arm64-gnu.node</code>, the <code>linux-arm64-musl</code> variant, and an arm64 <code>better_sqlite3.node</code> whose digest differs from the amd64 one). The byte reading agrees with the table, which is the only reason to trust either.</p>
     <p>The window is <strong>0.5.0 to 0.6.0</strong>. 0.5.0 published no arm64 child; 0.6.0 published one already carrying the wrong tree. Whoever fixes this should look at what the image job did in that window, not at the whole build history.</p>
-    <p>And 12 of 21 layers are <strong>shared between the two architectures today</strong>, which is the fingerprint of the copied <code>/app</code>. That part is an inference about the build, not a reading - the readings are the <code>e_machine</code> values.</p>
+    <p>And 12 of 21 layers are <strong>shared between the two architectures today</strong>, which is the fingerprint of the copied <code>/app</code>. That part is an inference about the build, not a reading - the readings are the <code>e_machine</code> values. What is also a reading: the gateway image, <code>ai-gateway-service:0.8.0</code>, arm64 leg, reports the same <code>elf_arch_mismatch=4</code>, the same 21,864 files and the same 277,037,069 bytes under <code>/app</code>. Both images this repository publishes carry it, and the command on our own first screen is <code>docker run … ai-gateway-service:0.8.0 pnpm gateway demo</code> - so the failure an Apple Silicon visitor meets is ours, not hypothetical.</p>
     <h2>If you publish a multi-arch Node image, the cheap checklist</h2>
     <ol><li>Do not let the dependency tree be installed once and copied to every platform. Install (or at minimum</li></ol>
     <p>   <code>pnpm rebuild better-sqlite3</code>) <strong>inside each platform's stage</strong>.</p>
