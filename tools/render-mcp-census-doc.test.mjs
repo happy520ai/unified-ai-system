@@ -12,17 +12,26 @@ const SAMPLE = "docs/data/mcp-registry-installability.2026-09-28.json";
 const CROSS = "docs/data/mcp-installability-crosscheck.2026-09-28.json";
 const VIS = "docs/data/mcp-registry-visibility-params.2026-09-28.json";
 const WIDE = "docs/data/mcp-registry-census-including-deleted.2026-09-28.json";
+const SEARCH = "docs/data/mcp-registry-search.2026-09-29.json";
 const dir = mkdtempSync(join(tmpdir(), "census-render-"));
 const readJson = (p) => JSON.parse(readFileSync(join(ROOT, p), "utf8"));
 
-function run({ census = join(ROOT, CENSUS), sample = join(ROOT, SAMPLE), cross = join(ROOT, CROSS), vis = join(ROOT, VIS), wide = join(ROOT, WIDE), out = join(dir, "a.md") } = {}) {
-  return spawnSync(process.execPath, [GEN, "--artifact", census, "--sample", sample, "--crosscheck", cross, "--visibility", vis, "--deleted", wide, "--out", out], {
+function run({ census = join(ROOT, CENSUS), sample = join(ROOT, SAMPLE), cross = join(ROOT, CROSS), vis = join(ROOT, VIS), wide = join(ROOT, WIDE), search = join(ROOT, SEARCH), out = join(dir, "a.md") } = {}) {
+  return spawnSync(process.execPath, [GEN, "--artifact", census, "--sample", sample, "--crosscheck", cross, "--visibility", vis, "--deleted", wide, "--search", search, "--out", out], {
     cwd: ROOT, encoding: "utf8",
   });
 }
 
 function copyVis(name, edit) {
   const base = readJson(VIS);
+  edit(base);
+  const p = join(dir, name + ".json");
+  writeFileSync(p, JSON.stringify(base), "utf8");
+  return p;
+}
+
+function copySearch(name, edit) {
+  const base = JSON.parse(readFileSync(join(ROOT, SEARCH), "utf8"));
   edit(base);
   const p = join(dir, name + ".json");
   writeFileSync(p, JSON.stringify(base), "utf8");
@@ -188,4 +197,54 @@ test("the shipped page on disk equals a fresh render of its artifacts", () => {
   const r = run({ out });
   assert.equal(r.status, 0, r.stderr);
   assert.equal(readFileSync(out, "utf8"), readFileSync(join(ROOT, "docs/mcp-registry-census.md"), "utf8"));
+});
+
+test("the search section quotes the artifact, and refuses when the artifact stops backing it", () => {
+  const out = join(dir, "search.md");
+  assert.equal(run({ out }).status, 0);
+  const text = readFileSync(out, "utf8");
+  const art = JSON.parse(readFileSync(join(ROOT, SEARCH), "utf8"));
+
+  // Headline numbers are read out of the artifact, never typed here.
+  assert.match(text, new RegExp(art.totals.description_only_mentions + " of the " + art.sample_size.toLocaleString("en-US") + " sampled servers"));
+  assert.match(text, new RegExp(art.totals.of_those_returned_by_search + " of them turn up in the"));
+  assert.match(text, new RegExp(art.totals.search_rows_scanned.toLocaleString("en-US") + " result rows"));
+  assert.match(text, /registry#1453/);
+  // Every word's row in the table comes from the artifact too; a dropped or reworded leg would read fine.
+  for (const w of art.per_word) {
+    assert.ok(text.includes("| `" + w.word + "` | " + w.sample_description_only + " | " + w.description_only_records_returned + " | " + w.search_rows_returned + " |"),
+      "table row for " + w.word);
+  }
+  // Capped legs must be declared on the page whenever the artifact says they were capped.
+  if (art.capped_word_legs.length > 0) {
+    assert.match(text, /note about the denominator/);
+    for (const w of art.capped_word_legs) assert.match(text, new RegExp("`" + w + "`"));
+  }
+
+  const t1 = copySearch("stotal", (b) => { b.totals.description_only_mentions += 7; });
+  assert.match(run({ search: t1, out: join(dir, "r1.md") }).stderr, /stores description_only_mentions .* but its rows add to/);
+
+  // The falsification arm: a row whose name lacks the word. The stored count is moved too, so the
+  // totals-recomputation guard passes and this specific refusal is what fires.
+  const t2 = copySearch("nameonly", (b) => {
+    b.per_word[0].search_rows_without_word_in_name = 1;
+    b.totals.words_where_search_returned_a_name_lacking_the_word = 1;
+  });
+  assert.match(run({ search: t2, out: join(dir, "r2.md") }).stderr, /not name-only and the section below is wrong/);
+
+  const t3 = copySearch("tiny", (b) => { b.sample_size = 40; });
+  assert.match(run({ search: t3, out: join(dir, "r3.md") }).stderr, /too small to describe discovery loss/);
+
+  const t4 = copySearch("problems", (b) => { b.problem_count = 2; });
+  assert.match(run({ search: t4, out: join(dir, "r4.md") }).stderr, /search instrument reported 2 problems/);
+
+  const t5 = copySearch("nolegs", (b) => { delete b.capped_word_legs; });
+  assert.match(run({ search: t5, out: join(dir, "r5.md") }).stderr, /search artifact is missing capped_word_legs/);
+
+  // A table row that claims more returns than the scan covered is the truncated-denominator shape this
+  // page specifically refuses to publish.
+  const t6 = copySearch("overscan", (b) => { b.per_word[0].search_rows_returned = 0; b.per_word[0].description_only_records_returned = 3; });
+  const r6 = run({ search: t6, out: join(dir, "r6.md") });
+  assert.notEqual(r6.status, 0);
+  assert.match(r6.stderr, /its rows add to/);
 });

@@ -1,0 +1,138 @@
+{
+  "schema": "mcp-registry-search-discoverability-v1",
+  "run_at": "2026-09-29T01:28:04.280Z",
+  "source": "https://registry.modelcontextprotocol.io/v0/servers",
+  "words": [
+    "weather",
+    "database",
+    "github",
+    "slack",
+    "jira",
+    "browser",
+    "calendar",
+    "pdf",
+    "memory",
+    "email"
+  ],
+  "sample_size": 2000,
+  "sample_pages_read": 20,
+  "sample_status_counts": {
+    "active": 1982,
+    "deprecated": 18
+  },
+  "search_pages_cap": 10,
+  "capped_word_legs": [
+    "github",
+    "memory"
+  ],
+  "per_word": [
+    {
+      "word": "weather",
+      "sample_description_only": 6,
+      "sample_name_and_description": 1,
+      "search_rows_returned": 277,
+      "search_pages_walked": 3,
+      "search_result_exhausted": true,
+      "search_rows_without_word_in_name": 0,
+      "description_only_records_returned": 0
+    },
+    {
+      "word": "database",
+      "sample_description_only": 15,
+      "sample_name_and_description": 2,
+      "search_rows_returned": 92,
+      "search_pages_walked": 1,
+      "search_result_exhausted": true,
+      "search_rows_without_word_in_name": 0,
+      "description_only_records_returned": 0
+    },
+    {
+      "word": "github",
+      "sample_description_only": 5,
+      "sample_name_and_description": 3,
+      "search_rows_returned": 1000,
+      "search_pages_walked": 10,
+      "search_result_exhausted": false,
+      "search_rows_without_word_in_name": 0,
+      "description_only_records_returned": 0
+    },
+    {
+      "word": "slack",
+      "sample_description_only": 4,
+      "sample_name_and_description": 2,
+      "search_rows_returned": 73,
+      "search_pages_walked": 1,
+      "search_result_exhausted": true,
+      "search_rows_without_word_in_name": 0,
+      "description_only_records_returned": 0
+    },
+    {
+      "word": "jira",
+      "sample_description_only": 0,
+      "sample_name_and_description": 1,
+      "search_rows_returned": 96,
+      "search_pages_walked": 1,
+      "search_result_exhausted": true,
+      "search_rows_without_word_in_name": 0,
+      "description_only_records_returned": 0
+    },
+    {
+      "word": "browser",
+      "sample_description_only": 12,
+      "sample_name_and_description": 4,
+      "search_rows_returned": 366,
+      "search_pages_walked": 4,
+      "search_result_exhausted": true,
+      "search_rows_without_word_in_name": 0,
+      "description_only_records_returned": 0
+    },
+    {
+      "word": "calendar",
+      "sample_description_only": 17,
+      "sample_name_and_description": 4,
+      "search_rows_returned": 183,
+      "search_pages_walked": 2,
+      "search_result_exhausted": true,
+      "search_rows_without_word_in_name": 0,
+      "description_only_records_returned": 0
+    },
+    {
+      "word": "pdf",
+      "sample_description_only": 24,
+      "sample_name_and_description": 2,
+      "search_rows_returned": 435,
+      "search_pages_walked": 5,
+      "search_result_exhausted": true,
+      "search_rows_without_word_in_name": 0,
+      "description_only_records_returned": 0
+    },
+    {
+      "word": "memory",
+      "sample_description_only": 53,
+      "sample_name_and_description": 8,
+      "search_rows_returned": 1000,
+      "search_pages_walked": 10,
+      "search_result_exhausted": false,
+      "search_rows_without_word_in_name": 0,
+      "description_only_records_returned": 0
+    },
+    {
+      "word": "email",
+      "sample_description_only": 34,
+      "sample_name_and_description": 4,
+      "search_rows_returned": 354,
+      "search_pages_walked": 4,
+      "search_result_exhausted": true,
+      "search_rows_without_word_in_name": 0,
+      "description_only_records_returned": 0
+    }
+  ],
+  "totals": {
+    "description_only_mentions": 170,
+    "of_those_returned_by_search": 0,
+    "search_rows_scanned": 3876,
+    "words_where_search_returned_a_name_lacking_the_word": 0
+  },
+  "problems": [],
+  "problem_count": 0
+}

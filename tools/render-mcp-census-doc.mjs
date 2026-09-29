@@ -149,8 +149,37 @@ for (const k of ["sample_size", "verdict_tally", "unusable_rate"]) if (npmSample
 const npmOk = npmSample.verdict_tally.listed_version_published;
 if (!Number.isSafeInteger(npmOk)) throw new Error("REFUSED: the npm sample has no published-count to cite");
 
+// The search-discoverability measurement, because the census page is the place a reader looks for what the
+// registry API can and cannot be asked to do. Every number below is recomputed from `per_word`; a stored
+// total that no longer follows from its own rows is a refusal, not a quote.
+const search = JSON.parse(readFileSync(arg("--search", "docs/data/mcp-registry-search.2026-09-29.json"), "utf8"));
+for (const k of ["run_at", "source", "words", "sample_size", "sample_status_counts", "per_word", "totals", "search_pages_cap", "capped_word_legs", "problem_count"]) {
+  if (search[k] === undefined) throw new Error("REFUSED: search artifact is missing " + k);
+}
+if (search.problem_count !== 0) throw new Error("REFUSED: the search instrument reported " + search.problem_count + " problems");
+if (!Number.isSafeInteger(search.sample_size) || search.sample_size < 200) throw new Error("REFUSED: the search sample is " + search.sample_size + " rows, too small to describe discovery loss");
+if (!Array.isArray(search.per_word) || search.per_word.length !== search.words.length) throw new Error("REFUSED: " + (search.per_word || []).length + " per-word rows for " + search.words.length + " words");
+for (const w of search.per_word) {
+  for (const k of ["word", "sample_description_only", "sample_name_and_description", "search_rows_returned", "search_pages_walked", "search_result_exhausted", "search_rows_without_word_in_name", "description_only_records_returned"]) {
+    if (w[k] === undefined) throw new Error("REFUSED: per-word row " + w.word + " is missing " + k);
+  }
+}
+const searchRederived = {
+  description_only_mentions: search.per_word.reduce((a, w) => a + w.sample_description_only, 0),
+  of_those_returned_by_search: search.per_word.reduce((a, w) => a + w.description_only_records_returned, 0),
+  search_rows_scanned: search.per_word.reduce((a, w) => a + w.search_rows_returned, 0),
+  words_where_search_returned_a_name_lacking_the_word: search.per_word.filter((w) => w.search_rows_without_word_in_name > 0).length,
+};
+for (const [k, v] of Object.entries(searchRederived)) {
+  if (search.totals[k] !== v) throw new Error("REFUSED: search artifact stores " + k + " = " + search.totals[k] + " but its rows add to " + v);
+}
+if (searchRederived.words_where_search_returned_a_name_lacking_the_word > 0) throw new Error("REFUSED: some search leg returned a row whose name lacks the word, so `search` is not name-only and the section below is wrong");
+const searchDate = search.run_at.slice(0, 10);
+const searchCapped = search.capped_word_legs || [];
+
 const denom = d.active_latest_records;
 const pct = (n) => ((n / denom) * 100).toFixed(n === denom || n === 0 ? 1 : 2) + "%";
+const pct2 = (n) => (n * 100).toFixed(2) + "%";
 const tallyLines = (obj) => Object.entries(obj).sort((a, b) => b[1] - a[1]).map(([k, v]) => "`" + k + "` " + v.toLocaleString("en-US")).join(", ");
 const date = d.started_at.slice(0, 10);
 const withPackage = d.active_records_with_a_package;
@@ -283,6 +312,39 @@ const lines = [
   "altogether. That gap is why \"" + xAgree + " of " + xNames + " agree\" above is a reading rather than a tautology: the same",
   "instrument does report disagreement when it buckets on the wrong row.",
   "",
+  "## What `search` can find, and what it cannot",
+  "",
+  "Upstream issue [modelcontextprotocol/registry#1453](https://github.com/modelcontextprotocol/registry/issues/1453)",
+  "asks that `?search=` match the `description` field as well as the server name, on the grounds that it",
+  "currently matches names only. That is checkable against the live API, and it was, on " + searchDate + ": a",
+  "sample of " + search.sample_size.toLocaleString("en-US") + " servers pulled with `version=latest` (so a server with eleven published versions",
+  "occupies one slot), then ten capability words searched one page-set each.",
+  "",
+  "| word | describes it in `description` but not in `name` | of those, returned by `search` | result rows scanned |",
+  "| --- | --- | --- | --- |",
+  ...search.per_word.map((w) => "| `" + w.word + "` | " + w.sample_description_only + " | " + w.description_only_records_returned + " | " + w.search_rows_returned + " |"),
+  "",
+  "Two numbers carry the finding. " + search.totals.description_only_mentions + " of the " + search.sample_size.toLocaleString("en-US") + " sampled servers (" +
+  pct2(search.totals.description_only_mentions / search.sample_size) + " of the sample) state one of these ten",
+  "capabilities in prose while their name does not contain the word - and " + search.totals.of_those_returned_by_search + " of them turn up in the",
+  search.totals.search_rows_scanned.toLocaleString("en-US") + " result rows those ten searches returned. The falsification arm ran too: " + search.totals.words_where_search_returned_a_name_lacking_the_word + " of",
+  "those rows carry the word somewhere other than the name, which is the only shape that would have shown",
+  "description matching already existing. So #1453's premise holds at this sample size: a capability a",
+  "server advertises about itself in prose is invisible to the search box unless the author also happened",
+  "to put it in the name.",
+  "",
+  searchCapped.length === 0
+    ? "Every word's result set was walked to the end of its cursor."
+    : "One note about the denominator. " + searchCapped.map((w) => "`" + w + "`").join(", ") + " hit the " + search.search_pages_cap + "-page cap, so for those words",
+      "the claim covers the first " + (search.search_pages_cap * 100).toLocaleString("en-US") + " rows rather than the whole result set; the instrument stores that in",
+      "`capped_word_legs` instead of letting a shorter scan look like a smaller gap. The sample is " +
+      search.sample_size.toLocaleString("en-US") + " of " + d.distinct_names.toLocaleString("en-US") + " servers, so " + search.totals.description_only_mentions + " is a sample count and not a",
+      "registry total. A reader who wants either widened re-runs the commands under Reproduce with larger",
+      "--pages and --search-pages.",
+  "",
+  "This says nothing about whether the search is *good* - only what it matches. Ranking, relevance and the",
+  "`updated_since` parameter were not measured here.",
+  "",
   "## What this does not support",
   "",
   "- That a declared address works. \"The record names an endpoint\" and \"the endpoint answers an MCP request\"",
@@ -331,10 +393,13 @@ const lines = [
   "node tools/survey-mcp-registry-census.mjs /tmp/census.json   # ~30 minutes, anonymous GETs, no credentials",
   "node tools/probe-mcp-registry-visibility-params.mjs /tmp/visibility.json   # the scope caveat above, ~6 GETs",
   "CENSUS_INCLUDE_DELETED=true node tools/survey-mcp-registry-census.mjs /tmp/census-wide.json",
-  "node tools/render-mcp-census-doc.mjs --artifact /tmp/census.json --deleted /tmp/census-wide.json --out /tmp/census.md",
+  "node tools/measure-mcp-registry-search.mjs --out /tmp/search.json --pages 20 --search-pages 10",
+  "node tools/measure-mcp-registry-search.mjs --offline /tmp/search.json   # re-derives the table from its own rows",
+  "node tools/render-mcp-census-doc.mjs --artifact /tmp/census.json --deleted /tmp/census-wide.json --search /tmp/search.json --out /tmp/census.md",
   "```",
   "",
-  "The artifact is published at [`data/mcp-registry-census." + date + ".json`](data/mcp-registry-census." + date + ".json).",
+  "The artifact is published at [`data/mcp-registry-census." + date + ".json`](data/mcp-registry-census." + date + ".json),",
+  "and the search measurement at [`data/mcp-registry-search." + searchDate + ".json`](data/mcp-registry-search." + searchDate + ".json).",
   "",
 ];
 

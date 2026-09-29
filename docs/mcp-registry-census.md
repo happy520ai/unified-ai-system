@@ -109,6 +109,44 @@ the mistake upstream issue modelcontextprotocol/registry#1676 describes - agrees
 altogether. That gap is why "54 of 54 agree" above is a reading rather than a tautology: the same
 instrument does report disagreement when it buckets on the wrong row.
 
+## What `search` can find, and what it cannot
+
+Upstream issue [modelcontextprotocol/registry#1453](https://github.com/modelcontextprotocol/registry/issues/1453)
+asks that `?search=` match the `description` field as well as the server name, on the grounds that it
+currently matches names only. That is checkable against the live API, and it was, on 2026-09-29: a
+sample of 2,000 servers pulled with `version=latest` (so a server with eleven published versions
+occupies one slot), then ten capability words searched one page-set each.
+
+| word | describes it in `description` but not in `name` | of those, returned by `search` | result rows scanned |
+| --- | --- | --- | --- |
+| `weather` | 6 | 0 | 277 |
+| `database` | 15 | 0 | 92 |
+| `github` | 5 | 0 | 1000 |
+| `slack` | 4 | 0 | 73 |
+| `jira` | 0 | 0 | 96 |
+| `browser` | 12 | 0 | 366 |
+| `calendar` | 17 | 0 | 183 |
+| `pdf` | 24 | 0 | 435 |
+| `memory` | 53 | 0 | 1000 |
+| `email` | 34 | 0 | 354 |
+
+Two numbers carry the finding. 170 of the 2,000 sampled servers (8.50% of the sample) state one of these ten
+capabilities in prose while their name does not contain the word - and 0 of them turn up in the
+3,876 result rows those ten searches returned. The falsification arm ran too: 0 of
+those rows carry the word somewhere other than the name, which is the only shape that would have shown
+description matching already existing. So #1453's premise holds at this sample size: a capability a
+server advertises about itself in prose is invisible to the search box unless the author also happened
+to put it in the name.
+
+One note about the denominator. `github`, `memory` hit the 10-page cap, so for those words
+the claim covers the first 1,000 rows rather than the whole result set; the instrument stores that in
+`capped_word_legs` instead of letting a shorter scan look like a smaller gap. The sample is 2,000 of 37,013 servers, so 170 is a sample count and not a
+registry total. A reader who wants either widened re-runs the commands under Reproduce with larger
+--pages and --search-pages.
+
+This says nothing about whether the search is *good* - only what it matches. Ranking, relevance and the
+`updated_since` parameter were not measured here.
+
 ## What this does not support
 
 - That a declared address works. "The record names an endpoint" and "the endpoint answers an MCP request"
@@ -155,8 +193,11 @@ not hosted, which is the `package_only` row above.
 node tools/survey-mcp-registry-census.mjs /tmp/census.json   # ~30 minutes, anonymous GETs, no credentials
 node tools/probe-mcp-registry-visibility-params.mjs /tmp/visibility.json   # the scope caveat above, ~6 GETs
 CENSUS_INCLUDE_DELETED=true node tools/survey-mcp-registry-census.mjs /tmp/census-wide.json
-node tools/render-mcp-census-doc.mjs --artifact /tmp/census.json --deleted /tmp/census-wide.json --out /tmp/census.md
+node tools/measure-mcp-registry-search.mjs --out /tmp/search.json --pages 20 --search-pages 10
+node tools/measure-mcp-registry-search.mjs --offline /tmp/search.json   # re-derives the table from its own rows
+node tools/render-mcp-census-doc.mjs --artifact /tmp/census.json --deleted /tmp/census-wide.json --search /tmp/search.json --out /tmp/census.md
 ```
 
-The artifact is published at [`data/mcp-registry-census.2026-09-28.json`](data/mcp-registry-census.2026-09-28.json).
+The artifact is published at [`data/mcp-registry-census.2026-09-28.json`](data/mcp-registry-census.2026-09-28.json),
+and the search measurement at [`data/mcp-registry-search.2026-09-29.json`](data/mcp-registry-search.2026-09-29.json).
 
