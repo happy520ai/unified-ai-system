@@ -1,4 +1,5 @@
 export * from "./agentApprovalStore.types.ts";
+import type { AgentApprovalStore, CreateApprovalInput } from "./agentApprovalStore.types.ts";
 
 /**
  * Durable, one-shot Agent tool approvals with argument locking.

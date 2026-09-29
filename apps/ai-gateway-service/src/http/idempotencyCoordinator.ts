@@ -1,4 +1,5 @@
 export * from "./idempotencyCoordinator.types.ts";
+import type { IdempotencyAcceptedOutcome, IdempotencyCoordinator, IdempotencyExecution, IdempotencyOutcome, IdempotencyRejectedOutcome, IdempotencyRequest } from "./idempotencyCoordinator.types.ts";
 
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import type { IncomingHttpHeaders, ServerResponse } from "node:http";

@@ -1,4 +1,5 @@
 export * from "./localClientPopIdentityAuthority.types.ts";
+import type { ManagedLocalClientPopReplayConsumeInput, ManagedLocalClientPopReplayGuard, ManagedLocalClientPopReplayGuardStatus } from "./localClientPopIdentityAuthority.types.ts";
 
 import {
   createHash,

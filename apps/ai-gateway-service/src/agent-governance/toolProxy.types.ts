@@ -1,5 +1,8 @@
 // T-094 leaf: type-only declarations extracted from toolProxy.ts
 // (mechanical move certified by .pm/t094-leaf-closures.json; no runtime declarations dragged).
+import type { AgentToolApprovalReview, EffectiveAgentPolicy } from "@unified-ai-system/shared-contracts";
+import type { GovernedRecordDescriptor, GovernedRecordMeterVerdict } from "./governedRecordMeter.ts";
+
 export interface AgentGovernanceCallContext {
   agentId: string;
   tenantId: string;

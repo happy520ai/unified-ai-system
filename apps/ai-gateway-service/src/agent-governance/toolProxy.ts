@@ -1,4 +1,5 @@
 export * from "./toolProxy.types.ts";
+import type { AgentGovernanceCallContext, AgentGovernanceToolProxy, AgentGovernanceSandboxAttestation, ToolProxyVerdict } from "./toolProxy.types.ts";
 
 /**
  * Agent governance Tool Proxy.

@@ -1,4 +1,5 @@
 export * from "./localClientConfigTransaction.types.ts";
+import type { LocalClientConfigJsonValue, LocalClientConfigOperation, JsonPrimitive } from "./localClientConfigTransaction.types.ts";
 
 import {
   createCipheriv,

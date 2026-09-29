@@ -1,4 +1,5 @@
 export * from "./agentGovernanceService.types.ts";
+import type { AgentGovernanceService, ActivatePolicyResult, AgentGovernanceServiceHealth, CreatePolicyVersionInput, GenerateAgentInput, GenerateAgentResult, GovernanceContext, ModelProposer } from "./agentGovernanceService.types.ts";
 
 /**
  * Agent governance service — the Factory and lifecycle authority.

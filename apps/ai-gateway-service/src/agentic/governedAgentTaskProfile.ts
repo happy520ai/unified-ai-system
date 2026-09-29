@@ -1,4 +1,5 @@
 export * from "./governedAgentTaskProfile.types.ts";
+import type { GovernedAgentTaskVerificationResult } from "./governedAgentTaskProfile.types.ts";
 
 import { createScanner, parseTree, ScanError, SyntaxKind } from "jsonc-parser";
 import type { Node as JsonNode, ParseError } from "jsonc-parser";
