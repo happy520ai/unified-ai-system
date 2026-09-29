@@ -317,6 +317,22 @@ export function readSnapshotMetrics(path, todayDate) {
   }
 }
 
+// GitHub's traffic payload can stop advancing while the job keeps running. Read on 2026-09-29 at 17:40Z it
+// still returned the window 2026-09-10..2026-09-23 for both views and clones, with the same totals as the run
+// six days earlier. "66 views / 21 uniques through 2026-09-23" printed in a 2026-09-29 report reads as
+// "traffic is flat", when the fact is "we were not given a newer window" - and that distinction is the
+// difference between concluding nobody arrived and concluding we cannot see. One day of lag is normal for this
+// endpoint, so the threshold sits above the normal lag rather than at zero.
+export const TRAFFIC_WINDOW_LAG_DAYS = 2;
+
+export function trafficWindowLag({ reportDate, through, allowedLagDays = TRAFFIC_WINDOW_LAG_DAYS }) {
+  const a = Date.parse(String(reportDate ?? ""));
+  const b = Date.parse(String(through ?? ""));
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return { days: null, stale: false, unknown: true };
+  const days = Math.round((a - b) / 86400000);
+  return { days, stale: days > allowedLagDays, unknown: false };
+}
+
 function formatDelta(current, previous) {
   if (typeof previous !== "number" || Number.isNaN(previous)) return "";
   const delta = current - previous;
@@ -719,7 +735,9 @@ async function getExternalIssueRows() {
   return rows;
 }
 
-function renderRepoSection(repoStats, date, prefix, previousStats = null) {
+// Exported so the wiring is testable: an arm that only fires inside a manual run of this script is not a
+// defence, because nothing fails when the render path stops calling it.
+export function renderRepoSection(repoStats, date, prefix, previousStats = null) {
   const lines = [];
   lines.push(addDeltaLine(prefix, "Stars", repoStats.stars, previousStats?.stars));
   lines.push(
@@ -775,6 +793,16 @@ function renderRepoSection(repoStats, date, prefix, previousStats = null) {
       lines.push(
         `${prefix} What "${through}" is not: the last visit. Traffic after it may simply rank below the top referrers GitHub returns.`
       );
+      const lag = trafficWindowLag({ reportDate: date, through });
+      if (lag.unknown) {
+        lines.push(
+          `${prefix} WINDOW-UNREADABLE: report date "${date}" or window end "${through}" is not a parseable day, so no claim is made about how current this payload is.`
+        );
+      } else if (lag.stale) {
+        lines.push(
+          `${prefix} WINDOW-LAG: GitHub's traffic payload stops at ${through}, ${lag.days} days before this report (${date}). The counts above are an old window re-read, not a measurement of arrival today, and "unchanged since the last run" here means the payload did not advance.`
+        );
+      }
     }
   }
   // Read outside the `available` guard on purpose: referrers can answer even on a day when the

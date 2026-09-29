@@ -22,12 +22,14 @@ import {
   needsRecarry,
   publishedToolCount,
   readSnapshotMetrics,
+  renderRepoSection,
   replyRequestFrom,
   queueHealth,
   ticketQueueHealth,
   searchCoverageLines,
   staleOwnClaimLines,
   staleToolCounts,
+  trafficWindowLag,
   unreadableCarriers,
 } from './star-growth-check.mjs';
 import { mkdtempSync, writeFileSync } from 'node:fs';
@@ -1048,4 +1050,57 @@ test("a snapshot with no date is not silently treated as today", () => {
   const m = readSnapshotMetrics(file, "2026-09-28");
   assert.equal(m.snapshotDate, null);
   assert.equal(m.sameDayAsCurrent, false, "no date means we cannot prove it is today, so the delta stays");
+});
+
+// GitHub's traffic payload stopped advancing: read at 17:40Z on 2026-09-29 it still returned the window ending
+// 2026-09-23, with the same 66 views / 21 uniques and the same 726 clones / 198 uniques as six days earlier.
+// Without a named lag, the nightly prints an old window inside a new report and reads as "arrival is flat".
+test("a traffic window that has not advanced is named as a lag, not as flat traffic", () => {
+  const lag = trafficWindowLag({ reportDate: "2026-09-29", through: "2026-09-23" });
+  assert.equal(lag.days, 6);
+  assert.equal(lag.stale, true);
+  assert.equal(lag.unknown, false);
+});
+
+// The boundary arm: this endpoint legitimately reports a day behind. An arm that fires on the normal lag gets
+// muted within a week, which is worse than no arm.
+test("one day of lag is how this endpoint looks when it is healthy", () => {
+  assert.equal(trafficWindowLag({ reportDate: "2026-09-29", through: "2026-09-28" }).stale, false);
+  assert.equal(trafficWindowLag({ reportDate: "2026-09-29", through: "2026-09-29" }).stale, false);
+  assert.equal(trafficWindowLag({ reportDate: "2026-09-29", through: "2026-09-27" }).stale, false, "two days is the allowed lag");
+  assert.equal(trafficWindowLag({ reportDate: "2026-09-29", through: "2026-09-26" }).stale, true);
+});
+
+// "N/A" is what the renderer passes when the payload had no dated rows. Saying it is stale would be a claim
+// about a window we never read.
+test("an unreadable window end is reported as unknown, never as stale", () => {
+  const lag = trafficWindowLag({ reportDate: "2026-09-29", through: "N/A" });
+  assert.equal(lag.unknown, true);
+  assert.equal(lag.stale, false);
+  assert.equal(lag.days, null);
+});
+
+// The wiring arm. A guard that is not reachable from the report is a manual script, so this asserts the line
+// is emitted by the render path - and that the same path stays quiet on a healthy window, otherwise the
+// WINDOW-LAG text becomes wallpaper.
+test("the report itself carries the lag clause", () => {
+  const stats = (through) => ({
+    stars: 8,
+    forks: 2,
+    watchers: 0,
+    openIssues: 34,
+    updated: "2026-09-29T17:16:37Z",
+    traffic: {
+      available: true,
+      views: { count: 66, uniques: 21, through },
+      clones: { count: 726, uniques: 198, through },
+      referrers: [{ referrer: "happy520ai.github.io", count: 7, uniques: 3 }],
+    },
+  });
+  const stale = renderRepoSection(stats("2026-09-23"), "2026-09-29", "-").join("\n");
+  assert.match(stale, /WINDOW-LAG: GitHub's traffic payload stops at 2026-09-23, 6 days before this report/u);
+  assert.match(stale, /not a measurement of arrival today/u);
+  const fresh = renderRepoSection(stats("2026-09-28"), "2026-09-29", "-").join("\n");
+  assert.doesNotMatch(fresh, /WINDOW-LAG/u, "a healthy window must not print the clause");
+  assert.match(fresh, /GitHub traffic snapshot through 2026-09-28/u);
 });
