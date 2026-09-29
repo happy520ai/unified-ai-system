@@ -48,9 +48,21 @@ export function parseDoorText({ presence, topic, carriers, inbound, presenceStat
   const car = /CARRIER_SUMMARY listed=(\d+) watchlisted=(\d+) absent=(\d+) unreadable=(\d+)/.exec(text(carriers));
   if (car) out.carriers = { listed: Number(car[1]), watchlisted: Number(car[2]), absent: Number(car[3]), unreadable: Number(car[4]) };
   // The inbound leg keeps its fields as strings, because "unreadable" is one of its legitimate values and
-  // Number("unreadable") would turn a blind read into a NaN that looks like a zero.
-  const inb = /INBOUND_STATE doors=(\S+) reply_due=(\S+) owner_gate=(\S+) waiting=(\S+) private_review=(\S+) unreadable=(\S+)/.exec(text(inbound));
-  if (inb) out.inbound = { doors: inb[1], replyDue: inb[2], ownerGate: inb[3], waiting: inb[4], privateReview: inb[5], unreadable: inb[6] };
+  // Number("unreadable") would turn a blind read into a NaN that looks like a zero. Parsed by field name
+  // rather than by position: the watch emits new categories as it learns (inline review comments arrived as
+  // one), and a positional regex makes adding a field look like the leg going blind.
+  const inbLine = /^INBOUND_STATE .*$/mu.exec(text(inbound));
+  const inbField = (name) => {
+    if (!inbLine) return null;
+    const one = new RegExp(name + "=(\\S+)").exec(inbLine[0]);
+    return one ? one[1] : null;
+  };
+  if (inbLine && inbField("doors")) {
+    out.inbound = { doors: inbField("doors"), replyDue: inbField("reply_due"), ownerGate: inbField("owner_gate"),
+      waiting: inbField("waiting"), privateReview: inbField("private_review"), inlineNewer: inbField("inline_newer"),
+      unreadable: inbField("unreadable") };
+    for (const [key, value2] of Object.entries(out.inbound)) if (value2 === null) out.inbound[key] = "unreadable";
+  }
   out.legs.presence = { status: presenceStatus, parsed: Boolean(out.directories && out.github) };
   out.legs.topic = { status: topicStatus, parsed: Boolean(out.stars !== null && out.topicRanked !== null && out.winnable !== null) };
   out.legs.carriers = { status: carriersStatus, parsed: Boolean(out.carriers) };
@@ -79,6 +91,7 @@ export function doorLine(parsed) {
     " inbound_doors=" + (i ? i.doors : "unreadable") +
     " inbound_reply_due=" + (i ? i.replyDue : "unreadable") +
     " inbound_owner_gate=" + (i ? i.ownerGate : "unreadable") +
+    " inbound_inline_newer=" + (i ? i.inlineNewer : "unreadable") +
     " inbound_unreadable=" + (i ? i.unreadable : "unreadable") +
     " github_mcp=" + value(parsed.github) +
     " page_one_within_reach=" + (parsed.winnable === null ? "unreadable" : JSON.stringify(parsed.winnable || "none"));
@@ -107,7 +120,7 @@ function markdown(parsed, line) {
     // A door someone has spoken to us about is a different kind of news than a door that is merely waiting,
     // so it is its own sentence and is never folded into the directory counts above.
     "- Open pull requests in other people's repositories: " + (parsed.inbound
-      ? "**" + parsed.inbound.replyDue + " awaiting a reply from us**, " + parsed.inbound.waiting + " waiting on the other side, " + parsed.inbound.ownerGate + " blocked on something only the account owner can do, " + parsed.inbound.privateReview + " private security review, " + parsed.inbound.unreadable + " unreadable"
+      ? "**" + parsed.inbound.replyDue + " awaiting a reply from us**, " + parsed.inbound.waiting + " waiting on the other side, " + parsed.inbound.ownerGate + " blocked on something only the account owner can do, " + parsed.inbound.inlineNewer + " with a reviewer's line comment newer than anything we did, " + parsed.inbound.privateReview + " private security review, " + parsed.inbound.unreadable + " unreadable"
       : "unreadable") + ".",
     "",
   ].join("\n");

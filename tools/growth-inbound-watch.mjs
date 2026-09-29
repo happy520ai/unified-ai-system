@@ -49,7 +49,7 @@ export function gateFromBot(body) {
 const stamps = (list, pick) => list.map(pick).filter((s) => typeof s === "string" && s.length > 0);
 
 // Pure over the payloads GitHub returns, so every branch is testable without a network.
-export function doorVerdict({ detail, issue, comments = [], reviews = [], readFailures = [], repo = "" }) {
+export function doorVerdict({ detail, issue, comments = [], reviews = [], inline = [], readFailures = [], repo = "" }) {
   // A GitHub security-advisory review lives in a private repository whose comment endpoints answer 404 to
   // any token, including this one. That is not an instrument failure and not a door awaiting anything, so
   // it gets its own named category - the alternative is a permanent `unreadable` that trains the reader to
@@ -82,6 +82,15 @@ export function doorVerdict({ detail, issue, comments = [], reviews = [], readFa
     if (isBotUser(r.user)) { botEvents += 1; continue; }
     foreign.push({ at: r.submitted_at, kind: "review " + String(r.state ?? "?").toLowerCase() });
   }
+  // Inline review comments are the third stream, and often where a reviewer asks for a change to one line.
+  // They are kept out of the reply-due reading on purpose: REST reports the comment but not whether its thread
+  // was resolved - only GraphQL carries isResolved - so treating every inline comment as unanswered would
+  // produce false alarms that get this watch muted, while ignoring the stream was the blind spot closing it.
+  let newestInline = null;
+  for (const c of inline) {
+    if (mine(c.user) || isBotUser(c.user)) continue;
+    if (!newestInline || String(c.created_at) > String(newestInline)) newestInline = c.created_at;
+  }
   // A push answers a requested change without any prose, so it counts as our most recent action too.
   if (typeof issue?.pushed_at === "string") own.push(issue.pushed_at);
   const newest = (list) => list.slice().sort().pop() || null;
@@ -95,12 +104,20 @@ export function doorVerdict({ detail, issue, comments = [], reviews = [], readFa
   // clear a conflict, so the gate must not be outranked by our own comment - which is the ordering bug
   // that made this arm unreachable on every door where we had already replied.
   const gateStanding = Boolean(gate && (!newestSpeech || String(newestSpeech) < String(gate.at)));
+  // Newer than anything we did, so it may be an open question - or an answered one whose thread this endpoint
+  // cannot see. Named as its own category rather than folded into reply-due for that reason.
+  const inlineNewer = Boolean(newestInline && (!newestMine || String(newestInline) > String(newestMine)));
   return {
-    verdict: replyDue ? "reply-due" : gateStanding ? "owner-gate" : "waiting-on-them",
-    why: replyDue ? "a person spoke at " + newestSpeech : gateStanding ? "gate: " + gate.detail : "nothing newer on our side",
+    verdict: replyDue ? "reply-due" : gateStanding ? "owner-gate" : inlineNewer ? "inline-newer" : "waiting-on-them",
+    why: replyDue ? "a person spoke at " + newestSpeech
+      : gateStanding ? "gate: " + gate.detail
+      : inlineNewer ? "a person reviewed a line at " + newestInline + "; thread state is not readable over REST"
+      : "nothing newer on our side",
     newestForeign,
     newestMine,
     newestSpeech,
+    newestInline,
+    inlineNewer,
     botEvents,
     edits,
     state: String(detail.mergeable_state ?? detail.state ?? "?"),
@@ -117,7 +134,7 @@ export function stateLine(rows, searchReadable = true) {
   // directory that has none are different statements and only the second one is news.
   if (!searchReadable || rows.length === 0) {
     return "INBOUND_STATE doors=unreadable reply_due=unreadable owner_gate=unreadable waiting=unreadable " +
-      "private_review=unreadable unreadable=" + unreadable + " bot_events_excluded=" + botEvents +
+      "private_review=unreadable inline_newer=unreadable unreadable=" + unreadable + " bot_events_excluded=" + botEvents +
       " foreign_edits_seen=" + edits + " verdict=SEARCH-UNREADABLE";
   }
   return "INBOUND_STATE doors=" + rows.length +
@@ -125,6 +142,7 @@ export function stateLine(rows, searchReadable = true) {
     " owner_gate=" + count("owner-gate") +
     " waiting=" + count("waiting-on-them") +
     " private_review=" + count("private-review") +
+    " inline_newer=" + count("inline-newer") +
     " unreadable=" + unreadable +
     " bot_events_excluded=" + botEvents +
     " foreign_edits_seen=" + edits +
@@ -161,8 +179,9 @@ function sweep(ourRepo) {
     const issue = grab("issue (for pushed_at)", "repos/" + repo + "/issues/" + number);
     const comments = grab("comments", "repos/" + repo + "/issues/" + number + "/comments?per_page=100") ?? [];
     const reviews = grab("reviews", "repos/" + repo + "/pulls/" + number + "/reviews?per_page=100") ?? [];
-    const capped = comments.length >= 100 || reviews.length >= 100;
-    const v = doorVerdict({ detail, issue, comments, reviews, readFailures, repo });
+    const inline = grab("review comments", "repos/" + repo + "/pulls/" + number + "/comments?per_page=100") ?? [];
+    const capped = comments.length >= 100 || reviews.length >= 100 || inline.length >= 100;
+    const v = doorVerdict({ detail, issue, comments, reviews, inline, readFailures, repo });
     if (capped && v.verdict !== "unreadable") v.why += " | comment page full, only the tail was read";
     return { ...v, door: repo + "#" + number, capped, title: String(item.title ?? "").slice(0, 70) };
   });
@@ -223,6 +242,26 @@ export function selftest() {
   }).verdict === "unreadable";
   arms.empty_search_is_not_zero_doors = stateLine([], false).includes("SEARCH-UNREADABLE") && stateLine([], true).includes("SEARCH-UNREADABLE");
   arms.unreadable_door_keeps_its_name = stateLine([{ verdict: "unreadable", botEvents: 0, edits: 0 }, { verdict: "waiting-on-them", botEvents: 2, edits: 1 }]).match(/doors=2 .*unreadable=1 .*bot_events_excluded=2 .*foreign_edits_seen=1/) !== null;
+  // The inline leg: a reviewer's comment on one line is named as its own category, because the REST endpoint
+  // reports the comment but not whether the thread was resolved. Folding it into reply-due would alarm on
+  // answered questions; ignoring it was the blind spot.
+  arms.inline_comment_is_named_not_alarming = doorVerdict({
+    detail: { mergeable_state: "clean" }, issue: { pushed_at: null }, comments: [], reviews: [],
+    inline: [{ user: human, created_at: "2026-01-04T00:00:00Z", path: "README.md" }],
+  }).verdict === "inline-newer";
+  arms.inline_answered_by_a_push_is_quiet = doorVerdict({
+    detail: { mergeable_state: "clean" }, issue: { pushed_at: "2026-01-09T00:00:00Z" }, comments: [], reviews: [],
+    inline: [{ user: human, created_at: "2026-01-04T00:00:00Z", path: "README.md" }],
+  }).verdict === "waiting-on-them";
+  arms.inline_from_a_bot_is_excluded = doorVerdict({
+    detail: { mergeable_state: "clean" }, issue: { pushed_at: null }, comments: [], reviews: [],
+    inline: [{ user: { login: "copilot-pull-request-reviewer[bot]", type: "Bot" }, created_at: "2026-01-04T00:00:00Z" }],
+  }).verdict === "waiting-on-them";
+  arms.reply_due_outranks_an_inline_comment = doorVerdict({
+    detail: { mergeable_state: "clean" }, issue: { pushed_at: null },
+    comments: [{ user: human, created_at: "2026-01-08T00:00:00Z" }], reviews: [],
+    inline: [{ user: human, created_at: "2026-01-04T00:00:00Z" }],
+  }).verdict === "reply-due";
   const failed = Object.entries(arms).filter(([, ok]) => !ok).map(([n]) => n);
   console.log("selftest " + Object.entries(arms).map(([n, ok]) => n + "=" + ok).join(" "));
   console.log(failed.length === 0 ? "SELFTEST_OK" : "SELFTEST_FAILED missing=" + failed.join(","));

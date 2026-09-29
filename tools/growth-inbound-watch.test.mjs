@@ -27,7 +27,7 @@ test("the selftest arms all fire, and the arm list cannot quietly shrink", () =>
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.match(r.stdout, /SELFTEST_OK/);
   const arms = r.stdout.split("\n").find((l) => l.startsWith("selftest ")).split(" ").slice(1);
-  assert.ok(arms.length >= 13, "expected at least 13 calibration arms, saw " + arms.length + ": " + arms.join(" "));
+  assert.ok(arms.length >= 17, "expected at least 17 calibration arms, saw " + arms.length + ": " + arms.join(" "));
   assert.ok(arms.every((a) => a.endsWith("=true")), "an arm printed false: " + arms.filter((a) => !a.endsWith("=true")).join(","));
 });
 
@@ -95,6 +95,38 @@ test("a push answers a requested change without any prose", () => {
   assert.equal(v.newestMine, "2026-01-09T00:00:00Z");
 });
 
+test("a reviewer's inline comment is surfaced, but not as a question we owe", () => {
+  // The third stream GitHub exposes for a pull request is /pulls/N/comments - line-level review comments. The
+  // watch read only the conversation and the reviews, so a maintainer asking for one line to change was
+  // invisible and reply_due=0 was a reading of two of the three streams.
+  const open = doorVerdict({
+    detail: { mergeable_state: "clean" }, issue: { pushed_at: null }, comments: [], reviews: [],
+    inline: [{ user: human, created_at: "2026-01-04T00:00:00Z", path: "docs/x.md", line: 12 }],
+  });
+  assert.equal(open.verdict, "inline-newer");
+  assert.equal(open.newestInline, "2026-01-04T00:00:00Z");
+  assert.match(open.why, /thread state is not readable over REST/u,
+    "the category must say what it cannot know: an answered thread looks identical to this endpoint");
+  // Answered by a push: the newest thing we did is newer than the comment, so nothing is outstanding.
+  const answered = doorVerdict({
+    detail: { mergeable_state: "clean" }, issue: { pushed_at: "2026-01-09T00:00:00Z" }, comments: [], reviews: [],
+    inline: [{ user: human, created_at: "2026-01-04T00:00:00Z" }],
+  });
+  assert.equal(answered.verdict, "waiting-on-them");
+  // A public comment still outranks an inline one, so the loud stream wins the category.
+  const both = doorVerdict({
+    detail: { mergeable_state: "clean" }, issue: { pushed_at: null },
+    comments: [{ user: human, created_at: "2026-01-08T00:00:00Z" }], reviews: [],
+    inline: [{ user: human, created_at: "2026-01-04T00:00:00Z" }],
+  });
+  assert.equal(both.verdict, "reply-due");
+  // inlineNewer stays true here, and that is the honest reading: our side has done nothing since either
+  // comment, so both are outstanding even though only the louder one names the category. An earlier
+  // expectation of `false` assumed a reply we never made in this fixture.
+  assert.equal(both.inlineNewer, true);
+  assert.equal(both.newestInline, "2026-01-04T00:00:00Z");
+});
+
 test("an advisory review door is named, while an ordinary read failure is still unreadable", () => {
   // Boundary target for the unreadable arm: without it the private-review door would sit in that bucket
   // forever, and a permanent warning is how a real one gets ignored.
@@ -110,7 +142,7 @@ test("zero doors is a broken read, never an empty queue", () => {
   assert.match(empty, /SEARCH-UNREADABLE/u);
   assert.doesNotMatch(empty, /doors=0/u, "an instrument must not print a count it did not observe");
   const ok = stateLine([{ verdict: "waiting-on-them", botEvents: 1, edits: 0 }, { verdict: "reply-due", botEvents: 0, edits: 2 }], true);
-  assert.match(ok, /doors=2 reply_due=1 owner_gate=0 waiting=1 private_review=0 unreadable=0 bot_events_excluded=1 foreign_edits_seen=2 verdict=SWEEP-COMPLETE/u);
+  assert.match(ok, /doors=2 reply_due=1 owner_gate=0 waiting=1 private_review=0 inline_newer=0 unreadable=0 bot_events_excluded=1 foreign_edits_seen=2 verdict=SWEEP-COMPLETE/u);
 });
 
 test("the exit codes separate a lost queue from a partial one", () => {

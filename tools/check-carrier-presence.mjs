@@ -33,6 +33,10 @@ export const CARRIERS = [
   { repo: "alvinreal/awesome-opensource-ai", paths: [{ path: "README.md", kind: "catalog" }] },
   { repo: "TensorBlock/awesome-mcp-servers", paths: [{ path: "docs/ai--llm-integration.md", kind: "catalog" }] },
   { repo: "scadastrangelove/awesome-ai-security-tools", paths: [{ path: "README.md", kind: "catalog" }, { path: "data/sections.json", kind: "catalog" }, { path: "WATCHLIST.md", kind: "staging" }] },
+  // Merged 2026-09-29T12:37:40Z by @shiftkey (up-for-grabs#6176): the entry corrects our description and
+  // declares the TypeScript good-first issues. A listing that landed is only evidence while it is still there,
+  // so it joins the probe set on the day it merges rather than being remembered by hand.
+  { repo: "up-for-grabs/up-for-grabs.net", paths: [{ path: "_data/projects/unified-ai-system.yml", kind: "catalog" }] },
 ];
 
 export const OUR_MARKER = /happy520ai\/unified-ai-system|Unified AI System/i;

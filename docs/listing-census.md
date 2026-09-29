@@ -22,6 +22,7 @@ regenerated rather than typed.
 | [hashgraph-online/awesome-ai-plugins](https://github.com/hashgraph-online/awesome-ai-plugins) | `README.md` | listed |
 | [alvinreal/awesome-opensource-ai](https://github.com/alvinreal/awesome-opensource-ai) | `README.md` | listed |
 | [TensorBlock/awesome-mcp-servers](https://github.com/TensorBlock/awesome-mcp-servers) | `docs/ai--llm-integration.md` | listed |
+| [up-for-grabs/up-for-grabs.net](https://github.com/up-for-grabs/up-for-grabs.net) | `_data/projects/unified-ai-system.yml` | listed |
 | [scadastrangelove/awesome-ai-security-tools](https://github.com/scadastrangelove/awesome-ai-security-tools) | `WATCHLIST.md` | in a watchlist file, not the catalogue |
 
 The distinction in the last row matters: a merged pull request and a merged pull request that
@@ -33,7 +34,7 @@ landed in a staging file are different facts, and this page does not fold them t
 | --- | --- | --- |
 | [mcpservers.org](https://mcpservers.org) | listed | [mcpservers.org/servers/happy520ai/unified-ai-system](https://mcpservers.org/servers/happy520ai/unified-ai-system) - entry found in a sitemap child over 8 pages and 41,500 URLs, 1 leg(s) blocked |
 | [mcpmarket.com](https://mcpmarket.com) | listed | [mcpmarket.com/server/unified-ai-system](https://mcpmarket.com/server/unified-ai-system) - entry found in a sitemap child over 11 pages and 42,223 URLs |
-| [glama.ai](https://glama.ai) | listed | [glama.ai/mcp/servers/happy520ai/unified-ai-system](https://glama.ai/mcp/servers/happy520ai/unified-ai-system) - entry found in a sitemap child over 17 pages and 114,300 URLs |
+| [glama.ai](https://glama.ai) | listed | [glama.ai/mcp/servers/happy520ai/unified-ai-system](https://glama.ai/mcp/servers/happy520ai/unified-ai-system) - entry found in a sitemap child over 17 pages and 114,312 URLs |
 | [github.com/mcp](https://github.com/mcp) | no entry found | (none) - both entry shapes 404 while the control page is 200 and its search card is present (1) |
 | [smithery.ai](https://smithery.ai) | no entry found | (none) - both exact routes 404 while github and brave answer 200; the search leg is not citable, because the nonsense query returned 173 rows against 144 for a server that exists, so ?q= re-ranks a sample instead of filtering |
 
@@ -97,6 +98,12 @@ list is information a reader can use; being inside one is information we would r
    "path": "docs/ai--llm-integration.md"
   },
   {
+   "kind": "catalogue",
+   "repo": "up-for-grabs/up-for-grabs.net",
+   "verdict": "LISTED",
+   "path": "_data/projects/unified-ai-system.yml"
+  },
+  {
    "kind": "directory",
    "site": "https://github.com/mcp",
    "verdict": "NOT_FOUND",
@@ -128,7 +135,7 @@ list is information a reader can use; being inside one is information we would r
   }
  ],
  "carriers": {
-  "listed": 6,
+  "listed": 7,
   "watchlisted": 1,
   "absent": 0,
   "unreadable": 0

@@ -10,7 +10,7 @@ const { CARRIERS, decide, pickVerdict, entryFacts, toolCountMentions, OUR_MARKER
 // so the carrier table is itself pinned: dropping a carrier would shrink a count without any assertion
 // noticing.
 test("the carrier table covers every repository that merged our work", () => {
-  assert.ok(CARRIERS.length >= 7, "seven carriers had merged something from us by 2026-09-29, got " + CARRIERS.length);
+  assert.ok(CARRIERS.length >= 8, "eight listings had merged something from us by 2026-09-29, got " + CARRIERS.length);
   assert.equal(new Set(CARRIERS.map((c) => c.repo)).size, CARRIERS.length, "duplicate repo rows");
   for (const c of CARRIERS) {
     assert.match(c.repo, /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/, c.repo);

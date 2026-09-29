@@ -48,7 +48,7 @@ const CARRIERS_OK = [
 const INBOUND_OK = [
   "OWNER-GATE     e2b-dev/awesome-ai-agents#1401                blocked    gate: CLA  | Add Unified AI System",
   "(not printed individually: 29 doors waiting on the other side)",
-  "INBOUND_STATE doors=31 reply_due=0 owner_gate=1 waiting=29 private_review=1 unreadable=0 bot_events_excluded=19 foreign_edits_seen=1 verdict=SWEEP-COMPLETE",
+  "INBOUND_STATE doors=31 reply_due=0 owner_gate=1 waiting=29 private_review=1 inline_newer=0 unreadable=0 bot_events_excluded=19 foreign_edits_seen=1 verdict=SWEEP-COMPLETE",
 ].join("\n");
 
 const ALL_OK = { presence: PRESENCE_OK, topic: TOPIC_OK, carriers: CARRIERS_OK, inbound: INBOUND_OK, presenceStatus: 0, topicStatus: 0, carriersStatus: 0, inboundStatus: 0 };
@@ -63,7 +63,7 @@ test("a healthy set of instruments parses into every door field", () => {
   const parsed = parseDoorText(ALL_OK);
   assert.deepEqual(parsed.directories, { listed: 3, not_found: 1, undecidable: 0 });
   assert.deepEqual(parsed.carriers, { listed: 6, watchlisted: 1, absent: 0, unreadable: 0 });
-  assert.deepEqual(parsed.inbound, { doors: "31", replyDue: "0", ownerGate: "1", waiting: "29", privateReview: "1", unreadable: "0" });
+  assert.deepEqual(parsed.inbound, { doors: "31", replyDue: "0", ownerGate: "1", waiting: "29", privateReview: "1", inlineNewer: "0", unreadable: "0" });
   assert.equal(parsed.github, "NOT_FOUND");
   assert.equal(parsed.stars, 8);
   assert.equal(parsed.slots, "20/20");
@@ -72,7 +72,7 @@ test("a healthy set of instruments parses into every door field", () => {
   const line = doorLine(parsed);
   assert.match(line, /^DOOR_STATE stars=8 topic_slots=20\/20 topic_pages_ranked=2 /);
   assert.match(line, /carriers_listed=6 carriers_watchlisted=1 carriers_absent=0 carriers_unreadable=0/);
-  assert.match(line, /inbound_doors=31 inbound_reply_due=0 inbound_owner_gate=1 inbound_unreadable=0/);
+  assert.match(line, /inbound_doors=31 inbound_reply_due=0 inbound_owner_gate=1 inbound_inline_newer=0 inbound_unreadable=0/);
   assert.match(line, /github_mcp=NOT_FOUND/);
   assert.match(line, /page_one_within_reach="agent-governance\(31\), mcp\(47042\)"/);
 });
@@ -89,10 +89,24 @@ test("an unreadable leg prints the word unreadable instead of shrinking the clai
 test("a queue that could not be read is not reported as a queue of zero", () => {
   // The child's own refusal line arrives with `doors=unreadable`, and the aggregator must treat that as a
   // blind leg rather than as "no doors awaiting a reply", which is the difference between news and noise.
-  const parsed = parseDoorText({ ...ALL_OK, inbound: "INBOUND_STATE doors=unreadable reply_due=unreadable owner_gate=unreadable waiting=unreadable private_review=unreadable unreadable=unreadable bot_events_excluded=0 foreign_edits_seen=0 verdict=SEARCH-UNREADABLE" });
+  const parsed = parseDoorText({ ...ALL_OK, inbound: "INBOUND_STATE doors=unreadable reply_due=unreadable owner_gate=unreadable waiting=unreadable private_review=unreadable inline_newer=unreadable unreadable=unreadable bot_events_excluded=0 foreign_edits_seen=0 verdict=SEARCH-UNREADABLE" });
   assert.equal(parsed.legs.inbound.parsed, false);
   assert.equal(parsed.inbound.doors, "unreadable", "the word is kept verbatim, not coerced to a number");
   assert.match(doorLine(parsed), /inbound_doors=unreadable/);
+});
+
+test("a field the aggregator has never heard of does not blind the leg", () => {
+  // The watch grows categories (inline review comments were one). Parsing the line positionally would turn an
+  // addition into "that leg is unreadable", which is a false alarm that trains the reader to ignore the word.
+  const extended = INBOUND_OK.replace("verdict=SWEEP-COMPLETE", "mentions_seen=7 verdict=SWEEP-COMPLETE");
+  const parsed = parseDoorText({ ...ALL_OK, inbound: extended });
+  assert.equal(parsed.legs.inbound.parsed, true, "an unknown extra field must not make the leg unreadable");
+  assert.equal(parsed.inbound.doors, "31");
+  assert.equal(parsed.inbound.inlineNewer, "0");
+  // A field that is genuinely absent from the line is reported as unreadable rather than as zero.
+  const shortened = parseDoorText({ ...ALL_OK, inbound: "INBOUND_STATE doors=31 reply_due=0 verdict=X" });
+  assert.equal(shortened.inbound.ownerGate, "unreadable");
+  assert.equal(shortened.inbound.waiting, "unreadable");
 });
 
 test("one leg truncated is partial, and the other legs still report", () => {
