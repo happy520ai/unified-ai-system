@@ -148,9 +148,12 @@ test("the site root is a page with a date, not a loc that does not match", () =>
       scope.unchecked.find((u) => u.startsWith("index.html:")));
     return;
   }
-  const staled = shipped.replace("<loc>https://happy520ai.github.io/unified-ai-system/</loc>\n    <lastmod>2026-09-29</lastmod>",
-    "<loc>https://happy520ai.github.io/unified-ai-system/</loc>\n    <lastmod>2026-01-01</lastmod>");
-  assert.notEqual(staled, shipped, "fixture precondition: the shipped root must currently be dated 2026-09-29");
+  // The root's current date is read from the shipped file instead of asserted: what it is depends on when
+  // someone last changed docs/index.html, and a fixture that pinned that value red on any unrelated Tuesday.
+  const rootTag = /<loc>https:\/\/happy520ai\.github\.io\/unified-ai-system\/<\/loc>\n\s*<lastmod>(\d{4}-\d{2}-\d{2})<\/lastmod>/u.exec(shipped);
+  assert.ok(rootTag, "fixture precondition: the shipped sitemap must carry a dated site root");
+  const staled = shipped.split(rootTag[0]).join(rootTag[0].replace(rootTag[1], "2026-01-01"));
+  assert.notEqual(staled, shipped, "fixture precondition: the root's date must be replaceable");
   assert.deepEqual(refresh(staled).changes.map((c) => c.file), ["index.html"], "a stale root must be caught, not skipped");
 });
 
@@ -167,17 +170,24 @@ test("--check refuses a stale page and accepts the shipped tree, writing nothing
   assert.match(clean.stderr, /OK \(--check\): \d+ url blocks dated against git/u);
 
   const dir = mkdtempSync(join(tmpdir(), "sitemap-check-"));
-  const fixture = join(dir, "stale.xml");
   const shipped = readFileSync("docs/sitemap.xml", "utf8");
-  const staled = shipped.replace("<loc>https://happy520ai.github.io/unified-ai-system/</loc>\n    <lastmod>2026-09-29</lastmod>",
-    "<loc>https://happy520ai.github.io/unified-ai-system/</loc>\n    <lastmod>2026-01-01</lastmod>");
-  assert.notEqual(staled, shipped, "fixture precondition: the shipped root must be dated 2026-09-29");
-  writeFileSync(fixture, staled, "utf8");
-  const before = readFileSync(fixture, "utf8");
-  const bad = spawnSync(process.execPath, ["tools/refresh-sitemap-dates.mjs", "--check", "--sitemap", fixture], { encoding: "utf8" });
-  assert.equal(bad.status, 4, bad.stdout + bad.stderr);
-  assert.match(bad.stderr, /STALE index\.html: published 2026-01-01/u);
-  assert.equal(readFileSync(fixture, "utf8"), before, "--check must never write the fix it is reporting");
+  // The root's own date is read from the shipped file rather than asserted, because what it is depends on when
+  // someone last committed docs/index.html. A fixture that pinned it would red on an unrelated Tuesday.
+  const root = /<loc>https:\/\/happy520ai\.github\.io\/unified-ai-system\/<\/loc>\n\s*<lastmod>(\d{4}-\d{2}-\d{2})<\/lastmod>/u.exec(shipped);
+  assert.ok(root, "fixture precondition: the shipped sitemap must carry a dated site root");
+  const rooted = (day) => shipped.split(root[0]).join(root[0].replace(root[1], day));
+  const runCheckOn = (text, name) => {
+    const fixture = join(dir, name);
+    writeFileSync(fixture, text, "utf8");
+    const bad = spawnSync(process.execPath, ["tools/refresh-sitemap-dates.mjs", "--check", "--sitemap", fixture], { encoding: "utf8" });
+    assert.equal(bad.status, 4, bad.stdout + bad.stderr);
+    assert.equal(readFileSync(fixture, "utf8"), text, "--check must never write the fix it is reporting");
+    return bad;
+  };
+  // Both directions, because dating by contact instead of content produces a lastmod that is too *new*, and a
+  // report that calls every disagreement "older" describes that defect backwards.
+  assert.match(runCheckOn(rooted("2026-01-01"), "behind.xml").stderr, /BEHIND\s+index\.html: published 2026-01-01/u);
+  assert.match(runCheckOn(rooted("2099-12-31"), "ahead.xml").stderr, /AHEAD\s+index\.html: published 2099-12-31/u);
 });
 
 test("the nightly job actually runs the freshness check, on full history", () => {

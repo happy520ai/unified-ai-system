@@ -12,6 +12,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { resolve, basename } from "node:path";
 import { pathToFileURL } from "node:url";
 import { execFileSync } from "node:child_process";
+import { lastContentChange } from "./git-content-date.mjs";
 
 const args = process.argv.slice(2);
 const arg = (flag, fallback) => {
@@ -206,10 +207,14 @@ export function datesTrustworthy(depth) {
 
 export function gitDate(path, mode) {
   if (!datesTrustworthy(historyDepth())) return null;
-  const args = ["log", "--format=%H %cI", "-1"];
-  // Option order matters: `git --diff-filter=A log` is not a thing. It has to follow `log`.
-  if (mode === "first") args.splice(1, 0, "--diff-filter=A");
-  args.push("--", path);
+  if (mode !== "first") {
+    // "last" answers "when did this file's content last change", not "when was it last touched". The commit
+    // that only moves the dates this renderer publishes is the one that must not re-date the page, or every
+    // restamp leaves itself stale - which is how the nightly freshness check became unsatisfiable on
+    // 2026-09-30. The rule is in tools/git-content-date.mjs so the stampers and the checker cannot disagree.
+    return lastContentChange(path).date || null;
+  }
+  const args = ["log", "--format=%H %cI", "-1", "--diff-filter=A", "--", path];
   let raw = "";
   try {
     raw = execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();

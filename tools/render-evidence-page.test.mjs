@@ -323,13 +323,20 @@ test("a date is published only when the repository has history to date it from",
   const UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
   if (trustworthy) {
     assert.match(object.dateModified, UTC, "this clone has history, so a date is knowable and must be published");
-    // The rule is "the later of the two git dates", so both legs are read here independently. Asserting
-    // equality with the source date alone would fail on every page whose rendered artifact moved later,
-    // which is normal: the markdown is committed first, then the page that carries its date.
-    const asUTC = (raw) => new Date(raw).toISOString().replace(/\.\d{3}Z$/, "Z");
-    const htmlRaw = spawnSync("git", ["log", "--format=%cI", "-1", "--", "docs/multi-arch-node-modules.html"], { encoding: "utf8" }).stdout.trim();
-    const expected = Date.parse(htmlRaw) > Date.parse(when) ? asUTC(htmlRaw) : asUTC(when);
-    assert.equal(object.dateModified, expected, "dateModified must be the later of the source commit and the artifact commit");
+    // The rule is "the later of the two commits that changed content". The previous version of this arm read
+    // `git log -1` for both legs, which also answers with a commit that only moved the page's own dates - and
+    // that is exactly the touch which must not re-date an article. The equality below is the shared contract;
+    // the ordering check after it is the independent part, and it only exists because a restamp is present.
+    const { lastContentChange } = await import("./git-content-date.mjs");
+    const mdRead = lastContentChange("docs/multi-arch-node-modules.md");
+    const htmlRead = lastContentChange("docs/multi-arch-node-modules.html");
+    assert.equal(mdRead.error, null, mdRead.error);
+    assert.equal(htmlRead.error, null, htmlRead.error);
+    assert.equal(object.dateModified, [mdRead.date, htmlRead.date].sort().pop(), "dateModified must be the later content commit of source and artifact");
+    if (htmlRead.skipped >= 1) {
+      const touched = spawnSync("git", ["log", "--format=%cI", "-1", "--", "docs/multi-arch-node-modules.html"], { encoding: "utf8" }).stdout.trim();
+      assert.ok(Date.parse(object.dateModified) < Date.parse(touched), "the newest touch of the artifact moved only dates, so the page must not claim it as a change");
+    }
   } else {
     assert.equal(object.dateModified, undefined, "a one-commit clone would report its own boundary date, not this file's");
     assert.equal(object.datePublished, undefined, "a one-commit clone cannot know when this was first published");

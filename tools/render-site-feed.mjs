@@ -5,7 +5,7 @@
 // for <title>/<meta description>, and `git log -1 --format=%cI` for when a page
 // last changed. Nothing here is a value someone remembered.
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import { execFileSync } from "node:child_process";
+import { lastContentChange } from "./git-content-date.mjs";
 
 const SITE = "https://happy520ai.github.io/unified-ai-system";
 const TODAY = new Date().toISOString();
@@ -46,12 +46,10 @@ for (const url of pages) {
     /<meta\s+name="description"\s+content="([^"]+)"/,
     `${slug} description`,
   );
-  let updated;
-  try {
-    updated = execFileSync("git", ["log", "-1", "--format=%cI", "--", file], { encoding: "utf8" }).trim();
-  } catch {
-    updated = "";
-  }
+  // Content, not contact: a commit that only restamped the page is not news to a feed reader, and dating an
+  // entry by it would put the feed a restamp ahead of the article it points at. Same rule the sitemap and the
+  // in-page stamps use, read from the same module.
+  let updated = lastContentChange(file).date || "";
   if (!updated) {
     console.log(`REFUSED: no git date for ${file}`);
     process.exit(1);

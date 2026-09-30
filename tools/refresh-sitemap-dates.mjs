@@ -18,6 +18,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
+import { lastContentChange } from "./git-content-date.mjs";
 
 const SITEMAP = "docs/sitemap.xml";
 
@@ -41,17 +42,14 @@ function knowable(sha) {
 }
 
 function lastChange(path) {
-  let raw = "";
-  try {
-    raw = execFileSync("git", ["log", "--format=%H %cI", "-1", "--", path], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
-  } catch {
-    return { error: "git failed" };
-  }
-  if (!raw) return { error: "no commit reports this path" };
-  const [sha, when] = raw.split(" ");
-  if (!knowable(sha)) return { error: "history truncated at " + String(sha).slice(0, 8) };
-  const day = new Date(when).toISOString().slice(0, 10);
-  return /^\d{4}-\d{2}-\d{2}$/u.test(day) ? { day, sha } : { error: "unreadable commit date " + when };
+  // Content, not contact: `git log -1 -- <path>` also answers with the commit that only moved the page's own
+  // dates, which makes a just-refreshed lastmod stale the moment it is committed. tools/git-content-date.mjs
+  // holds that rule so this tool and the four in-page stampers cannot disagree about it.
+  const read = lastContentChange(path);
+  if (!read.sha) return { error: read.error || "no commit reports this path" };
+  if (!knowable(read.sha)) return { error: "history truncated at " + String(read.sha).slice(0, 8) };
+  const day = new Date(read.date).toISOString().slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/u.test(day) ? { day, sha: read.sha } : { error: "unreadable commit date " + read.date };
 }
 
 // Exported so the safety property can be falsified without editing a real sitemap: this is the only guard
@@ -165,8 +163,14 @@ function main() {
       return;
     }
     if (changes.length > 0) {
-      for (const c of changes) console.error("STALE " + c.file + ": published " + c.from + ", git says " + c.to);
-      console.error("REFUSED (--check): " + changes.length + " page(s) carry a lastmod older than the commit that changed them");
+      // Direction is part of the finding. Dating from content instead of contact can expose a lastmod that is
+      // *later* than any content change - a page stamped by the commit that only moved its own dates - and a
+      // report that calls that "older" describes the defect backwards.
+      const behind = changes.filter((c) => c.from < c.to).length;
+      for (const c of changes) {
+        console.error((c.from < c.to ? "BEHIND " : c.from > c.to ? "AHEAD  " : "DIFFERS") + " " + c.file + ": published " + c.from + ", git says " + c.to);
+      }
+      console.error("REFUSED (--check): " + changes.length + " page(s) carry a lastmod that is not their last content commit (" + behind + " behind, " + (changes.length - behind) + " ahead)");
       process.exitCode = 4;
       return;
     }
