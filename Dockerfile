@@ -56,6 +56,17 @@ RUN pnpm install --frozen-lockfile \
   --filter @unified-ai-system/agent-console... \
   --filter @unified-ai-system/mcp-server...
 
+# Same discipline as the npm strip above, applied to pnpm once its one job (the frozen install) is
+# done. pnpm's published bundle carries its own vendored node_modules, and Trivy reads undici 6.28.0
+# out of `pnpm/dist/node_modules` and `pnpm/artifacts/exe/dist/node_modules` -- that was the last
+# HIGH/CRITICAL pair left after the base pin and the npm pin. Both runtime stages below run `node`
+# against the built tree and never invoke pnpm, and the CI smoke tests invoke `node` directly too
+# (tools/verify-public-clone.mjs and the docker smoke step), so nothing in this image needs it.
+# Note what this does NOT claim: it does not fix pnpm's undici, it stops shipping it. The build above
+# still ran pnpm at the repo's pinned version. If a future stage needs pnpm in the image, re-add it
+# deliberately and say why.
+RUN rm -rf /usr/local/lib/node_modules/pnpm /usr/local/bin/pnpm /usr/local/bin/pnpx /usr/local/bin/pnpm.cmd 2>/dev/null || true
+
 COPY apps/ai-gateway-service apps/ai-gateway-service
 COPY apps/agent-console apps/agent-console
 COPY tools/terminal-demo.mjs tools/terminal-demo.mjs
