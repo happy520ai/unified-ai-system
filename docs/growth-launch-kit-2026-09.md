@@ -2114,3 +2114,34 @@ executing on the runner: `OK (--check): 34 url blocks dated against git, none st
 with `submittedUrlCount 34`. Other decisions still parked, unchanged: #210 blocks image publication, #209 is why
 the image scan has never run, #206 the pin guard's scope, #32 whether to cut v0.8.1, #65 whether the shipped
 skill description keeps a tool count.
+
+## 0t. The About line is two files, not one - here is the exact batch (2026-09-30)
+
+Two of the topics added today (`backpressure`, `prompt-evaluation`) are true of the product but absent from the
+About description, so label and text disagree. `tool-governance` is already covered by the words "governed tools".
+Fixing the description is not a single-surface edit, and the reason is in the guard rather than in taste:
+`tools/check-comparison-quotes.mjs:198` resolves a URL-less quotation whose citation says "repository
+description" to `https://github.com/` + `OUR_REPO`, so the block on our own comparison page is re-read against
+the live About text and any mismatch is recorded as `state: "drift"` (`:203`).
+
+The batch, in one commit:
+
+1. `gh api -X PATCH repos/happy520ai/unified-ai-system -f description='<new text>'` - `PATCH` does take
+   `description`, even though the same call silently ignores `topics` (see 0o).
+2. Replace the quoted sentence at `docs/self-hosted-ai-gateways-compared.html:184-190` and the identical English
+   sentence at `docs/self-hosted-ai-gateways-compared.zh-CN.html:178-184`. The Chinese page carries our
+   description in English, so there is no translation to sync, and if anyone translates it later the guard skips
+   it by design (`:196` `isTranslated` -> `skipped-translated`) rather than going red.
+3. Verify locally before pushing, with the instrument that will judge it: `node tools/check-comparison-quotes.mjs`
+   then `node tools/refresh-sitemap-dates.mjs --check` and `node tools/inject-jsonld-dates.mjs <page> --check`.
+   Both pages are rendered and in the sitemap, so their content date moves with this commit; since the stamp is a
+   date-value line and dating is by content commit, content and stamp can land in the same commit and converge.
+
+Why it stayed undone: writing `description` first and the two HTML files second would leave the nightly guard
+reading a live About text that no longer matches what we published, which is precisely the drift that guard
+exists to catch. The whole point of the recipe is that it is one commit, so do not split it.
+
+Readings as of this section: stars 8, forks 3. Eight topic pages list this repository inside their first 30
+(`prompt-governance` 3, `admission-control` 4, `model-gateway` 4, `tool-governance` 4, `prompt-enhancement` 7,
+`prompt-evaluation` 8, `token-budget` 9, `backpressure` 30). `backpressure` at position 30 is the last slot on
+that page, so it is the first one to fall if another repository gains stars.
