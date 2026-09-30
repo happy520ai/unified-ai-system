@@ -2,11 +2,47 @@ import { readFileSync, readdirSync, mkdirSync, renameSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
+import { connect } from "node:net";
 
 const serviceRoot = resolve(process.cwd());
 const repoRoot = resolve(serviceRoot, "../..");
 const sourceRoot = join(serviceRoot, "src");
 const group = process.argv[2];
+
+// Contract for a local trust-auth postgres fixture (F-079): loopback, no
+// password, role and database both `gateway_test`. Only the contract is named
+// here; the disposable fixture that implements it lives outside the repo.
+const LOCAL_POSTGRES_PORT = Number(process.env.AI_GATEWAY_TEST_LOCAL_PG_PORT ?? 55443);
+const LOCAL_POSTGRES_URL = `postgresql://gateway_test@127.0.0.1:${LOCAL_POSTGRES_PORT}/gateway_test`;
+
+// The postgres integration cases skip themselves when no URL is present, and a
+// skip is not evidence. CI sets the URL explicitly and always wins; locally the
+// cases are real whenever the fixture is listening, so they should run then.
+// This sits in the process that actually spawns vitest, so it holds whichever
+// entry point started the suite. Detection is liveness only - nothing here
+// starts a server, and a closed port leaves the cases skipped exactly as before.
+if (!process.env.AI_GATEWAY_TEST_POSTGRES_URL) {
+  const reachable = await new Promise((resolve) => {
+    const socket = connect(LOCAL_POSTGRES_PORT, "127.0.0.1");
+    const timer = setTimeout(() => {
+      socket.destroy();
+      resolve(false);
+    }, 1000);
+    socket.once("connect", () => {
+      clearTimeout(timer);
+      socket.destroy();
+      resolve(true);
+    });
+    socket.once("error", () => {
+      clearTimeout(timer);
+      resolve(false);
+    });
+  });
+  if (reachable) {
+    process.env.AI_GATEWAY_TEST_POSTGRES_URL = LOCAL_POSTGRES_URL;
+    process.stderr.write(`local postgres fixture detected; running the postgres integration cases against ${LOCAL_POSTGRES_URL}\n`);
+  }
+}
 const NAMED_GROUPS = new Map([
   ["agentic", ["agentic"]],
   ["agent-governance", ["agent-governance"]],
@@ -44,6 +80,18 @@ if (!groups.has(group)) {
   process.exit(2);
 }
 
+// The suite already decided which scope this run is (unit by default, local or
+// all on request) and passes it through here. A file marked `@test-scope local`
+// is an explicit opt-in that a unit run must not collect: before this the
+// directory walk collected it anyway and its own guard then skipped it, which
+// left `skipped` positive on every run and made the completion gate unusable.
+const scope = process.env.UAI_TEST_SCOPE ?? "unit";
+const inScope = (source) => {
+  const local = source.includes("@test-scope local");
+  if (scope === "all") return true;
+  return scope === "local" ? local : !local;
+};
+
 function collect(directory) {
   const files = [];
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -51,7 +99,7 @@ function collect(directory) {
     if (entry.isDirectory()) files.push(...collect(path));
     else if (/\.test\.(?:js|mjs|ts|mts)$/.test(entry.name)) {
       const source = readFileSync(path, "utf8");
-      if (!/from ["']node:test["']/.test(source) && /\b(?:describe|it|test)\s*\(/.test(source)) files.push(path);
+      if (!/from ["']node:test["']/.test(source) && /\b(?:describe|it|test)\s*\(/.test(source) && inScope(source)) files.push(path);
     }
   }
   return files;
