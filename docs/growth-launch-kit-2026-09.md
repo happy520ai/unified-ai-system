@@ -1770,6 +1770,27 @@ The previous 20 are saved verbatim in `.pm/topics-before-2026-09-28.txt` if you 
 edit. Nothing was changed by the attempts: the only field that did take was `description`, which I wrote
 back byte-identical to what the API had returned, so the visible effect is nil and `updated_at` moved.
 
+**Correction, 2026-09-30: the topic write is mine after all, and no browser is needed.** What is true above is
+that `PATCH /repos/...` carrying a `topics` field returns 200 and ignores the field. Wrong was generalising
+that to "topics need the owner". `PUT /repos/happy520ai/unified-ai-system/topics` with a `{"names":[...]}` body
+takes the same token, and the server echoes the replacement list back, so this needs neither a token-scope
+change nor 20 seconds in the web UI.
+
+Two swaps have gone through it since. `local-first` and `agentic-ai` out for `prompt-governance` and
+`admission-control`; then `openai-compatible`, `llm-proxy` and `codex-cli` out for `tool-governance`,
+`prompt-evaluation` and `backpressure`. Each displaced term needed at least 139 stars to reach its page 30 (`llm-proxy` was the cheapest of the five,
+`agentic-ai` the dearest at 18,509), so at eight stars it was a slot with no reachable listing; each added term
+put us inside the first 30 the same day, read from the topic search pages directly and not only from the
+instrument. The count of topic pages where this
+repository appears within its first 30 went 3, then 5, then 8.
+
+Of the two terms proposed above, `tool-governance` is now live. `agent-control-plane` was re-measured today
+(32 repositories, and its page 30 needs zero stars, so any tag is a listing) and deliberately left out: it
+restates `agent-governance`, which we already carry at rank 87, and a slot spent saying the same thing twice is
+a slot not spent elsewhere. The paste list above is superseded. Read the live twenty with
+`gh api repos/happy520ai/unified-ai-system/topics --jq '.names | join(", ")'`; the payloads written today are in
+`.tmp/growth/topics-payload.json` and `.tmp/growth/topics-payload2.json`, so either swap can be undone exactly.
+
 **Why this matters more than it looks.** At 13 stars we enter the top 50 of `agent-governance`; at 31 we
 are on its first page. That is the smallest number of stars in this entire file that buys a permanent
 position on a page people browse looking for exactly this category of thing. Every other channel here has
