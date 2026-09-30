@@ -2059,3 +2059,37 @@ artifact rather than from memory: ranked on page one — `model-gateway` 4th of 
 7th of 20, `token-budget` 9th of 116; `mcp-gateway` ranked 88 of 331; `llm-proxy`, `ai-gateway`,
 `mcp-server`, `self-hosted`, `mcp` all `below_page`. Topic slots: **20 of 20 used**, so any new topic
 requires naming a weak existing one to drop.
+
+## 0r. The first external contribution is waiting on two clicks, and master is red until one of them happens (2026-09-30)
+
+**A stranger did the work, and we owe them a merge decision rather than a spinner.** Timeline, all read from
+the API rather than reconstructed: `nova-loop` forked the repository at `2026-09-30T02:03:35Z`, wrote `I'll
+take this` on #211 at `02:04:27Z`, and opened **#212** at `02:05:14Z` — one commit, +8/-4 across two files,
+`mergeable: true`. The fix is `win32.join` instead of the host's `path.join` in `tools/run-with-git.mjs`, plus
+an assertion mine lacked: no candidate path may contain a forward slash, on any host.
+
+**What went wrong on our side, stated plainly.** I filed #211 at 01:47Z with the root cause and the one-line
+fix. Nine minutes after someone publicly claimed it, I pushed my own version of the same fix (`98248e45`) and
+closed the issue crediting myself. That was found and unwound: my commit is reverted by `2b0a57a8`, #211 is
+reopened with the ownership corrected, and the explanation is on both #211 and #212. The rule worth keeping:
+before landing anything for an issue I opened, re-read that issue's comments for a claim and search the open
+pull requests — checking only the issue list is how this happened.
+
+**The cost is now visible and bounded.** `ci.yml` on `master` (head `abf1a2a3`) finished **failure** at
+`02:56Z` with exactly one failing test — `not ok 457 - the standard install locations are searched in a fixed
+order` — and the README badge renders `build: failing`. Merging #212 removes the only red; nothing else on
+`master` is failing. I left it red rather than re-landing my duplicate, because the alternative spends a
+first-time contributor's work on a cosmetic signal.
+
+**Two clicks, in this order, and both are the owner's.** First approve #212's workflow runs: GitHub holds them
+as `action_required` because this is a first contribution from that account, so their CI has never executed and
+`mergeable_state: unstable` means "pending", not "failing". Running a stranger's code on our runners is a human
+decision, which is why I did not click it. Second, merge the pull request — merges are not mine to perform.
+
+**Unrelated readings from the same stretch, so nothing above is stale on arrival.** Stars **8**, forks **3**
+(the third is this contributor). The nightly growth workflow is green end to end with both checks added today
+executing on the runner: `OK (--check): 34 url blocks dated against git, none stale, none unreadable` and
+`in-page freshness: pages=35 in_date=18 stale=0 skipped=17`. IndexNow carried today's page changes at `200`
+with `submittedUrlCount 34`. Other decisions still parked, unchanged: #210 blocks image publication, #209 is why
+the image scan has never run, #206 the pin guard's scope, #32 whether to cut v0.8.1, #65 whether the shipped
+skill description keeps a tool count.
