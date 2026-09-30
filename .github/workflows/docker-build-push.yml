@@ -562,10 +562,24 @@ jobs:
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
+      # The image is published by docker/metadata-action's `type=sha` with its DEFAULT format, which is
+      # the SHORT sha: the build's own manifest evidence reads
+      # `ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:sha-47ef62b`. Scanning the full
+      # 40-character `github.sha` therefore answers
+      # `MANIFEST_UNKNOWN: manifest unknown`, and Trivy reports it as "unable to initialize artifact"
+      # after failing over docker -> containerd -> podman -> remote, which reads like a missing runtime
+      # rather than a missing tag. Resolve the ref the way this repo's own smoke job already does
+      # (`${GITHUB_SHA::7}`, docker-build-push.yml:322) instead of re-deriving the convention here.
+      - name: Resolve published image refs
+        id: refs
+        run: |
+          echo "gateway=ghcr.io/${{ github.repository }}/ai-gateway-service:sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          echo "mcp=ghcr.io/${{ github.repository }}/mcp-server:sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
       - name: Scan gateway image with Trivy
         uses: aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4 # v0.32.0
         with:
-          image-ref: "ghcr.io/${{ github.repository }}/ai-gateway-service:sha-${{ github.sha }}"
+          image-ref: ${{ steps.refs.outputs.gateway }}
           # The pinned action commit is itself "chore(deps): Update trivy to v0.64.1" (2025-07-04),
           # and that release's assets were later withdrawn upstream: the tag still resolves but
           # releases/download/v0.64.1/trivy_0.64.1_Linux-64bit.tar.gz answers 404, so the action's
@@ -586,7 +600,7 @@ jobs:
       - name: Scan MCP image with Trivy
         uses: aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4 # v0.32.0
         with:
-          image-ref: "ghcr.io/${{ github.repository }}/mcp-server:sha-${{ github.sha }}"
+          image-ref: ${{ steps.refs.outputs.mcp }}
           # Same reason as the gateway scan above: without this override neither step installs a scanner.
           version: "v0.69.3"
           format: "sarif"
