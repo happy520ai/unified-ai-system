@@ -5,8 +5,16 @@
   <subtitle>Every claim in these pages is reproducible: measured tool rosters, credential-free runs, and verbatim quotations from the projects compared.</subtitle>
   <link rel="self" type="application/atom+xml" href="https://happy520ai.github.io/unified-ai-system/feed.xml"/>
   <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/"/>
-  <updated>2026-09-30T00:36:21.469Z</updated>
+  <updated>2026-09-30T00:44:55.842Z</updated>
   <rights>Apache-2.0, Unified AI System contributors</rights>
+  <entry>
+    <id>https://happy520ai.github.io/unified-ai-system/mcp-security-boundaries.zh-CN.html</id>
+    <title type="html">MCP 安全边界：我们实际检查了什么，哪些仍未被证明</title>
+    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-security-boundaries.zh-CN.html"/>
+    <updated>2026-09-30T00:44:42Z</updated>
+    <summary type="html">对真实网关进程运行的 23 次攻击探测、用两种不同方法完成的已发布镜像内容审查，以及这两种方法各自止步的界线。每个数字都附上可以重跑的命令。</summary>
+    <category term="mcp-security-boundaries.zh-CN"/>
+  </entry>
   <entry>
     <id>https://happy520ai.github.io/unified-ai-system/index.zh-CN.html</id>
     <title type="html">Unified AI System｜面向 Codex、Cursor、Cline 的开源 MCP AI 网关</title>
@@ -22,14 +30,6 @@
     <updated>2026-09-30T00:24:43Z</updated>
     <summary type="html">Hardened Public Preview: an open-source, self-hosted MCP and AI gateway for Codex, Cursor, and Cline with provider-free prompt enhancement and reproducible verification.</summary>
     <category term="index"/>
-  </entry>
-  <entry>
-    <id>https://happy520ai.github.io/unified-ai-system/mcp-security-boundaries.zh-CN.html</id>
-    <title type="html">MCP 安全边界：我们实际检查了什么，哪些仍未被证明</title>
-    <link rel="alternate" type="text/html" href="https://happy520ai.github.io/unified-ai-system/mcp-security-boundaries.zh-CN.html"/>
-    <updated>2026-09-29T23:57:09Z</updated>
-    <summary type="html">对真实网关进程运行的 23 次攻击探测、用两种不同方法完成的已发布镜像内容审查，以及这两种方法各自止步的界线。每个数字都附上可以重跑的命令。</summary>
-    <category term="mcp-security-boundaries.zh-CN"/>
   </entry>
   <entry>
     <id>https://happy520ai.github.io/unified-ai-system/mcp-security-boundaries.html</id>
