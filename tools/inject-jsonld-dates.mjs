@@ -37,6 +37,7 @@ function main(argv) {
   const target = argv.find((a) => !a.startsWith("--"));
   if (!target) throw new Error("usage: node tools/inject-jsonld-dates.mjs docs/<page>.html [--dry]");
   const dry = argv.includes("--dry");
+  const check = argv.includes("--check");
   const path = resolve(target);
   const before = readFileSync(path, "utf8");
 
@@ -110,6 +111,29 @@ function main(argv) {
       if (JSON.stringify(reparsed[key]) !== JSON.stringify(object[key])) return fail("the block lost or changed " + key);
     }
     if (reparsed.datePublished !== published || reparsed.dateModified !== modified) return fail("the written dates are not the ones git reported");
+  }
+
+  if (check) {
+    // --check exists because the fixer was only ever run by hand. A page can carry four timestamps that
+    // all restate the same fact, and every one of them can lag the commit that changed the prose - which
+    // is what Google reads as freshness. Nothing else in the repository noticed: four deliberately stale
+    // stamps on a published page still left `pnpm check:public` reporting zero issues.
+    const stale = [];
+    if (hasStructuredDates) {
+      if (object.datePublished !== published) stale.push("datePublished " + object.datePublished + " should be " + published);
+      if (object.dateModified !== modified) stale.push("dateModified " + object.dateModified + " should be " + modified);
+    }
+    const metaPublished = /<meta property="article:published_time" content="([^"]*)"/u.exec(before);
+    const metaModified = /<meta property="article:modified_time" content="([^"]*)"/u.exec(before);
+    if (metaPublished && metaPublished[1] !== published) stale.push("article:published_time " + metaPublished[1] + " should be " + published);
+    if (metaModified && metaModified[1] !== modified) stale.push("article:modified_time " + metaModified[1] + " should be " + modified);
+    if (stale.length === 0) {
+      console.log("IN DATE " + target + " published=" + published + " modified=" + modified);
+      return undefined;
+    }
+    console.log("STALE " + target + " " + stale.join(" | ") + "  (run: node tools/inject-jsonld-dates.mjs " + target + ")");
+    process.exitCode = 4;
+    return undefined;
   }
 
   console.log("datePublished " + (object && object.datePublished ? object.datePublished : "(no structured value)") + " -> " + published);

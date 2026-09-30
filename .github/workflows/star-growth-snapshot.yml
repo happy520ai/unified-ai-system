@@ -70,6 +70,24 @@ jobs:
         # that changed it, exit 5 names one this clone could not read.
         run: |
           node tools/refresh-sitemap-dates.mjs --check
+          # The same claim, one layer in: the page's own four timestamps (JSON-LD datePublished/dateModified
+          # and the two article:* meta tags) are what a crawler reads from the document, and only a manually
+          # run tool ever corrected them. On 2026-09-29 four deliberately stale stamps on a published page
+          # left pnpm check:public reporting zero issues, and the first run of this loop found 16 of 19
+          # datable pages behind their own last commit. Only exit 2 skips, so a crash cannot hide as a skip.
+          code=0; dated=0; stale=0; skipped=0
+          for f in docs/*.html; do
+            out=$(node tools/inject-jsonld-dates.mjs "$f" --check 2>&1); c=$?
+            case "$c" in
+              0) dated=$((dated+1)) ;;
+              4) stale=$((stale+1)); echo "$out" | head -3; code=4 ;;
+              2) skipped=$((skipped+1)) ;;
+              *) echo "UNEXPECTED exit=$c for $f"; echo "$out" | head -3; code=5 ;;
+            esac
+          done
+          echo "in-page freshness: in_date=$dated stale=$stale skipped=$skipped"
+          echo "sitemap lastmod and the four in-page timestamps per hand-authored page are both tested here; skipped rows are generator-owned pages, restamped by pnpm docs:articles, or pages that carry no date metadata (the two hubs and 404.html)" >> "$GITHUB_STEP_SUMMARY"
+          exit "$code"
 
       - name: Check the listing census against a fresh probe
         # docs/listing-census.md advertises places outside this repository that carry an entry for us. Those
