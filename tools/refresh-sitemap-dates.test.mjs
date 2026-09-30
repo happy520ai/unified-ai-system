@@ -200,6 +200,15 @@ test("the nightly job actually runs the freshness check, on full history", () =>
   const checkoutIndex = yml.indexOf("fetch-depth: 0");
   assert.ok(checkoutIndex >= 0 && checkoutIndex < stepIndex, "the fetch-depth must be on the checkout that precedes the check");
   assert.equal((yml.match(/fetch-depth: 0/gu) || []).length, 1, "exactly one full-history fetch, and it must be the one this step uses");
+  // The per-page leg runs under the runner's `bash -e`, where `out=$(cmd); c=$?` is not a capture: the
+  // assignment carries the command's status, so the first page that exits non-zero - every page with no dates,
+  // which is 17 of 35 - aborted the step. Measured on run 26: the sitemap leg printed "OK (--check): 34 url
+  // blocks", the loop printed nothing, and the step's verdict was a bare exit 2. The capture form is therefore
+  // part of the wiring, and so is the denominator: a verdict that cannot say how many pages it looked at is a
+  // verdict about nothing.
+  assert.match(yml, /out=\$\(node tools\/inject-jsonld-dates\.mjs "\$f" --check 2>&1\) \|\| c=\$\?/u,
+    "the per-page loop must capture its exit code in a `bash -e` safe way");
+  assert.match(yml, /in-page freshness: pages=\$seen/u, "the loop must name the number of pages it examined");
 });
 
 test("an unmappable loc stops the CLI instead of passing quietly", () => {

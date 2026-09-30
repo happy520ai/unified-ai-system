@@ -75,9 +75,14 @@ jobs:
           # run tool ever corrected them. On 2026-09-29 four deliberately stale stamps on a published page
           # left pnpm check:public reporting zero issues, and the first run of this loop found 16 of 19
           # datable pages behind their own last commit. Only exit 2 skips, so a crash cannot hide as a skip.
-          code=0; dated=0; stale=0; skipped=0
+          code=0; dated=0; stale=0; skipped=0; seen=0
           for f in docs/*.html; do
-            out=$(node tools/inject-jsonld-dates.mjs "$f" --check 2>&1); c=$?
+            seen=$((seen+1))
+            # `out=$(cmd); c=$?` is not a capture under `bash -e`: the assignment itself carries the command's
+            # status, so the first page that exits non-zero - which is every page with no dates, by design -
+            # aborts the step before the loop body runs. Measured on run 26: the sitemap leg printed
+            # "OK (--check): 34 url blocks", then the step died with exit 2 and printed no verdict at all.
+            c=0; out=$(node tools/inject-jsonld-dates.mjs "$f" --check 2>&1) || c=$?
             case "$c" in
               0) dated=$((dated+1)) ;;
               4) stale=$((stale+1)); echo "$out" | head -3; code=4 ;;
@@ -85,7 +90,11 @@ jobs:
               *) echo "UNEXPECTED exit=$c for $f"; echo "$out" | head -3; code=5 ;;
             esac
           done
-          echo "in-page freshness: in_date=$dated stale=$stale skipped=$skipped"
+          if [ "$seen" -eq 0 ]; then
+            echo "UNEXPECTED: the loop examined no pages, so its verdicts would describe nothing"
+            code=5
+          fi
+          echo "in-page freshness: pages=$seen in_date=$dated stale=$stale skipped=$skipped"
           echo "sitemap lastmod and the four in-page timestamps per hand-authored page are both tested here; skipped rows are generator-owned pages, restamped by pnpm docs:articles, or pages that carry no date metadata (the two hubs and 404.html)" >> "$GITHUB_STEP_SUMMARY"
           exit "$code"
 
