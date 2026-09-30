@@ -4,6 +4,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -22,13 +24,13 @@ test("a usable git and node let the preflight pass", () => {
 });
 
 test("a PATH without git is refused, naming git and the consequence", () => {
-  const withoutGit = { ...process.env };
-  // Keep node reachable, drop every directory that could hold git.
-  withoutGit.PATH = (process.env.PATH ?? "")
-    .split(";")
-    .filter((entry) => entry && !/git/i.test(entry))
-    .join(";");
-  const outcome = run(withoutGit);
+  // An empty directory, not a filtered PATH: on the Linux runner git lives in
+  // /usr/bin alongside node, so removing entries whose path mentions git removes
+  // nothing and the preflight correctly passes. A directory with nothing in it is
+  // the only portable way to make git genuinely unspawnable.
+  const emptyDir = mkdtempSync(join(tmpdir(), "preflight-no-git-"));
+  const outcome = run({ ...process.env, PATH: emptyDir });
+  rmSync(emptyDir, { recursive: true, force: true });
   assert.equal(outcome.status, 1);
   assert.match(outcome.stderr, /git is not usable/);
   assert.match(outcome.stderr, /ENOENT/);
