@@ -566,6 +566,16 @@ jobs:
         uses: aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4 # v0.32.0
         with:
           image-ref: "ghcr.io/${{ github.repository }}/ai-gateway-service:sha-${{ github.sha }}"
+          # The pinned action commit is itself "chore(deps): Update trivy to v0.64.1" (2025-07-04),
+          # and that release's assets were later withdrawn upstream: the tag still resolves but
+          # releases/download/v0.64.1/trivy_0.64.1_Linux-64bit.tar.gz answers 404, so the action's
+          # own install step fails in about 0.4 s and the only visible symptom is "Path does not
+          # exist: trivy-gateway-results.sarif" from the SARIF upload. Measured against the upstream
+          # release list: published releases jump from v0.26.0 straight to v0.69.2, so nothing
+          # between them is downloadable -- the override has to clear that gap, and v0.69.3 is the
+          # lowest published version carrying the Linux-64bit asset. Overriding `version` here also
+          # leaves the action's own commit pin (what tools/check-action-pins.mjs audits) untouched.
+          version: "v0.69.3"
           format: "sarif"
           output: "trivy-gateway-results.sarif"
           severity: "HIGH,CRITICAL"
@@ -577,6 +587,8 @@ jobs:
         uses: aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4 # v0.32.0
         with:
           image-ref: "ghcr.io/${{ github.repository }}/mcp-server:sha-${{ github.sha }}"
+          # Same reason as the gateway scan above: without this override neither step installs a scanner.
+          version: "v0.69.3"
           format: "sarif"
           output: "trivy-mcp-results.sarif"
           severity: "HIGH,CRITICAL"
