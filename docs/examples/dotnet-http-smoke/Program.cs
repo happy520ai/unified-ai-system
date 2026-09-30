@@ -2,27 +2,9 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 
-static string GetBaseUrl(string[] args)
-{
-    for (var index = 0; index + 1 < args.Length; index++)
-    {
-        if (args[index] == "--base-url")
-        {
-            return args[index + 1].TrimEnd('/');
-        }
-    }
-
-    return "http://127.0.0.1:3100";
-}
-
-static bool HasFakeExecution(JsonDocument document)
-{
-    return document.RootElement.TryGetProperty("unified_ai", out var unified)
-        && unified.TryGetProperty("execution_mode", out var mode)
-        && mode.GetString() == "fake";
-}
-
-var baseUrl = GetBaseUrl(args);
+// The parser and the fake-provider predicate now live in ExampleHelpers.cs so the MSTest cases in
+// this project cover the same code the demo runs (T-111). Only the call sites moved.
+var baseUrl = ExampleHelpers.GetBaseUrl(args);
 using var client = new HttpClient();
 client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
@@ -45,12 +27,12 @@ var content = chatDocument.RootElement
     .GetProperty("message")
     .GetProperty("content")
     .GetString() ?? "";
-var contentFound = content.Contains(".NET HttpClient runtime test", StringComparison.Ordinal);
+var contentFound = ExampleHelpers.EchoedContent(chatDocument, ".NET HttpClient runtime test");
 var checks = new
 {
     models = modelsResponse.IsSuccessStatusCode && modelFound,
     chat = chatResponse.IsSuccessStatusCode && chatObject,
-    fakeProvider = HasFakeExecution(chatDocument),
+    fakeProvider = ExampleHelpers.HasFakeExecution(chatDocument),
     content = contentFound,
 };
 var ok = checks.models && checks.chat && checks.fakeProvider && checks.content;

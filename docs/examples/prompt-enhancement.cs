@@ -24,20 +24,21 @@ internal static class Program
         WriteIndented = true,
     };
 
-    private sealed record Options(string BaseUrl, string Input, string Profile, string Language, bool Help);
+    // internal for the same reason as ParseArgs: the tests construct these to prove the guards fire.
+    internal sealed record Options(string BaseUrl, string Input, string Profile, string Language, bool Help);
 
-    private sealed record Envelope<T>(string? Status, T? Data);
+    internal sealed record Envelope<T>(string? Status, T? Data);
 
-    private sealed record HealthData(string? Status, bool? RealProviderEnabled);
+    internal sealed record HealthData(string? Status, bool? RealProviderEnabled);
 
-    private sealed record EnhancementData(
+    internal sealed record EnhancementData(
         string? Original,
         string? EnhancedPrompt,
         string? Profile,
         string? Language,
         Metadata? Metadata);
 
-    private sealed record Metadata(
+    internal sealed record Metadata(
         string? Engine,
         bool ProviderCalled,
         bool CredentialRequired,
@@ -84,7 +85,9 @@ internal static class Program
         }
     }
 
-    private static Options ParseArgs(string[] args)
+    // internal (not private) so prompt-enhancement.tests.cs can exercise the guards below without a
+    // gateway reachable; the method body is unchanged.
+    internal static Options ParseArgs(string[] args)
     {
         var baseUrl = DefaultBaseUrl;
         var profile = DefaultProfile;
@@ -192,7 +195,7 @@ internal static class Program
         }
     }
 
-    private static string Usage() =>
+    internal static string Usage() =>
         "Usage: dotnet run --project docs/examples/prompt-enhancement.csproj -- [input] [options]\n\n"
         + "Options:\n"
         + $"  --base-url <url>       Gateway URL (default: {DefaultBaseUrl})\n"
@@ -200,7 +203,7 @@ internal static class Program
         + $"  --language <language>  Output language (default: {DefaultLanguage})\n"
         + "  --help                 Show this message\n";
 
-    private static Uri BuildUri(string baseUrl, string path) =>
+    internal static Uri BuildUri(string baseUrl, string path) =>
         new($"{baseUrl.TrimEnd('/')}/{path.TrimStart('/')}");
 
     private static async Task<T> RequestJsonAsync<T>(
@@ -240,7 +243,7 @@ internal static class Program
             $"{endpoint.AbsolutePath} returned an empty JSON response.");
     }
 
-    private static void RequireProviderFreeHealth(Envelope<HealthData> response)
+    internal static void RequireProviderFreeHealth(Envelope<HealthData> response)
     {
         if (response.Status != "ok"
             || response.Data?.Status != "ready"
@@ -251,7 +254,7 @@ internal static class Program
         }
     }
 
-    private static void RequireProviderFreeEnhancement(
+    internal static void RequireProviderFreeEnhancement(
         Envelope<EnhancementData> response,
         string input)
     {

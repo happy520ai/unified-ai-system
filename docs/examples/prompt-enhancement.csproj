@@ -6,8 +6,19 @@
     <Nullable>enable</Nullable>
     <AssemblyName>prompt-enhancement</AssemblyName>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <!-- the example keeps its own Main, so the test SDK must not generate a second entry point -->
+    <GenerateProgramFile>false</GenerateProgramFile>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="prompt-enhancement.cs" />
+    <Compile Include="prompt-enhancement.tests.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- T-111 (a): this example used to be a console app with no test framework, so its `dotnet test`
+         leg passed with zero tests and dragged the whole matrix's evidence level down to
+         execution_only. It now carries real MSTest cases beside the same runnable program. -->
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="MSTest.TestAdapter" Version="3.2.2" />
+    <PackageReference Include="MSTest.TestFramework" Version="3.2.2" />
   </ItemGroup>
 </Project>
