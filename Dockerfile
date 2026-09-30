@@ -1,7 +1,13 @@
 # syntax=docker/dockerfile:1
 
 # Digest-pinned base image keeps builds reproducible; bump deliberately.
-FROM node:22-bookworm-slim@sha256:a17d50af28002a160548bd4225b3cfcb12c5efcb171f79e68758f2885fb1b066 AS runtime
+# T-164 round 180: the previous pin (a17d50af…) had drifted a week behind its own tag
+# `node:22-bookworm-slim`, which now points at 43ac6c60… (last_updated 2026-09-23). Measured, not
+# assumed: the Debian tracker lists CVE-2026-86145 / -89157 / -89161 as resolved in bookworm with
+# fixed_version 10.42-1+deb12u1 (bookworm-security), while this pin shipped libpcre2-8-0 10.42-1
+# from the base repo — those three HIGH findings were a missing security update, not an unfixed
+# upstream. Refreshing the pin is what picks the update up.
+FROM node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c AS runtime
 
 WORKDIR /app
 
@@ -13,6 +19,16 @@ LABEL org.opencontainers.image.licenses="Apache-2.0"
 # 直接安装 pnpm（不经 corepack）：qemu 跨架构构建下 corepack 的 tarball
 # 下载会确定性失败（exit 255），npm 的网络栈不受影响；同时运行时也
 # 不再有 corepack 下载横幅污染 stdout。
+#
+# T-164 round 180: pnpm is installed BY the image's bundled npm, so that npm's dependency tree is on
+# the real build path -- which is why Trivy's `library` findings were not decorative. Measured against
+# the registry rather than guessed: npm 10.9.9 already ships tar ^7.5.22 (clearing the one CRITICAL,
+# CVE-2026-59873) but still pacote ^19.0.1, and CVE-2026-9496 is fixed only at pacote 21.5.1. 11.21.0
+# is the smallest line that clears both (tar ^7.5.22, pacote ^21.5.1) and its engines range
+# (^20.17.0 || >=22.9.0) covers the 22.23.x this base image ships. Pinned exactly, never @latest: a
+# floating version would make the image non-reproducible, which is the property the digest pin above
+# exists to keep.
+RUN npm install -g npm@11.21.0
 RUN npm install -g pnpm@11.19.0
 
 # pnpm 的 verify-deps-before-run 会在项目根（/app，root 属主、node 只读）
