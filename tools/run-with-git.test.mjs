@@ -44,6 +44,10 @@ test("the standard install locations are searched in a fixed order", () => {
     "C:\\Program Files (x86)\\Git\\cmd",
     "C:\\Users\\someone\\AppData\\Local\\Programs\\Git\\cmd",
   ]);
+  // Windows candidate paths must never contain POSIX separators, on any host.
+  for (const candidate of candidates) {
+    assert.equal(candidate.includes("/"), false, candidate);
+  }
 });
 
 test("a PATH that holds node but not git either recovers or refuses, and says which", () => {
