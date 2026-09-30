@@ -70,7 +70,9 @@ and the MCP server - carry x86-64 native modules, so this demo fails there today
 reproduces it).
 
 No Docker daemon, or an Apple Silicon machine where the line above is known to fail? The same proof runs
-from a source checkout, and with dependencies already installed the demo itself takes twelve seconds:
+from a source checkout, and with dependencies already installed the demo itself takes seconds rather than
+minutes: the one run we captured measured [14.0 s of wall time](docs/credential-free-evidence.html) on a
+single laptop, and that page says plainly it is one run, not a benchmark:
 
 ```bash
 git clone https://github.com/happy520ai/unified-ai-system.git

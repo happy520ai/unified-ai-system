@@ -124,8 +124,10 @@
             <button type="button" data-copy-target="demo-command">Copy</button>
           </div>
           <p class="safety-note">
-            No Docker engine, or an Apple Silicon machine? The same proof runs from a source checkout in about
-            twelve seconds - measured here with no Docker installed: exit 0, <code>"executionMode": "fake"</code>,
+            No Docker engine, or an Apple Silicon machine? The same proof runs from a source checkout in
+            seconds, not minutes - the one run we have on file took 14.0 s of wall time on a laptop, and
+            <a href="credential-free-evidence.html">the evidence page</a> keeps it with its output: exit 0,
+            <code>"executionMode": "fake"</code>,
             <code>"providerCalled": false</code>. The published arm64 images do not run the command above
             (<a href="https://github.com/happy520ai/unified-ai-system/issues/190">#190</a>); the exact source
             commands are in <a href="https://github.com/happy520ai/unified-ai-system#try-it-in-60-seconds">the 60-second section</a>.

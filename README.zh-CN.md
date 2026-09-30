@@ -71,7 +71,7 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.8.0 pn
 server）带的都是 x86-64 原生模块，所以这条演示命令目前在该架构上会失败
 （见 [#190](https://github.com/happy520ai/unified-ai-system/issues/190)，含读数与复现命令）。
 
-没有 Docker，或者正在用上面明说会失败的 Apple Silicon？同一个证明可以从源码跑：依赖装好之后，演示本身耗时十二秒。
+没有 Docker，或者正在用上面明说会失败的 Apple Silicon？同一个证明可以从源码跑：依赖装好之后，演示本身只需要几秒而不是几分钟——目前唯一留档的一次实测是在单台笔记本上耗时 14.0 秒墙钟时间（见[免凭据证据页，英文](docs/credential-free-evidence.html)），那一页也明说了它是一次运行、不是基准测试：
 
 ```bash
 git clone https://github.com/happy520ai/unified-ai-system.git
