@@ -58,6 +58,25 @@ test("the standard install locations are searched in a fixed order", () => {
   ]);
 });
 
+// The shape arm that would have caught the Linux CI failure on Windows too. The helper describes
+// Windows locations, so its output must be Windows-shaped on every host -- `path.join` emits `/` on a
+// POSIX host, which produced `C:\Program Files/Git/cmd` and broke the literal assertion above on the
+// Linux quality job. Asserting the separator HERE means the regression fails on whichever platform
+// develops it, instead of only on the one the developers are not on.
+test("windows candidate paths use windows separators on every platform", () => {
+  const candidates = windowsGitCandidates({
+    ProgramFiles: "C:\\Program Files",
+    LOCALAPPDATA: "C:\\Users\\someone\\AppData\\Local",
+  });
+  assert.ok(candidates.length > 0);
+  for (const candidate of candidates) {
+    assert.doesNotMatch(candidate, /\//u, `mixed separators in ${JSON.stringify(candidate)}`);
+    assert.match(candidate, /\\/u, `no windows separator in ${JSON.stringify(candidate)}`);
+  }
+  // A root that already ends in a separator must not produce a doubled one.
+  assert.deepEqual(windowsGitCandidates({ ProgramFiles: "C:\\Program Files\\" }), ["C:\\Program Files\\Git\\cmd"]);
+});
+
 test("a PATH that holds node but not git either recovers or refuses, and says which", () => {
   // An empty directory on PATH: git cannot be resolved from it on either
   // platform. What happens next is platform-shaped, so the arm measures what the

@@ -12,12 +12,24 @@
 // transparent: it spawns the same command with the same environment.
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export function gitWorks(env) {
   return spawnSync("git", ["--version"], { encoding: "utf8", env, windowsHide: true }).status === 0;
 }
+
+// Windows-shaped separators on EVERY platform. This helper describes Windows install
+// locations, so its output must look like one wherever it runs: `join` emits `/` on a
+// POSIX host, which produced the mixed-separator `C:\Program Files/Git/cmd` and made
+// the literal expectation in run-with-git.test.mjs fail on the Linux CI host.
+const winJoin = (...parts) => parts
+  .filter((part) => part !== undefined && part !== null && String(part) !== "")
+  .map((part, index) => {
+    const value = String(part).replace(/[\\/]+$/u, "");
+    return index === 0 ? value : value.replace(/^[\\/]+/u, "");
+  })
+  .join("\\");
 
 /** Directories that hold git.exe on a Windows install, most specific first. */
 export function windowsGitCandidates(env) {
@@ -25,15 +37,15 @@ export function windowsGitCandidates(env) {
     env["ProgramFiles"],
     env["ProgramW6432"],
     env["ProgramFiles(x86)"],
-    env["LOCALAPPDATA"] && join(env["LOCALAPPDATA"], "Programs"),
+    env["LOCALAPPDATA"] && winJoin(env["LOCALAPPDATA"], "Programs"),
     "C:\\Program Files",
   ].filter(Boolean);
-  return [...new Set(roots.map((root) => join(root, "Git", "cmd")))];
+  return [...new Set(roots.map((root) => winJoin(root, "Git", "cmd")))];
 }
 
 export function findGitDir(env) {
   for (const dir of windowsGitCandidates(env)) {
-    if (existsSync(join(dir, "git.exe"))) return dir;
+    if (existsSync(winJoin(dir, "git.exe"))) return dir;
   }
   return null;
 }
