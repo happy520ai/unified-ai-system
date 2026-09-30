@@ -31,6 +31,16 @@ LABEL org.opencontainers.image.licenses="Apache-2.0"
 RUN npm install -g npm@11.21.0
 RUN npm install -g pnpm@11.19.0
 
+# npm has now done the only job it has in this image. pnpm@11.19.0 declares no runtime
+# dependencies at all (measured: `dependencies: {}` in its package.json), and neither runtime stage
+# below invokes npm -- they run `node` against the built tree. So npm's vendored tree is carried for
+# no reason, and it is the last thing Trivy was flagging: with npm 11.21.0 pinned above, brace-expansion
+# 5.0.9 and undici 6.28.0 are the only HIGH/CRITICAL findings left, and BOTH npm lines that exist
+# (11.21.0 and 12.2.0) bundle exactly those two versions, so no version bump can clear them. Removing
+# the tool is the honest fix -- it is not a scanner workaround: the vulnerable code simply is not in
+# the shipped artifact any more. If a future stage needs npm, re-add it deliberately.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+
 # pnpm 的 verify-deps-before-run 会在项目根（/app，root 属主、node 只读）
 # 写 _tmp_* 哈希文件，非 root 运行 `pnpm gateway demo` 时偶发 EACCES。
 # 容器内依赖由 --frozen-lockfile 在构建期锁定，运行期无需再校验。
