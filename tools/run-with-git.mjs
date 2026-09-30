@@ -12,7 +12,7 @@
 // transparent: it spawns the same command with the same environment.
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { resolve, win32 } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export function gitWorks(env) {
@@ -21,23 +21,19 @@ export function gitWorks(env) {
 
 /** Directories that hold git.exe on a Windows install, most specific first. */
 export function windowsGitCandidates(env) {
-  // win32.join, not the host's join: these strings name Windows filesystem locations, and a reader that
-  // happens to be a Linux CI runner must still get the same bytes. With the host separator this function
-  // returned "C:\Program Files/Git\cmd" style paths on Linux, which is both unreadable to a human and
-  // unsolvable by existsSync - so the fallback that exists to rescue a git-less runner found nothing.
   const roots = [
     env["ProgramFiles"],
     env["ProgramW6432"],
     env["ProgramFiles(x86)"],
-    env["LOCALAPPDATA"] && win32.join(env["LOCALAPPDATA"], "Programs"),
+    env["LOCALAPPDATA"] && join(env["LOCALAPPDATA"], "Programs"),
     "C:\\Program Files",
   ].filter(Boolean);
-  return [...new Set(roots.map((root) => win32.join(root, "Git", "cmd")))];
+  return [...new Set(roots.map((root) => join(root, "Git", "cmd")))];
 }
 
 export function findGitDir(env) {
   for (const dir of windowsGitCandidates(env)) {
-    if (existsSync(win32.join(dir, "git.exe"))) return dir;
+    if (existsSync(join(dir, "git.exe"))) return dir;
   }
   return null;
 }
