@@ -4,8 +4,16 @@ packages:
 allowBuilds:
   better-sqlite3: true
 overrides:
-  brace-expansion@2: 2.1.4
-  brace-expansion@5: 5.0.9
+  # brace-expansion is pinned here because minimatch@10 resolves brace-expansion@^5 and the
+  # lockfile has to stay deterministic. The pin has to MOVE when the pinned line carries a known
+  # advisory: 5.0.9 is affected by GHSA-6j4f-fj2g-mc7p (stack exhaustion, fixed 5.0.10),
+  # GHSA-qhr7-859c-m2p7 (nested-brace recursion, fixed 5.0.11) and GHSA-q2hr-2g5m-vwhr (quadratic
+  # rewrite, fixed 5.0.12) -- all three read as BLOCKED in the dependency-security job. 5.0.12 is the
+  # newest published version and clears all three. The 2.x line is bumped the same way (2.1.4 is
+  # affected by the 2.x range of the first two, fixed 2.1.5/2.1.6) even though nothing currently
+  # resolves to it, so a future dependent cannot land on the affected range.
+  brace-expansion@2: 2.1.7
+  brace-expansion@5: 5.0.12
   postcss@8: 8.5.26
   vite@8: 8.0.16
   "@xmldom/xmldom@0.8": 0.8.15
