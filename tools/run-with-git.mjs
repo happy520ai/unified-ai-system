@@ -69,7 +69,14 @@ if (invokedDirectly) {
     }
   }
 
-  const result = spawnSync(command, commandArgs, { stdio: "inherit", env, windowsHide: true });
+  let result = spawnSync(command, commandArgs, { stdio: "inherit", env, windowsHide: true });
+  // On Windows the command is often a .cmd shim (pnpm, c8), which CreateProcess
+  // cannot start without a shell. A direct spawn that starts nothing is retried
+  // through the shell instead of being reported as a missing tool.
+  if (result.error && process.platform === "win32") {
+    const viaShell = spawnSync(command, commandArgs, { stdio: "inherit", env, windowsHide: true, shell: true });
+    if (!viaShell.error) result = viaShell;
+  }
   if (result.error) {
     process.stderr.write(`run-with-git: could not start ${command}: ${result.error.message}\n`);
     process.exit(1);

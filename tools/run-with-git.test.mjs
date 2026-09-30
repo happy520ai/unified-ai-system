@@ -9,7 +9,7 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { windowsGitCandidates } from "./run-with-git.mjs";
+import { windowsGitCandidates, findGitDir, gitWorks } from "./run-with-git.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const WRAPPER = join(repoRoot, "tools", "run-with-git.mjs");
@@ -26,8 +26,20 @@ function run(env) {
   return { status: result.status, stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
 }
 
+// The host this runs on may have no git on PATH - the quality-matrix host is exactly
+// that. Construct a reachable environment rather than assuming one, so the arm
+// asserts the contract on every host.
+function withGitReachable() {
+  const env = { ...process.env };
+  if (!gitWorks(env)) {
+    const dir = findGitDir(env);
+    if (dir) env.PATH = [dir, env.PATH].filter(Boolean).join(";");
+  }
+  return env;
+}
+
 test("with git reachable the wrapper is transparent", () => {
-  const outcome = run({ ...process.env });
+  const outcome = run(withGitReachable());
   assert.equal(outcome.status, 0, outcome.stderr);
   assert.match(outcome.stdout, /child-ok/);
   assert.doesNotMatch(outcome.stderr, /run-with-git:/, "a reachable git must not announce itself");
