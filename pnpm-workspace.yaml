@@ -17,4 +17,11 @@ overrides:
   postcss@8: 8.5.26
   vite@8: 8.0.16
   "@xmldom/xmldom@0.8": 0.8.15
-  hono@4: 4.13.5
+  # hono moved 4.13.5 -> 4.13.7 when GHSA-hxh3-vqpv-xpqv (jsx renders plain strings unescaped in
+  # boundary components, XSS) was published on 2026-09-30 and the dependency-security job read it as
+  # BLOCKED. 4.13.7 is the OLDEST release that carries the fix rather than the newest: the newest
+  # 4.13.12 shipped the same day as the advisory and trips pnpm's minimum-release-age gate, which
+  # would mean adding a minimumReleaseAgeExclude entry -- i.e. weakening a supply-chain guard to
+  # ingest a fresher package than the rule wants. A month-old fixed release clears the advisory and
+  # leaves the gate alone.
+  hono@4: 4.13.7

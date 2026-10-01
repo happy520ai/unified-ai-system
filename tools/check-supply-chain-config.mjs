@@ -18,7 +18,7 @@ const requiredOverrides = Object.freeze({
   "postcss@8": "8.5.26",
   "vite@8": "8.0.16",
   "@xmldom/xmldom@0.8": "0.8.15",
-  "hono@4": "4.13.5",
+  "hono@4": "4.13.7",
 });
 
 function readText(relativePath) {
