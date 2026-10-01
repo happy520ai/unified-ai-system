@@ -585,11 +585,16 @@ jobs:
           # releases/download/v0.64.1/trivy_0.64.1_Linux-64bit.tar.gz answers 404, so the action's
           # own install step fails in about 0.4 s and the only visible symptom is "Path does not
           # exist: trivy-gateway-results.sarif" from the SARIF upload. Measured against the upstream
-          # release list: published releases jump from v0.26.0 straight to v0.69.2, so nothing
-          # between them is downloadable -- the override has to clear that gap, and v0.69.3 is the
-          # lowest published version carrying the Linux-64bit asset. Overriding `version` here also
-          # leaves the action's own commit pin (what tools/check-action-pins.mjs audits) untouched.
-          version: "v0.69.3"
+          # The pinned action commit is itself "Update trivy to v0.64.1", and that release's assets
+          # were later withdrawn upstream (the tag resolves, the tarball 404s), which is why `version`
+          # is overridden here at all. It is overridden to the CURRENT release rather than to the
+          # lowest downloadable one, because Trivy's own version check exits non-zero when a newer
+          # release exists -- with v0.69.3 pinned the scan found zero HIGH/CRITICAL findings and the
+          # job still failed on "0.74.0 is available". A pin that ages into a red job is not a
+          # signal anyone wants. Verified against the release list: v0.74.0 (2026-08-14) has the
+          # Linux-64bit asset (HTTP 200). Overriding `version` leaves the action's own commit pin
+          # (what tools/check-action-pins.mjs audits) untouched.
+          version: "v0.74.0"
           format: "sarif"
           output: "trivy-gateway-results.sarif"
           severity: "HIGH,CRITICAL"
@@ -602,7 +607,7 @@ jobs:
         with:
           image-ref: ${{ steps.refs.outputs.mcp }}
           # Same reason as the gateway scan above: without this override neither step installs a scanner.
-          version: "v0.69.3"
+          version: "v0.74.0"
           format: "sarif"
           output: "trivy-mcp-results.sarif"
           severity: "HIGH,CRITICAL"
