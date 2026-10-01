@@ -601,6 +601,14 @@ jobs:
           exit-code: "1"
           ignore-unfixed: true
           vuln-type: "os,library"
+          # Without this, the action DELETES TRIVY_SEVERITY whenever format is sarif (its entrypoint:
+          # `unset TRIVY_SEVERITY` unless limit-severities-for-sarif is true). The scan then runs with
+          # all severities, the job's own `severity: HIGH,CRITICAL` stops meaning anything, and a single
+          # UNKNOWN-severity finding -- tzdata's DLA-4792-1, fixed in 2026c-0+deb12u1 -- exits 1. That is
+          # what happened: the image carried zero HIGH/CRITICAL findings (verified by scanning the
+          # published digest with these exact flags, exit 0) and the job was still red. Setting this
+          # makes the filter apply, which is what the step always claimed to do.
+          limit-severities-for-sarif: true
 
       - name: Scan MCP image with Trivy
         uses: aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4 # v0.32.0
@@ -614,6 +622,14 @@ jobs:
           exit-code: "1"
           ignore-unfixed: true
           vuln-type: "os,library"
+          # Without this, the action DELETES TRIVY_SEVERITY whenever format is sarif (its entrypoint:
+          # `unset TRIVY_SEVERITY` unless limit-severities-for-sarif is true). The scan then runs with
+          # all severities, the job's own `severity: HIGH,CRITICAL` stops meaning anything, and a single
+          # UNKNOWN-severity finding -- tzdata's DLA-4792-1, fixed in 2026c-0+deb12u1 -- exits 1. That is
+          # what happened: the image carried zero HIGH/CRITICAL findings (verified by scanning the
+          # published digest with these exact flags, exit 0) and the job was still red. Setting this
+          # makes the filter apply, which is what the step always claimed to do.
+          limit-severities-for-sarif: true
 
       - name: Upload Trivy scan results to GitHub Security
         if: always()
