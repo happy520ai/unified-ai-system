@@ -16,6 +16,19 @@ ENV NODE_ENV=production
 LABEL org.opencontainers.image.source="https://github.com/happy520ai/unified-ai-system"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 
+# T-164 round 181: the shipped base carries libpcre2-8-0 10.42-1+deb12u1, which is inside
+# CVE-2026-103111's vulnerable range (PCRE2 before 10.49, OSV 7.6 High; the 10-04 Trivy SARIF
+# upload opened exactly this one alert). Measured against the Debian tracker rather than
+# guessed: the fix exists in bookworm-security as 10.42-1+deb12u2 (DLA-4816-1) while bookworm
+# main still ships 10.42-1, and the pinned node image (last_updated 2026-09-23) predates that
+# upload -- today `node:22-bookworm-slim` still resolves to this very digest, so refreshing
+# the pin cannot pick the fix up. Upgrading this one library from the security pocket is the
+# fix; it is not a scanner workaround. Deliberately scoped to the single package: a blanket
+# apt-get upgrade would move the rest of the OS tree away from the digest pin's promise.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends libpcre2-8-0=10.42-1+deb12u2 \
+  && rm -rf /var/lib/apt/lists/*
+
 # 直接安装 pnpm（不经 corepack）：qemu 跨架构构建下 corepack 的 tarball
 # 下载会确定性失败（exit 255），npm 的网络栈不受影响；同时运行时也
 # 不再有 corepack 下载横幅污染 stdout。
