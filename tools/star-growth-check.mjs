@@ -2148,10 +2148,14 @@ export function searchCoverageLines(sitemapUrls, indexed, { error = null } = {})
   const label = (u) => (u === `https://${SITE_HOST}/` ? "/ (site home)" : u.replace(`https://${SITE_HOST}/`, ""));
   lines.push(`- Published URLs in docs/sitemap.xml: ${sitemapUrls.length}; found in the index: ${sitemapUrls.filter((u) => seen.has(u)).length}; not visible: ${missing.length}.`);
   if (missing.length > 0) lines.push(`- Not visible to this probe (may simply be un-crawled yet): ${missing.map(label).join(", ")}`);
-  lines.push(`- Probe: lite.duckduckgo.com for \`site:${SITE_HOST}\`. Two instruments read falsely here: `
-    + "a scripted Bing site: query returns 200 containing only our own search string, and a plain bing.com "
-    + "site: query in a Chinese locale ignores the operator and shows other sites. The reading that works is a "
-    + "browser on bing.com/search with mkt=en-US, which is a parameter and not a preference.");
+  lines.push(`- Probe: lite.duckduckgo.com for \`site:${SITE_HOST}\`. Bing is not readable from this host as of `
+    + "2026-10-05, and each of the three routes fails in its own way, each shown by a control rather than by "
+    + "the empty answer itself: a scripted `format=rss` query ignores the `site:` operator (a nonsense keyword "
+    + "still returns 10 items, none on our host), a browser on `bing.com/search` with `mkt=en-US` is answered "
+    + "with the challenge line \"One last step - Please solve the challenge below to continue\", and IndexNow's "
+    + "per-URL status endpoint returns the same empty HTTP 202 for a submitted page and for a path that has "
+    + "never existed. A human browser on that same URL did work once - 2026-09-27, recorded in "
+    + "docs/growth-launch-kit-2026-09.md - so this is a statement about readings from here, not about Bing's index.");
   return lines;
 }
 
