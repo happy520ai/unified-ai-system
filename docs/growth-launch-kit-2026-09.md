@@ -1770,6 +1770,27 @@ The previous 20 are saved verbatim in `.pm/topics-before-2026-09-28.txt` if you 
 edit. Nothing was changed by the attempts: the only field that did take was `description`, which I wrote
 back byte-identical to what the API had returned, so the visible effect is nil and `updated_at` moved.
 
+**Correction, 2026-09-30: the topic write is mine after all, and no browser is needed.** What is true above is
+that `PATCH /repos/...` carrying a `topics` field returns 200 and ignores the field. Wrong was generalising
+that to "topics need the owner". `PUT /repos/happy520ai/unified-ai-system/topics` with a `{"names":[...]}` body
+takes the same token, and the server echoes the replacement list back, so this needs neither a token-scope
+change nor 20 seconds in the web UI.
+
+Two swaps have gone through it since. `local-first` and `agentic-ai` out for `prompt-governance` and
+`admission-control`; then `openai-compatible`, `llm-proxy` and `codex-cli` out for `tool-governance`,
+`prompt-evaluation` and `backpressure`. Each displaced term needed at least 139 stars to reach its page 30 (`llm-proxy` was the cheapest of the five,
+`agentic-ai` the dearest at 18,509), so at eight stars it was a slot with no reachable listing; each added term
+put us inside the first 30 the same day, read from the topic search pages directly and not only from the
+instrument. The count of topic pages where this
+repository appears within its first 30 went 3, then 5, then 8.
+
+Of the two terms proposed above, `tool-governance` is now live. `agent-control-plane` was re-measured today
+(32 repositories, and its page 30 needs zero stars, so any tag is a listing) and deliberately left out: it
+restates `agent-governance`, which we already carry at rank 87, and a slot spent saying the same thing twice is
+a slot not spent elsewhere. The paste list above is superseded. Read the live twenty with
+`gh api repos/happy520ai/unified-ai-system/topics --jq '.names | join(", ")'`; the payloads written today are in
+`.tmp/growth/topics-payload.json` and `.tmp/growth/topics-payload2.json`, so either swap can be undone exactly.
+
 **Why this matters more than it looks.** At 13 stars we enter the top 50 of `agent-governance`; at 31 we
 are on its first page. That is the smallest number of stars in this entire file that buys a permanent
 position on a page people browse looking for exactly this category of thing. Every other channel here has
@@ -2059,3 +2080,68 @@ artifact rather than from memory: ranked on page one — `model-gateway` 4th of 
 7th of 20, `token-budget` 9th of 116; `mcp-gateway` ranked 88 of 331; `llm-proxy`, `ai-gateway`,
 `mcp-server`, `self-hosted`, `mcp` all `below_page`. Topic slots: **20 of 20 used**, so any new topic
 requires naming a weak existing one to drop.
+
+## 0r. The first external contribution is waiting on two clicks, and master is red until one of them happens (2026-09-30)
+
+**A stranger did the work, and we owe them a merge decision rather than a spinner.** Timeline, all read from
+the API rather than reconstructed: `nova-loop` forked the repository at `2026-09-30T02:03:35Z`, wrote `I'll
+take this` on #211 at `02:04:27Z`, and opened **#212** at `02:05:14Z` — one commit, +8/-4 across two files,
+`mergeable: true`. The fix is `win32.join` instead of the host's `path.join` in `tools/run-with-git.mjs`, plus
+an assertion mine lacked: no candidate path may contain a forward slash, on any host.
+
+**What went wrong on our side, stated plainly.** I filed #211 at 01:47Z with the root cause and the one-line
+fix. Nine minutes after someone publicly claimed it, I pushed my own version of the same fix (`98248e45`) and
+closed the issue crediting myself. That was found and unwound: my commit is reverted by `2b0a57a8`, #211 is
+reopened with the ownership corrected, and the explanation is on both #211 and #212. The rule worth keeping:
+before landing anything for an issue I opened, re-read that issue's comments for a claim and search the open
+pull requests — checking only the issue list is how this happened.
+
+**The cost is now visible and bounded.** `ci.yml` on `master` (head `abf1a2a3`) finished **failure** at
+`02:56Z` with exactly one failing test — `not ok 457 - the standard install locations are searched in a fixed
+order` — and the README badge renders `build: failing`. Merging #212 removes the only red; nothing else on
+`master` is failing. I left it red rather than re-landing my duplicate, because the alternative spends a
+first-time contributor's work on a cosmetic signal.
+
+**Two clicks, in this order, and both are the owner's.** First approve #212's workflow runs: GitHub holds them
+as `action_required` because this is a first contribution from that account, so their CI has never executed and
+`mergeable_state: unstable` means "pending", not "failing". Running a stranger's code on our runners is a human
+decision, which is why I did not click it. Second, merge the pull request — merges are not mine to perform.
+
+**Unrelated readings from the same stretch, so nothing above is stale on arrival.** Stars **8**, forks **3**
+(the third is this contributor). The nightly growth workflow is green end to end with both checks added today
+executing on the runner: `OK (--check): 34 url blocks dated against git, none stale, none unreadable` and
+`in-page freshness: pages=35 in_date=18 stale=0 skipped=17`. IndexNow carried today's page changes at `200`
+with `submittedUrlCount 34`. Other decisions still parked, unchanged: #210 blocks image publication, #209 is why
+the image scan has never run, #206 the pin guard's scope, #32 whether to cut v0.8.1, #65 whether the shipped
+skill description keeps a tool count.
+
+## 0t. The About line is two files, not one - here is the exact batch (2026-09-30)
+
+Two of the topics added today (`backpressure`, `prompt-evaluation`) are true of the product but absent from the
+About description, so label and text disagree. `tool-governance` is already covered by the words "governed tools".
+Fixing the description is not a single-surface edit, and the reason is in the guard rather than in taste:
+`tools/check-comparison-quotes.mjs:198` resolves a URL-less quotation whose citation says "repository
+description" to `https://github.com/` + `OUR_REPO`, so the block on our own comparison page is re-read against
+the live About text and any mismatch is recorded as `state: "drift"` (`:203`).
+
+The batch, in one commit:
+
+1. `gh api -X PATCH repos/happy520ai/unified-ai-system -f description='<new text>'` - `PATCH` does take
+   `description`, even though the same call silently ignores `topics` (see 0o).
+2. Replace the quoted sentence at `docs/self-hosted-ai-gateways-compared.html:184-190` and the identical English
+   sentence at `docs/self-hosted-ai-gateways-compared.zh-CN.html:178-184`. The Chinese page carries our
+   description in English, so there is no translation to sync, and if anyone translates it later the guard skips
+   it by design (`:196` `isTranslated` -> `skipped-translated`) rather than going red.
+3. Verify locally before pushing, with the instrument that will judge it: `node tools/check-comparison-quotes.mjs`
+   then `node tools/refresh-sitemap-dates.mjs --check` and `node tools/inject-jsonld-dates.mjs <page> --check`.
+   Both pages are rendered and in the sitemap, so their content date moves with this commit; since the stamp is a
+   date-value line and dating is by content commit, content and stamp can land in the same commit and converge.
+
+Why it stayed undone: writing `description` first and the two HTML files second would leave the nightly guard
+reading a live About text that no longer matches what we published, which is precisely the drift that guard
+exists to catch. The whole point of the recipe is that it is one commit, so do not split it.
+
+Readings as of this section: stars 8, forks 3. Eight topic pages list this repository inside their first 30
+(`prompt-governance` 3, `admission-control` 4, `model-gateway` 4, `tool-governance` 4, `prompt-enhancement` 7,
+`prompt-evaluation` 8, `token-budget` 9, `backpressure` 30). `backpressure` at position 30 is the last slot on
+that page, so it is the first one to fall if another repository gains stars.

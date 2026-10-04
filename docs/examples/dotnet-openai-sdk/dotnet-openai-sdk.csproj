@@ -8,4 +8,15 @@
   <ItemGroup>
     <PackageReference Include="OpenAI" Version="2.13.0" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- T-111 (a): same reason as the other two examples; the project had no test framework, so its
+         `dotnet test` leg passed with zero tests and dragged the matrix's evidence level down. -->
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="MSTest.TestAdapter" Version="3.2.2" />
+    <PackageReference Include="MSTest.TestFramework" Version="3.2.2" />
+  </ItemGroup>
+  <PropertyGroup>
+    <!-- the example keeps its own top-level entry point, so the test SDK must not add a second one -->
+    <GenerateProgramFile>false</GenerateProgramFile>
+  </PropertyGroup>
 </Project>

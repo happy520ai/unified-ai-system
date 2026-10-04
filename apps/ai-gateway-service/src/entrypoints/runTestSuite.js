@@ -197,15 +197,22 @@ async function runVitestTests(tests, { processIsolated = false } = {}) {
   );
 }
 
-async function runVitestGroups() {
+async function runVitestGroups(scope) {
   const groups = ["agentic", "agent-governance", "capabilities", "workflow", "http", "forge-workforce", "remaining"];
   process.stdout.write(`\nRunning ${groups.length} bounded Vitest groups\n`);
+  // The group runner collects files by directory, so it never saw the scope
+  // decision main() already made. Passing it through keeps `@test-scope local`
+  // files out of a unit run, which is the documented behaviour (they need
+  // --scope local or all); before this they were collected anyway and then
+  // skipped, which made `skipped` permanently positive and the completion gate
+  // permanently unusable for any task.
+  const groupEnv = { ...phaseEnv, UAI_TEST_SCOPE: scope };
   for (const group of groups) {
     const exit = await runProcess(
       process.execPath,
       [join(serviceRoot, "src/entrypoints/runVitestGroup.js"), group],
       serviceRoot,
-      phaseEnv,
+      groupEnv,
     );
     if (exit !== 0) return exit;
   }
@@ -236,7 +243,7 @@ async function main() {
   if (selected.length === 0) throw new Error(`No tests selected for scope=${scope} framework=${framework}`);
 
   const nodeExit = await runNodeTests(selected.filter((test) => test.framework === "node"));
-  const vitestExit = await runVitestGroups();
+  const vitestExit = await runVitestGroups(scope);
   if (nodeExit !== 0 || vitestExit !== 0) {
     throw new Error(`Test suite failed: node=${nodeExit} vitest=${vitestExit}`);
   }

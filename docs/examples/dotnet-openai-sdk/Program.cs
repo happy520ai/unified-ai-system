@@ -3,26 +3,15 @@ using System.Text.Json;
 using OpenAI;
 using OpenAI.Chat;
 
-static string GetBaseUrl(string[] args)
-{
-    for (var index = 0; index + 1 < args.Length; index++)
-    {
-        if (args[index] == "--base-url")
-        {
-            return args[index + 1].TrimEnd('/');
-        }
-    }
-
-    return "http://127.0.0.1:3100";
-}
-
-var baseUrl = GetBaseUrl(args);
+// The parser moved to ExampleHelpers.cs so the MSTest cases in this project cover the same code the
+// demo runs (T-111). Only the call site changed.
+var baseUrl = ExampleHelpers.GetBaseUrl(args);
 var client = new ChatClient(
     model: "local-fake-model",
     credential: new ApiKeyCredential("local-development"),
     options: new OpenAIClientOptions
     {
-        Endpoint = new Uri($"{baseUrl}/v1"),
+        Endpoint = new Uri(ExampleHelpers.SdkEndpoint(baseUrl)),
     });
 var completion = await client.CompleteChatAsync("OpenAI .NET SDK runtime test");
 var content = completion.Value.Content.FirstOrDefault()?.Text ?? "";

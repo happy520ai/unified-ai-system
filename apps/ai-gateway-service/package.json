@@ -43,7 +43,7 @@
     "start": "node ./src/index.js",
     "check": "node ./src/entrypoints/checkSyntax.js",
     "build": "pnpm run check",
-    "test": "set UAI_SUITE_PARALLEL_WORKERS=1&& node ./src/entrypoints/runTestSuite.js",
+    "test": "node ../../tools/run-with-git.mjs -- node ./src/entrypoints/runTestSuite.js",
     "test:unit": "node ./src/entrypoints/runTestSuite.js --scope=unit",
     "test:node": "node ./src/entrypoints/runTestSuite.js --framework=node",
     "test:vitest": "node ./src/entrypoints/runTestSuite.js --framework=vitest",

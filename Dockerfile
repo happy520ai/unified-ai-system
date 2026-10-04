@@ -1,7 +1,13 @@
 # syntax=docker/dockerfile:1
 
 # Digest-pinned base image keeps builds reproducible; bump deliberately.
-FROM node:22-bookworm-slim@sha256:a17d50af28002a160548bd4225b3cfcb12c5efcb171f79e68758f2885fb1b066 AS runtime
+# T-164 round 180: the previous pin (a17d50af…) had drifted a week behind its own tag
+# `node:22-bookworm-slim`, which now points at 43ac6c60… (last_updated 2026-09-23). Measured, not
+# assumed: the Debian tracker lists CVE-2026-86145 / -89157 / -89161 as resolved in bookworm with
+# fixed_version 10.42-1+deb12u1 (bookworm-security), while this pin shipped libpcre2-8-0 10.42-1
+# from the base repo — those three HIGH findings were a missing security update, not an unfixed
+# upstream. Refreshing the pin is what picks the update up.
+FROM node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c AS runtime
 
 WORKDIR /app
 
@@ -13,7 +19,27 @@ LABEL org.opencontainers.image.licenses="Apache-2.0"
 # 直接安装 pnpm（不经 corepack）：qemu 跨架构构建下 corepack 的 tarball
 # 下载会确定性失败（exit 255），npm 的网络栈不受影响；同时运行时也
 # 不再有 corepack 下载横幅污染 stdout。
+#
+# T-164 round 180: pnpm is installed BY the image's bundled npm, so that npm's dependency tree is on
+# the real build path -- which is why Trivy's `library` findings were not decorative. Measured against
+# the registry rather than guessed: npm 10.9.9 already ships tar ^7.5.22 (clearing the one CRITICAL,
+# CVE-2026-59873) but still pacote ^19.0.1, and CVE-2026-9496 is fixed only at pacote 21.5.1. 11.21.0
+# is the smallest line that clears both (tar ^7.5.22, pacote ^21.5.1) and its engines range
+# (^20.17.0 || >=22.9.0) covers the 22.23.x this base image ships. Pinned exactly, never @latest: a
+# floating version would make the image non-reproducible, which is the property the digest pin above
+# exists to keep.
+RUN npm install -g npm@11.21.0
 RUN npm install -g pnpm@11.19.0
+
+# npm has now done the only job it has in this image. pnpm@11.19.0 declares no runtime
+# dependencies at all (measured: `dependencies: {}` in its package.json), and neither runtime stage
+# below invokes npm -- they run `node` against the built tree. So npm's vendored tree is carried for
+# no reason, and it is the last thing Trivy was flagging: with npm 11.21.0 pinned above, brace-expansion
+# 5.0.9 and undici 6.28.0 are the only HIGH/CRITICAL findings left, and BOTH npm lines that exist
+# (11.21.0 and 12.2.0) bundle exactly those two versions, so no version bump can clear them. Removing
+# the tool is the honest fix -- it is not a scanner workaround: the vulnerable code simply is not in
+# the shipped artifact any more. If a future stage needs npm, re-add it deliberately.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
 # pnpm 的 verify-deps-before-run 会在项目根（/app，root 属主、node 只读）
 # 写 _tmp_* 哈希文件，非 root 运行 `pnpm gateway demo` 时偶发 EACCES。
@@ -29,6 +55,17 @@ RUN pnpm install --frozen-lockfile \
   --filter @unified-ai-system/ai-gateway-service... \
   --filter @unified-ai-system/agent-console... \
   --filter @unified-ai-system/mcp-server...
+
+# Same discipline as the npm strip above, applied to pnpm once its one job (the frozen install) is
+# done. pnpm's published bundle carries its own vendored node_modules, and Trivy reads undici 6.28.0
+# out of `pnpm/dist/node_modules` and `pnpm/artifacts/exe/dist/node_modules` -- that was the last
+# HIGH/CRITICAL pair left after the base pin and the npm pin. Both runtime stages below run `node`
+# against the built tree and never invoke pnpm, and the CI smoke tests invoke `node` directly too
+# (tools/verify-public-clone.mjs and the docker smoke step), so nothing in this image needs it.
+# Note what this does NOT claim: it does not fix pnpm's undici, it stops shipping it. The build above
+# still ran pnpm at the repo's pinned version. If a future stage needs pnpm in the image, re-add it
+# deliberately and say why.
+RUN rm -rf /usr/local/lib/node_modules/pnpm /usr/local/bin/pnpm /usr/local/bin/pnpx /usr/local/bin/pnpm.cmd 2>/dev/null || true
 
 COPY apps/ai-gateway-service apps/ai-gateway-service
 COPY apps/agent-console apps/agent-console

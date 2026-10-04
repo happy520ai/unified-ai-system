@@ -17,8 +17,24 @@ function run(env) {
   return { status: result.status, stderr: result.stderr ?? "", stdout: result.stdout ?? "" };
 }
 
+// The host may have no git on PATH (the quality-matrix host is exactly that), so the
+// arm builds a reachable environment instead of assuming one.
+function withGitReachable() {
+  const env = { ...process.env };
+  const probe = spawnSync("git", ["--version"], { encoding: "utf8", env, windowsHide: true });
+  if (probe.status !== 0) {
+    const roots = [env.ProgramFiles, env["ProgramFiles(x86)"]].filter(Boolean);
+    for (const root of roots) {
+      const dir = join(root, "Git", "cmd");
+      env.PATH = [dir, env.PATH].filter(Boolean).join(";");
+      if (spawnSync("git", ["--version"], { encoding: "utf8", env, windowsHide: true }).status === 0) break;
+    }
+  }
+  return env;
+}
+
 test("a usable git and node let the preflight pass", () => {
-  const outcome = run({ ...process.env });
+  const outcome = run(withGitReachable());
   assert.equal(outcome.status, 0, outcome.stderr);
   assert.match(outcome.stdout, /preflight passed/);
 });

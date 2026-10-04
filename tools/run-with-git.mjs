@@ -12,12 +12,19 @@
 // transparent: it spawns the same command with the same environment.
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { join, resolve, win32 } from "node:path";
+import { resolve, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export function gitWorks(env) {
   return spawnSync("git", ["--version"], { encoding: "utf8", env, windowsHide: true }).status === 0;
 }
+
+// Windows-shaped separators on EVERY platform: this helper describes Windows install
+// locations, so its output must look like one wherever it runs. `path.join` emits `/` on a
+// POSIX host, which produced the mixed-separator `C:\Program Files/Git/cmd` and broke the
+// literal expectation in run-with-git.test.mjs on the Linux CI host. `path.win32.join` is
+// host-independent and also rewrites a slash-shaped env value such as
+// `C:/Users/someone/AppData/Local`, which a hand-rolled backslash join did not.
 
 /** Directories that hold git.exe on a Windows install, most specific first. */
 export function windowsGitCandidates(env) {
@@ -69,7 +76,14 @@ if (invokedDirectly) {
     }
   }
 
-  const result = spawnSync(command, commandArgs, { stdio: "inherit", env, windowsHide: true });
+  let result = spawnSync(command, commandArgs, { stdio: "inherit", env, windowsHide: true });
+  // On Windows the command is often a .cmd shim (pnpm, c8), which CreateProcess
+  // cannot start without a shell. A direct spawn that starts nothing is retried
+  // through the shell instead of being reported as a missing tool.
+  if (result.error && process.platform === "win32") {
+    const viaShell = spawnSync(command, commandArgs, { stdio: "inherit", env, windowsHide: true, shell: true });
+    if (!viaShell.error) result = viaShell;
+  }
   if (result.error) {
     process.stderr.write(`run-with-git: could not start ${command}: ${result.error.message}\n`);
     process.exit(1);

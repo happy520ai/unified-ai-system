@@ -7,13 +7,18 @@ import { assertDependencyReleaseGate } from "./dependency-vulnerability-gate.mjs
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const { parse: parseYaml } = createRequire(new URL("../apps/ai-gateway-service/package.json", import.meta.url))("yaml");
 const outputJson = process.argv.includes("--json");
+// The pin is a reviewed decision, not a snapshot: moving it is how a transitive dependency's security
+// line is advanced deliberately, and this check is what forces the move to be explicit (both the
+// workspace file and the lockfile must agree with this table). brace-expansion moved 5.0.9 -> 5.0.12
+// because 5.0.9 carries GHSA-6j4f-fj2g-mc7p / GHSA-qhr7-859c-m2p7 / GHSA-q2hr-2g5m-vwhr (all three
+// fixed at 5.0.12) and the dependency-security job read them as BLOCKED. The 2.x line moved with it.
 const requiredOverrides = Object.freeze({
-  "brace-expansion@2": "2.1.4",
-  "brace-expansion@5": "5.0.9",
+  "brace-expansion@2": "2.1.7",
+  "brace-expansion@5": "5.0.12",
   "postcss@8": "8.5.26",
   "vite@8": "8.0.16",
   "@xmldom/xmldom@0.8": "0.8.15",
-  "hono@4": "4.13.5",
+  "hono@4": "4.13.7",
 });
 
 function readText(relativePath) {

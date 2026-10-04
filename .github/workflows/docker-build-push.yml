@@ -562,27 +562,74 @@ jobs:
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
+      # The image is published by docker/metadata-action's `type=sha` with its DEFAULT format, which is
+      # the SHORT sha: the build's own manifest evidence reads
+      # `ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:sha-47ef62b`. Scanning the full
+      # 40-character `github.sha` therefore answers
+      # `MANIFEST_UNKNOWN: manifest unknown`, and Trivy reports it as "unable to initialize artifact"
+      # after failing over docker -> containerd -> podman -> remote, which reads like a missing runtime
+      # rather than a missing tag. Resolve the ref the way this repo's own smoke job already does
+      # (`${GITHUB_SHA::7}`, docker-build-push.yml:322) instead of re-deriving the convention here.
+      - name: Resolve published image refs
+        id: refs
+        run: |
+          echo "gateway=ghcr.io/${{ github.repository }}/ai-gateway-service:sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          echo "mcp=ghcr.io/${{ github.repository }}/mcp-server:sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
       - name: Scan gateway image with Trivy
         uses: aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4 # v0.32.0
         with:
-          image-ref: "ghcr.io/${{ github.repository }}/ai-gateway-service:sha-${{ github.sha }}"
+          image-ref: ${{ steps.refs.outputs.gateway }}
+          # The pinned action commit is itself "chore(deps): Update trivy to v0.64.1" (2025-07-04),
+          # and that release's assets were later withdrawn upstream: the tag still resolves but
+          # releases/download/v0.64.1/trivy_0.64.1_Linux-64bit.tar.gz answers 404, so the action's
+          # own install step fails in about 0.4 s and the only visible symptom is "Path does not
+          # exist: trivy-gateway-results.sarif" from the SARIF upload. Measured against the upstream
+          # The pinned action commit is itself "Update trivy to v0.64.1", and that release's assets
+          # were later withdrawn upstream (the tag resolves, the tarball 404s), which is why `version`
+          # is overridden here at all. It is overridden to the CURRENT release rather than to the
+          # lowest downloadable one, because Trivy's own version check exits non-zero when a newer
+          # release exists -- with v0.69.3 pinned the scan found zero HIGH/CRITICAL findings and the
+          # job still failed on "0.74.0 is available". A pin that ages into a red job is not a
+          # signal anyone wants. Verified against the release list: v0.74.0 (2026-08-14) has the
+          # Linux-64bit asset (HTTP 200). Overriding `version` leaves the action's own commit pin
+          # (what tools/check-action-pins.mjs audits) untouched.
+          version: "v0.74.0"
           format: "sarif"
           output: "trivy-gateway-results.sarif"
           severity: "HIGH,CRITICAL"
           exit-code: "1"
           ignore-unfixed: true
           vuln-type: "os,library"
+          # Without this, the action DELETES TRIVY_SEVERITY whenever format is sarif (its entrypoint:
+          # `unset TRIVY_SEVERITY` unless limit-severities-for-sarif is true). The scan then runs with
+          # all severities, the job's own `severity: HIGH,CRITICAL` stops meaning anything, and a single
+          # UNKNOWN-severity finding -- tzdata's DLA-4792-1, fixed in 2026c-0+deb12u1 -- exits 1. That is
+          # what happened: the image carried zero HIGH/CRITICAL findings (verified by scanning the
+          # published digest with these exact flags, exit 0) and the job was still red. Setting this
+          # makes the filter apply, which is what the step always claimed to do.
+          limit-severities-for-sarif: true
 
       - name: Scan MCP image with Trivy
         uses: aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4 # v0.32.0
         with:
-          image-ref: "ghcr.io/${{ github.repository }}/mcp-server:sha-${{ github.sha }}"
+          image-ref: ${{ steps.refs.outputs.mcp }}
+          # Same reason as the gateway scan above: without this override neither step installs a scanner.
+          version: "v0.74.0"
           format: "sarif"
           output: "trivy-mcp-results.sarif"
           severity: "HIGH,CRITICAL"
           exit-code: "1"
           ignore-unfixed: true
           vuln-type: "os,library"
+          # Without this, the action DELETES TRIVY_SEVERITY whenever format is sarif (its entrypoint:
+          # `unset TRIVY_SEVERITY` unless limit-severities-for-sarif is true). The scan then runs with
+          # all severities, the job's own `severity: HIGH,CRITICAL` stops meaning anything, and a single
+          # UNKNOWN-severity finding -- tzdata's DLA-4792-1, fixed in 2026c-0+deb12u1 -- exits 1. That is
+          # what happened: the image carried zero HIGH/CRITICAL findings (verified by scanning the
+          # published digest with these exact flags, exit 0) and the job was still red. Setting this
+          # makes the filter apply, which is what the step always claimed to do.
+          limit-severities-for-sarif: true
 
       - name: Upload Trivy scan results to GitHub Security
         if: always()

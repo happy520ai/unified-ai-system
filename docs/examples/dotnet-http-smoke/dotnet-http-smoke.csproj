@@ -4,5 +4,16 @@
     <TargetFramework>net6.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- T-111 (a): this example used to be a console app with no test framework, so its
+         `dotnet test` leg passed with zero tests and dragged the whole matrix's evidence level
+         down to execution_only. It now carries real MSTest cases next to the same runnable
+         program, so the leg reports an actual count instead of unknown. -->
+    <GenerateProgramFile>false</GenerateProgramFile>
+    <IsTestProject>true</IsTestProject>
   </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="MSTest.TestAdapter" Version="3.2.2" />
+    <PackageReference Include="MSTest.TestFramework" Version="3.2.2" />
+  </ItemGroup>
 </Project>

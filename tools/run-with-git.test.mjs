@@ -9,7 +9,7 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { windowsGitCandidates } from "./run-with-git.mjs";
+import { windowsGitCandidates, findGitDir, gitWorks } from "./run-with-git.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const WRAPPER = join(repoRoot, "tools", "run-with-git.mjs");
@@ -26,8 +26,20 @@ function run(env) {
   return { status: result.status, stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
 }
 
+// The host this runs on may have no git on PATH - the quality-matrix host is exactly
+// that. Construct a reachable environment rather than assuming one, so the arm
+// asserts the contract on every host.
+function withGitReachable() {
+  const env = { ...process.env };
+  if (!gitWorks(env)) {
+    const dir = findGitDir(env);
+    if (dir) env.PATH = [dir, env.PATH].filter(Boolean).join(";");
+  }
+  return env;
+}
+
 test("with git reachable the wrapper is transparent", () => {
-  const outcome = run({ ...process.env });
+  const outcome = run(withGitReachable());
   assert.equal(outcome.status, 0, outcome.stderr);
   assert.match(outcome.stdout, /child-ok/);
   assert.doesNotMatch(outcome.stderr, /run-with-git:/, "a reachable git must not announce itself");
@@ -48,6 +60,32 @@ test("the standard install locations are searched in a fixed order", () => {
   for (const candidate of candidates) {
     assert.equal(candidate.includes("/"), false, candidate);
   }
+});
+
+// The shape arm that would have caught the Linux CI failure on Windows too. The helper describes
+// Windows locations, so its output must be Windows-shaped on every host -- `path.join` emits `/` on a
+// POSIX host, which produced `C:\Program Files/Git/cmd` and broke the literal assertion above on the
+// Linux quality job. Asserting the separator HERE means the regression fails on whichever platform
+// develops it, instead of only on the one the developers are not on.
+test("windows candidate paths use windows separators on every platform", () => {
+  const candidates = windowsGitCandidates({
+    ProgramFiles: "C:\\Program Files",
+    LOCALAPPDATA: "C:\\Users\\someone\\AppData\\Local",
+  });
+  assert.ok(candidates.length > 0);
+  for (const candidate of candidates) {
+    assert.doesNotMatch(candidate, /\//u, `mixed separators in ${JSON.stringify(candidate)}`);
+    assert.match(candidate, /\\/u, `no windows separator in ${JSON.stringify(candidate)}`);
+  }
+  // A root that already ends in a separator must not produce a doubled one.
+  assert.deepEqual(windowsGitCandidates({ ProgramFiles: "C:\\Program Files\\" }), ["C:\\Program Files\\Git\\cmd"]);
+  // An env value that arrives with POSIX separators must still come out Windows-shaped. This is the
+  // case a hand-rolled backslash join lost: it only joined with `\`, so it left the incoming slashes
+  // alone and produced `C:/Users/someone/AppData/Local\Programs\Git\cmd`.
+  assert.deepEqual(
+    windowsGitCandidates({ LOCALAPPDATA: "C:/Users/someone/AppData/Local" }),
+    ["C:\\Users\\someone\\AppData\\Local\\Programs\\Git\\cmd", "C:\\Program Files\\Git\\cmd"],
+  );
 });
 
 test("a PATH that holds node but not git either recovers or refuses, and says which", () => {
