@@ -143,12 +143,22 @@ function toTrendRecord({ qualitySummary, verificationSummary, drillSummary, args
       ok: scoreStatus.verificationOk ?? null,
       issues: scoreStatus.issues,
     },
-    overall: {
-      pass: Boolean(scoreStatus.verificationOk) && scoreStatus.qualityPass && Boolean(scoreStatus.issues.length === 0),
-      reason: scoreStatus.issues.length === 0
-        ? "pass"
-        : "quality-ci-gate-failed",
-    },
+    overall: (() => {
+      const pass = Boolean(scoreStatus.verificationOk)
+        && scoreStatus.qualityPass
+        && Boolean(scoreStatus.issues.length === 0);
+      // The reason must name what actually failed: "pass" with pass=false made an
+      // incident bundle claim success while the record it described had failed.
+      let reason = "pass";
+      if (!pass) {
+        reason = scoreStatus.issues.length > 0
+          ? "quality-ci-gate-failed"
+          : !scoreStatus.qualityPass
+            ? "quality-scorecard-incomplete"
+            : "verification-not-ok";
+      }
+      return { pass, reason };
+    })(),
   };
 }
 
