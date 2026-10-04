@@ -56,6 +56,10 @@ test("the standard install locations are searched in a fixed order", () => {
     "C:\\Program Files (x86)\\Git\\cmd",
     "C:\\Users\\someone\\AppData\\Local\\Programs\\Git\\cmd",
   ]);
+  // Windows candidate paths must never contain POSIX separators, on any host.
+  for (const candidate of candidates) {
+    assert.equal(candidate.includes("/"), false, candidate);
+  }
 });
 
 // The shape arm that would have caught the Linux CI failure on Windows too. The helper describes
@@ -75,6 +79,13 @@ test("windows candidate paths use windows separators on every platform", () => {
   }
   // A root that already ends in a separator must not produce a doubled one.
   assert.deepEqual(windowsGitCandidates({ ProgramFiles: "C:\\Program Files\\" }), ["C:\\Program Files\\Git\\cmd"]);
+  // An env value that arrives with POSIX separators must still come out Windows-shaped. This is the
+  // case a hand-rolled backslash join lost: it only joined with `\`, so it left the incoming slashes
+  // alone and produced `C:/Users/someone/AppData/Local\Programs\Git\cmd`.
+  assert.deepEqual(
+    windowsGitCandidates({ LOCALAPPDATA: "C:/Users/someone/AppData/Local" }),
+    ["C:\\Users\\someone\\AppData\\Local\\Programs\\Git\\cmd", "C:\\Program Files\\Git\\cmd"],
+  );
 });
 
 test("a PATH that holds node but not git either recovers or refuses, and says which", () => {
