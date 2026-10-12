@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>TasteRouter - agents with taste</title>
+<style>
+  body{font-family:system-ui,sans-serif;max-width:760px;margin:40px auto;padding:0 16px;color:#1b1b1f}
+  input,button{font:inherit;padding:10px;border-radius:8px;border:1px solid #ccc;width:100%;box-sizing:border-box;margin:6px 0}
+  button{background:#1b1b1f;color:#fff;cursor:pointer} h2{margin-top:28px;text-transform:capitalize}
+  .card{border:1px solid #eee;border-radius:10px;padding:10px;margin:6px 0} .muted{color:#777;font-size:.9em}
+  pre{background:#f6f6f8;padding:10px;border-radius:8px;overflow:auto;font-size:.8em}
+</style>
+</head>
+<body>
+<h1>TasteRouter</h1>
+<p class="muted">Tell the agent what you love. It resolves your taste with Qloo and plans picks across music, film, dining, travel and more.</p>
+<input id="likes" placeholder="Things you love, comma separated (e.g. Wong Kar-wai, Radiohead)" />
+<input id="goal" placeholder="Goal (e.g. date night, a gift, weekend trip)" />
+<input id="location" placeholder="City for dining (optional)" />
+<button id="go">Plan with taste</button>
+<p id="summary"></p><div id="out"></div>
+<details><summary class="muted">Agent trace</summary><pre id="trace"></pre></details>
+<script>
+const $ = (id) => document.getElementById(id);
+$('go').onclick = async () => {
+  $('summary').textContent = 'Thinking...'; $('out').innerHTML = '';
+  const likes = $('likes').value.split(',').map(s => s.trim()).filter(Boolean);
+  const res = await fetch('/api/recommend', { method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ likes, goal: $('goal').value, location: $('location').value }) });
+  const data = await res.json();
+  if (data.error) { $('summary').textContent = data.error; return; }
+  $('summary').textContent = data.summary;
+  for (const [domain, items] of Object.entries(data.picks)) {
+    const h = document.createElement('h2'); h.textContent = domain; $('out').append(h);
+    for (const it of items) {
+      const d = document.createElement('div'); d.className = 'card';
+      d.innerHTML = '<b></b><div class="muted"></div>';
+      d.querySelector('b').textContent = it.name;
+      d.querySelector('.muted').textContent = (it.description || it.address || '').slice(0, 160);
+      $('out').append(d);
+    }
+  }
+  $('trace').textContent = JSON.stringify(data.trace, null, 2);
+};
+</script>
+</body>
+</html>
