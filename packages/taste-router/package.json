@@ -1,0 +1,19 @@
+{
+  "name": "@unified-ai-system/taste-router",
+  "version": "0.1.0",
+  "description": "Taste-aware agent tools for unified-ai-system, powered by the Qloo Taste AI API (Qloo Agentic Hackathon 2026).",
+  "type": "module",
+  "license": "Apache-2.0",
+  "main": "src/index.js",
+  "bin": {
+    "taste-router-mcp": "src/mcp.js"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "mcp": "node src/mcp.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
