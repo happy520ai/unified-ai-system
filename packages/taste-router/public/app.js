@@ -84,7 +84,7 @@ function render(r) {
     <div class="card hood ${i ? '' : 'first'}">
       <div class="t"><h4>${i + 1}. ${esc(h.neighborhood || 'Unnamed hotspot')}</h4><div class="score">${Math.round(h.opportunity * 100)}<small>/100</small></div></div>
       <div class="bar"><i style="width:${Math.round(h.opportunity * 100)}%"></i></div>
-      <div><span class="pill ${h.label === 'white space' ? 'green' : h.label.includes('crowded') ? '' : 'grey'}">${esc(h.label)}</span> <span class="muted small">${h.competitor_count ?? '?'} ${esc(r.concept.category?.name || 'similar')} venues within 900 m · taste peak ${Math.round(h.peak * 100)}</span></div>
+      <div><span class="pill ${h.label === 'white space' ? 'green' : h.label.includes('crowded') ? '' : 'grey'}">${esc(h.label)}</span> <span class="muted small">${h.competitor_count >= 50 ? '50+' : (h.competitor_count ?? '?')} ${esc(r.concept.category?.name || 'similar')} venues within 900 m · taste peak ${Math.round(h.peak * 100)}</span></div>
       ${i === 0 && b.pick?.why ? `<ul>${b.pick.why.map(w => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}
       ${i === 1 && b.runner_up?.why ? `<p class="small">${esc(b.runner_up.why)}</p>` : ''}
       <div class="small"><b>Taste-matched anchors</b><ul>${h.anchors.slice(0, 4).map(a => `<li>${esc(a.name)} <span class="tags">${esc(a.tags.join(' · '))}</span></li>`).join('')}</ul></div>
