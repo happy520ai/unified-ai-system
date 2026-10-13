@@ -1,9 +1,6 @@
 packages:
   - "apps/*"
   - "packages/*"
-  # taste-router is a standalone, zero-dependency Node/Cloudflare Worker app with its own tooling
-  # (wrangler is run via npx); keep it out of the pnpm workspace so the frozen lockfile stays valid.
-  - "!packages/taste-router"
 allowBuilds:
   better-sqlite3: true
 overrides:
