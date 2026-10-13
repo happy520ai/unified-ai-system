@@ -25,3 +25,8 @@ overrides:
   # ingest a fresher package than the rule wants. A month-old fixed release clears the advisory and
   # leaves the gate alone.
   hono@4: 4.13.7
+  # source-map-js 1.2.1 is affected by GHSA-68fv-2mgg-jv7q (event-loop DoS via indexed section offsets); 1.2.2 is the fix.
+  source-map-js@1: 1.2.2
+  # sprintf-js has no fixed release for GHSA-hp3w-g68c-fv3c; it only arrives via mammoth -> argparse@1.0.10, which mammoth
+  # uses solely in its CLI (lib/main.js), never from the library entry we import. argparse 2.x drops sprintf-js entirely.
+  argparse@1: 2.0.1

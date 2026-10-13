@@ -59,7 +59,7 @@ Every step streams to the UI as an auditable trace (with a live Qloo-call counte
 ## Run it yourself
 
 ```bash
-git clone https://github.com/happy520ai/unified-ai-system && cd unified-ai-system/packages/taste-router
+git clone https://github.com/happy520ai/unified-ai-system && cd unified-ai-system/taste-router
 export QLOO_API_KEY=your-hackathon-key            # https://docs.qloo.com/reference/qloo-llm-hackathon-developer-guide
 export LLM_BASE_URL=https://openrouter.ai/api/v1 LLM_API_KEY=... LLM_MODEL=meta-llama/llama-3.3-70b-instruct   # any OpenAI-compatible LLM
 npm start                 # http://localhost:8787
@@ -78,7 +78,7 @@ Deploy your own on Cloudflare's free plan: `npx wrangler kv namespace create CAC
 ### MCP
 
 ```json
-{ "mcpServers": { "taste-router": { "command": "node", "args": ["packages/taste-router/src/mcp.js"], "env": { "QLOO_API_KEY": "your-key" } } } }
+{ "mcpServers": { "taste-router": { "command": "node", "args": ["taste-router/src/mcp.js"], "env": { "QLOO_API_KEY": "your-key" } } } }
 ```
 
 Tools: `scout_location`, `resolve_seeds`, `concept_tags`, `taste_dna`, `audience`, `hotspots`, `scout_hotspot`, `programming`.

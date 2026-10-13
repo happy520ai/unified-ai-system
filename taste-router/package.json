@@ -19,7 +19,7 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/happy520ai/unified-ai-system",
-    "directory": "packages/taste-router"
+    "directory": "taste-router"
   },
   "keywords": [
     "qloo",
