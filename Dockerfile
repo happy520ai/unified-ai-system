@@ -25,8 +25,11 @@ LABEL org.opencontainers.image.licenses="Apache-2.0"
 # the pin cannot pick the fix up. Upgrading this one library from the security pocket is the
 # fix; it is not a scanner workaround. Deliberately scoped to the single package: a blanket
 # apt-get upgrade would move the rest of the OS tree away from the digest pin's promise.
+# 2026-10-13: the 10-13 Trivy SARIF opened seven perl-base alerts (CVE-2026-8376, -42496, -13221
+# CRITICAL; -57433, -57432, -48962, -42497 HIGH) against the base's 5.36.0-7+deb12u3; Trivy reports the
+# fix as 5.36.0-7+deb12u4 in bookworm-security, so perl-base is pinned up the same targeted way.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends libpcre2-8-0=10.42-1+deb12u2 \
+  && apt-get install -y --no-install-recommends libpcre2-8-0=10.42-1+deb12u2 perl-base=5.36.0-7+deb12u4 \
   && rm -rf /var/lib/apt/lists/*
 
 # 直接安装 pnpm（不经 corepack）：qemu 跨架构构建下 corepack 的 tarball
