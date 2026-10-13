@@ -1,0 +1,35 @@
+{
+  "name": "taste-router",
+  "version": "1.0.0",
+  "description": "An AI agent that routes a business, pop-up or event concept to the neighbourhood whose people already share its taste. Powered by Qloo Taste AI.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "bin": {
+    "taste-router-mcp": "src/mcp.js"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "mcp": "node src/mcp.js",
+    "test": "node --test test/*.test.js",
+    "deploy": "wrangler deploy"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/happy520ai/unified-ai-system",
+    "directory": "packages/taste-router"
+  },
+  "keywords": [
+    "qloo",
+    "agent",
+    "mcp",
+    "taste",
+    "location-intelligence",
+    "cloudflare-workers"
+  ],
+  "devDependencies": {
+    "wrangler": "^4.149.0"
+  }
+}

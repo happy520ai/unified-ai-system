@@ -1,0 +1,19 @@
+name = "tasterouter"
+main = "src/worker.js"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Static UI files are inlined into the Worker by a build step (no separate asset upload).
+[build]
+command = "node scripts/bundle-static.mjs"
+
+[ai]
+binding = "AI"
+
+# KV caches Qloo responses and finished runs so judges' repeat visits don't burn the monthly quota.
+[[kv_namespaces]]
+binding = "CACHE"
+id = "ed7f5063b5314157b967d93efc28a061"
+
+[vars]
+QLOO_API_URL = "https://hackathon.api.qloo.com"

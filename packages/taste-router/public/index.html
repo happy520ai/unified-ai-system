@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TasteRouter — find the neighbourhood that already loves your idea</title>
+<meta name="description" content="An AI agent that routes a business, pop-up or event concept to the neighbourhood whose people already share its taste. Powered by Qloo Taste AI." />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📍</text></svg>" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="dot"></span>TasteRouter</div>
+  <nav><a href="#how">How it works</a><a href="https://github.com/happy520ai/unified-ai-system/tree/master/packages/taste-router" target="_blank" rel="noopener">GitHub</a></nav>
+</header>
+
+<main>
+  <section class="hero">
+    <p class="kicker">Agents, but with taste · powered by Qloo</p>
+    <h1>Find the neighbourhood that <em>already loves</em> your idea.</h1>
+    <p class="sub">Describe what you want to open — a bar, a shop, a pop-up, a gig — and the vibe it has. TasteRouter's agent maps where people with that taste actually live and hang out, checks how crowded the block already is, and writes your launch plan.</p>
+
+    <form id="form" class="brief">
+      <textarea id="brief" rows="3" maxlength="1200" placeholder="e.g. A tiny vinyl listening bar with natural wine in New York, for people who love Khruangbin, Wong Kar-wai films and Aesop-style minimal design."></textarea>
+      <div class="row">
+        <div class="chips" id="examples"></div>
+        <button id="go" type="submit">Scout it →</button>
+      </div>
+    </form>
+  </section>
+
+  <section id="run" class="run hidden">
+    <div class="grid">
+      <aside class="trace card">
+        <div class="card-h"><h3>Agent trace</h3><span id="calls" class="pill">0 Qloo calls</span></div>
+        <ol id="steps"></ol>
+      </aside>
+      <div class="mapwrap card">
+        <div id="map"></div>
+        <div class="legend"><span class="sw"></span>taste affinity (Qloo heatmap) <span class="pin">1</span> scouted hotspot</div>
+      </div>
+    </div>
+
+    <div id="result" class="hidden">
+      <div class="headline card accent">
+        <p class="kicker" id="r-kicker"></p>
+        <h2 id="r-headline"></h2>
+        <p id="r-position" class="muted"></p>
+      </div>
+
+      <h3 class="sec">Ranked neighbourhoods</h3>
+      <div id="r-hoods" class="hoods"></div>
+
+      <div class="two">
+        <div class="card"><h3>Who you're opening for</h3><div id="r-aud"></div><div id="r-dna" class="tagcloud"></div></div>
+        <div class="card"><h3>Opening week</h3><ul id="r-week" class="week"></ul><h3 class="mt">Collabs</h3><ul id="r-collabs" class="plain"></ul></div>
+      </div>
+
+      <div class="two">
+        <div class="card"><h3>Programming, cross-domain</h3><div id="r-prog" class="prog"></div></div>
+        <div class="card"><h3>Menu &amp; vibe cues</h3><ul id="r-menu" class="plain"></ul><h3 class="mt">Risks</h3><ul id="r-risks" class="plain"></ul></div>
+      </div>
+
+      <div class="card compare">
+        <h3>Why Qloo matters: the same brief, LLM alone</h3>
+        <div class="cols">
+          <div><span class="pill grey">LLM only · general knowledge</span><p id="r-baseline" class="muted"></p></div>
+          <div><span class="pill">TasteRouter · Qloo-grounded</span><p id="r-grounded"></p></div>
+        </div>
+      </div>
+
+      <div class="actions"><button id="copy" class="ghost">Copy brief as Markdown</button><button id="again" class="ghost">Scout another idea</button></div>
+      <p class="meta" id="r-meta"></p>
+    </div>
+    <div id="err" class="card error hidden"></div>
+  </section>
+
+  <section id="how" class="how">
+    <h2>How the agent works</h2>
+    <div class="steps">
+      <div><b>1 · Plan</b><p>An LLM reads your brief and extracts the concept, the city and 3–5 cultural references that capture its vibe.</p></div>
+      <div><b>2 · Ground</b><p>References are resolved to Qloo entities. If too few exist, the agent reflects and swaps in better-known stand-ins.</p></div>
+      <div><b>3 · Map taste</b><p>Qloo's heatmap shows where that taste concentrates, street by street; taste DNA and demographics tell you who they are.</p></div>
+      <div><b>4 · Scout</b><p>For each hotspot it finds the real neighbourhood, taste-matched anchor venues, and how many of your category already exist.</p></div>
+      <div><b>5 · Rank</b><p>Opportunity = taste concentration vs. category saturation. "White space" beats "proven but crowded".</p></div>
+      <div><b>6 · Write</b><p>The LLM writes a launch brief using only Qloo evidence: programming from cross-domain picks, collabs, risks.</p></div>
+    </div>
+    <p class="muted small">Built for the Qloo Agentic Hackathon 2026. Also ships as an MCP server so any agent (Claude, Cursor, Codex) can call the same Qloo tools. Map © OpenStreetMap contributors, © CARTO.</p>
+  </section>
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/app.js" type="module"></script>
+</body>
+</html>
