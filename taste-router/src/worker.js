@@ -29,7 +29,7 @@ export default {
       if (!input.brief && !(input.city && input.seeds?.length)) return json({ error: 'Send {brief} or {city, seeds[]}' }, 400);
       if ((input.brief || '').length > 1200) return json({ error: 'Brief too long (max 1200 chars).' }, 400);
       const store = kvStore(env.CACHE);
-      const runKey = `run:v4:${await hashKey({ b: (input.brief || '').trim().toLowerCase(), c: input.city, s: input.seeds })}`;
+      const runKey = `run:v5:${await hashKey({ b: (input.brief || '').trim().toLowerCase(), c: input.city, s: input.seeds })}`;
       const { readable, writable } = new TransformStream();
       const writer = writable.getWriter();
       const enc = new TextEncoder();
@@ -39,14 +39,15 @@ export default {
           const cached = store && !input.fresh ? await store.get(runKey) : null;
           if (cached) {
             for (const ev of cached.events) send({ ...ev, replay: true });
-            send({ type: 'note', text: 'Served from cache to save Qloo quota (same brief was scouted recently).' });
+            send({ type: 'note', text: `Replayed from cache to save Qloo quota${cached.calls ? ` (the original run made ${cached.calls} Qloo calls)` : ''}.` });
+            send({ type: 'cache', calls: cached.calls || 0 });
             send({ type: 'result', result: cached.result });
           } else {
-            const events = [];
-            const qloo = createQloo({ apiKey: env.QLOO_API_KEY, baseUrl: env.QLOO_API_URL || undefined, store, onCall: c => send({ type: 'qloo_call', path: c.path, ms: c.ms, ok: c.ok, cached: !!c.cached }) });
+            const events = []; let calls = 0;
+            const qloo = createQloo({ apiKey: env.QLOO_API_KEY, baseUrl: env.QLOO_API_URL || undefined, store, onCall: c => { calls++; send({ type: 'qloo_call', path: c.path, ms: c.ms, ok: c.ok, cached: !!c.cached }); } });
             const result = await runScout(input, { qloo, llm: createLLM(env), store, emit: ev => { if (ev.type !== 'result') { events.push(ev); send(ev); } } });
             send({ type: 'result', result });
-            if (store) await store.put(runKey, { events: events.filter(e => e.type === 'step' && e.status !== 'start'), result });
+            if (store) await store.put(runKey, { events: events.filter(e => e.type === 'step' && e.status !== 'start'), result, calls });
           }
         } catch (e) {
           send({ type: 'error', error: String(e.message || e) });

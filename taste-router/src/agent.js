@@ -21,7 +21,36 @@ Return ONLY JSON:
  "collabs":["brand or venue from evidence + why, short"],
  "menu_and_vibe":["3-4 cues drawn from the taste tags"],
  "risks":["1-2 honest risks, e.g. competition or audience mismatch"]}
-opening_week has exactly 3 items.`;
+opening_week has exactly 3 items. Opportunity scores are out of 100; quote them as e.g. "85/100", never as decimals. Use short weekday names exactly once each.`;
+
+// Opportunity = 65% taste concentration + 35% (1 - saturation). Saturation blends the hotspot's
+// competitor count relative to the other hotspots with an absolute scale (50 = Qloo page cap), so
+// "every block is packed" and "nobody is here yet" are not flattened to the same relative score.
+// Ties break on fewer competitors, then stronger taste peak, then more taste-matched anchors.
+// Two hotspots resolving to the same neighbourhood are disambiguated by compass bearing.
+export const COMPETITOR_CAP = 50;
+export function rankHotspots(scouted) {
+  const maxComp = Math.max(1, ...scouted.map(s => s.competitor_count || 0));
+  const ranked = scouted.map(s => {
+    const c = s.competitor_count;
+    const saturation = c == null ? 0.5 : 0.5 * (c / maxComp) + 0.5 * Math.min(1, c / COMPETITOR_CAP);
+    const opportunity = +(0.65 * s.score + 0.35 * (1 - saturation)).toFixed(3);
+    const label = c == null ? 'unknown supply' : c <= 3 ? 'white space' : saturation > 0.75 ? 'proven but crowded' : 'healthy demand';
+    return { ...s, opportunity, saturation: +saturation.toFixed(3), label, ...(c === 0 ? { note: 'No same-category venue found within 900 m: first mover, but validate demand on the ground.' } : {}) };
+  }).sort((a, b) => (b.opportunity - a.opportunity) || ((a.competitor_count ?? 99) - (b.competitor_count ?? 99)) || ((b.peak || 0) - (a.peak || 0)) || ((b.anchors?.length || 0) - (a.anchors?.length || 0)));
+  const seen = {};
+  for (const r of ranked) { const n = r.neighborhood; if (n) (seen[n] ||= []).push(r); }
+  for (const group of Object.values(seen)) {
+    if (group.length < 2) continue;
+    const lat0 = group.reduce((t, r) => t + r.lat, 0) / group.length, lon0 = group.reduce((t, r) => t + r.lon, 0) / group.length;
+    for (const r of group) {
+      const dLat = r.lat - lat0, dLon = r.lon - lon0;
+      const dir = Math.abs(dLat) >= Math.abs(dLon) ? (dLat >= 0 ? 'north' : 'south') : (dLon >= 0 ? 'east' : 'west');
+      r.neighborhood = `${r.neighborhood} (${dir})`;
+    }
+  }
+  return ranked;
+}
 
 const BASELINE_PROMPT = `You are a helpful assistant. A founder asks for advice. Answer from general knowledge only in ~120 words: which neighbourhood should they open in, and what should their opening week look like?`;
 
@@ -94,15 +123,7 @@ export async function runScout(input, { qloo, llm, store, emit = () => {}, fetch
     Promise.all(hot.hotspots.slice(0, 3).map(async h => ({ ...h, ...(await tools.scout_hotspot({ lat: h.lat, lon: h.lon, entity_ids: ids, category_tag: concept.category?.id })) }))));
 
   // 7. RANK — taste concentration vs. saturation of the same category.
-  const maxComp = Math.max(1, ...scouted.map(s => s.competitor_count || 0));
-  const ranked = scouted
-    .map(s => {
-      const saturation = s.competitor_count == null ? 0.5 : s.competitor_count / maxComp;
-      const opportunity = +(0.65 * s.score + 0.35 * (1 - saturation)).toFixed(3);
-      const label = s.competitor_count == null ? 'unknown supply' : s.competitor_count <= 3 ? 'white space' : saturation > 0.75 ? 'proven but crowded' : 'healthy demand';
-      return { ...s, opportunity, label };
-    })
-    .sort((a, b) => b.opportunity - a.opportunity);
+  const ranked = rankHotspots(scouted);
   emit({ type: 'step', name: 'rank', status: 'done', label: 'Ranking hotspots: taste concentration vs. category saturation', summary: ranked.map(r => `${r.neighborhood || 'area'} ${Math.round(r.opportunity * 100)}`).join(' · ') });
 
   const evidence = {
@@ -111,7 +132,7 @@ export async function runScout(input, { qloo, llm, store, emit = () => {}, fetch
     category: concept.category, vibe_tags: concept.vibes.map(v => v.name),
     taste_dna: Object.fromEntries(Object.entries(dna.groups).map(([k, v]) => [k, v.map(t => t.name)])),
     audience: audience,
-    neighborhoods: ranked.map(r => ({ name: r.neighborhood, opportunity: r.opportunity, label: r.label, competitors_nearby: r.competitor_count, anchors: r.anchors.map(a => `${a.name}${a.tags.length ? ` (${a.tags.join(', ')})` : ''}`) })),
+    neighborhoods: ranked.map(r => ({ name: r.neighborhood, opportunity: Math.round(r.opportunity * 100), label: r.label, competitors_nearby: r.competitor_count, anchors: r.anchors.map(a => `${a.name}${a.tags.length ? ` (${a.tags.join(', ')})` : ''}`) })),
     programming: Object.fromEntries(Object.entries(programming).map(([k, v]) => [k, v.map(e => e.name)])),
   };
 
@@ -160,8 +181,8 @@ export function fallbackBrief(ev) {
   const p = ev.programming;
   return {
     headline: `Open your ${ev.concept} in ${a?.name || 'the top hotspot'}: it is where ${ev.seeds.map(s => s.name).slice(0, 2).join(' and ')} fans concentrate in ${ev.city}.`,
-    pick: { neighborhood: a?.name, why: [`Top taste-opportunity score (${Math.round((a?.opportunity || 0) * 100)}/100, ${a?.label}).`, `${a?.competitors_nearby ?? '?'} ${ev.category?.name || 'similar'} venues nearby.`, a?.anchors?.[0] ? `Taste-matched anchor: ${a.anchors[0]}.` : ''].filter(Boolean) },
-    runner_up: b ? { neighborhood: b.name, why: `${b.label}, score ${Math.round(b.opportunity * 100)}.` } : null,
+    pick: { neighborhood: a?.name, why: [`Top taste-opportunity score (${a?.opportunity ?? 0}/100, ${a?.label}).`, `${a?.competitors_nearby ?? '?'} ${ev.category?.name || 'similar'} venues nearby.`, a?.anchors?.[0] ? `Taste-matched anchor: ${a.anchors[0]}.` : ''].filter(Boolean) },
+    runner_up: b ? { neighborhood: b.name, why: `${b.label}, score ${b.opportunity}/100.` } : null,
     positioning: `For people who love ${ev.seeds.map(s => s.name).join(', ')}.`,
     opening_week: [
       { night: 'Thu', idea: `Listening night: ${p.artists?.slice(0, 2).join(' + ') || 'curated set'}` },
