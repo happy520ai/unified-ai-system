@@ -65,3 +65,32 @@ test('ranking: all-zero competition, ties and duplicate neighbourhoods', () => {
   const dup = rankHotspots([h('Soho', 40.70, -74, 0.9, 5), h('Soho', 40.74, -74, 0.8, 5)]);
   assert.deepEqual(dup.map(r => r.neighborhood).sort(), ['Soho (north)', 'Soho (south)']);
 });
+
+import { runTour, scoreCity, orderRoute } from '../src/tour.js';
+
+test('orderRoute finds a shorter path than ranking order', () => {
+  const stops = [{ city: 'LA', lat: 34, lon: -118 }, { city: 'Berlin', lat: 52.5, lon: 13.4 }, { city: 'NY', lat: 40.7, lon: -74 }, { city: 'London', lat: 51.5, lon: -0.1 }];
+  const o = orderRoute(stops).map(s => s.city);
+  assert.ok(o.join() === 'LA,NY,London,Berlin' || o.join() === 'Berlin,London,NY,LA');
+});
+
+test('scoreCity is the mean of the best five venue affinities', () => {
+  assert.equal(scoreCity([{ affinity: 0.9 }, { affinity: 0.8 }, { affinity: 0 }]).score, 0.85);
+  assert.equal(scoreCity([]).score, 0);
+});
+
+test('tour router ranks cities by venue affinity and returns a route', async () => {
+  const aff = { 'POINT(-87.6298 41.8781)': 0.95, 'POINT(-0.1276 51.5072)': 0.7 };
+  const fake = {
+    search: async name => ({ results: [{ entity_id: 'a1', name, types: ['urn:entity:artist'], properties: {} }] }),
+    insights: async p => {
+      if (p['filter.type'] === 'urn:heatmap') { const [lon, lat] = p['filter.location'].match(/-?[\d.]+/g).map(Number); return { results: { heatmap: [cell(lat, lon, 1)] } }; }
+      const a = Object.entries(aff).find(([k]) => { const [x, y] = k.match(/-?[\d.]+/g).map(Number); return Math.abs(x - +p['filter.location'].match(/-?[\d.]+/g)[0]) < 0.01; })?.[1] ?? 0.5;
+      return { results: { entities: [{ name: `Venue ${a}`, properties: { neighborhood: 'Hood' }, tags: [], query: { affinity: a } }] } };
+    },
+  };
+  const r = await runTour({ artist: 'Mitski', cities: ['London', 'Chicago'], stops: 2 }, { qloo: fake, llm: null });
+  assert.equal(r.cities[0].city, 'Chicago');
+  assert.equal(r.route.stops.length, 2);
+  assert.match(r.note.headline, /Chicago/);
+});
