@@ -74,7 +74,7 @@ export default {
       if (!input.brief && !(input.city && input.seeds?.length)) return json({ error: 'Send {brief} or {city, seeds[]}' }, 400);
       if ((input.brief || '').length > 1200) return json({ error: 'Brief too long (max 1200 chars).' }, 400);
       const h = await hashKey({ b: (input.brief || '').trim().toLowerCase(), c: input.city, s: input.seeds });
-      return streamRun({ env, ctx, input, runKey: `run:v9:${h}`, reportId: `s${(await hashKey(`run:v9:${h}`)).slice(0, 11)}`, kind: 'scout', runner: runScout });
+      return streamRun({ env, ctx, input, runKey: `run:v10:${h}`, reportId: `s${(await hashKey(`run:v10:${h}`)).slice(0, 11)}`, kind: 'scout', runner: runScout });
     }
 
     if (url.pathname === '/api/tour' && request.method === 'POST') {
@@ -82,7 +82,7 @@ export default {
       if (!input.artist && !input.seeds?.length) return json({ error: 'Send {artist, cities?[], stops?}' }, 400);
       if (String(input.artist || '').length > 120) return json({ error: 'Artist name too long.' }, 400);
       const h = await hashKey({ a: String(input.artist || '').trim().toLowerCase(), s: input.seeds, c: input.cities, n: input.stops });
-      return streamRun({ env, ctx, input, runKey: `tour:v4:${h}`, reportId: `t${(await hashKey(`tour:v4:${h}`)).slice(0, 11)}`, kind: 'tour', runner: runTour });
+      return streamRun({ env, ctx, input, runKey: `tour:v5:${h}`, reportId: `t${(await hashKey(`tour:v5:${h}`)).slice(0, 11)}`, kind: 'tour', runner: runTour });
     }
 
     const rep = /^\/api\/report\/([st][0-9a-f]{11})$/.exec(url.pathname);

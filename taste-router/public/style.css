@@ -127,5 +127,6 @@ ul.plain{padding-left:18px;margin:0}ul.plain li{margin:4px 0}
 .story{font:400 18px/1.6 Fraunces,serif;margin:0;max-width:880px}.night .muted{color:#cbbfb1}.night b{color:#fff}
 .night-row{display:flex;gap:18px;align-items:flex-start}.night-row img{width:120px;height:120px;border-radius:12px;object-fit:cover;flex:0 0 120px}
 .belong{margin:0;font:italic 14.5px/1.4 Fraunces,serif;color:var(--acc2)}
+.belong-facts{display:block;margin-top:4px;font:normal 11.5px/1.35 system-ui,sans-serif;color:var(--muted,#7a7066);letter-spacing:.01em}
 @media (max-width:900px){.regulars{grid-template-columns:1fr}.night-row{flex-direction:column}}
 @media print{.regulars{grid-template-columns:repeat(3,1fr)}.night{background:#fff!important;color:var(--ink)!important;border:1px solid var(--line)}.night .kicker{color:var(--acc)}.night b{color:var(--ink)}.avatar{-webkit-print-color-adjust:exact;print-color-adjust:exact}}

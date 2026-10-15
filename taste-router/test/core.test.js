@@ -125,3 +125,59 @@ test('follow-up chat: rescore tool uses 0 Qloo calls and stays grounded in store
   assert.match(seen[1][1].content, /Deep venue/); // the answer step sees the stored evidence
   assert.equal(chatEvidence(report.result).neighborhoods[0].taste_fit, report.result.neighborhoods[0].fit);
 });
+
+import { mergeStory, storyIssues, belongLine, fallbackStory } from '../src/agent.js';
+import { allowedKit, groundingIssues } from '../src/grounding.js';
+
+const storyEv = () => ({
+  city: 'New York', concept: 'vinyl bar', category: { name: 'Wine Bar' }, seeds: [{ name: 'Khruangbin' }],
+  taste_dna: { menu: ['Pork Buns'] },
+  programming_full: { artists: [{ name: 'Rhye' }], films: [{ name: 'Before Sunrise' }], brands: [{ name: 'Le Labo Fragrances' }], books: [{ name: 'Eating Animals' }] },
+  neighborhoods_full: [
+    { neighborhood: 'Long Island City', fit: 71, fit_parts: { taste: 0.77, overlap: 0.76, space: 0.58 }, competitor_count: 21, label: 'healthy demand', anchors: [{ name: 'MoMA PS1' }, { name: 'SculptureCenter' }] },
+    { neighborhood: 'Bushwick', fit: 63, fit_parts: { taste: 0.87, overlap: 0.75, space: 0.2 }, competitor_count: 40, label: 'proven but crowded', anchors: [{ name: 'House of Yes' }, { name: 'Molasses Books' }] },
+    { neighborhood: 'Ridgewood', fit: 70, fit_parts: { taste: 0.6, overlap: 0.7, space: 1 }, competitor_count: 0, label: 'white space', anchors: [] },
+  ],
+});
+const storyKits = [{ loves: 'Khruangbin', listens: { name: 'Rhye' }, watches: { name: 'Before Sunrise' }, wears: { name: 'Le Labo Fragrances' }, reads: { name: 'Eating Animals' }, eats: 'Pork Buns', hangout: { name: 'MoMA PS1', neighborhood: 'Long Island City' }, age: { band: '35–44', lift: 17 } }];
+
+test('grounding: food, drink and brand nouns outside the Qloo kit are caught', () => {
+  const A = allowedKit(storyEv(), storyKits);
+  assert.deepEqual(groundingIssues('Maya wanders MoMA PS1 with Rhye on, orders pork buns and wears Le Labo.', A, ['Maya']), []);
+  const bad = groundingIssues('Maya sips a cold brew from Starbucks before heading to Joe’s Pub with Rhye on.', A, ['Maya']);
+  assert.ok(bad.includes('cold brew') && bad.includes('starbucks'));
+  assert.ok(bad.some(t => /Joe/.test(t)));
+  assert.deepEqual(groundingIssues('Thursday nights, they wait for Before Sunrise.', A, []), []);
+});
+
+test('story: invented details are replaced by deterministic Qloo-only copy; belong lines use each hood\'s own evidence', () => {
+  const ev = storyEv();
+  const raw = {
+    regulars: [{ name: 'Maya', portrait: 'Maya starts every morning with a cold brew and a croissant, then drifts to MoMA PS1 with Rhye playing, thinking about Before Sunrise all day long.', quote: 'Do you do oat milk?' }],
+    opening_night: 'You open the door. Maya walks in with a cold brew, Rhye plays, pork buns fly out of the kitchen and the room hums with the people you dreamed about for years and years.',
+    belong: [{ neighborhood: 'Long Island City', line: 'MoMA PS1 is around the corner and the crowd already shares your taste.' }, { neighborhood: 'Bushwick', line: 'People who love what you love gather here.' }],
+    verdict_line: 'Your people are already here.', writer: 'test',
+  };
+  assert.ok(storyIssues(raw, storyKits, ev).includes('cold brew'));
+  const s = mergeStory(raw, storyKits, ev);
+  const all = [s.regulars[0].portrait, s.regulars[0].quote, s.opening_night, ...s.belong.map(b => b.line)].join(' ');
+  assert.doesNotMatch(all, /cold brew|croissant|oat milk/i);
+  assert.equal(s.regulars[0].name, 'Maya');
+  assert.match(s.regulars[0].portrait, /Rhye|Before Sunrise|MoMA PS1/);
+  assert.deepEqual(storyIssues({ ...s, regulars: s.regulars }, storyKits, ev), []);
+  assert.equal(s.belong[0].writer, 'llm');
+  assert.equal(s.belong[1].writer, 'deterministic'); // generic line rejected
+  assert.match(s.belong[1].line, /House of Yes/); assert.match(s.belong[1].line, /40 wine bars/);
+  assert.match(s.belong[2].line, /not a single other wine bar|60th percentile/); // no anchors: built from taste depth + white space
+  for (const b of s.belong) assert.doesNotMatch(b.line, /People who love what you love already gather here/);
+  assert.equal(s.belong[1].facts.competitors, 40);
+});
+
+test('belongLine never returns generic copy and fallback story only names kit items', () => {
+  const ev = storyEv();
+  const lines = ev.neighborhoods_full.map(h => belongLine({ name: h.neighborhood, fit: h.fit, parts: h.fit_parts, competitors: h.competitor_count, label: h.label, anchors: h.anchors.map(a => a.name) }, { city: 'New York', category: 'Wine Bar' }));
+  assert.equal(new Set(lines).size, 3);
+  lines.forEach(l => assert.match(l, /Taste-Fit \d+\/100/));
+  const fb = fallbackStory(ev, storyKits);
+  assert.deepEqual(storyIssues(fb, storyKits, ev), []);
+});

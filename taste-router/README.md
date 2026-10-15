@@ -46,7 +46,8 @@ brief ─▶ PLAN (LLM: concept, city, 3–5 cultural refs)
                saturation = ½·relative to the other hotspots + ½·absolute (50 venues = saturated)
                ties → fewer competitors → stronger taste peak → more anchors; duplicate names get a compass suffix
       ─▶ WRITE (LLM writes the launch brief from Qloo evidence only; deterministic fallback)
-      ─▶ STORY in parallel: 3 "regulars" from deterministic Qloo kits + opening night (retries if thin or gendered)
+      ─▶ STORY in parallel: 3 "regulars" from deterministic Qloo kits + opening night + per-hood belonging lines
+         (grounding validator: retries if thin, gendered or naming anything outside the Qloo kit; Qloo-only fallback)
       ─▶ SAVE  report permalink /r/<id>; ASK follow-ups grounded on the stored evidence
 ```
 
@@ -71,7 +72,7 @@ Every step streams to the UI as an auditable trace (with a live Qloo-call counte
 ## Features
 
 - **Taste-Fit Score (0–100) and a verdict card** ("Your people are here" / "Worth a visit" / "A harder road"): 40% *taste depth* (mean Qloo heatmap affinity within 1.5 km of the hotspot), 30% *audience overlap* (mean Qloo affinity of the top-3 taste-matched venues within 900 m), 30% *white space* (1 − category saturation). The card shows the three parts, the lead over #2 and the evidence behind it.
-- **Meet your regulars**: three portraits of the people who will walk in. Their ingredients are chosen deterministically from Qloo (an over-indexed age band from `urn:demographics`, an artist, film, brand, book from cross-domain insights, a dish from the taste DNA, a real venue near the #1 hotspot); the LLM only writes prose around them, without assuming gender. Plus an **Opening night** story and a **"why you'll belong here"** line per neighbourhood.
+- **Meet your regulars**: three portraits of the people who will walk in. Their ingredients are chosen deterministically from Qloo (an over-indexed age band from `urn:demographics`, an artist, film, brand, book from cross-domain insights, a dish from the taste DNA, a real venue near the #1 hotspot); the LLM only writes prose around them, without assuming gender, and a grounding validator rejects any concrete noun that is not in that run's Qloo results (no invented "cold brew"). Plus an **Opening night** story and a **"why you'll belong here"** line per neighbourhood, built from that neighbourhood's own anchors, audience overlap, competitor count and Taste-Fit (the evidence is shown under each line).
 - **Ranked neighbourhoods** with "white space / healthy demand / proven but crowded" labels, competitor counts within 900 m and taste-matched anchor venues.
 - **Follow-up chat** on any finished report ("What about a smaller budget?", "Compare #1 and #2", "I care most about low competition"). The answer uses only the stored evidence plus at most one tool: a deterministic Taste-Fit re-score with new weights (0 Qloo calls) or a Qloo lookup of taste-matched venues with a given tag, e.g. *inexpensive*, around each hotspot (≤ 4 cached calls).
 - **Shareable permalink** (`/r/<id>`, kept 120 days) and a print-ready **PDF report**.
@@ -90,6 +91,7 @@ Every step streams to the UI as an auditable trace (with a live Qloo-call counte
 - `src/agent.js` — the agent loop (plan, ground, reflect, fan-out, adapt, scout, rank, write) emitting step events.
 - `src/tools.js` — Qloo-backed tools with tool specs.
 - `src/qloo.js` — dependency-free Qloo client with a 4 req/s queue, retries and a pluggable persistent cache (the hackathon key allows 5 req/s and 10k/month).
+- `src/grounding.js` — noun-level grounding validator: rejects story copy that names a drink, dish, brand, artist, film, book, venue or place not in that run's Qloo results.
 - `src/ask.js` — grounded follow-up chat (tool router → re-score or Qloo venue lookup → answer).
 - `src/llm.js` — Cloudflare Workers AI (Llama 3.3 70B for planning/briefs, gpt-oss-120b for the regulars, opening night and chat; free tier) or any OpenAI-compatible endpoint.
 - `src/geo.js` — heatmap clustering; `src/geocode.js` — city window via OpenStreetMap Nominatim.
