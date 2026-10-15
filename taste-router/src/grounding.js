@@ -66,3 +66,27 @@ export function groundingIssues(text, allowed, names = []) {
   }
   return [...out];
 }
+
+// Activities and identities the copy must not invent (allowed only if the same word is in the Qloo kit).
+export const INVENTED = ['hike', 'hikes', 'hiking', 'trail', 'trek', 'marathon', 'jog', 'jogging', 'gym', 'yoga', 'road trip', 'road trips', 'office', 'commute', 'boss', 'coworker', 'queer', 'gay', 'lesbian', 'straight', 'married', 'wife', 'husband', 'girlfriend', 'boyfriend', 'kids', 'children', 'baby'];
+const RE_ESC = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Role check: items used in the wrong role ("unwind at Outside Voices" for a brand, "sip aguachile" for a dish),
+ * plus invented activities/identities. `kits` give the brands and dishes of this run.
+ */
+export function roleIssues(text, kits = [], allowed = { text: '' }) {
+  const t = String(text || '').toLowerCase().replace(/[’`]/g, "'");
+  if (!t.trim()) return [];
+  const out = new Set();
+  for (const k of kits) {
+    const brand = k?.wears?.name?.toLowerCase();
+    if (brand && new RegExp(`\\b(at|to|into|inside|visits?|visiting|heads? to|heading to)\\s+(the\\s+)?${RE_ESC(brand)}`).test(t)) out.add(`brand as a place: ${k.wears.name}`);
+    const dish = k?.eats?.toLowerCase();
+    if (dish && new RegExp(`\\b(sip|sips|sipping|drinks?|drinking)\\s+(\\w+\\s+){0,3}${RE_ESC(dish)}`).test(t)) out.add(`dish sipped: ${k.eats}`);
+  }
+  for (const w of INVENTED) {
+    if (new RegExp(`(^|[^a-z])${RE_ESC(w)}([^a-z]|$)`).test(t) && !new RegExp(`(^|[^a-z])${RE_ESC(w)}`).test(allowed.text || '')) out.add(w);
+  }
+  return [...out];
+}

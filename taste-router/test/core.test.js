@@ -181,3 +181,19 @@ test('belongLine never returns generic copy and fallback story only names kit it
   const fb = fallbackStory(ev, storyKits);
   assert.deepEqual(storyIssues(fb, storyKits, ev), []);
 });
+
+import { dishName, regularKits } from '../src/agent.js';
+import { roleIssues } from '../src/grounding.js';
+
+test('roles: brands are not places, dishes are not sipped, no invented activities; dish names read naturally', () => {
+  const A = allowedKit(storyEv(), storyKits);
+  const k = [{ ...storyKits[0], wears: { name: 'Outside Voices' }, eats: 'aguachile' }];
+  assert.ok(roleIssues('After a trek, they unwind at Outside Voices.', k, A).some(x => /brand as a place/.test(x)));
+  assert.ok(roleIssues('They sip aguachile on the stoop.', k, A).some(x => /dish sipped/.test(x)));
+  assert.ok(roleIssues('Saturday mornings hiking the lakefront.', k, A).includes('hiking'));
+  assert.deepEqual(roleIssues('They wear Outside Voices and order aguachile at MoMA PS1.', k, A), []);
+  assert.equal(dishName('Fish Chips'), 'fish and chips');
+  assert.equal(dishName('French Fries'), 'fries');
+  const kits = regularKits({ seeds: [{ name: 'X' }], taste_dna: { menu: ['French Fries', 'Fries', 'Fish Chips'] }, programming_full: {}, audience: {} });
+  assert.deepEqual(kits.map(x => x.eats), ['fries', 'fish and chips', 'fries']);
+});
