@@ -1,5 +1,6 @@
 // Tour Router: given an artist (or any taste seeds) and a list of candidate cities, rank the cities by how
 // strongly Qloo's heatmap says that taste concentrates there, then order the best stops into the shortest route.
+import { allowedKit, groundingIssues } from './grounding.js';
 import { makeTools } from './tools.js';
 import { geocodeCity } from './geocode.js';
 import { haversineKm } from './geo.js';
@@ -112,7 +113,13 @@ export async function runTour(input, { qloo, llm, store, emit = () => {}, fetchI
   const evidence = { fan_night_plan: { city: night.city, neighborhood: night.neighborhood, room: night.room?.name, local_openers: night.openers.map(o => o.name) }, artist: seeds.resolved.map(s => s.name), ranked_markets: cities.map(c => ({ city: c.city, taste_fit: Math.round(c.score * 100), taste_peak: Math.round(c.peak * 100), hot_neighborhood: c.neighborhood, venues: (c.anchors || []).slice(0, 3).map(a => a.name) })), route: route.order, route_km: route.km, ranking_order_km: route.rank_order_km };
   const note = await step('write', 'Writing the routing note from Qloo evidence', async () => {
     if (llm) {
-      try { const b = parseJSON(await llm.chat([{ role: 'system', content: TOUR_PROMPT }, { role: 'user', content: JSON.stringify(evidence) }], { maxTokens: 700, temperature: 0.6, ...(storyModel ? { model: storyModel } : {}) })); if (b?.headline) return { ...b, writer: llm.name, __summary: b.headline }; }
+      try { const b = parseJSON(await llm.chat([{ role: 'system', content: TOUR_PROMPT }, { role: 'user', content: JSON.stringify(evidence) }], { maxTokens: 700, temperature: 0.6, ...(storyModel ? { model: storyModel } : {}) })); if (b?.headline) {
+        // Same grounding guard as the scout story: the fan night may only name things from the Qloo evidence.
+        const allowed = allowedKit({ city: evidence.fan_night_plan.city, seeds: evidence.artist.map(name => ({ name })), neighborhoods: evidence.ranked_markets.map(m => ({ name: m.hot_neighborhood, anchors: m.venues })), programming: { openers: evidence.fan_night_plan.local_openers, room: [evidence.fan_night_plan.room], hood: [evidence.fan_night_plan.neighborhood], cities: evidence.ranked_markets.map(m => m.city) } });
+        const bad = groundingIssues(String(b.fan_night || ''), allowed);
+        if (bad.length) { emit({ type: 'note', text: `Fan night named things Qloo never returned (${bad.slice(0, 4).join(', ')}); using the Qloo-only version.` }); b.fan_night = fallbackTourNote(evidence).fan_night; }
+        return { ...b, writer: llm.name, __summary: b.headline };
+      } }
       catch (e) { emit({ type: 'note', text: `LLM writer unavailable (${e.message}); using deterministic note.` }); }
     }
     const f = fallbackTourNote(evidence); return { ...f, __summary: f.headline };

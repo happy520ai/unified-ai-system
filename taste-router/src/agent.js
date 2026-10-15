@@ -4,6 +4,7 @@ import { makeTools } from './tools.js';
 import { geocodeCity } from './geocode.js';
 import { parseJSON } from './llm.js';
 import { haversineKm } from './geo.js';
+import { allowedKit, groundingIssues, roleIssues } from './grounding.js';
 
 const PLAN_PROMPT = `You are the planning step of TasteRouter, an agent that finds the city neighbourhood whose residents already love a business concept's taste.
 Read the founder's brief and return ONLY JSON:
@@ -86,16 +87,24 @@ export function verdictCard(ranked, cellCount = 0) {
 }
 
 const STORY_PROMPT = `You are TasteRouter's storyteller, writing for a small, independent founder who is about to risk their savings on a dream place. Help them FEEL who their future regulars are, using ONLY the Qloo evidence given.
-You get one "kit" per regular: the exact artist, film, brand, book, dish and venue Qloo says this audience loves, plus an age band where Qloo measured an over-index. Write a human portrait around each kit, like a novelist sketching a real neighbour: a small habit, a moment in their week, why they would be glad your place exists. Use at least three items from their kit. Do not add any other artist, film, brand, venue, dish, number or place. Never state or imply gender: use the first name and "they".
+You get one "kit" per regular: the exact artist, film, brand, book, dish and venue Qloo says this audience loves, plus an age band where Qloo measured an over-index. Write a human portrait around each kit, like a novelist sketching a real neighbour: a small habit, a moment in their week, why they would be glad your place exists. Use at least three items from their kit. Every concrete noun you name (drink, dish, brand, artist, film, book, venue, place) must come from the evidence: do not add any other artist, film, brand, venue, dish, drink, number or place. No coffee, latte, tea, wine, beer, cocktails, snacks or shops unless they are literally in the evidence; describe moments, habits and feelings instead. Never state or imply gender: use the first name and "they".
+Use every item ONLY in its role: an artist is listened to, a film is watched, a brand is worn or carried (never a place to go), a book is read, a dish is eaten (never sipped; write it in lowercase, e.g. "fish and chips"), a venue is a place they go. Each regular uses their OWN kit, not another regular's. Do not invent activities, jobs, sports, trips, relationships or identities (no hiking, marathons, road trips, offices, sexuality); small everyday moments only. Plain, natural English: no wordplay on the concept.
 Style: warm, concrete, unsentimental. Example of the register (do not reuse): "Saturday mornings start at the flea market and end with a used paperback; they have been looking for somewhere quiet enough to finish it."
 Return ONLY JSON:
 {"regulars":[{"name":"a believable first name","portrait":"35-50 words","quote":"8-16 words they might say to the founder on their first visit"}],
  "opening_night":"90-120 words, second person ('you'), present tense: the first evening of the founder's place in the #1 neighbourhood. The nerves before the door opens, the regulars arriving by name, what is playing, what they order, the moment the founder realises these are their people. Only names from the evidence.",
- "belong":[{"neighborhood":"exact neighbourhood name","line":"one warm sentence (15-28 words) on why the founder will belong there, naming one of that neighbourhood's venues"}],
+ "belong":[{"neighborhood":"exact neighbourhood name","line":"one warm sentence (15-30 words) on why the founder will belong there, built from THAT neighbourhood's own evidence: name one of its own venues and one of its facts (taste-fit, competitors nearby)"}],
  "verdict_line":"8-14 words, warm, about the #1 neighbourhood, e.g. 'Your people are already here; they just need somewhere to gather.'"}
 "regulars" has exactly one entry per kit, in order. "belong" has one entry per neighbourhood.`;
 
 const AGE_LABEL = { '24_and_younger': 'under 25', '25_to_29': '25–29', '30_to_34': '30–34', '35_to_44': '35–44', '45_to_54': '45–54', '55_and_older': '55+' };
+const DISH_FIX = { 'fish chips': 'fish and chips', 'french fries': 'fries', 'mac cheese': 'mac and cheese', 'pb j': 'pb&j' };
+/** Qloo menu tags read like "Fish Chips" / "French Fries": turn them into plain, lowercase dish names. */
+export function dishName(d) {
+  const t = String(d || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  return DISH_FIX[t] || t;
+}
+
 /** Deterministic, Qloo-only ingredients for 3 "regulars": the LLM may only write prose around them. */
 export function regularKits(ev, n = 3) {
   const P = ev.programming_full || {};
@@ -103,7 +112,7 @@ export function regularKits(ev, n = 3) {
   const ages = Object.entries(ev.audience?.skew?.age || {}).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]); // only bands Qloo says over-index
   const top = ev.neighborhoods_full?.[0];
   const anchors = top?.anchors || [];
-  const menu = ev.taste_dna?.menu || [];
+  const menu = (ev.taste_dna?.menu || []).map(dishName).filter((d, i, a) => d && !/^(menu|food|foods|drinks?|dishes|cuisine|snacks?|meals?)$/.test(d) && a.indexOf(d) === i);
   const artists = [...(P.local_lean_artists || []), ...(P.artists || [])].filter((e, i, a) => a.findIndex(x => x.name === e.name) === i);
   return Array.from({ length: n }, (_, i) => ({
     age: ages[i] ? { band: AGE_LABEL[ages[i][0]] || ages[i][0].replaceAll('_', ' '), lift: Math.round(ages[i][1] * 100) } : null,
@@ -112,33 +121,127 @@ export function regularKits(ev, n = 3) {
     loves: ev.seeds[i % ev.seeds.length]?.name,
   }));
 }
-const slimKit = k => ({ age_band: k.age?.band, age_lift_pct: k.age?.lift, already_loves: k.loves, listens_to: k.listens?.name, watches: k.watches?.name, wears_or_uses: k.wears?.name, reads: k.reads?.name, orders: k.eats, hangs_out_at: k.hangout?.name });
+const slimKit = k => ({ age_band: k.age?.band, age_lift_pct: k.age?.lift, already_loves: k.loves, listens_to_artist: k.listens?.name, watches_film: k.watches?.name, wears_or_carries_brand: k.wears?.name, reads_book: k.reads?.name, eats_dish: k.eats, hangs_out_at_venue: k.hangout?.name });
 // The persona copy never assumes a gender (Qloo's gender skew for these audiences is ~0).
+const STORY_LLM = false;
 export const GENDERED = /\b(she|he|her|his|him|hers|herself|himself)\b/i;
 const NAMES = ['Mara', 'Jules', 'Sam', 'Noor', 'Theo', 'Ren'];
-export function fallbackStory(ev, kits) {
-  const top = ev.neighborhoods[0];
+const list = xs => xs.length <= 1 ? (xs[0] || '') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`;
+const plural = w => /s$/i.test(w) ? w : /y$/i.test(w) && !/[aeiou]y$/i.test(w) ? w.slice(0, -1) + 'ies' : `${w}s`;
+const ordinal = n => `${n}${(n % 100 >= 11 && n % 100 <= 13) ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th'}`;
+
+/** The facts each neighbourhood's belonging line is built from: its own anchors, Taste-Fit parts and competitor count. */
+export function hoodFacts(ev) {
+  const full = ev.neighborhoods_full;
+  if (full?.length) return full.map(h => ({ name: h.neighborhood, fit: h.fit, parts: h.fit_parts || {}, competitors: h.competitor_count, label: h.label, anchors: (h.anchors || []).map(a => String(a.name || '').replace(/ \(.*$/, '')).filter(Boolean) }));
+  return (ev.neighborhoods || []).map(h => ({ name: h.name, fit: h.taste_fit, parts: h.fit_parts || {}, competitors: h.competitors_nearby, label: h.label, anchors: (h.anchors || []).map(a => String(a).replace(/ \(.*$/, '')) }));
+}
+/** Deterministic, evidence-only "why you'll belong here" line: never generic copy. */
+export function belongLine(f, { city, category } = {}) {
+  const cat = (category || 'similar place').toLowerCase();
+  const c = f.competitors;
+  const comp = c == null ? null : c === 0 ? `not a single other ${cat}` : `${c >= 50 ? '50+' : c} ${c === 1 ? cat : plural(cat)}`;
+  const pct = f.parts?.taste != null ? Math.round(f.parts.taste * 100) : null;
+  const ov = f.parts?.overlap != null ? Math.round(f.parts.overlap * 100) : null;
+  const [a, b] = f.anchors;
+  const where = a ? (b ? `${a} and ${b}` : a) : null;
+  const depth = pct != null ? `this corner of ${city || 'the city'} sits in the ${ordinal(pct)} percentile for your taste` : null;
+  const fit = f.fit != null ? ` (Taste-Fit ${f.fit}/100)` : '';
+  if (where && f.label === 'white space') return `Your crowd already orbits ${where}, yet Qloo finds ${c ? 'only ' : ''}${comp ?? 'almost no'} within 900 m: you would be the place they have been missing${fit}.`;
+  if (where && f.label === 'proven but crowded') return `The love is real here: ${depth || `your crowd gathers at ${where}`}${depth ? `, and ${where} already draw${b ? '' : 's'} your people` : ''}, but ${comp} within 900 m means you will need a sharper reason to exist${fit}.`;
+  if (where) return `Your people already gather at ${where}${ov != null ? ` (${ov}% audience overlap)` : ''}; ${comp ? `${comp} within 900 m prove the demand without crowding you out` : depth || 'the taste runs deep'}${fit}.`;
+  if (depth) return `No taste-matched venue stood out, but ${depth}${comp ? ` and there ${c === 1 ? 'is' : 'are'} ${comp} within 900 m` : ''}: you would be building the room your crowd lacks${fit}.`;
+  return `Qloo measured a Taste-Fit of ${f.fit ?? '?'}/100 here${comp ? ` with ${comp} within 900 m` : ''}; walk it on a weeknight before you decide.`;
+}
+
+/** Deterministic portraits and opening night from the Qloo kits only (used when LLM copy fails validation). */
+export function fallbackStory(ev, kits, names = NAMES) {
+  const NAMES = names;
+  const facts = hoodFacts(ev);
+  const top = facts[0];
+  const ageText = a => { if (!a) return null; const m = /^(\d+)\s*[–-]\s*(\d+)$/.exec(a.band); return m ? `somewhere between ${m[1]} and ${m[2]}` : a.band; };
+  const regulars = kits.map((k, i) => {
+    const N = NAMES[i], age = ageText(k.age), bits = [];
+    if (i % 3 === 0) {
+      bits.push(`${N}${age ? ` is ${age}` : ''}${k.loves ? `${age ? ' and' : ''} has loved ${k.loves} for years` : age ? '' : ' is one of this crowd'}.`);
+      if (k.hangout) bits.push(`Most weeks you will find them around ${k.hangout.name}${k.listens ? `, ${k.listens.name} in their headphones` : ''}.`);
+      else if (k.listens) bits.push(`${k.listens.name} is what they play on the way home.`);
+      if (k.watches) bits.push(`${k.watches.name} is the film they press on every new friend.`);
+      if (k.eats) bits.push(`Put ${k.eats} on the menu and they will order before they take their coat off.`);
+    } else if (i % 3 === 1) {
+      bits.push(`${N} always has ${k.reads ? k.reads.name : 'a book'} in their bag${k.listens ? ` and ${k.listens.name} on repeat` : ''}.`);
+      if (k.watches) bits.push(`Sunday nights mean ${k.watches.name}, again, and they never mind.`);
+      if (k.wears) bits.push(`They have stuck with ${k.wears.name} for years: slow to trust anything new, and loyal for good once they do.`);
+      if (k.eats) bits.push(`If your ${k.eats} ${/s$/.test(k.eats) && !/ss$/.test(k.eats) ? 'are' : 'is'} good, they will tell everyone.`);
+    } else {
+      bits.push(`${N}${k.hangout ? ` lives a few streets from ${k.hangout.name}` : ' moved here for the neighbourhood, not the rent'} and walks past your door most evenings.`);
+      if (k.listens) bits.push(`${k.listens.name} is their soundtrack${k.reads ? `, ${k.reads.name} their current read` : ''}.`);
+      if (age && k.age.lift >= 10) bits.push(`They are ${age}, an age group Qloo sees leaning into this taste (+${k.age.lift}%).`);
+      if (k.eats) bits.push(`If ${/(platter|burger|bowl|plate|sandwich|bun|taco|roll|pie|salad)$/.test(k.eats) ? 'there is a' + (/^[aeiou]/.test(k.eats) ? 'n ' : ' ') + k.eats : k.eats + (/s$/.test(k.eats) && !/ss$/.test(k.eats) ? ' are' : ' is')} on your menu, you have made a regular.`);
+    }
+    const quote = i % 3 === 0 ? (k.watches ? `Tell me you are going to screen ${k.watches.name} one night.` : 'I have been waiting for a place like this.')
+      : i % 3 === 1 ? (k.listens ? `If you ever play ${k.listens.name}, I will be here every week.` : 'Is it always this quiet? I hope so.')
+      : 'I walk past here every day. I hoped someone would open something like this.';
+    return { name: N, portrait: bits.join(' '), quote };
+  });
+  const [k0, k1, k2] = kits;
+  const night = top ? [
+    `It is your first night in ${top.name}. You have checked the lights three times, and your hands still will not stop shaking as you unlock the door.`,
+    `${NAMES[0]} is first in${k0?.listens ? `, and smiles when ${k0.listens.name} comes on` : ''}${k0?.eats ? `, then asks for the ${k0.eats}` : ''}.`,
+    k1 ? `${NAMES[1]} arrives with ${k1.reads ? k1.reads.name : 'a book'} under one arm${k1.watches ? `, already talking about ${k1.watches.name}` : ''}.` : '',
+    k2 ? `${NAMES[2]} takes the corner seat, a few streets from home, and does not leave for hours.` : '',
+    `By nine the room is full of people who already love ${list(ev.seeds.map(s => s.name).slice(0, 2))}. Nobody here needed convincing. They found you because you made something for them, and for the first time in months you breathe out.`,
+  ].filter(Boolean).join(' ') : '';
   return {
-    regulars: kits.map((k, i) => ({ name: NAMES[i], portrait: `${k.age ? `${k.age.band}, ` : ''}already loves ${k.loves}${k.listens ? `, has ${k.listens.name} on repeat` : ''}${k.hangout ? ` and is often at ${k.hangout.name}` : ''}.`, quote: k.watches ? `Did I hear you're screening ${k.watches.name}?` : 'I have been waiting for a place like this.' })),
-    opening_night: top ? `It is your first night in ${top.name}. ${NAMES[0]} arrives early${kits[0]?.listens ? ` and smiles when ${kits[0].listens.name} comes on` : ''}. ${NAMES[1]} comes straight from ${kits[1]?.hangout?.name || 'around the corner'}. By nine the room is full of people who already love ${ev.seeds.map(s => s.name).slice(0, 2).join(' and ')}: they found you because you made something for them.` : '',
-    belong: ev.neighborhoods.map(h => ({ neighborhood: h.name, line: h.anchors?.length ? `Your crowd already spends its evenings at ${h.anchors.slice(0, 2).map(a => a.replace(/ \(.*$/, '')).join(' and ')}; you would be opening right next to them.` : 'People who love what you love already gather here.' })),
+    regulars, opening_night: night,
+    belong: facts.map(f => ({ neighborhood: f.name, line: belongLine(f, { city: ev.city, category: ev.category?.name }), writer: 'deterministic' })),
     verdict_line: 'Your people are already here: they just need somewhere to gather.',
     writer: 'deterministic',
   };
 }
-/** Keep the LLM honest: portraits/opening night may only mention names that exist in the evidence or kits. */
+
+/** Everything the story may say must pass this check: names only from the run's Qloo kit. */
+export function storyIssues(raw, kits, ev) {
+  if (!raw) return ['no story'];
+  const allowed = allowedKit(ev, kits);
+  const names = (raw.regulars || []).map(r => r?.name).filter(n => typeof n === 'string');
+  const out = [];
+  (raw.regulars || []).forEach(r => out.push(...groundingIssues(`${r?.portrait || ''} ${r?.quote || ''}`, allowed, names), ...roleIssues(`${r?.portrait || ''} ${r?.quote || ''}`, kits, allowed)));
+  out.push(...groundingIssues(raw.opening_night || '', allowed, names), ...roleIssues(raw.opening_night || '', kits, allowed));
+  (raw.belong || []).forEach(b => out.push(...groundingIssues(b?.line || '', allowed, names)));
+  return [...new Set(out)];
+}
+
+/** Keep the LLM honest: any field that is thin, gendered or names something outside the Qloo kit falls back to deterministic copy. */
 export function mergeStory(raw, kits, ev) {
-  const fb = fallbackStory(ev, kits);
+  const allowed = allowedKit(ev, kits);
+  const llmNames = kits.map((k, i) => { const n = raw?.regulars?.[i]?.name; return typeof n === 'string' && /^[A-Za-z' -]{2,20}$/.test(n) ? n : null; });
+  const spare = NAMES.filter(n => !llmNames.includes(n));
+  const regNames = llmNames.map(n => n || spare.shift());
+  const fb0 = fallbackStory(ev, kits, regNames);
+  const clean = t => typeof t === 'string' && !GENDERED.test(t) && !groundingIssues(t, allowed, regNames).length && !roleIssues(t, kits, allowed).length;
+  let swapped = 0;
+  const fb = fb0;
   const regs = kits.map((k, i) => {
     const r = raw?.regulars?.[i] || {};
-    const ok = typeof r.portrait === 'string' && r.portrait.split(/\s+/).length >= 12 && r.portrait.length < 420;
-    return { name: (typeof r.name === 'string' && /^[A-Za-z' -]{2,20}$/.test(r.name) ? r.name : fb.regulars[i].name), portrait: ok ? r.portrait : fb.regulars[i].portrait, quote: typeof r.quote === 'string' && r.quote.length < 140 ? r.quote : fb.regulars[i].quote, kit: k };
+    const ok = typeof r.portrait === 'string' && r.portrait.split(/\s+/).length >= 18 && r.portrait.length < 460 && new RegExp(`\\b${regNames[i]}\\b`).test(r.portrait) && clean(r.portrait);
+    const qok = typeof r.quote === 'string' && r.quote.length < 140 && clean(r.quote);
+    if (!ok) swapped++;
+    return { name: regNames[i], portrait: ok ? r.portrait : fb.regulars[i].portrait, quote: ok && qok ? r.quote : fb.regulars[i].quote, kit: k };
   });
-  const names = new Set(ev.neighborhoods.map(h => h.name));
-  const belong = ev.neighborhoods.map((h, i) => { const b = (raw?.belong || []).find(x => x?.neighborhood === h.name) || raw?.belong?.[i]; return { neighborhood: h.name, line: typeof b?.line === 'string' && b.line.length < 240 ? b.line : fb.belong[i].line }; }).filter(b => names.has(b.neighborhood));
-  const night = typeof raw?.opening_night === 'string' && raw.opening_night.length > 60 && raw.opening_night.length < 1100 ? raw.opening_night : fb.opening_night;
-  const vline = typeof raw?.verdict_line === 'string' && raw.verdict_line.length < 120 ? raw.verdict_line : fb.verdict_line;
-  return { regulars: regs, opening_night: night, belong, verdict_line: vline, writer: raw ? raw.writer : 'deterministic' };
+  const facts = hoodFacts(ev);
+  const belong = facts.map((f, i) => {
+    const b = (raw?.belong || []).find(x => x?.neighborhood === f.name) || null;
+    const own = f.anchors.some(a => b?.line?.toLowerCase().includes(a.toLowerCase()));
+    const others = facts.filter(g => g !== f).flatMap(g => g.anchors).filter(a => !f.anchors.includes(a));
+    const foreign = others.some(a => a.length > 3 && b?.line?.toLowerCase().includes(a.toLowerCase()));
+    const ok = b && typeof b.line === 'string' && b.line.length < 260 && own && !foreign && !/_|n['’]t fit|not a (good )?fit/i.test(b.line) && clean(b.line);
+    return { neighborhood: f.name, line: ok ? b.line : fb.belong[i].line, writer: ok ? 'llm' : 'deterministic', facts: { taste_fit: f.fit, taste_pct: f.parts?.taste != null ? Math.round(f.parts.taste * 100) : null, overlap_pct: f.parts?.overlap != null ? Math.round(f.parts.overlap * 100) : null, competitors: f.competitors, anchors: f.anchors.slice(0, 2) } };
+  });
+  // The opening night may only use names that survived: if any portrait was replaced, use the deterministic night too.
+  const nightOk = typeof raw?.opening_night === 'string' && raw.opening_night.length > 60 && raw.opening_night.length < 1100 && clean(raw.opening_night) && !swapped;
+  const vline = typeof raw?.verdict_line === 'string' && raw.verdict_line.length < 120 && clean(raw.verdict_line) ? raw.verdict_line : fb.verdict_line;
+  return { regulars: regs, opening_night: nightOk ? raw.opening_night : fb.opening_night, belong, verdict_line: vline, writer: raw ? raw.writer : 'deterministic', grounded: { portraits_replaced: swapped, night_replaced: !nightOk, belong_deterministic: belong.filter(b => b.writer === 'deterministic').length } };
 }
 
 const BASELINE_PROMPT = `You are a helpful assistant. A founder asks for advice. Answer from general knowledge only in ~120 words: which neighbourhood should they open in, and what should their opening week look like?`;
@@ -241,18 +344,28 @@ export async function runScout(input, { qloo, llm, store, emit = () => {}, fetch
     }),
     step('story', 'Meeting your future regulars', async () => {
       let raw = null;
-      if (llm) {
+      // Since v11 the human copy is composed only from the Qloo kits: LLM prose kept inventing activities and misusing items.
+      if (llm && STORY_LLM) {
         try {
-          const msgs = [{ role: 'system', content: STORY_PROMPT }, { role: 'user', content: JSON.stringify({ concept: evidence.concept, city: evidence.city, audience_note: evidence.audience_note, kits: kits.map(slimKit), neighborhoods: evidence.neighborhoods.map(n => ({ name: n.name, taste_fit: n.taste_fit, venues: n.anchors.slice(0, 3) })) }) }];
+          const msgs = [{ role: 'system', content: STORY_PROMPT }, { role: 'user', content: JSON.stringify({ concept: evidence.concept, city: evidence.city, audience_note: evidence.audience_note, kits: kits.map(slimKit), neighborhoods: evidence.neighborhoods.map(n => ({ name: n.name, taste_fit: n.taste_fit, competitors_within_900m: n.competitors_nearby, label: n.label, venues: n.anchors.slice(0, 3) })) }) }];
+          let best = null, bestScore = Infinity;
           for (let attempt = 0; attempt < 3; attempt++) {
-            raw = parseJSON(await llm.chat(msgs, { maxTokens: 1200, temperature: 0.7, ...(attempt < 2 && storyModel ? { model: storyModel } : {}) }).catch(() => ''));
+            raw = parseJSON(await llm.chat(msgs, { maxTokens: 1200, temperature: 0.7, ...(storyModel ? { model: storyModel } : {}) }).catch(() => ''));
             const thin = !raw?.regulars?.length || raw.regulars.length < kits.length || String(raw.opening_night || '').split(/\s+/).length < 60 || raw.regulars.some(r => String(r.portrait || '').split(/\s+/).length < 18) || GENDERED.test([...raw.regulars.map(r => `${r.portrait} ${r.quote}`), raw.opening_night].join(' '));
-            if (!thin) break;
+            const invented = raw?.regulars ? storyIssues(raw, kits, kitEv) : ['no story'];
+            const score = invented.length + (thin ? 3 : 0);
+            if (raw && score < bestScore) { best = raw; bestScore = score; }
+            if (!thin && !invented.length) break;
+            if (invented.length) {
+              emit({ type: 'note', text: `Story named things Qloo never returned (${invented.slice(0, 5).join(', ')}); rewriting with the Qloo kit only.` });
+              msgs.push({ role: 'assistant', content: JSON.stringify(raw) }, { role: 'user', content: `Rewrite the JSON. These are not in the Qloo evidence and must be removed: ${invented.join(', ')}. Name only items from the kits and neighbourhood venues.` });
+            }
           }
+          raw = best || raw; // the attempt with the fewest problems; mergeStory still swaps any bad field for Qloo-only copy
           if (raw) raw.writer = storyModel ? `workers-ai:${storyModel.split('/').pop()}` : llm.name;
         } catch { raw = null; }
       }
-      return mergeStory(raw, kits, evidence);
+      return mergeStory(raw, kits, kitEv);
     }),
   ]);
 

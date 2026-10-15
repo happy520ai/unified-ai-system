@@ -102,7 +102,7 @@ function render(r) {
       ${h.fit_parts ? partsHTML(h.fit_parts, true) : ''}
       <div>${h.verdict ? `<span class="pill ${vClass(h.verdict)}">${esc(h.verdict)}</span> ` : ''}<span class="pill ${h.label === 'white space' ? 'green' : h.label.includes('crowded') ? '' : 'grey'}">${esc(h.label)}</span> <span class="muted small">${h.competitor_count >= 50 ? '50+' : (h.competitor_count ?? '?')} ${esc(r.concept.category?.name || 'similar')} venues within 900 m · taste peak ${Math.round(h.peak * 100)}</span></div>
       ${i === 0 && b.pick?.why ? `<ul>${b.pick.why.map(w => `<li>${escC(w)}</li>`).join('')}</ul>` : ''}
-      ${belongOf(r, h) ? `<p class="belong">${esc(belongOf(r, h))}</p>` : ''}
+      ${belongOf(r, h) ? `<p class="belong">${esc(belongOf(r, h))}${belongFacts(r, h)}</p>` : ''}
       ${i === 1 && b.runner_up?.why ? `<p class="small">${escC(b.runner_up.why)}</p>` : ''}
       ${h.note ? `<p class="small note">${esc(h.note)}</p>` : ''}
       <div class="small"><b>Taste-matched anchors</b><ul>${h.anchors.slice(0, 4).map(a => `<li>${esc(a.name)} <span class="tags">${esc(a.tags.join(' · '))}</span></li>`).join('')}</ul></div>
@@ -308,6 +308,12 @@ const rid = /^\/r\/([st][0-9a-f]{11})$/.exec(location.pathname); if (rid) loadRe
 
 // ---------- The human layer: regulars, opening night, belonging ----------
 function belongOf(r, h) { return r.story?.belong?.find(b => b.neighborhood === h.neighborhood)?.line; }
+function belongFacts(r, h) {
+  const f = r.story?.belong?.find(b => b.neighborhood === h.neighborhood)?.facts;
+  if (!f) return '';
+  const bits = [f.anchors?.length ? `near ${f.anchors.join(' & ')}` : '', f.taste_pct != null ? `taste depth ${f.taste_pct}th pct` : '', f.overlap_pct != null ? `audience overlap ${f.overlap_pct}%` : '', f.competitors != null ? `${f.competitors >= 50 ? '50+' : f.competitors} competitors ≤900 m` : ''].filter(Boolean);
+  return bits.length ? `<span class="belong-facts" title="The Qloo evidence this line is built from">Qloo evidence: ${esc(bits.join(' · '))}</span>` : '';
+}
 function shelf(icon, label, e, sub) {
   if (!e) return '';
   const name = typeof e === 'string' ? e : e.name;
