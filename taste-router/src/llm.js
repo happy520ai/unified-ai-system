@@ -6,8 +6,15 @@ export function createLLM(env = {}, { fetchImpl = fetch } = {}) {
     const model = env.WORKERS_AI_MODEL || '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
     return {
       name: `workers-ai:${model.split('/').pop()}`,
-      async chat(messages, { maxTokens = 1200, temperature = 0.3 } = {}) {
-        const r = await env.AI.run(model, { messages, max_tokens: maxTokens, temperature });
+      // opts.model lets one step (e.g. the storyteller) use a different free Workers AI model.
+      async chat(messages, { maxTokens = 1200, temperature = 0.3, model: m = model } = {}) {
+        if (m.includes('gpt-oss')) {
+          const r = await env.AI.run(m, { input: messages, reasoning: { effort: 'low' }, max_output_tokens: maxTokens + 600, temperature });
+          if (typeof r?.output_text === 'string') return r.output_text;
+          const msg = (r?.output || []).filter(o => o.type === 'message').flatMap(o => o.content || []).map(c => c.text || '').join('');
+          return msg || (typeof r?.response === 'string' ? r.response : JSON.stringify(r));
+        }
+        const r = await env.AI.run(m, { messages, max_tokens: maxTokens, temperature });
         return typeof r?.response === 'string' ? r.response : JSON.stringify(r?.response ?? r);
       },
     };

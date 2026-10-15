@@ -17,3 +17,4 @@ id = "ed7f5063b5314157b967d93efc28a061"
 
 [vars]
 QLOO_API_URL = "https://hackathon.api.qloo.com"
+STORY_MODEL = "@cf/openai/gpt-oss-120b"
