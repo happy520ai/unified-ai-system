@@ -3,6 +3,7 @@
 import { createQloo } from './qloo.js';
 import { createLLM } from './llm.js';
 import { runScout } from './agent.js';
+import { runTour } from './tour.js';
 import STATIC from './static.gen.js';
 
 const kvStore = kv => kv && {
@@ -46,6 +47,38 @@ export default {
             const events = []; let calls = 0;
             const qloo = createQloo({ apiKey: env.QLOO_API_KEY, baseUrl: env.QLOO_API_URL || undefined, store, onCall: c => { calls++; send({ type: 'qloo_call', path: c.path, ms: c.ms, ok: c.ok, cached: !!c.cached }); } });
             const result = await runScout(input, { qloo, llm: createLLM(env), store, emit: ev => { if (ev.type !== 'result') { events.push(ev); send(ev); } } });
+            send({ type: 'result', result });
+            if (store) await store.put(runKey, { events: events.filter(e => e.type === 'step' && e.status !== 'start'), result, calls });
+          }
+        } catch (e) {
+          send({ type: 'error', error: String(e.message || e) });
+        } finally { await writer.close().catch(() => {}); }
+      })());
+      return new Response(readable, { headers: { 'content-type': 'application/x-ndjson; charset=utf-8', 'cache-control': 'no-store', 'access-control-allow-origin': '*' } });
+    }
+
+    if (url.pathname === '/api/tour' && request.method === 'POST') {
+      const input = await request.json().catch(() => ({}));
+      if (!input.artist && !input.seeds?.length) return json({ error: 'Send {artist, cities?[], stops?}' }, 400);
+      if (String(input.artist || '').length > 120) return json({ error: 'Artist name too long.' }, 400);
+      const store = kvStore(env.CACHE);
+      const runKey = `tour:v2:${await hashKey({ a: String(input.artist || '').trim().toLowerCase(), s: input.seeds, c: input.cities, n: input.stops })}`;
+      const { readable, writable } = new TransformStream();
+      const writer = writable.getWriter();
+      const enc = new TextEncoder();
+      const send = ev => writer.write(enc.encode(JSON.stringify(ev) + '\n')).catch(() => {});
+      ctx.waitUntil((async () => {
+        try {
+          const cached = store && !input.fresh ? await store.get(runKey) : null;
+          if (cached) {
+            for (const ev of cached.events) send({ ...ev, replay: true });
+            send({ type: 'note', text: `Replayed from cache to save Qloo quota${cached.calls ? ` (the original run made ${cached.calls} Qloo calls)` : ''}.` });
+            send({ type: 'cache', calls: cached.calls || 0 });
+            send({ type: 'result', result: cached.result });
+          } else {
+            const events = []; let calls = 0;
+            const qloo = createQloo({ apiKey: env.QLOO_API_KEY, baseUrl: env.QLOO_API_URL || undefined, store, onCall: c => { calls++; send({ type: 'qloo_call', path: c.path, ms: c.ms, ok: c.ok, cached: !!c.cached }); } });
+            const result = await runTour(input, { qloo, llm: createLLM(env), store, emit: ev => { if (ev.type !== 'result') { events.push(ev); send(ev); } } });
             send({ type: 'result', result });
             if (store) await store.put(runKey, { events: events.filter(e => e.type === 'step' && e.status !== 'start'), result, calls });
           }

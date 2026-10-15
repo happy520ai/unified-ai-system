@@ -23,6 +23,15 @@
     <h1>Find the neighbourhood that <em>already loves</em> your idea.</h1>
     <p class="sub">Describe what you want to open — a bar, a shop, a pop-up, a gig — and the vibe it has. TasteRouter's agent maps where people with that taste actually live and hang out, checks how crowded the block already is, and writes your launch plan.</p>
 
+    <div class="modes" role="tablist"><button type="button" id="m-scout" class="mode on">Scout a venue</button><button type="button" id="m-tour" class="mode">Plan a tour <span class="new">new</span></button></div>
+
+    <form id="tourform" class="brief hidden">
+      <div class="trow"><label>Artist<input id="artist" maxlength="120" placeholder="e.g. Mitski" /></label>
+      <label>Candidate cities <small>(optional, comma-separated, max 8)</small><input id="cities" placeholder="New York, Los Angeles, Chicago, London, Berlin, Toronto" /></label>
+      <label>Stops<select id="stops"><option>3</option><option selected>4</option><option>5</option></select></label></div>
+      <div class="row"><div class="chips" id="tour-examples"></div><button id="tourgo" type="submit">Route the tour →</button></div>
+    </form>
+
     <form id="form" class="brief">
       <textarea id="brief" rows="3" maxlength="1200" placeholder="e.g. A tiny vinyl listening bar with natural wine in New York, for people who love Khruangbin, Wong Kar-wai films and Aesop-style minimal design."></textarea>
       <div class="row">
@@ -74,6 +83,16 @@
 
       <div class="actions"><button id="copy" class="ghost">Copy brief as Markdown</button><button id="again" class="ghost">Scout another idea</button></div>
       <p class="meta" id="r-meta"></p>
+    </div>
+    <div id="tour" class="hidden">
+      <div class="headline card accent"><p class="kicker" id="t-kicker"></p><h2 id="t-headline"></h2><p id="t-tip" class="muted"></p></div>
+      <h3 class="sec">The route</h3>
+      <div id="t-route" class="hoods"></div>
+      <div class="two">
+        <div class="card"><h3>All markets, ranked by taste fit</h3><div id="t-rank"></div></div>
+        <div class="card"><h3>Why these cities</h3><ul id="t-why" class="plain"></ul><h3 class="mt">Risks</h3><ul id="t-risks" class="plain"></ul></div>
+      </div>
+      <p class="meta" id="t-meta"></p>
     </div>
     <div id="err" class="card error hidden"></div>
   </section>

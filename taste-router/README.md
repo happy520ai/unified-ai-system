@@ -46,6 +46,8 @@ Every step streams to the UI as an auditable trace (with a live Qloo-call counte
 | ![Agent trace and taste heatmap](docs/trace-map.jpg) | ![Ranked neighbourhoods](docs/ranked.jpg) |
 | **LLM alone vs. Qloo-grounded** | **Mobile** |
 | ![Comparison panel](docs/compare.jpg) | ![Mobile layout](docs/mobile.jpg) |
+| **Tour router** | |
+| ![Tour router: cities ranked by taste fit and ordered into a route](docs/tour.jpg) | |
 
 ## Features
 
@@ -54,7 +56,8 @@ Every step streams to the UI as an auditable trace (with a live Qloo-call counte
 - **Audience lift** by age and the **taste DNA** (vibe + menu cues) of the crowd.
 - **Opening-week programming** and **collab partners** drawn from Qloo cross-domain recommendations.
 - **"LLM alone vs. TasteRouter"** panel: the same brief answered without Qloo, for contrast.
-- **MCP server** (`src/mcp.js`) exposing `scout_location` plus each Qloo tool, so Claude / Cursor / Codex agents get the same grounding.
+- **Tour router mode** (`POST /api/tour {artist, cities?, stops?}`, MCP tool `plan_tour`): ranks candidate cities by how strongly an artist's audience concentrates there, then orders the best stops into the shortest route. City score = mean Qloo affinity of the five most taste-matched venues around the city's hottest heatmap cluster (heatmap affinity is rank-normalised inside each city, so it finds *where* in a city but cannot compare cities; venue affinity can).
+- **MCP server** (`src/mcp.js`) exposing `scout_location`, `plan_tour` plus each Qloo tool, so Claude / Cursor / Codex agents get the same grounding.
 - Zero-competition hotspots are flagged as first-mover *white space* with a "validate demand on the ground" note, instead of silently scoring 100.
 - Repeat briefs replay from Workers KV (the badge shows *cached*), so judges' clicks don't burn the Qloo quota.
 - Copy the brief as Markdown.
