@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { clusterHeatmap, haversineKm } from '../src/geo.js';
 import { parseJSON } from '../src/llm.js';
-import { runScout } from '../src/agent.js';
+import { runScout, rankHotspots } from '../src/agent.js';
 import { createQloo } from '../src/qloo.js';
 
 const cell = (lat, lon, affinity) => ({ location: { latitude: lat, longitude: lon, geohash: 'x' }, query: { affinity, popularity: 0.5 } });
@@ -50,4 +50,18 @@ test('agent runs end to end on a fake Qloo and ranks white space first', async (
   assert.equal(r.neighborhoods[0].label, 'white space');
   assert.equal(r.brief.writer, 'deterministic');
   assert.ok(events.some(e => e.name === 'heatmap' && e.status === 'done'));
+});
+
+test('ranking: all-zero competition, ties and duplicate neighbourhoods', () => {
+  const h = (neighborhood, lat, lon, score, competitor_count, peak = 1, n = 2) => ({ neighborhood, lat, lon, score, competitor_count, peak, anchors: Array(n).fill({ name: 'a' }) });
+  const zero = rankHotspots([h('A', 40.7, -74, 0.9, 0), h('B', 40.8, -74, 0.8, 0)]);
+  assert.deepEqual(zero.map(r => r.label), ['white space', 'white space']);
+  assert.ok(zero[0].note && zero[0].opportunity === 0.935);
+  const tie = rankHotspots([h('Busy', 40.7, -74, 0.9, 10, 1), h('Quiet', 40.8, -74, 0.9, 10, 1, 4)]);
+  assert.equal(tie[0].opportunity, tie[1].opportunity);
+  assert.equal(tie[0].neighborhood, 'Quiet');
+  const capped = rankHotspots([h('X', 40.7, -74, 0.9, 50), h('Y', 40.8, -74, 0.9, 50)]);
+  assert.ok(capped.every(r => r.label === 'proven but crowded'));
+  const dup = rankHotspots([h('Soho', 40.70, -74, 0.9, 5), h('Soho', 40.74, -74, 0.8, 5)]);
+  assert.deepEqual(dup.map(r => r.neighborhood).sort(), ['Soho (north)', 'Soho (south)']);
 });

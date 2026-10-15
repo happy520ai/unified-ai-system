@@ -45,7 +45,7 @@ button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line
 .aud{display:grid;grid-template-columns:110px 1fr 46px;gap:6px 10px;align-items:center;font-size:13px;margin-bottom:12px}
 .aud .b{height:10px;background:#efe6db;border-radius:9px;position:relative}.aud .b i{position:absolute;top:0;bottom:0;border-radius:9px}
 .tagcloud{display:flex;flex-wrap:wrap;gap:6px}.tag{font-size:12.5px;padding:4px 10px;border-radius:999px;background:#1f6f5c14;color:var(--acc2)}.tag.menu{background:#d9481c12;color:var(--acc)}
-.week{list-style:none;padding:0;margin:0}.week li{display:flex;gap:12px;padding:8px 0;border-bottom:1px dashed var(--line)}.week b{min-width:38px;color:var(--acc)}
+.week{list-style:none;padding:0;margin:0}.week li{display:flex;gap:12px;padding:8px 0;border-bottom:1px dashed var(--line)}.week b{flex:0 0 84px;color:var(--acc)}
 ul.plain{padding-left:18px;margin:0}ul.plain li{margin:4px 0}
 .prog{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.prog h5{margin:0 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
 .ent{display:flex;align-items:center;gap:8px;font-size:14px;margin:4px 0}.ent img{width:28px;height:28px;border-radius:6px;object-fit:cover;background:#eee}
@@ -54,3 +54,7 @@ ul.plain{padding-left:18px;margin:0}ul.plain li{margin:4px 0}
 .error{border-color:#b00020;color:#b00020;margin-top:14px}
 .how{margin-top:60px}.how h2{font:700 30px Fraunces,serif}.how .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.how .steps div{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px}.how p{margin:6px 0 0;color:var(--muted);font-size:14.5px}
 @media (max-width:900px){.grid,.two,.hoods,.compare .cols,.how .steps{grid-template-columns:1fr}.mapwrap{min-height:340px}}
+.tiles{filter:grayscale(1) sepia(.18) brightness(1.04) contrast(.9)}
+.note{background:#1f6f5c12;color:var(--acc2);padding:6px 10px;border-radius:10px;margin:0}
+.compare #r-grounded{white-space:normal}.evid{margin:8px 0 0;padding-left:18px;font-size:14px}.evid li{margin:3px 0}
+@media (max-width:600px){.top{padding:14px 18px}main{padding:0 18px 40px}nav a{margin-left:14px;font-size:14px}.sub{font-size:16px}.hero{padding-top:20px}.week b{flex-basis:70px}.aud{grid-template-columns:90px 1fr 42px}}

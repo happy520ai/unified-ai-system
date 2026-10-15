@@ -2,6 +2,8 @@
 
 **Live demo: https://tasterouter.tasterouter.workers.dev** · Built for the [Qloo Agentic Hackathon 2026](https://qloo.devpost.com/)
 
+![TasteRouter: find the neighbourhood that already loves your idea](docs/cover.jpg)
+
 TasteRouter is an AI agent for independent founders, pop-up organisers and live-music promoters. You describe what you want to open — *"a tiny vinyl listening bar with natural wine in New York, for people who love Khruangbin, Wong Kar-wai films and Aesop-style design"* — and the agent tells you **which neighbourhood's residents already share that taste**, how crowded the block is with your category, and what to programme in opening week.
 
 > Site selection today means foot-traffic counts and rent maps. They tell you how many people walk past — not whether any of them will love what you're making. Qloo knows where taste lives. TasteRouter turns that into a decision.
@@ -30,10 +32,20 @@ brief ─▶ PLAN (LLM: concept, city, 3–5 cultural refs)
       ─▶ ADAPT (sparse heatmap → widen window and retry)
       ─▶ SCOUT top hotspots (neighbourhood, anchors, competitors)
       ─▶ RANK  opportunity = 0.65·taste concentration + 0.35·(1 − category saturation)
+               saturation = ½·relative to the other hotspots + ½·absolute (50 venues = saturated)
+               ties → fewer competitors → stronger taste peak → more anchors; duplicate names get a compass suffix
       ─▶ WRITE (LLM writes the launch brief from Qloo evidence only; deterministic fallback)
 ```
 
 Every step streams to the UI as an auditable trace (with a live Qloo-call counter), and the final brief is grounded only in the evidence object the agent assembled.
+
+## Screenshots
+
+| Agent trace + Qloo heatmap | Ranked neighbourhoods |
+|---|---|
+| ![Agent trace and taste heatmap](docs/trace-map.jpg) | ![Ranked neighbourhoods](docs/ranked.jpg) |
+| **LLM alone vs. Qloo-grounded** | **Mobile** |
+| ![Comparison panel](docs/compare.jpg) | ![Mobile layout](docs/mobile.jpg) |
 
 ## Features
 
@@ -43,6 +55,8 @@ Every step streams to the UI as an auditable trace (with a live Qloo-call counte
 - **Opening-week programming** and **collab partners** drawn from Qloo cross-domain recommendations.
 - **"LLM alone vs. TasteRouter"** panel: the same brief answered without Qloo, for contrast.
 - **MCP server** (`src/mcp.js`) exposing `scout_location` plus each Qloo tool, so Claude / Cursor / Codex agents get the same grounding.
+- Zero-competition hotspots are flagged as first-mover *white space* with a "validate demand on the ground" note, instead of silently scoring 100.
+- Repeat briefs replay from Workers KV (the badge shows *cached*), so judges' clicks don't burn the Qloo quota.
 - Copy the brief as Markdown.
 
 ## Architecture

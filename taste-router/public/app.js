@@ -6,6 +6,8 @@ const EXAMPLES = [
 ];
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const cap = s => { s = String(s ?? ''); return s.charAt(0).toUpperCase() + s.slice(1); };
+const escC = s => esc(cap(s));
 let map, layers = [], lastResult = null, calls = 0;
 
 const ex = $('examples');
@@ -18,7 +20,7 @@ const qp = new URLSearchParams(location.search).get('q'); if (qp) { $('brief').v
 function ensureMap() {
   if (map) return;
   map = L.map('map', { zoomControl: true, scrollWheelZoom: false }).setView([40.72, -73.95], 11);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '© OpenStreetMap contributors © CARTO', subdomains: 'abcd', maxZoom: 19 }).addTo(map);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', maxZoom: 19, className: 'tiles' }).addTo(map);
 }
 function clearMap() { layers.forEach(l => l.remove()); layers = []; }
 
@@ -51,6 +53,7 @@ function handle(ev) {
     li.innerHTML = `${ev.ms != null ? `<span class="ms">${(ev.ms / 1000).toFixed(1)}s</span>` : ''}${esc(ev.label)}${ev.summary || ev.error ? `<span class="s">${esc(ev.summary || ev.error)}</span>` : ''}`;
     li.scrollIntoView({ block: 'nearest' });
   } else if (ev.type === 'qloo_call') { calls++; $('calls').textContent = `${calls} Qloo call${calls > 1 ? 's' : ''}`; }
+  else if (ev.type === 'cache') { $('calls').textContent = ev.calls ? `cached · ${ev.calls} Qloo calls` : 'cached replay'; $('calls').title = 'Replayed from cache: 0 new Qloo calls'; }
   else if (ev.type === 'note') { const li = document.createElement('li'); li.className = 'done'; li.innerHTML = `<span class="s">${esc(ev.text)}</span>`; $('steps').append(li); }
   else if (ev.type === 'result') render(ev.result);
   else if (ev.type === 'error') showError(ev.error);
@@ -78,15 +81,16 @@ function render(r) {
 
   $('r-kicker').textContent = `${r.plan.concept} · ${r.plan.city}`;
   $('r-headline').textContent = b.headline || '';
-  $('r-position').textContent = b.positioning || '';
+  $('r-position').textContent = cap(b.positioning || '');
 
   $('r-hoods').innerHTML = r.neighborhoods.map((h, i) => `
     <div class="card hood ${i ? '' : 'first'}">
       <div class="t"><h4>${i + 1}. ${esc(h.neighborhood || 'Unnamed hotspot')}</h4><div class="score">${Math.round(h.opportunity * 100)}<small>/100</small></div></div>
       <div class="bar"><i style="width:${Math.round(h.opportunity * 100)}%"></i></div>
       <div><span class="pill ${h.label === 'white space' ? 'green' : h.label.includes('crowded') ? '' : 'grey'}">${esc(h.label)}</span> <span class="muted small">${h.competitor_count >= 50 ? '50+' : (h.competitor_count ?? '?')} ${esc(r.concept.category?.name || 'similar')} venues within 900 m · taste peak ${Math.round(h.peak * 100)}</span></div>
-      ${i === 0 && b.pick?.why ? `<ul>${b.pick.why.map(w => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}
-      ${i === 1 && b.runner_up?.why ? `<p class="small">${esc(b.runner_up.why)}</p>` : ''}
+      ${i === 0 && b.pick?.why ? `<ul>${b.pick.why.map(w => `<li>${escC(w)}</li>`).join('')}</ul>` : ''}
+      ${i === 1 && b.runner_up?.why ? `<p class="small">${escC(b.runner_up.why)}</p>` : ''}
+      ${h.note ? `<p class="small note">${esc(h.note)}</p>` : ''}
       <div class="small"><b>Taste-matched anchors</b><ul>${h.anchors.slice(0, 4).map(a => `<li>${esc(a.name)} <span class="tags">${esc(a.tags.join(' · '))}</span></li>`).join('')}</ul></div>
     </div>`).join('');
 
@@ -96,17 +100,25 @@ function render(r) {
   const g = r.dna.groups || {};
   $('r-dna').innerHTML = [...(g.vibe || []).map(t => `<span class="tag">${esc(t.name)}</span>`), ...(g.menu || []).map(t => `<span class="tag menu">${esc(t.name)}</span>`)].join('');
 
-  $('r-week').innerHTML = (b.opening_week || []).map(w => `<li><b>${esc(w.night)}</b><span>${esc(w.idea)}</span></li>`).join('');
-  $('r-collabs').innerHTML = (b.collabs || []).map(c => `<li>${esc(c)}</li>`).join('');
-  $('r-menu').innerHTML = (b.menu_and_vibe || []).map(c => `<li>${esc(c)}</li>`).join('');
-  $('r-risks').innerHTML = (b.risks || []).map(c => `<li>${esc(c)}</li>`).join('');
+  $('r-week').innerHTML = (b.opening_week || []).map(w => `<li><b>${esc(w.night)}</b><span>${escC(w.idea)}</span></li>`).join('');
+  $('r-collabs').innerHTML = (b.collabs || []).map(c => `<li>${escC(c)}</li>`).join('');
+  $('r-menu').innerHTML = (b.menu_and_vibe || []).map(c => `<li>${escC(c)}</li>`).join('');
+  $('r-risks').innerHTML = (b.risks || []).map(c => `<li>${escC(c)}</li>`).join('');
 
   const P = r.programming || {};
   const sec = (t, arr) => arr?.length ? `<div><h5>${t}</h5>${arr.slice(0, 4).map(e => `<div class="ent">${e.image ? `<img src="${esc(e.image)}" alt="" loading="lazy">` : ''}<span>${esc(e.name)}</span></div>`).join('')}</div>` : '';
   $('r-prog').innerHTML = sec('Play', P.artists) + sec('Screen', P.films) + sec('Collab brands', P.brands) + sec('Stock / book club', P.books);
 
   $('r-baseline').textContent = r.baseline || 'Baseline comparison runs for free-text briefs.';
-  $('r-grounded').textContent = `${b.headline || ''}\n\nBacked by ${r.heatmap.cell_count} Qloo heatmap cells, ${r.neighborhoods.reduce((s, h) => s + h.anchors.length, 0)} taste-matched venues and a live competitor count per block.`;
+  const top = r.neighborhoods[0], cat = r.concept.category?.name || 'similar';
+  const fmtC = c => c == null ? '?' : c >= 50 ? '50+' : c;
+  const anchorsN = r.neighborhoods.reduce((s, h) => s + h.anchors.length, 0);
+  $('r-grounded').innerHTML = `<b>${esc(b.headline || '')}</b>` + (top ? `<ul class="evid">
+    <li><b>${r.heatmap.cell_count}</b> Qloo heatmap cells scored for this exact taste mix, clustered into ${r.neighborhoods.length} hotspots</li>
+    <li><b>${esc(top.neighborhood || 'Top hotspot')}</b>: opportunity ${Math.round(top.opportunity * 100)}/100, taste peak ${Math.round(top.peak * 100)}, ${fmtC(top.competitor_count)} ${esc(cat)} venues within 900 m</li>
+    ${r.neighborhoods.slice(1).map(h => `<li>vs. ${esc(h.neighborhood || 'hotspot')}: ${Math.round(h.opportunity * 100)}/100, ${fmtC(h.competitor_count)} competitors (${esc(h.label)})</li>`).join('')}
+    <li><b>${anchorsN}</b> taste-matched anchor venues, e.g. ${top.anchors.slice(0, 2).map(a => esc(a.name)).join(', ')}</li>
+    <li>Audience skew and taste DNA measured, not guessed</li></ul>` : '');
   $('r-meta').textContent = `Generated ${new Date(r.meta.generated_at).toLocaleString()} · ${(r.meta.ms / 1000).toFixed(1)}s · planner/writer: ${r.meta.llm || 'deterministic'} · data: Qloo Taste AI`;
   $('result').classList.remove('hidden');
 }

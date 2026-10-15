@@ -85,7 +85,7 @@ export function makeTools(qloo) {
         qloo.insights({ 'filter.type': 'urn:entity:place', 'filter.location': point, 'filter.location.radius': radius_m, 'signal.interests.entities': entity_ids, take: 8 }).catch(() => null),
         category_tag ? qloo.insights({ 'filter.type': 'urn:entity:place', 'filter.location': point, 'filter.location.radius': radius_m, 'filter.tags': category_tag, take: 50 }).catch(() => null) : null,
       ]);
-      const places = (anchors?.results?.entities || []).map(e => ({ name: e.name, neighborhood: e.properties?.neighborhood, address: e.properties?.address, tags: (e.tags || []).filter(t => !NOISY_TAG_PREFIXES.some(p => t.id?.startsWith(p))).slice(0, 3).map(t => t.name), affinity: +(e.query?.affinity ?? 0).toFixed(3), image: e.properties?.images?.[0]?.url }));
+      const places = (anchors?.results?.entities || []).map(e => ({ name: e.name, neighborhood: e.properties?.neighborhood, address: e.properties?.address, tags: (e.tags || []).filter(t => !NOISY_TAG_PREFIXES.some(p => t.id?.startsWith(p))).map(t => t.name).filter((n, i, a) => a.indexOf(n) === i).slice(0, 3), affinity: +(e.query?.affinity ?? 0).toFixed(3), image: e.properties?.images?.[0]?.url }));
       const counts = {};
       for (const p of places) if (p.neighborhood) counts[p.neighborhood] = (counts[p.neighborhood] || 0) + 1;
       const townOf = a => { const m = /([A-Za-z .'-]+?),?\s+[A-Z]{2}\s+\d{5}/.exec(a || ''); return m ? m[1].trim().split(/\s+/).slice(-2).join(' ') : null; };
