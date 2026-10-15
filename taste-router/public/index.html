@@ -17,11 +17,12 @@
   <nav><a href="#how">How it works</a><a href="https://github.com/happy520ai/unified-ai-system/tree/master/taste-router" target="_blank" rel="noopener">GitHub</a></nav>
 </header>
 
+<div class="print-head"><b>TasteRouter report</b><span id="print-url"></span></div>
 <main>
   <section class="hero">
-    <p class="kicker">Agents, but with taste · powered by Qloo</p>
-    <h1>Find the neighbourhood that <em>already loves</em> your idea.</h1>
-    <p class="sub">Describe what you want to open — a bar, a shop, a pop-up, a gig — and the vibe it has. TasteRouter's agent maps where people with that taste actually live and hang out, checks how crowded the block already is, and writes your launch plan.</p>
+    <p class="kicker">For the dreamers about to sign a lease · powered by Qloo</p>
+    <h1>Before you bet your savings, <em>find your people.</em></h1>
+    <p class="sub">Tell TasteRouter the place you dream of opening — a bar, a shop, a pop-up, a gig — and the culture it's made of. Its agent finds the neighbourhood where people who already love that taste live and hang out, introduces you to your future regulars, and gives you a Taste-Fit Score you can trust before you sign anything.</p>
 
     <div class="modes" role="tablist"><button type="button" id="m-scout" class="mode on">Scout a venue</button><button type="button" id="m-tour" class="mode">Plan a tour <span class="new">new</span></button></div>
 
@@ -60,7 +61,15 @@
         <p id="r-position" class="muted"></p>
       </div>
 
-      <h3 class="sec">Ranked neighbourhoods</h3>
+      <div id="r-verdict" class="verdict card"></div>
+
+      <div id="r-people" class="hidden">
+        <h3 class="sec">Meet your regulars <span class="sec-note">portraits built only from what Qloo says this crowd loves</span></h3>
+        <div id="r-regulars" class="regulars"></div>
+        <div class="card night"><p class="kicker">Opening night</p><p id="r-night" class="story"></p></div>
+      </div>
+
+      <h3 class="sec">Ranked neighbourhoods <span class="sec-note">by Taste-Fit Score</span></h3>
       <div id="r-hoods" class="hoods"></div>
 
       <div class="two">
@@ -81,11 +90,12 @@
         </div>
       </div>
 
-      <div class="actions"><button id="copy" class="ghost">Copy brief as Markdown</button><button id="again" class="ghost">Scout another idea</button></div>
       <p class="meta" id="r-meta"></p>
     </div>
     <div id="tour" class="hidden">
       <div class="headline card accent"><p class="kicker" id="t-kicker"></p><h2 id="t-headline"></h2><p id="t-tip" class="muted"></p></div>
+      <div id="t-verdict" class="verdict card"></div>
+      <div id="t-night" class="card night hidden"></div>
       <h3 class="sec">The route</h3>
       <div id="t-route" class="hoods"></div>
       <div class="two">
@@ -93,6 +103,22 @@
         <div class="card"><h3>Why these cities</h3><ul id="t-why" class="plain"></ul><h3 class="mt">Risks</h3><ul id="t-risks" class="plain"></ul></div>
       </div>
       <p class="meta" id="t-meta"></p>
+    </div>
+
+    <div id="after" class="hidden">
+      <div class="card chat" id="chat">
+        <div class="card-h"><h3>Ask a follow-up</h3><span class="pill grey">answers use only this report's Qloo evidence</span></div>
+        <div id="chat-log" class="chat-log"></div>
+        <div class="chips" id="chat-chips"></div>
+        <form id="chat-form" class="chat-form"><input id="chat-q" maxlength="300" placeholder="e.g. What about a smaller budget?" autocomplete="off" /><button id="chat-go" type="submit">Ask</button></form>
+      </div>
+      <div class="actions">
+        <button id="share" class="ghost" type="button">Copy share link</button>
+        <button id="pdf" class="ghost" type="button">Download PDF report</button>
+        <button id="copy" class="ghost" type="button">Copy as Markdown</button>
+        <button id="again" class="ghost" type="button">Scout another idea</button>
+      </div>
+      <p class="meta" id="permalink"></p>
     </div>
     <div id="err" class="card error hidden"></div>
   </section>
@@ -104,8 +130,8 @@
       <div><b>2 · Ground</b><p>References are resolved to Qloo entities. If too few exist, the agent reflects and swaps in better-known stand-ins.</p></div>
       <div><b>3 · Map taste</b><p>Qloo's heatmap shows where that taste concentrates, street by street; taste DNA and demographics tell you who they are.</p></div>
       <div><b>4 · Scout</b><p>For each hotspot it finds the real neighbourhood, taste-matched anchor venues, and how many of your category already exist.</p></div>
-      <div><b>5 · Rank</b><p>Opportunity = taste concentration vs. category saturation. "White space" beats "proven but crowded".</p></div>
-      <div><b>6 · Write</b><p>The LLM writes a launch brief using only Qloo evidence: programming from cross-domain picks, collabs, risks.</p></div>
+      <div><b>5 · Score</b><p>Taste-Fit Score (0–100) = 40% taste depth (Qloo heatmap) + 30% audience overlap at real venues + 30% white space vs. competitors.</p></div>
+      <div><b>6 · Write &amp; answer</b><p>The LLM writes a launch brief using only Qloo evidence, then answers your follow-ups from the same evidence. Every report gets a share link and a PDF.</p></div>
     </div>
     <p class="muted small">Built for the Qloo Agentic Hackathon 2026. Also ships as an MCP server so any agent (Claude, Cursor, Codex) can call the same Qloo tools. Map © OpenStreetMap contributors.</p>
   </section>

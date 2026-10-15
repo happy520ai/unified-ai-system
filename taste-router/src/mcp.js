@@ -28,8 +28,8 @@ export function createMcpHandler(env = process.env) {
       case 'tools/call': try {
         const a = params.arguments || {};
         let out;
-        if (params.name === 'scout_location') { const r = await runScout(a, { qloo, llm, withBaseline: false }); out = { brief: r.brief, neighborhoods: r.neighborhoods.map(({ cells, ...h }) => h), audience: r.audience, programming: r.programming }; }
-        else if (params.name === 'plan_tour') { const r = await runTour(a, { qloo, llm }); out = { note: r.note, route: r.route, cities: r.cities.map(({ anchors, ...c }) => ({ ...c, venues: anchors.map(x => x.name) })) }; }
+        if (params.name === 'scout_location') { const r = await runScout(a, { qloo, llm, withBaseline: false }); out = { verdict: r.verdict, brief: r.brief, regulars: r.story?.regulars?.map(({ kit, ...p }) => ({ ...p, loves: kit })), opening_night: r.story?.opening_night, neighborhoods: r.neighborhoods.map(({ cells, ...h }) => h), audience: r.audience, programming: r.programming }; }
+        else if (params.name === 'plan_tour') { const r = await runTour(a, { qloo, llm }); out = { note: r.note, fan_night: r.fan_night, route: r.route, cities: r.cities.map(({ anchors, ...c }) => ({ ...c, venues: anchors.map(x => x.name) })) }; }
         else if (params.name === 'hotspots' && a.city && !a.center) out = await tools.hotspots({ ...a, center: await geocodeCity(a.city) });
         else if (tools[params.name]) out = await tools[params.name](a);
         else throw new Error(`Unknown tool ${params.name}`);

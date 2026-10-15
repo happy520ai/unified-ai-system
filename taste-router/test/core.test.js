@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { clusterHeatmap, haversineKm } from '../src/geo.js';
 import { parseJSON } from '../src/llm.js';
-import { runScout, rankHotspots } from '../src/agent.js';
+import { runScout, rankHotspots, tasteFit, tasteDepth, verdictCard, audienceOverlap } from '../src/agent.js';
+import { askReport, chatEvidence } from '../src/ask.js';
 import { createQloo } from '../src/qloo.js';
 
 const cell = (lat, lon, affinity) => ({ location: { latitude: lat, longitude: lon, geohash: 'x' }, query: { affinity, popularity: 0.5 } });
@@ -56,7 +57,7 @@ test('ranking: all-zero competition, ties and duplicate neighbourhoods', () => {
   const h = (neighborhood, lat, lon, score, competitor_count, peak = 1, n = 2) => ({ neighborhood, lat, lon, score, competitor_count, peak, anchors: Array(n).fill({ name: 'a' }) });
   const zero = rankHotspots([h('A', 40.7, -74, 0.9, 0), h('B', 40.8, -74, 0.8, 0)]);
   assert.deepEqual(zero.map(r => r.label), ['white space', 'white space']);
-  assert.ok(zero[0].note && zero[0].opportunity === 0.935);
+  assert.ok(zero[0].note && zero[0].fit === 66 && zero[0].fit_parts.space === 1);
   const tie = rankHotspots([h('Busy', 40.7, -74, 0.9, 10, 1), h('Quiet', 40.8, -74, 0.9, 10, 1, 4)]);
   assert.equal(tie[0].opportunity, tie[1].opportunity);
   assert.equal(tie[0].neighborhood, 'Quiet');
@@ -93,4 +94,34 @@ test('tour router ranks cities by venue affinity and returns a route', async () 
   assert.equal(r.cities[0].city, 'Chicago');
   assert.equal(r.route.stops.length, 2);
   assert.match(r.note.headline, /Chicago/);
+});
+
+test('Taste-Fit: weighted parts, local heatmap depth, audience overlap, verdict card', () => {
+  assert.equal(tasteFit({ taste: 1, overlap: 1, space: 1 }), 100);
+  assert.equal(tasteFit({ taste: 0.5, overlap: 0.5, space: 0 }), 35);
+  assert.equal(tasteFit({ taste: 1, overlap: 0, space: 0 }, { taste: 1, overlap: 0, space: 0 }), 100);
+  assert.ok(Math.abs(audienceOverlap([{ affinity: 0.9 }, { affinity: 0.8 }, { affinity: 0.7 }, { affinity: 0.1 }]) - 0.8) < 1e-9);
+  const cells = [[40.70, -74, 0.9], [40.701, -74, 0.7], [40.702, -74, 0.8], [40.9, -74, 0.1]];
+  assert.ok(Math.abs(tasteDepth({ lat: 40.7, lon: -74, score: 1 }, cells) - 0.8) < 1e-9);
+  assert.equal(tasteDepth({ lat: 41.5, lon: -74, score: 0.6 }, cells), 0.6); // too few cells nearby -> cluster score
+  const ranked = rankHotspots([
+    { neighborhood: 'Packed', lat: 40.7, lon: -74, score: 1, peak: 1, competitor_count: 50, anchors: [{ affinity: 0.9 }] },
+    { neighborhood: 'Open', lat: 40.8, lon: -74, score: 1, peak: 1, competitor_count: 2, anchors: [{ affinity: 0.9 }] },
+  ]);
+  assert.equal(ranked[0].neighborhood, 'Open');
+  const v = verdictCard(ranked, 300);
+  assert.equal(v.neighborhood, 'Open'); assert.equal(v.lead, ranked[0].fit - ranked[1].fit); assert.ok(['Your people are here', 'Worth a visit', 'A harder road'].includes(v.verdict));
+});
+
+test('follow-up chat: rescore tool uses 0 Qloo calls and stays grounded in stored evidence', async () => {
+  const hood = (n, lat, taste, overlap, space) => ({ neighborhood: n, lat, lon: -74, fit: tasteFit({ taste, overlap, space }), fit_parts: { taste, overlap, space }, competitor_count: 5, anchors: [{ name: `${n} venue`, tags: [], affinity: overlap }], label: 'healthy demand' });
+  const report = { result: { plan: { concept: 'bar', city: 'NYC' }, concept: { category: { name: 'Bar' } }, seeds: { resolved: [{ id: 'a', name: 'A' }] }, neighborhoods: [hood('Deep', 40.7, 1, 0.8, 0.1), hood('Empty', 40.8, 0.6, 0.7, 1)], dna: { groups: {} }, programming: {}, brief: {} } };
+  const seen = [];
+  const llm = { name: 'fake', chat: async msgs => { seen.push(msgs); return seen.length === 1 ? '{"tool":"rescore","weights":{"taste":0,"overlap":0,"space":1}}' : 'Empty leads once competition is all that matters.'; } };
+  const qloo = { tags: async () => { throw new Error('no Qloo call expected'); }, insights: async () => { throw new Error('no Qloo call expected'); } };
+  const out = await askReport({ report, question: 'I only care about low competition' }, { llm, qloo });
+  assert.equal(out.qloo_calls, 0);
+  assert.equal(out.tool.rows[0].name, 'Empty'); assert.equal(out.tool.rows[0].after, 100);
+  assert.match(seen[1][1].content, /Deep venue/); // the answer step sees the stored evidence
+  assert.equal(chatEvidence(report.result).neighborhoods[0].taste_fit, report.result.neighborhoods[0].fit);
 });
