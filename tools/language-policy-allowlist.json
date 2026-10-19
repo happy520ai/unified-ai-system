@@ -279,6 +279,20 @@
       "removalBy": "2027-04-30",
       "migrationPlan": "Debt: convert both files to TypeScript when the agent-console TS migration (operatorCommands/agentTaskCommands pattern) reaches the cli dispatch layer; the paired cli.test.js regression suite is the safety net for that conversion.",
       "pr": "PR #230"
+    },
+    {
+      "type": "fileSet",
+      "value": "t-172-gateway-split-set",
+      "files": [
+        "apps/ai-gateway-service/src/http/anthropicMessagesRoutes.js",
+        "apps/ai-gateway-service/src/http/openAiCompatibilityShared.js",
+        "apps/ai-gateway-service/src/providers/providerAdapterFactory.js"
+      ],
+      "justification": "The Anthropic protocol family, the shared OpenAI/Anthropic helpers, and the provider adapter factory were mechanically split out of openAiCompatibilityRoutes.js and createGatewayApplication.js (both Node.js ESM JavaScript modules) in the same language as the owning modules. Converting the split files to TypeScript in the same change would mix the module-boundary refactor with a language migration, widening the verification surface for no behavioral gain.",
+      "owner": "zcode",
+      "removalBy": "2027-04-30",
+      "migrationPlan": "Debt: convert the three files to TypeScript when the gateway-service TS migration reaches the http route layer and the assembly root; the OpenAI-compat, Anthropic caching, and assembly regression suites are the safety nets for that conversion.",
+      "pr": "PR #230"
     }
   ]
 }

@@ -32,7 +32,7 @@ async function stream(req, res, kind) {
     const result = await (kind === 'scout' ? runScout : runTour)(input, { qloo, llm: createLLM(process.env), store, emit });
     await store.put(`report:${id}`, { id, kind, input, result, events, calls, created: new Date().toISOString() });
     send({ type: 'report', id });
-  } catch (e) { send({ type: 'error', error: String(e.message || e) }); }
+  } catch (e) { console.error('agent run failed:', e); send({ type: 'error', error: 'agent run failed; see server logs' }); }
   res.end();
 }
 
@@ -50,7 +50,7 @@ createServer(async (req, res) => {
     const q = String(question || '').trim();
     if (q.length < 3 || q.length > 300) return sendJSON(res, 400, { error: 'Ask a question of 3-300 characters.' });
     try { return sendJSON(res, 200, await askReport({ report, question: q, history: Array.isArray(history) ? history.slice(-3) : [] }, { llm: createLLM(process.env), qloo: process.env.QLOO_API_KEY ? makeQloo() : null })); }
-    catch (e) { return sendJSON(res, 500, { error: String(e.message || e) }); }
+    catch (e) { console.error('request failed:', e); return sendJSON(res, 500, { error: 'internal error; see server logs' }); }
   }
   const path = /^\/r\/[st][0-9a-f]{11}$/.test(path0) ? '/' : normalize(decodeURIComponent(path0)).replace(/^(\.\.[/\\])+/, '');
   try {
