@@ -56,7 +56,8 @@ function streamRun({ env, ctx, input, runKey, reportId, kind, runner }) {
         await saveReport(result, kept, calls);
       }
     } catch (e) {
-      send({ type: 'error', error: String(e.message || e) });
+      console.error('agent run failed:', e);
+      send({ type: 'error', error: 'agent run failed; see server logs' });
     } finally { await writer.close().catch(() => {}); }
   })());
   return new Response(readable, { headers: { 'content-type': 'application/x-ndjson; charset=utf-8', 'cache-control': 'no-store', ...CORS } });
@@ -108,7 +109,7 @@ export default {
         const out = await askReport({ report, question: q, history: hist }, { llm: createLLM(env), qloo, model: env.STORY_MODEL });
         if (store && out.answer) await store.put(askKey, out);
         return json(out);
-      } catch (e) { return json({ error: String(e.message || e) }, 500); }
+      } catch (e) { console.error('request failed:', e); return json({ error: 'internal error; see server logs' }, 500); }
     }
 
     if (/^\/r\/[st][0-9a-f]{11}$/.test(url.pathname)) {

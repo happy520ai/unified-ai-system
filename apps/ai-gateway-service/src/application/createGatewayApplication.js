@@ -12,6 +12,16 @@ import { createGeminiAdapter } from "../providers/geminiAdapter.ts";
 import { createHttpLLMProviderAdapter } from "../providers/httpLlmProviderAdapter.js";
 import { createRuntimeCredentialStore } from "../providers/runtimeCredentialStore.js";
 import { createCredentialPool } from "../providers/credentialPool.ts";
+import {
+  restoreRuntimeCredentialProviders,
+  isRuntimeCredentialCapableProvider,
+  createCredentialPoolSafely,
+  createProviderAdapter,
+} from "../providers/providerAdapterFactory.js";
+
+// Re-export: the provider adapter factory moved to providers/; existing
+// importers of this file keep working unchanged.
+export { restoreRuntimeCredentialProviders } from "../providers/providerAdapterFactory.js";
 import { getProviderExecutionDecision } from "../providers/providerExecutionGate.ts";
 import { createModelImportService } from "../model-import/modelImportService.js";
 import { createModelLibraryStore } from "../model-library/modelLibraryStore.js";
@@ -4597,81 +4607,4 @@ function createConfiguredLocalClientExecutionControl(
     ),
     approvalTtlMs: routePlanTtlMs,
   });
-}
-
-export function restoreRuntimeCredentialProviders({ providerRegistry, runtimeCredentialStore, runtimeConfig }) {
-  for (const record of runtimeCredentialStore.listRecords?.() ?? []) {
-    if (!providerRegistry.has(record.providerId)) {
-      continue;
-    }
-
-    if (Array.isArray(record.models) && record.models.length) {
-      providerRegistry.addRuntimeModels(record.providerId, record.models);
-    }
-    const provider = providerRegistry.get(record.providerId);
-    const decision = getProviderExecutionDecision({
-      providerId: record.providerId,
-      providerType: provider.descriptor?.metadata?.providerType,
-      runtimeConfig,
-    });
-    if (decision.allowed) {
-      providerRegistry.enableProvider(record.providerId);
-    }
-  }
-}
-
-function isRuntimeCredentialCapableProvider(modelConfig) {
-  const providerType = modelConfig.providerType ?? modelConfig.providerId;
-  return providerType === "openai" ||
-    providerType === "nvidia" ||
-    providerType === "anthropic" ||
-    providerType === "gemini" ||
-    providerType === "http-llm" ||
-    providerType === "openai-compatible";
-}
-
-function createCredentialPoolSafely(env) {
-  try {
-    return createCredentialPool({ env });
-  } catch (error) {
-    // A misconfigured pool store (e.g. encrypted mode without a master key) must
-    // not take the whole gateway down. Degrading to no pool preserves the
-    // pre-existing single-key behavior exactly.
-    console.warn(JSON.stringify({
-      event: "credential_pool_init_failed",
-      code: error?.code ?? null,
-      message: error instanceof Error ? error.message : "Credential pool init failed.",
-    }));
-    return null;
-  }
-}
-
-function createProviderAdapter(modelConfig, config, runtimeCredentialStore, env, credentialPool) {
-  const options = {
-    timeoutMs: config.aiGatewayService.requestTimeoutMs,
-    runtimeCredentialStore,
-    credentialPool,
-    certificationToolMode: env.AI_GATEWAY_FAKE_PROVIDER_TOOL_MODE,
-  };
-  if (modelConfig.providerType === "fake") {
-    return createFakeProvider(modelConfig, options);
-  }
-
-  if (modelConfig.providerType === "openai" || modelConfig.providerId === "openai") {
-    return createOpenAIAdapter(modelConfig, options);
-  }
-
-  if (modelConfig.providerType === "nvidia" || modelConfig.providerId === "nvidia") {
-    return createNvidiaAdapter(modelConfig, options);
-  }
-
-  if (modelConfig.providerType === "anthropic" || modelConfig.providerId === "anthropic") {
-    return createAnthropicAdapter(modelConfig, options);
-  }
-
-  if (modelConfig.providerType === "gemini" || modelConfig.providerId === "gemini") {
-    return createGeminiAdapter(modelConfig, options);
-  }
-
-  return createHttpLLMProviderAdapter(modelConfig, options);
 }
