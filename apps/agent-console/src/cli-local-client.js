@@ -1042,7 +1042,6 @@ function readBoundedJsonFile({ path, root, label, maxBytes }) {
     if (isAbsolute(relativePath) || /^\.\.(?:[\\/]|$)/u.test(relativePath)) {
       throw new CliUsageError(`${label} file must stay within the current working directory.`);
     }
-    fileStat = statSync(filePath);
   } catch (error) {
     if (error instanceof CliUsageError) throw error;
     throw new CliUsageError(`${label} file is unavailable or unsafe.`);
