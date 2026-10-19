@@ -146,9 +146,9 @@ import {
   toPublicClient,
   updateOutcomeEwma,
   verifyRegistryIntegrity,
-} from "./localClientManagementCore.js";
+} from "./localClientManagementCore.ts";
 
-export type { ResolveVerifiedLocalClientTargetInput, ResolvedVerifiedLocalClientTarget } from "./localClientManagementCore.js";
+export type { ResolveVerifiedLocalClientTargetInput, ResolvedVerifiedLocalClientTarget } from "./localClientManagementCore.ts";
 
 
 export function preflightLocalClientRegistryIntegrity(options: {

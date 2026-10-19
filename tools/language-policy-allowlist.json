@@ -266,6 +266,19 @@
       "migrationPlan": "Convert together with mcpClient.js when the claude-code-patterns Node-ESM modules are migrated to TypeScript, on the same schedule as the pr-111 node-esm compatibility set that already covers this directory.",
       "pr": "#177",
       "notes": "Registered at convergence: the local gate diffs HEAD~1...HEAD, so the file only became visible as newly added once the v0.8.0 line was merged in."
+    },
+    {
+      "type": "fileSet",
+      "value": "t-172-console-local-client-split-set",
+      "files": [
+        "apps/agent-console/src/cli-local-client.js",
+        "apps/agent-console/src/cli-shared-helpers.js"
+      ],
+      "justification": "The local-client command cluster was mechanically split out of cli-core.js (a Node.js ESM JavaScript module) into cli-local-client.js and cli-shared-helpers.js in the same language as the owning module. Converting the split files to TypeScript in the same change would mix the module-boundary refactor with a language migration, widening the verification surface for no behavioral gain.",
+      "owner": "zcode",
+      "removalBy": "2027-04-30",
+      "migrationPlan": "Debt: convert both files to TypeScript when the agent-console TS migration (operatorCommands/agentTaskCommands pattern) reaches the cli dispatch layer; the paired cli.test.js regression suite is the safety net for that conversion.",
+      "pr": "PR #230"
     }
   ]
 }
