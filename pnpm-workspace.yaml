@@ -9,8 +9,6 @@ allowBuilds:
   # wrangler (taste-router devDependency) needs these to install its binaries.
   esbuild: true
   workerd: true
-  esbuild: set this to true or false
-  workerd: set this to true or false
 overrides:
   # brace-expansion is pinned here because minimatch@10 resolves brace-expansion@^5 and the
   # lockfile has to stay deterministic. The pin has to MOVE when the pinned line carries a known
