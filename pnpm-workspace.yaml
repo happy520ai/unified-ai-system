@@ -6,6 +6,9 @@ packages:
   - "taste-router"
 allowBuilds:
   better-sqlite3: true
+  # wrangler (taste-router devDependency) needs these to install its binaries.
+  esbuild: true
+  workerd: true
   esbuild: set this to true or false
   workerd: set this to true or false
 overrides:
