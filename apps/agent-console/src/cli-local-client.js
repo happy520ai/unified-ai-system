@@ -6,7 +6,7 @@
 // 行为不变：cli-core.js 以同名导入回这些符号，公开入口与测试面完全一致。
 // =============================================================================
 
-import { lstatSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { closeSync, fstatSync, lstatSync, openSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { createGatewayClient } from "@unified-ai-system/shared-sdk";
 import { CliUsageError } from "./cli-errors.js";
@@ -1047,19 +1047,28 @@ function readBoundedJsonFile({ path, root, label, maxBytes }) {
     if (error instanceof CliUsageError) throw error;
     throw new CliUsageError(`${label} file is unavailable or unsafe.`);
   }
-  if (
-    !fileStat.isFile()
-    || fileStat.size < 2
-    || fileStat.size > maxBytes
-  ) {
-    throw new CliUsageError(
-      `${label} file must be a JSON file no larger than ${maxBytes} bytes.`,
-    );
-  }
   let raw;
   try {
-    raw = readFileSync(filePath, "utf8");
-  } catch {
+    // Open before checking so the stat and the read observe the same file —
+    // a path-level stat followed by a path-level read would race.
+    const fd = openSync(filePath, "r");
+    try {
+      fileStat = fstatSync(fd);
+      if (
+        !fileStat.isFile()
+        || fileStat.size < 2
+        || fileStat.size > maxBytes
+      ) {
+        throw new CliUsageError(
+          `${label} file must be a JSON file no larger than ${maxBytes} bytes.`,
+        );
+      }
+      raw = readFileSync(fd, "utf8");
+    } finally {
+      closeSync(fd);
+    }
+  } catch (error) {
+    if (error instanceof CliUsageError) throw error;
     throw new CliUsageError(`${label} file is unavailable or unsafe.`);
   }
   if (Buffer.byteLength(raw, "utf8") > maxBytes) {

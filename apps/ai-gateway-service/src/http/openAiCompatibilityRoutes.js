@@ -2137,3 +2137,25 @@ export {
   createAnthropicMessage,
   createAnthropicError,
 } from "./anthropicMessagesRoutes.js";
+
+// Re-exports of bindings this module imports for its own routes: external
+// importers of this file (openAiResponsesRoutes, geminiCompatibilityRoutes,
+// httpServerRoutes06) keep resolving them unchanged.
+export {
+  createUnsupportedError,
+  createValidationError,
+};
+export {
+  closePrimedGatewayStream,
+  iteratePrimedGatewayStream,
+  primeGatewayStream,
+  readPrimedGatewayStreamError,
+  resolveGatewayStreamPreflightStatus,
+};
+export {
+  recordChatRequest,
+  recordChatTokens,
+  recordChatTtft,
+  recordGuardrailEvaluation,
+  recordGuardrailFinding,
+};

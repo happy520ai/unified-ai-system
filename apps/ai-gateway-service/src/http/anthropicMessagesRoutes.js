@@ -439,7 +439,7 @@ export function normalizeAnthropicMessageRequest(body, descriptors = []) {
     : gatewayInput;
 }
 
-function normalizeAnthropicConversation(messages) {
+export function normalizeAnthropicConversation(messages) {
   if (!Array.isArray(messages) || messages.length === 0) {
     throw createAnthropicValidationError(
       "messages must contain at least one message.",
