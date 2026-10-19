@@ -439,10 +439,15 @@ export async function* readChatCompletionsStream(response, providerRequest, sign
 export async function openStreamWithRetry({
   baseUrl, apiKey, payload, providerRequest, errorPrefix, providerName,
   timeoutMs, maxRetries, retryDelay, resolveOutboundUrl = resolveSafeOutboundUrl, signal,
+  resolveApiKey, onAttemptOutcome,
 }) {
   let response;
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+  const budget = Math.max(1, maxRetries);
+  for (let attempt = 1; attempt <= budget; attempt++) {
     throwIfExecutionAborted(signal);
+    // A pooled provider may hand a different key to each attempt; a static key
+    // is used verbatim, preserving the previous single-key behavior.
+    const attemptApiKey = typeof resolveApiKey === "function" ? (resolveApiKey() || apiKey) : apiKey;
     const timeoutError = createProviderError({
       code: `${errorPrefix}_REQUEST_TIMEOUT`,
       type: "timeout",
@@ -474,7 +479,7 @@ export async function openStreamWithRetry({
       response = await fetchWithAgent(destination.url, {
         method: "POST",
         headers: {
-          authorization: `Bearer ${apiKey}`,
+          authorization: `Bearer ${attemptApiKey}`,
           "content-type": "application/json",
         },
         body: JSON.stringify(payload),
@@ -492,8 +497,12 @@ export async function openStreamWithRetry({
           prefix: errorPrefix,
           providerName,
         });
-        if (err?.retryable && attempt < maxRetries) {
+        onAttemptOutcome?.(attemptApiKey, false, err);
+        const swap = typeof onAttemptOutcome === "function" && err?.retryable !== true
+          && (err?.type === "authentication" || err?.type === "authorization" || err?.type === "rate_limit");
+        if ((err?.retryable || swap) && attempt < budget) {
           requestControl.cleanup();
+          if (swap) continue;
           await retryDelay(attempt, err, signal);
           continue;
         }
@@ -517,7 +526,7 @@ export async function openStreamWithRetry({
         : error;
       requestControl.cleanup();
 
-      if (effectiveError?.category === "provider" && effectiveError?.retryable && attempt < maxRetries) {
+      if (effectiveError?.category === "provider" && effectiveError?.retryable && attempt < budget) {
         await retryDelay(attempt, effectiveError, signal);
         continue;
       }
@@ -526,7 +535,7 @@ export async function openStreamWithRetry({
       }
       if (effectiveError?.name === "AbortError") {
         const timeoutErr = timeoutError;
-        if (attempt < maxRetries) {
+        if (attempt < budget) {
           await retryDelay(attempt, timeoutErr, signal);
           continue;
         }
@@ -540,7 +549,7 @@ export async function openStreamWithRetry({
           retryable: true,
           details: createErrorDetails(providerRequest),
         });
-        if (attempt < maxRetries) {
+        if (attempt < budget) {
           await retryDelay(attempt, netErr, signal);
           continue;
         }

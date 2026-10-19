@@ -1,8 +1,14 @@
 packages:
   - "apps/*"
   - "packages/*"
+  # Standalone zero-dependency sub-project (Qloo hackathon entry): tracked in
+  # git with its own test suite, so `pnpm -r test` runs it like any package.
+  - "taste-router"
 allowBuilds:
   better-sqlite3: true
+  # wrangler (taste-router devDependency) needs these to install its binaries.
+  esbuild: true
+  workerd: true
 overrides:
   # brace-expansion is pinned here because minimatch@10 resolves brace-expansion@^5 and the
   # lockfile has to stay deterministic. The pin has to MOVE when the pinned line carries a known

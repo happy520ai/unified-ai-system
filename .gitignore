@@ -96,8 +96,16 @@ docs/star-growth-summary.md
 docs/star-growth-publish-output.md
 
 # Local machine state: pm-mcp governance ledger + generated dashboard + agent/tool caches.
-# None of these are public product source; they also carry absolute local paths.
-/.pm/
+# None of these are public product source; most also carry absolute local paths
+# or the owner's working history (216MB of logs, snapshots, sessions), so the
+# bulk stays ignored. The small, public-safe governance state IS tracked so
+# multi-agent work and backups share it: project metadata, module registry,
+# feature ledger, and the ADR record. Verified free of absolute paths.
+/.pm/*
+!/.pm/project.json
+!/.pm/governance.json
+!/.pm/features.json
+!/.pm/decisions/
 /PROJECT.md
 /.zcodeignore
 /.workbuddy-ai/

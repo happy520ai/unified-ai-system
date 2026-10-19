@@ -1,0 +1,817 @@
+{
+  "schema_version": 1,
+  "modules": [
+    {
+      "id": "agent-console",
+      "name": "Agent Console（操作台）",
+      "roots": [
+        "apps/agent-console"
+      ],
+      "kind": "app",
+      "owners": [
+        "operator-interaction-owners"
+      ],
+      "languages": [
+        "javascript",
+        "json",
+        "markdown",
+        "typescript"
+      ],
+      "public_interfaces": [],
+      "depends_on": [
+        "ai-gateway-service",
+        "context-codec-core",
+        "policy-engine",
+        "shared-contracts",
+        "shared-sdk",
+        "shared-utils"
+      ],
+      "allowed_dependencies": [],
+      "denied_dependencies": []
+    },
+    {
+      "id": "ai-gateway-service",
+      "name": "AI Gateway Service（网关运行时）",
+      "roots": [
+        "apps/ai-gateway-service"
+      ],
+      "kind": "app",
+      "owners": [
+        "gateway-runtime-owners"
+      ],
+      "languages": [
+        "image",
+        "javascript",
+        "json",
+        "markdown",
+        "powershell",
+        "python",
+        "typescript"
+      ],
+      "public_interfaces": [
+        "agent-governance-api",
+        "gateway-http-api",
+        "gateway-internal-verification-surface"
+      ],
+      "depends_on": [
+        "agent-console",
+        "codex-context-gateway",
+        "context-codec-core",
+        "employee-brain-adapter",
+        "forge-core",
+        "im-connector-feishu",
+        "im-connector-wecom",
+        "policy-engine",
+        "shared-config",
+        "shared-contracts",
+        "shared-sdk",
+        "shared-utils",
+        "taiji-beidou-engine",
+        "tools",
+        "web-agent",
+        "workforce-scheduler"
+      ],
+      "allowed_dependencies": [],
+      "denied_dependencies": []
+    },
+    {
+      "id": "shared-contracts",
+      "name": "Shared Contracts（公共协议类型）",
+      "roots": [
+        "packages/shared-contracts"
+      ],
+      "kind": "library",
+      "owners": [
+        "public-protocol-owners"
+      ],
+      "languages": [
+        "javascript",
+        "json",
+        "markdown",
+        "typescript"
+      ],
+      "public_interfaces": [
+        "shared-protocol-contracts"
+      ],
+      "depends_on": [],
+      "allowed_dependencies": [],
+      "denied_dependencies": []
+    },
+    {
+      "id": "shared-sdk",
+      "name": "Shared SDK（可复用客户端与适配器）",
+      "roots": [
+        "packages/shared-sdk"
+      ],
+      "kind": "library",
+      "owners": [
+        "sdk-owners"
+      ],
+      "languages": [
+        "javascript",
+        "json",
+        "markdown",
+        "typescript"
+      ],
+      "public_interfaces": [
+        "shared-sdk-client-surface"
+      ],
+      "depends_on": [
+        "shared-contracts"
+      ],
+      "allowed_dependencies": [],
+      "denied_dependencies": []
+    },
+    {
+      "id": "shared-config",
+      "name": "Shared Config（共享配置）",
+      "roots": [
+        "packages/shared-config"
+      ],
+      "kind": "library",
+      "owners": [
+        "shared-config-owners"
+      ],
+      "languages": [
+        "javascript",
+        "json",
+        "markdown",
+        "typescript"
+      ],
+      "public_interfaces": [],
+      "depends_on": [],
+      "allowed_dependencies": [],
+      "denied_dependencies": []
+    },
+    {
+      "id": "shared-utils",
+      "name": "Shared Utils（实现中立工具）",
+      "roots": [
+        "packages/shared-utils"
+      ],
+      "kind": "library",
+      "owners": [
+        "shared-utils-owners"
+      ],
+      "languages": [
+        "javascript",
+        "json",
+        "markdown",
+        "typescript"
+      ],
+      "public_interfaces": [],
+      "depends_on": [],
+      "allowed_dependencies": [],
+      "denied_dependencies": []
+    },
+    {
+      "id": "forge-core",
+      "name": "Forge Core",
+      "roots": [
+        "packages/forge-core"
+      ],
+      "kind": "library",
+      "owners": [
+        "uai-maintainers"
+      ],
+      "languages": [
+        "javascript",
+        "json",
+        "markdown",
+        "yaml"
+      ],
+      "public_interfaces": [],
+      "depends_on": [
+        "ai-gateway-service",
+        "shared-config",
+        "shared-utils"
+      ],
+      "allowed_dependencies": [],
+      "denied_dependencies": []
+    },
+    {
+      "id": "mcp-server",
+      "name": "MCP Server",
+      "roots": [
+        "packages/mcp-server"
+      ],
+      "kind": "library",
+      "owners": [
+        "uai-maintainers"
+      ],
+      "languages": [
+        "javascript",
+        "json",
+        "markdown",
+        "typescript"
+      ],
+      "public_interfaces": [
+        "mcp-server-tools",
+        "mcp-server-internal-verification-surface"
+      ],
+      "depends_on": [
+        "shared-sdk"
+      ],
+      "allowed_dependencies": [],
+      "denied_dependencies": []
+    },
+    {
+      "id": "mcp-service",
+      "name": "MCP Service",
+      "roots": [
+        "packages/mcp-service"
+      ],
+      "kind": "library",
+      "owners": [
+        "uai-maintainers"
+      ],
+      "languages": [
+        "javascript",
+        "json",
+        "markdown",
+        "typescript"
+      ],
+      "public_interfaces": [],
+      "depends_on": [
+        "mcp-server"
+      ],
+      "allowed_dependencies": [],
+      "denied_dependencies": []
+    },
+    {
+      "id": "policy-engine",
+      "name": "Policy Engine",
+      "roots": [
+        "packages/policy-engine"
+      ],
+      "kind": "library",
+      "owners": [
+        "uai-maintainers"
+      ],
+      "languages": [
+        "json",
+        "typescript"
+      ],
+      "public_interfaces": [],
+      "depends_on": [
+        "shared-contracts"
+      ],
+      "allowed_dependencies": [],
+      "denied_dependencies": []
+    },
+    {
+      "id": "position-library",
+      "name": "Position Library（含 O*NET 数据）",
+      "roots": [
+        "packages/position-library"
+      ],
+      "kind": "library",
+      "owners": [
+        "uai-maintainers"
+      ],
+      "languages": [
+        "javascript",
+        "json",
+        "typescript"
+      ],
+      "public_interfaces": [],
+      "depends_on": [
+        "workforce-scheduler"
+      ],
+      "allowed_dependencies": [],
+      "denied_dependencies": []
+    },
+    {
+      "id": "codex-context-gateway",
+      "name": "Codex Context Gateway",
+      "roots": [
+        "packages/codex-context-gateway"
+      ],
+      "kind": "library",
+      "owners": [
+        "uai-maintainers"
+      ],
+      "languages": [
+        "javascript",
+        "json",
+        "markdown",
+        "typescript"
+      ],
+      "public_interfaces": [],
+      "depends_on": [
+        "context-codec-core"
+      ],
+      "allowed_dependencies": [],
+      "denied_dependencies": []
+    },
+    {
+      "id": "context-codec-core",
+      "name": "Context Codec Core",
+      "roots": [
+        "packages/context-codec-core"
+      ],
+      "kind": "library",
+      "owners": [
+        "uai-maintainers"
+      ],
+      "languages": [
+        "javascript",
+        "json",
+        "markdown",
+        "typescript"
+      ],
+      "public_interfaces": [],
+      "depends_on": [],
+      "allowed_dependencies": [],
+      "denied_dependencies": []
+    },
+    {
+      "id": "employee-brain-adapter",
+      "name": "Employee Brain Adapter",
+      "roots": [
+        "packages/employee-brain-adapter"
+      ],
+      "kind": "library",
+      "owners": [
+        "uai-maintainers"
+      ],
+      "languages": [
+        "javascript",
+        "json",
+        "markdown",
+        "typescript"
+      ],
+      "public_interfaces": [],
+      "depends_on": [
+        "shared-contracts",
+        "workforce-contracts"
+      ],
+      "allowed_dependencies": [],
+      "denied_dependencies": []
+    },
+    {
+      "id": "im-connector-feishu",
+      "name": "IM Connector Feishu",
+      "roots": [
+        "packages/im-connector-feishu"
+      ],
+      "kind": "library",
+      "owners": [
+        "uai-maintainers"
+      ],
+      "languages": [
+        "javascript",
+        "json",
+        "markdown",
+        "typescript"
+      ],
+      "public_interfaces": [],
+      "depends_on": [],
+      "allowed_dependencies": [],
+      "denied_dependencies": []
+    },
+    {
+      "id": "im-connector-wecom",
+      "name": "IM Connector WeCom",
+      "roots": [
+        "packages/im-connector-wecom"
+      ],
+      "kind": "library",
+      "owners": [
+        "uai-maintainers"
+      ],
+      "languages": [
+        "javascript",
+        "json",
+        "markdown"
+      ],
+      "public_interfaces": [],
+      "depends_on": [],
+      "allowed_dependencies": [],
+      "denied_dependencies": []
+    },
+    {
+      "id": "taiji-beidou-engine",
+      "name": "Taiji Beidou Engine",
+      "roots": [
+        "packages/taiji-beidou-engine"
+      ],
+      "kind": "library",
+      "owners": [
+        "uai-maintainers"
+      ],
+      "languages": [
+        "javascript",
+        "json",
+        "markdown",
+        "typescript"
+      ],
+      "public_interfaces": [],
+      "depends_on": [],
+      "allowed_dependencies": [],
+      "denied_dependencies": []
+    },
+    {
+      "id": "web-agent",
+      "name": "Web Agent",
+      "roots": [
+        "packages/web-agent"
+      ],
+      "kind": "library",
+      "owners": [
+        "uai-maintainers"
+      ],
+      "languages": [
+        "javascript",
+        "json",
+        "markdown",
+        "typescript"
+      ],
+      "public_interfaces": [],
+      "depends_on": [],
+      "allowed_dependencies": [],
+      "denied_dependencies": []
+    },
+    {
+      "id": "workforce-contracts",
+      "name": "Workforce Contracts",
+      "roots": [
+        "packages/workforce-contracts"
+      ],
+      "kind": "library",
+      "owners": [
+        "uai-maintainers"
+      ],
+      "languages": [
+        "javascript",
+        "json",
+        "markdown"
+      ],
+      "public_interfaces": [
+        "workforce-contract"
+      ],
+      "depends_on": [],
+      "allowed_dependencies": [],
+      "denied_dependencies": []
+    },
+    {
+      "id": "workforce-scheduler",
+      "name": "Workforce Scheduler",
+      "roots": [
+        "packages/workforce-scheduler"
+      ],
+      "kind": "library",
+      "owners": [
+        "uai-maintainers"
+      ],
+      "languages": [
+        "javascript",
+        "json",
+        "markdown",
+        "typescript"
+      ],
+      "public_interfaces": [],
+      "depends_on": [
+        "employee-brain-adapter",
+        "position-library",
+        "shared-contracts",
+        "workforce-contracts"
+      ],
+      "allowed_dependencies": [],
+      "denied_dependencies": []
+    },
+    {
+      "id": "tools",
+      "name": "Tools（仓库工具脚本）",
+      "roots": [
+        "tools"
+      ],
+      "kind": "tooling",
+      "owners": [
+        "uai-maintainers"
+      ],
+      "languages": [
+        "go",
+        "javascript",
+        "json",
+        "markdown",
+        "powershell"
+      ],
+      "public_interfaces": [],
+      "depends_on": [
+        "agent-console",
+        "ai-gateway-service",
+        "mcp-server",
+        "policy-engine"
+      ],
+      "allowed_dependencies": [],
+      "denied_dependencies": []
+    },
+    {
+      "id": "docs",
+      "name": "Docs（文档）",
+      "roots": [
+        "docs"
+      ],
+      "kind": "docs",
+      "owners": [
+        "uai-maintainers"
+      ],
+      "languages": [
+        "csharp",
+        "go",
+        "image",
+        "java",
+        "javascript",
+        "json",
+        "markdown",
+        "powershell",
+        "python"
+      ],
+      "public_interfaces": [],
+      "depends_on": [
+        "ai-gateway-service",
+        "shared-sdk"
+      ],
+      "allowed_dependencies": [],
+      "denied_dependencies": []
+    },
+    {
+      "id": "deploy",
+      "name": "Deploy（部署定义）",
+      "roots": [
+        "deploy"
+      ],
+      "kind": "deployment",
+      "owners": [
+        "uai-maintainers"
+      ],
+      "languages": [
+        "conf",
+        "json",
+        "powershell",
+        "shell"
+      ],
+      "public_interfaces": [],
+      "depends_on": [],
+      "allowed_dependencies": [],
+      "denied_dependencies": []
+    },
+    {
+      "id": "skills",
+      "name": "Skills",
+      "roots": [
+        "skills"
+      ],
+      "kind": "skills",
+      "owners": [
+        "uai-maintainers"
+      ],
+      "languages": [
+        "markdown",
+        "yaml"
+      ],
+      "public_interfaces": [],
+      "depends_on": [],
+      "allowed_dependencies": [],
+      "denied_dependencies": []
+    },
+    {
+      "id": "assets",
+      "name": "Assets（静态资源）",
+      "roots": [
+        "assets"
+      ],
+      "kind": "assets",
+      "owners": [
+        "uai-maintainers"
+      ],
+      "languages": [
+        "image"
+      ],
+      "public_interfaces": [],
+      "depends_on": [],
+      "allowed_dependencies": [],
+      "denied_dependencies": []
+    },
+    {
+      "id": "repo-root-config",
+      "name": "Repo Root Config（仓库根配置）",
+      "roots": [
+        "."
+      ],
+      "kind": "build-config",
+      "owners": [
+        "uai-maintainers"
+      ],
+      "languages": [
+        "conf",
+        "csharp",
+        "dockerfile",
+        "go",
+        "image",
+        "java",
+        "javascript",
+        "json",
+        "markdown",
+        "powershell",
+        "python",
+        "shell",
+        "typescript",
+        "yaml"
+      ],
+      "public_interfaces": [],
+      "depends_on": [],
+      "allowed_dependencies": [],
+      "denied_dependencies": []
+    }
+  ],
+  "interfaces": [
+    {
+      "id": "agent-governance-api",
+      "kind": "http-api",
+      "provider": "ai-gateway-service",
+      "consumers": [
+        "agent-console",
+        "shared-sdk"
+      ],
+      "contract_files": [
+        "apps/ai-gateway-service/src/http/agentGovernanceRoutes.ts",
+        "apps/ai-gateway-service/src/agent-governance/agentGovernanceService.ts",
+        "apps/ai-gateway-service/src/http/agentGovernanceRoutes.errorMapping.test.ts"
+      ],
+      "version": "v1"
+    },
+    {
+      "id": "shared-protocol-contracts",
+      "kind": "typescript-contracts",
+      "provider": "shared-contracts",
+      "consumers": [
+        "ai-gateway-service",
+        "shared-sdk",
+        "agent-console",
+        "employee-brain-adapter",
+        "policy-engine",
+        "workforce-scheduler"
+      ],
+      "contract_files": [
+        "packages/shared-contracts/src/index.ts",
+        "packages/shared-contracts/src/runtime.ts",
+        "packages/shared-contracts/src/contracts/index.ts",
+        "packages/shared-contracts/src/contracts/common.ts",
+        "packages/shared-contracts/src/contracts/gateway.ts",
+        "packages/shared-contracts/src/contracts/governance.ts",
+        "packages/shared-contracts/src/contracts/workforce.ts",
+        "packages/shared-contracts/src/contracts/routing.ts"
+      ],
+      "version": "v1"
+    },
+    {
+      "id": "shared-sdk-client-surface",
+      "kind": "javascript-sdk",
+      "provider": "shared-sdk",
+      "consumers": [
+        "agent-console",
+        "mcp-server",
+        "ai-gateway-service",
+        "docs"
+      ],
+      "contract_files": [
+        "packages/shared-sdk/src/index.js",
+        "packages/shared-sdk/src/index.ts",
+        "packages/shared-sdk/src/index.test.js"
+      ],
+      "version": "v1"
+    },
+    {
+      "id": "workforce-contract",
+      "kind": "library-contract",
+      "provider": "workforce-contracts",
+      "consumers": [
+        "employee-brain-adapter",
+        "ai-gateway-service",
+        "agent-console",
+        "workforce-scheduler"
+      ],
+      "contract_files": [
+        "packages/workforce-contracts/src/index.js",
+        "packages/workforce-contracts/src/brainAdapterTypes.js",
+        "packages/workforce-contracts/src/employeeTypes.js",
+        "packages/workforce-contracts/src/positionTypes.js",
+        "packages/workforce-contracts/src/schedulerTypes.js",
+        "packages/workforce-contracts/src/workforceContractsSmoke.test.js"
+      ],
+      "version": "v1"
+    },
+    {
+      "id": "mcp-server-tools",
+      "kind": "mcp-tools",
+      "provider": "mcp-server",
+      "consumers": [
+        "agent-console",
+        "mcp-service"
+      ],
+      "contract_files": [
+        "packages/mcp-server/src/index.js",
+        "packages/mcp-server/src/server.js",
+        "packages/mcp-server/src/http.js",
+        "packages/mcp-server/src/runtime.js",
+        "packages/mcp-server/package.json",
+        "packages/mcp-server/README.md"
+      ],
+      "version": "v1"
+    },
+    {
+      "id": "gateway-http-api",
+      "kind": "http-api",
+      "provider": "ai-gateway-service",
+      "consumers": [
+        "agent-console",
+        "shared-sdk"
+      ],
+      "contract_files": [
+        "apps/ai-gateway-service/src/http/openAiCompatibilityRoutes.js",
+        "apps/ai-gateway-service/src/http/openAiResponsesRoutes.js",
+        "apps/ai-gateway-service/src/http/httpServer.js",
+        "apps/ai-gateway-service/src/http/httpServerRoutes06.js"
+      ],
+      "version": "v1"
+    },
+    {
+      "id": "gateway-internal-verification-surface",
+      "kind": "internal-module-surface",
+      "provider": "ai-gateway-service",
+      "consumers": [
+        "agent-console",
+        "docs",
+        "tools"
+      ],
+      "contract_files": [
+        "apps/ai-gateway-service/src/application/createGatewayApplication.js",
+        "apps/ai-gateway-service/src/application/runtimeBuildIdentity.ts",
+        "apps/ai-gateway-service/src/http/httpServer.js",
+        "apps/ai-gateway-service/src/http/connectionPool.js",
+        "apps/ai-gateway-service/src/http/utils/enterpriseUtils.js",
+        "apps/ai-gateway-service/src/http/a2aTaskStore.ts",
+        "apps/ai-gateway-service/src/http/idempotencyCoordinator.ts",
+        "apps/ai-gateway-service/src/http/openApiGenerator.js",
+        "apps/ai-gateway-service/src/agent-governance/agentGovernanceService.ts",
+        "apps/ai-gateway-service/src/agent-governance/toolProxy.ts",
+        "apps/ai-gateway-service/src/agent-governance/agentApprovalStore.ts",
+        "apps/ai-gateway-service/src/agent-governance/agentRegistryStore.ts",
+        "apps/ai-gateway-service/src/agent-governance/governanceOwnerLease.ts",
+        "apps/ai-gateway-service/src/agent-governance/governanceAuditLog.ts",
+        "apps/ai-gateway-service/src/agent-governance/governanceStateAnchor.ts",
+        "apps/ai-gateway-service/src/agent-governance/policyCatalogStore.ts",
+        "apps/ai-gateway-service/src/agent-governance/registryAuthoritySwitch.ts",
+        "apps/ai-gateway-service/src/agent-governance/sqliteAgentRegistryStore.ts",
+        "apps/ai-gateway-service/src/agent-governance/sqliteAgentRegistryMigrations.ts",
+        "apps/ai-gateway-service/src/agent-governance/usageStore.ts",
+        "apps/ai-gateway-service/src/capabilities/localClientWindowsAuthorityNative.ts",
+        "apps/ai-gateway-service/src/capabilities/localClientAdapterRegistry.ts",
+        "apps/ai-gateway-service/src/capabilities/localClientManagementService.ts",
+        "apps/ai-gateway-service/src/capabilities/localClientRoutePlanStore.ts",
+        "apps/ai-gateway-service/src/capabilities/localClientExecutionPreview.ts",
+        "apps/ai-gateway-service/src/capabilities/localClientPopReplayConfiguration.ts",
+        "apps/ai-gateway-service/src/capabilities/localClientNativePopReplayRuntime.ts",
+        "apps/ai-gateway-service/src/routing/localClientProviderRuntimeRouter.ts",
+        "apps/ai-gateway-service/src/routing/localClientProviderPolicyConfig.ts",
+        "apps/ai-gateway-service/src/enterprise/postgresAuditStore.ts",
+        "apps/ai-gateway-service/src/external-effects/externalEffectGate.ts",
+        "apps/ai-gateway-service/src/logging/usageLedgerFactory.ts",
+        "apps/ai-gateway-service/src/providers/providerDispatchGate.ts",
+        "apps/ai-gateway-service/src/workforce/postgresExecutionLifecycle.ts",
+        "apps/ai-gateway-service/src/workforce/postgresTaskClaimLease.ts",
+        "apps/ai-gateway-service/src/workforce/workforceExternalRunnerProcess.ts",
+        "apps/ai-gateway-service/src/prompts/naturalLanguagePromptEnhancer.js"
+      ],
+      "version": "v1"
+    },
+    {
+      "id": "mcp-server-internal-verification-surface",
+      "kind": "internal-module-surface",
+      "provider": "mcp-server",
+      "consumers": [
+        "tools"
+      ],
+      "contract_files": [
+        "packages/mcp-server/src/server.js"
+      ],
+      "version": "v1"
+    }
+  ],
+  "repositories": [],
+  "policies": {
+    "enforce_ownership": true,
+    "enforce_declared_dependencies": true,
+    "enforce_public_interfaces": true,
+    "fail_on_unresolved": true,
+    "minimum_coverage_pct": 80,
+    "minimum_semantic_assurance": "heuristic",
+    "fail_on_semantic_fallback": false,
+    "required_quality_kinds": [
+      "test",
+      "build"
+    ]
+  }
+}

@@ -181,6 +181,7 @@ export function normalizeModelSelection(value) {
 export function createProviders(application) {
   return application.gatewayService.getProviderDescriptors().map((provider) => {
     const credential = application.runtimeCredentialStore?.describe?.(provider.id);
+    const pool = application.credentialPool?.describe?.(provider.id) ?? null;
     return {
       ...provider,
       metadata: {
@@ -188,6 +189,12 @@ export function createProviders(application) {
         runtimeCredentialPresent: Boolean(application.runtimeCredentialStore?.has(provider.id)),
         runtimeCredentialPersisted: credential?.persisted === true,
         runtimeCredentialStorage: credential?.secretStorage ?? "memory-only",
+        // Pool metadata exposes counts only — never a key or a fingerprint.
+        credentialPoolConfigured: Boolean(pool && pool.size > 0),
+        credentialPoolSize: pool?.size ?? 0,
+        credentialPoolAlive: pool?.alive ?? 0,
+        credentialPoolBenched: pool?.benched ?? 0,
+        credentialPoolExhausted: pool?.exhausted ?? 0,
       },
     };
   });
@@ -250,6 +257,38 @@ export function setRuntimeProviderCredential(application, body) {
     runtimeProviderEnabled: executionDecision.allowed,
     runtimeProviderBlockers: executionDecision.blockers,
   };
+}
+
+export function setRuntimeCredentialPool(application, body) {
+  const providerId = String(body?.providerId ?? "").trim().toLowerCase();
+  if (!providerId) {
+    const error = new Error("providerId is required.");
+    error.code = "credential_pool_provider_required";
+    error.category = "validation";
+    throw error;
+  }
+  const pool = application.credentialPool;
+  if (!pool || typeof pool.set !== "function") {
+    const error = new Error("The credential pool is not available in the current runtime.");
+    error.code = "credential_pool_unavailable";
+    error.category = "provider";
+    throw error;
+  }
+  const rawEntries = Array.isArray(body?.entries) ? body.entries : null;
+  if (!rawEntries) {
+    const error = new Error("entries must be an array of { key, balance, expire } objects.");
+    error.code = "credential_pool_entries_required";
+    error.category = "validation";
+    throw error;
+  }
+  // Validation only; the returned description carries counts, never key material.
+  const described = pool.set(providerId, rawEntries.map((entry) => ({
+    key: entry?.key,
+    balance: entry?.balance,
+    expire: entry?.expire,
+    label: entry?.label,
+  })));
+  return { providerId, ...described };
 }
 
 export function normalizeRuntimeProviderEndpoint(providerId, endpoint) {

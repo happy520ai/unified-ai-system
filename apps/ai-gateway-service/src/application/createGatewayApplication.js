@@ -11,6 +11,7 @@ import { createAnthropicAdapter } from "../providers/anthropicAdapter.js";
 import { createGeminiAdapter } from "../providers/geminiAdapter.ts";
 import { createHttpLLMProviderAdapter } from "../providers/httpLlmProviderAdapter.js";
 import { createRuntimeCredentialStore } from "../providers/runtimeCredentialStore.js";
+import { createCredentialPool } from "../providers/credentialPool.ts";
 import { getProviderExecutionDecision } from "../providers/providerExecutionGate.ts";
 import { createModelImportService } from "../model-import/modelImportService.js";
 import { createModelLibraryStore } from "../model-library/modelLibraryStore.js";
@@ -322,6 +323,10 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
   const localClientProviderPolicyResolver = createConfiguredLocalClientProviderPolicyResolver(env);
   const config = loadRuntimeConfig(env);
   const runtimeCredentialStore = createRuntimeCredentialStore({ env });
+  // Multi-key pool: additive layer over the single-credential store. Constructed
+  // only when the store is meaningful; a failure here must not break startup,
+  // so a broken pool degrades to "no pool" (single-key behavior) with a log.
+  const credentialPool = createCredentialPoolSafely(env);
 
   // Health scorer is always created; it powers health-weighted provider selection
   // when mode === "health-weighted" and records outcomes from GatewayService.
@@ -349,7 +354,7 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
     providerRegistry.register(createProviderAdapter({
       ...modelConfig,
       enabled: modelConfig.enabled || runtimeCredentialCapable,
-    }, config, runtimeCredentialStore, env));
+    }, config, runtimeCredentialStore, env, credentialPool));
   }
   const providerExecutionConfig = {
     providerMode: config.aiGatewayService.providerMode,
@@ -1337,6 +1342,7 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
     imConnectorRuntime: createImConnectorRuntime({ env, gate: externalEffectGate, configuration: imConnectorConfiguration }),
     runtimeEnv: env,
     runtimeCredentialStore,
+    credentialPool,
     requestLogger,
     userExperienceService,
     workforceExecutor,
@@ -4624,13 +4630,29 @@ function isRuntimeCredentialCapableProvider(modelConfig) {
     providerType === "openai-compatible";
 }
 
-function createProviderAdapter(modelConfig, config, runtimeCredentialStore, env) {
+function createCredentialPoolSafely(env) {
+  try {
+    return createCredentialPool({ env });
+  } catch (error) {
+    // A misconfigured pool store (e.g. encrypted mode without a master key) must
+    // not take the whole gateway down. Degrading to no pool preserves the
+    // pre-existing single-key behavior exactly.
+    console.warn(JSON.stringify({
+      event: "credential_pool_init_failed",
+      code: error?.code ?? null,
+      message: error instanceof Error ? error.message : "Credential pool init failed.",
+    }));
+    return null;
+  }
+}
+
+function createProviderAdapter(modelConfig, config, runtimeCredentialStore, env, credentialPool) {
   const options = {
     timeoutMs: config.aiGatewayService.requestTimeoutMs,
     runtimeCredentialStore,
+    credentialPool,
     certificationToolMode: env.AI_GATEWAY_FAKE_PROVIDER_TOOL_MODE,
   };
-
   if (modelConfig.providerType === "fake") {
     return createFakeProvider(modelConfig, options);
   }
