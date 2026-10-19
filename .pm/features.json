@@ -1,0 +1,1731 @@
+{
+  "seq": 92,
+  "features": [
+    {
+      "id": "F-001",
+      "name": "受治理工作副本原子存储与编辑器接口（模块）",
+      "description": "固定资源加密内容与execution状态同事务提交，SDK回执确定性恢复及真实FileSystemProvider接口。模块测试、两款真实IDE保存/重复抑制/后台进程崩溃恢复/原文回滚/执行前取消与撤销已验证；这条链尚未绑定protectedAuthority及持久业务密钥，正式治理执行入口仍未验收。",
+      "module": "local-client-management",
+      "entry_files": [
+        "apps/ai-gateway-service/src/capabilities/localClientWorkcopyStore.ts",
+        "apps/agent-console/src/editor/localClientWorkcopyEditor.ts",
+        "apps/ai-gateway-service/src/capabilities/localClientLoopbackReceiver.ts",
+        "apps/ai-gateway-service/src/capabilities/localClientExecutionReceiptReconciliation.ts"
+      ],
+      "test_files": [
+        "apps/ai-gateway-service/src/capabilities/localClientWorkcopyStore.test.ts",
+        "apps/ai-gateway-service/src/capabilities/localClientWorkcopyEditor.test.ts",
+        "apps/ai-gateway-service/src/capabilities/localClientLoopbackReceiver.test.ts",
+        "apps/ai-gateway-service/src/capabilities/localClientExecutionReceiptReconciliation.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-07T18:17:21.919Z",
+      "updated": "2026-09-07T18:17:21.919Z"
+    },
+    {
+      "id": "F-002",
+      "name": "受保护回执检查点协调模块",
+      "description": "显式登记独立authority槽位，事务内保存签名检查点，返回前完成两阶段确认；恢复不接受动作回调。模块/模型端口已验证，未安装native服务，不翻转正式执行就绪标志。",
+      "module": "local-client-management",
+      "entry_files": [
+        "apps/ai-gateway-service/src/capabilities/localClientProtectedSqliteCheckpoint.ts",
+        "apps/ai-gateway-service/src/capabilities/localClientExecutionReceiptReconciliation.ts",
+        "apps/ai-gateway-service/src/capabilities/localClientWindowsAuthorityBrokerService.ts",
+        "apps/ai-gateway-service/src/capabilities/localClientWindowsProtectedAuthorityAnchor.ts"
+      ],
+      "test_files": [
+        "apps/ai-gateway-service/src/capabilities/localClientProtectedSqliteCheckpoint.test.ts",
+        "apps/ai-gateway-service/src/capabilities/localClientWindowsAuthorityBrokerService.test.ts",
+        "apps/ai-gateway-service/src/capabilities/localClientWindowsProtectedAuthorityAnchor.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-07T18:40:59.808Z",
+      "updated": "2026-09-07T18:40:59.808Z"
+    },
+    {
+      "id": "F-003",
+      "name": "受保护工作副本事务接线",
+      "description": "复用回执检查点协调器保护逻辑内容、回执和epoch；受保护open不先改epoch，显式恢复不调用编辑。异步存储与既有编辑器端口接通并经模型权限测试验证；实际Windows部署证明尚未完成。",
+      "module": "local-client-management",
+      "entry_files": [
+        "apps/ai-gateway-service/src/capabilities/localClientWorkcopyStore.ts"
+      ],
+      "test_files": [
+        "apps/ai-gateway-service/src/capabilities/localClientWorkcopyStore.test.ts",
+        "apps/ai-gateway-service/src/capabilities/localClientWorkcopyEditor.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-07T19:16:35.069Z",
+      "updated": "2026-09-07T19:16:35.069Z"
+    },
+    {
+      "id": "F-004",
+      "name": "Windows原生回执权限包（安装前候选）",
+      "description": "历史安装前审查记录。此后已获授权并完成有界本机原生验证，当前实现及验证边界见 F-006；此记录保留原入口和审查来源。",
+      "module": "local-client-management",
+      "entry_files": [
+        "apps/ai-gateway-service/src/capabilities/localClientWindowsAuthorityNative.ts",
+        "apps/ai-gateway-service/src/capabilities/localClientWindowsAuthorityBrokerEntry.ts",
+        "apps/ai-gateway-service/src/native/localClientWindowsAuthorityNative.cpp",
+        "apps/ai-gateway-service/src/native/localClientWindowsAuthorityService.cpp",
+        "tools/build-local-client-windows-authority.mjs"
+      ],
+      "test_files": [
+        "apps/ai-gateway-service/src/capabilities/localClientWindowsAuthorityNative.test.ts",
+        "tools/check-language-policy.test.mjs"
+      ],
+      "status": "deprecated",
+      "created": "2026-09-07T22:04:46.319Z",
+      "updated": "2026-09-07T22:04:46.319Z"
+    },
+    {
+      "id": "F-006",
+      "name": "Windows原生回执权限包（有界本机验证）",
+      "description": "固定7产物/12槽位、实际caller/SCM身份、DPAPI专用authority key、ProgramData/HKLM锚点与持久协调已通过一次本机validation6验证；runtime6零基线，服务Stopped/Manual，保留权威历史。真实编辑器回调、完整governedHTTP、SCM重启、持久业务密钥与生产认证尚未证明；默认PoP边界不变。",
+      "module": "local-client-management",
+      "entry_files": [
+        "apps/ai-gateway-service/src/native/localClientWindowsAuthorityService.cpp",
+        "apps/ai-gateway-service/src/native/localClientWindowsAuthorityNative.cpp",
+        "apps/ai-gateway-service/src/capabilities/localClientWindowsAuthorityBrokerEntry.ts",
+        "apps/ai-gateway-service/src/capabilities/localClientWindowsAuthorityNative.ts",
+        "tools/build-local-client-windows-authority.mjs"
+      ],
+      "test_files": [
+        "apps/ai-gateway-service/src/capabilities/localClientWindowsAuthorityNative.test.ts",
+        "apps/ai-gateway-service/src/capabilities/localClientWindowsAuthorityBrokerService.test.ts",
+        "apps/ai-gateway-service/src/capabilities/localClientWindowsProtectedAuthorityAnchor.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-08T04:30:04.432Z",
+      "updated": "2026-09-08T04:30:04.432Z"
+    },
+    {
+      "id": "F-007",
+      "name": "本地客户端MCP配置治理（有界实机验证）",
+      "description": "显式配置后提供认证预览、审批、配置启停、幂等回执、管理进程重启恢复与回滚。专用工作区VSCode15项、Cursor13项及最终Cursor原生回连已验证并保留配置；不宣称个人全局配置已部署、正式受保护工作副本执行入口贯通或生产认证。",
+      "module": "local-client-onboarding",
+      "entry_files": [
+        "apps/ai-gateway-service/src/capabilities/localClientGovernedOnboardingApi.ts",
+        "apps/ai-gateway-service/src/capabilities/localClientGovernedOnboardingRuntime.ts",
+        "apps/ai-gateway-service/src/capabilities/localClientOnboardingRegistry.ts"
+      ],
+      "test_files": [
+        "apps/ai-gateway-service/src/capabilities/localClientGovernedOnboardingApi.test.ts",
+        "apps/ai-gateway-service/src/capabilities/localClientOnboardingRegistry.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-08T12:19:10.079Z",
+      "updated": "2026-09-08T12:19:10.079Z"
+    },
+    {
+      "id": "F-008",
+      "name": "中文项目全景图文报告（文档产物）",
+      "description": "2026-09-08工作区梳理，16页PDF与可搜索/放大的HTML、来源说明。属于本地文档产物，不新增产品运行能力。区分源码、历史验证、本次未执行验证和生产证据；图文通过逐页与浏览交互检查。",
+      "module": "documentation",
+      "entry_files": [
+        "apps/ai-gateway-service/evidence/project-overview-2026-09-08/项目全景图文报告.html",
+        "apps/ai-gateway-service/evidence/project-overview-2026-09-08/项目全景图文报告.pdf",
+        "apps/ai-gateway-service/evidence/project-overview-2026-09-08/来源说明.md"
+      ],
+      "test_files": [],
+      "status": "implemented",
+      "created": "2026-09-08T12:52:31.375Z",
+      "updated": "2026-09-08T12:52:31.375Z"
+    },
+    {
+      "id": "F-009",
+      "name": "诊断工具链一致性与可执行命令提示（隔离候选）",
+      "description": "实现位于../uai-product-final、codex/product-final@2c10d68，未合并原工作区/未部署。doctor跟随package.engines，诊断命令有效；62+1专项测试通过，完整目标继续。",
+      "module": "operations",
+      "entry_files": [
+        "../uai-product-final/apps/agent-console/src/cli-core.js",
+        "../uai-product-final/apps/ai-gateway-service/src/http/httpServerCapabilityRoutes.js"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/agent-console/src/cli.test.js",
+        "../uai-product-final/apps/ai-gateway-service/src/http/httpServerCapabilityRoutes.diagnostics.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-08T13:30:56.929Z",
+      "updated": "2026-09-08T13:30:56.929Z"
+    },
+    {
+      "id": "F-010",
+      "name": "与实际路由一致的就绪引导（隔离候选）",
+      "description": "../uai-product-final、codex/product-final@a18ec812。明确运行模式、固定默认不可用/策略选择、实际CLI/API入口和未执行验证边界；19项直接回归通过。未合并原工作区、未部署，原ready语义保留。",
+      "module": "operations",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/http/utils/healthUtils.js",
+        "../uai-product-final/packages/shared-contracts/src/contracts/setup.ts"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/http/utils/healthUtils.setup.test.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/http/utils/healthUtils.agentGovernance.test.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/http/utils/healthUtils.usageLedger.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-08T13:50:11.040Z",
+      "updated": "2026-09-08T13:50:11.040Z"
+    },
+    {
+      "id": "F-011",
+      "name": "单Provider运行凭据受控清除（隔离候选）",
+      "description": "87fb7778；provider:write、平台租户、审计与安全回执，SDK不跟随重定向。尚未部署。",
+      "module": "Provider runtime credentials",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/providers/clearRuntimeProviderCredential.ts"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/providers/clearRuntimeProviderCredential.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-08T14:43:35.136Z",
+      "updated": "2026-09-08T14:43:35.136Z"
+    },
+    {
+      "id": "F-012",
+      "name": "持久工作流运行与显式恢复（隔离候选）",
+      "description": "55329824；单机SQLite记录运行和发布意图，原身份/内容对账，不自动重复未知外部效果。CLI/SDK操作入口仍待补齐，尚未部署。",
+      "module": "Workflow",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/workflow/durableWorkflowRunStore.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/workflow/localWorkflowService.js"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/workflow/durableWorkflowRecovery.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-08T14:43:35.361Z",
+      "updated": "2026-09-08T14:43:35.361Z"
+    },
+    {
+      "id": "F-013",
+      "name": "虚拟Key普通重启预算连续性（隔离候选）",
+      "description": "5d6f219f；成功计数写入后普通重启可恢复，故障降级并支持保留内存的同进程flush修复；不宣称崩溃未知计费和分布式硬预算已解决。",
+      "module": "Enterprise accounting",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/enterprise/apiKeyManager.js"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/enterprise/apiKeyManager.persistence.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-08T14:52:53.120Z",
+      "updated": "2026-09-08T14:52:53.120Z"
+    },
+    {
+      "id": "F-014",
+      "name": "多客户端控制中心与共享MCP预算（隔离候选）",
+      "description": "候选4e4f9f9d，后续0a2d0109上3次串行临时profile smoke通过；一份manifest计划/应用/核验三profile并由三MCP会话共用预算。原生模型/登录未改变，真实客户端加载与冷启动债务仍需验证。",
+      "module": "Local client management",
+      "entry_files": [
+        "../uai-product-final/apps/agent-console/src/cli-core.js",
+        "../uai-product-final/apps/ai-gateway-service/src/http/httpServerRoutes06.js"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/agent-console/src/cli.test.js",
+        "../uai-product-final/apps/ai-gateway-service/src/http/httpServerChatRoutes.idempotency.test.ts",
+        "../uai-product-final/tools/local-ai-control-center-smoke.mjs"
+      ],
+      "status": "implemented",
+      "created": "2026-09-08T15:21:56.159Z",
+      "updated": "2026-09-08T15:21:56.159Z"
+    },
+    {
+      "id": "F-015",
+      "name": "生产Node可用的本地向量存储（隔离候选）",
+      "description": "7ba90ffe；内置SQLite持久化、JS cosine检索、向量验证与租户候选预过滤。不是原生sqlite-vec/ANN索引或规模性能证明。",
+      "module": "Knowledge",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/knowledge/sqliteVecStore.js",
+        "../uai-product-final/apps/ai-gateway-service/src/knowledge/localKnowledgeService.js"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/knowledge/sqliteVecStore.persistence.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-08T15:51:18.079Z",
+      "updated": "2026-09-08T15:51:18.079Z"
+    },
+    {
+      "id": "F-016",
+      "name": "工作流恢复与凭据清除操作入口（隔离候选）",
+      "description": "404647d9；完整CLI/SDK命令与实际Gateway回执核对，审批缺口另T017，尚未部署。",
+      "module": "CLI / SDK",
+      "entry_files": [
+        "../uai-product-final/apps/agent-console/src/cli-core.js",
+        "../uai-product-final/packages/shared-sdk/src/index.js"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/agent-console/src/cli.test.js",
+        "../uai-product-final/packages/shared-sdk/src/index.test.js"
+      ],
+      "status": "implemented",
+      "created": "2026-09-08T16:00:30.282Z",
+      "updated": "2026-09-08T16:00:30.282Z"
+    },
+    {
+      "id": "F-017",
+      "name": "绑定构建产物的运行身份",
+      "description": "仅候选codex/product-final@e94eb096。现有health/check和api/overview暴露固定source/lock摘要校验身份，缺失/错误unknown；构建声明不是Git证明，非attestation。Windows源码与Linux amd64 gateway/MCP产物实际验证通过；远端发布/生产未验证。",
+      "module": "gateway-runtime",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/application/runtimeBuildIdentity.ts",
+        "../uai-product-final/tools/build-runtime-identity.mjs",
+        "../uai-product-final/apps/ai-gateway-service/src/http/utils/healthUtils.js",
+        "../uai-product-final/apps/ai-gateway-service/src/http/httpServerRoutes02.js"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/application/runtimeBuildIdentity.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-08T16:27:07.543Z",
+      "updated": "2026-09-08T16:27:07.543Z"
+    },
+    {
+      "id": "F-018",
+      "name": "固定镜像的单实例Compose部署",
+      "description": "候选61dadeda；三文件opt-in发布profile保留两数据卷，非root/read-only/loopback、ready探针与auth fake。真实自有e94/0a两个镜像的同卷重建与回退、预算连续性已测；远端发布/全平台/任意数据恢复未证。",
+      "module": "deployment",
+      "entry_files": [
+        "../uai-product-final/deploy/compose.release.json",
+        "../uai-product-final/tools/verify-compose-release.mjs",
+        "../uai-product-final/docs/deployment/README.md"
+      ],
+      "test_files": [
+        "../uai-product-final/tools/verify-compose-release.mjs"
+      ],
+      "status": "implemented",
+      "created": "2026-09-08T17:08:30.517Z",
+      "updated": "2026-09-08T17:08:30.517Z"
+    },
+    {
+      "id": "F-019",
+      "name": "正式职业数据的固定导入与非执行候选",
+      "description": "仅候选6a24d1fa的O*NET31.0 Occupation Data 1016行本地可复现导入，来源/许可/字节hash保留。显式employee catalog不可调度、零请求/能力/配额，旧seed不变；非专业能力认证或产品自动执行接线。",
+      "module": "position-library",
+      "entry_files": [
+        "../uai-product-final/packages/position-library/src/import/officialOnetImporter.ts",
+        "../uai-product-final/packages/workforce-scheduler/src/employee/employeeCatalogBuilder.js"
+      ],
+      "test_files": [
+        "../uai-product-final/packages/position-library/src/officialOnetImporter.test.js"
+      ],
+      "status": "implemented",
+      "created": "2026-09-08T17:08:30.829Z",
+      "updated": "2026-09-08T17:08:30.829Z"
+    },
+    {
+      "id": "F-020",
+      "name": "精确工作流产物审批与授权回执恢复",
+      "description": "隔离候选T017，完整Markdown+确定目标+真实目录身份经现有Agent审批一次消费；同ID重启复用草稿，碰撞不改名，current-policy receipt replay无二次写grant。旧unknown无授权proof仍uncertain，新version2降级fail-closed。局部91+CLI81/typecheck通过；非全候选/生产证明。",
+      "module": "workflow",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/workflow/governedWorkflowExecution.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/workflow/durableWorkflowRunStore.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/workflow/localWorkflowService.js",
+        "../uai-product-final/apps/ai-gateway-service/src/agent-governance/agentApprovalStore.ts"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/workflow/durableWorkflowRecovery.test.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/workflow/governedWorkflowExecution.test.ts",
+        "../uai-product-final/apps/agent-console/src/cli.test.js"
+      ],
+      "status": "implemented",
+      "created": "2026-09-08T17:28:18.780Z",
+      "updated": "2026-09-08T17:28:18.780Z"
+    },
+    {
+      "id": "F-021",
+      "name": "原生Gateway服务模板与显式持久路径",
+      "description": "候选ab251855；纯生成三OS定义，不读真实env/注册/启动。MCP user/system模板纠正，modelLibrary显式path与原默认兼容。static/argv/XML内存+模块验证通过，原生宿主服务启动/恢复仍未验证。",
+      "module": "deployment",
+      "entry_files": [
+        "../uai-product-final/tools/render-gateway-service.mjs",
+        "../uai-product-final/packages/mcp-service/src/installer-systemd.js",
+        "../uai-product-final/apps/ai-gateway-service/src/application/createGatewayApplication.js"
+      ],
+      "test_files": [
+        "../uai-product-final/tools/render-gateway-service.test.mjs",
+        "../uai-product-final/packages/mcp-service/src/installer-systemd.test.js",
+        "../uai-product-final/apps/ai-gateway-service/src/application/createGatewayApplication.test.js"
+      ],
+      "status": "implemented",
+      "created": "2026-09-08T17:34:21.471Z",
+      "updated": "2026-09-08T17:34:21.471Z"
+    },
+    {
+      "id": "F-022",
+      "name": "模型目录状态故障保护",
+      "description": "隔离候选中的局部state恢复修复：损坏/变更拒绝，保存确认后发布内存；未知结果封闭实例。14+54局部测试/typecheck通过，非生产迁移/多写者/任意断电恢复证明。",
+      "module": "model-library",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/model-library/modelLibraryStore.js"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/model-library/modelLibraryStore.test.js"
+      ],
+      "status": "implemented",
+      "created": "2026-09-08T18:17:33.527Z",
+      "updated": "2026-09-08T18:17:33.527Z"
+    },
+    {
+      "id": "F-023",
+      "name": "经真实审批的Workforce网关贡献执行",
+      "description": "候选39cf554c代码已实现显式profile默认关闭、真实两层审批+Agent/task最后HTTP fence、per-role请求硬上限与typed贡献receipt。真实HTTP/auth/owned worktree+fake完整链验证通过；token仍估算与上游报告后检，missingusage/USD=null。真实外部模型、动态调度/共识/代码产物不在此实现完成证据。",
+      "module": "workforce",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/workforce/workforceRoleProvider.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/workforce/workforceControlledExecutor.js",
+        "../uai-product-final/packages/employee-brain-adapter/src/runtimeGatewayBrainAdapter.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/http/workforceRoutes.js"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/workforce/workforceRoleProvider.test.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/workforce/workforceRoleExecution.integration.test.ts",
+        "../uai-product-final/packages/employee-brain-adapter/src/runtimeGatewayBrainAdapter.test.js"
+      ],
+      "status": "implemented",
+      "created": "2026-09-08T18:39:21.515Z",
+      "updated": "2026-09-08T18:39:21.515Z"
+    },
+    {
+      "id": "F-024",
+      "name": "Kubernetes单写者配置生成",
+      "description": "候选4e18478a：复用服务renderer生成Linux/单副本/Recreate/RWOP PVC的auth fake Gateway配置。17项工具测试和官方1.34.1结构校验通过；CSI、挂载身份、集群生命周期、跨节点恢复与生产均未验证。",
+      "module": "deployment",
+      "entry_files": [
+        "../uai-product-final/tools/render-gateway-service.mjs",
+        "../uai-product-final/docs/deployment/kubernetes.md"
+      ],
+      "test_files": [
+        "../uai-product-final/tools/render-gateway-service.test.mjs"
+      ],
+      "status": "implemented",
+      "created": "2026-09-08T18:39:22.435Z",
+      "updated": "2026-09-08T18:39:22.435Z"
+    },
+    {
+      "id": "F-025",
+      "name": "VS Code JSONC 无损受治理配置",
+      "description": "独立候选ad5edf85实现显式JSONC profile与trusted v2选择，保留未管理字节/评论/trivia、原事务审批/备份/回退/恢复边界。175直接和85CLI/TS通过；仅fixture认证，不宣称原生客户端或TOML/YAML完成。",
+      "module": "local-client-onboarding",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/capabilities/localClientConfigJsonc.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/capabilities/localClientOnboardingConfig.ts"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/capabilities/localClientConfigJsonc.test.ts",
+        "../uai-product-final/apps/agent-console/src/cli.test.js"
+      ],
+      "status": "implemented",
+      "created": "2026-09-08T19:29:30.798Z",
+      "updated": "2026-09-08T19:29:30.798Z"
+    },
+    {
+      "id": "F-026",
+      "name": "同提交完整门禁与明确仅构建发布开关",
+      "description": "Docker/MCP发布共享同job精确checkout与四门；push=false禁registry认证和产品发布。配置/静态review通过，hostedCI与发布未执行。",
+      "module": "release",
+      "entry_files": [
+        "../uai-product-final/.github/workflows/docker-build-push.yml"
+      ],
+      "test_files": [
+        "../uai-product-final/tools/check-supply-chain-config.mjs"
+      ],
+      "status": "implemented",
+      "created": "2026-09-08T19:33:56.994Z",
+      "updated": "2026-09-08T19:33:56.994Z"
+    },
+    {
+      "id": "F-027",
+      "name": "候选匹配的本地验证历史CLI",
+      "description": "pnpm gateway verification读取固定Windows摘要白名单，保留失败历史且最新失效不回退旧绿；严格版本/环境/时间/cleanup判定，非运行服务器证明。58ae23ec，93CLI/8新回归/TS通过，实际无报告CLI非绿；全Windows profile后续冻结复跑。",
+      "module": "operator-console",
+      "entry_files": [
+        "../uai-product-final/apps/agent-console/src/verificationHistory.ts",
+        "../uai-product-final/apps/agent-console/src/cli-core.js",
+        "../uai-product-final/tools/verify-windows.mjs"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/agent-console/src/cli.test.js",
+        "../uai-product-final/tools/verify-windows.test.mjs"
+      ],
+      "status": "implemented",
+      "created": "2026-09-08T19:50:24.651Z",
+      "updated": "2026-09-08T19:50:24.651Z"
+    },
+    {
+      "id": "F-028",
+      "name": "受治理员工资格选择与固定执行编译",
+      "description": "有界冻结server资格记录，不激活职业/preview记录；确定性完整分配编译v1profile，原目标变化在同步dispatch拒绝。12Node/24实际组件fake测试通过；仅S1模块，非生产自动调度/真实岗位胜任证明。",
+      "module": "workforce",
+      "entry_files": [
+        "../uai-product-final/packages/workforce-scheduler/src/runtimeEmployeeSelection.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/workforce/workforceRoleSelection.ts"
+      ],
+      "test_files": [
+        "../uai-product-final/packages/workforce-scheduler/src/runtimeEmployeeSelection.test.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/workforce/workforceRoleSelection.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-09T00:14:23.179Z",
+      "updated": "2026-09-09T00:14:23.179Z"
+    },
+    {
+      "id": "F-029",
+      "name": "Gemini计账覆盖与SSE缓存费用一致性",
+      "description": "Gemini normal/SSE/batch接现manager；SSE内部快照保留原报量/估量费用，wire usage开关不改charge；legacy key cache miss。122协议/幂等/缓存测试+TS/criticalJS通过，仅S1，内部调用与中断计账仍待统一。",
+      "module": "virtual-key-accounting",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/http/geminiCompatibilityRoutes.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/cache/chatResponseCacheIntegration.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/http/openAiCompatibilityRoutes.js"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/http/geminiCompatibilityRoutes.test.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/http/openAiChatCompletionResponseCache.test.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/http/httpServerChatRoutes.idempotency.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-09T00:35:25.524Z",
+      "updated": "2026-09-09T00:35:25.524Z"
+    },
+    {
+      "id": "F-030",
+      "name": "Codex MCP TOML1.0无损源编解码",
+      "description": "纯codec依靠AST token/ranges处理固定MCP member，不读取真实配置、不写文件、不激活公共profile。严格scalar/data边界、comments/bytes/语义后验；47TOML+41JSONC、TS通过。完整治理与native认证待后续。",
+      "module": "local-client-onboarding",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/capabilities/localClientCodexToml.ts"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/capabilities/localClientCodexToml.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-09T00:37:05.868Z",
+      "updated": "2026-09-09T00:37:05.868Z"
+    },
+    {
+      "id": "F-031",
+      "name": "三协议用量来源与完整token计数（独立候选S2a）",
+      "description": "候选e2c59342可保留缺失/明确零/部分/invalid事实，修正缓存和思考token及协议往返，usage-only不改变原fallback；335模块通过+1现有PGskip、Node23，非统一请求计费或生产票据证明。",
+      "module": "provider-accounting",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/providers/providerUsageObservation.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/providers/httpProviderMapping.js",
+        "../uai-product-final/apps/ai-gateway-service/src/providers/anthropicAdapter.js",
+        "../uai-product-final/apps/ai-gateway-service/src/providers/geminiAdapter.ts"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/providers/providerUsageObservation.test.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/core/gatewayService.cancellation.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-09T01:28:36.610Z",
+      "updated": "2026-09-09T01:28:36.610Z"
+    },
+    {
+      "id": "F-032",
+      "name": "请求级虚拟Key私有计费能力模块（待生产接线）",
+      "description": "独立候选ec3336c5提供一次逻辑准入、多子调用各自settlement锁、无RPM重入的续查和安全失败回执；44直接/166关联测试通过，HTTP/Core仍未激活。没有分布式预算预留或票据准确性承诺。",
+      "module": "virtual-key-accounting",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/enterprise/virtualKeyRequestAccounting.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/enterprise/apiKeyManager.js"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/enterprise/virtualKeyRequestAccounting.test.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/enterprise/apiKeyManager.persistence.test.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/enterprise/apiKeyManager.virtualKeys.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-09T01:42:10.979Z",
+      "updated": "2026-09-09T01:42:10.979Z"
+    },
+    {
+      "id": "F-033",
+      "name": "Compose模型库在只读根文件系统下持久化与重建恢复",
+      "description": "候选19d8aa4f的新Linux amd64镜像f4b4622b...a15ca2bb实际offline HTTP刷新、UID1000/0600、同卷容器替换后hash保留及再次写入、虚拟Key计数连续；2轮清理验证。配置校验不是镜像兼容证明，实际记录单独保留；未做用户迁移/生产部署。",
+      "module": "deployment",
+      "entry_files": [
+        "../uai-product-final/deploy/compose.release.json",
+        "../uai-product-final/tools/verify-compose-release.mjs",
+        "../uai-product-final/docs/deployment/README.md"
+      ],
+      "test_files": [
+        "../uai-product-final/tools/verify-compose-release.mjs"
+      ],
+      "status": "implemented",
+      "created": "2026-09-09T02:07:48.895Z",
+      "updated": "2026-09-09T02:07:48.895Z"
+    },
+    {
+      "id": "F-034",
+      "name": "Codex TOML审批接入、字节回退恢复与原生配置加载",
+      "description": "候选2e402a3c的codex-mcp-toml-v1：64KiB、codec域fingerprint/独立journal、加密空文件backup、精确receipt校验及CLI/runtime完整链。235模块+95CLI通过，定向实际HTTP/CLI4/4与隔离Codex CLI0.153.4配置读取通过。原生MCP执行/GUI/模型认证与YAML/bulk仍未完成。",
+      "module": "local-client-governance",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/capabilities/localClientConfigTransaction.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/capabilities/localClientOnboardingRegistry.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/capabilities/localClientOnboardingConfig.ts",
+        "../uai-product-final/apps/agent-console/src/cli-core.js"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/capabilities/localClientConfigTransaction.test.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/capabilities/localClientGovernedOnboardingRuntime.test.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/capabilities/localClientGovernedOnboardingApi.test.ts",
+        "../uai-product-final/apps/agent-console/src/cli.test.js"
+      ],
+      "status": "implemented",
+      "created": "2026-09-09T04:19:51.660Z",
+      "updated": "2026-09-09T04:19:51.660Z"
+    },
+    {
+      "id": "F-035",
+      "name": "Gateway实际调用统一虚拟Key计量与可信缓存结算",
+      "description": "独立候选52336183，34文件作为一次一致迁移：已认证请求私有能力→Core每次真实attempt结算、移除HTTP重复normal扣账，JSON/SSE使用实际postcompaction结算快照；native幂等重放、WS逐消息、Agent proposer/Workforce role/shadow继承；unknown不伪造0，未支持计量的provider-operation对budgeted key拒绝。组件证据已过，当前部署未加载/真实Provider及最终全仓尚未验证。",
+      "module": "gateway / enterprise / HTTP",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/core/virtualKeyUsageAccounting.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/core/gatewayService.js",
+        "../uai-product-final/apps/ai-gateway-service/src/http/httpRequestExecution.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/http/openAiCompatibilityRoutes.js"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/core/gatewayService.virtualKeys.test.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/http/httpServer.virtualKeys.test.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/workforce/workforceRoleProvider.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-09T05:04:22.324Z",
+      "updated": "2026-09-09T05:04:22.324Z"
+    },
+    {
+      "id": "F-036",
+      "name": "服务端受治理员工选择与完整审查和执行事实反馈",
+      "description": "候选9f6cce8c，显式frozen catalog配置，确定性完整selectionReview参与v3planDigest及两审批封装；CLI完整独立投影，资格/目标过期变化拒绝旧批准，实际贡献及unknown回执派生事实可持久且quality仍unassessed。16files+855/-31含必须的私有feedback脱敏例外及与T025cap继承修复；无新依赖/存储/命令。实际HTTP使用同Gateway/Registry与临时owned Git repo，fake7/7通过，非生产默认repo或real质量证明。",
+      "module": "workforce / agent-governance / CLI",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/workforce/workforceRoleSelection.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/workforce/workforceSelectionReview.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/workforce/workforceControlledExecutor.js",
+        "../uai-product-final/apps/ai-gateway-service/src/agent-governance/agentApprovalStore.ts",
+        "../uai-product-final/apps/agent-console/src/cli-core.js"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/workforce/workforceRoleSelection.integration.test.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/workforce/workforceRoleExecutionProfile.test.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/agent-governance/agentApprovalStore.test.ts",
+        "../uai-product-final/apps/agent-console/src/cli.test.js"
+      ],
+      "status": "implemented",
+      "created": "2026-09-09T05:13:55.243Z",
+      "updated": "2026-09-09T05:13:55.243Z"
+    },
+    {
+      "id": "F-037",
+      "name": "Continue YAML无损受治理接入",
+      "description": "独立候选467455fc，Continue YAML具名profile从CST局部变更接入既有预览审批/apply/verify/字节回退/恢复链；保留comments/trivia/非目标servers，yaml2.9.0唯一新依赖。57codec、307关联、99CLI和全局tsc通过；真实Continue宿主证明仍待本次隔离验证，不是全客户端认证或部署。",
+      "module": "local-client-onboarding",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/capabilities/localClientContinueYaml.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/capabilities/localClientOnboardingRegistry.ts",
+        "../uai-product-final/apps/agent-console/src/cli-core.js"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/capabilities/localClientContinueYaml.test.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/capabilities/localClientConfigTransaction.test.ts",
+        "../uai-product-final/apps/agent-console/src/cli.test.js"
+      ],
+      "status": "implemented",
+      "created": "2026-09-09T06:26:34.296Z",
+      "updated": "2026-09-09T06:26:34.296Z"
+    },
+    {
+      "id": "F-038",
+      "name": "A2A后台任务虚拟Key结算与受限fake执行",
+      "description": "候选1500daae的A2A每invocation私有认证/计量绑定、独立deadline、scoped cancel/lease-loss/shutdown，以及Core dispatch前fake约束。41实际HTTP/核心测试与62关联测试通过；普通查询不计费，已观察取消后返回结算一次，unknown保留。没有新增付费A2A或Workforce模式；真实外部调用与跨主机billing未验证。",
+      "module": "gateway-a2a",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/http/a2aGatewayExecution.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/http/a2aGateway.js",
+        "../uai-product-final/apps/ai-gateway-service/src/core/gatewayService.js"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/http/a2aGateway.test.js",
+        "../uai-product-final/apps/ai-gateway-service/src/http/httpServer.virtualKeys.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-09T06:34:28.499Z",
+      "updated": "2026-09-09T06:34:28.499Z"
+    },
+    {
+      "id": "F-039",
+      "name": "控制中心v2多格式批量配置",
+      "description": "候选2ff93c7e：显式v2 manifest支持2-6个已知profile，v1保留2-3JSON；沿用逐项计划/审批/apply/回执与遇未知结果停止。实际HTTP四格式独立回执和逐项原字节rollback通过，完整CLI101/101；不宣称跨客户端原子性或原生客户端自动重载。",
+      "module": "agent-console",
+      "entry_files": [
+        "../uai-product-final/apps/agent-console/src/cli-core.js",
+        "../uai-product-final/docs/local-ai-control-center.md"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/agent-console/src/cli.test.js"
+      ],
+      "status": "implemented",
+      "created": "2026-09-09T06:53:30.620Z",
+      "updated": "2026-09-09T06:53:30.620Z"
+    },
+    {
+      "id": "F-040",
+      "name": "内部模型调用统一计量与可信调用状态",
+      "description": "候选3413ef0f：Forge/AgentExec/LLM增强实际HTTP保持同Key capability和一次admission/每attemptsettlement；补既有LLM增强POST权限映射；内部adapter只使用Core私有整次调用事实，fallback后置拒绝不抹掉之前调用，unmarked/copy/JSON保持unknown。97入口+78Core权限+71消费者分层测试有重叠，模块与全局types通过；无realProvider/full最新gate/生产证明。",
+      "module": "gateway-core",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/core/gatewayService.js",
+        "../uai-product-final/apps/ai-gateway-service/src/providers/gatewayBackedProviderAdapter.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/http/utils/enterpriseUtils.js"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/http/httpServer.virtualKeys.test.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/providers/gatewayBackedProviderAdapter.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-09T07:47:55.923Z",
+      "updated": "2026-09-09T07:47:55.923Z"
+    },
+    {
+      "id": "F-041",
+      "name": "缓存与有界SSE输出策略一致性",
+      "description": "候选77fe8720，实现全部已声明输出规则的完整文本检查、缓存规则指纹和字面词脱敏。默认增量流保持；启用检查时有缓冲上限和完成等待。全f05 check/test通过，非全输入DLP。",
+      "module": "candidate gateway",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/guardrails/guardrailsEngine.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/cache/chatResponseCacheIntegration.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/http/openAiCompatibilityRoutes.js"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/guardrails/guardrailsEngine.test.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/http/openAiChatCompletionResponseCache.test.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/guardrails/guardrailsRoutes.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-09T08:46:11.162Z",
+      "updated": "2026-09-09T08:46:11.162Z"
+    },
+    {
+      "id": "F-042",
+      "name": "Responses会话身份隔离与当前输出治理",
+      "description": "候选77fe8720，server-auth tenant+principal隔离存取/删除/续接、当前guard GET、blocked结果不存成功记录。真实loopback/official SDK2/2，全f05 check/test通过；内存store而非数据库持久化。",
+      "module": "candidate gateway",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/responses/responseSessionStore.js",
+        "../uai-product-final/apps/ai-gateway-service/src/http/openAiResponsesRoutes.js",
+        "../uai-product-final/apps/ai-gateway-service/src/http/openAiCompatibilityRoutes.js"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/responses/responseSessionStore.test.js",
+        "../uai-product-final/apps/ai-gateway-service/src/http/responseSessionOwnership.e2e.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-09T08:46:11.275Z",
+      "updated": "2026-09-09T08:46:11.275Z"
+    },
+    {
+      "id": "F-043",
+      "name": "OpenAPI工具的参数序列化和有界本地引用",
+      "description": "候选7d6b633b三文件实现声明与实际传输一致的有界OAS profile；required/冲突/保留header严格拒绝，实际HTTP77/77。完整schema校验交上游，不是全OAS规范支持。",
+      "module": "candidate gateway",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/mcpGateway/openApiRestBridge.ts"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/mcpGateway/mcpGateway.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-09T08:46:11.422Z",
+      "updated": "2026-09-09T08:46:11.422Z"
+    },
+    {
+      "id": "F-044",
+      "name": "Responses兼容降级的显式响应说明",
+      "description": "候选f05b2b63以冻结的本地规范化事实提供compatibility notice；普通/SSE/存储相同，不回传忽略项原始值，不把builtin声明当已执行。43/43和实际SDK2/2，全check/test通过。",
+      "module": "candidate gateway",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/http/openAiResponsesRoutes.js"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/http/openAiResponsesRoutes.test.js",
+        "../uai-product-final/apps/ai-gateway-service/src/http/responseSessionOwnership.e2e.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-09T08:46:11.585Z",
+      "updated": "2026-09-09T08:46:11.585Z"
+    },
+    {
+      "id": "F-045",
+      "name": "实际原生聊天SSE输出规则与取消",
+      "description": "0624/a3f覆盖实际native入口block/redact/terminal/disconnect；F041原f05只证明当时模块及独立handler。ee9完整check/test0。",
+      "module": "candidate gateway",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/http/httpServerRoutes06.js"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/http/guardrailsInput.e2e.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-09T11:40:40.056Z",
+      "updated": "2026-09-09T11:40:40.056Z"
+    },
+    {
+      "id": "F-046",
+      "name": "受管A2A blocking SendMessage身份PoP绑定",
+      "description": "f079/d7bc/65f55原文PoP、身份revision/pin/fakefence、官方SDK和invalid text前置校验。73direct+49related，ee9全门禁0；ELC03其余仍未完成。",
+      "module": "candidate gateway",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/http/a2aGatewayExecution.ts"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/http/httpServer.virtualKeys.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-09T11:40:40.193Z",
+      "updated": "2026-09-09T11:40:40.193Z"
+    },
+    {
+      "id": "F-047",
+      "name": "SQLite PoP的受保护持久意图事务",
+      "description": "9e6 schema4真实SQLite checkpoint/intent，38直接用例含故障恢复与操作归属，ee9全check/test0。原生绑定/lifecycle/升级仍不在此证明内。",
+      "module": "candidate gateway",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/capabilities/localClientSqlitePopReplayGuard.ts"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/capabilities/localClientSqlitePopReplayGuard.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-09T11:40:40.303Z",
+      "updated": "2026-09-09T11:40:40.303Z"
+    },
+    {
+      "id": "F-048",
+      "name": "输入文本分段脱敏和最终累计长度",
+      "description": "0624五消费者、183相关与实际HTTP/RAG/cache/empty-budget测试通过，ee9全check/test0。Anthropic system额外扫描由T046继续。",
+      "module": "candidate gateway",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/guardrails/guardrailsEngine.ts"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/http/guardrailsInput.e2e.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-09T11:40:40.417Z",
+      "updated": "2026-09-09T11:40:40.417Z"
+    },
+    {
+      "id": "F-049",
+      "name": "直接workspace测试发现与暂存副本隔离",
+      "description": "ee9直接workspace/src发现保持387tracked测试全量，排除ignored嵌套副本。初红6/1→7/7，完整check/test0；3387常规通过、26skip、112隔离通过、18工具测试通过。",
+      "module": "candidate tooling",
+      "entry_files": [
+        "../uai-product-final/vitest.config.js"
+      ],
+      "test_files": [
+        "../uai-product-final/tools/verify-windows.test.mjs"
+      ],
+      "status": "implemented",
+      "created": "2026-09-09T11:40:40.564Z",
+      "updated": "2026-09-09T11:40:40.564Z"
+    },
+    {
+      "id": "F-050",
+      "name": "Anthropic system文本的输入规则覆盖",
+      "description": "候选da614f33将顶层system字符串及text blocks按真实消息顺序接入PII/secrets/injection/banned/length规则；生成空块私有证明与缓存断点保持。实际HTTP1/1和102相关测试通过；其他结构化输入/DLP不由本片证明。",
+      "module": "candidate gateway",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/http/openAiCompatibilityRoutes.js"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/http/guardrailsInput.e2e.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-09T11:46:17.987Z",
+      "updated": "2026-09-09T11:46:17.987Z"
+    },
+    {
+      "id": "F-051",
+      "name": "Workforce Git调用隔离与登记工作树清理",
+      "description": "仅隔离候选716bc27b；5文件、真实Git53关联通过。私有收据/锁定与root替换拒绝/expected-OID删除；非sandbox、全仓或生产证明。",
+      "module": "workforce",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/workforce/workforceGit.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/workforce/worktreeIsolation.js",
+        "../uai-product-final/apps/ai-gateway-service/src/workforce/gitWorkspaceGuard.js"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/workforce/workforceGitBoundary.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-09T12:11:12.645Z",
+      "updated": "2026-09-09T12:11:12.645Z"
+    },
+    {
+      "id": "F-052",
+      "name": "Workforce代码交付意图与完整审批合同",
+      "description": "仅隔离候选b825c5ae第一批：可描述server frozen profile和绑定v4摘要；runtime未接通，所有代码审批/执行503拒绝。62direct+2HTTP+33related+globaltsc0，不代表实际交付。",
+      "module": "workforce",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/workforce/workforceCodeDeliveryProfile.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/workforce/workforceExecutionAuthorization.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/http/workforceRoutes.js"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/workforce/workforceCodeDeliveryProfile.test.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/workforce/workforceCodeDelivery.integration.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-09T12:17:48.237Z",
+      "updated": "2026-09-09T12:17:48.237Z"
+    },
+    {
+      "id": "F-053",
+      "name": "原生PoP签名期限与持久重放水位",
+      "description": "仅隔离候选cce01e5e代码/模型层；完整v2绑定+DPAPIledger+host实例/故障锁存；205direct+27independent+globaltsc0+CPP对象。保留升级/真实Windows/完整工厂接线未完成。",
+      "module": "local-client-authority",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/capabilities/localClientWindowsAuthorityNative.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/capabilities/localClientWindowsProtectedAuthorityAnchor.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/capabilities/localClientWindowsAuthorityBrokerService.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/native/localClientWindowsAuthorityNative.cpp",
+        "../uai-product-final/apps/ai-gateway-service/src/native/localClientWindowsAuthorityService.cpp",
+        "../uai-product-final/apps/ai-gateway-service/src/capabilities/localClientPopSnapshotRollbackProtection.ts"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/capabilities/localClientWindowsAuthorityNative.test.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/capabilities/localClientWindowsProtectedAuthorityAnchor.test.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/capabilities/localClientWindowsAuthorityBrokerService.test.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/capabilities/localClientPopSnapshotRollbackProtection.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-09T12:24:54.963Z",
+      "updated": "2026-09-09T12:24:54.963Z"
+    },
+    {
+      "id": "F-054",
+      "name": "代码交付完整CLI审批展示与真实工作树证明",
+      "description": "隔离候选fc504810/a580bc6a：私有manager来源/plan/baseline实时检查15direct通过；CLI完整scope验证与无截断展示full103/103。仅前置能力，非真正代码执行或生产证明。",
+      "module": "workforce",
+      "entry_files": [
+        "../uai-product-final/apps/agent-console/src/workforceCodeDeliveryReview.ts",
+        "../uai-product-final/apps/agent-console/src/cli-core.js",
+        "../uai-product-final/apps/ai-gateway-service/src/workforce/worktreeIsolation.js"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/agent-console/src/cli.test.js",
+        "../uai-product-final/apps/ai-gateway-service/src/workforce/workforceGitBoundary.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-09T12:35:46.742Z",
+      "updated": "2026-09-09T12:35:46.742Z"
+    },
+    {
+      "id": "F-055",
+      "name": "Anthropic标准化工具结果文本守卫",
+      "description": "仅候选05a090b3：system/conversation/tool_result actualtext单次扫描，文本空格不丢失；JSON/SSE真实HTTP+97related+19provider+limitedtype通过。任意工具参数/图像及生产DLP不作覆盖声明。",
+      "module": "http-compatibility",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/http/openAiCompatibilityRoutes.js"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/http/guardrailsInput.e2e.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-09T12:54:57.059Z",
+      "updated": "2026-09-09T12:54:57.059Z"
+    },
+    {
+      "id": "F-056",
+      "name": "Windows authority保留升级与受限原v1恢复工具",
+      "description": "隔离候选aa723d19，八文件与一份受保护维护事务记录。实际生产协调器模型/TS/完整Win32离线包验证；独立复核15选定通过。未运行真实SCM/DPAPI/升级或生产，保留全部操作边界。",
+      "module": "local-client-authority",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/native/localClientWindowsAuthorityService.cpp",
+        "../uai-product-final/apps/ai-gateway-service/src/native/localClientWindowsAuthorityMaintenance.h",
+        "../uai-product-final/apps/ai-gateway-service/src/capabilities/localClientWindowsAuthorityBrokerEntry.ts",
+        "../uai-product-final/tools/build-local-client-windows-authority.mjs"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/capabilities/localClientWindowsAuthorityNative.test.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/native/localClientWindowsAuthorityMaintenance.test.cpp"
+      ],
+      "status": "implemented",
+      "created": "2026-09-09T13:31:14.217Z",
+      "updated": "2026-09-09T13:31:14.217Z"
+    },
+    {
+      "id": "F-057",
+      "name": "原生保护PoP Replay运行接线与显式基线登记",
+      "description": "隔离候选a1fabc06代码与模型层：既有schema4恢复、gen1显式登记、活native证据状态、startup/expiry/reconnect/close安全。真实TS+临时SQLite/native模型109/79、App3、Gate67/CLI2通过；实际已装服务/root存在，安装元数据权限待答复，不能宣称OS/生产完成。",
+      "module": "local-client-authority",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/application/createGatewayApplication.js",
+        "../uai-product-final/apps/ai-gateway-service/src/capabilities/localClientNativePopReplayRuntime.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/capabilities/localClientPopReplayConfiguration.ts",
+        "../uai-product-final/tools/local-client-native-pop-replay.mjs"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/capabilities/localClientWindowsAuthorityNative.test.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/http/openAiCompatibilityRoutes.test.js",
+        "../uai-product-final/tools/local-client-native-pop-replay.test.mjs"
+      ],
+      "status": "implemented",
+      "created": "2026-09-09T14:54:54.832Z",
+      "updated": "2026-09-09T14:54:54.832Z"
+    },
+    {
+      "id": "F-058",
+      "name": "受治理隔离代码交付与可恢复完整产物",
+      "description": "仅候选1b5d79ae：两层审批+私有cap+任务/Agent fence，复用实际受预算角色及Forge，在owned worktree修改批准文件并运行只读无网络容器测试；完整diff持久化与owner重启读取，损坏/验证/证据/清理失败要求恢复。6真实本地场景分批验证，模型为fake，整仓检查在途；不支持代码模式PG/自动merge。",
+      "module": "workforce",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/workforce/workforceCodeDeliveryRuntime.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/workforce/workforceCodeDeliveryArtifacts.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/workforce/workforceControlledExecutor.js"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/workforce/workforceCodeDeliveryRuntime.local.test.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/workforce/workforceCodeDeliveryRuntime.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-09T15:12:46.769Z",
+      "updated": "2026-09-09T15:12:46.769Z"
+    },
+    {
+      "id": "F-059",
+      "name": "依赖漏洞与完整SBOM的发布门禁",
+      "description": "候选a8ad0735：实际OSV2.5.1全锁文件扫描、完整SPDX、严格库存/源hash/退出状态校验、精确限期xlsx2公告例外；发布job必须等待同github.sha的reusable security workflow。首扫16公告经patch更新14消除，raw2保留。Windows真scan/Node32及Linuxscan/SPDX/Node22证明分开；未执行托管CI或发布。",
+      "module": "release",
+      "entry_files": [
+        "../uai-product-final/tools/dependency-vulnerability-gate.mjs",
+        "../uai-product-final/tools/dependency-vulnerability-policy.json",
+        "../uai-product-final/.github/workflows/security-scan.yml",
+        "../uai-product-final/.github/workflows/docker-build-push.yml"
+      ],
+      "test_files": [
+        "../uai-product-final/tools/dependency-vulnerability-gate.test.mjs"
+      ],
+      "status": "implemented",
+      "created": "2026-09-09T15:40:18.166Z",
+      "updated": "2026-09-09T15:40:18.166Z"
+    },
+    {
+      "id": "F-060",
+      "name": "受治理飞书API与双IM统一发送",
+      "description": "Feishu企业自建API和Webhook、WeCom由实际产品两个路由共用runtime；五种API目标绑定、text/markdown/card明确支持或拒绝、secretRef按需解析、持久键防重发、取消/未知结果、共享SDK。已通过真实本地HTTP/模拟远端协议与完整check/test；无真实发送回执。",
+      "module": "connectors",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/connectors/imConnectorRuntime.ts",
+        "../uai-product-final/packages/im-connector-feishu/src/index.ts",
+        "../uai-product-final/packages/im-connector-wecom/src/index.js"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/http/imConnectorRuntime.e2e.test.ts",
+        "../uai-product-final/packages/im-connector-feishu/src/index.test.js",
+        "../uai-product-final/packages/shared-sdk/src/index.test.js"
+      ],
+      "status": "implemented",
+      "created": "2026-09-10T01:40:14.388Z",
+      "updated": "2026-09-10T01:40:14.388Z"
+    },
+    {
+      "id": "F-061",
+      "name": "受治理本地网页查询与独立目标验证",
+      "description": "显式租户profile与完整审批，经Forge任务/ToolProxy执行真实浏览器查询；每步新观察与元素绑定、精确单请求范围、独立DOM完成判断、撤销/未知禁重试、浏览器关闭确认。真实本地HTTP/Chromium+fake Provider及完整门禁通过；不代表任意网站/全部Media/真实外部质量或生产认证。",
+      "module": "forge",
+      "entry_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/forge/governedWebTaskRuntime.ts",
+        "../uai-product-final/apps/ai-gateway-service/src/http/forgeRoutes.js",
+        "../uai-product-final/packages/forge-core/src/worker/web.js"
+      ],
+      "test_files": [
+        "../uai-product-final/apps/ai-gateway-service/src/forge/governedWebTaskRuntime.test.ts",
+        "../uai-product-final/packages/web-agent/test/web-agent-boundary.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-10T03:35:09.088Z",
+      "updated": "2026-09-10T03:35:09.088Z"
+    },
+    {
+      "id": "F-062",
+      "name": "知识、路由预览与Forge受控CLI及SDK操作",
+      "description": "同一SDK连接知识health/sources/load/retrieve、真实无模型routing preview/modes及Forge现有操作；显式确认、完整审批审阅、默认fake精确绑定、输出预算、错误/未知状态与恢复提示。真实本地CLI/HTTP/Chromium及模块/完整check-test在8fc81952通过；不包括全部公开OpenAPI具体化、TUI或真实付费质量证明。",
+      "module": "agent-console / shared-sdk / forge",
+      "entry_files": [
+        "apps/agent-console/src/operatorCommands.ts",
+        "apps/agent-console/src/cli-core.js",
+        "packages/shared-sdk/src/index.ts",
+        "packages/shared-sdk/src/index.js",
+        "apps/ai-gateway-service/src/forge/forgeModelSelection.ts",
+        "apps/ai-gateway-service/src/forge/forgeGatewayService.js",
+        "apps/ai-gateway-service/src/http/httpRequestExecution.ts"
+      ],
+      "test_files": [
+        "apps/agent-console/src/operatorCommands.test.ts",
+        "apps/agent-console/src/cli.test.js",
+        "packages/shared-sdk/src/index.test.js",
+        "apps/ai-gateway-service/src/http/operatorCli.e2e.test.ts",
+        "apps/ai-gateway-service/src/http/httpRequestExecution.test.ts",
+        "apps/ai-gateway-service/src/forge/forgeGatewayService.test.js"
+      ],
+      "status": "implemented",
+      "created": "2026-09-10T05:55:07.068Z",
+      "updated": "2026-09-10T05:55:07.068Z"
+    },
+    {
+      "id": "F-063",
+      "name": "太极固定能力的真实执行、受治理版本与反馈修复",
+      "description": "三种固定数据能力在短期可信Worker内实际执行并独立验证；版本/参数/源实现/所有者/激活实例和一次审批绑定。签名状态保留预算、失败与回执；可激活、执行、撤销、重启后只读恢复。真实反馈驱动权重/选择和停用；有限风险关键词修复必须保留原失败和原期望并重新校准审批。HTTP/SDK/CLI已实接，默认关闭。不是任意代码OS沙箱、分布式激活或真实模型质量证明。",
+      "module": "taiji-beidou-engine / ai-gateway-service / shared-sdk / agent-console",
+      "entry_files": [
+        "packages/taiji-beidou-engine/src/sandboxRuntime.ts",
+        "packages/taiji-beidou-engine/src/sandboxRuntimeProfiles.ts",
+        "apps/ai-gateway-service/src/real-capabilities/taijiCapabilityService.ts",
+        "apps/ai-gateway-service/src/real-capabilities/taijiCapabilityState.ts",
+        "apps/ai-gateway-service/src/real-capabilities/taijiCapabilityFeedback.ts",
+        "apps/ai-gateway-service/src/http/taijiCapabilityRoutes.ts",
+        "apps/agent-console/src/operatorCommands.ts",
+        "packages/shared-sdk/src/index.js",
+        "packages/shared-sdk/src/index.ts"
+      ],
+      "test_files": [
+        "packages/taiji-beidou-engine/src/sandboxAutoRuntimeExecutor.test.ts",
+        "apps/ai-gateway-service/src/real-capabilities/taijiCapabilityService.test.ts",
+        "apps/ai-gateway-service/src/http/taijiCapabilityRoutes.e2e.test.ts",
+        "apps/ai-gateway-service/src/real-capabilities/fiveCapabilityActivationService.test.ts",
+        "apps/agent-console/src/operatorCommands.test.ts",
+        "packages/shared-sdk/src/index.test.js"
+      ],
+      "status": "implemented",
+      "created": "2026-09-10T08:48:14.632Z",
+      "updated": "2026-09-10T08:48:14.632Z"
+    },
+    {
+      "id": "F-064",
+      "name": "Context Codec实际请求与有界模型对照",
+      "description": "候选a3cf8df1实现3种有界JSON数据编码/真实解码保真，显式native chat/stream目标和源SHA，原输入整体fallback，实际派发/完成前输入一致性，固定模型且保留原治理。CLI preview零HTTP、compare最多两次请求，比较完整预期JSON、原输入/策略/模型与完整上报用量，fake保持synthetic、未知不自动重跑并保留基线。全部本地check/test已通过；真实Provider质量与用量对照仍待安全认证入口，不宣称生产证据。",
+      "module": "context-codec-core / gateway / agent-console / shared-sdk",
+      "entry_files": [
+        "packages/context-codec-core/src/runtimeContextCodec.ts",
+        "apps/ai-gateway-service/src/gateway/contextCodecRuntime.ts",
+        "apps/ai-gateway-service/src/core/gatewayService.js",
+        "apps/agent-console/src/contextCodecCommands.ts",
+        "packages/shared-sdk/src/index.js"
+      ],
+      "test_files": [
+        "packages/context-codec-core/src/runtimeContextCodec.test.ts",
+        "apps/ai-gateway-service/src/core/gatewayServiceContextCodec.test.ts",
+        "apps/ai-gateway-service/src/http/contextCodec.e2e.test.ts",
+        "apps/agent-console/src/operatorCommands.test.ts",
+        "packages/shared-sdk/src/index.test.js"
+      ],
+      "status": "implemented",
+      "created": "2026-09-10T10:07:29.311Z",
+      "updated": "2026-09-10T10:07:29.311Z"
+    },
+    {
+      "id": "F-065",
+      "name": "Workforce受治理工作流交接与原任务恢复",
+      "description": "候选9610013c将现有Workforce真实DAG任务接至既有本地知识报告工作流，在完整计划/Agent审批、单次任务权限和当前file_write治理下发布，并核对原记录与当前文件SHA。支持原任务状态join、审批等待、取消、未知发布核对、重启读取和限定3IDs恢复，父失败历史保留、不重跑角色。CLI审阅/status/recover与SDK均接入实际本地HTTP并通过完整check/test；单主机SQLite范围，不宣称真实员工模型质量、跨主机或生产证明。",
+      "module": "workforce / workflow / agent-governance / agent-console / shared-sdk",
+      "entry_files": [
+        "apps/ai-gateway-service/src/workforce/workflowRunHandoff.js",
+        "apps/ai-gateway-service/src/workforce/workforceWorkflowHandoffRuntime.ts",
+        "apps/ai-gateway-service/src/workflow/workflowHandoffContext.ts",
+        "apps/ai-gateway-service/src/workforce/workforceControlledExecutor.js",
+        "apps/ai-gateway-service/src/http/workforceRoutes.js",
+        "apps/agent-console/src/workforceCommands.ts"
+      ],
+      "test_files": [
+        "apps/ai-gateway-service/src/workforce/workforceWorkflowHandoff.integration.test.ts",
+        "apps/ai-gateway-service/src/workforce/workforceWorkflowHandoffRuntime.test.ts",
+        "apps/ai-gateway-service/src/workforce/workforceWorkflowHandoffProfile.test.ts",
+        "apps/agent-console/src/workforceCommands.test.ts",
+        "apps/agent-console/src/workforceWorkflowHandoffReview.test.ts",
+        "packages/shared-sdk/src/index.test.js"
+      ],
+      "status": "implemented",
+      "created": "2026-09-10T12:25:10.848Z",
+      "updated": "2026-09-10T12:25:10.848Z"
+    },
+    {
+      "id": "F-066",
+      "name": "Workforce独立意见与可追踪共识报告",
+      "description": "候选3132b08b将显式材料审查接至既有CEO/PM/Architect三个不同员工绑定，盲输入/精确模型与实际消息/调用回执可核对。完整标准覆盖和原文引用校验保留异议，生成范围内计划修订要求，输出始终需要新审批。原生命周期保存完整/部分报告，CLI可按原执行ID恢复读取，取消/未知不产生模板共识。当前实际本地HTTP/CLI测试与完整check/test通过；来源材料由操作者提供，真实模型意见质量与用量仍待安全入口，不宣称语义真值或生产证据。",
+      "module": "workforce / agent-governance / agent-console",
+      "entry_files": [
+        "apps/ai-gateway-service/src/workforce/workforceConsensusReview.ts",
+        "apps/ai-gateway-service/src/workforce/workforceConsensusRuntime.ts",
+        "apps/ai-gateway-service/src/workforce/workforceConsensusReport.ts",
+        "apps/ai-gateway-service/src/workforce/workforceControlledExecutor.js",
+        "apps/agent-console/src/workforceConsensusReview.ts"
+      ],
+      "test_files": [
+        "apps/ai-gateway-service/src/workforce/workforceConsensus.integration.test.ts",
+        "apps/ai-gateway-service/src/workforce/workforceConsensusReview.test.ts",
+        "apps/ai-gateway-service/src/workforce/workforcePreviewSafety.test.ts",
+        "apps/agent-console/src/workforceConsensusReview.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-10T13:57:04.679Z",
+      "updated": "2026-09-10T13:57:04.679Z"
+    },
+    {
+      "id": "F-067",
+      "name": "Workforce固定生命周期处理器与原回执恢复",
+      "description": "默认关闭的四个固定代码处理器接入现有实际入口，只读检查与计划记录副作用分开。稳定操作ID、原计划审计和v2工作流来源关联当前身份/任务/输入；取消/超时保留未知语义与原回调占用，重启和关闭钩子后可读保留记录。实际HTTP/SDK/SQLite/本地DAG工作流及全量本地门禁已验收；不证明跨主机exactly-once或生产。",
+      "module": "workforce",
+      "entry_files": [
+        "apps/ai-gateway-service/src/application/createGatewayApplication.js",
+        "apps/ai-gateway-service/src/http/httpServer.js",
+        "apps/ai-gateway-service/src/http/httpServerRoutes04.js",
+        "apps/ai-gateway-service/src/http/httpServerRoutes05.js",
+        "apps/ai-gateway-service/src/workflow/localWorkflowService.js",
+        "apps/ai-gateway-service/src/workflow/workflowHandoffContext.ts",
+        "apps/ai-gateway-service/src/workforce/workforceHookOperations.ts",
+        "apps/ai-gateway-service/src/workforce/workforceLifecycleHooks.ts",
+        "apps/ai-gateway-service/src/workforce/workforcePlanStore-markdown.js",
+        "apps/ai-gateway-service/src/workforce/workforcePlanStore-sqlite.js",
+        "apps/ai-gateway-service/src/workforce/workforcePlanStore.js",
+        "apps/ai-gateway-service/src/workforce/workforcePlanner-previews.js",
+        "apps/ai-gateway-service/src/workforce/workforceRealLocalRunner.js",
+        "apps/ai-gateway-service/src/workforce/workforceService.js",
+        "apps/ai-gateway-service/src/workforce/workforceService.ts",
+        "apps/ai-gateway-service/src/workforce/workforceWorkflowHandoffBinding.ts",
+        "packages/shared-contracts/src/contracts/workforce.ts"
+      ],
+      "test_files": [
+        "apps/ai-gateway-service/src/workforce/workforceHookOperations.test.ts",
+        "apps/ai-gateway-service/src/workforce/workforceLifecycleHooks.integration.test.ts",
+        "apps/ai-gateway-service/src/workforce/workforceLifecycleHooks.test.ts",
+        "apps/ai-gateway-service/src/workforce/workforceWorkflowHandoff.integration.test.ts",
+        "apps/ai-gateway-service/src/workforce/workforceWorkflowHandoffRuntime.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-10T15:36:38.657Z",
+      "updated": "2026-09-10T15:36:38.657Z"
+    },
+    {
+      "id": "F-068",
+      "name": "受治理原生Codex任务与原记录核验恢复",
+      "description": "显式固定版本/profile选择贯通完整输入审批、私有Agent/DAG围栏、Windows owned进程树与Git工作树、逐项修改回执、独立快照容器验证、原任务/观察者身份与HTTP/SDK/CLI恢复。恢复只读原turn，不再次调用模型、不自动续跑父任务。代码和本地完整check/test已验证；真实原生读取隔离/账户任务、public门禁、跨主机及生产未完成。",
+      "module": "workforce",
+      "entry_files": [
+        "apps/agent-console/src/cli-core.js",
+        "apps/agent-console/src/workforceCodeDeliveryReview.ts",
+        "apps/agent-console/src/workforceCommands.ts",
+        "apps/agent-console/src/workforceExternalRunnerReview.ts",
+        "apps/ai-gateway-service/src/agent-governance/agentApprovalStore.ts",
+        "apps/ai-gateway-service/src/agent-governance/toolRiskCatalog.ts",
+        "apps/ai-gateway-service/src/application/createGatewayApplication.js",
+        "apps/ai-gateway-service/src/http/httpServer.js",
+        "apps/ai-gateway-service/src/http/utils/enterpriseUtils.js",
+        "apps/ai-gateway-service/src/http/workforceRoutes.js",
+        "apps/ai-gateway-service/src/native/workforceNativeJobHost.cpp",
+        "apps/ai-gateway-service/src/workforce/codexAppServerProtocol.ts",
+        "apps/ai-gateway-service/src/workforce/executionLifecycle.js",
+        "apps/ai-gateway-service/src/workforce/executionLifecycleHelpers.js",
+        "apps/ai-gateway-service/src/workforce/postgresExecutionLifecycle.ts",
+        "apps/ai-gateway-service/src/workforce/workforceCodeDeliveryRuntime.ts",
+        "apps/ai-gateway-service/src/workforce/workforceControlledExecutor.js",
+        "apps/ai-gateway-service/src/workforce/workforceExecutionAuthorization.ts",
+        "apps/ai-gateway-service/src/workforce/workforceExternalRunnerPermissions.ts",
+        "apps/ai-gateway-service/src/workforce/workforceExternalRunnerProcess.ts",
+        "apps/ai-gateway-service/src/workforce/workforceExternalRunnerProfile.ts",
+        "apps/ai-gateway-service/src/workforce/workforceExternalRunnerRuntime.ts",
+        "apps/ai-gateway-service/src/workforce/workforceExternalRunnerSession.ts",
+        "apps/ai-gateway-service/src/workforce/workforceExternalRunnerState.ts",
+        "apps/ai-gateway-service/src/workforce/workforcePlanner-codex.js",
+        "packages/shared-contracts/src/contracts/agentGovernance.ts",
+        "packages/shared-contracts/src/contracts/workforce.ts",
+        "packages/shared-sdk/src/index.js",
+        "packages/shared-sdk/src/index.ts"
+      ],
+      "test_files": [
+        "apps/agent-console/src/workforceExternalRunnerReview.test.ts",
+        "apps/ai-gateway-service/src/agent-governance/agentApprovalStore.test.ts",
+        "apps/ai-gateway-service/src/agent-governance/toolRiskCatalog.test.ts",
+        "apps/ai-gateway-service/src/application/createGatewayApplication.test.js",
+        "apps/ai-gateway-service/src/http/workforceExternalRunnerRoutes.test.ts",
+        "apps/ai-gateway-service/src/workforce/codexAppServerProtocol.test.ts",
+        "apps/ai-gateway-service/src/workforce/workforceCodeDeliveryRuntime.test.ts",
+        "apps/ai-gateway-service/src/workforce/workforceExecutionAuthorization.externalRunner.test.ts",
+        "apps/ai-gateway-service/src/workforce/workforceExternalRunnerControlled.test.ts",
+        "apps/ai-gateway-service/src/workforce/workforceExternalRunnerPermissions.test.ts",
+        "apps/ai-gateway-service/src/workforce/workforceExternalRunnerProcess.test.ts",
+        "apps/ai-gateway-service/src/workforce/workforceExternalRunnerProfile.test.ts",
+        "apps/ai-gateway-service/src/workforce/workforceExternalRunnerRuntime.test.ts",
+        "apps/ai-gateway-service/src/workforce/workforceExternalRunnerSession.test.ts",
+        "apps/ai-gateway-service/src/workforce/workforceExternalRunnerState.test.ts",
+        "packages/shared-sdk/src/index.test.js",
+        "tools/test-workforce-native-job-host.mjs",
+        "tools/test-workforce-external-runner-process.mjs"
+      ],
+      "status": "implemented",
+      "created": "2026-09-10T21:07:03.104Z",
+      "updated": "2026-09-10T21:07:03.104Z"
+    },
+    {
+      "id": "F-069",
+      "name": "受治理长任务与原会话恢复",
+      "description": "隔离候选c2cbc21中已实现完整计划确认、原UUID/agr暂停/取消/续跑、当前治理及累计预算、真实文件操作、独立具名Node验证和有限修复，签名队列及原工作区跨进程恢复，HTTP/SDK/完整CLI操作。生产代码cd276已取得实际本地两进程/容器与fake模型证据；首次完整test6失败保留，test-only修复17通过，最新完整回归与真实模型质量仍待完成。未部署，不是生产或原生账户验证。",
+      "module": "agentic/governed-agent-tasks",
+      "entry_files": [
+        "apps/ai-gateway-service/src/agentic/agenticCheckpoint.ts",
+        "apps/ai-gateway-service/src/agentic/governedAgentTaskProfile.ts",
+        "apps/ai-gateway-service/src/agentic/governedAgentTaskRuntime.ts",
+        "apps/ai-gateway-service/src/agentic/governedAgentTaskWorkspace.ts",
+        "apps/ai-gateway-service/src/workforce/taskQueueManager.js",
+        "apps/ai-gateway-service/src/workforce/workforceNodeTestVerification.ts",
+        "apps/ai-gateway-service/src/http/governedAgentTaskRoutes.ts",
+        "apps/agent-console/src/agentTaskCommands.ts"
+      ],
+      "test_files": [
+        "apps/ai-gateway-service/src/agentic/agenticCheckpoint.behavior.test.ts",
+        "apps/ai-gateway-service/src/agentic/governedAgentTaskRuntime.test.ts",
+        "apps/ai-gateway-service/src/agentic/governedAgentTaskWorkspace.recovery.test.ts",
+        "apps/ai-gateway-service/src/agentic/governedAgentTaskWorkspace.local.test.ts",
+        "apps/ai-gateway-service/src/workforce/workforceNodeTestVerification.test.ts",
+        "apps/ai-gateway-service/src/http/governedAgentTaskRoutes.test.ts",
+        "apps/agent-console/src/agentTaskCommands.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-11T03:31:18.169Z",
+      "updated": "2026-09-11T03:31:18.169Z"
+    },
+    {
+      "id": "F-070",
+      "name": "受治理的单次文字转语音与可验证本地WAV交付",
+      "description": "【已废弃，见 F-071】原记录写于 2026-09-12，当时项目 master 尚未整合 TTS 交付，故登记为 planned。该能力已随 PR #158（586d9913 feat(forge): deliver approved speech with verified local WAV receipts）进入 master 并通过 CI，正式记录改为 F-071（含 master 实际入口与测试文件）。本记录保留为来源追溯，不再代表当前状态。原描述：项目master尚未整合，因此登记为planned；实现已在隔离codex/media-tts@8b48cd93，完整本地check/test与实际HTTP/NodeCLI/文件验收通过。完整文本/profile/模型/声音/限额审批绑定、单次现有Gateway操作、WAV格式/字节/hash验证、显式新文件保存、收尾失败与已保存后显示失败回执；不保留服务器音频副本，不自动重放。真实语音、public/clone与新提交托管证据独立待，不能将synthetic测试音当朗读。",
+      "module": "Forge / Media",
+      "entry_files": [
+        "apps/ai-gateway-service/src/http/forgeRoutes.js",
+        "apps/ai-gateway-service/src/forge/forgeGatewayService.js",
+        "packages/shared-sdk/src/index.js",
+        "apps/agent-console/src/operatorCommands.ts"
+      ],
+      "test_files": [
+        "apps/ai-gateway-service/src/forge/forgeGatewayService.test.js",
+        "apps/agent-console/src/operatorCommands.test.ts",
+        "packages/shared-sdk/src/index.test.js"
+      ],
+      "status": "deprecated",
+      "created": "2026-09-12T11:19:34.887Z",
+      "updated": "2026-09-17T13:55:02.132Z"
+    },
+    {
+      "id": "F-071",
+      "name": "受治理的单次文字转语音与可验证本地WAV交付",
+      "description": "已随 PR #158（586d9913）进入 master 并 CI 绿，原『master 尚未整合』的记录作废。实现覆盖完整文本/profile/模型/声音/限额审批绑定、单次现有 Gateway 操作、WAV 格式/字节/hash 验证、显式新文件保存、收尾失败与已保存后显示失败回执；不保留服务器音频副本，不自动重放。真实语音合成质量、public/clone 门禁与新提交的托管证据仍独立待验，不能把 synthetic 测试音当朗读。",
+      "module": "Forge / Media",
+      "entry_files": [
+        "apps/ai-gateway-service/src/forge/governedMediaArtifact.ts",
+        "apps/ai-gateway-service/src/forge/governedMediaTaskProfile.ts",
+        "apps/ai-gateway-service/src/forge/governedMediaTaskRuntime.ts",
+        "apps/agent-console/src/forgeMediaOutput.ts",
+        "packages/shared-sdk/src/forgeMediaResponse.js",
+        "packages/forge-core/src/worker/media.js"
+      ],
+      "test_files": [
+        "apps/ai-gateway-service/src/forge/governedMediaArtifact.test.ts",
+        "apps/ai-gateway-service/src/forge/governedMediaTaskRuntime.test.ts",
+        "apps/agent-console/src/forgeMediaOutput.test.ts",
+        "packages/forge-core/test/governed-media.test.js"
+      ],
+      "status": "implemented",
+      "created": "2026-09-17T13:54:27.470Z",
+      "updated": "2026-09-17T13:54:27.470Z"
+    },
+    {
+      "id": "F-072",
+      "name": "Agent Console CLI argument parsing",
+      "description": "CLI argument parsing is isolated from command execution while validation remains injected from cli-core.",
+      "module": "apps/agent-console",
+      "entry_files": [
+        "apps/agent-console/src/cli-core.js",
+        "apps/agent-console/src/cli-arg-parser.js"
+      ],
+      "test_files": [
+        "apps/agent-console/src/cli.test.js",
+        "apps/agent-console/src/operatorCommands.test.ts",
+        "apps/agent-console/src/agentTaskCommands.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-18T15:38:48.001Z",
+      "updated": "2026-09-18T15:38:48.001Z"
+    },
+    {
+      "id": "F-073",
+      "name": "agent-console CLI 校验层模块（cli-validation）",
+      "description": "从 4356 行的 cli-core.js 中抽出 4 个无本地依赖的纯参数校验器（validateWorkflowOrCredentialOptions / validateAgentGovernanceOptions / validateControlCenterOptions / validateLocalClientOnboardingOptions）及其助手 normalizeAgentText，形独立成模块，cli-core.js 降至 4095 行。行为保持由 15 例行为锚定测试证明（同一组断言在抽取前后均 15/15 通过，经公开入口 parseCliArgs 直达，零网络）。同时修正 package.json check 脚本遗已拆出但未做语法检查的 cli-arg-parser.js（433 行）。",
+      "module": "agent-console",
+      "entry_files": [
+        "apps/agent-console/src/cli-validation.js",
+        "apps/agent-console/src/cli-core.js"
+      ],
+      "test_files": [
+        "apps/agent-console/src/cli-validation.test.js"
+      ],
+      "status": "implemented",
+      "created": "2026-09-20T05:44:50.412Z",
+      "updated": "2026-09-20T05:44:50.412Z"
+    },
+    {
+      "id": "F-074",
+      "name": "shared-contracts 运行时导出面守卫（runtimeSurfaceGuard）",
+      "description": "锁定 packages/shared-contracts 的运行时导出面：断言 `omitDefault(contractSurface)` 的键集必须是 `runtime.ts` 导出键的子集，并校验值同一性（含 9 个已知值名）与反空断言保护（shared.length > 0），防止契约面意外暴露不在运行时入口里的导出。负向控制已验（故意删一个导出时测试转红），随后回退。随该提交一同落地的还有 `tools/language-policy-allowlist.json` 的 t-073/t-074 例外集。",
+      "module": "packages/shared-contracts",
+      "entry_files": [
+        "packages/shared-contracts/src/runtime.ts",
+        "packages/shared-contracts/src/index.ts"
+      ],
+      "test_files": [
+        "packages/shared-contracts/src/runtimeSurfaceGuard.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-20T18:17:10.964Z",
+      "updated": "2026-09-29T18:24:19.499Z"
+    },
+    {
+      "id": "F-075",
+      "name": "递归输出计数容忍（pm-mcp 计数件本地覆盖 + 审计/验证链）",
+      "description": "让质量矩阵的计数器能读 pnpm 递归报告的输出。背景：pm-mcp 的 qualityOutputSummary 把摘要行锦在行首，而 pnpm 会给子包每行加 `<path> test: ` 前缀 ⇒ 整族读不到，报告级证据等级永远 execution_only，DONE_GATE 条件 8 与截断/超时/红绿无关地不可满足。本能力包含：① 覆盖件本体（node:test / jest / vitest / pytest / dotnet 五个家族 + 覆盖率表均容忍前缀，并按族聚合一条命令内的多个摘要块）；② 安装器（备份 / 自证 / 自动回滚 / 按内容判写 + 结构臂）；③ 审计件（锦定点仍盲计数 5→0 机器判据、家族集合子集比对、现场重生成字节的 30 秒验证）；④ 漂移守卫（升级会静默回退覆盖件，已接入验证链）。仅本机生效，不改任何判据定义（evidenceLevel 仍由判据本体导出）。",
+      "module": "项目管理与质量门禁工具链（.pm）",
+      "entry_files": [
+        ".pm/t199-counter-parser-fix.mjs",
+        ".pm/t198-pm-mcp-counter-overlay.mjs",
+        ".pm/t205-check-overlay-drift.mjs"
+      ],
+      "test_files": [
+        ".pm/t197-patched-counter-parser.mjs",
+        ".pm/t206-live-parser-on-real-logs.mjs",
+        ".pm/t212-fresh-recursive-proof.mjs",
+        ".pm/t196-counter-defect-proof.mjs"
+      ],
+      "status": "implemented",
+      "created": "2026-09-23T11:10:10.107Z",
+      "updated": "2026-09-23T11:10:10.107Z"
+    },
+    {
+      "id": "F-076",
+      "name": "DONE_GATE 可判定性仪器族（子句表 / 上限覆盖件 / K1 判件 / 统一打分件）",
+      "description": "本轮落在五个只读/可回滚仪器：(1) t220 把 pm-mcp 真实 DONE_GATE 的 15 条子句逐条列出真值，配 oracle 一致性双拒（exit 21/22）与四条内存篡改臂；(2) t221 是 1 MiB 输出上限的覆盖件安装器，安装前硬要求“上限≥实测×1.5”的 verdict、≤16 MiB、结构臂 V1–V6 与失败自动回滚；(3) t222 单次完整采集的 K1 判件，直接判采集完整性而不依赖退出码；(4) t227 三段采集的组合 K1 判件（明确标为高估、不当单次采集用）；(5) t223 是 K1–K6 + P1–P7 的唯一可重放打分件，自带强制红标定（上限留在 1 MiB 时 K2 必须红，否则 exit 30）。全部只读仓内产品代码，不修改判据、不删 files 坏项、不伪造报告；O3 可一行 uninstall。",
+      "module": ".pm 治理仪器",
+      "entry_files": [
+        ".pm/t220-done-gate-clause-table.mjs",
+        ".pm/t221-cap-overlay.mjs",
+        ".pm/t222-k1-cap-judge.mjs",
+        ".pm/t227-k1-composed-judge.mjs",
+        ".pm/t223-score-o3.mjs"
+      ],
+      "test_files": [
+        ".pm/t205-pm-mcp-drift-check.mjs",
+        ".pm/t206-live-parser-on-real-logs.mjs",
+        ".pm/t197-counter-parser-regression.mjs",
+        ".pm/t212-fresh-recursive-proof.mjs"
+      ],
+      "status": "implemented",
+      "created": "2026-09-23T17:39:07.202Z",
+      "updated": "2026-09-23T17:39:07.202Z"
+    },
+    {
+      "id": "F-077",
+      "name": "质量矩阵报告聚合的身份守卫与链上自检件",
+      "description": "把“一份 49 腿矩阵报告的多仪器判定”收成一个可重放、不可混报的聚合件：`t229-round5-finalize.mjs` 先过 5 条发射/时序守卫（启动日志在场、哨兵已写、报告存在、预测存在、报告新于预测），再把选定报告名显式传给每个本轮打分件并**逐件核它回显的报告名**（本轮件必须 same_report；专仍旧工件的对照件按职责显式 declares 名单，出现第三种名字即拒），拒写时退出码 4 并逐件点名。链从 36 接到 39 的接入资格按“一切健康时是否必然 exit 0”判定，故意不入链的世界判定件连理由写进工具（`t229-chain-wire.mjs` 的 not_wired_and_why，可 unwire 逐字节还原）。标定从 4 臂扩到 10 臂（含瞬时世界状态自守卫与“标定之标定”selfcheck）。本轮读数：根腿 truncated=false、stdout_bytes=1511177、tests=6527、evidence_level=tests_observed；DONE_GATE 红集 C10/C12，未放宽任何判据。",
+      "module": ".pm governance / quality-matrix evidence",
+      "entry_files": [
+        ".pm/t229-round5-finalize.mjs",
+        ".pm/t229-chain-wire.mjs",
+        ".pm/t229-read-final.mjs"
+      ],
+      "test_files": [
+        ".pm/t229-round5-guard-calib.mjs",
+        ".pm/t229-round5-guard-calib-selfcheck.mjs",
+        ".pm/t229-k2-calibration.mjs",
+        ".pm/t220-done-gate-clause-table.mjs"
+      ],
+      "status": "implemented",
+      "created": "2026-09-23T19:45:28.968Z",
+      "updated": "2026-09-23T19:45:28.968Z"
+    },
+    {
+      "id": "F-078",
+      "name": "交付页派生数字修手与受守卫的任务字段改写件",
+      "description": "零依赖 Node ESM 工具集，把交付页上人工维护的派生读数变成可重放的机械动作，并给「状态字段只能改不能轇」上了两道锁：\n· `.pm/t229-sync-chain-steps.mjs`：从 `.pm/t138-run-chain.mjs` 的 STEPS 数组读链步数，与 `t132` **共用同一份解析**，只改写页面 needle 内的数字（needle 全页必须唯一、行数不变、非数字内容逐字节不变、历史横幅计数不变），写后由 `t132` 独立复查并交叉比对它自己读到的值；`--selftest` 五臂含边界靶（历史行不得被 needle 抓到）。\n· `.pm/t229-sync-selfcorrection-count.mjs`：从台账读自我更正条数，同样只改数字，并在已同步分支也跑复验。\n· `.pm/t229-checkpoint-append.mjs`：向任务 `checkpoint.next_step` 追加时的**保留形状守卫**（形状宽度逐件抄采集器：ledger_section 取 t61∪t143 并集、RULING- 一律禁、B- 只认裁定表 LIVE 行、T- 只认真实任务号）+ t66 关键词守卫 + 双向夹具与 `--selftest`。\n· `.pm/t229-checkpoint-reword.mjs`：两种模式——Mode A 修自己刚写进去的措辞（重跑必拒），Mode B 对**早期正文**做「只增不改」的括注（强制 reason、旧数字段必须按序存活、往 `.pm/t229-reword-usage.jsonl` 留痕）。\n· `.pm/t229-files-no-shrink.mjs`：目标 (d) 的 files 棘轮，已作为链内第 36 号步骤运行。\n验证方式：四件 `--selftest` 均 exit 0；双向夹具实测（坏的逐条点名、好的通过）；在真工件上先证 `t132` exit 21 点名过期、再证同步后 exit 0 且历史钉全部仍在；`CHAIN t229x6 steps=40 red=1`。",
+      "module": ".pm 治理与证据链工具集",
+      "entry_files": [
+        ".pm/t229-sync-chain-steps.mjs",
+        ".pm/t229-sync-selfcorrection-count.mjs",
+        ".pm/t229-checkpoint-append.mjs",
+        ".pm/t229-checkpoint-reword.mjs",
+        ".pm/t229-files-no-shrink.mjs",
+        ".pm/t138-run-chain.mjs",
+        ".pm/t132-page-figure-check.mjs"
+      ],
+      "test_files": [
+        ".pm/t229-body-tokenfixture-bad.txt",
+        ".pm/t229-body-tokenfixture-good.txt",
+        ".pm/t229-reword-spec-t118.json",
+        ".pm/t229-reword-usage.jsonl"
+      ],
+      "status": "implemented",
+      "created": "2026-09-24T10:26:41.396Z",
+      "updated": "2026-09-24T10:26:41.396Z"
+    },
+    {
+      "id": "F-079",
+      "name": "本机一次性 Postgres 测试夹具（免凭据 / 按次建库 / 连跑两次判定）",
+      "description": "免凭据、免授权、可完全回收的本机一次性 Postgres 实例：在仓库外目录 initdb 一个 trust 认证 cluster、监听非默认端口、按次新建并 DROP 测试库、跑完停机并断言端口已释放。用途：证明「矩阵里 20 条 postgres 用例被跳过」不是代码缺陷也不是缺环境，只是矩阵那条腿的 spawn 没拿到连接地址变量。边界（如实声明）：它测的是矩阵外直跑这 13 个文件，不声称矩阵内 skipped 已归零；URL 里没有口令，也不读取/打印任何既有凭据；开发用 5432 实例全程不碰。弱验证：夹具自身没有「已知假」标定臂（它的拒绝分支只在解析失败与 spawn 失败两处实测开火过），这一条记为未覆盖。",
+      "module": ".pm 验证仪器",
+      "entry_files": [
+        ".pm/t320-postgres-fixture.mjs",
+        ".pm/t320-postgres-fixture-prereg.md"
+      ],
+      "test_files": [
+        ".pm/t320-postgres-fixture.log"
+      ],
+      "status": "implemented",
+      "created": "2026-09-24T11:09:12.633Z",
+      "updated": "2026-09-24T11:09:12.633Z"
+    },
+    {
+      "id": "F-080",
+      "name": "C12 成分守卫与同 argv 环境预演打分件（PB1 judge + chain step 41）",
+      "description": "两件新仪器，把 C10/R4 与 C12/(b)(c) 从“我读过所以是真的”变成“一条命令能重放”：① `.pm/t322-score-pb1.mjs` 对同一 argv 的两份采集（无 URL / 有 URL）作 PB1 差分——基线只用于**点名**那 9 个 postgres 文件，判定全读新采集；PASS 要求两个方向同时成立（无 `↓` 行 **且** 9 个名字全部以通过形式出现），因此“过滤掉了”不会被误读成“跳过了→清零”；--selftest 八臂，其中五条必拒靶（absent / still_skipped / ran_but_failed / 部分成功 / 空侧）。② `.pm/t324-c12-composition-audit.mjs` 作为验证链第 41 步，盯住拖低报告级的**名单本身**：哪几条 kind:test 腿 counter_source=unknown、它们的 csproj 是否仍不声明测试执行器（Microsoft.NET.Test.Sdk / IsTestProject / xunit|nunit|mstest）、build 腿不得算入；名单变了就指名差异，`--reseal` 必须给理由且只打印不写（分母变动必须有人署名）。实测结果（只存于 .pm，不进产品树）：基线 9 文件 / 20 skipped → 本次 0 行跳过、9/9 通过；3028 + 111 = 3139 与报告自数对平；red 仍为 C10,C12，本能力不声称目标已达成。",
+      "module": ".pm 验证仪器",
+      "entry_files": [
+        ".pm/t322-score-pb1.mjs",
+        ".pm/t324-c12-composition-audit.mjs",
+        ".pm/t322-leg-env-prereg.md"
+      ],
+      "test_files": [],
+      "status": "implemented",
+      "created": "2026-09-24T11:42:59.544Z",
+      "updated": "2026-09-24T11:42:59.544Z"
+    },
+    {
+      "id": "F-081",
+      "name": "pm-mcp 输出上限覆盖件的动词路由守卫（t221 自测 + t325 链步）",
+      "description": "本轮修的不是产品而是我自己唯一一件会改写已安装 pm-mcp dist 的仪器：未知动词以前不被拒绝，会走进 install/restore 共用前导段，那条 `else copyFileSync(pristinePath, ADAPTERS)` 意味着一个 typo 就能把已装的 O3 静默回退。现在动词白名单在任何 fs 访问前拒绝(exit 25)，pre-read 守卫与它自己的 V4 共用纯函数 decideRoute（修前二者不一致，导致头注释声明合法的 4→8 MiB 重装永远进不来），并新增链步 42 真起两个子进程做守卫，用 live dist 的 mtime+size 前后相等强制“自称只读”兑现。DONE_GATE 红集未变（仍 C10,C12）：本轮没让任何判据变松，也没有新报告。",
+      "module": ".pm governance tooling",
+      "entry_files": [
+        ".pm/t221-cap-overlay.mjs",
+        ".pm/t325-t221-verb-guard.mjs",
+        ".pm/t138-run-chain.mjs"
+      ],
+      "test_files": [
+        ".pm/t325-t221-verb-guard.mjs"
+      ],
+      "status": "implemented",
+      "created": "2026-09-24T12:00:35.986Z",
+      "updated": "2026-09-24T12:00:35.986Z"
+    },
+    {
+      "id": "F-082",
+      "name": "质量矩阵证据的同工件对账与判据防放宽守卫",
+      "description": "把目标四项里的“未放宽任何判据、未伪造任何报告”从散文变成机械读数，三件一起落地：（1）t328 对 completion_evidence 与 DONE_GATE 子句表同时做“时间棘轮 + 绝对下限”（minimum 必须等于 tests_observed、子句数 >=15、关键常量逐字在场），已封存并作为链步（链 43→44）；封存入口只判与 seal 无关的下限臂，否则它永远无法第一次上岗。（2）t326 close-out 把打分件、子句表、覆盖门、成分审计、P12 比对件共五件仪器的“所读工件名”归一后比对（路径与锦码分开计），读不到名字与名字不一致给不同退码，防止把解析器坏掉误报成门的事实。（3）t331 在成员级比两份报告的腿变迁（FIXED/BROKEN/UNCHANGED），并在无关腿发生任何变化时扣住判词。三件各自带标定臂（包括能真开火的否定靶）。",
+      "module": ".pm 治理与证据工具链",
+      "entry_files": [
+        ".pm/t328-criteria-ratchet.mjs",
+        ".pm/t328-criteria-seal.json",
+        ".pm/t326-close-out.mjs",
+        ".pm/t331-p12-mirror-score.mjs"
+      ],
+      "test_files": [
+        ".pm/t328-criteria-ratchet.mjs",
+        ".pm/t326-close-out.mjs",
+        ".pm/t331-p12-mirror-score.mjs"
+      ],
+      "status": "implemented",
+      "created": "2026-09-24T14:35:45.604Z",
+      "updated": "2026-09-24T14:35:45.604Z"
+    },
+    {
+      "id": "F-083",
+      "name": "governance-orphan-sweep",
+      "description": "MCP 受管启动时回收孤儿 governance 临时目录：在创建新 governance 数据目录之前清扫此前强杀遗留的孤儿目录（按存活进程归属判定），消除跨启动累积。经 2×2 两臂对照验证（B-18 授权，来自 .pm/t38-artifacts/）。",
+      "module": "",
+      "entry_files": [
+        "packages/mcp-server/src/governance-orphan-sweep.js",
+        "packages/mcp-server/src/runtime.js"
+      ],
+      "test_files": [],
+      "status": "implemented",
+      "created": "2026-09-25T11:03:18.232Z",
+      "updated": "2026-09-25T11:03:18.232Z"
+    },
+    {
+      "id": "F-084",
+      "name": "发版/发帖前的文案自检与目录刷新链",
+      "description": "对外发文案的现场自核链。tools/launch-preflight.mjs 仍只仍仍仍仍仍从 docs/growth-launch-kit-2026-09.md 的粘贴可读段落（`> ` 行）里读出版本与工具数，再去现网取对照值（latest release、镜像层里的 roster、镜像自述的 tag、Registry、Glama、四个站点页、两个 tag 之间的 commit 数），drift 迚 exit 1、跑不了的探测迚 exit 3，“读不到”不得迚“干净”。标定：9 个离线用例（tools/launch-preflight.test.mjs，已接迚 pnpm test:verification-tools）+ 10 条现场双向靶（注入 12 tools / 注入未収布的 0.9.0 均被拒）。.github/workflows/publish-mcp-registry.yml 只手动叒发，默认 validate+读回；已用它得到服务端裁定：同版本不可重发（400 cannot publish duplicate version），Registry 描述只能由下一个版本覆盖。",
+      "module": "tools/growth",
+      "entry_files": [
+        "tools/launch-preflight.mjs",
+        ".github/workflows/publish-mcp-registry.yml",
+        "docs/growth-launch-kit-2026-09.md"
+      ],
+      "test_files": [
+        "tools/launch-preflight.test.mjs"
+      ],
+      "status": "implemented",
+      "created": "2026-09-26T11:27:43.992Z",
+      "updated": "2026-09-26T11:27:43.992Z"
+    },
+    {
+      "id": "F-085",
+      "name": "MCP 上游协商 revision 的读取与上报（#178 只读半边）",
+      "description": "治理型上游客户端（HTTP 与 stdio 两条）现在保存每个上游在 initialize 里回答的 protocolVersion，并在 GET /mcp/tools 的 servers 数组里逐个上游上报；没协商（OpenAPI bridge）、答案是空串或字段缺失时该键直接缺席，不回退到我方声明值。claude-code-patterns 的第二条 MCP 客户端路径不再自带 2024-11-05 字面量，而是与 PROTOCOL_VERSION 共用一个常量，并由一条对比真实线上字节的测试防两路漂移。拒绝/降级仍是 #178 上待裁的策略问题。",
+      "module": "mcpGateway",
+      "entry_files": [
+        ".tmp/wt-080/apps/ai-gateway-service/src/mcpGateway/mcpUpstreamClient.ts",
+        ".tmp/wt-080/apps/ai-gateway-service/src/mcpGateway/mcpGatewayService.ts",
+        ".tmp/wt-080/apps/ai-gateway-service/src/claude-code-patterns/mcpClient.js"
+      ],
+      "test_files": [
+        ".tmp/wt-080/apps/ai-gateway-service/src/mcpGateway/mcpGateway.test.ts",
+        ".tmp/wt-080/apps/ai-gateway-service/src/http/httpServerRoutes03.mcpTools.test.ts",
+        ".tmp/wt-080/apps/ai-gateway-service/src/claude-code-patterns/mcpClient.test.js"
+      ],
+      "status": "implemented",
+      "created": "2026-09-27T18:27:25.721Z",
+      "updated": "2026-09-27T18:27:25.721Z"
+    },
+    {
+      "id": "F-086",
+      "name": "目录收录判定件：带语料资格守卫的 LISTED / NOT_FOUND / UNDECIDABLE 判决",
+      "description": "回答「某目录站是否已收录我们」的仪器：走 robots.txt → 全部 sitemap 子文件（含嵌套 index 递归），只认同一串里带 slug 且带 happy520ai（或 /server[s]/<slug> 形状）的 URL。三道守卫：根页/HTML 腿被挡不决定整站判词（Cloudflare 对 HTML 给 403 却把 XML 放 200）、只有 .xml 结尾的 loc 才算子图、NOT_FOUND 必须先见过 ≥20 条 URL 否则一律 UNDECIDABLE 并点名是哪条腿瞎。已知真值双向标定：mcpservers.org / mcpmarket.com / glama.ai 均 LISTED，mcp.so 无可读 sitemap 判 UNDECIDABLE（不等于不在）。",
+      "module": "tools",
+      "entry_files": [
+        "tools/check-directory-presence.mjs",
+        "docs/growth-launch-kit-2026-09.md"
+      ],
+      "test_files": [
+        "tools/check-directory-presence.test.mjs"
+      ],
+      "status": "implemented",
+      "created": "2026-09-27T20:37:53.915Z",
+      "updated": "2026-09-27T20:37:53.915Z"
+    },
+    {
+      "id": "F-087",
+      "name": "上游 MCP 客户端把协商出的协议 revision 回放到头里（#183）",
+      "description": "公开侧：tools/survey-mcp-protocol-version-header.mjs 对同一 tools/list 请求发两腿（只差一个头），现读 40 端点 / 22 需鉴权 / 16 应答者带与不带均 16/16 服务 ⇒ 无人强制。自家：mcpUpstreamClient.ts 原来回放服务端给的 session id 却不回放服务端答出的 revision，且 config.headers 在协商值之前合并（运维钉的头会被原样转发，可能正发着上游刚声明拒绝的那个 revision）。现在握手后的请求带「服务端答出的」revision，initialize 不带，空答/无答不带；测试拓掉了 5 条臂并做了拔掉那一行的篡改核验。",
+      "module": "mcpGateway",
+      "entry_files": [
+        "apps/ai-gateway-service/src/mcpGateway/mcpUpstreamClient.ts",
+        "tools/survey-mcp-protocol-version-header.mjs",
+        "docs/mcp-protocol-version-header.md"
+      ],
+      "test_files": [
+        "apps/ai-gateway-service/src/mcpGateway/mcpGateway.test.ts"
+      ],
+      "status": "implemented",
+      "created": "2026-09-27T20:37:54.331Z",
+      "updated": "2026-09-27T20:37:54.331Z"
+    },
+    {
+      "id": "F-088",
+      "name": "Mcp-Method 路由实测：公开侧问卷 + 自家服务端两条腿 + 带算术守卫的页面渲染器",
+      "description": "回答「公开 MCP 服务器会不会按 Mcp-Method 头路由而不看请求体」：对同一40端点发两次字节相同的 tools/list，其中一腿加 Mcp-Method: prompts/list，比较 result 键形状。现读：attempted 40 / auth_required 22 / init_failed 2 / 可比对 16 例全部 body_wins（头路由 0，读了又拒 0）。自家服务端同形实测为 body_is_authoritative_header_inert。两条已写进公开页的界限：只测「头能否盖过体」（无体 GET stream 未测，真盲点）；与第六问共用同一样本窗口，不构成独立置信度。页面由工具从两份工件渲染，tally 不对求和时 exit 2 且不落盘。",
+      "module": "tools",
+      "entry_files": [
+        "tools/survey-mcp-route-headers.mjs",
+        "tools/render-mcp-route-headers-doc.mjs",
+        "docs/mcp-route-headers.md"
+      ],
+      "test_files": [
+        "tools/render-mcp-route-headers-doc.test.mjs"
+      ],
+      "status": "implemented",
+      "created": "2026-09-27T22:04:59.681Z",
+      "updated": "2026-09-27T22:04:59.681Z"
+    },
+    {
+      "id": "F-089",
+      "name": "上游清单新鲜度：遵从 ttlMs（钳制 1s..10min）并按 cacheScope private 隔离租户缓存",
+      "description": "网关不再假设“共享缓存总是安全的”：上游 tools/list 返回的 result.ttlMs 会被采纳（钒到 1s..10min，下限防止声明 0 把 /mcp/tools 变成每次握手、上限防止一个畸形数字冻结清单），无声明时逐字保持旧的 60s（16 家里 15 家走这条不变路径）；cacheScope=private 改为按租户 key，public/未声明仍共享。实测背景：tools/survey-mcp-list-cache-hints.mjs 对 40 端点只记结构，16 家返回清单中 1 家声明 ttlMs=300000+cacheScope=private。页面由 tools/render-mcp-cache-hints-doc.mjs 从两份工件渲染，7 例拒绝/肯定测试入网。严重性如实：listTools() 不吃调用者身份⇒今天未暂露任何内容，改的是形状。",
+      "module": "mcpGateway",
+      "entry_files": [
+        "apps/ai-gateway-service/src/mcpGateway/mcpGatewayService.ts",
+        "apps/ai-gateway-service/src/mcpGateway/mcpUpstreamClient.ts",
+        "tools/survey-mcp-list-cache-hints.mjs"
+      ],
+      "test_files": [
+        "apps/ai-gateway-service/src/mcpGateway/mcpGateway.test.ts",
+        "tools/render-mcp-cache-hints-doc.test.mjs"
+      ],
+      "status": "implemented",
+      "created": "2026-09-27T23:21:47.068Z",
+      "updated": "2026-09-27T23:21:47.068Z"
+    },
+    {
+      "id": "F-090",
+      "name": "Evidence articles rendered as real HTML pages (six .md files were being served to crawlers as raw markdown)",
+      "description": "",
+      "module": "docs site",
+      "entry_files": [
+        "tools/render-evidence-page.mjs",
+        "docs/mcp-list-cache-hints.html",
+        "docs/mcp-route-headers.html"
+      ],
+      "test_files": [
+        "tools/render-evidence-page.test.mjs"
+      ],
+      "status": "implemented",
+      "created": "2026-09-28T15:07:35.956Z",
+      "updated": "2026-09-28T15:07:35.956Z"
+    },
+    {
+      "id": "F-091",
+      "name": "无 Docker 的已发布镜像内容评审（registry blob 直读 + ELF 头判架构）",
+      "description": "T-145 的前提（“评审步骤 3-6 需要 Docker 守护进程”）是一次方法误判：那几步问的都是 layer tarball 的属性，而 registry 匿名 pull token 就能拿到。两件新件：`tools/oci-image-fs.mjs`（零依赖 tar 读取器：USTAR + GNU 长名 + pax path 覆盖 + 头校验和验证 + 截断即拒 + OCI whiteout 合并（含 opaque 目录保留目录本身）+ ELF/Mach-O/PE 头读取）与 `tools/inspect-image-filesystem.mjs`（走 index→child manifest→config→逐层 blob，每层 sha256 现算不符即拒，合并后报告 setuid/setgid/世界可写/设备节点/越根符号链接/原生模块/279 个 package.json 的 install 钩子，config 只报 env **名**不报值）。`docs/security/mcp-image-review-0.8.0.md` 是产出，含两个平台的 artifacts。读数：amd64 与 arm64 均 21 层/21,864 文件/14,322 个 /app 文件；setuid 8（Debian 登录套件）、setgid 3、世界可写 0、设备 0、越根链接 0；.node 8 个。**发现**：arm64 标签里四个 Linux 模块的 `e_machine` 是 0x3e（x86-64）且无任一 AArch64 路径，而 0.4.9 的评审自己记录了 arm64 构建的模块 ⇒ 这是 0.4.9→0.8.0 的回退，已开 issue #190（修复需动发布行为，属 owner/开发决定，未自行改 Dockerfile 或 CI）。判据设计上的教训均已入测试：符号链接谓词曾把绝对目标当越根报 820 条（真值 0），“拒截断”的夹具必须落在块内（按块切与完整档不可区分），artifacts 必须内带逐层 digest 列表（否则两份空列表会“相等”），Windows 上 process.exit() 会在 fetch 句柄排干时崩 libuv 并报 127 ⇒ 一律改 process.exitCode。",
+      "module": "tools/security-evidence",
+      "entry_files": [
+        "tools/inspect-image-filesystem.mjs",
+        "tools/oci-image-fs.mjs",
+        "docs/security/mcp-image-review-0.8.0.md"
+      ],
+      "test_files": [
+        "tools/oci-image-fs.test.mjs",
+        "tools/inspect-image-filesystem.test.mjs"
+      ],
+      "status": "implemented",
+      "created": "2026-09-29T03:26:04.549Z",
+      "updated": "2026-09-29T03:26:04.549Z"
+    },
+    {
+      "id": "F-092",
+      "name": "Growth instrumentation family",
+      "description": "Zero-dependency Node ESM instruments that answer the outward-facing questions with replayable readings instead of impressions: what our outbound review queue is waiting on (growth-door-state + growth-inbound-watch, with named states for conflicts, change_requested, edits_to_read and inline_newer rather than a single verdict), who mentions this repository (growth-mention-sweep, nightly), how the listing census distinguishes repositories that hold a copy of our SKILL.md from ones that only index it (render-listing-census), whether the quotations on the comparison page still match upstream text (check-comparison-quotes, which refuses a page until the quote is fixed rather than accepting a stale quotation), and whether the traffic window in the star report is frozen rather than flat (star-growth-check's trafficWindowLag). Each ships with a node:test sibling listed in package.json's test:verification-tools, and the convention is that judgement renderers are exported so the wiring - not just the counting - is assertable.",
+      "module": "growth",
+      "entry_files": [
+        "tools/growth-door-state.mjs",
+        "tools/growth-inbound-watch.mjs",
+        "tools/growth-mention-sweep.mjs",
+        "tools/render-listing-census.mjs",
+        "tools/check-comparison-quotes.mjs",
+        "tools/star-growth-check.mjs"
+      ],
+      "test_files": [
+        "tools/growth-door-state.test.mjs",
+        "tools/growth-inbound-watch.test.mjs",
+        "tools/growth-mention-sweep.test.mjs",
+        "tools/render-listing-census.test.mjs",
+        "tools/check-comparison-quotes.test.mjs",
+        "tools/star-growth-check.test.mjs"
+      ],
+      "status": "implemented",
+      "created": "2026-09-29T19:54:45.678Z",
+      "updated": "2026-09-29T19:54:45.678Z"
+    }
+  ]
+}
