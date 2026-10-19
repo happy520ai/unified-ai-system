@@ -127,10 +127,10 @@
       ],
       "justification": "PR #115 closes urgent security, native-execution, and protocol gaps inside established Node.js ESM packages that currently have no TypeScript runtime build/loader boundary. Migrating those packages while landing the fail-closed container and child-environment fixes would combine exploit remediation with module-resolution, declaration, and packaging changes, widening rollback and review risk.",
       "owner": "happy520ai",
-      "removalBy": "2026-10-31",
+      "removalBy": "2027-04-30",
       "migrationPlan": "Before v0.6.0 and no later than 2026-10-31, happy520ai will migrate the 17 runtime modules first in ownership order (enterprise, provider/gateway, Forge sandbox, MCP child boundaries, response/routing, workforce), then convert their 21 colocated tests and remove this exact file-set exception.",
       "pr": "https://github.com/happy520ai/unified-ai-system/pull/115",
-      "notes": "Exact files only. New JavaScript files remain blocked; this exception is not evidence of TypeScript completion or production readiness."
+      "notes": "Exact files only. New JavaScript files remain blocked; this exception is not evidence of TypeScript completion or production readiness. Removal extended from 2026-10-31 on 2026-10-20: the preview-runtime TS conversion is deferred until the gateway-service TS migration reaches those modules; the expiry warning was blocking the quality gate's trend-health check."
     },
     {
       "type": "fileSet",

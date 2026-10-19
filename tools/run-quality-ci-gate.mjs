@@ -234,7 +234,13 @@ function summarizeTrendConsistency(result, requireTrendHealth = false) {
       const hasCheckFail = checksEntries.some(
         (entry) => entry?.ok === false || entry?.status === "missing",
       );
-      return hasCheckFail || (requireTrendHealth && (hasMissingRequired || hasNotCollected))
+      // Fresh-baseline signature: EVERY trend-consistency check absent or
+      // not_collected means the trend history itself is absent (a new ref or
+      // a cleared cache) — the expected state, not a broken run. Only a
+      // PARTIAL collection is a genuine failure.
+      const freshBaseline = !hasCheckFail && checksEntries.length > 0
+        && checksEntries.every((entry) => String(entry?.status ?? "").toLowerCase() === "not_collected");
+      return hasCheckFail || (requireTrendHealth && (hasMissingRequired || hasNotCollected) && !freshBaseline)
         ? "fail"
         : hasMissingRequired || hasNotCollected
           ? "degraded"

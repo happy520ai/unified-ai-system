@@ -497,10 +497,21 @@ function collectTrendConsistencyChecks(qualityParsed, requireTrendHealth = false
   const issues = [];
   const checksSummary = {};
 
+  // Fresh-baseline signature: EVERY trend-consistency check absent or
+  // not_collected means the trend history itself is absent (a new ref or a
+  // cleared cache) — there is nothing to compare against, which is the
+  // expected state rather than a broken run. Only a PARTIAL collection (some
+  // checks ran while others did not) is a genuine failure.
+  const freshBaseline = requiredChecks.every((key) => {
+    const check = checks[key];
+    if (!check || typeof check !== "object") return true;
+    return String(check.status ?? "").toLowerCase() === "not_collected";
+  });
+
   for (const key of requiredChecks) {
     const check = checks[key];
     const checkLabel = `quality-scorecard:${key}`;
-    const missingSeverity = requireTrendHealth ? "high" : "medium";
+    const missingSeverity = requireTrendHealth && !freshBaseline ? "high" : "medium";
     if (!check || typeof check !== "object") {
       if (requireTrendHealth) {
         issues.push(
@@ -535,7 +546,7 @@ function collectTrendConsistencyChecks(qualityParsed, requireTrendHealth = false
       issues.push(`${checkLabel} was not collected in this quality run while trend health is required`);
       issueCodes.push({
         code: `${key}_not_collected`,
-        severity: "high",
+        severity: freshBaseline ? "medium" : "high",
         message: `${checkLabel} result is not_collected while trend health is required`,
         artifactPath: "tools/quality-scorecard.mjs",
         source: "quality-scorecard",
