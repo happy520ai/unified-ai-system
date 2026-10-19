@@ -28,6 +28,8 @@ export interface ProviderModelConfig {
   apiKey?: string;
   apiKeyPresent?: boolean;
   dryRun?: boolean;
+  /** True when this provider is served by a multi-key credential pool. */
+  credentialPool?: boolean;
 }
 
 export type ProviderMode = "fake" | "real" | "auto";

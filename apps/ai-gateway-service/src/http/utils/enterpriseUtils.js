@@ -349,6 +349,7 @@ export function resolvePermission(method, pathname) {
     normalizedMethod === "POST" && (
       normalizedPath === "/providers/runtime-credential/detect" ||
       normalizedPath === "/providers/runtime-credential" ||
+      normalizedPath === "/providers/credential-pool" ||
       normalizedPath === "/provider-config/save" ||
       normalizedPath === "/provider-config/test" ||
       normalizedPath === "/models/import/preview" ||
@@ -534,6 +535,7 @@ export function resolvePermission(method, pathname) {
 }
 
 const EXACT_ROUTE_PERMISSIONS = Object.freeze({
+  "POST /providers/credential-pool": "provider:write",
   "GET /ws/info": "dashboard:read",
   "GET /api/overview": "dashboard:read",
   "POST /knowledge/delete": "knowledge:write",

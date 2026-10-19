@@ -72,16 +72,18 @@ export class HttpLLMProviderAdapter {
   }
 
   get descriptor() {
-    const apiKey = this.resolveApiKey();
+    // Descriptor introspection must never throw or consume a pooled key; it only
+    // reports whether some credential exists.
+    const apiKeyPresent = this._hasUsableCredential();
     const baseUrl = this.resolveBaseUrl();
 
     const descriptor = createProviderDescriptor(this.modelConfig, {
       costTier: "medium",
       latencyTier: "medium",
-      healthStatus: this.modelConfig.enabled && apiKey ? "unknown" : "unavailable",
+      healthStatus: this.modelConfig.enabled && apiKeyPresent ? "unknown" : "unavailable",
       metadata: {
         endpointConfigured: Boolean(baseUrl),
-        apiKeyPresent: Boolean(apiKey),
+        apiKeyPresent,
         openAiCompatible: true,
         reservedAdapter: this.modelConfig.dryRun ?? false,
         realProvider: !(this.modelConfig.dryRun ?? false),
@@ -117,7 +119,8 @@ export class HttpLLMProviderAdapter {
     this._health.totalRequests++;
 
     this.assertReady(providerRequest);
-    const apiKey = this.resolveApiKey();
+    const credential = this._resolveCredential();
+    const apiKey = credential.apiKey;
     const baseUrl = this.resolveBaseUrl();
     const payload = mapGatewayRequestToChatCompletions(providerRequest);
     const timeoutMs = this.options.timeoutMs ?? 10_000;
@@ -207,6 +210,7 @@ export class HttpLLMProviderAdapter {
       this._health.successfulRequests++;
       this._health.totalLatencyMs += Date.now() - requestStartedAt;
       this._health.lastSuccessAt = new Date().toISOString();
+      this._recordPoolOutcome(credential, true);
       this._recordQuality(providerResponse);
       this._recordCost(providerResponse, providerRequest);
 
@@ -225,15 +229,36 @@ export class HttpLLMProviderAdapter {
       this._health.lastFailureAt = new Date().toISOString();
       const errorCode = effectiveError?.code || "UNKNOWN";
       this._health.errors[errorCode] = (this._health.errors[errorCode] || 0) + 1;
-      classifyNonStreamError(effectiveError, {
-        errorPrefix: this.errorPrefix,
-        providerName: this.modelConfig.providerDisplayName ?? this.modelConfig.providerId,
-        providerRequest,
-        timeoutMs,
-      });
+      // classifyNonStreamError always throws a structured provider error; catch
+      // it so the credential actually used can ride along for pool rotation.
+      let classified;
+      try {
+        classifyNonStreamError(effectiveError, {
+          errorPrefix: this.errorPrefix,
+          providerName: this.modelConfig.providerDisplayName ?? this.modelConfig.providerId,
+          providerRequest,
+          timeoutMs,
+        });
+      } catch (normalized) {
+        classified = normalized;
+      }
+      this._recordPoolOutcome(credential, false, classified ?? effectiveError);
+      if (classified && typeof classified === "object" && !classified.credentialRef) {
+        classified.credentialRef = credential;
+      }
+      throw classified ?? effectiveError;
     } finally {
       requestControl.cleanup();
     }
+  }
+
+  _recordPoolOutcome(credential, ok, error) {
+    if (!credential?.pooled) return;
+    const pool = this.options.credentialPool;
+    if (!pool?.record) return;
+    pool.record(this.modelConfig.providerId, credential.apiKey, ok, {
+      benchOnFailure: ok ? false : this._isPoolSwapFailure(error),
+    });
   }
 
   async *generateStream(providerRequest) {
@@ -248,7 +273,8 @@ export class HttpLLMProviderAdapter {
     }
 
     this.assertReady(providerRequest);
-    const apiKey = this.resolveApiKey();
+    const credential = this._resolveCredential();
+    const apiKey = credential.apiKey;
     const baseUrl = this.resolveBaseUrl();
     const retryConfig = this.resolveRetryConfig();
     const providerName = this.modelConfig.providerDisplayName ?? this.modelConfig.providerId;
@@ -259,6 +285,7 @@ export class HttpLLMProviderAdapter {
       ...mapGatewayRequestToChatCompletions(providerRequest),
       stream: true,
     };
+    const pooled = credential.pooled;
 
     const streamConnection = await openStreamWithRetry({
       baseUrl,
@@ -268,10 +295,14 @@ export class HttpLLMProviderAdapter {
       errorPrefix: this.errorPrefix,
       providerName,
       timeoutMs,
-      maxRetries: retryConfig.maxRetries,
+      maxRetries: pooled ? retryConfig.poolMaxAttempts : retryConfig.maxAttempts,
       retryDelay: (attempt, error, signal) => this._retryDelay(attempt, retryConfig, error, signal),
       resolveOutboundUrl: this.options.resolveOutboundUrl,
       signal: executionSignal,
+      resolveApiKey: pooled ? () => this._pickPooledKey() : undefined,
+      onAttemptOutcome: pooled
+        ? (usedKey, ok, error) => this._recordPoolOutcome({ apiKey: usedKey, pooled: true }, ok, error)
+        : undefined,
     });
 
     this._streamState = {
@@ -352,21 +383,48 @@ export class HttpLLMProviderAdapter {
   }
 
   async withRetry(operation, signal) {
-    const config = this.resolveRetryConfig();
+    const baseConfig = this.resolveRetryConfig();
+    // The loop must be able to outlast the plain retry budget: a pooled provider
+    // may legitimately need more attempts than maxRetries, because each attempt
+    // consumes a *different* credential rather than repeating the same one.
+    const loopBound = Math.max(baseConfig.maxAttempts, baseConfig.poolMaxAttempts);
     let lastError;
-    for (let attempt = 1; attempt <= config.maxRetries; attempt++) {
+    for (let attempt = 1; attempt <= loopBound; attempt++) {
       throwIfExecutionAborted(signal);
       try {
         return await operation();
       } catch (error) {
-        if (!error?.retryable || attempt >= config.maxRetries) {
+        lastError = error;
+        const swap = this._shouldRotatePooledKey(error);
+        // Rotating to a fresh pool key is a different action from retrying the
+        // same key, so it carries its own, larger budget.
+        const allowedAttempts = swap ? baseConfig.poolMaxAttempts : baseConfig.maxAttempts;
+        if (attempt >= allowedAttempts) {
           throw error;
         }
-        lastError = error;
-        await this._retryDelay(attempt, config, error, signal);
+        if (swap) {
+          // A pooled key swap does not need exponential backoff: the point is to
+          // try a different credential, not to wait on the one just rejected.
+          if (this._hasUntriedPooledKey(error)) continue;
+          throw error;
+        }
+        if (!error?.retryable) {
+          throw error;
+        }
+        await this._retryDelay(attempt, baseConfig, error, signal);
       }
     }
     throw lastError;
+  }
+
+  _shouldRotatePooledKey(error) {
+    return Boolean(error?.credentialRef?.pooled) && this._isPoolSwapFailure(error);
+  }
+
+  _hasUntriedPooledKey(error) {
+    const pool = this.options.credentialPool;
+    if (!pool?.has?.(this.modelConfig.providerId)) return false;
+    return pool.describe?.(this.modelConfig.providerId)?.alive > 0;
   }
 
   resolveRetryConfig() {
@@ -381,8 +439,11 @@ export class HttpLLMProviderAdapter {
         details: { parameter: "maxRetries", minimum: 1, semantics: "total-attempts" },
       });
     }
+    const pooled = this.options.credentialPool?.has?.(this.modelConfig.providerId) === true;
     return {
       maxRetries,
+      maxAttempts: maxRetries,
+      poolMaxAttempts: this._resolveAttemptBudget(pooled),
       baseDelayMs: this.options.retryBaseDelayMs ?? DEFAULT_RETRY_BASE_DELAY_MS,
       maxDelayMs: this.options.retryMaxDelayMs ?? DEFAULT_RETRY_MAX_DELAY_MS,
     };
@@ -445,7 +506,7 @@ export class HttpLLMProviderAdapter {
   }
 
   assertReady(providerRequest) {
-    if (!this.resolveApiKey()) {
+    if (!this._hasUsableCredential()) {
       throw createProviderError({
         code: `${this.errorPrefix}_API_KEY_MISSING`,
         type: "configuration",
@@ -471,7 +532,86 @@ export class HttpLLMProviderAdapter {
   }
 
   resolveApiKey() {
+    // Kept as a pure lookup for compatibility with existing callers: it returns
+    // the pool's next key, else the single configured key, else "". It never
+    // throws — the exhaustion error belongs to the dispatch path, below.
+    const pooled = this._pickPooledKey();
+    if (pooled) return pooled;
     return this.options.runtimeCredentialStore?.getApiKey(this.modelConfig.providerId) || this.modelConfig.apiKey || "";
+  }
+
+  /**
+   * Resolve one credential for a single outbound attempt.
+   * A configured multi-key pool takes precedence; otherwise the pre-existing
+   * single-key lookup is used unchanged, so providers without a pool behave
+   * exactly as before.
+   */
+  _resolveCredential() {
+    const pool = this.options.credentialPool;
+    if (pool?.has?.(this.modelConfig.providerId)) {
+      const pooled = this._pickPooledKey();
+      if (pooled) return { apiKey: pooled, pooled: true };
+      // Every pooled key is benched or exhausted. Rather than send an empty
+      // Authorization header, surface an explicit, non-retryable pool error.
+      throw createProviderError({
+        code: `${this.errorPrefix}_CREDENTIAL_POOL_EXHAUSTED`,
+        type: "configuration",
+        message: `${this.modelConfig.providerDisplayName ?? this.modelConfig.providerId} credential pool has no usable key.`,
+        retryable: false,
+        details: {
+          providerId: this.modelConfig.providerId,
+          modelId: this.modelConfig.modelId,
+          poolAlive: pool.describe?.(this.modelConfig.providerId)?.alive ?? 0,
+        },
+      });
+    }
+    return {
+      apiKey: this.options.runtimeCredentialStore?.getApiKey(this.modelConfig.providerId) || this.modelConfig.apiKey || "",
+      pooled: false,
+    };
+  }
+
+  /**
+   * True when some credential exists. A configured pool counts even while all
+   * its keys are momentarily benched, so a transient bench never downgrades the
+   * provider into an "API key missing" configuration error.
+   */
+  _hasUsableCredential() {
+    if (this.options.runtimeCredentialStore?.getApiKey(this.modelConfig.providerId) || this.modelConfig.apiKey) {
+      return true;
+    }
+    return this.options.credentialPool?.has?.(this.modelConfig.providerId) === true;
+  }
+
+  _pickPooledKey() {
+    const pool = this.options.credentialPool;
+    if (!pool?.has?.(this.modelConfig.providerId)) return "";
+    return pool.pick(this.modelConfig.providerId) || "";
+  }
+
+  /** Attempt budget: a pool can rotate through several keys before giving up. */
+  _resolveAttemptBudget(pooled) {
+    const configuredRaw = this.options.maxRetries ?? this.modelConfig.maxRetries;
+    const configured = Number.isSafeInteger(configuredRaw) && configuredRaw >= 1
+      ? configuredRaw
+      : undefined;
+    if (!pooled) return configured ?? DEFAULT_MAX_RETRIES;
+    const poolSize = this.options.credentialPool?.describe?.(this.modelConfig.providerId)?.alive ?? 0;
+    const poolBudget = Math.max(2, Math.min(poolSize || 2, 8));
+    return Math.max(configured ?? DEFAULT_MAX_RETRIES, poolBudget);
+  }
+
+  /**
+   * Auth/quota failures are not retryable against the *same* key, but they are
+   * exactly the signal to swap to another key from the pool.
+   */
+  _isPoolSwapFailure(error) {
+    return error?.code === `${this.errorPrefix}_UNAUTHORIZED`
+      || error?.code === `${this.errorPrefix}_FORBIDDEN`
+      || error?.code === `${this.errorPrefix}_RATE_LIMIT`
+      || error?.type === "authentication"
+      || error?.type === "authorization"
+      || error?.type === "rate_limit";
   }
 
   resolveBaseUrl() {

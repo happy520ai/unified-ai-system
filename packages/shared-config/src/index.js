@@ -13,6 +13,8 @@ export function loadRuntimeConfig(env = process.env) {
   const mimoApiKeyPresent = Boolean(mimoApiKey);
   const baiApiKey = env.BAI_API_KEY;
   const baiApiKeyPresent = Boolean(baiApiKey);
+  const senseAudioApiKey = env.SENSEAUDIO_API_KEY;
+  const senseAudioApiKeyPresent = Boolean(senseAudioApiKey);
   const realProviderEnabled = readBoolean(
     env.AI_GATEWAY_REAL_PROVIDER_ENABLED,
     DEFAULT_RUNTIME_CONFIG.aiGatewayService.realProviderEnabled,
@@ -22,6 +24,12 @@ export function loadRuntimeConfig(env = process.env) {
   const mimoModel = env.MIMO_MODEL ?? "mimo-v2.5-pro";
   const baiModel = env.BAI_MODEL ?? "qwen3.8-flash";
   const baiModelPresent = Boolean(env.BAI_MODEL);
+  const senseAudioModel = env.SENSEAUDIO_MODEL ?? "glm-5.3-flash";
+  const senseAudioModelPresent = Boolean(env.SENSEAUDIO_MODEL);
+  // A multi-key pool replaces the single-key requirement: when the pool is
+  // enabled the provider can be selected without SENSEAUDIO_API_KEY, because
+  // credentials are supplied per request from the encrypted pool.
+  const senseAudioPoolEnabled = readBoolean(env.SENSEAUDIO_POOL_ENABLED, false);
   const requestedEnabledProviders = readList(env.AI_GATEWAY_ENABLED_PROVIDERS, []);
   const openAiProviderEnabled = shouldEnableOpenAiProvider({
     providerMode,
@@ -48,7 +56,13 @@ export function loadRuntimeConfig(env = process.env) {
     baiModelPresent,
     requestedEnabledProviders,
   });
-  const providerSelection = createProviderSelectionConfig({
+  const senseAudioProviderEnabled = shouldEnableSenseAudioProvider({
+    providerMode,
+    realProviderEnabled,
+    senseAudioApiKeyPresent: senseAudioApiKeyPresent || senseAudioPoolEnabled,
+    senseAudioModelPresent: senseAudioModelPresent || senseAudioPoolEnabled,
+    requestedEnabledProviders,
+  });  const providerSelection = createProviderSelectionConfig({
     env,
     providerMode,
     nvidiaProviderEnabled,
@@ -121,6 +135,22 @@ export function loadRuntimeConfig(env = process.env) {
             modelSelectionExplicit: Boolean(env.BAI_MODEL),
             apiKey: baiApiKey,
             apiKeyPresent: baiApiKeyPresent,
+          };
+        }
+
+        if (provider.providerId === "senseaudio") {
+          return {
+            ...provider,
+            modelId: senseAudioModel,
+            modelDisplayName: senseAudioModel,
+            enabled: senseAudioProviderEnabled,
+            // Like B.AI, this provider's destination is pinned so an environment
+            // variable cannot redirect bearer keys to another host.
+            endpoint: "https://api.senseaudio.cn/v1",
+            modelSelectionExplicit: Boolean(env.SENSEAUDIO_MODEL),
+            apiKey: senseAudioApiKey,
+            apiKeyPresent: senseAudioApiKeyPresent,
+            credentialPool: senseAudioPoolEnabled,
           };
         }
 
@@ -280,6 +310,18 @@ function shouldEnableBaiProvider({ providerMode, realProviderEnabled, baiApiKeyP
 
   if (providerMode === "real" || providerMode === "auto") {
     return requestedEnabledProviders.includes("bai");
+  }
+
+  return false;
+}
+
+function shouldEnableSenseAudioProvider({ providerMode, realProviderEnabled, senseAudioApiKeyPresent, senseAudioModelPresent, requestedEnabledProviders }) {
+  if (!realProviderEnabled || !senseAudioApiKeyPresent || !senseAudioModelPresent) {
+    return false;
+  }
+
+  if (providerMode === "real" || providerMode === "auto") {
+    return requestedEnabledProviders.includes("senseaudio");
   }
 
   return false;

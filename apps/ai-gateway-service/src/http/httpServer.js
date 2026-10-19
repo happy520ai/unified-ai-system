@@ -154,6 +154,7 @@ import {
   testPhase312AModel,
   createProviders,
   setRuntimeProviderCredential,
+  setRuntimeCredentialPool,
   sanitizeCredentialErrorDetails,
   createRouteModes,
 } from "./utils/phaseUtils.js";
@@ -262,6 +263,7 @@ const HTTP_ROUTE_DEPENDENCIES = Object.freeze({
   writeJson, writeSseEvent, writeSseHeaders, writeServiceLog,
   createHealth, createSetupReadiness, runPhase312AChatGateway, runPhase314ADryRunTask,
   runPhase315ALatencyDryRun, testPhase312AModel, createProviders, setRuntimeProviderCredential,
+  setRuntimeCredentialPool,
   sanitizeCredentialErrorDetails, createRouteModes, readAuditFilters, readEnterpriseAcceptanceReport,
   readEnterpriseReleaseCandidateDryRun, readEnterpriseOverview, buildPhase319FeatureStatus, readCapabilityJson,
   readEnterpriseJson, writeEnterpriseError, writeCapabilityError, normalizeChatBody,

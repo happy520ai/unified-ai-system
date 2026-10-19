@@ -16,7 +16,7 @@ export async function dispatchHttpRoutes04(context) {
     createModelVerificationPlan, getPluginRegistry, readJson,
     writeJson, writeSseEvent, writeSseHeaders, writeServiceLog,
     createHealth, createSetupReadiness, runPhase312AChatGateway, runPhase314ADryRunTask,
-    runPhase315ALatencyDryRun, testPhase312AModel, createProviders, setRuntimeProviderCredential,
+    runPhase315ALatencyDryRun, testPhase312AModel, createProviders, setRuntimeProviderCredential, setRuntimeCredentialPool,
     sanitizeCredentialErrorDetails, createRouteModes, readAuditFilters, readEnterpriseAcceptanceReport,
     readEnterpriseReleaseCandidateDryRun, readEnterpriseOverview, buildPhase319FeatureStatus, readCapabilityJson,
     readEnterpriseJson, writeEnterpriseError, writeCapabilityError, normalizeChatBody,
@@ -136,6 +136,47 @@ export async function dispatchHttpRoutes04(context) {
           category: error?.category ?? "provider",
           retryable: false,
           details: sanitizeCredentialErrorDetails(error?.details),
+        }),
+      );
+    }
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/providers/credential-pool") {
+    let body;
+    try {
+      body = await readJson(request);
+    } catch {
+      writeJson(
+        response,
+        400,
+        createErrorEnvelope("credential_pool_invalid_json", "Credential pool body must be valid JSON.", {
+          startedAt,
+          category: "validation",
+        }),
+      );
+      return;
+    }
+
+    try {
+      const result = setRuntimeCredentialPool(application, body);
+      writeServiceLog("provider_credential_pool_set", {
+        method: request.method,
+        path: url.pathname,
+        providerId: result.providerId,
+        size: result.size,
+        alive: result.alive,
+        durationMs: Date.now() - startedAt,
+      });
+      writeJson(response, 200, createOkEnvelope(result, { startedAt }));
+    } catch (error) {
+      writeJson(
+        response,
+        error?.category === "validation" ? 400 : 422,
+        createErrorEnvelope(error?.code ?? "credential_pool_failed", error instanceof Error ? error.message : "Credential pool update failed.", {
+          startedAt,
+          category: error?.category ?? "provider",
+          retryable: false,
         }),
       );
     }
