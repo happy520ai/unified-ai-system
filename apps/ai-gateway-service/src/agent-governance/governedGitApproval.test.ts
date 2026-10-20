@@ -4,11 +4,24 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import {
   prepareGovernedApprovalParameters,
   verifyGovernedGitApprovalParameters,
 } from "./governedGitApproval.ts";
+
+// Windows dev hosts carry system- and global-level Git credential helpers (for
+// example a PortableGit `!"...git-credential-manager.exe"` entry) that the
+// governed credential allowlist rejects by design. These fixtures must be
+// hermetic: machine-level config must not decide whether a fixture repo is
+// reviewable. Production reads the real config and is untouched.
+const emptyGitConfigPath = join(tmpdir(), `governed-git-empty-config-${process.pid}.cfg`);
+await writeFile(emptyGitConfigPath, "", "utf8");
+process.env.GIT_CONFIG_NOSYSTEM = "1";
+process.env.GIT_CONFIG_GLOBAL = emptyGitConfigPath;
+afterAll(async () => {
+  await rm(emptyGitConfigPath, { force: true });
+});
 import { createAgentApprovalStore } from "./agentApprovalStore.ts";
 import { createGitCreatePRTool, createGitPushTool } from "../tools/gitRemoteTools.js";
 
