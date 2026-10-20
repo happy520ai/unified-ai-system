@@ -219,7 +219,8 @@
         "apps/agent-console/src/cli-validation.test.js",
         "apps/agent-console/src/cliControlCenter.js",
         "apps/agent-console/src/cliAgentGovernance.js",
-        "apps/agent-console/src/cliRuntime.js"
+        "apps/agent-console/src/cliRuntime.js",
+        "apps/agent-console/src/cliSupportCommands.js"
       ],
       "justification": "T-073 split of the agent-console CLI god-module (cli-core.js, 4356 -> 4101 lines) yields sibling modules that stay inside the same plain-Node ESM runtime chain as the grandfathered cli-core.js/cli.js entrypoints. Adding a single TypeScript sibling would not introduce TypeScript anywhere in this graph, and converting only the extracted file is not behaviour-safe while its importer remains JavaScript; the extraction was instead guarded by 15 characterization tests driving the public parseCliArgs surface, which pass identically before and after the move.",
       "owner": "agent-console/operator-interaction",
