@@ -301,9 +301,10 @@
         "apps/ai-gateway-service/src/application/agentGovernanceConfiguration.js",
         "apps/ai-gateway-service/src/application/localClientFeedbackConfiguration.js",
         "apps/ai-gateway-service/src/application/localClientStoreConfiguration.js",
-        "apps/ai-gateway-service/src/application/localClientConfiguration.js"
+        "apps/ai-gateway-service/src/application/localClientConfiguration.js",
+        "packages/shared-sdk/src/gatewayClientPrimitives.js"
       ],
-      "justification": "The agent governance configuration cluster, the local client feedback dedup/outbox configuration cluster, the local client authority epoch/route plan/execution claim store configuration cluster, and the local client validators cluster (receipt journal, onboarding receipt authority, POP registry, every validateLocalClient* validator) were mechanically split out of createGatewayApplication.js (a Node.js ESM JavaScript module) in the same language as the owning module, continuing the owner-approved giant-file-splits maintenance activity (PRs #229/#230 pattern). Converting the split files to TypeScript in the same change would mix the module-boundary refactor with a language migration, widening the verification surface for no behavioral gain.",
+      "justification": "The gateway application configuration clusters, the receipt journal primitives, the governance service helper cluster, and the shared-sdk gateway client error/POP primitives were mechanically split out of their owning Node.js ESM JavaScript modules in the same language as the owners, continuing the owner-approved giant-file-splits maintenance activity (PRs #229/#230 pattern). Converting the split files to TypeScript in the same change would mix the module-boundary refactor with a language migration, widening the verification surface for no behavioral gain.",
       "owner": "zcode",
       "removalBy": "2027-04-30",
       "migrationPlan": "Debt: convert the four files to TypeScript when the gateway-service TS migration reaches the assembly root configuration layer; the assembly, agent-governance, and application regression suites are the safety nets for that conversion.",
