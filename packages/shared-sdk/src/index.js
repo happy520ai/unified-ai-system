@@ -8,44 +8,47 @@ import {
 } from "@unified-ai-system/shared-contracts";
 import { decodeForgeMediaArtifact, readForgeMediaResponse, snapshotForgeOrchestrateRequest,
   validateForgeMediaResponse } from "./forgeMediaResponse.js";
+import {
+  GATEWAY_CLIENT_ERROR_CODES,
+  LOCAL_CLIENT_RECEIPT_RECONCILIATION_SDK_BOUNDARIES,
+  GatewayClientError,
+  GatewayClientAbortError,
+  GatewayClientTimeoutError,
+  MANAGED_LOCAL_CLIENT_POP_HEADER,
+  MANAGED_LOCAL_CLIENT_CHAT_PATH,
+  MANAGED_LOCAL_CLIENT_POP_PROOF_VERSION,
+  MANAGED_LOCAL_CLIENT_POP_CANONICAL_VERSION,
+  MANAGED_LOCAL_CLIENT_POP_TTL_MS,
+  MANAGED_LOCAL_CLIENT_POP_NONCE_BYTES,
+  MANAGED_LOCAL_CLIENT_POP_MAX_BODY_BYTES,
+  MANAGED_LOCAL_CLIENT_CHAT_PROOF_OPTION_KEYS,
+  MANAGED_LOCAL_CLIENT_SENSITIVE_BODY_KEYS,
+  normalizeManagedLocalClientPopOptions,
+  assertManagedLocalClientChatProofOptions,
+  assertExactManagedLocalClientRecord,
+  assertManagedLocalClientDataRecord,
+  requireManagedLocalClientWebCrypto,
+  encodeManagedLocalClientUtf8,
+  managedLocalClientHex,
+  managedLocalClientBase64Url,
+  canonicalizeManagedLocalClientJson,
+  createManagedLocalClientPopProtocolError,
+  createGatewayProtocolError,
+  managedLocalClientHmacSha256,
+} from "./gatewayClientPrimitives.js";
+// Re-exports: the error primitives and the managed local client POP cluster
+// moved to gatewayClientPrimitives.js; existing importers keep working
+// unchanged.
+export {
+  GATEWAY_CLIENT_ERROR_CODES,
+  LOCAL_CLIENT_RECEIPT_RECONCILIATION_SDK_BOUNDARIES,
+  GatewayClientError,
+  GatewayClientAbortError,
+  GatewayClientTimeoutError,
+} from "./gatewayClientPrimitives.js";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 const PROVIDER_KEY_HEADERS = new Set(["idempotency-key", "provider-dispatch-key"]);
-const MANAGED_LOCAL_CLIENT_POP_HEADER = "x-ai-gateway-local-client-proof";
-const MANAGED_LOCAL_CLIENT_CHAT_PATH = "/v1/chat/completions";
-const MANAGED_LOCAL_CLIENT_POP_PROOF_VERSION = "managed-local-client-pop-proof-v1";
-const MANAGED_LOCAL_CLIENT_POP_CANONICAL_VERSION = "managed-local-client-pop-canonical-v1";
-const MANAGED_LOCAL_CLIENT_POP_TTL_MS = 30_000;
-const MANAGED_LOCAL_CLIENT_POP_NONCE_BYTES = 32;
-const MANAGED_LOCAL_CLIENT_POP_MAX_BODY_BYTES = 4 * 1024 * 1024;
-const MANAGED_LOCAL_CLIENT_POP_MAX_PATH_BYTES = 2_048;
-const MANAGED_LOCAL_CLIENT_POP_OPAQUE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,255}$/u;
-const MANAGED_LOCAL_CLIENT_POP_CLIENT_ID_PATTERN = /^[a-z][a-z0-9._-]{0,127}$/u;
-const MANAGED_LOCAL_CLIENT_POP_METHOD_PATTERN = /^[A-Z]{3,16}$/u;
-const MANAGED_LOCAL_CLIENT_PROOF_OPTION_KEYS = Object.freeze([
-  "secret",
-  "tenantId",
-  "subjectId",
-  "clientId",
-  "revision",
-  "method",
-  "path",
-  "bodyBytes",
-]);
-const MANAGED_LOCAL_CLIENT_CHAT_PROOF_OPTION_KEYS = Object.freeze([
-  "secret",
-  "tenantId",
-  "subjectId",
-  "clientId",
-  "revision",
-]);
-const MANAGED_LOCAL_CLIENT_SENSITIVE_BODY_KEYS = new Set([
-  "secret",
-  "proof",
-  "popproof",
-  "popoptions",
-  "proofoptions",
-]);
 const LOCAL_CLIENT_RECEIPT_PROTOCOL_KEY_MIN_BYTES = 32;
 const LOCAL_CLIENT_RECEIPT_PROTOCOL_KEY_MAX_BYTES = 64;
 const LOCAL_CLIENT_RECEIPT_MAX_DATE_MS = 8_640_000_000_000_000;
@@ -79,61 +82,6 @@ const LOCAL_CLIENT_DURABLE_RECEIPT_KEYS = Object.freeze([
   "completedAtMs", "executionMode", "externalEffectPerformed", "status", "signature",
 ]);
 
-export const GATEWAY_CLIENT_ERROR_CODES = Object.freeze({
-  ABORTED: "GATEWAY_CLIENT_ABORTED",
-  TIMEOUT: "GATEWAY_CLIENT_TIMEOUT",
-  NETWORK: "GATEWAY_NETWORK_ERROR",
-  HTTP: "GATEWAY_HTTP_ERROR",
-  PROTOCOL: "GATEWAY_PROTOCOL_ERROR",
-  STREAM: "GATEWAY_STREAM_ERROR",
-});
-
-export const LOCAL_CLIENT_RECEIPT_RECONCILIATION_SDK_BOUNDARIES = Object.freeze({
-  stateless: true,
-  protocolIntegrity: "hmac-sha256",
-  durableStorageProvided: false,
-  atomicEffectReceiptProvided: false,
-  reconciliationAuthorizesExecution: false,
-  clientOwnsDurableAtomicState: true,
-});
-
-export class GatewayClientError extends Error {
-  constructor(message, options = {}) {
-    super(message, options.cause === undefined ? undefined : { cause: options.cause });
-    this.name = "GatewayClientError";
-    this.code = options.code ?? GATEWAY_CLIENT_ERROR_CODES.NETWORK;
-    this.kind = options.kind ?? "network";
-    this.retryable = options.retryable ?? false;
-    this.statusCode = options.statusCode;
-    this.responseBody = options.responseBody;
-  }
-}
-
-export class GatewayClientAbortError extends GatewayClientError {
-  constructor(message, options = {}) {
-    super(message, {
-      ...options,
-      code: GATEWAY_CLIENT_ERROR_CODES.ABORTED,
-      kind: "cancelled",
-      retryable: false,
-    });
-    this.name = "GatewayClientAbortError";
-    this.reason = options.reason;
-  }
-}
-
-export class GatewayClientTimeoutError extends GatewayClientError {
-  constructor(message, options = {}) {
-    super(message, {
-      ...options,
-      code: GATEWAY_CLIENT_ERROR_CODES.TIMEOUT,
-      kind: "timeout",
-      retryable: false,
-    });
-    this.name = "GatewayClientTimeoutError";
-    this.timeoutMs = options.timeoutMs;
-  }
-}
 
 function forgeMediaClientError(error) {
   const failure = new GatewayClientError("Forge media request or artifact could not be verified; do not automatically retry", {
@@ -528,6 +476,190 @@ async function createLocalClientReceiptlessReconciliationResponse(options, state
   } finally {
     protocolKey?.fill(0);
   }
+}
+
+async function verifyLocalClientDispatchIntentWithKey(protocolKey, raw, options) {
+  assertExactLocalClientReceiptRecord(
+    raw,
+    LOCAL_CLIENT_DISPATCH_INTENT_KEYS,
+    LOCAL_CLIENT_DISPATCH_INTENT_KEYS,
+  );
+  if (
+    raw.protocolVersion !== LOCAL_CLIENT_DISPATCH_INTENT_VERSION
+    || !LOCAL_CLIENT_RECEIPT_INTENT_ID_PATTERN.test(raw.intentId)
+    || !isLocalClientReceiptProtocolBindings(raw)
+    || !isLocalClientReceiptFencingToken(raw.dispatchFencingToken)
+    || !isLocalClientReceiptProtocolWindow(raw.issuedAtMs, raw.expiresAtMs, options.maxTtlMs)
+    || !LOCAL_CLIENT_RECEIPT_DIGEST_PATTERN.test(raw.signature)
+  ) throw createLocalClientReceiptProtocolError();
+  const unsigned = withoutLocalClientReceiptSignature(raw);
+  const base = {
+    protocolVersion: LOCAL_CLIENT_DISPATCH_INTENT_VERSION,
+    executionId: raw.executionId,
+    executionBindingHmac: raw.executionBindingHmac,
+    tenantBindingHmac: raw.tenantBindingHmac,
+    subjectBindingHmac: raw.subjectBindingHmac,
+    clientBindingHmac: raw.clientBindingHmac,
+    routeBindingHmac: raw.routeBindingHmac,
+    identityBindingHmac: raw.identityBindingHmac,
+    planFingerprint: raw.planFingerprint,
+    inputSha256: raw.inputSha256,
+    dispatchFencingToken: raw.dispatchFencingToken,
+    issuedAtMs: raw.issuedAtMs,
+    expiresAtMs: raw.expiresAtMs,
+  };
+  const valid = await Promise.all([
+    verifyLocalClientReceiptKeyedDigest(
+      protocolKey,
+      "execution-binding",
+      raw.executionId,
+      raw.executionBindingHmac,
+    ),
+    verifyLocalClientReceiptIdentityBinding(protocolKey, raw),
+    verifyLocalClientReceiptKeyedDigest(
+      protocolKey,
+      "dispatch-intent-id",
+      canonicalizeLocalClientReceiptJson(base),
+      raw.intentId.slice("lcdi_".length),
+    ),
+    verifyLocalClientReceiptProtocolSignature(
+      protocolKey,
+      "dispatch-intent",
+      unsigned,
+      raw.signature,
+    ),
+  ]);
+  if (valid.some((entry) => entry !== true)) throw createLocalClientReceiptProtocolError();
+  if (options.enforceFreshness && (
+    raw.issuedAtMs > safeLocalClientReceiptAdd(options.nowMs, options.allowedClockSkewMs)
+    || safeLocalClientReceiptAdd(raw.expiresAtMs, options.allowedClockSkewMs) < options.nowMs
+  )) throw createLocalClientReceiptProtocolError();
+  return Object.freeze({ ...raw });
+}
+
+async function verifyLocalClientReceiptReconciliationQueryWithKey(protocolKey, raw, options) {
+  assertExactLocalClientReceiptRecord(
+    raw,
+    LOCAL_CLIENT_RECONCILIATION_QUERY_KEYS,
+    LOCAL_CLIENT_RECONCILIATION_QUERY_KEYS,
+  );
+  if (
+    raw.protocolVersion !== LOCAL_CLIENT_RECONCILIATION_QUERY_VERSION
+    || !LOCAL_CLIENT_RECEIPT_QUERY_ID_PATTERN.test(raw.queryId)
+    || !LOCAL_CLIENT_RECEIPT_INTENT_ID_PATTERN.test(raw.intentId)
+    || !isLocalClientReceiptProtocolBindings(raw)
+    || !isLocalClientReceiptFencingToken(raw.dispatchFencingToken)
+    || !isLocalClientReceiptProtocolWindow(raw.issuedAtMs, raw.expiresAtMs, options.maxTtlMs)
+    || raw.purpose !== "receipt-reconciliation-only"
+    || raw.authorizeExecution !== false
+    || !LOCAL_CLIENT_RECEIPT_DIGEST_PATTERN.test(raw.signature)
+  ) throw createLocalClientReceiptProtocolError();
+  const valid = await Promise.all([
+    verifyLocalClientReceiptKeyedDigest(
+      protocolKey,
+      "execution-binding",
+      raw.executionId,
+      raw.executionBindingHmac,
+    ),
+    verifyLocalClientReceiptIdentityBinding(protocolKey, raw),
+    verifyLocalClientReceiptProtocolSignature(
+      protocolKey,
+      "reconciliation-query",
+      withoutLocalClientReceiptSignature(raw),
+      raw.signature,
+    ),
+  ]);
+  if (
+    valid.some((entry) => entry !== true)
+    || raw.issuedAtMs > safeLocalClientReceiptAdd(options.nowMs, options.allowedClockSkewMs)
+    || safeLocalClientReceiptAdd(raw.expiresAtMs, options.allowedClockSkewMs) < options.nowMs
+  ) throw createLocalClientReceiptProtocolError();
+  return Object.freeze({ ...raw });
+}
+
+async function verifyLocalClientDurableExecutionReceiptWithKey(protocolKey, raw, options) {
+  assertExactLocalClientReceiptRecord(
+    raw,
+    LOCAL_CLIENT_DURABLE_RECEIPT_KEYS,
+    LOCAL_CLIENT_DURABLE_RECEIPT_KEYS,
+  );
+  if (
+    raw.protocolVersion !== LOCAL_CLIENT_DURABLE_RECEIPT_VERSION
+    || !LOCAL_CLIENT_RECEIPT_DURABLE_ID_PATTERN.test(raw.receiptId)
+    || !LOCAL_CLIENT_RECEIPT_INTENT_ID_PATTERN.test(raw.intentId)
+    || !isLocalClientReceiptProtocolBindings(raw)
+    || !isLocalClientReceiptFencingToken(raw.dispatchFencingToken)
+    || !isLocalClientReceiptTimestamp(raw.completedAtMs)
+    || raw.completedAtMs > safeLocalClientReceiptAdd(options.nowMs, options.allowedClockSkewMs)
+    || raw.executionMode !== "governed"
+    || raw.externalEffectPerformed !== true
+    || raw.status !== "completed"
+    || !LOCAL_CLIENT_RECEIPT_DIGEST_PATTERN.test(raw.signature)
+  ) throw createLocalClientReceiptProtocolError();
+  const receiptIdValue = canonicalizeLocalClientReceiptJson({
+    clientBindingHmac: raw.clientBindingHmac,
+    completedAtMs: raw.completedAtMs,
+    dispatchFencingToken: raw.dispatchFencingToken,
+    executionBindingHmac: raw.executionBindingHmac,
+    identityBindingHmac: raw.identityBindingHmac,
+    inputSha256: raw.inputSha256,
+    intentId: raw.intentId,
+    planFingerprint: raw.planFingerprint,
+    routeBindingHmac: raw.routeBindingHmac,
+    subjectBindingHmac: raw.subjectBindingHmac,
+    tenantBindingHmac: raw.tenantBindingHmac,
+  });
+  const valid = await Promise.all([
+    verifyLocalClientReceiptKeyedDigest(
+      protocolKey,
+      "execution-binding",
+      raw.executionId,
+      raw.executionBindingHmac,
+    ),
+    verifyLocalClientReceiptIdentityBinding(protocolKey, raw),
+    verifyLocalClientReceiptKeyedDigest(
+      protocolKey,
+      "durable-receipt-id",
+      receiptIdValue,
+      raw.receiptId.slice("lcdr_".length),
+    ),
+    verifyLocalClientReceiptProtocolSignature(
+      protocolKey,
+      "durable-receipt",
+      withoutLocalClientReceiptSignature(raw),
+      raw.signature,
+    ),
+  ]);
+  if (valid.some((entry) => entry !== true)) throw createLocalClientReceiptProtocolError();
+  return Object.freeze({ ...raw });
+}
+
+async function createLocalClientReceiptReconciliationResponseWithKey(
+  protocolKey,
+  query,
+  state,
+  receipt,
+  observedAtMs,
+) {
+  const unsigned = Object.freeze({
+    protocolVersion: LOCAL_CLIENT_RECONCILIATION_RESPONSE_VERSION,
+    queryId: query.queryId,
+    intentId: query.intentId,
+    executionId: query.executionId,
+    dispatchFencingToken: query.dispatchFencingToken,
+    state,
+    receipt,
+    observedAtMs,
+    retryAllowed: false,
+  });
+  return Object.freeze({
+    ...unsigned,
+    signature: await signLocalClientReceiptProtocol(
+      protocolKey,
+      "reconciliation-response",
+      unsigned,
+    ),
+  });
 }
 
 function requireWorkflowRunId(value) {
@@ -1546,14 +1678,6 @@ function withSafeDryRunDefault(request) {
   return source.dryRun === undefined ? { ...source, dryRun: true } : source;
 }
 
-function createGatewayProtocolError(message) {
-  return new GatewayClientError(message, {
-    code: GATEWAY_CLIENT_ERROR_CODES.PROTOCOL,
-    kind: "protocol",
-    retryable: false,
-  });
-}
-
 async function managedLocalClientChatImpl({
   baseUrl,
   request,
@@ -1650,380 +1774,6 @@ async function managedLocalClientChatImpl({
   }
 }
 
-function normalizeManagedLocalClientPopOptions(raw) {
-  assertExactManagedLocalClientRecord(raw, MANAGED_LOCAL_CLIENT_PROOF_OPTION_KEYS);
-  if (
-    !(raw.secret instanceof Uint8Array)
-    || raw.secret.byteLength < 32
-    || raw.secret.byteLength > 64
-    || !(raw.bodyBytes instanceof Uint8Array)
-    || raw.bodyBytes.byteLength > MANAGED_LOCAL_CLIENT_POP_MAX_BODY_BYTES
-    || typeof raw.tenantId !== "string"
-    || !MANAGED_LOCAL_CLIENT_POP_OPAQUE_ID_PATTERN.test(raw.tenantId)
-    || typeof raw.subjectId !== "string"
-    || !MANAGED_LOCAL_CLIENT_POP_OPAQUE_ID_PATTERN.test(raw.subjectId)
-    || typeof raw.clientId !== "string"
-    || !MANAGED_LOCAL_CLIENT_POP_CLIENT_ID_PATTERN.test(raw.clientId)
-    || !Number.isSafeInteger(raw.revision)
-    || raw.revision <= 0
-    || typeof raw.method !== "string"
-    || !MANAGED_LOCAL_CLIENT_POP_METHOD_PATTERN.test(raw.method)
-  ) {
-    throw createManagedLocalClientPopProtocolError();
-  }
-  const path = normalizeManagedLocalClientPopPath(raw.path);
-  return {
-    secret: new Uint8Array(raw.secret),
-    tenantId: raw.tenantId,
-    subjectId: raw.subjectId,
-    clientId: raw.clientId,
-    revision: raw.revision,
-    method: raw.method,
-    path,
-    bodyBytes: new Uint8Array(raw.bodyBytes),
-  };
-}
-
-function assertManagedLocalClientChatProofOptions(raw) {
-  if (
-    !(raw.secret instanceof Uint8Array)
-    || raw.secret.byteLength < 32
-    || raw.secret.byteLength > 64
-    || typeof raw.tenantId !== "string"
-    || !MANAGED_LOCAL_CLIENT_POP_OPAQUE_ID_PATTERN.test(raw.tenantId)
-    || typeof raw.subjectId !== "string"
-    || !MANAGED_LOCAL_CLIENT_POP_OPAQUE_ID_PATTERN.test(raw.subjectId)
-    || typeof raw.clientId !== "string"
-    || !MANAGED_LOCAL_CLIENT_POP_CLIENT_ID_PATTERN.test(raw.clientId)
-    || !Number.isSafeInteger(raw.revision)
-    || raw.revision <= 0
-  ) {
-    throw createManagedLocalClientPopProtocolError();
-  }
-}
-
-function normalizeManagedLocalClientPopPath(value) {
-  if (
-    typeof value !== "string"
-    || value.length < 1
-    || encodeManagedLocalClientUtf8(value).byteLength > MANAGED_LOCAL_CLIENT_POP_MAX_PATH_BYTES
-    || !value.startsWith("/")
-    || value.startsWith("//")
-    || value.includes("\\")
-    || value.includes("#")
-    || /[\s\u0000-\u001f\u007f]/u.test(value)
-  ) {
-    throw createManagedLocalClientPopProtocolError();
-  }
-  try {
-    const parsed = new URL(value, "http://local-client.invalid");
-    if (
-      parsed.origin !== "http://local-client.invalid"
-      || `${parsed.pathname}${parsed.search}` !== value
-    ) {
-      throw createManagedLocalClientPopProtocolError();
-    }
-  } catch (error) {
-    if (error instanceof GatewayClientError) throw error;
-    throw createManagedLocalClientPopProtocolError();
-  }
-  return value;
-}
-
-function assertExactManagedLocalClientRecord(value, expectedKeys) {
-  assertManagedLocalClientDataRecord(
-    value,
-    "Managed local-client PoP proof options are invalid.",
-  );
-  const actualKeys = Reflect.ownKeys(value);
-  if (
-    actualKeys.length !== expectedKeys.length
-    || actualKeys.some((key) => typeof key !== "string" || !expectedKeys.includes(key))
-    || expectedKeys.some((key) => !Object.hasOwn(value, key))
-  ) {
-    throw createManagedLocalClientPopProtocolError();
-  }
-}
-
-function assertManagedLocalClientDataRecord(value, message) {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    throw createGatewayProtocolError(message);
-  }
-  const prototype = Object.getPrototypeOf(value);
-  if (prototype !== Object.prototype && prototype !== null) {
-    throw createGatewayProtocolError(message);
-  }
-  if (!Object.values(Object.getOwnPropertyDescriptors(value)).every((descriptor) => (
-    Object.hasOwn(descriptor, "value")
-    && descriptor.get === undefined
-    && descriptor.set === undefined
-  ))) {
-    throw createGatewayProtocolError(message);
-  }
-}
-
-function requireManagedLocalClientWebCrypto() {
-  const webCrypto = globalThis.crypto;
-  if (
-    !webCrypto
-    || typeof webCrypto.getRandomValues !== "function"
-    || !webCrypto.subtle
-    || typeof webCrypto.subtle.importKey !== "function"
-    || typeof webCrypto.subtle.sign !== "function"
-    || typeof webCrypto.subtle.digest !== "function"
-  ) {
-    throw createGatewayProtocolError("Managed local-client PoP requires WebCrypto support.");
-  }
-  return webCrypto;
-}
-
-async function managedLocalClientHmacSha256(webCrypto, keyBytes, dataBytes) {
-  const key = await webCrypto.subtle.importKey(
-    "raw",
-    keyBytes,
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  return new Uint8Array(await webCrypto.subtle.sign("HMAC", key, dataBytes));
-}
-
-function encodeManagedLocalClientUtf8(value) {
-  if (typeof TextEncoder !== "function") {
-    throw createGatewayProtocolError("Managed local-client PoP requires UTF-8 encoding support.");
-  }
-  return new TextEncoder().encode(value);
-}
-
-function managedLocalClientHex(bytes) {
-  let output = "";
-  for (const byte of bytes) output += byte.toString(16).padStart(2, "0");
-  return output;
-}
-
-function managedLocalClientBase64Url(bytes) {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-  let output = "";
-  for (let index = 0; index < bytes.length; index += 3) {
-    const first = bytes[index];
-    const hasSecond = index + 1 < bytes.length;
-    const hasThird = index + 2 < bytes.length;
-    const second = hasSecond ? bytes[index + 1] : 0;
-    const third = hasThird ? bytes[index + 2] : 0;
-    output += alphabet[first >> 2];
-    output += alphabet[((first & 0x03) << 4) | (second >> 4)];
-    if (hasSecond) output += alphabet[((second & 0x0f) << 2) | (third >> 6)];
-    if (hasThird) output += alphabet[third & 0x3f];
-  }
-  return output;
-}
-
-function canonicalizeManagedLocalClientJson(value) {
-  if (value === null || typeof value === "boolean" || typeof value === "string") {
-    return JSON.stringify(value);
-  }
-  if (typeof value === "number") {
-    if (!Number.isSafeInteger(value)) throw createManagedLocalClientPopProtocolError();
-    return JSON.stringify(value);
-  }
-  if (Array.isArray(value)) {
-    return `[${value.map(canonicalizeManagedLocalClientJson).join(",")}]`;
-  }
-  if (value === null || typeof value !== "object") {
-    throw createManagedLocalClientPopProtocolError();
-  }
-  return `{${Object.keys(value).sort().map((key) => (
-    `${JSON.stringify(key)}:${canonicalizeManagedLocalClientJson(value[key])}`
-  )).join(",")}}`;
-}
-
-function createManagedLocalClientPopProtocolError() {
-  return createGatewayProtocolError("Managed local-client PoP proof options are invalid.");
-}
-
-async function verifyLocalClientDispatchIntentWithKey(protocolKey, raw, options) {
-  assertExactLocalClientReceiptRecord(
-    raw,
-    LOCAL_CLIENT_DISPATCH_INTENT_KEYS,
-    LOCAL_CLIENT_DISPATCH_INTENT_KEYS,
-  );
-  if (
-    raw.protocolVersion !== LOCAL_CLIENT_DISPATCH_INTENT_VERSION
-    || !LOCAL_CLIENT_RECEIPT_INTENT_ID_PATTERN.test(raw.intentId)
-    || !isLocalClientReceiptProtocolBindings(raw)
-    || !isLocalClientReceiptFencingToken(raw.dispatchFencingToken)
-    || !isLocalClientReceiptProtocolWindow(raw.issuedAtMs, raw.expiresAtMs, options.maxTtlMs)
-    || !LOCAL_CLIENT_RECEIPT_DIGEST_PATTERN.test(raw.signature)
-  ) throw createLocalClientReceiptProtocolError();
-  const unsigned = withoutLocalClientReceiptSignature(raw);
-  const base = {
-    protocolVersion: LOCAL_CLIENT_DISPATCH_INTENT_VERSION,
-    executionId: raw.executionId,
-    executionBindingHmac: raw.executionBindingHmac,
-    tenantBindingHmac: raw.tenantBindingHmac,
-    subjectBindingHmac: raw.subjectBindingHmac,
-    clientBindingHmac: raw.clientBindingHmac,
-    routeBindingHmac: raw.routeBindingHmac,
-    identityBindingHmac: raw.identityBindingHmac,
-    planFingerprint: raw.planFingerprint,
-    inputSha256: raw.inputSha256,
-    dispatchFencingToken: raw.dispatchFencingToken,
-    issuedAtMs: raw.issuedAtMs,
-    expiresAtMs: raw.expiresAtMs,
-  };
-  const valid = await Promise.all([
-    verifyLocalClientReceiptKeyedDigest(
-      protocolKey,
-      "execution-binding",
-      raw.executionId,
-      raw.executionBindingHmac,
-    ),
-    verifyLocalClientReceiptIdentityBinding(protocolKey, raw),
-    verifyLocalClientReceiptKeyedDigest(
-      protocolKey,
-      "dispatch-intent-id",
-      canonicalizeLocalClientReceiptJson(base),
-      raw.intentId.slice("lcdi_".length),
-    ),
-    verifyLocalClientReceiptProtocolSignature(
-      protocolKey,
-      "dispatch-intent",
-      unsigned,
-      raw.signature,
-    ),
-  ]);
-  if (valid.some((entry) => entry !== true)) throw createLocalClientReceiptProtocolError();
-  if (options.enforceFreshness && (
-    raw.issuedAtMs > safeLocalClientReceiptAdd(options.nowMs, options.allowedClockSkewMs)
-    || safeLocalClientReceiptAdd(raw.expiresAtMs, options.allowedClockSkewMs) < options.nowMs
-  )) throw createLocalClientReceiptProtocolError();
-  return Object.freeze({ ...raw });
-}
-
-async function verifyLocalClientReceiptReconciliationQueryWithKey(protocolKey, raw, options) {
-  assertExactLocalClientReceiptRecord(
-    raw,
-    LOCAL_CLIENT_RECONCILIATION_QUERY_KEYS,
-    LOCAL_CLIENT_RECONCILIATION_QUERY_KEYS,
-  );
-  if (
-    raw.protocolVersion !== LOCAL_CLIENT_RECONCILIATION_QUERY_VERSION
-    || !LOCAL_CLIENT_RECEIPT_QUERY_ID_PATTERN.test(raw.queryId)
-    || !LOCAL_CLIENT_RECEIPT_INTENT_ID_PATTERN.test(raw.intentId)
-    || !isLocalClientReceiptProtocolBindings(raw)
-    || !isLocalClientReceiptFencingToken(raw.dispatchFencingToken)
-    || !isLocalClientReceiptProtocolWindow(raw.issuedAtMs, raw.expiresAtMs, options.maxTtlMs)
-    || raw.purpose !== "receipt-reconciliation-only"
-    || raw.authorizeExecution !== false
-    || !LOCAL_CLIENT_RECEIPT_DIGEST_PATTERN.test(raw.signature)
-  ) throw createLocalClientReceiptProtocolError();
-  const valid = await Promise.all([
-    verifyLocalClientReceiptKeyedDigest(
-      protocolKey,
-      "execution-binding",
-      raw.executionId,
-      raw.executionBindingHmac,
-    ),
-    verifyLocalClientReceiptIdentityBinding(protocolKey, raw),
-    verifyLocalClientReceiptProtocolSignature(
-      protocolKey,
-      "reconciliation-query",
-      withoutLocalClientReceiptSignature(raw),
-      raw.signature,
-    ),
-  ]);
-  if (
-    valid.some((entry) => entry !== true)
-    || raw.issuedAtMs > safeLocalClientReceiptAdd(options.nowMs, options.allowedClockSkewMs)
-    || safeLocalClientReceiptAdd(raw.expiresAtMs, options.allowedClockSkewMs) < options.nowMs
-  ) throw createLocalClientReceiptProtocolError();
-  return Object.freeze({ ...raw });
-}
-
-async function verifyLocalClientDurableExecutionReceiptWithKey(protocolKey, raw, options) {
-  assertExactLocalClientReceiptRecord(
-    raw,
-    LOCAL_CLIENT_DURABLE_RECEIPT_KEYS,
-    LOCAL_CLIENT_DURABLE_RECEIPT_KEYS,
-  );
-  if (
-    raw.protocolVersion !== LOCAL_CLIENT_DURABLE_RECEIPT_VERSION
-    || !LOCAL_CLIENT_RECEIPT_DURABLE_ID_PATTERN.test(raw.receiptId)
-    || !LOCAL_CLIENT_RECEIPT_INTENT_ID_PATTERN.test(raw.intentId)
-    || !isLocalClientReceiptProtocolBindings(raw)
-    || !isLocalClientReceiptFencingToken(raw.dispatchFencingToken)
-    || !isLocalClientReceiptTimestamp(raw.completedAtMs)
-    || raw.completedAtMs > safeLocalClientReceiptAdd(options.nowMs, options.allowedClockSkewMs)
-    || raw.executionMode !== "governed"
-    || raw.externalEffectPerformed !== true
-    || raw.status !== "completed"
-    || !LOCAL_CLIENT_RECEIPT_DIGEST_PATTERN.test(raw.signature)
-  ) throw createLocalClientReceiptProtocolError();
-  const receiptIdValue = canonicalizeLocalClientReceiptJson({
-    clientBindingHmac: raw.clientBindingHmac,
-    completedAtMs: raw.completedAtMs,
-    dispatchFencingToken: raw.dispatchFencingToken,
-    executionBindingHmac: raw.executionBindingHmac,
-    identityBindingHmac: raw.identityBindingHmac,
-    inputSha256: raw.inputSha256,
-    intentId: raw.intentId,
-    planFingerprint: raw.planFingerprint,
-    routeBindingHmac: raw.routeBindingHmac,
-    subjectBindingHmac: raw.subjectBindingHmac,
-    tenantBindingHmac: raw.tenantBindingHmac,
-  });
-  const valid = await Promise.all([
-    verifyLocalClientReceiptKeyedDigest(
-      protocolKey,
-      "execution-binding",
-      raw.executionId,
-      raw.executionBindingHmac,
-    ),
-    verifyLocalClientReceiptIdentityBinding(protocolKey, raw),
-    verifyLocalClientReceiptKeyedDigest(
-      protocolKey,
-      "durable-receipt-id",
-      receiptIdValue,
-      raw.receiptId.slice("lcdr_".length),
-    ),
-    verifyLocalClientReceiptProtocolSignature(
-      protocolKey,
-      "durable-receipt",
-      withoutLocalClientReceiptSignature(raw),
-      raw.signature,
-    ),
-  ]);
-  if (valid.some((entry) => entry !== true)) throw createLocalClientReceiptProtocolError();
-  return Object.freeze({ ...raw });
-}
-
-async function createLocalClientReceiptReconciliationResponseWithKey(
-  protocolKey,
-  query,
-  state,
-  receipt,
-  observedAtMs,
-) {
-  const unsigned = Object.freeze({
-    protocolVersion: LOCAL_CLIENT_RECONCILIATION_RESPONSE_VERSION,
-    queryId: query.queryId,
-    intentId: query.intentId,
-    executionId: query.executionId,
-    dispatchFencingToken: query.dispatchFencingToken,
-    state,
-    receipt,
-    observedAtMs,
-    retryAllowed: false,
-  });
-  return Object.freeze({
-    ...unsigned,
-    signature: await signLocalClientReceiptProtocol(
-      protocolKey,
-      "reconciliation-response",
-      unsigned,
-    ),
-  });
-}
 
 function assertLocalClientReceiptMatchesQuery(receipt, query) {
   for (const key of [
