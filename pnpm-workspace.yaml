@@ -21,16 +21,14 @@ overrides:
   brace-expansion@2: 2.1.7
   brace-expansion@5: 5.0.12
   postcss@8: 8.5.26
-  vite@8: 8.0.16
+  vite@8: 8.3.3
   "@xmldom/xmldom@0.8": 0.8.15
   # hono moved 4.13.5 -> 4.13.7 when GHSA-hxh3-vqpv-xpqv (jsx renders plain strings unescaped in
-  # boundary components, XSS) was published on 2026-09-30 and the dependency-security job read it as
-  # BLOCKED. 4.13.7 is the OLDEST release that carries the fix rather than the newest: the newest
-  # 4.13.12 shipped the same day as the advisory and trips pnpm's minimum-release-age gate, which
-  # would mean adding a minimumReleaseAgeExclude entry -- i.e. weakening a supply-chain guard to
-  # ingest a fresher package than the rule wants. A month-old fixed release clears the advisory and
-  # leaves the gate alone.
-  hono@4: 4.13.7
+  # boundary components, XSS) was published on 2026-09-30, and again 4.13.7 -> 4.13.13 on 2026-10-21
+  # when GHSA-5r4p-p66f-jhc7 (serveStatic decodes the request path a second time, path traversal)
+  # was published with the fix landing in 4.13.11. 4.13.13 shipped 2026-10-04, so it clears the
+  # advisory while staying older than pnpm's minimum-release-age gate wants.
+  hono@4: 4.13.13
   # source-map-js 1.2.1 is affected by GHSA-68fv-2mgg-jv7q (event-loop DoS via indexed section offsets); 1.2.2 is the fix.
   source-map-js@1: 1.2.2
   # sprintf-js has no fixed release for GHSA-hp3w-g68c-fv3c; it only arrives via mammoth -> argparse@1.0.10, which mammoth

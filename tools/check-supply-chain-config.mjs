@@ -12,13 +12,17 @@ const outputJson = process.argv.includes("--json");
 // workspace file and the lockfile must agree with this table). brace-expansion moved 5.0.9 -> 5.0.12
 // because 5.0.9 carries GHSA-6j4f-fj2g-mc7p / GHSA-qhr7-859c-m2p7 / GHSA-q2hr-2g5m-vwhr (all three
 // fixed at 5.0.12) and the dependency-security job read them as BLOCKED. The 2.x line moved with it.
+// vite@8 moved 8.0.16 -> 8.3.3 and hono@4 4.13.7 -> 4.13.13 on 2026-10-21 because OSV published
+// GHSA-587h-7wmj-h5pm / GHSA-698v-4r3x-3vcv / GHSA-r825-w8mm-5pxw (launch-editor via vite's chain,
+// fixed 8.3.3) and GHSA-5r4p-p66f-jhc7 (hono serveStatic path traversal, fixed 4.13.11); both pins
+// clear the advisories while staying older than pnpm's minimum-release-age gate wants.
 const requiredOverrides = Object.freeze({
   "brace-expansion@2": "2.1.7",
   "brace-expansion@5": "5.0.12",
   "postcss@8": "8.5.26",
-  "vite@8": "8.0.16",
+  "vite@8": "8.3.3",
   "@xmldom/xmldom@0.8": "0.8.15",
-  "hono@4": "4.13.7",
+  "hono@4": "4.13.13",
 });
 
 function readText(relativePath) {
