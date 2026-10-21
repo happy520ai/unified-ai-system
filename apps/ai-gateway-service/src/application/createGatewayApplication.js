@@ -250,6 +250,102 @@ function parseAgentLongTaskConfiguration(env) {
   return Object.freeze({ projects: Object.freeze([project(value)]), pool: null });
 }
 
+// Provider runtime wiring: runtime config, credential store/pool, health
+// scorer, provider registry and its adapters, provider config routes, the
+// usage ledger, and the dispatch gate. Extracted verbatim from the assembly
+// root (createGatewayApplicationInternal); behaviour unchanged.
+function createGatewayProviderRuntime(env) {
+  const config = loadRuntimeConfig(env);
+  const runtimeCredentialStore = createRuntimeCredentialStore({ env });
+  // Multi-key pool: additive layer over the single-credential store. Constructed
+  // only when the store is meaningful; a failure here must not break startup,
+  // so a broken pool degrades to "no pool" (single-key behavior) with a log.
+  const credentialPool = createCredentialPoolSafely(env);
+
+  // Health scorer is always created; it powers health-weighted provider selection
+  // when mode === "health-weighted" and records outcomes from GatewayService.
+  const healthScorer = createProviderHealthScorer();
+  const selectionPolicyConfig = {
+    ...config.aiGatewayService.providerSelection,
+    healthScorer,
+  };
+
+  const providerRegistry = new ProviderRegistry({
+    selectionPolicy: createPriorityProviderSelectionPolicy(selectionPolicyConfig),
+    enabledProviders: config.aiGatewayService.providerSelection.enabledProviders,
+  });
+  const modelImportService = createModelImportService({
+    providerRegistry,
+    runtimeCredentialStore,
+  });
+
+  for (const modelConfig of config.aiGatewayService.providerModels) {
+    const runtimeCredentialCapable = isRuntimeCredentialCapableProvider(modelConfig);
+    if (!modelConfig.enabled && !runtimeCredentialCapable) {
+      continue;
+    }
+
+    providerRegistry.register(createProviderAdapter({
+      ...modelConfig,
+      enabled: modelConfig.enabled || runtimeCredentialCapable,
+    }, config, runtimeCredentialStore, env, credentialPool));
+  }
+  const providerExecutionConfig = {
+    providerMode: config.aiGatewayService.providerMode,
+    realProviderEnabled: config.aiGatewayService.realProviderEnabled,
+    enabledProviders: config.aiGatewayService.providerSelection.enabledProviders,
+  };
+  restoreRuntimeCredentialProviders({
+    providerRegistry,
+    runtimeCredentialStore,
+    runtimeConfig: providerExecutionConfig,
+  });
+
+  // OpenAI Responses compatibility: previous_response_id chaining state.
+  // Memory-only with TTL; stores normalized message text, never credentials.
+  const responseSessionStore = createResponseSessionStore({ env });
+
+  const modelLibraryStore = createModelLibraryStore({
+    env,
+    runtimeCredentialStore,
+    storagePath: env.AI_GATEWAY_MODEL_LIBRARY_STATE_PATH,
+  });
+  const providerKeyConfigStore = createProviderKeyConfigStore({
+    env,
+    runtimeCredentialStore,
+    providerRegistry,
+    modelLibraryStore,
+  });
+  const providerConfigRoutes = createProviderConfigRoutes({
+    providerKeyConfigStore,
+  });
+  // Usage ledger — persists every real chat attempt (tokens, latency,
+  // provider/model) to either fsynced local JSONL or the central PostgreSQL
+  // store. Neither schema accepts prompt/response bodies or credentials.
+  const requestLogger = createUsageLedger({
+    env,
+    realProviderEnabled: config.aiGatewayService.realProviderEnabled,
+  });
+  const providerDispatchGate = createProviderDispatchGate({
+    env,
+    realProviderEnabled: config.aiGatewayService.realProviderEnabled,
+  });
+    return {
+      config,
+      runtimeCredentialStore,
+      credentialPool,
+      healthScorer,
+      providerRegistry,
+      modelImportService,
+      responseSessionStore,
+      modelLibraryStore,
+      providerKeyConfigStore,
+      providerConfigRoutes,
+      requestLogger,
+      providerDispatchGate,
+    };
+}
+
 function createGatewayApplicationInternal(env, fixtureCapability) {
   const agentLongTaskConfiguration = parseAgentLongTaskConfiguration(env);
   let initializeAgentLongTask;
@@ -377,81 +473,21 @@ function createGatewayApplicationInternal(env, fixtureCapability) {
   const localClientGovernedMutationRequested = localClientExecutionRequested
     || parsedLocalClientOnboardingConfiguration.enabled;
   const localClientProviderPolicyResolver = createConfiguredLocalClientProviderPolicyResolver(env);
-  const config = loadRuntimeConfig(env);
-  const runtimeCredentialStore = createRuntimeCredentialStore({ env });
-  // Multi-key pool: additive layer over the single-credential store. Constructed
-  // only when the store is meaningful; a failure here must not break startup,
-  // so a broken pool degrades to "no pool" (single-key behavior) with a log.
-  const credentialPool = createCredentialPoolSafely(env);
-
-  // Health scorer is always created; it powers health-weighted provider selection
-  // when mode === "health-weighted" and records outcomes from GatewayService.
-  const healthScorer = createProviderHealthScorer();
-  const selectionPolicyConfig = {
-    ...config.aiGatewayService.providerSelection,
+  const {
+    config,
+    providerExecutionConfig,
+    runtimeCredentialStore,
+    credentialPool,
     healthScorer,
-  };
-
-  const providerRegistry = new ProviderRegistry({
-    selectionPolicy: createPriorityProviderSelectionPolicy(selectionPolicyConfig),
-    enabledProviders: config.aiGatewayService.providerSelection.enabledProviders,
-  });
-  const modelImportService = createModelImportService({
     providerRegistry,
-    runtimeCredentialStore,
-  });
-
-  for (const modelConfig of config.aiGatewayService.providerModels) {
-    const runtimeCredentialCapable = isRuntimeCredentialCapableProvider(modelConfig);
-    if (!modelConfig.enabled && !runtimeCredentialCapable) {
-      continue;
-    }
-
-    providerRegistry.register(createProviderAdapter({
-      ...modelConfig,
-      enabled: modelConfig.enabled || runtimeCredentialCapable,
-    }, config, runtimeCredentialStore, env, credentialPool));
-  }
-  const providerExecutionConfig = {
-    providerMode: config.aiGatewayService.providerMode,
-    realProviderEnabled: config.aiGatewayService.realProviderEnabled,
-    enabledProviders: config.aiGatewayService.providerSelection.enabledProviders,
-  };
-  restoreRuntimeCredentialProviders({
-    providerRegistry,
-    runtimeCredentialStore,
-    runtimeConfig: providerExecutionConfig,
-  });
-
-  // OpenAI Responses compatibility: previous_response_id chaining state.
-  // Memory-only with TTL; stores normalized message text, never credentials.
-  const responseSessionStore = createResponseSessionStore({ env });
-
-  const modelLibraryStore = createModelLibraryStore({
-    env,
-    runtimeCredentialStore,
-    storagePath: env.AI_GATEWAY_MODEL_LIBRARY_STATE_PATH,
-  });
-  const providerKeyConfigStore = createProviderKeyConfigStore({
-    env,
-    runtimeCredentialStore,
-    providerRegistry,
+    modelImportService,
+    responseSessionStore,
     modelLibraryStore,
-  });
-  const providerConfigRoutes = createProviderConfigRoutes({
     providerKeyConfigStore,
-  });
-  // Usage ledger — persists every real chat attempt (tokens, latency,
-  // provider/model) to either fsynced local JSONL or the central PostgreSQL
-  // store. Neither schema accepts prompt/response bodies or credentials.
-  const requestLogger = createUsageLedger({
-    env,
-    realProviderEnabled: config.aiGatewayService.realProviderEnabled,
-  });
-  const providerDispatchGate = createProviderDispatchGate({
-    env,
-    realProviderEnabled: config.aiGatewayService.realProviderEnabled,
-  });
+    providerConfigRoutes,
+    requestLogger,
+    providerDispatchGate,
+  } = createGatewayProviderRuntime(env);
   const agentGovernanceRuntime = resolveAgentGovernanceRuntimeConfiguration(env);
   const externalEffectEnabled = resolveExternalEffectEnabled(
     env,
