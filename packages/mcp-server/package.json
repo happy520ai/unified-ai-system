@@ -14,7 +14,7 @@
     "./http": "./src/http.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/node": "2.0.0",
+    "@modelcontextprotocol/node": "2.1.1",
     "@modelcontextprotocol/server": "2.3.1",
     "@unified-ai-system/shared-sdk": "workspace:*",
     "zod": "4.4.3"
