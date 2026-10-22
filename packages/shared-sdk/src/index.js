@@ -9,6 +9,7 @@ import {
 import { decodeForgeMediaArtifact, readForgeMediaResponse, snapshotForgeOrchestrateRequest,
   validateForgeMediaResponse } from "./forgeMediaResponse.js";
 import { createGatewayForgeTaijiMethods } from "./gatewayClientForgeTaijiMethods.js";
+import { createGatewayChatMethods } from "./gatewayClientChatMethods.js";
 import {
   GATEWAY_CLIENT_ERROR_CODES,
   LOCAL_CLIENT_RECEIPT_RECONCILIATION_SDK_BOUNDARIES,
@@ -747,7 +748,7 @@ export function createGatewayClient(options = {}) {
     }
   };
 
-  const ctx = { baseUrl, headers, timeoutMs, signal, providerDispatchKeyFactory, requestJson, requestSse, operatorPost, prepareProviderRequest, forgeMediaClientError, createProviderKeyConfigurationError };
+  const ctx = { baseUrl, headers, timeoutMs, signal, providerDispatchKeyFactory, requestJson, requestSse, operatorPost, prepareProviderRequest, forgeMediaClientError, createProviderKeyConfigurationError, managedLocalClientChatImpl, prepareRequiredIdempotencyHeaders };
 
   return {
     baseUrl,
@@ -1036,91 +1037,7 @@ export function createGatewayClient(options = {}) {
         timeoutMs,
       });
     },
-    enhancePrompt(request) {
-      return requestJson({
-        baseUrl,
-        path: "/prompts/enhance",
-        method: "POST",
-        body: request,
-        headers,
-        timeoutMs,
-      });
-    },
-    enhancePromptLlm(request) {
-      const prepared = prepareProviderRequest(request, headers, providerDispatchKeyFactory);
-      return requestJson({
-        baseUrl,
-        path: "/prompts/enhance-llm",
-        method: "POST",
-        body: prepared.body,
-        headers: prepared.headers,
-        timeoutMs,
-      });
-    },
-    chat(request) {
-      const prepared = prepareProviderRequest(request, headers, providerDispatchKeyFactory);
-      return requestJson({
-        baseUrl,
-        path: "/chat",
-        method: "POST",
-        body: prepared.body,
-        headers: prepared.headers,
-        timeoutMs,
-        redirect: request?.contextCodec === undefined ? "follow" : "error",
-      });
-    },
-    managedLocalClientChat(request, proofOptions) {
-      return managedLocalClientChatImpl({
-        baseUrl,
-        request,
-        proofOptions,
-        headers,
-        providerDispatchKeyFactory,
-        signal,
-        timeoutMs,
-      });
-    },
-    ragChat(request) {
-      const prepared = prepareProviderRequest(request, headers, providerDispatchKeyFactory);
-      return requestJson({
-        baseUrl,
-        path: "/chat/rag",
-        method: "POST",
-        body: prepared.body,
-        headers: prepared.headers,
-        timeoutMs,
-      });
-    },
-    chatStream(request) {
-      const prepared = prepareProviderRequest(request, headers, providerDispatchKeyFactory);
-      return requestSse({
-        baseUrl,
-        path: "/chat/stream",
-        method: "POST",
-        body: prepared.body,
-        headers: prepared.headers,
-        timeoutMs,
-        redirect: request?.contextCodec === undefined ? "follow" : "error",
-      });
-    },
-    knowledgeRetrieve(request) {
-      return requestJson({
-        baseUrl,
-        path: "/knowledge/retrieve",
-        method: "POST",
-        body: request,
-        headers,
-        timeoutMs,
-        redirect: "error",
-      });
-    },
-    knowledgeHealth() { return requestJson({ path: "/knowledge/health", redirect: "error" }); },
-    knowledgeSources() { return requestJson({ path: "/knowledge/sources", redirect: "error" }); },
-    routeModes() { return requestJson({ path: "/route/modes", redirect: "error" }); },
-    routingPreview(kind, request) {
-      if (kind !== "answer-path" && kind !== "quality-cost") throw createProviderKeyConfigurationError("Unsupported routing preview kind.");
-      return requestJson({ path: `/routing/${kind}/preview`, method: "POST", body: request, redirect: "error" });
-    },
+    ...createGatewayChatMethods(ctx),
     ...createGatewayForgeTaijiMethods(ctx),
     workforcePreview(request) { return operatorPost("/workforce/preview", request); },
     connectors() {
@@ -1140,17 +1057,6 @@ export function createGatewayClient(options = {}) {
         if (error instanceof GatewayClientError) error.retryable = false;
         throw error;
       }
-    },
-    knowledgeLoad(request) {
-      return operatorPost("/knowledge/load", request);
-    },
-    knowledgeInfraReadiness() {
-      return requestJson({
-        baseUrl,
-        path: "/knowledge/infra/readiness",
-        headers,
-        timeoutMs,
-      });
     },
     modelImportPreview(request) {
       return requestJson({

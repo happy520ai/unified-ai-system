@@ -310,7 +310,8 @@
         "apps/ai-gateway-service/src/application/localClientStoreConfiguration.js",
         "apps/ai-gateway-service/src/application/localClientConfiguration.js",
         "packages/shared-sdk/src/gatewayClientPrimitives.js",
-        "packages/shared-sdk/src/gatewayClientForgeTaijiMethods.js"
+        "packages/shared-sdk/src/gatewayClientForgeTaijiMethods.js",
+        "packages/shared-sdk/src/gatewayClientChatMethods.js"
       ],
       "justification": "The gateway application configuration clusters, the receipt journal primitives, the governance service helper cluster, the shared-sdk gateway client error/POP primitives, and the shared-sdk forge/Taiji domain method group were mechanically split out of their owning Node.js ESM JavaScript modules in the same language as the owners, continuing the owner-approved giant-file-splits maintenance activity (PRs #229/#230 pattern). Converting the split files to TypeScript in the same change would mix the module-boundary refactor with a language migration, widening the verification surface for no behavioral gain.",
       "owner": "zcode",
