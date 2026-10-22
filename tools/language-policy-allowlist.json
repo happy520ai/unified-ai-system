@@ -309,9 +309,10 @@
         "apps/ai-gateway-service/src/application/localClientFeedbackConfiguration.js",
         "apps/ai-gateway-service/src/application/localClientStoreConfiguration.js",
         "apps/ai-gateway-service/src/application/localClientConfiguration.js",
-        "packages/shared-sdk/src/gatewayClientPrimitives.js"
+        "packages/shared-sdk/src/gatewayClientPrimitives.js",
+        "packages/shared-sdk/src/gatewayClientForgeTaijiMethods.js"
       ],
-      "justification": "The gateway application configuration clusters, the receipt journal primitives, the governance service helper cluster, and the shared-sdk gateway client error/POP primitives were mechanically split out of their owning Node.js ESM JavaScript modules in the same language as the owners, continuing the owner-approved giant-file-splits maintenance activity (PRs #229/#230 pattern). Converting the split files to TypeScript in the same change would mix the module-boundary refactor with a language migration, widening the verification surface for no behavioral gain.",
+      "justification": "The gateway application configuration clusters, the receipt journal primitives, the governance service helper cluster, the shared-sdk gateway client error/POP primitives, and the shared-sdk forge/Taiji domain method group were mechanically split out of their owning Node.js ESM JavaScript modules in the same language as the owners, continuing the owner-approved giant-file-splits maintenance activity (PRs #229/#230 pattern). Converting the split files to TypeScript in the same change would mix the module-boundary refactor with a language migration, widening the verification surface for no behavioral gain.",
       "owner": "zcode",
       "removalBy": "2027-04-30",
       "migrationPlan": "Debt: convert the four files to TypeScript when the gateway-service TS migration reaches the assembly root configuration layer; the assembly, agent-governance, and application regression suites are the safety nets for that conversion.",
