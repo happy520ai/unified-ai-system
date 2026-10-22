@@ -5,7 +5,7 @@
 // back. Type references to the core are fully erased (import type), so there
 // is no runtime cycle. Pure mechanical move; behaviour unchanged.
 import type { StoredLocalClient, StoredClientStats, RankedLocalClient } from "./localClientManagementCore.types.ts";
-import type { normalizeRouteRequest, normalizeMaintenanceInput } from "./localClientManagementCore.ts";
+import type { normalizeRouteRequest, normalizeMaintenanceInput } from "./localClientNormalization.ts";
 
 const ADAPTIVE_RELIABILITY_ALPHA = 0.35;
 const ADAPTIVE_RELIABILITY_INITIAL = 0.7;

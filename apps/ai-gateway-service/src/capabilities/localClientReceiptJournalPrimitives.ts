@@ -2,6 +2,7 @@
 // error class, internal journal row types/consts, and the trailing helper
 // cluster live beside the two-role journal class. Pure mechanical move;
 // behaviour unchanged.
+import type { LocalClientWindowsProtectedAuthorityAnchor } from "./localClientWindowsProtectedAuthorityAnchor.ts";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -16,15 +17,104 @@ import {
   type LocalClientReceiptReconciliationQuery,
   type LocalClientReceiptReconciliationResponse,
 } from "@unified-ai-system/shared-contracts";
-import type {
-  LocalClientReceiptJournalRole,
-  LocalClientReceiptReconciliationIdentity,
-  LocalClientReceiptJournalState,
-  LocalClientSqliteExecutionReceiptJournalOptions,
-  LocalClientReceiptJournalRecord,
-  LocalClientReceiptRecoveryCandidate,
-  LocalClientExecutionReceiptReconciliationErrorCode,
-} from "./localClientExecutionReceiptReconciliation.ts";
+export type LocalClientReceiptJournalRole = "gateway" | "client";
+
+export interface LocalClientReceiptReconciliationIdentity {
+  readonly executionId: string;
+  readonly tenantId: string;
+  readonly subjectId: string;
+  readonly clientId: string;
+  readonly capabilityId: string;
+  readonly actionId: string;
+  readonly planFingerprint: string;
+  readonly inputSha256: string;
+}
+
+export type LocalClientReceiptJournalState =
+  | "prepared"
+  | "not-dispatched-confirmed"
+  | "armed"
+  | "armed-not-dispatched-confirmed"
+  | "receipt-confirmed"
+  | "feedback-staged"
+  | "failed-before-effect-confirmed"
+  | "lifecycle-finalized"
+  | "accepted"
+  | "effect-started"
+  | "completed"
+  | "failed-before-effect";
+
+export interface LocalClientSqliteExecutionReceiptJournalOptions {
+  readonly sqlitePath: string;
+  readonly role: LocalClientReceiptJournalRole;
+  readonly hostId: string;
+  /** Local-at-rest HMAC key. It is cloned in memory, never written to SQLite, and zeroed on close. */
+  readonly integrityKey: Uint8Array;
+  /** Gateway/client shared HMAC key. It is cloned in memory, never written to SQLite, and zeroed on close. */
+  readonly protocolKey: Uint8Array;
+  /** Required only for gateway role; exact 32-byte AES-256-GCM key for minimal restart context. */
+  readonly recoveryEncryptionKey?: Uint8Array;
+  readonly namespace?: string;
+  readonly maxEntries?: number;
+  readonly retentionMs?: number;
+  readonly intentTtlMs?: number;
+  readonly queryTtlMs?: number;
+  readonly allowedClockSkewMs?: number;
+  readonly busyTimeoutMs?: number;
+  readonly now?: () => number;
+  /** Opt-in coordination only; explicit baseline enrollment and native attestation remain separate. */
+  readonly protectedAuthority?: LocalClientWindowsProtectedAuthorityAnchor;
+}
+
+export type LocalClientReceiptJournalRecord = Readonly<{
+  executionId: string;
+  executionFingerprint: string;
+  identityFingerprint: string;
+  state: LocalClientReceiptJournalState;
+  dispatchFencingToken: string | null;
+  intentId: string | null;
+  receiptFingerprint: string | null;
+  terminalOutcome: "completed" | "failed-before-effect" | null;
+  createdAt: string;
+  updatedAt: string;
+}>;
+
+export type LocalClientReceiptRecoveryCandidate = LocalClientReceiptJournalRecord & Readonly<{
+  recoveryAction:
+    | "resolve-not-dispatched"
+    | "query-client-only"
+    | "stage-feedback"
+    | "finalize-completed-lifecycle"
+    | "finalize-failed-lifecycle";
+  redispatchAllowed: false;
+}>;
+
+export type LocalClientReceiptRecoveryWorkItem = LocalClientReceiptRecoveryCandidate & Readonly<{
+  identity: LocalClientReceiptReconciliationIdentity;
+  receiptId: string | null;
+  completedAtMs: number | null;
+  intentIssuedAtMs: number | null;
+}>;
+
+export type LocalClientExecutionReceiptReconciliationErrorCode =
+  | "LOCAL_CLIENT_RECEIPT_RECONCILIATION_CONFIGURATION_INVALID"
+  | "LOCAL_CLIENT_RECEIPT_RECONCILIATION_INPUT_INVALID"
+  | "LOCAL_CLIENT_RECEIPT_RECONCILIATION_ROLE_INVALID"
+  | "LOCAL_CLIENT_RECEIPT_RECONCILIATION_STATE_INVALID"
+  | "LOCAL_CLIENT_RECEIPT_RECONCILIATION_IDENTITY_MISMATCH"
+  | "LOCAL_CLIENT_RECEIPT_RECONCILIATION_SIGNATURE_INVALID"
+  | "LOCAL_CLIENT_RECEIPT_RECONCILIATION_INTENT_EXPIRED"
+  | "LOCAL_CLIENT_RECEIPT_RECONCILIATION_QUERY_EXPIRED"
+  | "LOCAL_CLIENT_RECEIPT_RECONCILIATION_FENCE_STALE"
+  | "LOCAL_CLIENT_RECEIPT_RECONCILIATION_CAPACITY"
+  | "LOCAL_CLIENT_RECEIPT_RECONCILIATION_NOT_FOUND"
+  | "LOCAL_CLIENT_RECEIPT_RECONCILIATION_SCHEMA_INCOMPATIBLE"
+  | "LOCAL_CLIENT_RECEIPT_RECONCILIATION_HOST_MISMATCH"
+  | "LOCAL_CLIENT_RECEIPT_RECONCILIATION_KEY_MISMATCH"
+  | "LOCAL_CLIENT_RECEIPT_RECONCILIATION_CLOSED"
+  | "LOCAL_CLIENT_RECEIPT_RECONCILIATION_STORE_UNAVAILABLE"
+  | "LOCAL_CLIENT_RECEIPT_RECONCILIATION_CLOCK_INVALID"
+  | "LOCAL_CLIENT_RECEIPT_RECONCILIATION_INTEGRITY_INVALID";
 
 export class LocalClientExecutionReceiptReconciliationError extends Error {
   readonly code: LocalClientExecutionReceiptReconciliationErrorCode;
