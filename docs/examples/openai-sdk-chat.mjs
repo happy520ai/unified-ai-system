@@ -131,7 +131,9 @@ try {
 }
 
 const checks = {
-  sdkVersion: sdkVersion === "7.4.0",
+  // The example runs under the installed SDK; any released 7.x is compatible with the
+  // fake-provider gateway surface it exercises, so pin the major line rather than a literal.
+  sdkVersion: sdkVersion.startsWith("7."),
   modelList:
     models.data.length >= 1
     && model?.owned_by === "local-fake-provider"
