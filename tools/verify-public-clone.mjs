@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { VERSION as openaiSdkVersion } from "openai/version";
 import { createHash, randomBytes } from "node:crypto";
 import { once } from "node:events";
 import {
@@ -1771,7 +1772,9 @@ try {
       openAiSdkExample.exitCode === 0
       && openAiSdkExample.body?.ok === true
       && openAiSdkExample.body?.client === "openai"
-      && openAiSdkExample.body?.sdkVersion === "7.4.0"
+      // The example reports the installed SDK version; compare same-source instead of pinning
+      // a literal, so a Dependabot openai bump cannot fail the public-clone runtime.
+      && openAiSdkExample.body?.sdkVersion === openaiSdkVersion
       && openAiSdkExample.body?.model === "local-fake-model"
       && openAiSdkExample.body?.executionMode === "fake"
       && Object.values(openAiSdkExample.body?.checks ?? {}).every(Boolean)
