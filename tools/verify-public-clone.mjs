@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { VERSION as openaiSdkVersion } from "openai/version";
+import { VERSION as anthropicSdkVersion } from "@anthropic-ai/sdk/version";
 import { createHash, randomBytes } from "node:crypto";
 import { once } from "node:events";
 import {
@@ -1784,7 +1785,9 @@ try {
       anthropicSdkExample.exitCode === 0
       && anthropicSdkExample.body?.ok === true
       && anthropicSdkExample.body?.client === "@anthropic-ai/sdk"
-      && anthropicSdkExample.body?.sdkVersion === "0.120.0"
+      // Same-source version comparison: the example reports the installed SDK version, so a
+      // Dependabot @anthropic-ai/sdk bump cannot fail the public-clone runtime.
+      && anthropicSdkExample.body?.sdkVersion === anthropicSdkVersion
       && anthropicSdkExample.body?.model === "local-fake-model"
       && anthropicSdkExample.body?.executionMode === "fake"
       && Object.values(anthropicSdkExample.body?.checks ?? {}).every(Boolean)
