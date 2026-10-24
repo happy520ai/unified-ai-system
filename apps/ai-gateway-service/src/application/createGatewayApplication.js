@@ -332,6 +332,7 @@ function createGatewayProviderRuntime(env) {
   });
     return {
       config,
+      providerExecutionConfig,
       runtimeCredentialStore,
       credentialPool,
       healthScorer,

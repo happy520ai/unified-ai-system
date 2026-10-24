@@ -71,8 +71,79 @@ On Windows replace `/PRIVATE/gateway.env` with the absolute private Windows path
 Shell environment variables take precedence over values in the explicit file;
 use a deployment shell with no inherited `UAI_GATEWAY_IMAGE`, `UAI_GATEWAY_PORT`
 or `PME_AUTH_TOKEN` overrides. Never use `--scale` or run a second project against
-the same data. The profile fixes provider mode to `fake`; enabling real providers
-requires a separate reviewed deployment configuration and scoped authorization.
+the same data. The default profile fixes provider mode to `fake`; the reviewed
+real-provider profile below is the separate configuration for enabling real
+providers, and it still requires your own scoped authorization.
+
+## Real-provider release profile
+
+`deploy/compose.release.real.json` is the reviewed deployment configuration for
+real providers. It keeps every hardening property of the default profile
+(non-root, read-only root filesystem, dropped capabilities, no-new-privileges,
+restricted tmpfs, loopback-only published port, digest-pinned image, bounded
+shutdown grace) and changes exactly the provider wiring:
+
+- `AI_GATEWAY_PROVIDER_MODE=real` and `AI_GATEWAY_REAL_PROVIDER_ENABLED=true`
+  are fixed by the profile; the Gateway's own fail-closed real-provider gates
+  (provider allowlist, per-provider credential gates) still apply on top.
+- Provider credentials never appear in the profile's `environment`. They come
+  from one private env file referenced by `UAI_GATEWAY_REAL_ENV_FILE`, created
+  outside the checkout with the host's protected-secret procedure and the same
+  restricted permissions as `gateway.env`. The verifier rejects any `*_API_KEY`,
+  secret, password or webhook variable from re-entering the profile environment.
+- `PME_AUTH_TOKEN` is still required. Real calls spend real budget and send
+  request data to external providers; selecting the enabled providers and models
+  is the operator's scoped authorization and stays inside the private env file
+  (`AI_GATEWAY_ENABLED_PROVIDERS`, per-provider keys, default model).
+
+Validate it with the same tool and an explicit profile flag before first use and
+after every change:
+
+```sh
+node tools/verify-compose-release.mjs --image 'ghcr.io/OWNER/IMAGE@sha256:REPLACE_WITH_64_LOWERCASE_HEX' --profile real
+```
+
+The real profile is configuration-reviewed, not a claim of real-provider runtime
+evidence. Provider smoke evidence, capacity behavior and provider-side rate
+limits must be established per deployment; the single-active-writer limits below
+apply unchanged.
+
+## Multi-replica HA release profile
+
+`deploy/compose.release.ha.json` is the verified single-host HA shape: nginx
+(load balancer, passive health checks) fronting two Gateway replicas with a
+shared PostgreSQL instance carrying the cross-replica stores — idempotency,
+usage ledger, rate limiting and provider dispatch
+(`AI_GATEWAY_*_POSTGRES_URL`), so request dedup, spend accounting and rate
+limits are cluster-wide rather than per replica.
+
+Run it exactly like the other profiles, with the additional required images and
+PostgreSQL credentials in the private env file (`UAI_NGINX_IMAGE`,
+`UAI_POSTGRES_IMAGE`, both digest-pinned; `UAI_POSTGRES_USER`,
+`UAI_POSTGRES_PASSWORD`, `UAI_POSTGRES_DB`). `UAI_GATEWAY_PROVIDER_MODE`
+selects `fake` (default) or `real`; in real mode the same
+`UAI_GATEWAY_REAL_ENV_FILE` credential rules as the real profile apply.
+Only nginx publishes a port, loopback-only by default; the Gateway replicas
+and PostgreSQL are reachable only inside the Compose network.
+
+Verified on 2026-10-24 with a real stack: four healthy containers, 10/10
+authenticated requests distributed across both replicas through the load
+balancer, zero failed requests and full takeover by replica B while replica A
+was stopped, and distribution resuming after A's restart (evidence in the
+local validation record). Honest boundaries of this profile:
+
+- Single host: the Compose host itself remains a single point of failure;
+  this is service-level HA, not multi-node HA. Cross-host and multi-node HA
+  are not claimed.
+- nginx uses passive health checks: a peer that starts failing is removed
+  from rotation after its failure threshold, so a replica crashing mid-request
+  can surface brief 502s until the threshold trips.
+- The response cache and PME virtual-key counters remain per replica. The
+  shared PostgreSQL stores cover idempotency, usage, rate limiting and
+  dispatch; local-client control-plane SQLite state stays per replica and
+  control-plane routes must not be treated as replicated.
+- Model-library state stays per replica by design; run catalog refreshes
+  against one replica.
 
 `/ready` is the container health probe; `/health/check` provides diagnostics.
 After startup verify the expected `/health/check` build identity and an
@@ -110,7 +181,13 @@ the service and restore its verified pre-upgrade backup before restarting.
 The supported state model here is one active Gateway process on one host.
 JSON API-key counters and local SQLite state are not multi-writer coordination;
 one Compose replica does not provide cross-host HA or zero-loss recovery across
-every crash window. A copied volume also does not prove local-client/workflow
+every crash window. The designed multi-replica path is the PostgreSQL-backed
+control plane (audit store, usage ledger, idempotency coordinator, task claim
+leases) with stateless data-plane replicas; the `drill:postgres-recovery`
+exercise proves those recovery primitives on a real PostgreSQL instance. A
+reviewed multi-replica deployment profile is still future work: do not treat
+this single-writer profile, the Kubernetes single-replica profile, or the drill
+itself as an HA certification. A copied volume also does not prove local-client/workflow
 recovery: some receipts bind original files to device/inode or equivalent file
 identity. Recreated files can have different identities and must fail closed,
 even if their path and bytes match. Do not edit receipts to force acceptance.
