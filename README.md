@@ -27,6 +27,9 @@
   <a href="LICENSE">
     <img alt="License" src="https://img.shields.io/github/license/happy520ai/unified-ai-system?style=flat-square" />
   </a>
+  <a href="https://api.scorecard.dev/projects/github.com/happy520ai/unified-ai-system">
+    <img alt="OpenSSF Scorecard" src="https://api.scorecard.dev/projects/github.com/happy520ai/unified-ai-system/badge" />
+  </a>
 </p>
 
 > **🏆 Qloo Agentic Hackathon 2026 entry — [TasteRouter](taste-router/):** an AI agent that finds the neighbourhood that already loves your business idea, powered by Qloo Taste AI. **Live demo: https://tasterouter.tasterouter.workers.dev** · [Code & docs](taste-router/)
