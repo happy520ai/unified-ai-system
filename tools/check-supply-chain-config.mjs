@@ -20,6 +20,7 @@ const requiredOverrides = Object.freeze({
   "brace-expansion@2": "2.1.7",
   "brace-expansion@5": "5.0.12",
   "postcss@8": "8.5.26",
+  "undici@7": "7.30.1",
   "vite@8": "8.3.3",
   "@xmldom/xmldom@0.8": "0.8.15",
   "hono@4": "4.13.13",
