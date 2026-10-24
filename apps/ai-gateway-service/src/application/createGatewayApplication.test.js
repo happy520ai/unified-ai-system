@@ -2345,3 +2345,29 @@ function localClientAuthorityTestEnv(root) {
     LOCAL_CLIENT_AUTHORITY_TEST_REGISTRY_SECRET: `hex:${"df".repeat(32)}`,
   };
 }
+
+// Regression guard (T-175, 2026-10-24): the provider-runtime factory once
+// returned without `providerExecutionConfig`, so the gateway service's
+// runtime config silently lost the real-provider gate facts and every real
+// call was blocked as `REAL_PROVIDER_EXECUTION_BLOCKED` while all fake-mode
+// tests and the credential-free CI smoke stayed green.
+describe("gateway-provider-runtime providerExecutionConfig propagation", () => {
+  it("exposes the real-provider gate facts on the gateway service runtime config", () => {
+    const root = mkdtempSync(join(tmpdir(), "uai-provider-execution-config-"));
+    const application = createGatewayApplication({
+      AI_GATEWAY_PROVIDER_MODE: "real",
+      AI_GATEWAY_REAL_PROVIDER_ENABLED: "true",
+      AI_GATEWAY_ENABLED_PROVIDERS: "openai,local-fake-provider",
+      OPENAI_API_KEY: "smoke-fixture-key",
+      PME_AUTH_TOKEN: "aa".repeat(32),
+      PME_AUDIT_LOG_PATH: join(root, "audit.jsonl"),
+      PME_AUDIT_CHAIN_PATH: join(root, "audit.chain.jsonl"),
+      PME_AUDIT_CHECKPOINT_PATH: join(root, "audit.checkpoint.json"),
+      PME_AUDIT_CHECKPOINT_HMAC_KEY: "ab".repeat(32),
+    });
+    const runtimeConfig = application.gatewayService.runtimeConfig;
+    expect(runtimeConfig.providerMode).toBe("real");
+    expect(runtimeConfig.realProviderEnabled).toBe(true);
+    expect(runtimeConfig.enabledProviders).toEqual(["openai", "local-fake-provider"]);
+  });
+});

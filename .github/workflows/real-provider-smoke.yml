@@ -47,4 +47,5 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_MODEL: ${{ vars.REAL_PROVIDER_SMOKE_OPENAI_MODEL || 'gpt-4o-mini' }}
+          OPENAI_BASE_URL: ${{ vars.REAL_PROVIDER_SMOKE_OPENAI_BASE_URL || 'https://api.openai.com/v1' }}
         run: node tools/real-provider-smoke.mjs
