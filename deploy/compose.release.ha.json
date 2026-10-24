@@ -1,0 +1,170 @@
+{
+  "services": {
+    "postgres": {
+      "image": "${UAI_POSTGRES_IMAGE:?Set UAI_POSTGRES_IMAGE to a verified repository@sha256 digest, e.g. postgres@sha256:...}",
+      "environment": {
+        "POSTGRES_USER": "${UAI_POSTGRES_USER:?Set UAI_POSTGRES_USER in the explicit private environment file}",
+        "POSTGRES_PASSWORD": "${UAI_POSTGRES_PASSWORD:?Set UAI_POSTGRES_PASSWORD in the explicit private environment file}",
+        "POSTGRES_DB": "${UAI_POSTGRES_DB:?Set UAI_POSTGRES_DB in the explicit private environment file}"
+      },
+      "user": "postgres",
+      "init": true,
+      "restart": "unless-stopped",
+      "stop_grace_period": "30s",
+      "read_only": true,
+      "cap_drop": ["ALL"],
+      "security_opt": ["no-new-privileges:true"],
+      "tmpfs": [
+        "/tmp:rw,noexec,nosuid,size=64m",
+        "/var/run/postgresql:rw,noexec,nosuid,size=16m"
+      ],
+      "volumes": ["gateway-ha-pg-data:/var/lib/postgresql/data"],
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"
+        ],
+        "interval": "10s",
+        "timeout": "5s",
+        "retries": 12,
+        "start_period": "10s"
+      }
+    },
+    "ai-gateway-a": {
+      "image": "${UAI_GATEWAY_IMAGE:?Set UAI_GATEWAY_IMAGE to a verified repository@sha256 digest}",
+      "env_file": [
+        "${UAI_GATEWAY_REAL_ENV_FILE:?Set UAI_GATEWAY_REAL_ENV_FILE to a private environment file outside the checkout (an owned empty file is valid in fake mode)}"
+      ],
+      "environment": {
+        "AI_GATEWAY_SERVICE_HOST": "0.0.0.0",
+        "AI_GATEWAY_SERVICE_PORT": "3100",
+        "AI_GATEWAY_PROVIDER_MODE": "${UAI_GATEWAY_PROVIDER_MODE:-fake}",
+        "AI_GATEWAY_REAL_PROVIDER_ENABLED": "${UAI_GATEWAY_REAL_PROVIDER_ENABLED:-false}",
+        "AI_GATEWAY_SHUTDOWN_TIMEOUT_MS": "10000",
+        "PME_ENTERPRISE_AUTH_ENABLED": "true",
+        "PME_AUTH_TOKEN": "${PME_AUTH_TOKEN:?Set PME_AUTH_TOKEN in the explicit private environment file}",
+        "AI_GATEWAY_MODEL_LIBRARY_STATE_PATH": "/app/.data/model-library/state.json",
+        "AI_GATEWAY_IDEMPOTENCY_POSTGRES_URL": "postgres://${UAI_POSTGRES_USER:?Set UAI_POSTGRES_USER in the explicit private environment file}:${UAI_POSTGRES_PASSWORD:?Set UAI_POSTGRES_PASSWORD in the explicit private environment file}@postgres:5432/${UAI_POSTGRES_DB:?Set UAI_POSTGRES_DB in the explicit private environment file}",
+        "AI_GATEWAY_USAGE_LEDGER_POSTGRES_URL": "postgres://${UAI_POSTGRES_USER}:${UAI_POSTGRES_PASSWORD}@postgres:5432/${UAI_POSTGRES_DB}",
+        "AI_GATEWAY_RATE_LIMIT_POSTGRES_URL": "postgres://${UAI_POSTGRES_USER}:${UAI_POSTGRES_PASSWORD}@postgres:5432/${UAI_POSTGRES_DB}",
+        "AI_GATEWAY_PROVIDER_DISPATCH_POSTGRES_URL": "postgres://${UAI_POSTGRES_USER}:${UAI_POSTGRES_PASSWORD}@postgres:5432/${UAI_POSTGRES_DB}"
+      },
+      "depends_on": {
+        "postgres": { "condition": "service_healthy" }
+      },
+      "user": "node",
+      "init": true,
+      "restart": "unless-stopped",
+      "stop_grace_period": "15s",
+      "read_only": true,
+      "cap_drop": ["ALL"],
+      "security_opt": ["no-new-privileges:true"],
+      "tmpfs": ["/tmp:rw,noexec,nosuid,size=64m"],
+      "deploy": { "replicas": 1 },
+      "volumes": [
+        "gateway-ha-a-data:/app/.data",
+        "gateway-ha-a-service-data:/app/apps/ai-gateway-service/.data"
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3100/ready').then((response) => { if (!response.ok) process.exit(1); }).catch(() => process.exit(1));"
+        ],
+        "interval": "10s",
+        "timeout": "3s",
+        "retries": 12,
+        "start_period": "5s"
+      }
+    },
+    "ai-gateway-b": {
+      "image": "${UAI_GATEWAY_IMAGE:?Set UAI_GATEWAY_IMAGE to a verified repository@sha256 digest}",
+      "env_file": [
+        "${UAI_GATEWAY_REAL_ENV_FILE:?Set UAI_GATEWAY_REAL_ENV_FILE to a private environment file outside the checkout (an owned empty file is valid in fake mode)}"
+      ],
+      "environment": {
+        "AI_GATEWAY_SERVICE_HOST": "0.0.0.0",
+        "AI_GATEWAY_SERVICE_PORT": "3100",
+        "AI_GATEWAY_PROVIDER_MODE": "${UAI_GATEWAY_PROVIDER_MODE:-fake}",
+        "AI_GATEWAY_REAL_PROVIDER_ENABLED": "${UAI_GATEWAY_REAL_PROVIDER_ENABLED:-false}",
+        "AI_GATEWAY_SHUTDOWN_TIMEOUT_MS": "10000",
+        "PME_ENTERPRISE_AUTH_ENABLED": "true",
+        "PME_AUTH_TOKEN": "${PME_AUTH_TOKEN:?Set PME_AUTH_TOKEN in the explicit private environment file}",
+        "AI_GATEWAY_MODEL_LIBRARY_STATE_PATH": "/app/.data/model-library/state.json",
+        "AI_GATEWAY_IDEMPOTENCY_POSTGRES_URL": "postgres://${UAI_POSTGRES_USER:?Set UAI_POSTGRES_USER in the explicit private environment file}:${UAI_POSTGRES_PASSWORD:?Set UAI_POSTGRES_PASSWORD in the explicit private environment file}@postgres:5432/${UAI_POSTGRES_DB:?Set UAI_POSTGRES_DB in the explicit private environment file}",
+        "AI_GATEWAY_USAGE_LEDGER_POSTGRES_URL": "postgres://${UAI_POSTGRES_USER}:${UAI_POSTGRES_PASSWORD}@postgres:5432/${UAI_POSTGRES_DB}",
+        "AI_GATEWAY_RATE_LIMIT_POSTGRES_URL": "postgres://${UAI_POSTGRES_USER}:${UAI_POSTGRES_PASSWORD}@postgres:5432/${UAI_POSTGRES_DB}",
+        "AI_GATEWAY_PROVIDER_DISPATCH_POSTGRES_URL": "postgres://${UAI_POSTGRES_USER}:${UAI_POSTGRES_PASSWORD}@postgres:5432/${UAI_POSTGRES_DB}"
+      },
+      "depends_on": {
+        "postgres": { "condition": "service_healthy" }
+      },
+      "user": "node",
+      "init": true,
+      "restart": "unless-stopped",
+      "stop_grace_period": "15s",
+      "read_only": true,
+      "cap_drop": ["ALL"],
+      "security_opt": ["no-new-privileges:true"],
+      "tmpfs": ["/tmp:rw,noexec,nosuid,size=64m"],
+      "deploy": { "replicas": 1 },
+      "volumes": [
+        "gateway-ha-b-data:/app/.data",
+        "gateway-ha-b-service-data:/app/apps/ai-gateway-service/.data"
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3100/ready').then((response) => { if (!response.ok) process.exit(1); }).catch(() => process.exit(1));"
+        ],
+        "interval": "10s",
+        "timeout": "3s",
+        "retries": 12,
+        "start_period": "5s"
+      }
+    },
+    "nginx": {
+      "image": "${UAI_NGINX_IMAGE:?Set UAI_NGINX_IMAGE to a verified repository@sha256 digest, e.g. nginx@sha256:...}",
+      "depends_on": {
+        "ai-gateway-a": { "condition": "service_healthy" },
+        "ai-gateway-b": { "condition": "service_healthy" }
+      },
+      "ports": ["127.0.0.1:${UAI_GATEWAY_PORT:-3100}:8080"],
+      "user": "nginx",
+      "init": true,
+      "restart": "unless-stopped",
+      "stop_grace_period": "15s",
+      "read_only": true,
+      "cap_drop": ["ALL"],
+      "security_opt": ["no-new-privileges:true"],
+      "tmpfs": [
+        "/tmp:rw,noexec,nosuid,size=16m",
+        "/var/cache/nginx:rw,noexec,nosuid,size=32m",
+        "/var/run:rw,noexec,nosuid,size=16m"
+      ],
+      "volumes": [
+        "./nginx.ha.conf:/etc/nginx/conf.d/default.conf:ro"
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://127.0.0.1:8080/healthz || exit 1"
+        ],
+        "interval": "10s",
+        "timeout": "3s",
+        "retries": 12,
+        "start_period": "5s"
+      }
+    }
+  },
+  "volumes": {
+    "gateway-ha-pg-data": {},
+    "gateway-ha-a-data": {},
+    "gateway-ha-a-service-data": {},
+    "gateway-ha-b-data": {},
+    "gateway-ha-b-service-data": {}
+  }
+}

@@ -47,9 +47,20 @@ Where this README makes a claim about MCP servers in the wild, it is measured ra
 (40 registry-advertised servers, asked anonymously, every page naming its own denominator) and the same
 results as machine-readable data ([nine questions in ten measurement legs, 400 rows, 2026-09-28](https://happy520ai.github.io/unified-ai-system/data/mcp-ecosystem-measurements.2026-09-28.json)).
 
-> **Current maturity:** hardened **Public Preview**. The credential-free path is
-> reproducible and CI-gated; production deployment still requires your own
-> provider staging, HA/DR drills, security review, and operating evidence.
+> **Current maturity:** hardened **Public Preview** with a reviewed production
+> deployment path. The credential-free path is reproducible and CI-gated; a
+> [real-provider release profile](docs/deployment/README.md#real-provider-release-profile)
+> with the same container hardening is validated by tooling, the
+> [CI real-provider smoke](https://github.com/happy520ai/unified-ai-system/actions/workflows/real-provider-smoke.yml)
+> makes one real provider call per manual run, disaster-recovery drills
+> ([PostgreSQL point-in-time recovery](docs/security-review-2026-10-24.md),
+> gateway error-circuit recovery) were run for real on 2026-10-24, a
+> [single-host multi-replica HA profile](docs/deployment/README.md#multi-replica-ha-release-profile)
+> passed live failover verification, and the
+> [security review](docs/security-review-2026-10-24.md) closed with zero open
+> findings. Your own provider staging validation and scoped authorization remain
+> the operator's responsibility; cross-host HA and a human third-party
+> penetration test are not claimed.
 
 ## Try It in 60 Seconds
 
@@ -529,7 +540,21 @@ We separate what is verified from what is not claimed:
 - Cold stdio handshake: **~8 s** on the published source entry point, measured rather than estimated —
   [where an MCP connect budget actually goes](https://happy520ai.github.io/unified-ai-system/mcp-startup-timeouts.html)
   says which part is process boot, which part is tool work, and what that page does not establish.
-- Production ready / AGI / L5: **Not claimed**
+- Production deployment: **Reviewed profile available** — a real-provider release
+  profile validated by `tools/verify-compose-release.mjs --profile real`, real
+  PostgreSQL point-in-time-recovery and gateway circuit-recovery drills, a
+  security review with zero open findings
+  ([security review, 2026-10-24](docs/security-review-2026-10-24.md)), and a
+  CI-gated real-provider smoke that makes one real call per manual run.
+- Single-host service-level HA: **Verified profile available** — nginx + two
+  Gateway replicas + shared PostgreSQL stores, live failover verified with zero
+  failed requests
+  ([HA profile, 2026-10-24](docs/deployment/README.md#multi-replica-ha-release-profile)).
+- Cross-host / multi-node HA: **Not claimed**
+- Third-party assessment: OpenSSF Scorecard runs weekly and publishes a public
+  score; a funded human security audit (OpenSSF Alpha-Omega class) and a
+  commercial penetration test are **not claimed** until one actually happens.
+- AGI / L5: **Not claimed**
 
 Real provider calls are disabled by default. Configure safely via `.env.example` and `docs/providers.md`.
 
