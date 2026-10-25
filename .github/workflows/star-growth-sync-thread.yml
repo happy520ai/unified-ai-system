@@ -7,10 +7,12 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 jobs:
   sync-thread:
+    permissions:
+      contents: read
+      issues: write
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
