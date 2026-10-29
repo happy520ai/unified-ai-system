@@ -395,6 +395,7 @@ function main() {
     generatedAtUtc: new Date().toISOString(),
     ok: true,
     violations: [],
+    issues: [],
     allowed: [],
     allowlistPath: args.allowlistPath,
     allowlistIssues: [...allowlistResult.issues],
@@ -404,6 +405,16 @@ function main() {
       headRef: args.headRef,
       commandLine,
     },
+  };
+  // Normalized blocking issues. tools/quality-trend-check.mjs charges its
+  // missingMeta penalty whenever `issues` is not an array, so this field has to
+  // be real for every branch that emits JSON.
+  const withIssues = () => {
+    output.issues = [
+      ...output.allowlistIssues,
+      ...output.violations.map(violation => `${violation.boundary}:${violation.file} ${violation.reason}`),
+    ];
+    return output;
   };
 
   if (!allowlistResult.ok) {
@@ -416,7 +427,7 @@ function main() {
     }
     process.exitCode = 1;
     if (args.outputJson) {
-      process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
+      process.stdout.write(`${JSON.stringify(withIssues(), null, 2)}\n`);
       return;
     }
     return;
@@ -433,7 +444,7 @@ function main() {
     output.ok = true;
     output.notice = `language policy diff unavailable; skipping check: ${String(error.message)}`;
     if (args.outputJson) {
-      process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
+      process.stdout.write(`${JSON.stringify(withIssues(), null, 2)}\n`);
     } else {
       process.stderr.write(`${output.notice}\n`);
     }
@@ -515,7 +526,7 @@ function main() {
   output.ok = output.violations.length === 0;
 
   if (args.outputJson) {
-    process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify(withIssues(), null, 2)}\n`);
     process.exitCode = output.ok ? 0 : 1;
     return;
   }

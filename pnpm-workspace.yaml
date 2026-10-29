@@ -35,3 +35,8 @@ overrides:
   # sprintf-js has no fixed release for GHSA-hp3w-g68c-fv3c; it only arrives via mammoth -> argparse@1.0.10, which mammoth
   # uses solely in its CLI (lib/main.js), never from the library entry we import. argparse 2.x drops sprintf-js entirely.
   argparse@1: 2.0.1
+  # @hono/node-server 1.19.10..<2.1.3 is affected by GHSA-rmxm-3fg6-px4f (serveStatic decodes the
+  # request path a second time, bypassing middleware on static paths); 2.1.3 is the fix.
+  # @modelcontextprotocol/node@2.1.2 declares "^1.19.9 || ^2.1.3", so 2.x is inside the declared
+  # compatibility and this pin does not force a version the parent does not support.
+  "@hono/node-server": 2.1.5

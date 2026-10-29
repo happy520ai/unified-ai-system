@@ -393,6 +393,47 @@ describe("gateway error circuit bypass routes", () => {
     }
   });
 
+  it("does not close a half-open circuit when the request matches no route", async () => {
+    const server = createGatewayHttpServer(createGatewayApplication({
+      runtimeEnv: {
+        AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_RESET_MS: "50",
+      },
+    }));
+
+    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    try {
+      const failure = await sendRequest(address.port, "/provider-config/save", "POST", "{}");
+      expect(failure.statusCode).toBeGreaterThanOrEqual(500);
+
+      await new Promise((resolve) => {
+        setTimeout(resolve, 120);
+      });
+
+      const unmatched = await sendRequest(address.port, "/definitely-not-a-route");
+      expect(unmatched.statusCode).toBe(404);
+      expect(JSON.parse(unmatched.body)?.error?.code).toBe("route_not_found");
+
+      const stillHalfOpenMetrics = await sendRequest(address.port, "/metrics");
+      expect(stillHalfOpenMetrics.body).toContain('ai_gateway_gateway_error_circuit_state{state="half-open"} 1');
+
+      // A neutral outcome must release the probe slot, so a second stray 404
+      // is still routed (404) instead of starving the single half-open probe.
+      const secondUnmatched = await sendRequest(address.port, "/definitely-not-a-route");
+      expect(secondUnmatched.statusCode).toBe(404);
+
+      const recovered = await sendRequest(address.port, "/dashboard/status");
+      expect(recovered.statusCode).toBe(200);
+
+      const closedMetrics = await sendRequest(address.port, "/metrics");
+      expect(closedMetrics.body).toContain('ai_gateway_gateway_error_circuit_state{state="closed"} 1');
+    } finally {
+      await new Promise((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
   it("opens on a retryable provider failure returned as an HTTP response", async () => {
     const execute = vi.fn(async () => ({
       success: false,
