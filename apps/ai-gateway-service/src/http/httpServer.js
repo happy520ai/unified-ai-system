@@ -886,7 +886,7 @@ function createGatewayHttpServerWithOwnerLease(application, governanceOwnerLease
             category: "routing",
           }),
         );
-        markRequestSuccess();
+        markRequestSuccess({ recordServerFailure: false, recordCircuitOutcome: false });
         return;
       }
 
@@ -1120,7 +1120,6 @@ function createGatewayHttpServerWithOwnerLease(application, governanceOwnerLease
         markRequestSuccess();
         return;
       }
-      markRequestSuccess();
 
       writeJson(
         response,
@@ -1130,7 +1129,9 @@ function createGatewayHttpServerWithOwnerLease(application, governanceOwnerLease
           category: "routing",
         }),
       );
-      markRequestSuccess();
+      // An unmatched route says nothing about upstream health; recording a
+      // success here would let one stray 404 close a half-open error circuit.
+      markRequestSuccess({ recordServerFailure: false, recordCircuitOutcome: false });
     } catch (error) {
       const cancellation = findExecutionAbortError(error, requestExecutionScope.context.signal);
       if (cancellation) {
