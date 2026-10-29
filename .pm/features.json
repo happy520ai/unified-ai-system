@@ -1,5 +1,5 @@
 {
-  "seq": 92,
+  "seq": 94,
   "features": [
     {
       "id": "F-001",
@@ -1726,6 +1726,42 @@
       "status": "implemented",
       "created": "2026-09-29T19:54:45.678Z",
       "updated": "2026-09-29T19:54:45.678Z"
+    },
+    {
+      "id": "F-093",
+      "name": "gateway-client-domain-method-modules",
+      "description": "createGatewayClient 按域分组的五个域工厂模块（forge/taiji、knowledge/chat、workforce/workflow、agent-governance、local-client），经共享 ctx 接收请求上下文，方法体与路由逐字保留；由 operator SDK 精确路由纪律测试背书",
+      "module": "shared-sdk",
+      "entry_files": [
+        "packages/shared-sdk/src/gatewayClientForgeTaijiMethods.js",
+        "packages/shared-sdk/src/gatewayClientChatMethods.js",
+        "packages/shared-sdk/src/gatewayClientWorkforceMethods.js",
+        "packages/shared-sdk/src/gatewayClientGovernanceMethods.js",
+        "packages/shared-sdk/src/gatewayClientLocalClientMethods.js"
+      ],
+      "test_files": [
+        "packages/shared-sdk/src/index.test.js"
+      ],
+      "status": "implemented",
+      "created": "2026-10-23T00:11:28.008Z",
+      "updated": "2026-10-23T00:11:28.008Z"
+    },
+    {
+      "id": "F-094",
+      "name": "real-provider release deployment profile with verifier support",
+      "description": "真实 Provider 发布档（deploy/compose.release.real.json）：保持默认档全部容器加固，模式钉 real，凭据只经必需的 UAI_GATEWAY_REAL_ENV_FILE 私有 env 文件进入；verifier 新增 --profile real 臂，拒绝 *_API_KEY/SECRET/PASSWORD/WEBHOOK 进入 environment，默认档行为不变（release 臂回归绿+两个负测试拒）。",
+      "module": "ai-gateway-service",
+      "entry_files": [
+        "deploy/compose.release.real.json",
+        "tools/verify-compose-release.mjs",
+        "docs/deployment/README.md"
+      ],
+      "test_files": [
+        "docs/security-review-2026-10-24.md"
+      ],
+      "status": "implemented",
+      "created": "2026-10-24T13:29:33.269Z",
+      "updated": "2026-10-24T13:29:33.269Z"
     }
   ]
 }
