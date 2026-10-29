@@ -32,6 +32,7 @@ test('native C++ requires a current exact-file exception and never inherits a br
       owner: 'test-fixture', removalBy: '2099-01-01', migrationPlan: 'Reassess this exact native boundary', issueId: 'TEST-NATIVE-1' };
     await policy([]);
     const absent = invoke(); assert.equal(absent.status, 1); assert.equal(absent.data.violations.length, 2);
+    assert.equal(Array.isArray(absent.data.issues), true); assert.equal(absent.data.issues.length, 2);
     await policy([exception]);
     const exact = invoke(); assert.equal(exact.status, 1);
     assert.deepEqual(exact.data.allowed.map(item => item.file), ['apps/native/approved.cpp']);
@@ -40,6 +41,7 @@ test('native C++ requires a current exact-file exception and never inherits a br
     const broad = invoke(); assert.equal(broad.status, 1); assert.equal(broad.data.allowed.length, 0); assert.equal(broad.data.violations.length, 2);
     await policy([{ ...exception, type: 'fileSet', value: 'bounded-pair', files: ['apps/native/approved.cpp', 'apps/native/unapproved.cpp'] }]);
     const pair = invoke(); assert.equal(pair.status, 0); assert.equal(pair.data.allowed.length, 2); assert.equal(pair.data.violations.length, 0);
+    assert.equal(Array.isArray(pair.data.issues), true); assert.equal(pair.data.issues.length, 0);
     await policy([{ ...exception, removalBy: '2000-01-01' }]);
     const expired = invoke(); assert.equal(expired.status, 1); assert.equal(expired.data.ok, false); assert.equal(expired.data.allowlistIssues.some(item => item.includes('expired')), true);
   } finally {
