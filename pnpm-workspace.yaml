@@ -40,3 +40,13 @@ overrides:
   # @modelcontextprotocol/node@2.1.2 declares "^1.19.9 || ^2.1.3", so 2.x is inside the declared
   # compatibility and this pin does not force a version the parent does not support.
   "@hono/node-server": 2.1.5
+  # glob 13.0.6 and minimatch 10.2.6 (both resolved only via the c8 -> test-exclude coverage
+  # toolchain) are affected by GHSA-3g3m-2fjr-6pw4 (an aborted async walk keeps reading the
+  # filesystem after the caller was rejected; introduced 9.0.0, fixed 14.0.2, no fixed 13.x
+  # release) and GHSA-g3hv-75wg-m249 (attacker-controlled pattern amplification in
+  # firstPhasePreProcess followed by quadratic pairwise processing; introduced 7.0.0, fixed
+  # 11.0.1, no fixed 10.x release). Both advisories were published after master's last green
+  # dependency scan (2026-10-29), which turned the gate red on 2026-11-05. The fixes are major
+  # jumps, but the only consumer is coverage tooling, so product runtime behavior is untouched.
+  glob@13: 14.0.2
+  minimatch@10: 11.0.1
