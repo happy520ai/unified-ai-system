@@ -77,10 +77,10 @@
       ],
       "justification": "PR #111 extends the established Node.js ESM runtime and node:test suite. Converting this interdependent compatibility set in the same protocol change would mix runtime migration risk with API behavior changes.",
       "owner": "happy520ai",
-      "removalBy": "2026-11-13",
-      "migrationPlan": "Before v0.6.0, happy520ai will migrate this exact file set to TypeScript in dependency order, beginning with the 12 runtime modules and then their colocated tests.",
+      "removalBy": "2027-04-30",
+      "migrationPlan": "happy520ai will migrate this exact file set to TypeScript in dependency order when the gateway-service TS migration reaches these modules, beginning with the runtime modules and then their colocated tests; removal no later than the 2027-04-30 compatibility review.",
       "pr": "https://github.com/happy520ai/unified-ai-system/pull/111",
-      "notes": "Exact-path compatibility exception only; later JavaScript additions remain blocked by the TypeScript-first policy."
+      "notes": "Exact-path compatibility exception only; later JavaScript additions remain blocked by the TypeScript-first policy. Removal extended from 2026-11-13 to 2027-04-30 on 2026-11-06 with owner authorization: the gateway-service TS migration has not reached these modules, and the passing expiry warning would block the quality gate's trend-health check. Review date aligned with the pr-115 and t-172 split sets."
     },
     {
       "type": "fileSet",
@@ -269,10 +269,10 @@
       ],
       "justification": "mcpClient.test.js is the colocated node:test suite for the JavaScript runtime module mcpClient.js, added by PR #177. Converting the test alone would break the direct-source import chain before mcpClient.js itself is migrated; the test follows its runtime module, as its sibling toolResultCache.test.js does in the same directory.",
       "owner": "happy520ai",
-      "removalBy": "2026-11-13",
+      "removalBy": "2027-04-30",
       "migrationPlan": "Convert together with mcpClient.js when the claude-code-patterns Node-ESM modules are migrated to TypeScript, on the same schedule as the pr-111 node-esm compatibility set that already covers this directory.",
       "pr": "#177",
-      "notes": "Registered at convergence: the local gate diffs HEAD~1...HEAD, so the file only became visible as newly added once the v0.8.0 line was merged in."
+      "notes": "Registered at convergence: the local gate diffs HEAD~1...HEAD, so the file only became visible as newly added once the v0.8.0 line was merged in. Removal extended from 2026-11-13 to 2027-04-30 on 2026-11-06 with owner authorization, on the same schedule as the renewed pr-111 set."
     },
     {
       "type": "fileSet",
