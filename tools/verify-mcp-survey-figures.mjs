@@ -46,7 +46,9 @@ const PAGES = [
 ];
 
 function plainText(source, extension) {
-  if (extension === ".html") return source.replace(/<[^>]*>/g, " ").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&nbsp;/g, " ").replace(/\s+/g, " ");
+  // Named entities decode first and &amp; decodes last, so a double-encoded
+  // sequence like "&amp;lt;" unescapes exactly once instead of twice.
+  if (extension === ".html") return source.replace(/<[^>]*>/g, " ").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ");
   return source.replace(/\|/g, " ").replace(/\s+/g, " ");
 }
 
