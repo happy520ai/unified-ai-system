@@ -780,7 +780,9 @@ function checkDistributedIdempotencySafety() {
       "AI_GATEWAY_IDEMPOTENCY_POSTGRES_URL",
       "AI_GATEWAY_IDEMPOTENCY_POSTGRES_POOL_MAX",
       "AI_GATEWAY_IDEMPOTENCY_POSTGRES_STATEMENT_TIMEOUT_MS",
-      '"pg": "8.23.0"',
+      // This marker has to MOVE with the pg pin in apps/ai-gateway-service/package.json:
+      // bumping pg without updating it turns the scorecard's pass false on CI.
+      '"pg": "8.23.1"',
       "pg_advisory_xact_lock",
       "idempotency:init-lock",
       "pg_advisory_unlock",
