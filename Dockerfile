@@ -28,8 +28,13 @@ LABEL org.opencontainers.image.licenses="Apache-2.0"
 # 2026-10-13: the 10-13 Trivy SARIF opened seven perl-base alerts (CVE-2026-8376, -42496, -13221
 # CRITICAL; -57433, -57432, -48962, -42497 HIGH) against the base's 5.36.0-7+deb12u3; Trivy reports the
 # fix as 5.36.0-7+deb12u4 in bookworm-security, so perl-base is pinned up the same targeted way.
+# 2026-11-07: the 11-06 Trivy scan of the published gateway image (first scan after the #209 fix)
+# opened exactly two HIGH alerts, both CVE-2026-109518 in apt / libapt-pkg6.0 2.6.1. Measured inside
+# this very digest, not guessed: `apt-cache policy` in the pinned base offers 2.6.2 as the candidate
+# from bookworm-security, which is exactly the fix version Trivy names, so both packages are pinned
+# up the same targeted way as libpcre2 and perl-base before them.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends libpcre2-8-0=10.42-1+deb12u2 perl-base=5.36.0-7+deb12u4 \
+  && apt-get install -y --no-install-recommends libpcre2-8-0=10.42-1+deb12u2 perl-base=5.36.0-7+deb12u4 apt=2.6.2 libapt-pkg6.0=2.6.2 \
   && rm -rf /var/lib/apt/lists/*
 
 # 直接安装 pnpm（不经 corepack）：qemu 跨架构构建下 corepack 的 tarball
@@ -82,6 +87,15 @@ RUN pnpm install --frozen-lockfile \
 # still ran pnpm at the repo's pinned version. If a future stage needs pnpm in the image, re-add it
 # deliberately and say why.
 RUN rm -rf /usr/local/lib/node_modules/pnpm /usr/local/bin/pnpm /usr/local/bin/pnpx /usr/local/bin/pnpm.cmd 2>/dev/null || true
+
+# 2026-11-07: the 11-06 Trivy scan also warned that pnpm's registry METADATA cache
+# (root/.cache/pnpm/v11/metadata/*.jsonl, 15 MB files like wrangler.jsonl) is baked into the
+# shipped image -- build-time state with no runtime purpose that bloats every pull and feeds
+# the scanner noise. The tools strips above already ended pnpm's job; its cache, its
+# content-addressable store, and its state end with it. node_modules keeps working across
+# this removal because pnpm hardlinks store files into the tree and the same layer holds
+# both, so the inodes stay alive through node_modules after the store entries are gone.
+RUN rm -rf /root/.cache/pnpm /root/.npm /root/.local/share/pnpm /root/.local/state/pnpm
 
 COPY apps/ai-gateway-service apps/ai-gateway-service
 COPY apps/agent-console apps/agent-console
