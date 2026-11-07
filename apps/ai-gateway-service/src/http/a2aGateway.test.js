@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { A2A_PROTOCOL_VERSION, SendMessageRequest } from "@a2a-js/sdk";
 import { DefaultExecutionEventBusManager } from "@a2a-js/sdk/server";
+import { gatewayReportedVersion } from "../version.ts";
 import { GatewayService } from "../core/gatewayService.js";
 import { ProviderRegistry } from "../providers/providerRegistry.js";
 import { createFakeProvider } from "../providers/fakeProvider.js";
@@ -76,7 +77,10 @@ describe("A2A gateway profile", () => {
     ]);
     expect(gateway.agentCardJson.defaultInputModes).toEqual(["text/plain"]);
     expect(gateway.agentCardJson.defaultOutputModes).toEqual(["text/plain"]);
-    expect(gateway.agentCardJson.version).toBe("0.5.0");
+    // The card must report the workspace version (single source: root
+    // package.json), not a per-site literal — #179 recorded the gateway
+    // advertising 0.5.0 while the product was at 0.8.0.
+    expect(gateway.agentCardJson.version).toBe(gatewayReportedVersion());
     expect(gateway.agentCardJson.capabilities).toEqual(expect.objectContaining({
       streaming: false,
       pushNotifications: false,

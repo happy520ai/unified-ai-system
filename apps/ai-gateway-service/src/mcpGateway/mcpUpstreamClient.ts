@@ -6,6 +6,7 @@
 // outbound URL policy; stdio spawns the operator-configured command.
 
 import { spawn } from "node:child_process";
+import { gatewayReportedVersion } from "../version.ts";
 import { fetchWithAgent } from "../http/connectionPool.js";
 import { resolveSafeOutboundUrl } from "../security/outboundUrlPolicy.ts";
 import { createRestrictedChildEnvironment } from "../security/childProcessEnvironmentPolicy.ts";
@@ -206,7 +207,7 @@ export function createHttpMcpUpstream(config: McpUpstreamHttpConfig, options: {
     const response = await post(createRequest("initialize", {
       protocolVersion: PROTOCOL_VERSION,
       capabilities: {},
-      clientInfo: { name: "unified-ai-gateway", version: "0.5.0" },
+      clientInfo: { name: "unified-ai-gateway", version: gatewayReportedVersion() },
     }), signal);
     if (response.error) {
       throw new Error(`MCP upstream ${config.id} initialize failed: ${JSON.stringify(response.error).slice(0, 300)}`);
@@ -376,7 +377,7 @@ export function createStdioMcpUpstream(config: McpUpstreamStdioConfig, options: 
     const response = await request("initialize", {
       protocolVersion: PROTOCOL_VERSION,
       capabilities: {},
-      clientInfo: { name: "unified-ai-gateway", version: "0.5.0" },
+      clientInfo: { name: "unified-ai-gateway", version: gatewayReportedVersion() },
     }, signal);
     if (response.error) {
       throw new Error(`MCP stdio upstream ${config.id} initialize failed: ${JSON.stringify(response.error).slice(0, 300)}`);
