@@ -256,10 +256,10 @@
       "rationale": "roleExecutorMap.js extracts EXECUTOR_MAP from roleExecutors.js (T-094/g6 runtime cut); colocated with its JS sibling modules roleExecutors.js and roleExecutorsLlm.js per the module policy tools/*.mjs-style exemption for JS aggregrators, tracked in the T-094 PR language section.",
       "justification": "T-094/g6 extracts EXECUTOR_MAP from roleExecutors.js into a colocated registry module so roleExecutorsLlm.js can resolve role executors without importing the orchestrator back, cutting the last file cycle. roleExecutors.js, roleExecutorsLlm.js and the four executor modules are JS; the registry follows its siblings.",
       "owner": "happy520ai",
-      "removalBy": "2026-11-25",
-      "migrationPlan": "Before the v0.8.0 milestone, happy520ai will convert roleExecutorMap.js together with roleExecutors.js and roleExecutorsLlm.js to TypeScript in dependency order, as part of the workforce module TS migration.",
+      "removalBy": "2027-04-30",
+      "migrationPlan": "happy520ai will convert roleExecutorMap.js together with roleExecutors.js and roleExecutorsLlm.js to TypeScript in dependency order, as part of the workforce module TS migration; removal no later than the 2027-04-30 compatibility review.",
       "pr": "T-094 (M2 maintenance-shrink; single commit, local-only)",
-      "notes": "Registry holds role-id to local-executor bindings only; no LLM logic."
+      "notes": "Registry holds role-id to local-executor bindings only; no LLM logic. Removal extended from 2026-11-25 to 2027-04-30 on 2026-11-07 with owner authorization, on the same schedule as the renewed pr-111 set (the original plan referenced the v0.8.0 milestone, which shipped 2026-10 with the conversion deferred like the rest of the workforce module)."
     },
     {
       "type": "fileSet",
