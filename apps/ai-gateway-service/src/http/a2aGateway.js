@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { gatewayReportedVersion } from "../version.ts";
 import {
   A2A_PROTOCOL_VERSION,
   AgentCard,
@@ -559,7 +560,7 @@ export function createA2AGateway({ gatewayService, workforceExecutor = null, env
       organization: "Unified AI System",
       url: "https://github.com/happy520ai/unified-ai-system",
     },
-    version: "0.5.0",
+    version: gatewayReportedVersion(),
     documentationUrl:
       "https://github.com/happy520ai/unified-ai-system/blob/master/docs/a2a-protocol.md",
     capabilities: {
