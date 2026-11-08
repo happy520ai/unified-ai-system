@@ -4,7 +4,7 @@ import {
   Client,
   StreamableHTTPClientTransport,
 } from "@modelcontextprotocol/client";
-import { resolveMcpHttpConfig, startMcpHttpServer } from "./http.js";
+import { mcpHttpInternals, resolveMcpHttpConfig, startMcpHttpServer } from "./http.js";
 import {
   MCP_COMPAT_PROTOCOL_VERSION,
   MCP_LEGACY_PROTOCOL_VERSION,
@@ -193,4 +193,88 @@ test("Streamable HTTP exposes safe tools and rejects invalid access", async () =
 
   assert.equal(typeof gatewayBaseUrl, "string");
   await waitForClosed(gatewayBaseUrl);
+});
+
+test("mcpHttpInternals pin the loopback half of the authRequired derivation (#187)", () => {
+  const { authorizeRequest, isLoopbackHost } = mcpHttpInternals;
+  const request = (headers) => ({ headers });
+
+  // authRequired=false: the credential-free loopback default allows any request.
+  assert.equal(authorizeRequest(request({}), { authRequired: false, authToken: "" }), true);
+
+  // authRequired=true: absent header and wrong token rejected, correct token accepted.
+  assert.equal(authorizeRequest(request({}), { authRequired: true, authToken: TEST_TOKEN }), false);
+  assert.equal(
+    authorizeRequest(request({ authorization: "Bearer wrong-token" }), { authRequired: true, authToken: TEST_TOKEN }),
+    false,
+  );
+  assert.equal(
+    authorizeRequest(request({ authorization: `Bearer ${TEST_TOKEN}` }), { authRequired: true, authToken: TEST_TOKEN }),
+    true,
+  );
+
+  // isLoopbackHost decides which bind is the credential-free default.
+  assert.equal(isLoopbackHost("127.0.0.1"), true);
+  assert.equal(isLoopbackHost("::1"), true);
+  assert.equal(isLoopbackHost("localhost"), true);
+  assert.equal(isLoopbackHost("0.0.0.0"), false);
+  assert.equal(isLoopbackHost("192.168.1.10"), false);
+  assert.equal(isLoopbackHost("mcp.example.com"), false);
+});
+
+test("loopback binds serve anonymous MCP clients; non-loopback binds return 401 (#187)", async () => {
+  const fakeEnv = {
+    ...process.env,
+    AI_GATEWAY_MCP_URL: "",
+    AI_GATEWAY_PROVIDER_MODE: "fake",
+    AI_GATEWAY_REAL_PROVIDER_ENABLED: "false",
+    PME_ENTERPRISE_AUTH_ENABLED: "false",
+  };
+
+  // The credential-free default the README describes: a loopback bind with no
+  // configured token derives authRequired=false, so an anonymous client
+  // completes initialize and tools/list without an Authorization header.
+  const loopback = await startMcpHttpServer({
+    env: fakeEnv,
+    host: "127.0.0.1",
+    port: 0,
+  });
+  assert.equal(loopback.config.authRequired, false);
+  const anonymous = new Client(
+    { name: "unified-ai-system-mcp-http-anon-test", version: "0.5.0" },
+    { versionNegotiation: { mode: { pin: MCP_MODERN_PROTOCOL_VERSION } } },
+  );
+  const anonTransport = new StreamableHTTPClientTransport(new URL(loopback.endpoint));
+  try {
+    await anonymous.connect(anonTransport);
+    const listed = await anonymous.listTools();
+    assert.ok(Array.isArray(listed.tools) && listed.tools.length > 0);
+  } finally {
+    await anonymous.close();
+    await loopback.stop();
+  }
+
+  // The same build bound to a non-loopback host derives authRequired=true and
+  // rejects the identical headerless request with 401 + www-authenticate. The
+  // request goes via localhost so the host-header check (which runs before
+  // auth on a remote bind) passes and the 401 is the auth verdict.
+  const hardened = await startMcpHttpServer({
+    env: fakeEnv,
+    host: "0.0.0.0",
+    port: 0,
+    authToken: TEST_TOKEN,
+    allowedHostnames: "localhost",
+    allowedOriginHostnames: "https://localhost.example",
+  });
+  assert.equal(hardened.config.authRequired, true);
+  try {
+    const unauthorized = await fetch(
+      `http://localhost:${hardened.config.port}${hardened.config.path}`,
+      { method: "POST", headers: { "content-type": "application/json" }, body: "{}" },
+    );
+    assert.equal(unauthorized.status, 401);
+    assert.equal(unauthorized.headers.get("www-authenticate"), "Bearer");
+  } finally {
+    await hardened.stop();
+  }
 });
