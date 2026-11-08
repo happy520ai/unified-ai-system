@@ -165,7 +165,18 @@ export async function dispatchA2ARoutes(context) {
   try {
     bindA2AGatewayCall(serverContext, identity, requestExecution, managedCall);
     validateVersion(serverContext.requestedVersion, a2aGateway.agentCard, "JSONRPC");
-    result = await a2aGateway.transportHandler.handle(body, serverContext);
+    // a2a-js 1.3.0's transport resolves a client-supplied `params.tenant` via
+    // ServerCallContext.setTenant, which throws when the constructor already
+    // set one ("Tenant is already set."). The gateway's tenant always comes
+    // from the authenticated principal — 1.0.1 ignored params.tenant entirely,
+    // so stripping it here preserves that attribution (task-store and metering
+    // scope) and keeps the constructor value authoritative instead of letting
+    // request params decide it.
+    const handledBody = body && typeof body === "object"
+      && body.params && typeof body.params === "object"
+      ? { ...body, params: { ...body.params, tenant: undefined } }
+      : body;
+    result = await a2aGateway.transportHandler.handle(handledBody, serverContext);
   } catch (error) {
     result = {
       jsonrpc: "2.0",
