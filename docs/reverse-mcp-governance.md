@@ -125,6 +125,10 @@ and active execution fence before `mcpBridge.callTool`.
   calls time out after 20s (configurable per upstream).
 - Registry validation is fail-closed: malformed config reports
   `misconfigured` in `/mcp/health` and serves no tools.
+- Upstream `instructions` are not read: this gateway derives no prompt
+  content from a server's self-description, and a test pins that
+  non-propagation (#182). Changing this is a deliberate product decision,
+  not a convenience.
 
 ## Out of scope (v1)
 
