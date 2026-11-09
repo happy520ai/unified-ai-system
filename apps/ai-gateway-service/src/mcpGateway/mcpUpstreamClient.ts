@@ -301,6 +301,16 @@ export function createStdioMcpUpstream(config: McpUpstreamStdioConfig, options: 
     // Drain stderr so a noisy upstream cannot deadlock on a full pipe. Error
     // contents are intentionally not retained because they may contain secrets.
     spawned.stderr.on("data", () => {});
+    // A write landing in the window between a child's death and its close event
+    // would EPIPE on the stdin stream; an unhandled stream error throws and
+    // crashes the gateway instead of failing the one request (#273). Treat it
+    // as the upstream dying: reject in-flight calls and let the next request
+    // respawn. The stream error's own text is dropped, not retained or logged.
+    spawned.stdin.on("error", () => {
+      rejectAllPending(new Error(`MCP stdio upstream ${config.id} stdin pipe failed.`));
+      child = null;
+      initialized = false;
+    });
     spawned.on("error", (error) => {
       rejectAllPending(new Error(`MCP stdio upstream ${config.id} failed: ${error.message}`));
       child = null;

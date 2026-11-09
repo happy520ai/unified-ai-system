@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { createServer, type IncomingMessage } from "node:http";
 import { once } from "node:events";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -486,6 +486,56 @@ describe("stdio mcp upstream client cancellation", () => {
     await expect(upstream.callTool("create_ticket", {}, { signal: controller.signal }))
       .rejects.toMatchObject({ code: "CLIENT_DISCONNECTED" });
     await upstream.close();
+  });
+
+  it("survives a stdio child dying between requests and never crashes on a broken pipe (#273)", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "mcp-stdio-273-"));
+    const responder = join(dir, "responder.mjs");
+    writeFileSync(responder, `
+      let served = 0, buf = "";
+      process.stdin.setEncoding("utf8");
+      process.stdin.on("data", (chunk) => {
+        buf += chunk; let index;
+        while ((index = buf.indexOf("\\n")) >= 0) {
+          const line = buf.slice(0, index).trim(); buf = buf.slice(index + 1);
+          if (!line) continue;
+          const message = JSON.parse(line);
+          if (message.method === "initialize") {
+            process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: message.id, result: { protocolVersion: message.params.protocolVersion, capabilities: {}, serverInfo: { name: "hard-exit", version: "1" } } }) + "\\n");
+          } else if (message.method === "tools/list") {
+            process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: message.id, result: { tools: [{ name: "ok" }] } }) + "\\n");
+            served += 1;
+            if (served >= 1) setTimeout(() => process.exit(1), 20);
+          }
+        }
+      });
+      setInterval(() => {}, 1000);
+    `);
+    const upstream = createStdioMcpUpstream({
+      transport: "stdio",
+      id: "hard-exit",
+      command: process.execPath,
+      args: [responder],
+    });
+    try {
+      await upstream.listTools();
+      // The child hard-exits right after answering. The next call races that death:
+      // a write into a dead pipe must be absorbed by the stdin error handler (#273)
+      // instead of surfacing as an unhandled stream error that crashes the process.
+      // The call either rejects with a clean lifecycle error or succeeds on the
+      // fresh respawn — both are the contract; a crash is not.
+      try {
+        await upstream.listTools();
+      } catch (error) {
+        expect(String((error as Error).message)).toMatch(/stdin pipe failed|exited unexpectedly|failed:/);
+      }
+      // The upstream stays usable: a later call works on the respawned child.
+      const tools = await upstream.listTools();
+      expect(Array.isArray(tools)).toBe(true);
+    } finally {
+      await upstream.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
