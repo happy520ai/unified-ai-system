@@ -12,7 +12,11 @@ permissions:
 jobs:
   quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 45: the quality leg runs ~17-20 min on a healthy runner, but on 2026-11-09
+    # three consecutive runs were killed at the 30-minute wall while the same tree
+    # completed on faster runners - same class of runner-variance flake as the
+    # benchmark retries below. The wall still bounds a runaway job.
+    timeout-minutes: 45
     services:
       postgres:
         image: postgres:17-alpine
