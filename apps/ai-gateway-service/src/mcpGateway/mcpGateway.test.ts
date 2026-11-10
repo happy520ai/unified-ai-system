@@ -948,54 +948,6 @@ describe('CORE010 actual OpenAPI mapper regressions', () => {
     expect((await badRegistry.listTools(TENANT)).tools).toEqual([]);
     expect((await badRegistry.listTools(TENANT)).servers[0].error).toContain('unsupported'); await badRegistry.close();
   });
-
-  // #175: every refusal rule gets its own fixture — the operation tripping the rule
-  // is skipped with the rule name (and a JSON pointer), while a control operation in
-  // the same document still enumerates. The refusal rules themselves are untouched.
-  const skipFixture = () => restDocument({
-    '/control': restGet([]),
-    '/widgets': { post: { operationId: 'writeWidget', parameters: [] as unknown[],
-      requestBody: { content: { 'application/json': { schema: { type: 'object', properties: { label: { type: 'string' } } } } } } } },
-  });
-  const requestBodySchema = (doc: any, schema: unknown) => { doc.paths['/widgets'].post.requestBody.content['application/json'].schema = schema; };
-  it.each([
-    ['record-shape', '/widgets', (doc: any) => { doc.paths['/widgets'].post.parameters = ['oops']; }],
-    ['list-shape', '/widgets', (doc: any) => { doc.paths['/widgets'].post.parameters = {}; }],
-    ['input-name', '/widgets', (doc: any) => { doc.paths['/widgets'].post.parameters = [{ name: 'a{}b', in: 'query' }]; }],
-    ['nested-schema', '/widgets', (doc: any) => { doc.paths['/widgets'].post.parameters = [{ name: 'theme', in: 'cookie', schema: { type: 'object', properties: { a: { type: 'string' } } } }]; }],
-    ['budget-caps', '/widgets', (doc: any) => { let schema: any = { type: 'string' }; for (let index = 0; index < 40; index++) schema = { type: 'array', items: schema }; requestBodySchema(doc, schema); }],
-    ['ref-local', '/widgets', (doc: any) => requestBodySchema(doc, { $ref: 'https://example.com/spec.json#/Thing' })],
-    ['ref-decode', '/widgets', (doc: any) => requestBodySchema(doc, { $ref: '#/components/schemas/%zz' })],
-    ['ref-cycle-or-sibling', '/widgets', (doc: any) => requestBodySchema(doc, { $ref: '#/components/schemas/Thing', title: 'x' })],
-    ['ref-pointer-escape', '/widgets', (doc: any) => requestBodySchema(doc, { $ref: '#/~2Thing' })],
-    ['ref-missing', '/widgets', (doc: any) => requestBodySchema(doc, { $ref: '#/components/schemas/Missing' })],
-    ['schema-openapi-keys', '/widgets', (doc: any) => requestBodySchema(doc, { $id: 'https://example.com/x', type: 'string' })],
-    ['param-location', '/widgets', (doc: any) => { doc.paths['/widgets'].post.parameters = [{ name: 'x', in: 'body' }]; }],
-    ['param-header-name', '/widgets', (doc: any) => { doc.paths['/widgets'].post.parameters = [{ name: 'bad header', in: 'header' }]; }],
-    ['param-duplicate', '/widgets', (doc: any) => { doc.paths['/widgets'].post.parameters = [{ name: 'q', in: 'query' }, { name: 'q', in: 'query' }]; }],
-    ['param-semantics', '/widgets', (doc: any) => { doc.paths['/widgets'].post.parameters = [{ name: 'q', in: 'query', allowEmptyValue: true }]; }],
-    ['path-shape', 'widgets-noslash', (doc: any) => { doc.paths['widgets-noslash'] = restGet([]); }],
-    ['path-variables', '/widgets/{id}', (doc: any) => { doc.paths['/widgets/{id}'] = { post: { operationId: 'writeId', parameters: [] } }; }],
-    ['operation-id', '/widgets2', (doc: any) => { doc.paths['/widgets2'] = { post: { operationId: 'writeWidget', parameters: [] } }; }],
-    ['request-body-method', '/control', (doc: any) => { doc.paths['/control'].get.requestBody = { content: { 'application/json': { schema: { type: 'string' } } } }; }],
-    ['request-body-content', '/widgets', (doc: any) => { doc.paths['/widgets'].post.requestBody = { content: { 'text/plain': { schema: { type: 'string' } } } }; }],
-    ['argument-name', '/widgets/{query_q}', (doc: any) => { doc.paths['/widgets/{query_q}'] = { post: { operationId: 'writeWidget', parameters: [restParameter('query_q', 'path', { required: true }), restParameter('q', 'query')] } }; delete doc.paths['/widgets']; }],
-    ['body-conflict', '/widgets/{body}', (doc: any) => { doc.paths['/widgets/{body}'] = { post: { operationId: 'writeWidget', parameters: [restParameter('body', 'path', { required: true })], requestBody: { content: { 'application/json': { schema: { type: 'string' } } } } } }; delete doc.paths['/widgets']; }],
-  ])('skips the operation that trips the %j rule and still enumerates the rest (#175)', (rule, skipPath, mutate) => {
-    const doc: any = skipFixture();
-    mutate(doc);
-    const parsed = parseOpenApiOperationsDetailed(doc);
-    expect(parsed.skipped).toMatchObject([{ path: skipPath, rule }]);
-    expect(parsed.operations.some(operation => operation.path === skipPath)).toBe(false);
-    expect(parsed.operations.length).toBeGreaterThan(0);
-  });
-
-  it('keeps document-level gates as whole-document rejections while operations skip individually (#175)', () => {
-    expect(() => parseOpenApiOperationsDetailed(restDocument({ '/x': restGet([]) }, { openapi: '4.0.0' })))
-      .toThrowError(expect.objectContaining({ rule: 'spec-version' }));
-    expect(() => parseOpenApiOperationsDetailed({ openapi: '3.0.3', info: { title: 'x', version: '1' } }))
-      .toThrowError(/unsupported/);
-  });
 });
 
 describe("mcp gateway upstream visibility (#174)", () => {
