@@ -12,12 +12,13 @@ permissions:
 jobs:
   quality:
     runs-on: ubuntu-latest
-    # 90: the quality leg runs ~17-20 min on a healthy runner, but under runner
-    # contention it stretches 2-3x — on 2026-11-09 every cancellation of this job
-    # landed exactly on the wall (30 then 45), with the log ending mid-test and no
-    # other workflow on the same commits failing. The wall still bounds a runaway
-    # job; it now bounds it above what a contended runner actually needs.
-    timeout-minutes: 90
+    # 240: every cancellation of this job landed exactly on the wall (30, 45, then
+    # 90 minutes — job durations of 35/55/95 minutes to the second, log frozen
+    # mid-suite, no other workflow on the same commits failing). Under runner
+    # contention the leg stretches 4-5x its healthy ~17-20 minutes; the wall, not
+    # a hang, is what was killing the runs. 240 bounds a runaway job while letting
+    # a contended runner go the distance.
+    timeout-minutes: 240
     services:
       postgres:
         image: postgres:17-alpine
