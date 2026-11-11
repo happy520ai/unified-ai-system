@@ -57,6 +57,9 @@ interface McpGatewayClient {
   // handshake), so callers must not read a missing value as an old revision.
   protocolVersion?: () => string | undefined;
   cacheHints?: () => { ttlMs?: number; cacheScope?: string } | undefined;
+  // OpenAPI bridge only: operations skipped at registration because one construct
+  // refused (#175). Absent elsewhere, so a missing value is not a skip count.
+  skippedOperations?: () => unknown[];
 }
 
 interface GovernedUpstream {
@@ -70,6 +73,7 @@ type McpServerSummary = {
   exposed?: number;
   error?: string;
   protocolVersion?: string;
+  skipped?: number;
 };
 
 // A client that negotiated nothing contributes no key at all, and an empty string is treated the
@@ -79,6 +83,13 @@ type McpServerSummary = {
 function negotiatedRevision(client: McpGatewayClient): { protocolVersion?: string } {
   const value = client.protocolVersion?.();
   return typeof value === "string" && value.length > 0 ? { protocolVersion: value } : {};
+}
+
+// Same reporting shape as negotiatedRevision: an upstream kind without a skip concept
+// contributes no key at all, so a missing `skipped` never reads as "zero skipped".
+function skippedOperationCount(client: McpGatewayClient): { skipped?: number } {
+  const value = client.skippedOperations?.();
+  return Array.isArray(value) && value.length > 0 ? { skipped: value.length } : {};
 }
 
 type McpGatewayError = Error & {
@@ -260,7 +271,7 @@ export function createMcpGatewayService(options: {
             exposed += 1;
           }
         }
-        servers.push({ id: config.id, observed: cached.tools.length, exposed, ...negotiatedRevision(client) });
+        servers.push({ id: config.id, observed: cached.tools.length, exposed, ...negotiatedRevision(client), ...skippedOperationCount(client) });
         continue;
       }
       try {
@@ -278,7 +289,7 @@ export function createMcpGatewayService(options: {
             exposed += 1;
           }
         }
-        servers.push({ id: config.id, observed: upstreamTools.length, exposed, ...negotiatedRevision(client) });
+        servers.push({ id: config.id, observed: upstreamTools.length, exposed, ...negotiatedRevision(client), ...skippedOperationCount(client) });
       } catch (error) {
         servers.push({ id: config.id, error: error instanceof Error ? error.message : String(error) });
       }

@@ -32,25 +32,37 @@ export interface OpenApiOperation {
 }
 type RestTool = McpToolDescriptor & { __rest: OpenApiOperation };
 
-function unsupported(): Error & { code: string } {
-  return Object.assign(new Error("OpenAPI operation has unsupported, ambiguous, or unresolvable input semantics."), { code: "OPENAPI_INPUT_UNSUPPORTED" });
+interface UnsupportedError extends Error {
+  code: "OPENAPI_INPUT_UNSUPPORTED";
+  rule?: string;
+  pointer?: string;
+}
+function unsupported(rule?: string, pointer?: string): UnsupportedError {
+  return Object.assign(new Error("OpenAPI operation has unsupported, ambiguous, or unresolvable input semantics."), {
+    code: "OPENAPI_INPUT_UNSUPPORTED" as const,
+    ...(rule ? { rule } : {}),
+    ...(pointer ? { pointer } : {}),
+  });
+}
+function isUnsupported(error: unknown): error is UnsupportedError {
+  return error instanceof Error && (error as UnsupportedError).code === "OPENAPI_INPUT_UNSUPPORTED";
 }
 function record(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value) || ![Object.prototype, null].includes(Object.getPrototypeOf(value))) throw unsupported();
+  if (!value || typeof value !== "object" || Array.isArray(value) || ![Object.prototype, null].includes(Object.getPrototypeOf(value))) throw unsupported("record-shape");
   const descriptors = Object.getOwnPropertyDescriptors(value);
-  if (Reflect.ownKeys(value).length !== Object.keys(descriptors).length || Object.values(descriptors).some(item => !item.enumerable || !("value" in item))) throw unsupported();
+  if (Reflect.ownKeys(value).length !== Object.keys(descriptors).length || Object.values(descriptors).some(item => !item.enumerable || !("value" in item))) throw unsupported("record-shape");
   return Object.fromEntries(Object.entries(descriptors).map(([key, item]) => [key, item.value]));
 }
 function list(value: unknown): unknown[] {
-  if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype || Reflect.ownKeys(value).length !== value.length + 1 || value.length > MAX_EXPANSION_NODES) throw unsupported();
+  if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype || Reflect.ownKeys(value).length !== value.length + 1 || value.length > MAX_EXPANSION_NODES) throw unsupported("list-shape");
   return Array.from({ length: value.length }, (_, index) => {
     const property = Object.getOwnPropertyDescriptor(value, String(index));
-    if (!property || !("value" in property)) throw unsupported();
+    if (!property || !("value" in property)) throw unsupported("list-property");
     return property.value;
   });
 }
 function inputName(value: unknown): string {
-  if (typeof value !== "string" || !value || value.length > 256 || /[\u0000-\u001f\u007f{}]/u.test(value)) throw unsupported();
+  if (typeof value !== "string" || !value || value.length > 256 || /[\u0000-\u001f\u007f{}]/u.test(value)) throw unsupported("input-name");
   return value;
 }
 function argumentName(parameter: Parameter): string { return parameter.in === "path" ? parameter.name : parameter.in + "_" + parameter.name; }
@@ -59,7 +71,7 @@ function requireFlatSchema(schema: Schema, cookie: boolean, nested = false): voi
   if (typeof schema === "boolean") return;
   const types = Array.isArray(schema.type) ? schema.type : [schema.type];
   if (types.includes("array") || types.includes("object") || schema.properties !== undefined || schema.items !== undefined) {
-    if (cookie || nested) throw unsupported();
+    if (cookie || nested) throw unsupported("nested-schema");
     if (schema.items !== undefined) requireFlatSchema(schema.items as Schema, false, true);
     if (schema.properties !== undefined) for (const child of Object.values(record(schema.properties))) requireFlatSchema(child as Schema, false, true);
     if (typeof schema.additionalProperties === "object") requireFlatSchema(schema.additionalProperties as Schema, false, true);
@@ -72,22 +84,22 @@ function requireFlatSchema(schema: Schema, cookie: boolean, nested = false): voi
 /** Resolve consumed input containers and schemas, never examples or response schemas. */
 function createInputResolver(root: Record<string, unknown>) {
   let nodes = 0, characters = 0;
-  const charge = (depth: number, size = 0) => { characters += size; if (++nodes > MAX_EXPANSION_NODES || depth > MAX_EXPANSION_DEPTH || characters > MAX_SPEC_CHARS) throw unsupported(); };
+  const charge = (depth: number, size = 0) => { characters += size; if (++nodes > MAX_EXPANSION_NODES || depth > MAX_EXPANSION_DEPTH || characters > MAX_SPEC_CHARS) throw unsupported("budget-caps"); };
   const string = (value: string, depth = 0) => { charge(depth, value.length); return value; };
   const dereference = (value: unknown, references: readonly string[] = []): { value: Record<string, unknown>; references: readonly string[] } => {
     charge(references.length);
     const source = record(value);
     if (!Object.hasOwn(source, "$ref")) return { value: source, references };
-    if (typeof source.$ref !== "string" || !source.$ref.startsWith("#/")) throw unsupported();
+    if (typeof source.$ref !== "string" || !source.$ref.startsWith("#/")) throw unsupported("ref-local");
     let pointer: string;
-    try { pointer = decodeURIComponent(source.$ref.slice(1)); } catch { throw unsupported(); }
-    if (references.includes(pointer) || Object.keys(source).some(key => !["$ref", "summary", "description"].includes(key) && !key.startsWith("x-"))) throw unsupported();
+    try { pointer = decodeURIComponent(source.$ref.slice(1)); } catch { throw unsupported("ref-decode"); }
+    if (references.includes(pointer) || Object.keys(source).some(key => !["$ref", "summary", "description"].includes(key) && !key.startsWith("x-"))) throw unsupported("ref-cycle-or-sibling");
     let target: unknown = root;
     for (const encoded of pointer.slice(1).split("/")) {
-      if (/~(?![01])/u.test(encoded)) throw unsupported();
+      if (/~(?![01])/u.test(encoded)) throw unsupported("ref-pointer-escape");
       const key = encoded.replace(/~1/g, "/").replace(/~0/g, "~");
       const owner = Array.isArray(target) ? Object.fromEntries(list(target).map((item, index) => [String(index), item])) : record(target);
-      if (!Object.hasOwn(owner, key)) throw unsupported();
+      if (!Object.hasOwn(owner, key)) throw unsupported("ref-missing");
       target = owner[key];
     }
     return dereference(target, [...references, pointer]);
@@ -102,7 +114,7 @@ function createInputResolver(root: Record<string, unknown>) {
     charge(depth);
     if (typeof value === "boolean") return value;
     const resolved = dereference(value, references), source = resolved.value;
-    if (["$id", "$anchor", "$dynamicRef", "$dynamicAnchor", "$schema"].some(key => Object.hasOwn(source, key))) throw unsupported();
+    if (["$id", "$anchor", "$dynamicRef", "$dynamicAnchor", "$schema"].some(key => Object.hasOwn(source, key))) throw unsupported("schema-openapi-keys");
     const entries = Object.entries(source).map(([key, item]) => {
       string(key, depth + 1);
       if (SCHEMA_MAPS.has(key)) return [key, Object.freeze(Object.fromEntries(Object.entries(record(item)).map(([name, child]) => [string(name, depth + 1), schema(child, depth + 1, resolved.references)])))];
@@ -114,62 +126,98 @@ function createInputResolver(root: Record<string, unknown>) {
   return { dereference: (value: unknown) => dereference(value).value, schema, string };
 }
 
-export function parseOpenApiOperations(spec: unknown): OpenApiOperation[] {
+export interface SkippedOpenApiOperation {
+  path: string;
+  method?: string;
+  rule: string;
+  pointer?: string;
+}
+export interface OpenApiOperationParse {
+  operations: OpenApiOperation[];
+  skipped: SkippedOpenApiOperation[];
+}
+
+// 一个操作里出现不支持的构造时只跳过该操作，文档内其余操作继续枚举（#175）。
+// 拒绝规则本身一个都不放宽：跳过是"不发布"，不是"猜测语义"。
+// 文档级检查（record/spec 版本门/paths 容器）仍然整体拒绝——那是另一类失败。
+export function parseOpenApiOperationsDetailed(spec: unknown): OpenApiOperationParse {
   const root = record(spec);
-  if (typeof root.openapi !== "string" || !/^3\.(?:0|1)\.\d+$/u.test(root.openapi)) throw unsupported();
-  const resolver = createInputResolver(root), paths = record(root.paths), operations: OpenApiOperation[] = [], names = new Set<string>();
+  if (typeof root.openapi !== "string" || !/^3\.(?:0|1)\.\d+$/u.test(root.openapi)) throw unsupported("spec-version");
+  const resolver = createInputResolver(root), paths = record(root.paths), operations: OpenApiOperation[] = [], skipped: SkippedOpenApiOperation[] = [], names = new Set<string>();
   const parameters = (value: unknown): Parameter[] => {
     const seen = new Set<string>();
     return list(value ?? []).flatMap(raw => {
       const p = resolver.dereference(raw), name = resolver.string(inputName(p.name)), location = p.in;
-      if (!["path", "query", "header", "cookie"].includes(String(location)) || p.required !== undefined && typeof p.required !== "boolean") throw unsupported();
+      if (!["path", "query", "header", "cookie"].includes(String(location)) || p.required !== undefined && typeof p.required !== "boolean") throw unsupported("param-location");
       const where = location as Location;
       if (where === "header" && RESERVED_HEADERS.has(name.toLowerCase())) return [];
-      if ((where === "header" || where === "cookie") && !TOKEN.test(name) || where === "header" && TRANSPORT_HEADERS.has(name.toLowerCase())) throw unsupported();
+      if ((where === "header" || where === "cookie") && !TOKEN.test(name) || where === "header" && TRANSPORT_HEADERS.has(name.toLowerCase())) throw unsupported("param-header-name");
       const key = where + ":" + (where === "header" ? name.toLowerCase() : name);
-      if (seen.has(key)) throw unsupported(); seen.add(key);
+      if (seen.has(key)) throw unsupported("param-duplicate"); seen.add(key);
       const style = where === "path" || where === "header" ? "simple" : "form";
       if (p.content !== undefined || p.style !== undefined && p.style !== style || p.allowReserved === true
-        || p.allowEmptyValue === true || p.explode !== undefined && typeof p.explode !== "boolean" || where === "path" && p.required !== true) throw unsupported();
+        || p.allowEmptyValue === true || p.explode !== undefined && typeof p.explode !== "boolean" || where === "path" && p.required !== true) throw unsupported("param-semantics");
       const resolvedSchema = resolver.schema(p.schema ?? { type: "string" });
       requireFlatSchema(resolvedSchema, where === "cookie");
       return [{ name, in: where, required: p.required === true, schema: resolvedSchema, style, explode: p.explode === undefined ? style === "form" : p.explode }];
     });
   };
   for (const [path, rawItem] of Object.entries(paths)) {
-    if (!path.startsWith("/") || /[?#]/u.test(path)) throw unsupported();
-    const item = resolver.dereference(rawItem), inherited = parameters(item.parameters);
+    const pathPointer = `/paths/${path.replace(/~/g, "~0").replace(/\//g, "~1")}`;
+    let item: Record<string, unknown>, inherited: Parameter[] = [];
+    try {
+      if (!path.startsWith("/") || /[?#]/u.test(path)) throw unsupported("path-shape", pathPointer);
+      item = resolver.dereference(rawItem);
+      inherited = parameters(item.parameters);
+    } catch (error) {
+      if (!isUnsupported(error)) throw error;
+      skipped.push({ path, rule: error.rule ?? "path-shape", pointer: error.pointer ?? pathPointer });
+      continue;
+    }
     for (const [method, rawOperation] of Object.entries(item)) {
       if (!HTTP_METHODS.has(method.toLowerCase())) continue;
-      resolver.string(path);
-      const operation = record(rawOperation), merged = new Map(inherited.map(p => [p.in + ":" + (p.in === "header" ? p.name.toLowerCase() : p.name), p]));
-      for (const p of parameters(operation.parameters)) merged.set(p.in + ":" + (p.in === "header" ? p.name.toLowerCase() : p.name), p);
-      const bindings = [...merged.values()];
-      const variables = [...path.matchAll(/\{([^}]+)\}/gu)].map(match => match[1]);
-      if (path.replace(/\{[^}]+\}/gu, "").match(/[{}]/u) || variables.some(name => !bindings.some(p => p.in === "path" && p.name === name))
-        || bindings.some(p => p.in === "path" && !variables.includes(p.name))) throw unsupported();
-      const operationId = typeof operation.operationId === "string" && operation.operationId.trim() ? operation.operationId.trim() : method.toLowerCase() + "_" + path.replace(/[^a-zA-Z0-9]+/g, "_");
-      if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,159}$/u.test(operationId) || names.has(operationId)) throw unsupported(); names.add(operationId);
-      resolver.string(operationId);
-      let body: { bodySchema?: Schema; bodyRequired?: boolean } = {};
-      if (operation.requestBody !== undefined) {
-        if (!new Set(["post", "put", "patch", "delete"]).has(method.toLowerCase())) throw unsupported();
-        const requestBody = resolver.dereference(operation.requestBody), content = record(requestBody.content);
-        if (!Object.hasOwn(content, "application/json") || requestBody.required !== undefined && typeof requestBody.required !== "boolean") throw unsupported();
-        body = { bodySchema: resolver.schema(record(content["application/json"]).schema ?? {}), bodyRequired: requestBody.required === true };
+      const opPointer = `${pathPointer}/${method}`;
+      try {
+        resolver.string(path);
+        const operation = record(rawOperation), merged = new Map(inherited.map(p => [p.in + ":" + (p.in === "header" ? p.name.toLowerCase() : p.name), p]));
+        for (const p of parameters(operation.parameters)) merged.set(p.in + ":" + (p.in === "header" ? p.name.toLowerCase() : p.name), p);
+        const bindings = [...merged.values()];
+        const variables = [...path.matchAll(/\{([^}]+)\}/gu)].map(match => match[1]);
+        if (path.replace(/\{[^}]+\}/gu, "").match(/[{}]/u) || variables.some(name => !bindings.some(p => p.in === "path" && p.name === name))
+          || bindings.some(p => p.in === "path" && !variables.includes(p.name))) throw unsupported("path-variables", opPointer);
+        const operationId = typeof operation.operationId === "string" && operation.operationId.trim() ? operation.operationId.trim() : method.toLowerCase() + "_" + path.replace(/[^a-zA-Z0-9]+/g, "_");
+        if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,159}$/u.test(operationId) || names.has(operationId)) throw unsupported("operation-id", opPointer); names.add(operationId);
+        resolver.string(operationId);
+        let body: { bodySchema?: Schema; bodyRequired?: boolean } = {};
+        if (operation.requestBody !== undefined) {
+          if (!new Set(["post", "put", "patch", "delete"]).has(method.toLowerCase())) throw unsupported("request-body-method", opPointer);
+          const requestBody = resolver.dereference(operation.requestBody), content = record(requestBody.content);
+          if (!Object.hasOwn(content, "application/json") || requestBody.required !== undefined && typeof requestBody.required !== "boolean") throw unsupported("request-body-content", `${opPointer}/requestBody`);
+          body = { bodySchema: resolver.schema(record(content["application/json"]).schema ?? {}), bodyRequired: requestBody.required === true };
+        }
+        const compiled = { method: method.toUpperCase(), path, operationId, ...(typeof operation.summary === "string" ? { summary: resolver.string(operation.summary) } : {}), parameters: bindings, ...body };
+        operationToMcpTool(compiled);
+        operations.push(Object.freeze({ ...compiled, parameters: Object.freeze(bindings.map(p => Object.freeze(p))) as unknown as Parameter[] }));
+      } catch (error) {
+        if (!isUnsupported(error)) throw error;
+        skipped.push({ path, method, rule: error.rule ?? "operation-shape", pointer: error.pointer ?? opPointer });
       }
-      const compiled = { method: method.toUpperCase(), path, operationId, ...(typeof operation.summary === "string" ? { summary: resolver.string(operation.summary) } : {}), parameters: bindings, ...body };
-      operationToMcpTool(compiled);
-      operations.push(Object.freeze({ ...compiled, parameters: Object.freeze(bindings.map(p => Object.freeze(p))) as unknown as Parameter[] }));
     }
   }
-  return operations;
+  return { operations, skipped };
+}
+
+export function parseOpenApiOperations(spec: unknown): OpenApiOperation[] {
+  return parseOpenApiOperationsDetailed(spec).operations;
 }
 
 export function operationToMcpTool(operation: OpenApiOperation): RestTool {
   const entries: Array<[string, unknown]> = [], required: string[] = [], names = new Set<string>();
   for (const p of operation.parameters) {
-    const name = argumentName(p); if (names.has(name) || name === "body" && operation.bodySchema !== undefined) throw unsupported(); names.add(name);
+    const name = argumentName(p);
+    if (names.has(name)) throw unsupported("argument-name");
+    if (name === "body" && operation.bodySchema !== undefined) throw unsupported("body-conflict");
+    names.add(name);
     entries.push([name, p.schema]); if (p.required) required.push(name);
   }
   if (operation.bodySchema !== undefined) { entries.push(["body", operation.bodySchema]); if (operation.bodyRequired) required.push("body"); }
@@ -279,23 +327,36 @@ export function createOpenApiRestBridge(config: {
   async function ensureTools(signal?: AbortSignal) {
     if (cachedTools) return cachedTools;
     const spec = config.spec === undefined ? JSON.parse(await loadSpecText(signal)) : config.spec;
-    const compiled = parseOpenApiOperations(spec).map(operationToMcpTool);
+    const parsed = parseOpenApiOperationsDetailed(spec);
+    lastSkipped = parsed.skipped;
+    if (parsed.skipped.length > 0) {
+      // 跳过集必须可归属：注册日志点名每一条（操作、规则、指针），零工具结果不再是无主的。
+      console.warn(`[openapi-rest-bridge] ${config.id}: skipped ${parsed.skipped.length} of ${parsed.skipped.length + parsed.operations.length} operations: ${JSON.stringify(parsed.skipped)}`);
+    }
+    if (parsed.operations.length === 0 && parsed.skipped.length > 0) {
+      throw unsupported("all-operations-skipped");
+    }
+    const compiled = parsed.operations.map(operationToMcpTool);
     if (Object.keys(configuredHeaders).length !== Object.keys(config.headers ?? {}).length
-      || Object.entries(configuredHeaders).some(([name, value]) => !TOKEN.test(name) || typeof value !== "string" || /[\r\n\0]/u.test(value))) throw unsupported();
+      || Object.entries(configuredHeaders).some(([name, value]) => !TOKEN.test(name) || typeof value !== "string" || /[\r\n\0]/u.test(value))) throw unsupported("configured-headers");
     for (const tool of compiled) {
       if (tool.__rest.parameters.some(p => (p.in === "header" && Object.hasOwn(configuredHeaders, p.name.toLowerCase()))
         || (p.in === "cookie" && Object.hasOwn(configuredHeaders, "cookie")))
         || tool.__rest.bodySchema !== undefined && configuredHeaders["content-type"] !== undefined
-        && configuredHeaders["content-type"].split(";")[0].trim().toLowerCase() !== "application/json") throw unsupported();
+        && configuredHeaders["content-type"].split(";")[0].trim().toLowerCase() !== "application/json") throw unsupported("configured-header-conflict");
     }
     cachedTools = compiled;
     return cachedTools;
   }
 
 
+  let lastSkipped: SkippedOpenApiOperation[] = [];
   return {
     id: config.id,
     transport: "openapi-rest" as const,
+    skippedOperations(): SkippedOpenApiOperation[] {
+      return lastSkipped;
+    },
     async listTools(): Promise<McpToolDescriptor[]> {
       await ensureTools();
       return [...cachedTools!];
