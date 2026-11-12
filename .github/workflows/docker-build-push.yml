@@ -38,11 +38,12 @@ jobs:
       id-token: write
       packages: write
     runs-on: ubuntu-latest
-    # 120: the build ran 65 minutes under runner contention on 2026-11-11 and was
-    # killed exactly at this wall (the same runner-variance class that forced the
-    # CI quality job's wall to 240). Healthy builds take ~10-40 minutes; the wall
-    # still bounds a runaway build.
-    timeout-minutes: 120
+    # 180: the build under runner contention ran 125 minutes (16:21→18:26) on
+    # 2026-11-12 and was killed exactly at the 120-minute wall — job durations of
+    # wall+5:00 to the second, the same arithmetic that raised the CI quality
+    # job's wall to 240. Healthy builds take ~10-40 minutes; the wall still
+    # bounds a runaway build.
+    timeout-minutes: 180
 
     steps:
       - name: Checkout
