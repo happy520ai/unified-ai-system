@@ -16,6 +16,12 @@ const outputJson = process.argv.includes("--json");
 // GHSA-587h-7wmj-h5pm / GHSA-698v-4r3x-3vcv / GHSA-r825-w8mm-5pxw (launch-editor via vite's chain,
 // fixed 8.3.3) and GHSA-5r4p-p66f-jhc7 (hono serveStatic path traversal, fixed 4.13.11); both pins
 // clear the advisories while staying older than pnpm's minimum-release-age gate wants.
+// hono@4 moved again 4.13.13 -> 4.13.16 and @hono/node-server 2.1.5 -> 2.1.6 on 2026-11-13 because
+// OSV published GHSA-3gg2-335m-rxc6 / GHSA-46wx-v44x-9hh2 / GHSA-4h7h-rv7c-7m2v (all fixed at
+// hono 4.13.16) and GHSA-jpvv-r467-5p4w / GHSA-qv5m-9pm6-hqp3 (fixed at @hono/node-server 2.1.6).
+// Known drift: pnpm-workspace.yaml carries five newer override pins this table does not yet name
+// (glob@13, minimatch@10, @hono/node-server, argparse@1, source-map-js@1) - moves of THOSE pins
+// are not yet forced explicit by this table.
 const requiredOverrides = Object.freeze({
   "brace-expansion@2": "2.1.7",
   "brace-expansion@5": "5.0.12",
@@ -23,7 +29,7 @@ const requiredOverrides = Object.freeze({
   "undici@7": "7.30.1",
   "vite@8": "8.3.3",
   "@xmldom/xmldom@0.8": "0.8.15",
-  "hono@4": "4.13.13",
+  "hono@4": "4.13.16",
 });
 
 function readText(relativePath) {
