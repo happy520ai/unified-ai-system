@@ -149,7 +149,7 @@ const dockerReleaseChecks = {
     (dockerWorkflowSource.match(/--read-only/g) ?? []).length >= 2
     && dockerWorkflowSource.includes("--tmpfs /tmp:rw,noexec,nosuid,size=64m"),
   node24ArtifactUploader:
-    (dockerWorkflowSource.match(/actions\/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a/g) ?? []).length >= 2,
+    (dockerWorkflowSource.match(/actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9/g) ?? []).length >= 2,
 };
 for (const [check, passed] of Object.entries(dockerReleaseChecks)) {
   if (!passed) issues.push({ code: "docker_release_supply_chain_check_failed", check });
