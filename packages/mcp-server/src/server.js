@@ -97,7 +97,7 @@ function createToolError(toolName, error) {
   };
 }
 
-function registerReadTool(server, runtime, definition) {
+function registerReadTool(server, getGateway, definition) {
   server.registerTool(
     definition.name,
     {
@@ -108,10 +108,11 @@ function registerReadTool(server, runtime, definition) {
     },
     async () => {
       try {
+        const { runtime, client } = await getGateway();
         return createToolResult(
           definition.name,
           runtime,
-          await definition.execute(),
+          await definition.execute(client),
         );
       } catch (error) {
         return createToolError(definition.name, error);
@@ -129,22 +130,42 @@ function assertChatStayedFake(response) {
   }
 }
 
-export function createUnifiedAiMcpServer(runtime, options = {}) {
-  if (!runtime?.baseUrl) {
-    throw new Error("MCP server requires a gateway runtime.");
-  }
-
-  const client = options.client ?? createGatewayClient({
-    baseUrl: runtime.baseUrl,
-    headers: runtime.privateRequestHeaders ?? {},
-    timeoutMs: options.timeoutMs ?? 20_000,
-  });
+export function createUnifiedAiMcpServer(runtimeOrPromise, options = {}) {
+  // The gateway runtime may still be booting when the MCP server is served:
+  // stdio answers initialize and tools/list from the registration data alone
+  // and resolves the runtime (plus its gateway client) on the first tool call.
+  let gateway = null;
+  const getGateway = async () => {
+    if (!gateway) {
+      const runtime = await runtimeOrPromise;
+      if (!runtime?.baseUrl) {
+        throw new Error("MCP server requires a gateway runtime.");
+      }
+      gateway = {
+        runtime,
+        client: options.client ?? createGatewayClient({
+          baseUrl: runtime.baseUrl,
+          headers: runtime.privateRequestHeaders ?? {},
+          timeoutMs: options.timeoutMs ?? 20_000,
+        }),
+      };
+    }
+    return gateway;
+  };
   const server = new McpServer(
     {
       name: MCP_SERVER_NAME,
       version: MCP_SERVER_VERSION,
     },
-    { instructions: SERVER_INSTRUCTIONS },
+    {
+      instructions: SERVER_INSTRUCTIONS,
+      // Opt-in passthrough for transports that negotiate the modern era
+      // directly (InMemory tests); the stdio and HTTP entries negotiate
+      // through serveStdio/createMcpHandler and keep the SDK defaults.
+      ...(options.supportedProtocolVersions
+        ? { supportedProtocolVersions: options.supportedProtocolVersions }
+        : {}),
+    },
   );
 
   const readTools = [
@@ -153,14 +174,14 @@ export function createUnifiedAiMcpServer(runtime, options = {}) {
       title: "Gateway health",
       description:
         "Inspect gateway health, provider mode, and the real-provider safety flag.",
-      execute: () => client.health(),
+      execute: (client) => client.health(),
     },
     {
       name: "gateway_readiness",
       title: "Gateway readiness",
       description:
         "Inspect first-run readiness for chat and the local gateway runtime.",
-      execute: () => client.setupReadiness(),
+      execute: (client) => client.setupReadiness(),
     },
     {
       name: "agent_governance_status",
@@ -168,7 +189,7 @@ export function createUnifiedAiMcpServer(runtime, options = {}) {
       description:
         "Inspect Agent Governance status through the authenticated Gateway identity. The tool accepts no tenant override and fails closed when that identity is not authorized for platform status.",
       inputSchema: z.object({}).strict(),
-      execute: () => client.agentGovernanceStats(),
+      execute: (client) => client.agentGovernanceStats(),
     },
     {
       name: "agent_governance_list",
@@ -176,47 +197,47 @@ export function createUnifiedAiMcpServer(runtime, options = {}) {
       description:
         "List only the governed Agents visible to the Gateway-authenticated tenant. The tool accepts no tenant or owner override.",
       inputSchema: z.object({}).strict(),
-      execute: () => client.governedAgents(),
+      execute: (client) => client.governedAgents(),
     },
     {
       name: "knowledge_readiness",
       title: "Knowledge readiness",
       description:
         "Inspect the gateway knowledge infrastructure without loading or changing data.",
-      execute: () => client.knowledgeInfraReadiness(),
+      execute: (client) => client.knowledgeInfraReadiness(),
     },
     {
       name: "workflow_health",
       title: "Workflow health",
       description:
         "Inspect the governed workflow subsystem without starting a workflow.",
-      execute: () => client.workflowHealth(),
+      execute: (client) => client.workflowHealth(),
     },
     {
       name: "workflow_actions",
       title: "Workflow actions",
       description:
         "List workflow action definitions without invoking any action.",
-      execute: () => client.workflowActions(),
+      execute: (client) => client.workflowActions(),
     },
     {
       name: "workforce_health",
       title: "Workforce health",
       description:
         "Inspect the workforce subsystem without planning or executing work.",
-      execute: () => client.workforceHealth(),
+      execute: (client) => client.workforceHealth(),
     },
     {
       name: "workforce_agents",
       title: "Workforce agents",
       description:
         "List configured workforce agent descriptors without dispatching them.",
-      execute: () => client.workforceAgents(),
+      execute: (client) => client.workforceAgents(),
     },
   ];
 
   for (const definition of readTools) {
-    registerReadTool(server, runtime, definition);
+    registerReadTool(server, getGateway, definition);
   }
 
   server.registerTool(
@@ -236,6 +257,7 @@ export function createUnifiedAiMcpServer(runtime, options = {}) {
     },
     async ({ agentId }) => {
       try {
+        const { runtime, client } = await getGateway();
         const response = await client.governedAgent(agentId);
         return createToolResult("agent_governance_describe", runtime, response);
       } catch (error) {
@@ -274,6 +296,7 @@ export function createUnifiedAiMcpServer(runtime, options = {}) {
     },
     async ({ input, profile, language, target }) => {
       try {
+        const { runtime, client } = await getGateway();
         const response = await client.enhancePrompt({
           input,
           profile: profile ?? "auto",
@@ -330,6 +353,7 @@ export function createUnifiedAiMcpServer(runtime, options = {}) {
     },
     async ({ input, profile, language, target, providerId, modelId }) => {
       try {
+        const { runtime, client } = await getGateway();
         const response = await client.enhancePromptLlm({
           input,
           profile: profile ?? "auto",
@@ -368,6 +392,7 @@ export function createUnifiedAiMcpServer(runtime, options = {}) {
     },
     async ({ prompt }) => {
       try {
+        const { runtime, client } = await getGateway();
         const health = resultData(await client.health());
         if (
           health?.realProviderEnabled !== false
@@ -429,6 +454,7 @@ export function createUnifiedAiMcpServer(runtime, options = {}) {
     },
     async ({ query, topK, sourceIds }) => {
       try {
+        const { runtime, client } = await getGateway();
         const response = await client.knowledgeRetrieve({
           query,
           ...(topK ? { topK } : {}),
@@ -489,6 +515,7 @@ export function createUnifiedAiMcpServer(runtime, options = {}) {
     },
     async ({ agentId, goal, query, topK, artifactName }) => {
       try {
+        const { runtime, client } = await getGateway();
         const effectiveAgentId = agentId ?? runtime.managedWorkflowAgentId;
         const response = await client.workflowRun({
           ...(effectiveAgentId ? { agentId: effectiveAgentId } : {}),

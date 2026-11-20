@@ -10,6 +10,7 @@ import {
 } from "./server.js";
 
 let runtime;
+let runtimePromise;
 let handle;
 let shuttingDown = false;
 
@@ -60,8 +61,12 @@ function shutdownFromSignal(signal) {
     });
 }
 
+function ensureRuntime() {
+  runtimePromise ??= createGatewayRuntime();
+  return runtimePromise;
+}
+
 async function main() {
-  runtime = await createGatewayRuntime();
   process.once("exit", () => runtime?.killNow());
   process.once("SIGINT", () => shutdownFromSignal("SIGINT"));
   process.once("SIGTERM", () => shutdownFromSignal("SIGTERM"));
@@ -72,7 +77,18 @@ async function main() {
     void shutdown(0);
   });
 
-  handle = serveStdio(() => createUnifiedAiMcpServer(runtime), {
+  // Boot the gateway in the background so the stdio transport answers
+  // initialize and tools/list immediately; tool calls resolve the runtime on
+  // first use. A blocked initialize reads as a failed start to MCP clients.
+  // If the MCP host exits while the boot is still pending, the managed child
+  // self-terminates through its managed-parent IPC disconnect watcher.
+  ensureRuntime().catch((error) => {
+    logToFileOrStderr(
+      `Unified AI System MCP gateway boot failed: ${error.message}\n`,
+    );
+  });
+
+  handle = serveStdio(() => createUnifiedAiMcpServer(ensureRuntime()), {
     onerror(error) {
       logToFileOrStderr(
         `Unified AI System MCP transport error: ${error.message}\n`,
@@ -80,7 +96,7 @@ async function main() {
     },
   });
   logToFileOrStderr(
-    `Unified AI System MCP ${MCP_SERVER_VERSION} ready on stdio; real providers disabled.\n`,
+    `Unified AI System MCP ${MCP_SERVER_VERSION} ready on stdio; gateway booting in background; real providers disabled.\n`,
   );
 }
 

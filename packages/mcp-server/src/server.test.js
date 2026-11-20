@@ -2,9 +2,14 @@ import assert from "node:assert/strict";
 import { dirname, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { Client } from "@modelcontextprotocol/client";
+import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
-import { MCP_MODERN_PROTOCOL_VERSION, MCP_TOOL_NAMES } from "./server.js";
+import {
+  createUnifiedAiMcpServer,
+  MCP_MODERN_PROTOCOL_VERSION,
+  MCP_SUPPORTED_PROTOCOL_VERSIONS,
+  MCP_TOOL_NAMES,
+} from "./server.js";
 import { createGatewayRuntime } from "./runtime.js";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -225,4 +230,47 @@ test("external gateway authentication fails closed before network access", async
     }),
     /must not contain URL credentials/,
   );
+});
+
+test("server answers tools/list before the gateway runtime resolves and fails closed when boot fails", async () => {
+  let rejectRuntime;
+  const runtimePromise = new Promise((_resolve, reject) => {
+    rejectRuntime = reject;
+  });
+  const server = createUnifiedAiMcpServer(runtimePromise, {
+    supportedProtocolVersions: MCP_SUPPORTED_PROTOCOL_VERSIONS,
+  });
+  const client = new Client({
+    name: "unified-ai-system-mcp-test",
+    version: "0.5.0",
+  });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+
+  try {
+    await Promise.all([
+      server.connect(serverTransport),
+      client.connect(clientTransport),
+    ]);
+
+    // Registration data alone answers tools/list while the gateway is still
+    // booting; a stdio client no longer reads a blocked initialize as a
+    // failed start (see the stdio cold-boot issue).
+    const listed = await client.listTools();
+    assert.deepEqual(
+      listed.tools.map((tool) => tool.name).sort(),
+      [...MCP_TOOL_NAMES].sort(),
+    );
+
+    // Tool calls resolve the runtime lazily and fail closed when it fails.
+    rejectRuntime(new Error("test-only boot failure"));
+    const result = parseToolResult(
+      await client.callTool({ name: "gateway_health", arguments: {} }),
+    );
+    assert.equal(result.ok, false);
+    assert.equal(result.tool, "gateway_health");
+    assert.match(result.error.message, /test-only boot failure/);
+  } finally {
+    await client.close();
+    await server.close();
+  }
 });
