@@ -38,7 +38,7 @@ afterEach(async () => {
   })));
 });
 
-describe.sequential("signed JSON to SQLite Agent Registry migration", () => {
+describe("signed JSON to SQLite Agent Registry migration", { concurrent: false }, () => {
   it("exposes a credential-free help command through the root migration script", async () => {
     const packageJson = JSON.parse(await readFile(resolve(process.cwd(), "package.json"), "utf8"));
     expect(packageJson.scripts["migrate:agent-governance:sqlite"])
