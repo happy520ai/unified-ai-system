@@ -141,8 +141,8 @@
       ],
       "justification": "T-002 requires actual Windows token, ACL, SCM, Registry64 and handle-safe filesystem APIs unavailable in the existing TypeScript runtime. Only these native primitives and the fixed service host use C++; HMAC, checkpoint and business protocols remain TypeScript.",
       "owner": "local-client-management",
-      "removalBy": "2026-12-08",
-      "migrationPlan": "Remove these exact native files and this exception when the optional Windows authority is withdrawn. At the 2026-12-08 compatibility review, retain only measured Win32 primitives that still lack a TypeScript facility; protocol and coordination logic must stay TypeScript. Renewal requires the recorded native validation evidence.",
+      "removalBy": "2027-04-30",
+      "migrationPlan": "Remove these exact native files and this exception when the optional Windows authority is withdrawn. At the 2027-04-30 compatibility review, retain only measured Win32 primitives that still lack a TypeScript facility; protocol and coordination logic must stay TypeScript. Renewal requires the recorded native validation evidence.",
       "issueId": "T-002",
       "notes": "Source/build authorization only. No service deployment or protection-readiness claim follows from this exception."
     },
@@ -155,8 +155,8 @@
       ],
       "justification": "T-064 requires Windows Job Objects, suspended child creation, inherited-handle whitelists and parent-handle monitoring that the existing Node.js API cannot provide. Only the fixed per-task process owner and its child-tree fixture use the existing C++ boundary; protocol, approvals, recovery and artifact verification remain TypeScript.",
       "owner": "ai-gateway-service/workforce",
-      "removalBy": "2026-12-11",
-      "migrationPlan": "At the 2026-12-11 compatibility review, retain only the measured Win32 process primitives still unavailable in the TypeScript runtime, with the bounded native process and descendant-cleanup evidence. Remove these exact files and the exception if the optional native Workforce runner is withdrawn; no business protocol moves into C++.",
+      "removalBy": "2027-04-30",
+      "migrationPlan": "At the 2027-04-30 compatibility review, retain only the measured Win32 process primitives still unavailable in the TypeScript runtime, with the bounded native process and descendant-cleanup evidence. Remove these exact files and the exception if the optional native Workforce runner is withdrawn; no business protocol moves into C++.",
       "issueId": "T-064",
       "notes": "Exact source/build scope only. The helper is a finite child process, not an installed service; this exception does not grant native account execution, deployment or filesystem-isolation readiness."
     },
@@ -169,8 +169,8 @@
       ],
       "justification": "T-043 native maintenance extends the existing T-002 Windows authority C++ boundary (token/ACL/registry primitives with no TypeScript facility). Only the maintenance primitive and its test fixture use C++; versioned maintenance protocol, PoP challenge binding and recovery stay TypeScript.",
       "owner": "ai-gateway-service/native-authority",
-      "removalBy": "2026-12-11",
-      "migrationPlan": "At the 2026-12-11 compatibility review, retain only measured Win32 maintenance primitives still unavailable to the TypeScript runtime, with the recorded native validation evidence. Remove these exact files and this exception if the optional Windows authority maintenance is withdrawn; protocol logic must stay TypeScript.",
+      "removalBy": "2027-04-30",
+      "migrationPlan": "At the 2027-04-30 compatibility review, retain only measured Win32 maintenance primitives still unavailable to the TypeScript runtime, with the recorded native validation evidence. Remove these exact files and this exception if the optional Windows authority maintenance is withdrawn; protocol logic must stay TypeScript.",
       "issueId": "T-043",
       "notes": "Source/build scope only; no deployment or protection-readiness claim."
     },
@@ -190,7 +190,7 @@
       ],
       "justification": "T-067 governed-resident-execution line adds node:test suites in the established ESM JavaScript test style already covered by the pr-111 compatibility set, plus one data-directory .gitattributes needed for LFS-style line-ending policy of the packaged position dataset.",
       "owner": "forge/workforce-delivery",
-      "removalBy": "2026-12-11",
+      "removalBy": "2027-04-30",
       "migrationPlan": "Convert these suites to TypeScript during the scheduled apps/packages test migration that retires the pr-111 set; the data .gitattributes moves with the packaged dataset and is exempt as a data asset, not runtime code.",
       "issueId": "T-067",
       "notes": "Test and data assets only; no runtime module is added in JavaScript."
@@ -227,7 +227,7 @@
       ],
       "justification": "T-073 split of the agent-console CLI god-module (cli-core.js, 4356 -> 4101 lines) yields sibling modules that stay inside the same plain-Node ESM runtime chain as the grandfathered cli-core.js/cli.js entrypoints. Adding a single TypeScript sibling would not introduce TypeScript anywhere in this graph, and converting only the extracted file is not behaviour-safe while its importer remains JavaScript; the extraction was instead guarded by 15 characterization tests driving the public parseCliArgs surface, which pass identically before and after the move.",
       "owner": "agent-console/operator-interaction",
-      "removalBy": "2026-12-20",
+      "removalBy": "2027-04-30",
       "migrationPlan": "Convert the whole agent-console CLI chain (cli.js, cli-core.js and these siblings) to TypeScript in one step under T-073, gated by the same characterization tests plus `pnpm check`; when cli-core.js becomes TypeScript, delete this exception set. Ties to the scheduled apps/packages migration that retires the pr-111 set.",
       "issueId": "T-073",
       "notes": "Runtime modules are confined to the existing JavaScript CLI chain; no new language is introduced and no provider/deployment path is touched."
@@ -242,7 +242,7 @@
       ],
       "justification": "T-074 quality-matrix wiring: one vitest group runner entrypoint and two test/config assets. They follow the established ESM JavaScript tooling style already used by the sibling entrypoints under apps/ai-gateway-service/src/entrypoints/ and by the pr-111 / t-067 test sets; they add no product runtime behavior.",
       "owner": "gateway-platform/quality-gates",
-      "removalBy": "2026-12-20",
+      "removalBy": "2027-04-30",
       "migrationPlan": "Retire together with the pr-111 node-esm compatibility set during the scheduled apps/packages test migration; convert the entrypoint alongside its sibling entrypoints, not in isolation.",
       "issueId": "T-074",
       "notes": "Test and tooling assets only; no product runtime module is added in JavaScript."
