@@ -123,7 +123,10 @@ const collectCoverage = process.env.UAI_COVERAGE_COLLECT === "1";
 // reporter is switched off: no report and no threshold may be produced before
 // the merge, or every group after the first would fail the suite mid-run.
 const coverageArgs = collectCoverage
-  ? ["--reporter=blob", "--coverage", "--coverage.reporter=none"]
+  // Pin the blob output location: vitest 5 moved the default from
+  // .vitest-reports/ to .vitest/blob/, and each group's blob is renamed aside
+  // before the next group overwrites it.
+  ? ["--reporter=blob", "--coverage", "--coverage.reporter=none", "--outputFile.blob=.vitest-reports/blob.json"]
   : [];
 const args = [vitest, "run", "--maxWorkers=1", ...coverageArgs, ...files.map((file) => relative(repoRoot, file).replaceAll("\\", "/"))];
 console.log(`Vitest group ${group}: ${files.length} files${collectCoverage ? " (collecting coverage)" : ""}`);
