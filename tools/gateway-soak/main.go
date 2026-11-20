@@ -85,13 +85,14 @@ func (b *boundedBuffer) String() string {
 }
 
 type requestResult struct {
-	status        int
-	latencyMS     float64
-	ok            bool
-	protocolValid bool
-	safetyValid   bool
-	timedOut      bool
-	errCode       string
+	status           int
+	latencyMS        float64
+	ok               bool
+	protocolValid    bool
+	safetyValid      bool
+	overloadRejected bool
+	timedOut         bool
+	errCode          string
 }
 
 type metricSummary struct {
@@ -113,6 +114,7 @@ type openLoopSummary struct {
 	Failed                int               `json:"failed"`
 	ProtocolValid         int               `json:"protocolValid"`
 	SafetyValid           int               `json:"safetyValid"`
+	OverloadRejected      int               `json:"overloadRejected"`
 	Timeouts              int               `json:"timeouts"`
 	TransportErrors       int               `json:"transportErrors"`
 	MaxOutstandingObserved int              `json:"maxOutstandingObserved"`
@@ -721,12 +723,14 @@ func executeChat(client *http.Client, endpoint, model string, sequence int, requ
 	parseErr := json.Unmarshal(responseBody, &parsed)
 	protocolValid := response.StatusCode == http.StatusOK && parseErr == nil && parsed.Object == "chat.completion" && len(parsed.Choices) > 0 && parsed.Choices[0].Message.Content != ""
 	safetyValid := !requireFake || parsed.UnifiedAI.ExecutionMode == "fake"
+	overloadRejected := response.StatusCode == http.StatusServiceUnavailable && bytes.Contains(responseBody, []byte("service_overloaded"))
 	return requestResult{
-		status:        response.StatusCode,
-		latencyMS:     roundMS(time.Since(started)),
-		ok:            protocolValid && safetyValid,
-		protocolValid: protocolValid,
-		safetyValid:   safetyValid,
+		status:           response.StatusCode,
+		latencyMS:        roundMS(time.Since(started)),
+		ok:               protocolValid && safetyValid,
+		protocolValid:    protocolValid,
+		safetyValid:      safetyValid,
+		overloadRejected: overloadRejected,
 	}
 }
 
@@ -768,6 +772,9 @@ func summarizeOpenLoop(scheduled, started, dropped, maxOutstanding int, targetRP
 		}
 		if result.safetyValid {
 			summary.SafetyValid++
+		}
+		if result.overloadRejected {
+			summary.OverloadRejected++
 		}
 		if result.timedOut {
 			summary.Timeouts++
@@ -983,7 +990,7 @@ func buildChecks(cfg config, health healthResult, warmup warmupSummary, openLoop
 	if cfg.managed {
 		checks = append(checks,
 			check("managed_warmup_stable", warmup.Status == "passed", "managed gateway reaches bounded steady state before fixed-arrival measurement", warmup),
-			check("managed_fake_only", health.OK && health.ProviderMode == "fake" && !health.RealProviderEnabled && openLoop != nil && openLoop.SafetyValid == openLoop.Started, "managed load remains fake-only with real providers disabled", map[string]any{"health": health, "safetyValid": field(openLoop, func(v *openLoopSummary) any { return v.SafetyValid })}),
+			check("managed_fake_only", health.OK && health.ProviderMode == "fake" && !health.RealProviderEnabled && openLoop != nil && openLoop.SafetyValid+openLoop.OverloadRejected == openLoop.Started, "managed load remains fake-only with real providers disabled", map[string]any{"health": health, "safetyValid": field(openLoop, func(v *openLoopSummary) any { return v.SafetyValid }), "overloadRejected": field(openLoop, func(v *openLoopSummary) any { return v.OverloadRejected })}),
 			check("managed_gateway_cleaned_up", cleanedUp == true, "managed gateway process exits after all phases", cleanedUp),
 		)
 	}
