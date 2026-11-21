@@ -273,17 +273,21 @@ test("every generated article page still matches its markdown source", async () 
   // A skip has to be a reported fact, not an absorbed one: this repository's own history is deep, so a
   // non-empty list here means the comparison silently did not run in an environment that claimed it could.
   // The rule has to hold in both environments, or CI's depth-2 checkout just moves the red instead of
-  // explaining it. So: account for every page, and allow a skip only when the reading returned the oldest
-  // commit this clone can see - which is what a graft boundary is. In a full-history clone nothing qualifies,
-  // so the comparison is required to run, and a silently vacuous arm is not available as an escape route.
-  const oldestVisible = spawnSync("git", ["rev-list", "--max-parents=0", "HEAD"], { encoding: "utf8" }).stdout.trim().split(String.fromCharCode(10)).pop();
+  // explaining it. So: account for every page, and allow a skip only when the reading returned a graft
+  // boundary of this clone. In a full-history clone nothing qualifies, so the comparison is required to
+  // run, and a silently vacuous arm is not available as an escape route. The boundary is a SET, not one
+  // commit: a shallow clone of a merge-tip HEAD grafts every parent the fetch pulled (a depth-2 checkout
+  // of a merge commit sees the tip plus both parents, each parentless), so `--max-parents=0` lists all
+  // of them and the renderer may legitimately report any member.
+  const boundaryShas = spawnSync("git", ["rev-list", "--max-parents=0", "HEAD"], { encoding: "utf8" }).stdout.trim().split(String.fromCharCode(10)).filter(Boolean);
+  const boundaryShort = boundaryShas.map((b) => b.slice(0, 8));
   for (const entry of boundaryLimited) {
     const sha = entry.split("@")[1];
-    assert.equal(oldestVisible.slice(0, 8), sha, entry + " was skipped, but the oldest commit this clone can see is " + oldestVisible.slice(0, 8) + " - this is not a shallow-clone reading");
+    assert.ok(boundaryShort.includes(sha), entry + " was skipped, but the commits this clone can see as shallow boundaries are " + boundaryShort.join(",") + " - this is not a shallow-clone reading");
   }
   assert.equal(compared.length + boundaryLimited.length, names.length, "every generated page must be either compared or accounted for as boundary-limited");
   if (boundaryLimited.length > 0) {
-    console.log("SKIPPED source-date comparison for " + boundaryLimited.length + " readings bounded by commit " + oldestVisible.slice(0, 8) + " (shallow checkout); " + compared.length + " pages were compared for real");
+    console.log("SKIPPED source-date comparison for " + boundaryLimited.length + " readings bounded by " + (boundaryShort.length === 1 ? "commit " + boundaryShort[0] : "boundary commits " + boundaryShort.join(",")) + " (shallow checkout); " + compared.length + " pages were compared for real");
   } else {
     console.log("compared source dates for all " + compared.length + " generated pages");
   }
