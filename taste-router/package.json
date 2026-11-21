@@ -30,6 +30,6 @@
     "cloudflare-workers"
   ],
   "devDependencies": {
-    "wrangler": "^4.149.0"
+    "wrangler": "^4.164.0"
   }
 }
